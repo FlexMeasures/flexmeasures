@@ -389,9 +389,9 @@ class SensorAPI(FlaskView):
         deprecate_field(
             DEPRECATED_FLEX_CONFIGURATION_FIELDS,
             deprecation_date="2022-12-14",
-            deprecation_link="https://flexmeasures.readthedocs.org/some-deprecation-notice",
+            deprecation_link="https://flexmeasures.readthedocs.io/en/latest/api/change_log.html#v3-0-4-2022-12-08",
             sunset_date="2023-02-01",
-            sunset_link="https://flexmeasures.readthedocs.org/some-sunset-notice",
+            sunset_link="https://flexmeasures.readthedocs.io/en/latest/api/change_log.html#v3-0-4-2022-12-08",
         )
         found_fields: Dict[str, List[str]] = dict(model=[], context=[])
         deprecation_message = ""

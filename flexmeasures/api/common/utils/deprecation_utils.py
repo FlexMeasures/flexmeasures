@@ -30,9 +30,9 @@ def deprecate_field(
             deprecate_field(
                 "color",
                 deprecation_date="2022-12-14",
-                deprecation_link="https://flexmeasures.readthedocs.org/some-deprecation-notice",
+                deprecation_link="https://flexmeasures.readthedocs.io/some-deprecation-notice",
                 sunset_date="2023-02-01",
-                sunset_link="https://flexmeasures.readthedocs.org/some-sunset-notice",
+                sunset_link="https://flexmeasures.readthedocs.io/some-sunset-notice",
             )
 
     :param field:            The field (or fields, as a list of strings) to be deprecated
@@ -89,9 +89,9 @@ def deprecate_blueprint(
     >>> deprecate_blueprint(
             deprecated_bp,
             deprecation_date="2022-12-14",
-            deprecation_link="https://flexmeasures.readthedocs.org/some-deprecation-notice",
+            deprecation_link="https://flexmeasures.readthedocs.io/some-deprecation-notice",
             sunset_date="2023-02-01",
-            sunset_link="https://flexmeasures.readthedocs.org/some-sunset-notice",
+            sunset_link="https://flexmeasures.readthedocs.io/some-sunset-notice",
         )
 
     :param blueprint:        The blueprint to be deprecated
