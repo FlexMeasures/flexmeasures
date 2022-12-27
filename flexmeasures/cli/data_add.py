@@ -999,7 +999,7 @@ def add_schedule_for_storage(
         soc_max = convert_units(soc_max.magnitude, str(soc_max.units), "MWh", capacity=capacity_str)  # type: ignore
 
     scheduling_kwargs = dict(
-        sensor_id=power_sensor.id,
+        sensor=power_sensor,
         start=start,
         end=end,
         belief_time=server_now(),

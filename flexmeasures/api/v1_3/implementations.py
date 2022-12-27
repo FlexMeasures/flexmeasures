@@ -352,7 +352,7 @@ def post_udi_event_response(unit: str, prior: datetime):
     flex_model["soc-targets"] = targets
 
     create_scheduling_job(
-        sensor_id=sensor.id,
+        sensor=sensor,
         start=start_of_schedule,
         end=end_of_schedule,
         resolution=sensor.event_resolution,
