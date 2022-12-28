@@ -5,8 +5,8 @@ from marshmallow import (
     fields,
     post_load,
     validates,
-    validates_schema,
 )
+from pandas.api.types import is_numeric_dtype
 import pandas as pd
 import timely_beliefs as tb
 from werkzeug.datastructures import FileStorage
@@ -126,15 +126,25 @@ class SensorDataFileSchema(Schema):
         sensor = fields.pop("sensor")
         dfs = []
         files: list[FileStorage] = fields.pop("uploaded_files")
-        for file in files:
-            df = tb.read_csv(
-                file,
-                sensor,
-                source=current_user.data_source[0],
-                belief_time=pd.Timestamp.utcnow(),
-                resample=True,
-            )
-            print(df)
-            dfs.append(df)
+        errors = {}
+        for i, file in enumerate(files):
+            try:
+                df = tb.read_csv(
+                    file,
+                    sensor,
+                    source=current_user.data_source[0],
+                    belief_time=pd.Timestamp.utcnow(),
+                    resample=True,
+                )
+                assert is_numeric_dtype(
+                    df["event_value"]
+                ), "event values should be numeric"
+                dfs.append(df)
+            except Exception as e:
+                errors[
+                    i
+                ] = f"Invalid content in file: {file.filename}. Failed with: {str(e)}"
+        if errors:
+            raise ValidationError(errors)
         fields["data"] = dfs
         return fields
