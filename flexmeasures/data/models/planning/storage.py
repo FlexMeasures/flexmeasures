@@ -120,15 +120,17 @@ class StorageScheduler(Scheduler):
                 beliefs_before=belief_time,
                 sensor=inflexible_sensor,
             )
-        if soc_targets is not None and not soc_targets.empty:
-            soc_targets = soc_targets.tz_convert("UTC")
-            device_constraints[0]["equals"] = soc_targets.shift(
-                -1, freq=resolution
-            ).values * (timedelta(hours=1) / resolution) - soc_at_start * (
-                timedelta(hours=1) / resolution
-            )  # shift "equals" constraint for target SOC by one resolution (the target defines a state at a certain time,
-            # while the "equals" constraint defines what the total stock should be at the end of a time slot,
-            # where the time slot is indexed by its starting time)
+        if soc_targets is not None:
+            # make an equality series with the SOC targets set in the flex model
+            # device_constraints[0] refers to the flexible device we are scheduling
+            device_constraints[0]["equals"] = build_device_soc_targets(
+                soc_targets,
+                soc_at_start,
+                start,
+                end,
+                resolution,
+            )
+
         device_constraints[0]["min"] = (soc_min - soc_at_start) * (
             timedelta(hours=1) / resolution
         )
@@ -247,14 +249,6 @@ class StorageScheduler(Scheduler):
         self.flex_model = StorageFlexModelSchema().load(self.flex_model)
         self.flex_context = FlexContextSchema().load(self.flex_context)
 
-        # Make SOC targets into a series for easier use
-        self.flex_model["soc_targets"] = build_soc_targets(
-            self.flex_model.get("soc_targets", []),
-            self.start,
-            self.end,
-            self.sensor.event_resolution,
-        )
-
         return self.flex_model
 
     def get_min_max_targets(
@@ -312,14 +306,17 @@ class StorageScheduler(Scheduler):
                     )
 
 
-def build_soc_targets(
-    targets: List[Dict[datetime, float]],
+def build_device_soc_targets(
+    targets: List[Dict[datetime, float]] | pd.Series,
+    soc_at_start: float,
     start_of_schedule: datetime,
     end_of_schedule: datetime,
     resolution: timedelta,
 ) -> pd.Series:
     """
-    Utility function to make sure soc targets are a convenient series fitting our time frame.
+    Utility function to create a Pandas series from SOC targets we got from the flex-model.
+
+    Should set NaN anywhere where there is no target.
 
     Target SOC values should be indexed by their due date. For example, for quarter-hourly targets between 5 and 6 AM:
     >>> df = pd.Series(data=[1, 2, 2.5, 3], index=pd.date_range(datetime(2010,1,1,5), datetime(2010,1,1,6), freq=timedelta(minutes=15), inclusive="right"))
@@ -333,27 +330,41 @@ def build_soc_targets(
     TODO: this function could become the deserialization method of a new SOCTargetsSchema (targets, plural), which wraps SOCTargetSchema.
 
     """
-    soc_targets = initialize_series(
-        np.nan,
-        start=start_of_schedule,
-        end=end_of_schedule,
-        resolution=resolution,
-        inclusive="right",  # note that target values are indexed by their due date (i.e. inclusive="right")
-    )
+    if isinstance(targets, pd.Series):  # some teats prepare it this way
+        device_targets = targets
+    else:
+        device_targets = initialize_series(
+            np.nan,
+            start=start_of_schedule,
+            end=end_of_schedule,
+            resolution=resolution,
+            inclusive="right",  # note that target values are indexed by their due date (i.e. inclusive="right")
+        )
 
-    for target in targets:
-        target_value = target["value"]
-        target_datetime = target["datetime"].astimezone(
-            soc_targets.index.tzinfo
-        )  # otherwise DST would be problematic
-        if target_datetime > end_of_schedule:
-            raise ValueError(
-                f'Target datetime exceeds {end_of_schedule}. Maximum scheduling horizon is {current_app.config.get("FLEXMEASURES_PLANNING_HORIZON")}.'
-            )
+        for target in targets:
+            target_value = target["value"]
+            target_datetime = target["datetime"].astimezone(
+                device_targets.index.tzinfo
+            )  # otherwise DST would be problematic
+            if target_datetime > end_of_schedule:
+                raise ValueError(
+                    f'Target datetime exceeds {end_of_schedule}. Maximum scheduling horizon is {current_app.config.get("FLEXMEASURES_PLANNING_HORIZON")}.'
+                )
 
-        soc_targets.loc[target_datetime] = target_value
+            device_targets.loc[target_datetime] = target_value
 
-    # soc targets are at the end of each time slot, while prices are indexed by the start of each time slot
-    soc_targets = soc_targets[start_of_schedule + resolution : end_of_schedule]
+        # soc targets are at the end of each time slot, while prices are indexed by the start of each time slot
+        device_targets = device_targets[
+            start_of_schedule + resolution : end_of_schedule
+        ]
 
-    return soc_targets
+    device_targets = device_targets.tz_convert("UTC")
+
+    # shift "equals" constraint for target SOC by one resolution (the target defines a state at a certain time,
+    # while the "equals" constraint defines what the total stock should be at the end of a time slot,
+    # where the time slot is indexed by its starting time)
+    device_targets = device_targets.shift(-1, freq=resolution).values * (
+        timedelta(hours=1) / resolution
+    ) - soc_at_start * (timedelta(hours=1) / resolution)
+
+    return device_targets
