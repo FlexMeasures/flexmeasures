@@ -4,12 +4,11 @@ from typing import List, Optional
 from flask import current_app
 from flask_classful import FlaskView, route
 from flask_json import as_json
-from flask_security import auth_required, current_user
+from flask_security import auth_required
 import isodate
 from marshmallow import validate, fields, Schema
 from marshmallow.validate import OneOf
 import numpy as np
-import pandas as pd
 from rq.job import Job, NoSuchJobError
 import timely_beliefs as tb
 from webargs.flaskparser import use_args, use_kwargs
@@ -37,8 +36,13 @@ from flexmeasures.data.models.planning.utils import initialize_series
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.queries.utils import simplify_index
-from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField, CSVFileSchema
+from flexmeasures.data.schemas.sensors import (
+    SensorSchema,
+    SensorIdField,
+    SensorDataFileSchema,
+)
 from flexmeasures.data.schemas.units import QuantityField
+from flexmeasures.data.schemas.utils import path_and_files
 from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.services.sensors import get_sensors
 from flexmeasures.data.services.scheduling import (
@@ -116,29 +120,9 @@ class SensorAPI(FlaskView):
         return sensors_schema.dump(sensors), 200
 
     @route("<id>/data/upload", methods=["POST"])
-    @use_kwargs(
-        {"sensor": SensorIdField(data_key="id")},
-        location="path",
-    )
-    @use_kwargs(
-        CSVFileSchema,
-        location="files",
-    )
-    def upload_data(self, sensor, uploaded_files, *args, **kwargs):
-        dfs = []
-        for f in uploaded_files:
-            if not f.filename:
-                continue
-            df = tb.read_csv(
-                f,
-                sensor,
-                source=current_user.data_source[0],
-                belief_time=pd.Timestamp.utcnow(),
-                resample=True,
-            )
-            print(df)
-            dfs.append(df)
-        response, code = save_and_enqueue(dfs)
+    @path_and_files(SensorDataFileSchema)
+    def upload_data(self, data: list[tb.BeliefsDataFrame], **kwargs):
+        response, code = save_and_enqueue(data)
         return response, code
 
     @route("/data", methods=["POST"])

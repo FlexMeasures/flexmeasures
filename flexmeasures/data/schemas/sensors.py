@@ -1,4 +1,7 @@
+from flask_security import current_user
 from marshmallow import Schema, fields, validates, ValidationError, validates_schema
+import pandas as pd
+import timely_beliefs as tb
 from werkzeug.datastructures import FileStorage
 
 from flexmeasures.data import ma
@@ -75,27 +78,45 @@ class SensorIdField(MarshmallowClickMixin, fields.Int):
         return sensor.id
 
 
-class CSVFileSchema(Schema):
+class SensorDataFileSchema(Schema):
     uploaded_files = fields.List(
         fields.Field(metadata={"type": "string", "format": "byte"}),
         allow_none=True,
         data_key="uploaded-files",
     )
+    sensor = SensorIdField(data_key="id")
 
     @validates_schema
     def validate_uploaded_file(self, fields: dict, **kwargs):
         errors = {}
         files: list[FileStorage] = fields.get("uploaded_files", [])
 
+        dfs = []
+        sensor = fields["sensor"]
         for file in files:
-            if type(file) != FileStorage:
+            if not isinstance(file, FileStorage):
                 errors["uploaded-files"] = [
                     f"Invalid content. Only CSV files are accepted."
+                ]
+            elif not file.filename:
+                errors["uploaded-files"] = [
+                    f"Invalid filename: {file}. File extension should be '.csv'."
                 ]
             elif file.content_type not in {"text/csv", "text/plain", "text/x-csv"}:
                 errors["uploaded-files"] = [
                     f"Invalid file_type: {file.content_type}. Only CSV files are accepted."
                 ]
+            else:
+                df = tb.read_csv(
+                    file,
+                    sensor,
+                    source=current_user.data_source[0],
+                    belief_time=pd.Timestamp.utcnow(),
+                    resample=True,
+                )
+                print(df)
+                dfs.append(df)
+        fields["data"] = dfs
         if "uploaded-files" in errors:
             raise ValidationError(errors)
         return fields
