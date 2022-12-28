@@ -163,7 +163,7 @@ Describing flexibility
 FlexMeasures computes schedules for energy systems that consist of multiple devices that consume and/or produce electricity.
 We model a device as an asset with a power sensor, and compute schedules only for flexible devices, while taking into account inflexible devices.
 
-To compute a schedule, FlexMeasures first needs to assess under what configuration flexibility can be made available to the system.
+To compute a schedule, FlexMeasures first needs to assess the flexibility state of the system.
 This is described by the `flex model` (information about the state and possible actions of the flexible device) and the `flex-context`
 (information about the system as a whole, in order to assess the value of activating flexibility).
 
