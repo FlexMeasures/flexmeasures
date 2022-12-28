@@ -92,24 +92,29 @@ class SensorDataFileSchema(Schema):
     )
     sensor = SensorIdField(data_key="id")
 
+    _valid_content_types = {"text/csv", "text/plain", "text/x-csv"}
+
     @validates("uploaded_files")
     def validate_uploaded_files(self, files: list[FileStorage]):
         """Validate the deserialized fields."""
         errors = {}
-        for file in files:
+        for i, file in enumerate(files):
+            file_errors = []
             if not isinstance(file, FileStorage):
-                errors["uploaded-files"] = [
-                    f"Invalid content. Only CSV files are accepted."
-                ]
+                file_errors += [f"Invalid content. Only CSV files are accepted."]
+            if file.filename == "":
+                file_errors += ["Filename is missing."]
             elif file.filename[-4:].lower() != ".csv":
-                errors["uploaded-files"] = [
-                    f"Invalid filename: {file}. File extension should be '.csv'."
+                file_errors += [
+                    f"Invalid filename: {file.filename}. File extension should be '.csv'."
                 ]
-            elif file.content_type not in {"text/csv", "text/plain", "text/x-csv"}:
-                errors["uploaded-files"] = [
-                    f"Invalid content type: {file.content_type}. Only CSV files are accepted."
+            if file.content_type not in self._valid_content_types:
+                file_errors += [
+                    f"Invalid content type: {file.content_type}. Only the following content types are accepted: {self._valid_content_types}."
                 ]
-        if "uploaded-files" in errors:
+            if file_errors:
+                errors[i] = file_errors
+        if errors:
             raise ValidationError(errors)
 
     @post_load
