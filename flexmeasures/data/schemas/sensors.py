@@ -92,11 +92,10 @@ class SensorDataFileSchema(Schema):
     )
     sensor = SensorIdField(data_key="id")
 
-    @validates_schema
-    def validate_uploaded_file(self, fields: dict, **kwargs):
+    @validates("uploaded_files")
+    def validate_uploaded_files(self, files: list[FileStorage]):
         """Validate the deserialized fields."""
         errors = {}
-        files: list[FileStorage] = fields.get("uploaded_files", [])
         for file in files:
             if not isinstance(file, FileStorage):
                 errors["uploaded-files"] = [
