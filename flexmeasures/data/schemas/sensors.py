@@ -94,6 +94,7 @@ class SensorDataFileSchema(Schema):
 
     @validates_schema
     def validate_uploaded_file(self, fields: dict, **kwargs):
+        """Validate the deserialized fields."""
         errors = {}
         files: list[FileStorage] = fields.get("uploaded_files", [])
         for file in files:
@@ -114,6 +115,10 @@ class SensorDataFileSchema(Schema):
 
     @post_load
     def post_load(self, fields, **kwargs):
+        """Process the deserialized and validated fields.
+
+        Remove the 'sensor' and 'files' fields, and add the 'data' field containing a list of BeliefsDataFrames.
+        """
         sensor = fields.pop("sensor")
         dfs = []
         files: list[FileStorage] = fields.pop("uploaded_files")
