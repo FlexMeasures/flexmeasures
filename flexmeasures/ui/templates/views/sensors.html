@@ -23,7 +23,7 @@
                         <small>Belongs to: {{ sensor.generic_asset.name }} (ID: {{ sensor.generic_asset_id }})</small>
                         <form id="uploadForm" enctype="multipart/form-data" method="post">
                             <label class="custom-uploader" for="file">Upload CSV</label>
-                            <input id="file" accept="text/csv" name="filesToUpload" type="file" multiple="multiple" />
+                            <input id="file" accept="text/csv" name="uploaded-files" type="file" multiple="multiple" />
                             <button id="submitUpload" class="btn btn-sm btn-responsive btn-success create-button" name="submit" type="button">Upload files</button>
                         </form>
                     </div>

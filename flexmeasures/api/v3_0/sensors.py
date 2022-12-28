@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from typing import List, Optional
 
-from flask import current_app, request
+from flask import current_app
 from flask_classful import FlaskView, route
 from flask_json import as_json
 from flask_security import auth_required, current_user
@@ -37,7 +37,7 @@ from flexmeasures.data.models.planning.utils import initialize_series
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.queries.utils import simplify_index
-from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField
+from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField, CSVFileSchema
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.services.sensors import get_sensors
@@ -120,9 +120,13 @@ class SensorAPI(FlaskView):
         {"sensor": SensorIdField(data_key="id")},
         location="path",
     )
-    def upload_data(self, sensor, **kwargs):
+    @use_kwargs(
+        CSVFileSchema,
+        location="files",
+    )
+    def upload_data(self, sensor, uploaded_files, *args, **kwargs):
         dfs = []
-        for f in list(request.files.listvalues())[0]:
+        for f in uploaded_files:
             if not f.filename:
                 continue
             df = tb.read_csv(

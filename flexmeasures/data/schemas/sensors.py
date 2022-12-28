@@ -1,4 +1,5 @@
-from marshmallow import Schema, fields, validates, ValidationError
+from marshmallow import Schema, fields, validates, ValidationError, validates_schema
+from werkzeug.datastructures import FileStorage
 
 from flexmeasures.data import ma
 from flexmeasures.data.models.generic_assets import GenericAsset
@@ -72,3 +73,29 @@ class SensorIdField(MarshmallowClickMixin, fields.Int):
     def _serialize(self, sensor: Sensor, attr, data, **kwargs) -> int:
         """Turn a Sensor into a sensor id."""
         return sensor.id
+
+
+class CSVFileSchema(Schema):
+    uploaded_files = fields.List(
+        fields.Field(metadata={"type": "string", "format": "byte"}),
+        allow_none=True,
+        data_key="uploaded-files",
+    )
+
+    @validates_schema
+    def validate_uploaded_file(self, fields: dict, **kwargs):
+        errors = {}
+        files: list[FileStorage] = fields.get("uploaded_files", [])
+
+        for file in files:
+            if type(file) != FileStorage:
+                errors["uploaded-files"] = [
+                    f"Invalid content. Only CSV files are accepted."
+                ]
+            elif file.content_type not in {"text/csv", "text/plain", "text/x-csv"}:
+                errors["uploaded-files"] = [
+                    f"Invalid file_type: {file.content_type}. Only CSV files are accepted."
+                ]
+        if "uploaded-files" in errors:
+            raise ValidationError(errors)
+        return fields
