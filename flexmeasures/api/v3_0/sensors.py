@@ -34,7 +34,7 @@ from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField
-from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
+from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.scheduling.storage import SOCTargetSchema
 from flexmeasures.data.schemas.scheduling import FlexContextSchema
@@ -65,12 +65,6 @@ DEPRECATED_FLEX_CONFIGURATION_FIELDS = [
     "production-price-sensor",
     "inflexible-device-sensors",
 ]
-
-
-def get_default_planning_horizon():
-    return current_app.config.get(  # type: ignore
-        "FLEXMEASURES_PLANNING_HORIZON"
-    )
 
 
 class SensorAPI(FlaskView):
@@ -227,7 +221,9 @@ class SensorAPI(FlaskView):
                 data_key="start", format="iso", required=True
             ),
             "belief_time": AwareDateTimeField(format="iso", data_key="prior"),
-            "duration": DurationField(load_default=get_default_planning_horizon),
+            "duration": PlanningDurationField(
+                load_default=PlanningDurationField.load_default
+            ),
             "flex_model": fields.Dict(data_key="flex-model"),
             "soc_sensor_id": fields.Str(data_key="soc-sensor", required=False),
             "roundtrip_efficiency": QuantityField(
