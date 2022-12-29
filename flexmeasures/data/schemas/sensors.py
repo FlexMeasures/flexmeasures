@@ -101,7 +101,9 @@ class SensorDataFileSchema(Schema):
         for i, file in enumerate(files):
             file_errors = []
             if not isinstance(file, FileStorage):
-                file_errors += [f"Invalid content. Only CSV files are accepted."]
+                file_errors += [
+                    f"Invalid content: {file}. Only CSV files are accepted."
+                ]
             if file.filename == "":
                 file_errors += ["Filename is missing."]
             elif file.filename[-4:].lower() != ".csv":
