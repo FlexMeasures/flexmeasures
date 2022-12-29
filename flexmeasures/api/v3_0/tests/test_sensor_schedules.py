@@ -89,9 +89,6 @@ def test_trigger_and_get_schedule(
     asset_name,
 ):
     # trigger a schedule through the /sensors/<id>/schedules/trigger [POST] api endpoint
-    message["roundtrip-efficiency"] = 0.98
-    message["soc-min"] = 0
-    message["soc-max"] = 4
     assert len(app.queues["scheduling"]) == 0
 
     sensor = Sensor.query.filter(Sensor.name == asset_name).one_or_none()
@@ -106,11 +103,12 @@ def test_trigger_and_get_schedule(
             headers={"Authorization": auth_token},
         )
         print("Server responded with:\n%s" % trigger_schedule_response.json)
-        check_deprecation(trigger_schedule_response)
+        if "flex-model" not in message:
+            check_deprecation(trigger_schedule_response)
+            assert (
+                "soc-min" in trigger_schedule_response.json["message"]
+            )  # deprecation warning
         assert trigger_schedule_response.status_code == 200
-        assert (
-            "soc-min" in trigger_schedule_response.json["message"]
-        )  # deprecation warning
         job_id = trigger_schedule_response.json["schedule"]
 
     # look for scheduling jobs in queue
