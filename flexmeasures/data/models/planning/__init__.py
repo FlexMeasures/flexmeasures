@@ -4,7 +4,7 @@ from typing import Optional
 import pandas as pd
 from flask import current_app
 
-from flexmeasures import Sensor
+from flexmeasures.data.models.time_series import Sensor
 
 
 class Scheduler:
