@@ -114,6 +114,8 @@ def check_deprecation(
     """Check deprecation and sunset headers.
 
     Also make sure we link to some url for further info.
+    If deprecation is None, make sure there are *no* deprecation headers.
+    If sunset is None, make sure there are *no* sunset headers.
     """
     print(response.headers)
     if deprecation:
