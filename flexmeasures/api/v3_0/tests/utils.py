@@ -57,7 +57,7 @@ def message_for_trigger_schedule(
     flex_model = {
         "soc-at-start": 12.1,  # in kWh, according to soc-unit
         "soc-min": 0,  # in kWh, according to soc-unit
-        "soc-max": 4,  # in kWh, according to soc-unit
+        "soc-max": 40,  # in kWh, according to soc-unit
         "soc-unit": "kWh",
         "roundtrip-efficiency": 0.98,
     }
@@ -69,7 +69,7 @@ def message_for_trigger_schedule(
     if with_targets:
         if realistic_targets:
             # this target (in kWh, according to soc-unit) is well below the soc_max_in_mwh on the battery's sensor attributes
-            targets = [{"value": 3500, "datetime": "2015-01-02T23:00:00+01:00"}]
+            targets = [{"value": 25, "datetime": "2015-01-02T23:00:00+01:00"}]
         else:
             # this target (in kWh, according to soc-unit) is actually higher than soc_max_in_mwh on the battery's sensor attributes
             targets = [{"value": 25000, "datetime": "2015-01-02T23:00:00+01:00"}]
