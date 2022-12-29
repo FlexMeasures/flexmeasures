@@ -36,7 +36,6 @@ from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField
 from flexmeasures.data.schemas.times import AwareDateTimeField
 from flexmeasures.data.schemas.units import QuantityField
-from flexmeasures.data.schemas.scheduling.storage import SOCTargetSchema
 from flexmeasures.data.schemas.scheduling import FlexContextSchema
 from flexmeasures.data.services.sensors import get_sensors
 from flexmeasures.data.services.scheduling import (
@@ -240,9 +239,7 @@ class SensorAPI(FlaskView):
                     ]
                 ),
             ),  # todo: allow unit to be set per field, using QuantityField("%", validate=validate.Range(min=0, max=1))
-            "targets": fields.List(
-                fields.Dict, data_key="soc-targets"
-            ),
+            "targets": fields.List(fields.Dict, data_key="soc-targets"),
             "prefer_charging_sooner": fields.Bool(
                 data_key="prefer-charging-sooner", required=False
             ),

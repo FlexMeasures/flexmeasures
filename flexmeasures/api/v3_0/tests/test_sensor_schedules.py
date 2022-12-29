@@ -150,7 +150,7 @@ def test_trigger_and_get_schedule(
         == app.config.get("FLEXMEASURES_PLANNING_HORIZON") / resolution
     )
 
-    if not "flex-model" in message:
+    if "flex-model" not in message:
         start_soc = message["soc-at-start"] / 1000  # in MWh
         roundtrip_efficiency = message["roundtrip-efficiency"]
         soc_targets = message.get("soc-targets")
