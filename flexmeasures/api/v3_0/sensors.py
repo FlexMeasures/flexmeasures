@@ -34,7 +34,7 @@ from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField
-from flexmeasures.data.schemas.times import AwareDateTimeField
+from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.scheduling.storage import SOCTargetSchema
 from flexmeasures.data.schemas.scheduling import FlexContextSchema
@@ -65,6 +65,12 @@ DEPRECATED_FLEX_CONFIGURATION_FIELDS = [
     "production-price-sensor",
     "inflexible-device-sensors",
 ]
+
+
+def get_default_planning_horizon():
+    return current_app.config.get(  # type: ignore
+        "FLEXMEASURES_PLANNING_HORIZON"
+    )
 
 
 class SensorAPI(FlaskView):
@@ -221,6 +227,7 @@ class SensorAPI(FlaskView):
                 data_key="start", format="iso", required=True
             ),
             "belief_time": AwareDateTimeField(format="iso", data_key="prior"),
+            "duration": DurationField(load_default=get_default_planning_horizon),
             "flex_model": fields.Dict(data_key="flex-model"),
             "soc_sensor_id": fields.Str(data_key="soc-sensor", required=False),
             "roundtrip_efficiency": QuantityField(
@@ -265,6 +272,7 @@ class SensorAPI(FlaskView):
         self,
         sensor: Sensor,
         start_of_schedule: datetime,
+        duration: Optional[timedelta] = None,
         belief_time: Optional[datetime] = None,
         start_value: Optional[float] = None,
         soc_min: Optional[float] = None,
@@ -301,9 +309,7 @@ class SensorAPI(FlaskView):
                   See https://github.com/FlexMeasures/flexmeasures/issues/485. Until then, it is possible to call this endpoint for one flexible endpoint at a time
                   (considering already scheduled sensors as inflexible).
 
-        The length of schedules is set by the config setting :ref:`planning_horizon_config`, defaulting to 12 hours.
-
-        .. todo:: add a schedule duration parameter, instead of always falling back to FLEXMEASURES_PLANNING_HORIZON
+        The length of schedules is set by the duration field, or otherwise the config setting :ref:`planning_horizon_config`, defaulting to 12 hours.
 
         The appropriate algorithm is chosen by FlexMeasures (based on asset type).
         It's also possible to use custom schedulers and custom flexibility models, see :ref:`plugin_customization`.
@@ -449,9 +455,7 @@ class SensorAPI(FlaskView):
             )
         # -- end deprecation logic
 
-        end_of_schedule = start_of_schedule + current_app.config.get(  # type: ignore
-            "FLEXMEASURES_PLANNING_HORIZON"
-        )
+        end_of_schedule = start_of_schedule + duration
         scheduler_kwargs = dict(
             sensor=sensor,
             start=start_of_schedule,

@@ -92,6 +92,7 @@ def test_trigger_and_get_schedule(
     message["roundtrip-efficiency"] = 0.98
     message["soc-min"] = 0
     message["soc-max"] = 4
+    message["duration"] = "PT48H"
     assert len(app.queues["scheduling"]) == 0
 
     sensor = Sensor.query.filter(Sensor.name == asset_name).one_or_none()
