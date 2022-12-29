@@ -150,20 +150,17 @@ def test_trigger_and_get_schedule(
         == app.config.get("FLEXMEASURES_PLANNING_HORIZON") / resolution
     )
 
+    if not "flex-model" in message:
+        start_soc = message["soc-at-start"] / 1000  # in MWh
+        roundtrip_efficiency = message["roundtrip-efficiency"]
+        soc_targets = message.get("soc-targets")
+    else:
+        start_soc = message["flex-model"]["soc-at-start"] / 1000  # in MWh
+        roundtrip_efficiency = message["flex-model"]["roundtrip-efficiency"]
+        soc_targets = message["flex-model"].get("soc-targets")
+
     # check targets, if applicable
-    if (
-        "soc-targets" in message
-        or "flex-model" in message
-        and "soc-targets" in message["flex-model"]
-    ):
-        if not "flex-model" in message:
-            start_soc = message["soc-at-start"] / 1000  # in MWh
-            soc_targets = message["soc-targets"]
-            roundtrip_efficiency = message["roundtrip-efficiency"]
-        else:
-            start_soc = message["flex-model"]["soc-at-start"] / 1000  # in MWh
-            soc_targets = message["flex-model"]["soc-targets"]
-            roundtrip_efficiency = message["flex-model"]["roundtrip-efficiency"]
+    if soc_targets:
         soc_schedule = integrate_time_series(
             consumption_schedule,
             start_soc,
@@ -215,3 +212,6 @@ def test_trigger_and_get_schedule(
         get_schedule_response_long.json["values"][0:192]
         == get_schedule_response.json["values"]
     )
+
+    # Check whether the soc-at-start was persisted as an asset attribute
+    assert sensor.generic_asset.get_attribute("soc_in_mwh") == start_soc
