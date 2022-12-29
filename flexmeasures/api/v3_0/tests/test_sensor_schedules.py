@@ -153,8 +153,17 @@ def test_trigger_and_get_schedule(
     )
 
     # check targets, if applicable
-    if "targets" in message:
-        start_soc = message["soc-at-start"] / 1000  # in MWh
+    if (
+        "soc-targets" in message
+        or "flex-model" in message
+        and "soc-targets" in message["flex-model"]
+    ):
+        if not "flex-model" in message:
+            start_soc = message["soc-at-start"] / 1000  # in MWh
+            soc_targets = message["soc-targets"]
+        else:
+            start_soc = message["flex-model"]["soc-at-start"] / 1000  # in MWh
+            soc_targets = message["flex-model"]["soc-targets"]
         soc_schedule = integrate_time_series(
             consumption_schedule,
             start_soc,
@@ -162,8 +171,8 @@ def test_trigger_and_get_schedule(
         )
         print(consumption_schedule)
         print(soc_schedule)
-        for target in message["targets"]:
-            assert soc_schedule[target["datetime"]] == target["soc-target"] / 1000
+        for target in soc_targets:
+            assert soc_schedule[target["datetime"]] == target["value"] / 1000
 
     # try to retrieve the schedule through the /sensors/<id>/schedules/<job_id> [GET] api endpoint
     get_schedule_message = message_for_get_device_message(
