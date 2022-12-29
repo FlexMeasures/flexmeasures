@@ -114,17 +114,25 @@ def check_deprecation(
     """Check deprecation and sunset headers.
 
     Also make sure we link to some url for further info.
+    If deprecation is None, make sure there are *no* deprecation headers.
+    If sunset is None, make sure there are *no* sunset headers.
     """
     print(response.headers)
     if deprecation:
-        assert deprecation in response.headers.get("Deprecation", [])
-        assert 'rel="deprecation"' in response.headers.get("Link", [])
+        assert deprecation in response.headers.getlist("Deprecation")
+        assert any(
+            'rel="deprecation"' in link for link in response.headers.getlist("Link")
+        )
     else:
-        assert deprecation not in response.headers.get("Deprecation", [])
-        assert 'rel="deprecation"' not in response.headers.get("Link", [])
+        assert deprecation not in response.headers.getlist("Deprecation")
+        assert all(
+            'rel="deprecation"' not in link for link in response.headers.getlist("Link")
+        )
     if sunset:
-        assert sunset in response.headers.get("Sunset", [])
-        assert 'rel="sunset"' in response.headers.get("Link", [])
+        assert sunset in response.headers.getlist("Sunset")
+        assert any('rel="sunset"' in link for link in response.headers.getlist("Link"))
     else:
-        assert sunset not in response.headers.get("Sunset", [])
-        assert 'rel="sunset"' not in response.headers.get("Link", [])
+        assert sunset not in response.headers.getlist("Sunset")
+        assert all(
+            'rel="sunset"' not in link for link in response.headers.getlist("Link")
+        )

@@ -119,3 +119,23 @@ More information about a deprecation, sunset, and possibly recommended replaceme
 - ``"latest-version"``
 - ``"alternate"``
 - ``"sunset"``
+
+Here is a client-side code example in Python (this merely prints out the deprecation header, sunset header and relevant links, and should be revised to make use of the client's monitoring tools):
+
+.. code-block:: python
+
+        def check_deprecation_and_sunset(self, url, response):
+        """Print deprecation and sunset headers, along with info links.
+
+        Reference
+        ---------
+        https://flexmeasures.readthedocs.io/en/latest/api/introduction.html#deprecation-and-sunset
+        """
+        # Go through the response headers in their given order
+        for header, content in response.headers:
+            if header == "Deprecation":
+                print(f"Your request to {url} returned a deprecation warning. Deprecation: {content}")
+            elif header == "Sunset":
+                print(f"Your request to {url} returned a sunset warning. Sunset: {content}")
+            elif header == "Link" and ('rel="deprecation";' in content or 'rel="sunset";' in content):
+                print(f"Further info is available: {content}")
