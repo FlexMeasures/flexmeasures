@@ -133,11 +133,11 @@ def _add_headers(
     sunset: str | None,
     sunset_link: str | None,
 ) -> Response:
-    response.headers["Deprecation"] = deprecation
-    if sunset:
-        response.headers["Sunset"] = sunset
+    response.headers.extend({"Deprecation": deprecation})
     if deprecation_link:
         response = _add_link(response, deprecation_link, "deprecation")
+    if sunset:
+        response.headers.extend({"Sunset": sunset})
     if sunset_link:
         response = _add_link(response, sunset_link, "sunset")
     return response
@@ -145,10 +145,7 @@ def _add_headers(
 
 def _add_link(response: Response, link: str, rel: str) -> Response:
     link_text = f'<{link}>; rel="{rel}"; type="text/html"'
-    if response.headers.get("Link"):
-        response.headers["Link"] += f", {link_text}"
-    else:
-        response.headers["Link"] = link_text
+    response.headers.extend({"Link": link_text})
     return response
 
 
