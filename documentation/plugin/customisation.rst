@@ -23,8 +23,7 @@ The following minimal example gives you an idea of some meta information you can
     from datetime import datetime, timedelta
     import pandas as pd
     from pandas.tseries.frequencies import to_offset
-    from flexmeasures.data.models.time_series import Sensor
-    from flexmeasures.data.models.planning import Scheduler
+    from flexmeasures import Scheduler, Sensor
 
 
     class DummyScheduler(Scheduler):
@@ -61,7 +60,7 @@ Finally, make your scheduler be the one that FlexMeasures will use for certain s
 
 .. code-block:: python
 
-    from flexmeasures.data.models.time_series import Sensor
+    from flexmeasures import Sensor
 
     scheduler_specs = {
         "module": "flexmeasures.data.tests.dummy_scheduler",  # or a file path, see note below
@@ -206,7 +205,7 @@ We demonstrate this here, and also show how you can add your own custom field sc
     from typing import Optional
 
     import click
-    from flexmeasures.data.schemas.times import AwareDateTimeField
+    from flexmeasures.data.schemas import AwareDateTimeField
     from flexmeasures.data.schemas.utils import MarshmallowClickMixin
     from marshmallow import fields
 
