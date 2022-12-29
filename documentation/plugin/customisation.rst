@@ -42,8 +42,8 @@ The following minimal example gives you an idea of some meta information you can
             (Schedulers return positive values for consumption, and negative values for production)
             """
             return pd.Series(
-                sensor.get_attribute("capacity_in_mw"),
-                index=pd.date_range(start, end, freq=resolution, closed="left"),
+                self.sensor.get_attribute("capacity_in_mw"),
+                index=pd.date_range(self.start, self.end, freq=self.resolution, closed="left"),
             )
     
         def deserialize_config(self):
