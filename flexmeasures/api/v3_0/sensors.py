@@ -241,7 +241,7 @@ class SensorAPI(FlaskView):
                 ),
             ),  # todo: allow unit to be set per field, using QuantityField("%", validate=validate.Range(min=0, max=1))
             "targets": fields.List(
-                fields.Nested(SOCTargetSchema), data_key="soc-targets"
+                fields.Dict, data_key="soc-targets"
             ),
             "prefer_charging_sooner": fields.Bool(
                 data_key="prefer-charging-sooner", required=False
@@ -401,6 +401,7 @@ class SensorAPI(FlaskView):
             (soc_min, "soc-min"),
             (soc_max, "soc-max"),
             (unit, "soc-unit"),
+            (kwargs.get("targets"), "soc-targets"),
             (roundtrip_efficiency, "roundtrip-efficiency"),
             (
                 prefer_charging_sooner,
