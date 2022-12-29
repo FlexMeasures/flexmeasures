@@ -161,12 +161,16 @@ def test_trigger_and_get_schedule(
         if not "flex-model" in message:
             start_soc = message["soc-at-start"] / 1000  # in MWh
             soc_targets = message["soc-targets"]
+            roundtrip_efficiency = message["roundtrip-efficiency"]
         else:
             start_soc = message["flex-model"]["soc-at-start"] / 1000  # in MWh
             soc_targets = message["flex-model"]["soc-targets"]
+            roundtrip_efficiency = message["flex-model"]["roundtrip-efficiency"]
         soc_schedule = integrate_time_series(
             consumption_schedule,
             start_soc,
+            up_efficiency=roundtrip_efficiency**0.5,
+            down_efficiency=roundtrip_efficiency**0.5,
             decimal_precision=6,
         )
         print(consumption_schedule)
