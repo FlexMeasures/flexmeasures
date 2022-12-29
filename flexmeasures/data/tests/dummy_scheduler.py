@@ -19,6 +19,6 @@ class DummyScheduler(Scheduler):
             resolution=self.resolution,
         )
 
-    def inspect_config(self):
+    def deserialize_config(self):
         """Do not care about any config sent in."""
-        self.config_inspected = True
+        self.config_deserialized = True

@@ -465,7 +465,7 @@ class SensorAPI(FlaskView):
         try:
             # We create a scheduler, so the flex config is also checked and errors are returned here
             scheduler = find_scheduler_class(sensor)(**scheduler_kwargs)
-            scheduler.inspect_config()
+            scheduler.deserialize_config()
         except ValidationError as err:
             return invalid_flex_config(err.messages)
         except ValueError as err:

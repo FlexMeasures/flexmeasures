@@ -46,9 +46,9 @@ The following minimal example gives you an idea of some meta information you can
                 index=pd.date_range(start, end, freq=resolution, closed="left"),
             )
     
-        def inspect_config(self):
+        def deserialize_config(self):
             """Do not care about any flex config sent in."""
-            self.config_inspected = True
+            self.config_deserialized = True
 
 
 .. note:: It's possible to add arguments that describe the asset flexibility model and the flexibility (EMS) context in more detail.

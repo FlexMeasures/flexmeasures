@@ -189,7 +189,7 @@ def test_charging_station_solver_day_2(target_soc, charging_station_name):
             "soc_targets": soc_targets,
         },
     )
-    scheduler.config_inspected = (
+    scheduler.config_deserialized = (
         True  # soc targets are already a DataFrame, names get underscore
     )
     consumption_schedule = scheduler.compute_schedule()
@@ -262,7 +262,7 @@ def test_fallback_to_unsolvable_problem(target_soc, charging_station_name):
             "soc_targets": soc_targets,
         },
     )
-    scheduler.config_inspected = (
+    scheduler.config_deserialized = (
         True  # soc targets are already a DataFrame, names get underscore
     )
     consumption_schedule = scheduler.compute_schedule()
@@ -356,7 +356,7 @@ def test_building_solver_day_2(
             "consumption_price_sensor": consumption_price_sensor,
         },
     )
-    scheduler.config_inspected = (
+    scheduler.config_deserialized = (
         True  # inflexible device sensors are already objects, names get underscore
     )
     schedule = scheduler.compute_schedule()

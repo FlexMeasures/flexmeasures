@@ -21,7 +21,7 @@ class Scheduler:
     Furthermore, the scheduler needs to have knowledge about the asset's flexibility model (under what constraints
     can the schedule be optimized?) and the system's flexibility context (which other sensors are relevant, e.g. prices).
     These two flexibility configurations are usually fed in from outside, so the scheduler should check them.
-    The inspect_flex_config function can be used for that.
+    The deserialize_flex_config function can be used for that.
 
     """
 
@@ -37,7 +37,7 @@ class Scheduler:
     flex_model: Optional[dict] = None
     flex_context: Optional[dict] = None
 
-    config_inspected = False  # This flag allows you to let the scheduler skip checking config, like timing, flex_model and flex_context
+    config_deserialized = False  # This flag allows you to let the scheduler skip checking config, like timing, flex_model and flex_context
 
     def __init__(
         self,
@@ -106,21 +106,21 @@ class Scheduler:
 
     def persist_flex_model(self):
         """
-        If useful, (parts of) the flex model can be persisted (e.g on the sensor) here,
+        If useful, (parts of) the flex model can be persisted (e.g. on the sensor) here,
         e.g. as asset attributes, sensor attributes or as sensor data (beliefs).
         """
         pass
 
-    def inspect_config(self):
+    def deserialize_config(self):
         """
         Check all configurations we have, throwing either ValidationErrors or ValueErrors.
         Other code can decide if/how to handle those.
         """
-        self.inspect_timing_config()
-        self.inspect_flex_config()
-        self.config_inspected = True
+        self.deserialize_timing_config()
+        self.deserialize_flex_config()
+        self.config_deserialized = True
 
-    def inspect_timing_config(self):
+    def deserialize_timing_config(self):
         """
         Check if the timing of the schedule is valid.
         Raises ValueErrors.
@@ -130,9 +130,9 @@ class Scheduler:
         # TODO: check if resolution times X fits into schedule length
         # TODO: check if scheduled events would start "on the clock" w.r.t. resolution (see GH#10)
 
-    def inspect_flex_config(self):
+    def deserialize_flex_config(self):
         """
-        Check if the flex model and context are valid. Should be overwritten.
+        Check if the flex model and flex context are valid. Should be overwritten.
 
         Ideas:
         - Apply a schema to check validity (see in-built flex model schemas)

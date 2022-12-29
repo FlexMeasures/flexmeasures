@@ -32,8 +32,8 @@ class StorageScheduler(Scheduler):
         """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
         For the resulting consumption schedule, consumption is defined as positive values.
         """
-        if not self.config_inspected:
-            self.inspect_config()
+        if not self.config_deserialized:
+            self.deserialize_config()
 
         start = self.start
         end = self.end
@@ -197,12 +197,13 @@ class StorageScheduler(Scheduler):
                 "soc_in_mwh", self.flex_model["soc_at_start"]
             )
 
-    def inspect_flex_config(self):
+    def deserialize_flex_config(self):
         """
-        Check storage flex model and the flex context against schemas.
-        Before that, we fill in values from wider context, if possible. Mostly, we allow several fields to come from sensor attributes.
+        Deserialize storage flex model and the flex context against schemas.
+        Before that, we fill in values from wider context, if possible.
+        Mostly, we allow several fields to come from sensor attributes.
 
-        Note: Before we apply the flex model schema, we need to use the flex model identifiers with hyphens,
+        Note: Before we apply the flex config schemas, we need to use the flex config identifiers with hyphens,
               (this is how they are represented to outside, e.g. by the API), after deserialization
               we use internal schema names (with underscores).
         """

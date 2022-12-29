@@ -19,7 +19,7 @@ class StorageFlexModelSchema(Schema):
     """
     This schema lists fields we require when scheduling storage assets.
     Some fields are not required, as they might live on the Sensor.attributes.
-    You can use StorageScheduler.inspect_flex_config to get that filled in.
+    You can use StorageScheduler.deserialize_flex_config to get that filled in.
     """
 
     soc_at_start = fields.Float(required=True, data_key="soc-at-start")
