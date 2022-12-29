@@ -81,7 +81,7 @@ def parse_as_list(
     return connections
 
 
-# TODO: we should be using webargs to get data from a request, it's more descriptive and has error handling
+# TODO: deprecate ― we should be using webargs to get data from a request, it's more descriptive and has error handling
 def get_form_from_request(_request) -> Union[dict, None]:
     if _request.method == "GET":
         d = _request.args.to_dict(
@@ -247,7 +247,7 @@ def unique_ever_seen(iterable: Sequence, selector: Sequence):
 def message_replace_name_with_ea(message_with_connections_as_asset_names: dict) -> dict:
     """
     For each connection in the message specified by a name, replace that name with the correct entity address.
-    TODO: This function is now only used in tests and should go (also asset_replace_name_with_id)
+    TODO: Deprecated. This function is now only used in tests of deprecated API versions and should go (also asset_replace_name_with_id)
     """
     message_with_connections_as_eas = copy.deepcopy(
         message_with_connections_as_asset_names

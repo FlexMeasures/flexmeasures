@@ -17,6 +17,7 @@ pytz
 numpy
 isodate
 click
+click-default-group
 email_validator
 rq
 rq-dashboard

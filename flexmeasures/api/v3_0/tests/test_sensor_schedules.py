@@ -1,14 +1,13 @@
 from flask import url_for
 import pytest
-from datetime import timedelta
 from isodate import parse_datetime
 
 import pandas as pd
 from rq.job import Job
 
-from flexmeasures.api.tests.utils import get_auth_token
+from flexmeasures.api.tests.utils import check_deprecation, get_auth_token
 from flexmeasures.api.v1_3.tests.utils import message_for_get_device_message
-from flexmeasures.api.v3_0.tests.utils import message_for_post_udi_event
+from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.tests.utils import work_on_rq
 from flexmeasures.data.services.scheduling import (
@@ -19,10 +18,64 @@ from flexmeasures.utils.calculations import integrate_time_series
 
 
 @pytest.mark.parametrize(
+    "message, field, sent_value, err_msg",
+    [
+        (message_for_trigger_schedule(), "soc-minn", 3, "Unknown field"),
+        (
+            message_for_trigger_schedule(),
+            "soc-min",
+            "not-a-float",
+            "Not a valid number",
+        ),
+        (message_for_trigger_schedule(), "soc-unit", "MWH", "Must be one of"),
+    ],
+)
+def test_trigger_schedule_with_invalid_flexmodel(
+    app,
+    add_battery_assets,
+    keep_scheduling_queue_empty,
+    message,
+    field,
+    sent_value,
+    err_msg,
+):
+    sensor = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
+    with app.test_client() as client:
+        if sent_value:  # if None, field is a term we expect in the response, not more
+            message["flex-model"][field] = sent_value
+
+        auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
+        trigger_schedule_response = client.post(
+            url_for("SensorAPI:trigger_schedule", id=sensor.id),
+            json=message,
+            headers={"Authorization": auth_token},
+        )
+        print("Server responded with:\n%s" % trigger_schedule_response.json)
+        check_deprecation(trigger_schedule_response, deprecation=None, sunset=None)
+        assert trigger_schedule_response.status_code == 422
+        assert field in trigger_schedule_response.json["message"]["json"]
+        if isinstance(trigger_schedule_response.json["message"]["json"], str):
+            # ValueError
+            assert err_msg in trigger_schedule_response.json["message"]["json"]
+        else:
+            # ValidationError (marshmallow)
+            assert (
+                err_msg in trigger_schedule_response.json["message"]["json"][field][0]
+            )
+
+
+@pytest.mark.parametrize(
     "message, asset_name",
     [
-        (message_for_post_udi_event(), "Test battery"),
-        (message_for_post_udi_event(targets=True), "Test charging station"),
+        (message_for_trigger_schedule(deprecated_format_pre012=True), "Test battery"),
+        (message_for_trigger_schedule(), "Test battery"),
+        (
+            message_for_trigger_schedule(
+                with_targets=True, deprecated_format_pre012=True
+            ),
+            "Test charging station",
+        ),
+        (message_for_trigger_schedule(with_targets=True), "Test charging station"),
     ],
 )
 def test_trigger_and_get_schedule(
@@ -31,16 +84,21 @@ def test_trigger_and_get_schedule(
     add_battery_assets,
     battery_soc_sensor,
     add_charging_station_assets,
+    keep_scheduling_queue_empty,
     message,
     asset_name,
 ):
     # trigger a schedule through the /sensors/<id>/schedules/trigger [POST] api endpoint
     message["roundtrip-efficiency"] = 0.98
     message["soc-min"] = 0
-    message["soc-max"] = 25
+    message["soc-max"] = 4
+    assert len(app.queues["scheduling"]) == 0
+
+    sensor = Sensor.query.filter(Sensor.name == asset_name).one_or_none()
+    # This makes sure we have fresh data. A hack we can remove after the deprecation cases are removed.
+    TimedBelief.query.filter(TimedBelief.sensor_id == sensor.id).delete()
+
     with app.test_client() as client:
-        sensor = Sensor.query.filter(Sensor.name == asset_name).one_or_none()
-        message["soc-sensor"] = f"ea1.2018-06.localhost:fm1.{battery_soc_sensor.id}"
         auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
         trigger_schedule_response = client.post(
             url_for("SensorAPI:trigger_schedule", id=sensor.id),
@@ -48,7 +106,11 @@ def test_trigger_and_get_schedule(
             headers={"Authorization": auth_token},
         )
         print("Server responded with:\n%s" % trigger_schedule_response.json)
+        check_deprecation(trigger_schedule_response)
         assert trigger_schedule_response.status_code == 200
+        assert (
+            "soc-min" in trigger_schedule_response.json["message"]
+        )  # deprecation warning
         job_id = trigger_schedule_response.json["schedule"]
 
     # look for scheduling jobs in queue
@@ -80,7 +142,7 @@ def test_trigger_and_get_schedule(
         .filter(TimedBelief.source_id == scheduler_source.id)
         .all()
     )
-    resolution = timedelta(minutes=15)
+    resolution = sensor.event_resolution
     consumption_schedule = pd.Series(
         [-v.event_value for v in power_values],
         index=pd.DatetimeIndex([v.event_start for v in power_values], freq=resolution),

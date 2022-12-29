@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 from datetime import datetime, timedelta
-from typing import List, Tuple, Optional
 import os
 import sys
 import importlib.util
@@ -12,12 +13,12 @@ from rq import get_current_job
 import timely_beliefs as tb
 
 from flexmeasures.data import db
+from flexmeasures.data.models.planning import Scheduler
 from flexmeasures.data.models.planning.storage import StorageScheduler
-from flexmeasures.data.models.planning.utils import ensure_storage_specs
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.models.planning import Scheduler
 from flexmeasures.data.utils import get_data_source, save_to_db
+from flexmeasures.utils.time_utils import server_now
 
 """
 The life cycle of a scheduling job:
@@ -29,52 +30,26 @@ The life cycle of a scheduling job:
 
 
 def create_scheduling_job(
-    sensor: Sensor,
-    start_of_schedule: datetime,
-    end_of_schedule: datetime,
-    belief_time: datetime,
-    resolution: timedelta,
-    consumption_price_sensor: Optional[Sensor] = None,
-    production_price_sensor: Optional[Sensor] = None,
-    inflexible_device_sensors: Optional[List[Sensor]] = None,
-    job_id: Optional[str] = None,
+    sensor: int | Sensor,
+    job_id: str | None = None,
     enqueue: bool = True,
-    storage_specs: Optional[dict] = None,
+    **scheduler_kwargs,
 ) -> Job:
     """
     Create a new Job, which is queued for later execution.
 
-    Before enqueuing, we perform some checks on sensor type and specs, for errors we want to bubble up early.
-
     To support quick retrieval of the scheduling job, the job id is the unique entity address of the UDI event.
     That means one event leads to one job (i.e. actions are event driven).
 
-    Target SOC values should be indexed by their due date. For example, for quarter-hourly targets between 5 and 6 AM:
-    >>> df = pd.Series(data=[1, 2, 2.5, 3], index=pd.date_range(datetime(2010,1,1,5), datetime(2010,1,1,6), freq=timedelta(minutes=15), inclusive="right"))
-    >>> print(df)
-        2010-01-01 05:15:00    1.0
-        2010-01-01 05:30:00    2.0
-        2010-01-01 05:45:00    2.5
-        2010-01-01 06:00:00    3.0
-        Freq: 15T, dtype: float64
+    As a rule of thumb, keep arguments to the job simple, and deserializable.
     """
-    storage_specs = ensure_storage_specs(
-        storage_specs, sensor, start_of_schedule, end_of_schedule, resolution
-    )
+    # From here on, we handle IDs again, not objects
+    if isinstance(sensor, Sensor):
+        sensor = sensor.id
 
     job = Job.create(
         make_schedule,
-        kwargs=dict(
-            sensor_id=sensor.id,
-            start=start_of_schedule,
-            end=end_of_schedule,
-            belief_time=belief_time,
-            resolution=resolution,
-            storage_specs=storage_specs,
-            consumption_price_sensor=consumption_price_sensor,
-            production_price_sensor=production_price_sensor,
-            inflexible_device_sensors=inflexible_device_sensors,
-        ),  # TODO: maybe also pass these sensors as IDs, to avoid potential db sessions confusion
+        kwargs=dict(sensor_id=sensor, **scheduler_kwargs),
         id=job_id,
         connection=current_app.queues["scheduling"].connection,
         ttl=int(
@@ -97,19 +72,18 @@ def make_schedule(
     sensor_id: int,
     start: datetime,
     end: datetime,
-    belief_time: datetime,
     resolution: timedelta,
-    storage_specs: Optional[dict],
-    consumption_price_sensor: Optional[Sensor] = None,
-    production_price_sensor: Optional[Sensor] = None,
-    inflexible_device_sensors: Optional[List[Sensor]] = None,
+    belief_time: datetime | None = None,
+    flex_model: dict | None = None,
+    flex_context: dict | None = None,
 ) -> bool:
     """
-    This function is meant to be queued as a job.
-    It thus potentially runs on a different FlexMeasures node than where the job is created.
+    This function is meant to be queued as a job. It returns True if it ran successfully.
 
-    - Choose which scheduling function can be used
-    - Compute schedule
+    Note: This function thus potentially runs on a different FlexMeasures node than where the job is created.
+
+    This is what this function does
+    - Find out which scheduler should be used & compute the schedule
     - Turn scheduled values into beliefs and save them to db
     """
     # https://docs.sqlalchemy.org/en/13/faq/connections.html#how-do-i-use-engines-connections-sessions-with-python-multiprocessing-or-os-fork
@@ -124,39 +98,21 @@ def make_schedule(
             % (rq_job.id, sensor, start, end)
         )
 
-    data_source_info = {}
-    # Choose which algorithm to use  TODO: unify loading this into a func store concept
-    if "custom-scheduler" in sensor.attributes:
-        scheduler_specs = sensor.attributes.get("custom-scheduler")
-        scheduler, data_source_info = load_custom_scheduler(scheduler_specs)
-    elif sensor.generic_asset.generic_asset_type.name in (
-        "battery",
-        "one-way_evse",
-        "two-way_evse",
-    ):
-        scheduler = StorageScheduler
-        data_source_info["model"] = scheduler.__name__
-        data_source_info["name"] = scheduler.__author__
-        data_source_info["version"] = scheduler.__version__
-    else:
-        raise ValueError(
-            "Scheduling is not (yet) supported for asset type %s."
-            % sensor.generic_asset.generic_asset_type
-        )
+    scheduler_class = find_scheduler_class(sensor)
+    data_source_info = scheduler_class.get_data_source_info()
 
-    storage_specs = ensure_storage_specs(storage_specs, sensor, start, end, resolution)
-
-    consumption_schedule = scheduler().schedule(
+    if belief_time is None:
+        belief_time = server_now()
+    scheduler: Scheduler = scheduler_class(
         sensor,
         start,
         end,
         resolution,
-        storage_specs=storage_specs,
-        consumption_price_sensor=consumption_price_sensor,
-        production_price_sensor=production_price_sensor,
-        inflexible_device_sensors=inflexible_device_sensors,
         belief_time=belief_time,
+        flex_model=flex_model,
+        flex_context=flex_context,
     )
+    consumption_schedule = scheduler.compute_schedule()
     if rq_job:
         click.echo("Job %s made schedule." % rq_job.id)
 
@@ -190,10 +146,34 @@ def make_schedule(
     return True
 
 
-def load_custom_scheduler(scheduler_specs: dict) -> Tuple[Scheduler, dict]:
+def find_scheduler_class(sensor: Sensor) -> type:
+    """
+    Find out which scheduler to use, given a sensor.
+    This will morph into a logic store utility, and schedulers should be registered for asset types there,
+    instead of this fixed lookup logic.
+    """
+    # Choose which algorithm to use  TODO: unify loading this into a func store concept
+    if "custom-scheduler" in sensor.attributes:
+        scheduler_specs = sensor.attributes.get("custom-scheduler")
+        scheduler_class = load_custom_scheduler(scheduler_specs)
+    elif sensor.generic_asset.generic_asset_type.name in (
+        "battery",
+        "one-way_evse",
+        "two-way_evse",
+    ):
+        scheduler_class = StorageScheduler
+    else:
+        raise ValueError(
+            "Scheduling is not (yet) supported for asset type %s."
+            % sensor.generic_asset.generic_asset_type
+        )
+    return scheduler_class
+
+
+def load_custom_scheduler(scheduler_specs: dict) -> type:
     """
     Read in custom scheduling spec.
-    Attempt to load the Callable, also derive data source info.
+    Attempt to load the Scheduler class to use.
 
     The scheduler class should be derived from flexmeasures.data.models.planning.Scheduler.
     The Callable is assumed to be named "schedule".
@@ -213,9 +193,6 @@ def load_custom_scheduler(scheduler_specs: dict) -> Tuple[Scheduler, dict]:
     assert "class" in scheduler_specs, "scheduler specs have no 'class'"
 
     scheduler_name = scheduler_specs["class"]
-    source_info = dict(
-        model=scheduler_name, version="1", name="Unknown author"
-    )  # default
 
     # import module
     module_descr = scheduler_specs["module"]
@@ -242,29 +219,15 @@ def load_custom_scheduler(scheduler_specs: dict) -> Tuple[Scheduler, dict]:
     # get scheduling function
     assert hasattr(
         module, scheduler_specs["class"]
-    ), "Module at {module_descr} has no class {scheduler_specs['class']}"
+    ), f"Module at {module_descr} has no class {scheduler_specs['class']}"
 
     scheduler_class = getattr(module, scheduler_specs["class"])
-
-    if hasattr(scheduler_class, "__version__"):
-        source_info["version"] = str(scheduler_class.__version__)
-    else:
-        current_app.logger.warning(
-            f"Scheduler {scheduler_class.__name__} loaded, but has no __version__ attribute."
-        )
-    if hasattr(scheduler_class, "__author__"):
-        source_info["name"] = str(scheduler_class.__author__)
-    else:
-        current_app.logger.warning(
-            f"Scheduler {scheduler_class.__name__} loaded, but has no __author__ attribute."
-        )
-
-    schedule_function_name = "schedule"
+    schedule_function_name = "compute_schedule"
     if not hasattr(scheduler_class, schedule_function_name):
         raise NotImplementedError(
             f"No function {schedule_function_name} in {scheduler_class}. Cannot load custom scheduler."
         )
-    return scheduler_class, source_info
+    return scheduler_class
 
 
 def handle_scheduling_exception(job, exc_type, exc_value, traceback):
@@ -276,23 +239,22 @@ def handle_scheduling_exception(job, exc_type, exc_value, traceback):
     job.save_meta()
 
 
-def get_data_source_for_job(
-    job: Optional[Job], sensor: Optional[Sensor] = None
-) -> Optional[DataSource]:
+def get_data_source_for_job(job: Job | None) -> DataSource | None:
     """
     Try to find the data source linked by this scheduling job.
 
     We expect that enough info on the source was placed in the meta dict.
-    For a transition period, we might have to guess a bit.
-    TODO: Afterwards, this can be lighter. We should also expect a job and no sensor is needed,
-          once API v1.3 is deprecated.
+    This only happened with v0.12. For a transition period, we might have to support older jobs who haven't got that info.
+    TODO: We should expect a job, once API v1.3 is deprecated.
     """
     data_source_info = None
     if job:
         data_source_info = job.meta.get("data_source_info")
-        if data_source_info and "id" in data_source_info:
+        if (
+            data_source_info and "id" in data_source_info
+        ):  # this is the expected outcome
             return DataSource.query.get(data_source_info["id"])
-    if data_source_info is None and sensor:
+    if data_source_info is None:
         data_source_info = dict(name="Seita", model="StorageScheduler")
         # TODO: change to raise later (v0.13) - all scheduling jobs now get full info
         current_app.logger.warning(

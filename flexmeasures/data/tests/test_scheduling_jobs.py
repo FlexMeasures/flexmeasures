@@ -35,7 +35,11 @@ def test_scheduling_a_battery(db, app, add_battery_assets, setup_test_data):
     )  # Make sure the scheduler data source isn't there
 
     job = create_scheduling_job(
-        battery, start, end, belief_time=start, resolution=resolution
+        sensor=battery,
+        start=start,
+        end=end,
+        belief_time=start,
+        resolution=resolution,
     )
 
     print("Job: %s" % job.id)
@@ -78,12 +82,14 @@ def test_loading_custom_scheduler(is_path: bool):
     Simply check if loading a custom scheduler works.
     """
     scheduler_specs["module"] = make_module_descr(is_path)
-    custom_scheduler, data_source_info = load_custom_scheduler(scheduler_specs)
+    custom_scheduler = load_custom_scheduler(scheduler_specs)
+    assert custom_scheduler.__name__ == "DummyScheduler"
+    assert "Just a dummy scheduler" in custom_scheduler.compute_schedule.__doc__
+
+    data_source_info = custom_scheduler.get_data_source_info()
     assert data_source_info["name"] == "Test Organization"
     assert data_source_info["version"] == "3"
     assert data_source_info["model"] == "DummyScheduler"
-    assert custom_scheduler.__name__ == "DummyScheduler"
-    assert "Just a dummy scheduler" in custom_scheduler.schedule.__doc__
 
 
 @pytest.mark.parametrize("is_path", [False, True])
@@ -103,7 +109,11 @@ def test_assigning_custom_scheduler(db, app, add_battery_assets, is_path: bool):
     resolution = timedelta(minutes=15)
 
     job = create_scheduling_job(
-        battery, start, end, belief_time=start, resolution=resolution
+        sensor=battery,
+        start=start,
+        end=end,
+        belief_time=start,
+        resolution=resolution,
     )
     print("Job: %s" % job.id)
 

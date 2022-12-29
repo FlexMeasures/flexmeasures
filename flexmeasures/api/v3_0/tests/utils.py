@@ -40,21 +40,35 @@ def get_asset_post_data(account_id: int = 1, asset_type_id: int = 1) -> dict:
     return post_data
 
 
-def message_for_post_udi_event(
+def message_for_trigger_schedule(
     unknown_prices: bool = False,
-    targets: bool = False,
+    with_targets: bool = False,
+    realistic_targets: bool = True,
+    deprecated_format_pre012: bool = False,
 ) -> dict:
     message = {
         "start": "2015-01-01T00:00:00+01:00",
-        "soc-at-start": 12.1,
-        "soc-unit": "kWh",
     }
-    if targets:
-        message["soc-targets"] = [
-            {"value": 25, "datetime": "2015-01-02T23:00:00+01:00"}
-        ]
     if unknown_prices:
         message[
             "start"
         ] = "2040-01-01T00:00:00+01:00"  # We have no beliefs in our test database about 2040 prices
+
+    if deprecated_format_pre012:
+        message["soc-at-start"] = 12.1
+        message["soc-unit"] = "kWh"
+    else:
+        message["flex-model"] = {}
+        message["flex-model"]["soc-at-start"] = 12.1
+        message["flex-model"]["soc-unit"] = "kWh"
+    if with_targets:
+        if realistic_targets:
+            targets = [{"value": 3500, "datetime": "2015-01-02T23:00:00+01:00"}]
+        else:
+            # this target is actually higher than soc_max_in_mwh on the battery's sensor attributes
+            targets = [{"value": 25000, "datetime": "2015-01-02T23:00:00+01:00"}]
+        if deprecated_format_pre012:
+            message["soc-targets"] = targets
+        else:
+            message["flex-model"]["soc-targets"] = targets
     return message

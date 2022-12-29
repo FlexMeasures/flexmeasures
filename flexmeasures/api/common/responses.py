@@ -264,6 +264,15 @@ def unknown_schedule(message: str) -> ResponseTuple:
     return dict(result="Rejected", status="UNKNOWN_SCHEDULE", message=message), 400
 
 
+def invalid_flex_config(message: str) -> ResponseTuple:
+    return (
+        dict(
+            result="Rejected", status="UNPROCESSABLE_ENTITY", message=dict(json=message)
+        ),
+        422,
+    )
+
+
 @BaseMessage("The requested backup is not known.")
 def unrecognized_backup(message: str) -> ResponseTuple:
     return dict(result="Rejected", status="UNRECOGNIZED_BACKUP", message=message), 400
