@@ -48,24 +48,31 @@ def message_for_trigger_schedule(
 ) -> dict:
     message = {
         "start": "2015-01-01T00:00:00+01:00",
+        "duration": "PT48H",
     }
     if unknown_prices:
         message[
             "start"
         ] = "2040-01-01T00:00:00+01:00"  # We have no beliefs in our test database about 2040 prices
 
+    flex_model = {
+        "soc-at-start": 12.1,  # in kWh, according to soc-unit
+        "soc-min": 0,  # in kWh, according to soc-unit
+        "soc-max": 40,  # in kWh, according to soc-unit
+        "soc-unit": "kWh",
+        "roundtrip-efficiency": 0.98,
+    }
     if deprecated_format_pre012:
-        message["soc-at-start"] = 12.1
-        message["soc-unit"] = "kWh"
+        # unpack flex model directly as message fields
+        message = dict(**message, **flex_model)
     else:
-        message["flex-model"] = {}
-        message["flex-model"]["soc-at-start"] = 12.1
-        message["flex-model"]["soc-unit"] = "kWh"
+        message["flex-model"] = flex_model
     if with_targets:
         if realistic_targets:
-            targets = [{"value": 3500, "datetime": "2015-01-02T23:00:00+01:00"}]
+            # this target (in kWh, according to soc-unit) is well below the soc_max_in_mwh on the battery's sensor attributes
+            targets = [{"value": 25, "datetime": "2015-01-02T23:00:00+01:00"}]
         else:
-            # this target is actually higher than soc_max_in_mwh on the battery's sensor attributes
+            # this target (in kWh, according to soc-unit) is actually higher than soc_max_in_mwh on the battery's sensor attributes
             targets = [{"value": 25000, "datetime": "2015-01-02T23:00:00+01:00"}]
         if deprecated_format_pre012:
             message["soc-targets"] = targets
