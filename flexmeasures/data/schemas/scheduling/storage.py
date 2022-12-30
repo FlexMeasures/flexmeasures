@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 from datetime import datetime
 
 from flask import current_app
-from marshmallow import Schema, post_load, validate, validates_schema, fields
+from marshmallow import Schema, post_load, validate, validates, fields
 from marshmallow.validate import OneOf, ValidationError
 
 from flexmeasures.data.schemas.times import AwareDateTimeField
@@ -50,17 +52,16 @@ class StorageFlexModelSchema(Schema):
         self.start = start
         super().__init__(*args, **kwargs)
 
-    @validates_schema
-    def check_whether_targets_exceed_max_planning_horizon(self, data: dict, **kwargs):
+    @validates("soc_targets")
+    def check_whether_targets_exceed_max_planning_horizon(
+        self, soc_targets: list[dict[str, datetime | float]]
+    ):
         max_server_horizon = current_app.config.get("FLEXMEASURES_MAX_PLANNING_HORIZON")
-        max_target_datetime = max(
-            [soc_target["datetime"] for soc_target in data["soc_targets"]]
-        )
+        max_target_datetime = max([target["datetime"] for target in soc_targets])
         max_server_datetime = self.start + max_server_horizon
         if max_target_datetime > max_server_datetime:
             raise ValidationError(
-                f'Target datetime exceeds {max_server_datetime}. Maximum scheduling horizon is {current_app.config.get("FLEXMEASURES_MAX_PLANNING_HORIZON")}.',
-                field_name="soc-targets",
+                f'Target datetime exceeds {max_server_datetime}. Maximum scheduling horizon is {current_app.config.get("FLEXMEASURES_MAX_PLANNING_HORIZON")}.'
             )
 
     @post_load
