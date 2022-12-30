@@ -1,11 +1,9 @@
 from datetime import timedelta, datetime
 import pytz
 
-import numpy as np
 import pandas as pd
 
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.models.planning.utils import initialize_series
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.services.scheduling import create_scheduling_job
 from flexmeasures.data.tests.utils import work_on_rq, exception_reporter
@@ -30,10 +28,9 @@ def test_scheduling_a_charging_station(
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 2))
     end = tz.localize(datetime(2015, 1, 3))
+    target_datetime = start + duration_until_target
     resolution = timedelta(minutes=15)
-    target_soc_datetime = start + duration_until_target
-    soc_targets = initialize_series(np.nan, start, end, resolution, inclusive="right")
-    soc_targets.loc[target_soc_datetime] = target_soc
+    soc_targets = [dict(datetime=target_datetime.isoformat(), value=target_soc)]
 
     assert (
         DataSource.query.filter_by(name="Seita", type="scheduling script").one_or_none()
@@ -41,12 +38,12 @@ def test_scheduling_a_charging_station(
     )  # Make sure the scheduler data source isn't there
 
     job = create_scheduling_job(
-        charging_station,
-        start,
-        end,
+        sensor=charging_station,
+        start=start,
+        end=end,
         belief_time=start,
         resolution=resolution,
-        storage_specs=dict(soc_at_start=soc_at_start, soc_targets=soc_targets),
+        flex_model={"soc-at-start": soc_at_start, "soc-targets": soc_targets},
     )
 
     print("Job: %s" % job.id)

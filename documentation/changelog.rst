@@ -1,3 +1,4 @@
+
 **********************
 FlexMeasures Changelog
 **********************
@@ -40,14 +41,19 @@ Infrastructure / Support
 * Remove bokeh dependency and obsolete UI views [see `PR #476 <http://www.github.com/FlexMeasures/flexmeasures/pull/476>`_]
 * Fix ``flexmeasures db-ops dump`` and ``flexmeasures db-ops restore`` not working in docker containers [see `PR #530 <http://www.github.com/FlexMeasures/flexmeasures/pull/530>`_] and incorrectly reporting a success when `pg_dump` and `pg_restore` are not installed [see `PR #526 <http://www.github.com/FlexMeasures/flexmeasures/pull/526>`_]
 * Plugins can save BeliefsSeries, too, instead of just BeliefsDataFrames [see `PR #523 <http://www.github.com/FlexMeasures/flexmeasures/pull/523>`_]
-* Improve documentation and code w.r.t. storage flexibility modelling ― prepare for handling other schedulers & merge battery and car charging schedulers [see `PR #511 <http://www.github.com/FlexMeasures/flexmeasures/pull/511>`_]
+* Improve documentation and code w.r.t. storage flexibility modelling ― prepare for handling other schedulers & merge battery and car charging schedulers [see `PR #511 <http://www.github.com/FlexMeasures/flexmeasures/pull/511>`_, `PR #537 <http://www.github.com/FlexMeasures/flexmeasures/pull/537>`_ and `PR #566 <http://www.github.com/FlexMeasures/flexmeasures/pull/566>`_]
 * Revised strategy for removing unchanged beliefs when saving data: retain the oldest measurement (ex-post belief), too [see `PR #518 <http://www.github.com/FlexMeasures/flexmeasures/pull/518>`_]
 * Scheduling test for maximizing self-consumption, and improved time series db queries for fixed tariffs (and other long-term constants) [see `PR #532 <http://www.github.com/FlexMeasures/flexmeasures/pull/532>`_]
 * Clean up table formatting for ``flexmeasures show`` CLI commands [see `PR #540 <http://www.github.com/FlexMeasures/flexmeasures/pull/540>`_]
-* Add  ``"Deprecation"`` and ``"Sunset"`` response headers for API users of deprecated API versions, and log warnings for FlexMeasures hosts when users still use them [see `PR #554 <http://www.github.com/FlexMeasures/flexmeasures/pull/554>`_]
+* Add  ``"Deprecation"`` and ``"Sunset"`` response headers for API users of deprecated API versions, and log warnings for FlexMeasures hosts when users still use them [see `PR #554 <http://www.github.com/FlexMeasures/flexmeasures/pull/554>`_ and `PR #565 <http://www.github.com/FlexMeasures/flexmeasures/pull/565>`_]
 * Explain how to avoid potential ``SMTPRecipientsRefused`` errors when using FlexMeasures in combination with a mail server [see `PR #558 <http://www.github.com/FlexMeasures/flexmeasures/pull/558>`_]
 
-.. warning:: The CLI command ``flexmeasures monitor tasks`` has been renamed to ``flexmeasures monitor last-run``. The old name will stop working in version 0.13.
+.. warning:: The API endpoint (`[POST] /sensors/(id)/schedules/trigger <api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_) to make new schedules will (in v0.13) sunset the storage flexibility parameters (they move to the ``flex-model`` parameter group), as well as the parameters describing other sensors (they move to ``flex-context``).
+
+.. warning:: The CLI command ``flexmeasures monitor tasks`` has been  deprecated (it's being renamed to ``flexmeasures monitor last-run``). The old name will be sunset in version 0.13.
+    
+.. warning:: The CLI command  ``flexmeasures add schedule`` has been renamed to ``flexmeasures add schedule for-storage``. The old name will be sunset in version 0.13.
+
 
 
 v0.11.3 | November 2, 2022

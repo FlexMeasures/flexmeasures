@@ -39,7 +39,6 @@ from flexmeasures.data.models.planning.exceptions import (
 )
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.services.resources import has_assets, can_access_asset
-from flexmeasures.data.models.planning.utils import ensure_storage_specs
 from flexmeasures.utils.time_utils import duration_isoformat
 
 
@@ -98,17 +97,18 @@ def get_device_message_response(generic_asset_name_groups, duration):
             resolution = sensor.event_resolution
 
             # Schedule the asset
-            storage_specs = dict(
-                soc_at_start=sensor.generic_asset.get_attribute("soc_in_mwh"),
-                prefer_charging_sooner=False,
-            )
-            storage_specs = ensure_storage_specs(
-                storage_specs, sensor, start, end, resolution
+            scheduler = StorageScheduler(
+                sensor=sensor,
+                start=start,
+                end=end,
+                resolution=resolution,
+                flex_model={
+                    "soc-at-start": sensor.generic_asset.get_attribute("soc_in_mwh"),
+                    "prefer-charging-sooner": False,
+                },
             )
             try:
-                schedule = StorageScheduler().schedule(
-                    sensor, start, end, resolution, storage_specs=storage_specs
-                )
+                schedule = scheduler.compute_schedule()
             except UnknownPricesException:
                 return unknown_prices()
             except UnknownMarketException:

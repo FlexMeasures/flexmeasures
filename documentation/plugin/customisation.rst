@@ -23,8 +23,7 @@ The following minimal example gives you an idea of some meta information you can
     from datetime import datetime, timedelta
     import pandas as pd
     from pandas.tseries.frequencies import to_offset
-    from flexmeasures.data.models.time_series import Sensor
-    from flexmeasures.data.models.planning import Scheduler
+    from flexmeasures import Scheduler, Sensor
 
 
     class DummyScheduler(Scheduler):
@@ -32,12 +31,8 @@ The following minimal example gives you an idea of some meta information you can
         __author__ = "My Company"
         __version__ = "2"
 
-        def schedule(
+        def compute_schedule(
             self,
-            sensor: Sensor,
-            start: datetime,
-            end: datetime,
-            resolution: timedelta,
             *args,
             **kwargs
         ):
@@ -46,22 +41,26 @@ The following minimal example gives you an idea of some meta information you can
             (Schedulers return positive values for consumption, and negative values for production)
             """
             return pd.Series(
-                sensor.get_attribute("capacity_in_mw"),
-                index=pd.date_range(start, end, freq=resolution, closed="left"),
+                self.sensor.get_attribute("capacity_in_mw"),
+                index=pd.date_range(self.start, self.end, freq=self.resolution, closed="left"),
             )
+    
+        def deserialize_config(self):
+            """Do not care about any flex config sent in."""
+            self.config_deserialized = True
 
 
-.. note:: It's possible to add arguments that describe the asset flexibility and the EMS context in more detail. For example,
-          for storage assets we support various state-of-charge parameters. For now, the existing in-built schedulers are the best documentation.
-          We are working on documenting this better, so the learning curve becomes easier.
-
+.. note:: It's possible to add arguments that describe the asset flexibility model and the flexibility (EMS) context in more detail.
+          For example, for storage assets we support various state-of-charge parameters. For details on flexibility model and context,
+          see :ref:`describing_flexibility` and the `[POST] /sensors/(id)/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_ endpoint.
+        
 
 Finally, make your scheduler be the one that FlexMeasures will use for certain sensors:
 
 
 .. code-block:: python
 
-    from flexmeasures.data.models.time_series import Sensor
+    from flexmeasures import Sensor
 
     scheduler_specs = {
         "module": "flexmeasures.data.tests.dummy_scheduler",  # or a file path, see note below
@@ -206,7 +205,7 @@ We demonstrate this here, and also show how you can add your own custom field sc
     from typing import Optional
 
     import click
-    from flexmeasures.data.schemas.times import AwareDateTimeField
+    from flexmeasures.data.schemas import AwareDateTimeField
     from flexmeasures.data.schemas.utils import MarshmallowClickMixin
     from marshmallow import fields
 

@@ -155,6 +155,78 @@ For version 1, 2 and 3 of the API, only equidistant timeseries data is expected 
 - "duration" should also be a multiple of the sensor resolution.
 
 
+.. _describing_flexibility:
+
+Describing flexibility
+^^^^^^^^^^^^^^^^^^^^^^^
+
+FlexMeasures computes schedules for energy systems that consist of multiple devices that consume and/or produce electricity.
+We model a device as an asset with a power sensor, and compute schedules only for flexible devices, while taking into account inflexible devices.
+
+To compute a schedule, FlexMeasures first needs to assess the flexibility state of the system.
+This is described by the `flex model` (information about the state and possible actions of the flexible device) and the `flex-context`
+(information about the system as a whole, in order to assess the value of activating flexibility).
+
+This information goes beyond the usual time series recorded by an asset's sensors. It's being sent through the API when triggering schedule computation.
+Some parts of it can be persisted on the asset & sensor model as attributes (that's design work in progress). 
+
+We distinguish the information with two groups:
+
+Flex model
+""""""""""""
+
+The flexibility model describes to the scheduler what the flexible asset's state is,
+and what constraints or preferences should be taken into account.
+Which type of flexibility model is relevant to a scheduler usually relates to the type of device.
+
+Usually, not the whole flexibility model is needed.
+FlexMeasures can infer missing values in the flex model, and even get them (as default) from the sensor's attributes.
+This means that API and CLI users don't have to send the whole flex model every time.
+
+Here are the three types of flexibility models you can expect to be built-in:
+
+1) For storage devices (e.g. batteries, charge points, electric vehicle batteries connected to charge points), the schedule deals with the state of charge (SOC).
+    
+    The possible flexibility parameters are:
+
+    - ``soc-at-start`` (defaults to 0)
+    - ``soc-unit`` (kWh or MWh)
+    - ``soc-min`` (defaults to 0)
+    - ``soc-max`` (defaults to max soc target)
+    - ``soc-targets`` (defaults to NaN values)
+    - ``roundtrip-efficiency`` (defaults to 100%)
+    - ``prefer-charging-sooner`` (defaults to True, also signals a preference to discharge later)
+
+  For some examples, see the `[POST] /sensors/(id)/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_ endpoint docs.
+
+2) Shiftable process
+   
+   .. todo:: A simple algorithm exists, needs integration into FlexMeasures and asset type clarified.
+
+3) Heat pumps
+   
+   .. todo:: Also work in progress, needs model for heat loss compensation.
+
+In addition, folks who write their own custom scheduler (see :ref:`plugin_customization`) might also require their custom flexibility model.
+That's no problem, FlexMeasures will let the scheduler decide which flexibility model is relevant and how it should be validated. 
+
+.. note:: We also aim to model situations with more than one flexible asset, with different types of flexibility.
+     This is ongoing architecture design work, and therefore happens in development settings, until we are happy 
+     with the outcomes. Thoughts welcome :) 
+
+
+Flex context
+"""""""""""""
+
+With the flexibility context, we aim to describe the system in which the flexible assets operates:
+
+- ``inflexible-device-sensors`` ― power sensors that are relevant, but not flexible, such as a sensor recording rooftop solar power connected behind the main meter, whose production falls under the same contract as the flexible device(s) being scheduled
+- ``consumption-price-sensor`` ― the sensor which defines costs/revenues of consuming energy
+- ``production-price-sensor`` ― the sensor which defines cost/revenues of producing energy
+
+These should be independent on the asset type and consequently also do not depend on which scheduling algorithm is being used.
+
+
 .. _beliefs:
 
 Tracking the recording time of beliefs

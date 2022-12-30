@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 
 from flask import url_for, current_app, Response
@@ -104,10 +106,33 @@ def post_task_run(client, task_name: str, status: bool = True):
     )
 
 
-def check_deprecation(response: Response):
+def check_deprecation(
+    response: Response,
+    deprecation: str | None = "Tue, 13 Dec 2022 23:59:59 GMT",
+    sunset: str | None = "Tue, 31 Jan 2023 23:59:59 GMT",
+):
+    """Check deprecation and sunset headers.
+
+    Also make sure we link to some url for further info.
+    If deprecation is None, make sure there are *no* deprecation headers.
+    If sunset is None, make sure there are *no* sunset headers.
+    """
     print(response.headers)
-    assert "Tue, 13 Dec 2022 23:59:59 GMT" in response.headers["Deprecation"]
-    assert "Tue, 31 Jan 2023 23:59:59 GMT" in response.headers["Sunset"]
-    # Make sure we link to some url for both deprecation and sunset
-    assert 'rel="deprecation"' in response.headers["Link"]
-    assert 'rel="sunset"' in response.headers["Link"]
+    if deprecation:
+        assert deprecation in response.headers.getlist("Deprecation")
+        assert any(
+            'rel="deprecation"' in link for link in response.headers.getlist("Link")
+        )
+    else:
+        assert deprecation not in response.headers.getlist("Deprecation")
+        assert all(
+            'rel="deprecation"' not in link for link in response.headers.getlist("Link")
+        )
+    if sunset:
+        assert sunset in response.headers.getlist("Sunset")
+        assert any('rel="sunset"' in link for link in response.headers.getlist("Link"))
+    else:
+        assert sunset not in response.headers.getlist("Sunset")
+        assert all(
+            'rel="sunset"' not in link for link in response.headers.getlist("Link")
+        )
