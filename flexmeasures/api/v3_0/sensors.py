@@ -449,6 +449,15 @@ class SensorAPI(FlaskView):
             )
         # -- end deprecation logic
 
+        def possibly_expand_duration_given_future_most_target(duration: timedelta, start: datetime, soc_targets: Optional[List[Dict]]) -> timedelta:
+            if soc_targets is None:
+                return duration
+            target_datetimes = [isodate.parse_datetime(soc_target["datetime"]) for soc_target in soc_targets]
+            future_most_target_datetime = max(target_datetimes)
+            max_target_duration = future_most_target_datetime - start
+            return max(duration, max_target_duration)
+        duration = possibly_expand_duration_given_future_most_target(duration, start_of_schedule, flex_model.get("soc-targets"))
+
         end_of_schedule = start_of_schedule + duration
         scheduler_kwargs = dict(
             sensor=sensor,
