@@ -1,5 +1,8 @@
-from marshmallow import Schema, post_load, validate, fields
-from marshmallow.validate import OneOf
+from datetime import datetime
+
+from flask import current_app
+from marshmallow import Schema, post_load, validate, validates_schema, fields
+from marshmallow.validate import OneOf, ValidationError
 
 from flexmeasures.data.schemas.times import AwareDateTimeField
 from flexmeasures.data.schemas.units import QuantityField
@@ -42,7 +45,25 @@ class StorageFlexModelSchema(Schema):
     )
     prefer_charging_sooner = fields.Bool(data_key="prefer-charging-sooner")
 
-    @post_load()
+    def __init__(self, start: datetime, *args, **kwargs):
+        """Pass the schedule's start, so we can use it to validate soc-target datetimes."""
+        self.start = start
+        super().__init__(*args, **kwargs)
+
+    @validates_schema
+    def check_whether_targets_exceed_max_planning_horizon(self, data: dict, **kwargs):
+        max_server_horizon = current_app.config.get("FLEXMEASURES_MAX_PLANNING_HORIZON")
+        max_target_datetime = max(
+            [soc_target["datetime"] for soc_target in data["soc_targets"]]
+        )
+        max_server_datetime = self.start + max_server_horizon
+        if max_target_datetime > max_server_datetime:
+            raise ValidationError(
+                f'Target datetime exceeds {max_server_datetime}. Maximum scheduling horizon is {current_app.config.get("FLEXMEASURES_MAX_PLANNING_HORIZON")}.',
+                field_name="soc-targets",
+            )
+
+    @post_load
     def post_load_sequence(self, data: dict, **kwargs) -> dict:
         """Perform some checks and corrections after we loaded."""
         # currently we only handle MWh internally

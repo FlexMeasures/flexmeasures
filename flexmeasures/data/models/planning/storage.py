@@ -250,7 +250,7 @@ class StorageScheduler(Scheduler):
         self.ensure_soc_min_max()
 
         # Now it's time to check if our flex configurations holds up to schemas
-        self.flex_model = StorageFlexModelSchema().load(self.flex_model)
+        self.flex_model = StorageFlexModelSchema(self.start).load(self.flex_model)
         self.flex_context = FlexContextSchema().load(self.flex_context)
 
         # Extend schedule period in case a target exceeds its end
