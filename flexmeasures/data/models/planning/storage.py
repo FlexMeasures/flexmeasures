@@ -253,7 +253,20 @@ class StorageScheduler(Scheduler):
         self.flex_model = StorageFlexModelSchema().load(self.flex_model)
         self.flex_context = FlexContextSchema().load(self.flex_context)
 
+        # Extend schedule period in case a target exceeds its end
+        self.possibly_extend_end()
+
         return self.flex_model
+
+    def possibly_extend_end(self):
+        """Extend schedule period in case a target exceeds its end."""
+        soc_targets = self.flex_model.get("soc_targets")
+        if soc_targets:
+            max_target_datetime = max(
+                [soc_target["datetime"] for soc_target in soc_targets]
+            )
+            if max_target_datetime > self.end:
+                self.end = max_target_datetime
 
     def get_min_max_targets(
         self, deserialized_names: bool = True
