@@ -306,6 +306,7 @@ class SensorAPI(FlaskView):
         Otherwise, it is set by the config setting :ref:`planning_horizon_config`, which defaults to 48 hours.
         If the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.
         Finally, the schedule length is limited by :ref:`max_planning_horizon_config`, which defaults to 169 hours.
+        Targets that exceed the max planning horizon are not accepted.
 
         The appropriate algorithm is chosen by FlexMeasures (based on asset type).
         It's also possible to use custom schedulers and custom flexibility models, see :ref:`plugin_customization`.
