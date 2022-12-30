@@ -265,7 +265,7 @@ class SensorAPI(FlaskView):
         self,
         sensor: Sensor,
         start_of_schedule: datetime,
-        duration: Optional[timedelta] = None,
+        duration: timedelta,
         belief_time: Optional[datetime] = None,
         start_value: Optional[float] = None,
         soc_min: Optional[float] = None,

@@ -35,7 +35,7 @@ from flexmeasures.utils.calculations import integrate_time_series
             "soc-targets",
             None,
             "Target datetime exceeds",
-        )
+        ),
     ],
 )
 def test_trigger_schedule_with_invalid_flexmodel(
