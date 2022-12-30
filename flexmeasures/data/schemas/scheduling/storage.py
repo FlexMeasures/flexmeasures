@@ -56,7 +56,7 @@ class StorageFlexModelSchema(Schema):
             if data.get("soc_targets"):
                 for target in data["soc_targets"]:
                     target["value"] /= 1000.0
-            data["soc_unit"] == "MWh"
+            data["soc_unit"] = "MWh"
 
         # Convert round-trip efficiency to dimensionless (to the (0,1] range)
         if data.get("roundtrip_efficiency") is not None:

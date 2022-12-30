@@ -89,9 +89,6 @@ def test_trigger_and_get_schedule(
     asset_name,
 ):
     # trigger a schedule through the /sensors/<id>/schedules/trigger [POST] api endpoint
-    message["roundtrip-efficiency"] = 0.98
-    message["soc-min"] = 0
-    message["soc-max"] = 4
     assert len(app.queues["scheduling"]) == 0
 
     sensor = Sensor.query.filter(Sensor.name == asset_name).one_or_none()
@@ -106,11 +103,12 @@ def test_trigger_and_get_schedule(
             headers={"Authorization": auth_token},
         )
         print("Server responded with:\n%s" % trigger_schedule_response.json)
-        check_deprecation(trigger_schedule_response)
+        if "flex-model" not in message:
+            check_deprecation(trigger_schedule_response)
+            assert (
+                "soc-min" in trigger_schedule_response.json["message"]
+            )  # deprecation warning
         assert trigger_schedule_response.status_code == 200
-        assert (
-            "soc-min" in trigger_schedule_response.json["message"]
-        )  # deprecation warning
         job_id = trigger_schedule_response.json["schedule"]
 
     # look for scheduling jobs in queue
@@ -152,18 +150,28 @@ def test_trigger_and_get_schedule(
         == app.config.get("FLEXMEASURES_PLANNING_HORIZON") / resolution
     )
 
-    # check targets, if applicable
-    if "targets" in message:
+    if "flex-model" not in message:
         start_soc = message["soc-at-start"] / 1000  # in MWh
+        roundtrip_efficiency = message["roundtrip-efficiency"]
+        soc_targets = message.get("soc-targets")
+    else:
+        start_soc = message["flex-model"]["soc-at-start"] / 1000  # in MWh
+        roundtrip_efficiency = message["flex-model"]["roundtrip-efficiency"]
+        soc_targets = message["flex-model"].get("soc-targets")
+
+    # check targets, if applicable
+    if soc_targets:
         soc_schedule = integrate_time_series(
             consumption_schedule,
             start_soc,
+            up_efficiency=roundtrip_efficiency**0.5,
+            down_efficiency=roundtrip_efficiency**0.5,
             decimal_precision=6,
         )
         print(consumption_schedule)
         print(soc_schedule)
-        for target in message["targets"]:
-            assert soc_schedule[target["datetime"]] == target["soc-target"] / 1000
+        for target in soc_targets:
+            assert soc_schedule[target["datetime"]] == target["value"] / 1000
 
     # try to retrieve the schedule through the /sensors/<id>/schedules/<job_id> [GET] api endpoint
     get_schedule_message = message_for_get_device_message(
@@ -204,3 +212,6 @@ def test_trigger_and_get_schedule(
         get_schedule_response_long.json["values"][0:192]
         == get_schedule_response.json["values"]
     )
+
+    # Check whether the soc-at-start was persisted as an asset attribute
+    assert sensor.generic_asset.get_attribute("soc_in_mwh") == start_soc
