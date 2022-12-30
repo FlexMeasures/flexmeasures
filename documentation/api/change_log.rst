@@ -13,6 +13,7 @@ v3.0-5 | 2022-12-30
     - ``soc-at-start`` -> send in ``flex-model`` instead
     - ``soc-min`` -> send in ``flex-model`` instead
     - ``soc-max`` -> send in ``flex-model`` instead
+    - ``soc-targets`` -> send in ``flex-model`` instead
     - ``soc-unit`` -> send in ``flex-model`` instead
     - ``roundtrip-efficiency`` -> send in ``flex-model`` instead
     - ``prefer-charging-sooner`` -> send in ``flex-model`` instead
