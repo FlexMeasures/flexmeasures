@@ -23,6 +23,7 @@ New features
 * Improved import of time series data from CSV file: 1) drop duplicate records with warning, 2) allow configuring which column contains explicit recording times for each data point (use case: import forecasts) [see `PR #501 <http://www.github.com/FlexMeasures/flexmeasures/pull/501>`_], 3) localize timezone naive data, 4) support reading in datetime and timedelta values, 5) remove rows with NaN values, and 6) filter by values in specific columns [see `PR #521 <http://www.github.com/FlexMeasures/flexmeasures/pull/521>`_]
 * Filter data by source in the API endpoint `/sensors/data` (GET) [see `PR #543 <http://www.github.com/FlexMeasures/flexmeasures/pull/543>`_]
 * Allow posting ``null`` values to `/sensors/data` (POST) to correctly space time series that include missing values (the missing values are not stored) [see `PR #549 <http://www.github.com/FlexMeasures/flexmeasures/pull/549>`_]
+* Allow setting a custom planning horizon when calling `/sensors/<id>/schedules/trigger` (POST), using the new ``duration`` field [see `PR #568 <http://www.github.com/FlexMeasures/flexmeasures/pull/568>`_]
 * New resampling functionality for instantaneous sensor data: 1) ``flexmeasures show beliefs`` can now handle showing (and saving) instantaneous sensor data and non-instantaneous sensor data together, and 2) the API endpoint `/sensors/data` (GET) now allows fetching instantaneous sensor data in a custom frequency, by using the "resolution" field [see `PR #542 <http://www.github.com/FlexMeasures/flexmeasures/pull/542>`_]
 
 Bugfixes
