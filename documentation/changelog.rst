@@ -48,6 +48,7 @@ Infrastructure / Support
 * Clean up table formatting for ``flexmeasures show`` CLI commands [see `PR #540 <http://www.github.com/FlexMeasures/flexmeasures/pull/540>`_]
 * Add  ``"Deprecation"`` and ``"Sunset"`` response headers for API users of deprecated API versions, and log warnings for FlexMeasures hosts when users still use them [see `PR #554 <http://www.github.com/FlexMeasures/flexmeasures/pull/554>`_ and `PR #565 <http://www.github.com/FlexMeasures/flexmeasures/pull/565>`_]
 * Explain how to avoid potential ``SMTPRecipientsRefused`` errors when using FlexMeasures in combination with a mail server [see `PR #558 <http://www.github.com/FlexMeasures/flexmeasures/pull/558>`_]
+* Set a limit to the allowed planning window for API users, using the ``FLEXMEASURES_MAX_PLANNING_HORIZON`` setting [see `PR #568 <http://www.github.com/FlexMeasures/flexmeasures/pull/568>`_]
 
 .. warning:: The API endpoint (`[POST] /sensors/(id)/schedules/trigger <api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_) to make new schedules will (in v0.13) sunset the storage flexibility parameters (they move to the ``flex-model`` parameter group), as well as the parameters describing other sensors (they move to ``flex-context``).
 
