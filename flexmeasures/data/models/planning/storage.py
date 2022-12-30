@@ -356,7 +356,7 @@ def build_device_soc_targets(
     TODO: this function could become the deserialization method of a new SOCTargetsSchema (targets, plural), which wraps SOCTargetSchema.
 
     """
-    if isinstance(targets, pd.Series):  # some teats prepare it this way
+    if isinstance(targets, pd.Series):  # some tests prepare it this way
         device_targets = targets
     else:
         device_targets = initialize_series(
