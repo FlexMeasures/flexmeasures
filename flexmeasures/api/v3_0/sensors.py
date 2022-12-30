@@ -34,7 +34,7 @@ from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField
-from flexmeasures.data.schemas.times import AwareDateTimeField
+from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.scheduling import FlexContextSchema
 from flexmeasures.data.services.sensors import get_sensors
@@ -220,6 +220,9 @@ class SensorAPI(FlaskView):
                 data_key="start", format="iso", required=True
             ),
             "belief_time": AwareDateTimeField(format="iso", data_key="prior"),
+            "duration": PlanningDurationField(
+                load_default=PlanningDurationField.load_default
+            ),
             "flex_model": fields.Dict(data_key="flex-model"),
             "soc_sensor_id": fields.Str(data_key="soc-sensor", required=False),
             "roundtrip_efficiency": QuantityField(
@@ -262,6 +265,7 @@ class SensorAPI(FlaskView):
         self,
         sensor: Sensor,
         start_of_schedule: datetime,
+        duration: timedelta,
         belief_time: Optional[datetime] = None,
         start_value: Optional[float] = None,
         soc_min: Optional[float] = None,
@@ -298,9 +302,11 @@ class SensorAPI(FlaskView):
                   See https://github.com/FlexMeasures/flexmeasures/issues/485. Until then, it is possible to call this endpoint for one flexible endpoint at a time
                   (considering already scheduled sensors as inflexible).
 
-        The length of schedules is set by the config setting :ref:`planning_horizon_config`, defaulting to 12 hours.
-
-        .. todo:: add a schedule duration parameter, instead of always falling back to FLEXMEASURES_PLANNING_HORIZON
+        The length of the schedule can be set explicitly through the 'duration' field.
+        Otherwise, it is set by the config setting :ref:`planning_horizon_config`, which defaults to 48 hours.
+        If the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.
+        Finally, the schedule length is limited by :ref:`max_planning_horizon_config`, which defaults to 169 hours.
+        Targets that exceed the max planning horizon are not accepted.
 
         The appropriate algorithm is chosen by FlexMeasures (based on asset type).
         It's also possible to use custom schedulers and custom flexibility models, see :ref:`plugin_customization`.
@@ -323,8 +329,8 @@ class SensorAPI(FlaskView):
 
         **Example request B**
 
-        This message triggers a schedule for a storage asset, starting at 10.00am, at which the state of charge (soc) is 12.1 kWh,
-        with a target state of charge of 25 kWh at 4.00pm.
+        This message triggers a 24-hour schedule for a storage asset, starting at 10.00am,
+        at which the state of charge (soc) is 12.1 kWh, with a target state of charge of 25 kWh at 4.00pm.
         The minimum and maximum soc are set to 10 and 25 kWh, respectively.
         Roundtrip efficiency for use in scheduling is set to 98%.
         Aggregate consumption (of all devices within this EMS) should be priced by sensor 9,
@@ -337,6 +343,7 @@ class SensorAPI(FlaskView):
 
             {
                 "start": "2015-06-02T10:00:00+00:00",
+                "duration": "PT24H",
                 "flex-model": {
                     "soc-at-start": 12.1,
                     "soc-unit": "kWh",
@@ -447,9 +454,7 @@ class SensorAPI(FlaskView):
             )
         # -- end deprecation logic
 
-        end_of_schedule = start_of_schedule + current_app.config.get(  # type: ignore
-            "FLEXMEASURES_PLANNING_HORIZON"
-        )
+        end_of_schedule = start_of_schedule + duration
         scheduler_kwargs = dict(
             sensor=sensor,
             start=start_of_schedule,

@@ -44,10 +44,12 @@ def message_for_trigger_schedule(
     unknown_prices: bool = False,
     with_targets: bool = False,
     realistic_targets: bool = True,
+    too_far_into_the_future_targets: bool = False,
     deprecated_format_pre012: bool = False,
 ) -> dict:
     message = {
         "start": "2015-01-01T00:00:00+01:00",
+        "duration": "PT24H",  # Will be extended in case of targets that would otherwise lie beyond the schedule's end
     }
     if unknown_prices:
         message[
@@ -69,10 +71,16 @@ def message_for_trigger_schedule(
     if with_targets:
         if realistic_targets:
             # this target (in kWh, according to soc-unit) is well below the soc_max_in_mwh on the battery's sensor attributes
-            targets = [{"value": 25, "datetime": "2015-01-02T23:00:00+01:00"}]
+            target_value = 25
         else:
             # this target (in kWh, according to soc-unit) is actually higher than soc_max_in_mwh on the battery's sensor attributes
-            targets = [{"value": 25000, "datetime": "2015-01-02T23:00:00+01:00"}]
+            target_value = 25000
+        if too_far_into_the_future_targets:
+            # this target exceeds FlexMeasures' default max planning horizon
+            target_datetime = "2015-02-02T23:00:00+01:00"
+        else:
+            target_datetime = "2015-01-02T23:00:00+01:00"
+        targets = [{"value": target_value, "datetime": target_datetime}]
         if deprecated_format_pre012:
             message["soc-targets"] = targets
         else:

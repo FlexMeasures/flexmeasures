@@ -250,10 +250,35 @@ class StorageScheduler(Scheduler):
         self.ensure_soc_min_max()
 
         # Now it's time to check if our flex configurations holds up to schemas
-        self.flex_model = StorageFlexModelSchema().load(self.flex_model)
+        self.flex_model = StorageFlexModelSchema(self.start).load(self.flex_model)
         self.flex_context = FlexContextSchema().load(self.flex_context)
 
+        # Extend schedule period in case a target exceeds its end
+        self.possibly_extend_end()
+
         return self.flex_model
+
+    def possibly_extend_end(self):
+        """Extend schedule period in case a target exceeds its end.
+
+        The schedule's duration is possibly limited by the server config setting 'FLEXMEASURES_MAX_PLANNING_HORIZON'.
+
+        todo: when deserialize_flex_config becomes a single schema for the whole scheduler,
+              this function would become a class method with a @post_load decorator.
+        """
+        soc_targets = self.flex_model.get("soc_targets")
+        if soc_targets:
+            max_target_datetime = max(
+                [soc_target["datetime"] for soc_target in soc_targets]
+            )
+            if max_target_datetime > self.end:
+                max_server_horizon = current_app.config.get(
+                    "FLEXMEASURES_MAX_PLANNING_HORIZON"
+                )
+                if max_server_horizon:
+                    self.end = min(max_target_datetime, self.start + max_server_horizon)
+                else:
+                    self.end = max_target_datetime
 
     def get_min_max_targets(
         self, deserialized_names: bool = True
@@ -311,7 +336,7 @@ class StorageScheduler(Scheduler):
 
 
 def build_device_soc_targets(
-    targets: List[Dict[datetime, float]] | pd.Series,
+    targets: List[Dict[str, datetime | float]] | pd.Series,
     soc_at_start: float,
     start_of_schedule: datetime,
     end_of_schedule: datetime,
@@ -334,7 +359,7 @@ def build_device_soc_targets(
     TODO: this function could become the deserialization method of a new SOCTargetsSchema (targets, plural), which wraps SOCTargetSchema.
 
     """
-    if isinstance(targets, pd.Series):  # some teats prepare it this way
+    if isinstance(targets, pd.Series):  # some tests prepare it this way
         device_targets = targets
     else:
         device_targets = initialize_series(
@@ -352,7 +377,7 @@ def build_device_soc_targets(
             )  # otherwise DST would be problematic
             if target_datetime > end_of_schedule:
                 raise ValueError(
-                    f'Target datetime exceeds {end_of_schedule}. Maximum scheduling horizon is {current_app.config.get("FLEXMEASURES_PLANNING_HORIZON")}.'
+                    f'Target datetime exceeds {end_of_schedule}. Maximum scheduling horizon is {current_app.config.get("FLEXMEASURES_MAX_PLANNING_HORIZON")}.'
                 )
 
             device_targets.loc[target_datetime] = target_value
