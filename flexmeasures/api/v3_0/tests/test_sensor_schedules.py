@@ -1,6 +1,6 @@
 from flask import url_for
 import pytest
-from isodate import parse_datetime
+from isodate import parse_datetime, parse_duration
 
 import pandas as pd
 from rq.job import Job
@@ -145,10 +145,7 @@ def test_trigger_and_get_schedule(
         [-v.event_value for v in power_values],
         index=pd.DatetimeIndex([v.event_start for v in power_values], freq=resolution),
     )  # For consumption schedules, positive values denote consumption. For the db, consumption is negative
-    assert (
-        len(consumption_schedule)
-        == app.config.get("FLEXMEASURES_PLANNING_HORIZON") / resolution
-    )
+    assert len(consumption_schedule) == parse_duration(message["duration"]) / resolution
 
     if "flex-model" not in message:
         start_soc = message["soc-at-start"] / 1000  # in MWh
@@ -187,7 +184,10 @@ def test_trigger_and_get_schedule(
     print("Server responded with:\n%s" % get_schedule_response.json)
     assert get_schedule_response.status_code == 200
     # assert get_schedule_response.json["type"] == "GetDeviceMessageResponse"
-    assert len(get_schedule_response.json["values"]) == 192
+    assert (
+        len(get_schedule_response.json["values"])
+        == parse_duration(message["duration"]) / resolution
+    )
 
     # Test that a shorter planning horizon yields the same result for the shorter planning horizon
     get_schedule_message["duration"] = "PT6H"

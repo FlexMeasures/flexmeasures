@@ -48,7 +48,7 @@ def message_for_trigger_schedule(
 ) -> dict:
     message = {
         "start": "2015-01-01T00:00:00+01:00",
-        "duration": "PT48H",
+        "duration": "PT47H",
     }
     if unknown_prices:
         message[
