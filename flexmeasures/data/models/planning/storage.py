@@ -333,7 +333,7 @@ class StorageScheduler(Scheduler):
 
 
 def build_device_soc_targets(
-    targets: List[Dict[datetime, float]] | pd.Series,
+    targets: List[Dict[str, datetime | float]] | pd.Series,
     soc_at_start: float,
     start_of_schedule: datetime,
     end_of_schedule: datetime,
