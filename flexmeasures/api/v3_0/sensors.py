@@ -302,7 +302,10 @@ class SensorAPI(FlaskView):
                   See https://github.com/FlexMeasures/flexmeasures/issues/485. Until then, it is possible to call this endpoint for one flexible endpoint at a time
                   (considering already scheduled sensors as inflexible).
 
-        The length of schedules is set by the duration field, or otherwise the config setting :ref:`planning_horizon_config`, defaulting to 12 hours.
+        The length of the schedule can be set explicitly through the 'duration' field.
+        Otherwise, it is set by the config setting :ref:`planning_horizon_config`, which defaults to 48 hours.
+        If the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.
+        Finally, the schedule length is limited by :ref:`max_planning_horizon_config`, which defaults to 169 hours.
 
         The appropriate algorithm is chosen by FlexMeasures (based on asset type).
         It's also possible to use custom schedulers and custom flexibility models, see :ref:`plugin_customization`.
@@ -325,8 +328,8 @@ class SensorAPI(FlaskView):
 
         **Example request B**
 
-        This message triggers a schedule for a storage asset, starting at 10.00am, at which the state of charge (soc) is 12.1 kWh,
-        with a target state of charge of 25 kWh at 4.00pm.
+        This message triggers a 24-hour schedule for a storage asset, starting at 10.00am,
+        at which the state of charge (soc) is 12.1 kWh, with a target state of charge of 25 kWh at 4.00pm.
         The minimum and maximum soc are set to 10 and 25 kWh, respectively.
         Roundtrip efficiency for use in scheduling is set to 98%.
         Aggregate consumption (of all devices within this EMS) should be priced by sensor 9,
@@ -339,6 +342,7 @@ class SensorAPI(FlaskView):
 
             {
                 "start": "2015-06-02T10:00:00+00:00",
+                "duration": "PT24H",
                 "flex-model": {
                     "soc-at-start": 12.1,
                     "soc-unit": "kWh",

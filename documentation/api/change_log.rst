@@ -21,6 +21,7 @@ v3.0-5 | 2022-12-30
     - ``production-price-sensor`` -> send in ``flex-context`` instead
     - ``inflexible-device-sensors`` -> send in ``flex-context`` instead
 
+- Allow posting ``soc-targets`` to `/sensors/<id>/schedules/trigger` (POST) that exceed the default planning horizon, but not the max planning horizon.
 - Added a subsection on deprecating and sunsetting to the Introduction section.
 - Added a subsection on describing flexibility to the Notation section.
 
