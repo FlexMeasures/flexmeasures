@@ -262,6 +262,9 @@ class StorageScheduler(Scheduler):
         """Extend schedule period in case a target exceeds its end.
 
         The schedule's duration is possibly limited by the server config setting 'FLEXMEASURES_MAX_PLANNING_HORIZON'.
+
+        todo: when deserialize_flex_config becomes a single schema for the whole scheduler,
+              this function would become a class method with a @post_load decorator.
         """
         soc_targets = self.flex_model.get("soc_targets")
         if soc_targets:
