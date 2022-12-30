@@ -127,6 +127,31 @@ def test_trigger_and_get_schedule(
         is True
     )
 
+    # Derive some expectations from the POSTed message
+    if "flex-model" not in message:
+        start_soc = message["soc-at-start"] / 1000  # in MWh
+        roundtrip_efficiency = message["roundtrip-efficiency"]
+        soc_targets = message.get("soc-targets")
+    else:
+        start_soc = message["flex-model"]["soc-at-start"] / 1000  # in MWh
+        roundtrip_efficiency = message["flex-model"]["roundtrip-efficiency"]
+        soc_targets = message["flex-model"].get("soc-targets")
+    resolution = sensor.event_resolution
+    if soc_targets:
+        # Schedule length may be extended to accommodate targets that lie beyond the schedule's end
+        max_target_datetime = max(
+            [parse_datetime(soc_target["datetime"]) for soc_target in soc_targets]
+        )
+        expected_length_of_schedule = (
+            max(
+                parse_duration(message["duration"]),
+                max_target_datetime - parse_datetime(message["start"]),
+            )
+            / resolution
+        )
+    else:
+        expected_length_of_schedule = parse_duration(message["duration"]) / resolution
+
     # check results are in the database
 
     # First, make sure the scheduler data source is now there
@@ -140,21 +165,11 @@ def test_trigger_and_get_schedule(
         .filter(TimedBelief.source_id == scheduler_source.id)
         .all()
     )
-    resolution = sensor.event_resolution
     consumption_schedule = pd.Series(
         [-v.event_value for v in power_values],
         index=pd.DatetimeIndex([v.event_start for v in power_values], freq=resolution),
     )  # For consumption schedules, positive values denote consumption. For the db, consumption is negative
-    assert len(consumption_schedule) == parse_duration(message["duration"]) / resolution
-
-    if "flex-model" not in message:
-        start_soc = message["soc-at-start"] / 1000  # in MWh
-        roundtrip_efficiency = message["roundtrip-efficiency"]
-        soc_targets = message.get("soc-targets")
-    else:
-        start_soc = message["flex-model"]["soc-at-start"] / 1000  # in MWh
-        roundtrip_efficiency = message["flex-model"]["roundtrip-efficiency"]
-        soc_targets = message["flex-model"].get("soc-targets")
+    assert len(consumption_schedule) == expected_length_of_schedule
 
     # check targets, if applicable
     if soc_targets:
@@ -184,10 +199,7 @@ def test_trigger_and_get_schedule(
     print("Server responded with:\n%s" % get_schedule_response.json)
     assert get_schedule_response.status_code == 200
     # assert get_schedule_response.json["type"] == "GetDeviceMessageResponse"
-    assert (
-        len(get_schedule_response.json["values"])
-        == parse_duration(message["duration"]) / resolution
-    )
+    assert len(get_schedule_response.json["values"]) == expected_length_of_schedule
 
     # Test that a shorter planning horizon yields the same result for the shorter planning horizon
     get_schedule_message["duration"] = "PT6H"
