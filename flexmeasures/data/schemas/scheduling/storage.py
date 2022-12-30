@@ -56,6 +56,8 @@ class StorageFlexModelSchema(Schema):
     def check_whether_targets_exceed_max_planning_horizon(
         self, soc_targets: list[dict[str, datetime | float]]
     ):
+        if not soc_targets:
+            return
         max_server_horizon = current_app.config.get("FLEXMEASURES_MAX_PLANNING_HORIZON")
         max_target_datetime = max([target["datetime"] for target in soc_targets])
         max_server_datetime = self.start + max_server_horizon
