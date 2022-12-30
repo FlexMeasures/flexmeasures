@@ -259,14 +259,23 @@ class StorageScheduler(Scheduler):
         return self.flex_model
 
     def possibly_extend_end(self):
-        """Extend schedule period in case a target exceeds its end."""
+        """Extend schedule period in case a target exceeds its end.
+
+        The schedule's duration is possibly limited by the server config setting 'FLEXMEASURES_MAX_PLANNING_HORIZON'.
+        """
         soc_targets = self.flex_model.get("soc_targets")
         if soc_targets:
             max_target_datetime = max(
                 [soc_target["datetime"] for soc_target in soc_targets]
             )
             if max_target_datetime > self.end:
-                self.end = max_target_datetime
+                max_server_horizon = current_app.config.get(
+                    "FLEXMEASURES_MAX_PLANNING_HORIZON"
+                )
+                if max_server_horizon:
+                    self.end = min(max_target_datetime, self.start + max_server_horizon)
+                else:
+                    self.end = max_target_datetime
 
     def get_min_max_targets(
         self, deserialized_names: bool = True
@@ -365,7 +374,7 @@ def build_device_soc_targets(
             )  # otherwise DST would be problematic
             if target_datetime > end_of_schedule:
                 raise ValueError(
-                    f'Target datetime exceeds {end_of_schedule}. Maximum scheduling horizon is {current_app.config.get("FLEXMEASURES_PLANNING_HORIZON")}.'
+                    f'Target datetime exceeds {end_of_schedule}. Maximum scheduling horizon is {current_app.config.get("FLEXMEASURES_MAX_PLANNING_HORIZON")}.'
                 )
 
             device_targets.loc[target_datetime] = target_value
