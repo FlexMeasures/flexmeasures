@@ -22,7 +22,7 @@ v3.0-5 | 2022-12-30
     - ``inflexible-device-sensors`` -> send in ``flex-context`` instead
 
 - Introduced the ``duration``field to `/sensors/<id>/schedules/trigger` (POST) for setting a planning horizon explicitly.
-- Allow posting ``soc-targets`` to `/sensors/<id>/schedules/trigger` (POST) that exceed the default planning horizon, but not the max planning horizon.
+- Allow posting ``soc-targets`` to `/sensors/<id>/schedules/trigger` (POST) that exceed the default planning horizon, and ignore posted targets that exceed the max planning horizon.
 - Added a subsection on deprecating and sunsetting to the Introduction section.
 - Added a subsection on describing flexibility to the Notation section.
 

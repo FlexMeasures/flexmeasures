@@ -376,9 +376,11 @@ def build_device_soc_targets(
                 device_targets.index.tzinfo
             )  # otherwise DST would be problematic
             if target_datetime > end_of_schedule:
-                raise ValueError(
-                    f'Target datetime exceeds {end_of_schedule}. Maximum scheduling horizon is {current_app.config.get("FLEXMEASURES_MAX_PLANNING_HORIZON")}.'
+                # Skip too-far-into-the-future target
+                current_app.logger.warning(
+                    f'Disregarding target datetime {target_datetime}, because it exceeds {end_of_schedule}. Maximum scheduling horizon is {current_app.config.get("FLEXMEASURES_MAX_PLANNING_HORIZON")}.'
                 )
+                continue
 
             device_targets.loc[target_datetime] = target_value
 

@@ -28,14 +28,15 @@ from flexmeasures.utils.calculations import integrate_time_series
             "Not a valid number",
         ),
         (message_for_trigger_schedule(), "soc-unit", "MWH", "Must be one of"),
-        (
-            message_for_trigger_schedule(
-                with_targets=True, too_far_into_the_future_targets=True
-            ),
-            "soc-targets",
-            None,
-            "Target datetime exceeds",
-        ),
+        # todo: add back test in case we stop grandfathering ignoring too-far-into-the-future targets, or amend otherwise
+        # (
+        #     message_for_trigger_schedule(
+        #         with_targets=True, too_far_into_the_future_targets=True
+        #     ),
+        #     "soc-targets",
+        #     None,
+        #     "Target datetime exceeds",
+        # ),
     ],
 )
 def test_trigger_schedule_with_invalid_flexmodel(

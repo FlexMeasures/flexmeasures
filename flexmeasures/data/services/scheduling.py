@@ -207,7 +207,7 @@ def load_custom_scheduler(scheduler_specs: dict) -> type:
         try:
             module = importlib.import_module(module_descr)
         except TypeError as te:
-            current_app.log.error(f"Cannot load {module_descr}: {te}.")
+            current_app.logger.error(f"Cannot load {module_descr}: {te}.")
             raise
         except ModuleNotFoundError:
             current_app.logger.error(
