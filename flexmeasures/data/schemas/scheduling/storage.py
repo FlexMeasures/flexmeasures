@@ -4,7 +4,7 @@ from datetime import datetime
 
 from flask import current_app
 from marshmallow import Schema, post_load, validate, validates, fields
-from marshmallow.validate import OneOf, ValidationError
+from marshmallow.validate import OneOf
 
 from flexmeasures.data.schemas.times import AwareDateTimeField
 from flexmeasures.data.schemas.units import QuantityField
