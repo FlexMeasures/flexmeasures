@@ -39,7 +39,6 @@ from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.scheduling import FlexContextSchema
 from flexmeasures.data.services.sensors import get_sensors
 from flexmeasures.data.services.scheduling import (
-    find_scheduler_class,
     create_scheduling_job,
     get_data_source_for_job,
 )
@@ -466,20 +465,15 @@ class SensorAPI(FlaskView):
         )
 
         try:
-            # We create a scheduler, so the flex config is also checked and errors are returned here
-            scheduler = find_scheduler_class(sensor)(**scheduler_kwargs)
-            scheduler.deserialize_config()
+            job = create_scheduling_job(
+                **scheduler_kwargs,
+                enqueue=True,
+            )
         except ValidationError as err:
             return invalid_flex_config(err.messages)
         except ValueError as err:
             return invalid_flex_config(str(err))
 
-        job = create_scheduling_job(
-            **scheduler_kwargs,
-            enqueue=True,
-        )
-
-        scheduler.persist_flex_model()
         db.session.commit()
 
         response = dict(schedule=job.id)

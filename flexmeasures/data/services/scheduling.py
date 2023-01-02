@@ -20,17 +20,9 @@ from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.utils import get_data_source, save_to_db
 from flexmeasures.utils.time_utils import server_now
 
-"""
-The life cycle of a scheduling job:
-1. A scheduling job is born in create_scheduling_job.
-2. It is run in make_schedule which writes results to the db.
-3. If an error occurs (and the worker is configured accordingly), handle_scheduling_exception comes in.
-   This might re-enqueue the job or try a different model (which creates a new job).
-"""
-
 
 def create_scheduling_job(
-    sensor: int | Sensor,
+    sensor: Sensor,
     job_id: str | None = None,
     enqueue: bool = True,
     **scheduler_kwargs,
@@ -42,14 +34,29 @@ def create_scheduling_job(
     That means one event leads to one job (i.e. actions are event driven).
 
     As a rule of thumb, keep arguments to the job simple, and deserializable.
+
+    The life cycle of a scheduling job:
+    1. A scheduling job is born here (in create_scheduling_job).
+    2. It is run in make_schedule which writes results to the db.
+    3. If an error occurs (and the worker is configured accordingly), handle_scheduling_exception comes in.
+       This might re-enqueue the job or try a different model (which creates a new job).
     """
-    # From here on, we handle IDs again, not objects
-    if isinstance(sensor, Sensor):
-        sensor = sensor.id
+    print("BEFORE:")
+    print(scheduler_kwargs)
+
+    # We create a scheduler, so the flex config is also checked and errors are returned here
+    scheduler = find_scheduler_class(sensor)(sensor=sensor, **scheduler_kwargs)
+    scheduler.deserialize_config()
+    scheduler_kwargs["flex_model"] = scheduler.flex_model
+    scheduler_kwargs["flex_context"] = scheduler.flex_context
+    scheduler_kwargs["flex_config_has_been_deserialized"] = True
+
+    print("AFTER:")
+    print(scheduler_kwargs)
 
     job = Job.create(
         make_schedule,
-        kwargs=dict(sensor_id=sensor, **scheduler_kwargs),
+        kwargs=dict(sensor_id=sensor.id, **scheduler_kwargs),
         id=job_id,
         connection=current_app.queues["scheduling"].connection,
         ttl=int(
@@ -65,6 +72,8 @@ def create_scheduling_job(
     )
     if enqueue:
         current_app.queues["scheduling"].enqueue_job(job)
+
+    scheduler.persist_flex_model()
     return job
 
 
@@ -76,13 +85,15 @@ def make_schedule(
     belief_time: datetime | None = None,
     flex_model: dict | None = None,
     flex_context: dict | None = None,
+    flex_config_has_been_deserialized: bool = False,
 ) -> bool:
     """
-    This function is meant to be queued as a job. It returns True if it ran successfully.
+    This function computes a schedule. It returns True if it ran successfully.
 
-    Note: This function thus potentially runs on a different FlexMeasures node than where the job is created.
+    It can be queued as a job (see create_scheduling_job).
+    In that case, it will probably run on a different FlexMeasures node than where the job is created.
 
-    This is what this function does
+    This is what this function does:
     - Find out which scheduler should be used & compute the schedule
     - Turn scheduled values into beliefs and save them to db
     """
@@ -112,6 +123,8 @@ def make_schedule(
         flex_model=flex_model,
         flex_context=flex_context,
     )
+    if flex_config_has_been_deserialized:
+        scheduler.config_deserialized = True
     consumption_schedule = scheduler.compute_schedule()
     if rq_job:
         click.echo("Job %s made schedule." % rq_job.id)
@@ -228,15 +241,6 @@ def load_custom_scheduler(scheduler_specs: dict) -> type:
             f"No function {schedule_function_name} in {scheduler_class}. Cannot load custom scheduler."
         )
     return scheduler_class
-
-
-def handle_scheduling_exception(job, exc_type, exc_value, traceback):
-    """
-    Store exception as job meta data.
-    """
-    click.echo("HANDLING RQ WORKER EXCEPTION: %s:%s\n" % (exc_type, exc_value))
-    job.meta["exception"] = exc_value
-    job.save_meta()
 
 
 def get_data_source_for_job(job: Job | None) -> DataSource | None:
