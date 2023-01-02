@@ -1009,6 +1009,7 @@ def add_schedule_for_storage(
             "soc-targets": soc_targets,
             "soc-min": soc_min,
             "soc-max": soc_max,
+            "soc-unit": "MWh",
             "roundtrip-efficiency": roundtrip_efficiency,
         },
         flex_context={
@@ -1110,8 +1111,12 @@ def add_toy_account(kind: str, name: str):
     click.echo(
         f"Toy account {name} with user {user.email} created successfully. You might want to run `flexmeasures show account --id {user.account.id}`"
     )
-    click.echo(f"The sensor for battery discharging is {charging_sensor}.")
-    click.echo(f"The sensor for Day ahead prices is {day_ahead_sensor}.")
+    click.echo(
+        f"The sensor for battery discharging is {charging_sensor} (ID: {charging_sensor.id})."
+    )
+    click.echo(
+        f"The sensor for Day ahead prices is {day_ahead_sensor} (ID: {day_ahead_sensor.id})."
+    )
 
 
 app.cli.add_command(fm_add_data)
