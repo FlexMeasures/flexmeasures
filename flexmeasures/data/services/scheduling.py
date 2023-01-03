@@ -65,7 +65,6 @@ def create_scheduling_job(
     if enqueue:
         current_app.queues["scheduling"].enqueue_job(job)
 
-    scheduler.persist_flex_model()
     return job
 
 
@@ -147,6 +146,8 @@ def make_schedule(
     ]  # For consumption schedules, positive values denote consumption. For the db, consumption is negative
     bdf = tb.BeliefsDataFrame(ts_value_schedule)
     save_to_db(bdf)
+
+    scheduler.persist_flex_model()
     db.session.commit()
 
     return True
