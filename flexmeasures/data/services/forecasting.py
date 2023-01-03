@@ -257,7 +257,9 @@ def handle_forecasting_exception(job, exc_type, exc_value, traceback):
     * Try a different model
     * Re-queue at a later time (using rq_scheduler)
     """
-    click.echo("HANDLING RQ WORKER EXCEPTION: %s:%s\n" % (exc_type, exc_value))
+    click.echo(
+        "HANDLING RQ FORECASTING WORKER EXCEPTION: %s:%s\n" % (exc_type, exc_value)
+    )
 
     if "failures" not in job.meta:
         job.meta["failures"] = 1

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import timedelta
 import logging
 from typing import List, Optional, Union, Dict, Tuple
@@ -112,7 +114,8 @@ class Config(object):
     }  # how to group assets by asset types
     FLEXMEASURES_LP_SOLVER: str = "cbc"
     FLEXMEASURES_JOB_TTL: timedelta = timedelta(days=1)
-    FLEXMEASURES_PLANNING_HORIZON: timedelta = timedelta(hours=2 * 24)
+    FLEXMEASURES_PLANNING_HORIZON: timedelta = timedelta(days=2)
+    FLEXMEASURES_MAX_PLANNING_HORIZON: timedelta | None = timedelta(days=7, hours=1)
     FLEXMEASURES_PLANNING_TTL: timedelta = timedelta(
         days=7
     )  # Time to live for UDI event ids of successful scheduling jobs. Set a negative timedelta to persist forever.

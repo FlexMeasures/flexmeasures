@@ -1005,7 +1005,6 @@ def add_schedule_for_storage(
     - Limited to power sensors (probably possible to generalize to non-electric assets)
     - Only supports datetimes on the hour or a multiple of the sensor resolution thereafter
     """
-
     # todo: deprecate the 'optimization-context-id' argument in favor of 'consumption-price-sensor' (announced v0.11.0)
     tb_utils.replace_deprecated_argument(
         "optimization-context-id",
@@ -1045,6 +1044,8 @@ def add_schedule_for_storage(
         soc_min = convert_units(soc_min.magnitude, str(soc_min.units), "MWh", capacity=capacity_str)  # type: ignore
     if soc_max is not None:
         soc_max = convert_units(soc_max.magnitude, str(soc_max.units), "MWh", capacity=capacity_str)  # type: ignore
+    if roundtrip_efficiency is not None:
+        roundtrip_efficiency = roundtrip_efficiency.magnitude / 100.0
 
     scheduling_kwargs = dict(
         sensor=power_sensor,
@@ -1057,6 +1058,7 @@ def add_schedule_for_storage(
             "soc-targets": soc_targets,
             "soc-min": soc_min,
             "soc-max": soc_max,
+            "soc-unit": "MWh",
             "roundtrip-efficiency": roundtrip_efficiency,
         },
         flex_context={
@@ -1169,9 +1171,15 @@ def add_toy_account(kind: str, name: str):
     click.echo(
         f"Toy account {name} with user {user.email} created successfully. You might want to run `flexmeasures show account --id {user.account.id}`"
     )
-    click.echo(f"The sensor recording battery discharging is {discharging_sensor}.")
-    click.echo(f"The sensor recording day-ahead prices is {day_ahead_sensor}.")
-    click.echo(f"The sensor recording solar forecasts is {production_sensor}.")
+    click.echo(
+        f"The sensor recording battery discharging is {discharging_sensor} (ID: {discharging_sensor.id})."
+    )
+    click.echo(
+        f"The sensor recording day-ahead prices is {day_ahead_sensor} (ID: {day_ahead_sensor.id})."
+    )
+    click.echo(
+        f"The sensor recording solar forecasts is {production_sensor} (ID: {production_sensor.id})."
+    )
 
 
 app.cli.add_command(fm_add_data)

@@ -1,6 +1,7 @@
 from typing import Union, Optional
 from datetime import datetime, timedelta
 
+from flask import current_app
 from marshmallow import fields
 import isodate
 from isodate.isoerror import ISO8601Error
@@ -62,6 +63,15 @@ class DurationField(MarshmallowClickMixin, fields.Str):
             )
             return (pd.Timestamp(start) + offset).to_pydatetime() - start
         return duration
+
+
+class PlanningDurationField(DurationField):
+    @classmethod
+    def load_default(cls):
+        """
+        Use this with the load_default arg to __init__ if you want the default FlexMeasures planning horizon.
+        """
+        return current_app.config.get("FLEXMEASURES_PLANNING_HORIZON")
 
 
 class AwareDateTimeField(MarshmallowClickMixin, fields.AwareDateTime):

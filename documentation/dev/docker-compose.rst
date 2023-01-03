@@ -96,7 +96,7 @@ Next, we put a scheduling job in the worker's queue. This only works because we 
 
 .. code-block:: console
 
-    flexmeasures add schedule for-storage --sensor-id 2 --optimization-context-id 3 \
+    flexmeasures add schedule for-storage --sensor-id 2 consumption-price-sensor 3 \
         --start ${TOMORROW}T07:00+01:00 --duration PT12H --soc-at-start 50% \
         --roundtrip-efficiency 90% --as-job
 
