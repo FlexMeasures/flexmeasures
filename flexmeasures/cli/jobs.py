@@ -8,7 +8,8 @@ from flask.cli import with_appcontext
 from rq import Queue, Worker
 from sqlalchemy.orm import configure_mappers
 
-from flexmeasures.data.services import handle_worker_exception
+from flexmeasures.data.services.scheduling import handle_scheduling_exception
+from flexmeasures.data.services.forecasting import handle_forecasting_exception
 
 
 @click.group("jobs")
@@ -59,7 +60,11 @@ def run_worker(queue: str, name: Optional[str]):
         q_list,
         connection=connection,
         name=used_name,
-        exception_handlers=[handle_worker_exception],
+        exception_handlers=[
+            handle_forecasting_exception
+            if queue == "forecasting"
+            else handle_scheduling_exception
+        ],
     )
 
     click.echo("\n=========================================================")

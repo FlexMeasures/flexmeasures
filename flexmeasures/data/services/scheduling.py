@@ -5,11 +5,11 @@ import os
 import sys
 import importlib.util
 from importlib.abc import Loader
-from rq.job import Job
 
 from flask import current_app
 import click
 from rq import get_current_job
+from rq.job import Job
 import timely_beliefs as tb
 
 from flexmeasures.data import db
@@ -38,21 +38,13 @@ def create_scheduling_job(
     The life cycle of a scheduling job:
     1. A scheduling job is born here (in create_scheduling_job).
     2. It is run in make_schedule which writes results to the db.
-    3. If an error occurs (and the worker is configured accordingly), handle_scheduling_exception comes in.
+    3. If an error occurs (and the worker is configured accordingly), handle_worker_exception comes in.
        This might re-enqueue the job or try a different model (which creates a new job).
     """
-    print("BEFORE:")
-    print(scheduler_kwargs)
-
-    # We create a scheduler, so the flex config is also checked and errors are returned here
+    # We create a scheduler and check if deserializing works, so the flex config is checked and errors are raised here.
+    # Note: We are putting still serialized scheduler_kwargs into the job!
     scheduler = find_scheduler_class(sensor)(sensor=sensor, **scheduler_kwargs)
     scheduler.deserialize_config()
-    scheduler_kwargs["flex_model"] = scheduler.flex_model
-    scheduler_kwargs["flex_context"] = scheduler.flex_context
-    scheduler_kwargs["flex_config_has_been_deserialized"] = True
-
-    print("AFTER:")
-    print(scheduler_kwargs)
 
     job = Job.create(
         make_schedule,
@@ -92,6 +84,7 @@ def make_schedule(
 
     It can be queued as a job (see create_scheduling_job).
     In that case, it will probably run on a different FlexMeasures node than where the job is created.
+    In any case, this function expects flex_model and flex_context to not have been deserialized yet.
 
     This is what this function does:
     - Find out which scheduler should be used & compute the schedule
@@ -241,6 +234,19 @@ def load_custom_scheduler(scheduler_specs: dict) -> type:
             f"No function {schedule_function_name} in {scheduler_class}. Cannot load custom scheduler."
         )
     return scheduler_class
+
+
+def handle_scheduling_exception(job, exc_type, exc_value, traceback):
+    """
+    Store exception as job meta data.
+    """
+    click.echo(
+        "HANDLING RQ SCHEDULING WORKER EXCEPTION: %s:%s\n" % (exc_type, exc_value)
+    )
+    # from traceback import print_tb
+    # print_tb(traceback)
+    job.meta["exception"] = exc_value
+    job.save_meta()
 
 
 def get_data_source_for_job(job: Job | None) -> DataSource | None:
