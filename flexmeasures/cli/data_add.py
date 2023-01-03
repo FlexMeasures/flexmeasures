@@ -957,7 +957,6 @@ def add_schedule_for_storage(
     - Limited to power sensors (probably possible to generalize to non-electric assets)
     - Only supports datetimes on the hour or a multiple of the sensor resolution thereafter
     """
-
     # todo: deprecate the 'optimization-context-id' argument in favor of 'consumption-price-sensor' (announced v0.11.0)
     tb_utils.replace_deprecated_argument(
         "optimization-context-id",
@@ -997,6 +996,8 @@ def add_schedule_for_storage(
         soc_min = convert_units(soc_min.magnitude, str(soc_min.units), "MWh", capacity=capacity_str)  # type: ignore
     if soc_max is not None:
         soc_max = convert_units(soc_max.magnitude, str(soc_max.units), "MWh", capacity=capacity_str)  # type: ignore
+    if roundtrip_efficiency is not None:
+        roundtrip_efficiency = roundtrip_efficiency.magnitude / 100.0
 
     scheduling_kwargs = dict(
         sensor=power_sensor,
