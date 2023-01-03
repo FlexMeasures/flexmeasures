@@ -347,7 +347,7 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
     # Remove unchanged beliefs with respect to what is already stored in the database
     return (
         bdf.convert_index_from_belief_horizon_to_time()
-        .groupby(level=["belief_time", "source"], as_index=False)
+        .groupby(level=["belief_time", "source"], group_keys=False, as_index=False)
         .apply(_drop_unchanged_beliefs_compared_to_db)
     )
 
