@@ -205,6 +205,7 @@ class StorageScheduler(Scheduler):
         Deserialize storage flex model and the flex context against schemas.
         Before that, we fill in values from wider context, if possible.
         Mostly, we allow several fields to come from sensor attributes.
+        TODO: this work could maybe go to the schema as a pre-load hook (if we pass in the sensor to schema initialization)
 
         Note: Before we apply the flex config schemas, we need to use the flex config identifiers with hyphens,
               (this is how they are represented to outside, e.g. by the API), after deserialization
@@ -231,6 +232,12 @@ class StorageScheduler(Scheduler):
                 )
             else:
                 self.flex_model["soc-at-start"] = 0
+        # soc-unit
+        if "soc-unit" not in self.flex_model or self.flex_model["soc-unit"] is None:
+            if self.sensor.unit in ("MWh", "kWh"):
+                self.flex_model["soc-unit"] = self.sensor.unit
+            elif self.sensor.unit in ("MW", "kW"):
+                self.flex_model["soc-unit"] = self.sensor.unit + "h"
 
         # Check for round-trip efficiency
         if (
@@ -241,12 +248,6 @@ class StorageScheduler(Scheduler):
             self.flex_model["roundtrip-efficiency"] = self.sensor.get_attribute(
                 "roundtrip_efficiency", 1
             )
-        if (
-            self.flex_model["roundtrip-efficiency"] <= 0
-            or self.flex_model["roundtrip-efficiency"] > 1
-        ):
-            raise ValueError("roundtrip efficiency expected within the interval (0, 1]")
-
         self.ensure_soc_min_max()
 
         # Now it's time to check if our flex configurations holds up to schemas

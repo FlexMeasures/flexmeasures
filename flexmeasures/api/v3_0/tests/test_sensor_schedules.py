@@ -139,11 +139,16 @@ def test_trigger_and_get_schedule(
     # Derive some expectations from the POSTed message
     if "flex-model" not in message:
         start_soc = message["soc-at-start"] / 1000  # in MWh
-        roundtrip_efficiency = message["roundtrip-efficiency"]
+        roundtrip_efficiency = (
+            float(message["roundtrip-efficiency"].replace("%", "")) / 100.0
+        )
         soc_targets = message.get("soc-targets")
     else:
         start_soc = message["flex-model"]["soc-at-start"] / 1000  # in MWh
-        roundtrip_efficiency = message["flex-model"]["roundtrip-efficiency"]
+        roundtrip_efficiency = (
+            float(message["flex-model"]["roundtrip-efficiency"].replace("%", ""))
+            / 100.0
+        )
         soc_targets = message["flex-model"].get("soc-targets")
     resolution = sensor.event_resolution
     if soc_targets:
