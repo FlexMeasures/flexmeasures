@@ -8,6 +8,7 @@ from flask.cli import with_appcontext
 from rq import Queue, Worker
 from sqlalchemy.orm import configure_mappers
 
+from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
 
 
@@ -55,11 +56,16 @@ def run_worker(queue: str, name: Optional[str]):
     while used_name in worker_names:
         used_name = f"{name}-{next(name_suffixes)}"
 
+    error_handler = handle_worker_exception
+    if queue == "scheduling":
+        error_handler = handle_scheduling_exception
+    elif queue == "forecasting":
+        error_handler = handle_forecasting_exception
     worker = Worker(
         q_list,
         connection=connection,
         name=used_name,
-        exception_handlers=[handle_forecasting_exception],
+        exception_handlers=[error_handler],
     )
 
     click.echo("\n=========================================================")
@@ -135,6 +141,16 @@ def clear_queue(queue: str, failed: bool):
             )
         else:
             click.echo("No jobs left.")
+
+
+def handle_worker_exception(job, exc_type, exc_value, traceback):
+    """
+    Just a fallback, usually we would use the per-queue handler.
+    """
+    queue_name = job.origin
+    click.echo(f"HANDLING RQ {queue_name.upper()} EXCEPTION: {exc_type}: {exc_value}")
+    job.meta["exception"] = exc_value
+    job.save_meta()
 
 
 def parse_queue_list(queue_names_str: str) -> List[Queue]:

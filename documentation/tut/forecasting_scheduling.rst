@@ -101,21 +101,23 @@ There are two ways to queue a scheduling job:
 First, we can add a scheduling job to the queue via the API.
 We already learned about the `[POST] /schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_ endpoint in :ref:`posting_flex_states`, where we saw how to post a flexibility state (in this case, the state of charge of a battery at a certain point in time).
 
-Here, we extend that example with an additional target value, representing a desired future state of charge.
+Here, we extend that (storage) example with an additional target value, representing a desired future state of charge.
 
 .. code-block:: json
 
     {
-        "value": 12.1,
-        "datetime": "2015-06-02T10:00:00+00:00",
-        "unit": "kWh",
-        "targets": [
-            {
-                "value": 25,
-                "datetime": "2015-06-02T16:00:00+00:00"
-            }
-        ]
+        "start": "2015-06-02T10:00:00+00:00",
+        "flex-model": {
+            "soc-at-start": 12.1,
+            "soc-unit": "kWh"
+            "soc-targets": [
+                {
+                    "value": 25,
+                    "datetime": "2015-06-02T16:00:00+00:00"
+                }
+        }
     }
+
 
 We now have described the state of charge at 10am to be ``12.1``. In addition, we requested that it should be ``25`` at 4pm.
 For instance, this could mean that a car should be charged at 90% at that time.
@@ -129,13 +131,13 @@ A second way to add scheduling jobs is via the CLI, so this is available for peo
 
 .. code-block:: console
 
-    flexmeasures add schedule --sensor-id 2 --optimization-context-id 3 \
+    flexmeasures add schedule for-storage --sensor-id 2 --optimization-context-id 3 \
         --start 2022-07-05T07:00+01:00 --duration PT12H \
         --soc-at-start 50% --roundtrip-efficiency 90% --as-job
 
 Here, the ``--as-job`` parameter makes the difference for queueing ― without it, the schedule is computed right away.
 
-Run ``flexmeasures add schedule --help`` for more information.
+Run ``flexmeasures add schedule for-storage --help`` for more information.
 
 
 .. _getting_prognoses:

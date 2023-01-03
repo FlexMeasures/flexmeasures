@@ -247,12 +247,26 @@ Time to live for UDI event ids of successful scheduling jobs. Set a negative tim
 
 Default: ``timedelta(days=7)``
 
+
+.. _planning_horizon_config:
+
 FLEXMEASURES_PLANNING_HORIZON
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The horizon to use when making schedules.
+The default horizon for making schedules.
+API users can set a custom duration if they need to.
 
-Default: ``timedelta(hours=2 * 24)``
+Default: ``timedelta(days=2)``
+
+
+FLEXMEASURES_MAX_PLANNING_HORIZON
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The maximum horizon for making schedules.
+API users are not able to request longer schedules.
+Set to ``None`` to forgo this limitation.
+
+Default: ``timedelta(days=7, hours=1)``
 
 
 Access Tokens
