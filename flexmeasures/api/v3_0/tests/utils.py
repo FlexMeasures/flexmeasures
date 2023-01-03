@@ -61,7 +61,7 @@ def message_for_trigger_schedule(
         "soc-min": 0,  # in kWh, according to soc-unit
         "soc-max": 40,  # in kWh, according to soc-unit
         "soc-unit": "kWh",
-        "roundtrip-efficiency": 0.98,
+        "roundtrip-efficiency": "98%",
     }
     if deprecated_format_pre012:
         # unpack flex model directly as message fields

@@ -6,7 +6,7 @@ from flask_classful import FlaskView, route
 from flask_json import as_json
 from flask_security import auth_required
 import isodate
-from marshmallow import fields, validate, ValidationError
+from marshmallow import fields, ValidationError
 from marshmallow.validate import OneOf
 from rq.job import Job, NoSuchJobError
 from timely_beliefs import BeliefsDataFrame
@@ -35,7 +35,6 @@ from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField
 from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
-from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.scheduling import FlexContextSchema
 from flexmeasures.data.services.sensors import get_sensors
 from flexmeasures.data.services.scheduling import (
@@ -224,11 +223,7 @@ class SensorAPI(FlaskView):
             ),
             "flex_model": fields.Dict(data_key="flex-model"),
             "soc_sensor_id": fields.Str(data_key="soc-sensor", required=False),
-            "roundtrip_efficiency": QuantityField(
-                "%",
-                validate=validate.Range(min=0, max=1),
-                data_key="roundtrip-efficiency",
-            ),
+            "roundtrip_efficiency": fields.Str(data_key="roundtrip-efficiency"),
             "start_value": fields.Float(data_key="soc-at-start"),
             "soc_min": fields.Float(data_key="soc-min"),
             "soc_max": fields.Float(data_key="soc-max"),
@@ -415,8 +410,6 @@ class SensorAPI(FlaskView):
                 flex_model = {}
             if param is not None:
                 if param_name not in flex_model:
-                    if param_name == "roundtrip-efficiency" and type(param) != float:
-                        param = param.to(ur.Quantity("dimensionless")).magnitude  # type: ignore
                     flex_model[param_name] = param
                 found_fields["model"].append(param_name)
         # flex-context
