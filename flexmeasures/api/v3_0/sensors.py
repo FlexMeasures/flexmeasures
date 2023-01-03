@@ -9,7 +9,7 @@ import isodate
 from marshmallow import fields, ValidationError
 from marshmallow.validate import OneOf
 from rq.job import Job, NoSuchJobError
-from timely_beliefs import BeliefsDataFrame
+import timely_beliefs as tb
 from webargs.flaskparser import use_args, use_kwargs
 
 from flexmeasures.api.common.responses import (
@@ -33,9 +33,14 @@ from flexmeasures.data import db
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.queries.utils import simplify_index
-from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField
-from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
 from flexmeasures.data.schemas.scheduling import FlexContextSchema
+from flexmeasures.data.schemas.sensors import (
+    SensorSchema,
+    SensorIdField,
+    SensorDataFileSchema,
+)
+from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
+from flexmeasures.data.schemas.utils import path_and_files
 from flexmeasures.data.services.sensors import get_sensors
 from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
@@ -119,12 +124,18 @@ class SensorAPI(FlaskView):
         sensors = get_sensors(account=account)
         return sensors_schema.dump(sensors), 200
 
+    @route("<id>/data/upload", methods=["POST"])
+    @path_and_files(SensorDataFileSchema)
+    def upload_data(self, data: list[tb.BeliefsDataFrame], **kwargs):
+        response, code = save_and_enqueue(data)
+        return response, code
+
     @route("/data", methods=["POST"])
     @use_args(
         post_sensor_schema,
         location="json",
     )
-    def post_data(self, bdf: BeliefsDataFrame):
+    def post_data(self, bdf: tb.BeliefsDataFrame):
         """
         Post sensor data to FlexMeasures.
 
