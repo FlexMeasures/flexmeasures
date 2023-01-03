@@ -147,7 +147,8 @@ def handle_worker_exception(job, exc_type, exc_value, traceback):
     """
     Just a fallback, usually we would use the per-queue handler.
     """
-    click.echo("HANDLING RQ WORKER EXCEPTION: %s:%s\n" % (exc_type, exc_value))
+    queue_name = job.origin
+    click.echo(f"HANDLING RQ {queue_name.upper()} EXCEPTION: {exc_type}: {exc_value}")
     job.meta["exception"] = exc_value
     job.save_meta()
 
