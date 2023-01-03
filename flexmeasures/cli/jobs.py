@@ -56,15 +56,16 @@ def run_worker(queue: str, name: Optional[str]):
     while used_name in worker_names:
         used_name = f"{name}-{next(name_suffixes)}"
 
+    error_handler = handle_worker_exception
+    if queue == "scheduling":
+        error_handler = handle_scheduling_exception
+    elif queue == "forecasting":
+        error_handler = handle_forecasting_exception
     worker = Worker(
         q_list,
         connection=connection,
         name=used_name,
-        exception_handlers=[
-            handle_forecasting_exception
-            if queue == "forecasting"
-            else handle_scheduling_exception
-        ],
+        exception_handlers=[error_handler],
     )
 
     click.echo("\n=========================================================")
@@ -140,6 +141,15 @@ def clear_queue(queue: str, failed: bool):
             )
         else:
             click.echo("No jobs left.")
+
+
+def handle_worker_exception(job, exc_type, exc_value, traceback):
+    """
+    Just a fallback, usually we would use the per-queue handler.
+    """
+    click.echo("HANDLING RQ WORKER EXCEPTION: %s:%s\n" % (exc_type, exc_value))
+    job.meta["exception"] = exc_value
+    job.save_meta()
 
 
 def parse_queue_list(queue_names_str: str) -> List[Queue]:
