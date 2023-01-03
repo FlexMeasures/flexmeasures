@@ -106,7 +106,7 @@ class Scheduler:
 
     def persist_flex_model(self):
         """
-        If useful, (parts of) the flex model can be persisted (e.g. on the sensor) here,
+        If useful, (parts of) the flex model can be persisted here,
         e.g. as asset attributes, sensor attributes or as sensor data (beliefs).
         """
         pass

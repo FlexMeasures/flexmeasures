@@ -38,10 +38,10 @@ def create_scheduling_job(
     The life cycle of a scheduling job:
     1. A scheduling job is born here (in create_scheduling_job).
     2. It is run in make_schedule which writes results to the db.
-    3. If an error occurs (and the worker is configured accordingly), handle_worker_exception comes in.
-       This might re-enqueue the job or try a different model (which creates a new job).
+    3. If an error occurs (and the worker is configured accordingly), handle_scheduling_exception comes in.
     """
-    # We create a scheduler and check if deserializing works, so the flex config is checked and errors are raised here.
+    # We first create a scheduler and check if deserializing works, so the flex config is checked
+    # and errors are raised before the job is enqueued (so users get a meaningful response right away).
     # Note: We are putting still serialized scheduler_kwargs into the job!
     scheduler = find_scheduler_class(sensor)(sensor=sensor, **scheduler_kwargs)
     scheduler.deserialize_config()
