@@ -1076,7 +1076,9 @@ def add_toy_account(kind: str, name: str):
             db.session.add(asset)
             if asset_type == "battery":
                 asset.attributes = dict(
-                    capacity_in_mw=0.5, min_soc_in_mwh=0.05, max_soc_in_mwh=0.45
+                    capacity_in_mw=0.5,
+                    min_soc_in_mwh=0.05,
+                    max_soc_in_mwh=0.45,
                 )
                 # add charging sensor to battery
                 charging_sensor = Sensor(
@@ -1107,6 +1109,13 @@ def add_toy_account(kind: str, name: str):
             )
         db.session.add(day_ahead_sensor)
 
+        # add day-ahead sensor to battery page
+        db.session.flush()
+        battery = charging_sensor.generic_asset
+        battery.attributes["sensors_to_show"] = [
+            day_ahead_sensor.id,
+            charging_sensor.id,
+        ]
     db.session.commit()
 
     click.echo(
