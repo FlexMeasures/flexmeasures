@@ -1,10 +1,17 @@
 version: "3.4"
 
-# -----------------------------------------------
-# TODO:
-# * Add redis service
-# * Add a FlexMeasures worker service, maybe using https://docs.docker.com/compose/compose-file/#entrypoint
-# -----------------------------------------------
+# ------------------------------------------------------------------
+# This runs your local FlexMeasures code in a docker compose stack.
+# Two FlexMeasures instances are spun up, one for serving the web
+# UI & API, one to work on computation jobs.
+# The server is adding a toy account when it starts.
+# (user: toy-user@flexmeasures.io, password: toy-password)
+# 
+# Instead of local code (which is useful for development purposes),
+# you can also use the official (and stable) FlexMeasures docker image
+# (lfenergy/flexmeasures). Replace the two `build` directives with
+# an `image`directive.
+# ------------------------------------------------------------------
 
 services:
   dev-db:
