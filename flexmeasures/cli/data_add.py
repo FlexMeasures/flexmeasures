@@ -1064,6 +1064,32 @@ def add_toy_account(kind: str, name: str):
                 user_roles=["account-admin"],
                 account_name=name,
             )
+        # make assets
+        for asset_type in ("solar", "building", "battery"):
+            asset = GenericAsset(
+                name=f"toy-{asset_type}",
+                generic_asset_type=asset_types[asset_type],
+                owner=user.account,
+                latitude=location[0],
+                longitude=location[1],
+            )
+            db.session.add(asset)
+            if asset_type == "battery":
+                asset.attributes = dict(
+                    capacity_in_mw=0.5,
+                    min_soc_in_mwh=0.05,
+                    max_soc_in_mwh=0.45,
+                )
+                # add charging sensor to battery
+                charging_sensor = Sensor(
+                    name="discharging",
+                    generic_asset=asset,
+                    unit="MW",
+                    timezone="Europe/Amsterdam",
+                    event_resolution=timedelta(minutes=15),
+                )
+                db.session.add(charging_sensor)
+
         # add public day-ahead market (as sensor of transmission zone asset)
         nl_zone = add_transmission_zone_asset("NL", db=db)
         day_ahead_sensor = Sensor.query.filter(
@@ -1082,33 +1108,14 @@ def add_toy_account(kind: str, name: str):
                 ),
             )
         db.session.add(day_ahead_sensor)
-        # make assets
-        for asset_type in ("solar", "building", "battery"):
-            asset = GenericAsset(
-                name=f"toy-{asset_type}",
-                generic_asset_type=asset_types[asset_type],
-                owner=user.account,
-                latitude=location[0],
-                longitude=location[1],
-            )
-            db.session.add(asset)
-            if asset_type == "battery":
-                # add charging sensor to battery
-                charging_sensor = Sensor(
-                    name="discharging",
-                    generic_asset=asset,
-                    unit="MW",
-                    timezone="Europe/Amsterdam",
-                    event_resolution=timedelta(minutes=15),
-                )
-                db.session.add(charging_sensor)
-                db.session.flush()
-                asset.attributes = dict(
-                    capacity_in_mw=0.5,
-                    min_soc_in_mwh=0.05,
-                    max_soc_in_mwh=0.45,
-                    sensors_to_show=[day_ahead_sensor.id, charging_sensor.id],
-                )
+
+        # add day-ahead sensor to battery page
+        db.session.flush()
+        battery = charging_sensor.generic_asset
+        battery.attributes["sensors_to_show"] = [
+            day_ahead_sensor.id,
+            charging_sensor.id,
+        ]
     db.session.commit()
 
     click.echo(
