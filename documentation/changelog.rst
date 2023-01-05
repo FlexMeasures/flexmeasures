@@ -6,6 +6,16 @@ FlexMeasures Changelog
 v0.13.0 | February XX, 2023
 ============================
 
+New features
+-------------
+* Keyboard control over replay [see `PR #562 <https://www.github.com/FlexMeasures/flexmeasures/pull/562>`_]
+
+Bugfixes
+-----------
+
+
+Infrastructure / Support
+----------------------
 
 
 v0.12.0 | January 4, 2023
