@@ -21,7 +21,7 @@ Below are the ``flexmeasures`` CLI commands we'll run, and which we'll explain s
     # load prices to optimise the schedule against
     $ flexmeasures add beliefs --sensor-id 3 --source toy-user prices-tomorrow.csv --timezone utc
     # make the schedule
-    $ flexmeasures add schedule --sensor-id 2 --consumption-price-sensor 3 \
+    $ flexmeasures add schedule for-storage --sensor-id 2 --consumption-price-sensor 3 \
         --start ${TOMORROW}T07:00+01:00 --duration PT12H \
         --soc-at-start 50% --roundtrip-efficiency 90%
 
@@ -268,7 +268,7 @@ To keep it short, we'll only ask for a 12-hour window starting at 7am. Finally, 
 
 .. code-block:: console
 
-    $ flexmeasures add schedule --sensor-id 2 --consumption-price-sensor 3 \
+    $ flexmeasures add schedule for-storage --sensor-id 2 --consumption-price-sensor 3 \
         --start ${TOMORROW}T07:00+01:00 --duration PT12H \
         --soc-at-start 50% --roundtrip-efficiency 90%
     New schedule is stored.
@@ -314,4 +314,4 @@ We can also look at the charging schedule in the `FlexMeasures UI <http://localh
 Recall that we only asked for a 12 hour schedule here. We started our schedule *after* the high price peak (at 5am) and it also had to end *before* the second price peak fully realised (at 9pm). Our scheduler didn't have many opportunities to optimize, but it found some. For instance, it does buy at the lowest price (around 3pm) and sells it off when prices start rising again (around 6pm).
 
 
-.. note:: The ``flexmeasures add schedule`` command also accepts state-of-charge targets, so the schedule can be more sophisticated. But that is not the point of this tutorial. See ``flexmeasures add schedule --help``. 
+.. note:: The ``flexmeasures add schedule for-storage`` command also accepts state-of-charge targets, so the schedule can be more sophisticated. But that is not the point of this tutorial. See ``flexmeasures add schedule for-storage --help``. 

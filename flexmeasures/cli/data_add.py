@@ -6,7 +6,6 @@ from typing import Dict, List, Optional, Tuple
 import json
 
 from marshmallow import validate
-import numpy as np
 import pandas as pd
 import pytz
 from flask import current_app as app
@@ -19,6 +18,7 @@ import timely_beliefs as tb
 import timely_beliefs.utils as tb_utils
 from workalendar.registry import registry as workalendar_registry
 
+from flexmeasures.cli.utils import DeprecatedDefaultGroup
 from flexmeasures.data import db
 from flexmeasures.data.scripts.data_gen import (
     add_transmission_zone_asset,
@@ -28,7 +28,6 @@ from flexmeasures.data.scripts.data_gen import (
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.data.services.scheduling import make_schedule, create_scheduling_job
 from flexmeasures.data.services.users import create_user
-from flexmeasures.data.models.planning.utils import initialize_series
 from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts
 from flexmeasures.data.models.time_series import (
     Sensor,
@@ -823,14 +822,37 @@ def create_forecasts(
         )
 
 
-@fm_add_data.command("schedule")
+# todo: repurpose `flexmeasures add schedule` (deprecated since v0.12),
+#       - see https://github.com/FlexMeasures/flexmeasures/pull/537#discussion_r1048680231
+#       - hint for repurposing to invoke custom logic instead of a default subcommand:
+#             @fm_add_data.group("schedule", invoke_without_command=True)
+#             def create_schedule():
+#                 if ctx.invoked_subcommand:
+#                     ...
+@fm_add_data.group(
+    "schedule",
+    cls=DeprecatedDefaultGroup,
+    default="storage",
+    deprecation_message="The command 'flexmeasures add schedule' is deprecated. Please use `flexmeasures add schedule for-storage` instead.",
+)
+@click.pass_context
+@with_appcontext
+def create_schedule(ctx):
+    """(Deprecated) Create a new schedule for a given power sensor.
+
+    THIS COMMAND HAS BEEN RENAMED TO `flexmeasures add schedule for-storage`
+    """
+    pass
+
+
+@create_schedule.command("for-storage")
 @with_appcontext
 @click.option(
     "--sensor-id",
     "power_sensor",
     type=SensorIdField(),
     required=True,
-    help="Create schedule for this sensor. Follow up with the sensor's ID.",
+    help="Create schedule for this sensor. Should be a power sensor. Follow up with the sensor's ID.",
 )
 @click.option(
     "--consumption-price-sensor",
@@ -914,7 +936,7 @@ def create_forecasts(
     help="Whether to queue a scheduling job instead of computing directly. "
     "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'scheduling' queue. Defaults to False.",
 )
-def create_schedule(
+def add_schedule_for_storage(
     power_sensor: Sensor,
     consumption_price_sensor: Sensor,
     production_price_sensor: Sensor,
@@ -928,14 +950,13 @@ def create_schedule(
     roundtrip_efficiency: Optional[ur.Quantity] = None,
     as_job: bool = False,
 ):
-    """Create a new schedule for a given power sensor.
+    """Create a new schedule for a storage asset.
 
     Current limitations:
 
-    - only supports battery assets and Charge Points
-    - only supports datetimes on the hour or a multiple of the sensor resolution thereafter
+    - Limited to power sensors (probably possible to generalize to non-electric assets)
+    - Only supports datetimes on the hour or a multiple of the sensor resolution thereafter
     """
-
     # todo: deprecate the 'optimization-context-id' argument in favor of 'consumption-price-sensor' (announced v0.11.0)
     tb_utils.replace_deprecated_argument(
         "optimization-context-id",
@@ -944,36 +965,23 @@ def create_schedule(
         consumption_price_sensor,
     )
 
-    # Parse input
+    # Parse input and required sensor attributes
     if not power_sensor.measures_power:
         click.echo(f"Sensor with ID {power_sensor.id} is not a power sensor.")
         raise click.Abort()
     if production_price_sensor is None:
         production_price_sensor = consumption_price_sensor
     end = start + duration
-    for attribute in ("min_soc_in_mwh", "max_soc_in_mwh"):
-        try:
-            check_required_attributes(power_sensor, [(attribute, float)])
-        except MissingAttributeException:
-            click.echo(f"{power_sensor} has no {attribute} attribute.")
-            raise click.Abort()
-    soc_targets = initialize_series(
-        np.nan,
-        start=pd.Timestamp(start).tz_convert(power_sensor.timezone),
-        end=pd.Timestamp(end).tz_convert(power_sensor.timezone),
-        resolution=power_sensor.event_resolution,
-        inclusive="right",  # note that target values are indexed by their due date (i.e. inclusive="right")
-    )
 
-    # Convert round-trip efficiency to dimensionless
-    if roundtrip_efficiency is not None:
-        roundtrip_efficiency = roundtrip_efficiency.to(
-            ur.Quantity("dimensionless")
-        ).magnitude
-
-    # Convert SoC units to MWh, given the storage capacity
+    # Convert SoC units (we ask for % in this CLI) to MWh, given the storage capacity
+    try:
+        check_required_attributes(power_sensor, [("max_soc_in_mwh", float)])
+    except MissingAttributeException:
+        click.echo(f"Sensor {power_sensor} has no max_soc_in_mwh attribute.")
+        raise click.Abort()
     capacity_str = f"{power_sensor.get_attribute('max_soc_in_mwh')} MWh"
     soc_at_start = convert_units(soc_at_start.magnitude, soc_at_start.units, "MWh", capacity=capacity_str)  # type: ignore
+    soc_targets = []
     for soc_target_tuple in soc_target_strings:
         soc_target_value_str, soc_target_dt_str = soc_target_tuple
         soc_target_value = convert_units(
@@ -983,48 +991,39 @@ def create_schedule(
             capacity=capacity_str,
         )
         soc_target_datetime = pd.Timestamp(soc_target_dt_str)
-        soc_targets.loc[soc_target_datetime] = soc_target_value
+        soc_targets.append(dict(value=soc_target_value, datetime=soc_target_datetime))
     if soc_min is not None:
         soc_min = convert_units(soc_min.magnitude, str(soc_min.units), "MWh", capacity=capacity_str)  # type: ignore
     if soc_max is not None:
         soc_max = convert_units(soc_max.magnitude, str(soc_max.units), "MWh", capacity=capacity_str)  # type: ignore
+    if roundtrip_efficiency is not None:
+        roundtrip_efficiency = roundtrip_efficiency.magnitude / 100.0
 
+    scheduling_kwargs = dict(
+        sensor=power_sensor,
+        start=start,
+        end=end,
+        belief_time=server_now(),
+        resolution=power_sensor.event_resolution,
+        flex_model={
+            "soc-at-start": soc_at_start,
+            "soc-targets": soc_targets,
+            "soc-min": soc_min,
+            "soc-max": soc_max,
+            "soc-unit": "MWh",
+            "roundtrip-efficiency": roundtrip_efficiency,
+        },
+        flex_context={
+            "consumption-price-sensor": consumption_price_sensor.id,
+            "production-price-sensor": production_price_sensor.id,
+        },
+    )
     if as_job:
-        job = create_scheduling_job(
-            sensor=power_sensor,
-            start_of_schedule=start,
-            end_of_schedule=end,
-            belief_time=server_now(),
-            resolution=power_sensor.event_resolution,
-            storage_specs=dict(
-                soc_at_start=soc_at_start,
-                soc_targets=soc_targets,
-                soc_min=soc_min,
-                soc_max=soc_max,
-                roundtrip_efficiency=roundtrip_efficiency,
-            ),
-            consumption_price_sensor=consumption_price_sensor,
-            production_price_sensor=production_price_sensor,
-        )
+        job = create_scheduling_job(**scheduling_kwargs)
         if job:
             print(f"New scheduling job {job.id} has been added to the queue.")
     else:
-        success = make_schedule(
-            sensor_id=power_sensor.id,
-            start=start,
-            end=end,
-            belief_time=server_now(),
-            resolution=power_sensor.event_resolution,
-            storage_specs=dict(
-                soc_at_start=soc_at_start,
-                soc_targets=soc_targets,
-                soc_min=soc_min,
-                soc_max=soc_max,
-                roundtrip_efficiency=roundtrip_efficiency,
-            ),
-            consumption_price_sensor=consumption_price_sensor,
-            production_price_sensor=production_price_sensor,
-        )
+        success = make_schedule(**scheduling_kwargs)
         if success:
             print("New schedule is stored.")
 
@@ -1077,7 +1076,9 @@ def add_toy_account(kind: str, name: str):
             db.session.add(asset)
             if asset_type == "battery":
                 asset.attributes = dict(
-                    capacity_in_mw=0.5, min_soc_in_mwh=0.05, max_soc_in_mwh=0.45
+                    capacity_in_mw=0.5,
+                    min_soc_in_mwh=0.05,
+                    max_soc_in_mwh=0.45,
                 )
                 # add charging sensor to battery
                 charging_sensor = Sensor(
@@ -1108,13 +1109,24 @@ def add_toy_account(kind: str, name: str):
             )
         db.session.add(day_ahead_sensor)
 
+        # add day-ahead sensor to battery page
+        db.session.flush()
+        battery = charging_sensor.generic_asset
+        battery.attributes["sensors_to_show"] = [
+            day_ahead_sensor.id,
+            charging_sensor.id,
+        ]
     db.session.commit()
 
     click.echo(
         f"Toy account {name} with user {user.email} created successfully. You might want to run `flexmeasures show account --id {user.account.id}`"
     )
-    click.echo(f"The sensor for battery discharging is {charging_sensor}.")
-    click.echo(f"The sensor for Day ahead prices is {day_ahead_sensor}.")
+    click.echo(
+        f"The sensor for battery discharging is {charging_sensor} (ID: {charging_sensor.id})."
+    )
+    click.echo(
+        f"The sensor for Day ahead prices is {day_ahead_sensor} (ID: {day_ahead_sensor.id})."
+    )
 
 
 app.cli.add_command(fm_add_data)

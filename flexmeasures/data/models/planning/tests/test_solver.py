@@ -6,9 +6,9 @@ import numpy as np
 import pandas as pd
 
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.planning import Scheduler
 from flexmeasures.data.models.planning.storage import StorageScheduler
 from flexmeasures.data.models.planning.utils import (
-    ensure_storage_specs,
     initialize_series,
 )
 from flexmeasures.utils.calculations import integrate_time_series
@@ -29,19 +29,21 @@ def test_battery_solver_day_1(
     end = tz.localize(datetime(2015, 1, 2))
     resolution = timedelta(minutes=15)
     soc_at_start = battery.get_attribute("soc_in_mwh")
-    storage_specs = ensure_storage_specs(
-        dict(soc_at_start=soc_at_start), battery, start, end, resolution
-    )
-    schedule = StorageScheduler().schedule(
+    scheduler: Scheduler = StorageScheduler(
         battery,
         start,
         end,
         resolution,
-        storage_specs=storage_specs,
-        inflexible_device_sensors=add_inflexible_device_forecasts.keys()
-        if use_inflexible_device
-        else None,
+        flex_model={"soc-at-start": soc_at_start},
+        flex_context={
+            "inflexible-device-sensors": [
+                s.id for s in add_inflexible_device_forecasts.keys()
+            ]
+            if use_inflexible_device
+            else []
+        },
     )
+    schedule = scheduler.compute_schedule()
     soc_schedule = integrate_time_series(schedule, soc_at_start, decimal_precision=6)
 
     with pd.option_context("display.max_rows", None, "display.max_columns", 3):
@@ -86,25 +88,19 @@ def test_battery_solver_day_2(add_battery_assets, roundtrip_efficiency: float):
     soc_at_start = battery.get_attribute("soc_in_mwh")
     soc_min = 0.5
     soc_max = 4.5
-    storage_specs = ensure_storage_specs(
-        dict(
-            soc_at_start=soc_at_start,
-            soc_min=soc_min,
-            soc_max=soc_max,
-            roundtrip_efficiency=roundtrip_efficiency,
-        ),
+    scheduler = StorageScheduler(
         battery,
         start,
         end,
         resolution,
+        flex_model={
+            "soc-at-start": soc_at_start,
+            "soc-min": soc_min,
+            "soc-max": soc_max,
+            "roundtrip-efficiency": roundtrip_efficiency,
+        },
     )
-    schedule = StorageScheduler().schedule(
-        battery,
-        start,
-        end,
-        resolution,
-        storage_specs=storage_specs,
-    )
+    schedule = scheduler.compute_schedule()
     soc_schedule = integrate_time_series(
         schedule,
         soc_at_start,
@@ -176,16 +172,27 @@ def test_charging_station_solver_day_2(target_soc, charging_station_name):
     target_soc_datetime = start + duration_until_target
     soc_targets = initialize_series(np.nan, start, end, resolution, inclusive="right")
     soc_targets.loc[target_soc_datetime] = target_soc
-    storage_specs = ensure_storage_specs(
-        dict(soc_at_start=soc_at_start, soc_targets=soc_targets),
+    scheduler = StorageScheduler(
         charging_station,
         start,
         end,
         resolution,
+        flex_model={
+            "soc_at_start": soc_at_start,
+            "soc_min": charging_station.get_attribute("min_soc_in_mwh", 0),
+            "soc_max": charging_station.get_attribute(
+                "max_soc_in_mwh", max(soc_targets.values)
+            ),
+            "roundtrip_efficiency": charging_station.get_attribute(
+                "roundtrip_efficiency", 1
+            ),
+            "soc_targets": soc_targets,
+        },
     )
-    consumption_schedule = StorageScheduler().schedule(
-        charging_station, start, end, resolution, storage_specs=storage_specs
+    scheduler.config_deserialized = (
+        True  # soc targets are already a DataFrame, names get underscore
     )
+    consumption_schedule = scheduler.compute_schedule()
     soc_schedule = integrate_time_series(
         consumption_schedule, soc_at_start, decimal_precision=6
     )
@@ -238,20 +245,27 @@ def test_fallback_to_unsolvable_problem(target_soc, charging_station_name):
     target_soc_datetime = start + duration_until_target
     soc_targets = initialize_series(np.nan, start, end, resolution, inclusive="right")
     soc_targets.loc[target_soc_datetime] = target_soc
-    storage_specs = ensure_storage_specs(
-        dict(soc_at_start=soc_at_start, soc_targets=soc_targets),
+    scheduler = StorageScheduler(
         charging_station,
         start,
         end,
         resolution,
+        flex_model={
+            "soc_at_start": soc_at_start,
+            "soc_min": charging_station.get_attribute("min_soc_in_mwh", 0),
+            "soc_max": charging_station.get_attribute(
+                "max_soc_in_mwh", max(soc_targets.values)
+            ),
+            "roundtrip_efficiency": charging_station.get_attribute(
+                "roundtrip_efficiency", 1
+            ),
+            "soc_targets": soc_targets,
+        },
     )
-    consumption_schedule = StorageScheduler().schedule(
-        charging_station,
-        start,
-        end,
-        resolution,
-        storage_specs=storage_specs,
+    scheduler.config_deserialized = (
+        True  # soc targets are already a DataFrame, names get underscore
     )
+    consumption_schedule = scheduler.compute_schedule()
     soc_schedule = integrate_time_series(
         consumption_schedule, soc_at_start, decimal_precision=6
     )
@@ -325,27 +339,27 @@ def test_building_solver_day_2(
     soc_at_start = 2.5
     soc_min = 0.5
     soc_max = 4.5
-    storage_specs = ensure_storage_specs(
-        dict(
-            soc_at_start=soc_at_start,
-            soc_min=soc_min,
-            soc_max=soc_max,
-        ),
+    scheduler = StorageScheduler(
         battery,
         start,
         end,
         resolution,
+        flex_model={
+            "soc_at_start": soc_at_start,
+            "soc_min": soc_min,
+            "soc_max": soc_max,
+            "roundtrip_efficiency": battery.get_attribute("roundtrip_efficiency", 1),
+        },
+        flex_context={
+            "inflexible_device_sensors": inflexible_devices.values(),
+            "production_price_sensor": production_price_sensor,
+            "consumption_price_sensor": consumption_price_sensor,
+        },
     )
-    schedule = StorageScheduler().schedule(
-        battery,
-        start,
-        end,
-        resolution,
-        storage_specs=storage_specs,
-        consumption_price_sensor=consumption_price_sensor,
-        production_price_sensor=production_price_sensor,
-        inflexible_device_sensors=inflexible_devices.values(),
+    scheduler.config_deserialized = (
+        True  # inflexible device sensors are already objects, names get underscore
     )
+    schedule = scheduler.compute_schedule()
     soc_schedule = integrate_time_series(schedule, soc_at_start, decimal_precision=6)
 
     with pd.option_context("display.max_rows", None, "display.max_columns", 3):

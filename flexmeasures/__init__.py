@@ -7,6 +7,7 @@ from flexmeasures.data.models.generic_assets import (  # noqa F401
     GenericAsset as Asset,
     GenericAssetType as AssetType,
 )
+from flexmeasures.data.models.planning import Scheduler  # noqa F401
 from flexmeasures.data.models.time_series import Sensor  # noqa F401
 
 

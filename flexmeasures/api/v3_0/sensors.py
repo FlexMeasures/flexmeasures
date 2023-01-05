@@ -1,29 +1,26 @@
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import List, Dict, Optional
 
 from flask import current_app
 from flask_classful import FlaskView, route
 from flask_json import as_json
 from flask_security import auth_required
 import isodate
-from marshmallow import validate, fields, Schema
+from marshmallow import fields, ValidationError
 from marshmallow.validate import OneOf
-import numpy as np
 from rq.job import Job, NoSuchJobError
 from timely_beliefs import BeliefsDataFrame
 from webargs.flaskparser import use_args, use_kwargs
 
 from flexmeasures.api.common.responses import (
-    invalid_datetime,
-    invalid_timezone,
     request_processed,
     unrecognized_event,
     unknown_schedule,
-    ptus_incomplete,
+    invalid_flex_config,
 )
+from flexmeasures.api.common.utils.deprecation_utils import deprecate_fields
 from flexmeasures.api.common.utils.validators import (
     optional_duration_accepted,
-    optional_prior_accepted,
 )
 from flexmeasures.api.common.schemas.sensor_data import (
     GetSensorDataSchema,
@@ -32,13 +29,13 @@ from flexmeasures.api.common.schemas.sensor_data import (
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.utils.api_utils import save_and_enqueue
 from flexmeasures.auth.decorators import permission_required_for_context
-from flexmeasures.data.models.planning.utils import initialize_series
+from flexmeasures.data import db
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField
-from flexmeasures.data.schemas.units import QuantityField
-from flexmeasures.data.schemas import AwareDateTimeField
+from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
+from flexmeasures.data.schemas.scheduling import FlexContextSchema
 from flexmeasures.data.services.sensors import get_sensors
 from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
@@ -48,15 +45,23 @@ from flexmeasures.utils.time_utils import duration_isoformat
 from flexmeasures.utils.unit_utils import ur
 
 
-class TargetSchema(Schema):
-    value = fields.Float()
-    datetime = AwareDateTimeField()
-
-
 # Instantiate schemas outside of endpoint logic to minimize response time
 get_sensor_schema = GetSensorDataSchema()
 post_sensor_schema = PostSensorDataSchema()
 sensors_schema = SensorSchema(many=True)
+
+DEPRECATED_FLEX_CONFIGURATION_FIELDS = [
+    "soc-at-start",
+    "soc-min",
+    "soc-max",
+    "soc-unit",
+    "roundtrip-efficiency",
+    "prefer-charging-sooner",
+    "soc-targets",
+    "consumption-price-sensor",
+    "production-price-sensor",
+    "inflexible-device-sensors",
+]
 
 
 class SensorAPI(FlaskView):
@@ -206,20 +211,22 @@ class SensorAPI(FlaskView):
         {"sensor": SensorIdField(data_key="id")},
         location="path",
     )
+    # TODO: Everything other than start_of_schedule, prior, flex_model and flex_context is to be deprecated in 0.13. We let the scheduler decide (flex model) or nest (portfolio)
     @use_kwargs(
         {
-            "soc_sensor_id": fields.Str(data_key="soc-sensor", required=False),
-            "roundtrip_efficiency": QuantityField(
-                "%",
-                validate=validate.Range(min=0, max=1),
-                data_key="roundtrip-efficiency",
+            "start_of_schedule": AwareDateTimeField(
+                data_key="start", format="iso", required=True
             ),
+            "belief_time": AwareDateTimeField(format="iso", data_key="prior"),
+            "duration": PlanningDurationField(
+                load_default=PlanningDurationField.load_default
+            ),
+            "flex_model": fields.Dict(data_key="flex-model"),
+            "soc_sensor_id": fields.Str(data_key="soc-sensor", required=False),
+            "roundtrip_efficiency": fields.Str(data_key="roundtrip-efficiency"),
             "start_value": fields.Float(data_key="soc-at-start"),
             "soc_min": fields.Float(data_key="soc-min"),
             "soc_max": fields.Float(data_key="soc-max"),
-            "start_of_schedule": AwareDateTimeField(
-                data_key="start", format="iso", required=False
-            ),
             "unit": fields.Str(
                 data_key="soc-unit",
                 validate=OneOf(
@@ -229,11 +236,13 @@ class SensorAPI(FlaskView):
                     ]
                 ),
             ),  # todo: allow unit to be set per field, using QuantityField("%", validate=validate.Range(min=0, max=1))
-            "targets": fields.List(fields.Nested(TargetSchema), data_key="soc-targets"),
+            "targets": fields.List(fields.Dict, data_key="soc-targets"),
             "prefer_charging_sooner": fields.Bool(
                 data_key="prefer-charging-sooner", required=False
             ),
-            # todo: add a duration parameter, instead of falling back to FLEXMEASURES_PLANNING_HORIZON
+            "flex_context": fields.Nested(
+                FlexContextSchema, required=False, data_key="flex-context"
+            ),
             "consumption_price_sensor": SensorIdField(
                 data_key="consumption-price-sensor", required=False
             ),
@@ -246,18 +255,24 @@ class SensorAPI(FlaskView):
         },
         location="json",
     )
-    @optional_prior_accepted()
     def trigger_schedule(  # noqa: C901
         self,
         sensor: Sensor,
         start_of_schedule: datetime,
-        unit: str,
-        prior: datetime,
+        duration: timedelta,
+        belief_time: Optional[datetime] = None,
+        start_value: Optional[float] = None,
+        soc_min: Optional[float] = None,
+        soc_max: Optional[float] = None,
+        unit: Optional[str] = None,
         roundtrip_efficiency: Optional[ur.Quantity] = None,
         prefer_charging_sooner: Optional[bool] = True,
         consumption_price_sensor: Optional[Sensor] = None,
         production_price_sensor: Optional[Sensor] = None,
         inflexible_device_sensors: Optional[List[Sensor]] = None,
+        soc_sensor_id: Optional[int] = None,
+        flex_model: Optional[dict] = None,
+        flex_context: Optional[dict] = None,
         **kwargs,
     ):
         """
@@ -270,28 +285,27 @@ class SensorAPI(FlaskView):
 
         In this request, you can describe:
 
-        - the schedule (start, unit, prior)
-        - the flexibility model for the sensor (see below, only storage models are supported at the moment)
-        - the EMS the sensor operates in (inflexible device sensors, and sensors that put a price on consumption and/or production)
+        - the schedule's main features (when does it start, what unit should it report, prior to what time can we assume knowledge)
+        - the flexibility model for the sensor (state and constraint variables, e.g. current state of charge of a battery, or connection capacity)
+        - the flexibility context which the sensor operates in (other sensors under the same EMS which are relevant, e.g. prices)
 
-        Note: This endpoint does not support to schedule an EMS with multiple flexible sensors at once. This will happen in another endpoint.
-              See https://github.com/FlexMeasures/flexmeasures/issues/485. Until then, it is possible to call this endpoint for one flexible endpoint at a time
-              (considering already scheduled sensors as inflexible).
+        For details on flexibility model and context, see :ref:`describing_flexibility`.
+        Below, we'll also list some examples.
 
-        Flexibility models apply to the sensor's asset type:
+        .. note:: This endpoint does not support to schedule an EMS with multiple flexible sensors at once. This will happen in another endpoint.
+                  See https://github.com/FlexMeasures/flexmeasures/issues/485. Until then, it is possible to call this endpoint for one flexible endpoint at a time
+                  (considering already scheduled sensors as inflexible).
 
-        1) For storage sensors (e.g. battery, charge points), the schedule deals with the state of charge (SOC).
-           The possible flexibility parameters are:
+        The length of the schedule can be set explicitly through the 'duration' field.
+        Otherwise, it is set by the config setting :ref:`planning_horizon_config`, which defaults to 48 hours.
+        If the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.
+        Finally, the schedule length is limited by :ref:`max_planning_horizon_config`, which defaults to 169 hours.
+        Targets that exceed the max planning horizon are not accepted.
 
-            - soc-at-start (defaults to 0)
-            - soc-unit (kWh or MWh)
-            - soc-min (defaults to 0)
-            - soc-max (defaults to max soc target)
-            - soc-targets (defaults to NaN values)
-            - roundtrip-efficiency (defaults to 100%)
-            - prefer-charging-sooner (defaults to True, also signals a preference to discharge later)
+        The appropriate algorithm is chosen by FlexMeasures (based on asset type).
+        It's also possible to use custom schedulers and custom flexibility models, see :ref:`plugin_customization`.
 
-        2) Heat pump sensors are work in progress.
+        If you have ideas for algorithms that should be part of FlexMeasures, let us know: https://flexmeasures.io/get-in-touch/
 
         **Example request A**
 
@@ -301,14 +315,16 @@ class SensorAPI(FlaskView):
 
             {
                 "start": "2015-06-02T10:00:00+00:00",
-                "soc-at-start": 12.1,
-                "soc-unit": "kWh"
+                "flex-model": {
+                    "soc-at-start": 12.1,
+                    "soc-unit": "kWh"
+                }
             }
 
         **Example request B**
 
-        This message triggers a schedule starting at 10.00am, at which the state of charge (soc) is 12.1 kWh,
-        with a target state of charge of 25 kWh at 4.00pm.
+        This message triggers a 24-hour schedule for a storage asset, starting at 10.00am,
+        at which the state of charge (soc) is 12.1 kWh, with a target state of charge of 25 kWh at 4.00pm.
         The minimum and maximum soc are set to 10 and 25 kWh, respectively.
         Roundtrip efficiency for use in scheduling is set to 98%.
         Aggregate consumption (of all devices within this EMS) should be priced by sensor 9,
@@ -321,20 +337,25 @@ class SensorAPI(FlaskView):
 
             {
                 "start": "2015-06-02T10:00:00+00:00",
-                "soc-at-start": 12.1,
-                "soc-unit": "kWh",
-                "soc-targets": [
-                    {
-                        "value": 25,
-                        "datetime": "2015-06-02T16:00:00+00:00"
-                    }
-                ],
-                "soc-min": 10,
-                "soc-max": 25,
-                "roundtrip-efficiency": 0.98,
-                "consumption-price-sensor": 9,
-                "production-price-sensor": 10,
-                "inflexible-device-sensors": [13, 14, 15]
+                "duration": "PT24H",
+                "flex-model": {
+                    "soc-at-start": 12.1,
+                    "soc-unit": "kWh",
+                    "soc-targets": [
+                        {
+                            "value": 25,
+                            "datetime": "2015-06-02T16:00:00+00:00"
+                        }
+                    ],
+                    "soc-min": 10,
+                    "soc-max": 25,
+                    "roundtrip-efficiency": 0.98,
+                },
+                "flex-context": {
+                    "consumption-price-sensor": 9,
+                    "production-price-sensor": 10,
+                    "inflexible-device-sensors": [13, 14, 15]
+                }
             }
 
         **Example response**
@@ -356,120 +377,100 @@ class SensorAPI(FlaskView):
         :reqheader Content-Type: application/json
         :resheader Content-Type: application/json
         :status 200: PROCESSED
-        :status 400: INVALID_TIMEZONE, INVALID_DATETIME, INVALID_DOMAIN, INVALID_UNIT, PTUS_INCOMPLETE
+        :status 400: INVALID_DATA
         :status 401: UNAUTHORIZED
         :status 403: INVALID_SENDER
         :status 405: INVALID_METHOD
+        :status 422: UNPROCESSABLE_ENTITY
         """
-        # todo: if a soc-sensor entity address is passed, persist those values to the corresponding sensor
-        #       (also update the note in posting_data.rst about flexibility states not being persisted).
-
-        # get starting value
-        if "start_value" not in kwargs:
-            return ptus_incomplete()
-        try:
-            start_value = float(kwargs.get("start_value"))  # type: ignore
-        except ValueError:
-            extra_info = "Request includes empty or ill-formatted value(s)."
-            current_app.logger.warning(extra_info)
-            return ptus_incomplete(extra_info)
-        if unit == "kWh":
-            start_value = start_value / 1000.0
-
-        # Convert round-trip efficiency to dimensionless (to the (0,1] range)
-        if roundtrip_efficiency is not None:
-            roundtrip_efficiency = roundtrip_efficiency.to(
-                ur.Quantity("dimensionless")
-            ).magnitude
-
-        # get optional min and max SOC
-        soc_min = kwargs.get("soc_min", None)
-        soc_max = kwargs.get("soc_max", None)
-        # TODO: review when we moved away from capacity having to be described in MWh
-        if soc_min is not None and unit == "kWh":
-            soc_min = soc_min / 1000.0
-        if soc_max is not None and unit == "kWh":
-            soc_max = soc_max / 1000.0
-
-        # set soc targets
-        end_of_schedule = start_of_schedule + current_app.config.get(  # type: ignore
-            "FLEXMEASURES_PLANNING_HORIZON"
+        # -- begin deprecation logic, can be removed after 0.13
+        deprecate_fields(
+            DEPRECATED_FLEX_CONFIGURATION_FIELDS,
+            deprecation_date="2022-12-14",
+            deprecation_link="https://flexmeasures.readthedocs.io/en/latest/api/change_log.html#v3-0-5-2022-12-30",
+            sunset_date="2023-02-01",
+            sunset_link="https://flexmeasures.readthedocs.io/en/latest/api/change_log.html#v3-0-5-2022-12-30",
         )
-        resolution = sensor.event_resolution
-        soc_targets = initialize_series(
-            np.nan,
+        found_fields: Dict[str, List[str]] = dict(model=[], context=[])
+        deprecation_message = ""
+        # flex-model
+        for param, param_name in [
+            (start_value, "soc-at-start"),
+            (soc_min, "soc-min"),
+            (soc_max, "soc-max"),
+            (unit, "soc-unit"),
+            (kwargs.get("targets"), "soc-targets"),
+            (roundtrip_efficiency, "roundtrip-efficiency"),
+            (
+                prefer_charging_sooner,
+                "prefer-charging-sooner",
+            ),
+        ]:
+            if flex_model is None:
+                flex_model = {}
+            if param is not None:
+                if param_name not in flex_model:
+                    flex_model[param_name] = param
+                found_fields["model"].append(param_name)
+        # flex-context
+        for param, param_name in [
+            (
+                consumption_price_sensor,
+                "consumption-price-sensor",
+            ),
+            (
+                production_price_sensor,
+                "production-price-sensor",
+            ),
+            (
+                inflexible_device_sensors,
+                "inflexible-device-sensors",
+            ),
+        ]:
+            if flex_context is None:
+                flex_context = {}
+            if param is not None:
+                if param_name not in flex_context:
+                    flex_context[param_name] = param
+                found_fields["context"].append(param_name)
+        if found_fields["model"] or found_fields["context"]:
+            deprecation_message = "The following fields you sent are deprecated and will be sunset in the next version:"
+            if found_fields["model"]:
+                deprecation_message += f" {', '.join(found_fields['model'])} (please pass as part of flex_model)."
+            if found_fields["context"]:
+                deprecation_message += f" {', '.join(found_fields['context'])} (please pass as part of flex_context)."
+
+        if soc_sensor_id is not None:
+            deprecation_message += (
+                "The field soc-sensor-id is be deprecated and will be sunset in v0.13."
+            )
+        # -- end deprecation logic
+
+        end_of_schedule = start_of_schedule + duration
+        scheduler_kwargs = dict(
+            sensor=sensor,
             start=start_of_schedule,
             end=end_of_schedule,
-            resolution=resolution,
-            inclusive="right",  # note that target values are indexed by their due date (i.e. inclusive="right")
+            resolution=sensor.event_resolution,
+            belief_time=belief_time,  # server time if no prior time was sent
+            flex_model=flex_model,
+            flex_context=flex_context,
         )
-        # todo: move this deserialization of targets into newly-created ScheduleTargetSchema
-        for target in kwargs.get("targets", []):
 
-            # get target value
-            if "value" not in target:
-                return ptus_incomplete("Target missing 'value' parameter.")
-            try:
-                target_value = float(target["value"])
-            except ValueError:
-                extra_info = "Request includes empty or ill-formatted soc target(s)."
-                current_app.logger.warning(extra_info)
-                return ptus_incomplete(extra_info)
-            if unit == "kWh":
-                target_value = target_value / 1000.0
+        try:
+            job = create_scheduling_job(
+                **scheduler_kwargs,
+                enqueue=True,
+            )
+        except ValidationError as err:
+            return invalid_flex_config(err.messages)
+        except ValueError as err:
+            return invalid_flex_config(str(err))
 
-            # get target datetime
-            if "datetime" not in target:
-                return invalid_datetime("Target missing datetime parameter.")
-            else:
-                target_datetime = target["datetime"]
-                if target_datetime is None:
-                    return invalid_datetime(
-                        "Cannot parse target datetime string %s as iso date"
-                        % target["datetime"]
-                    )
-                if target_datetime.tzinfo is None:
-                    current_app.logger.warning(
-                        "Cannot parse timezone of target 'datetime' value %s"
-                        % target["datetime"]
-                    )
-                    return invalid_timezone(
-                        "Target datetime should explicitly state a timezone."
-                    )
-                if target_datetime > end_of_schedule:
-                    return invalid_datetime(
-                        f'Target datetime exceeds {end_of_schedule}. Maximum scheduling horizon is {current_app.config.get("FLEXMEASURES_PLANNING_HORIZON")}.'
-                    )
-                target_datetime = target_datetime.astimezone(
-                    soc_targets.index.tzinfo
-                )  # otherwise DST would be problematic
-
-            # set target
-            soc_targets.loc[target_datetime] = target_value
-
-        job = create_scheduling_job(
-            sensor,
-            start_of_schedule,
-            end_of_schedule,
-            resolution=resolution,
-            belief_time=prior,  # server time if no prior time was sent
-            storage_specs=dict(
-                soc_at_start=start_value,
-                soc_targets=soc_targets,
-                soc_min=soc_min,
-                soc_max=soc_max,
-                roundtrip_efficiency=roundtrip_efficiency,
-                prefer_charging_sooner=prefer_charging_sooner,
-            ),
-            consumption_price_sensor=consumption_price_sensor,
-            production_price_sensor=production_price_sensor,
-            inflexible_device_sensors=inflexible_device_sensors,
-            enqueue=True,
-        )
+        db.session.commit()
 
         response = dict(schedule=job.id)
-
-        d, s = request_processed()
+        d, s = request_processed(deprecation_message)
         return dict(**response, **d), s
 
     @route("/<id>/schedules/<uuid>", methods=["GET"])
@@ -563,7 +564,7 @@ class SensorAPI(FlaskView):
             return unknown_schedule("Scheduling job has an unknown status.")
         schedule_start = job.kwargs["start"]
 
-        data_source = get_data_source_for_job(job, sensor=sensor)
+        data_source = get_data_source_for_job(job)
         if data_source is None:
             return unknown_schedule(
                 error_message + f"no data source could be found for {data_source}."

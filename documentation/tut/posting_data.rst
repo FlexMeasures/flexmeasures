@@ -269,29 +269,32 @@ Posting flexibility states
 
 There is one more crucial kind of data that FlexMeasures needs to know about: What are the current states of flexible devices?
 For example, a battery has a certain state of charge, which is relevant to describe the flexibility that the battery currently has.
+In our terminology, this is called the "flex model" and you can read more at :ref:`describing_flexibility`.
 
-Owners of such devices can post these states along with triggering the creation of a new schedule, to `[POST] /schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_.
+Owners of such devices can post the flex model along with triggering the creation of a new schedule, to `[POST] /schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_.
 The URL might look like this:
 
 .. code-block:: html
 
     https://company.flexmeasures.io/api/<version>/sensors/10/schedules/trigger
 
-This example triggers a schedule for a power sensor (with ID 10) of a battery asset, asking to take into account the battery's current state of charge.
+The following example triggers a schedule for a power sensor (with ID 10) of a battery asset, asking to take into account the battery's current state of charge.
 From this, FlexMeasures derives the energy flexibility this battery has in the next 48 hours and computes an optimal charging schedule.
-The endpoint allows to limit the flexibility range and also to set target values.
+The endpoint also allows to limit the flexibility range and also to set target values.
 
 .. code-block:: json
 
         {
-            "value": 12.1,
-            "datetime": "2015-06-02T10:00:00+00:00",
-            "unit": "kWh"
+            "start": "2015-06-02T10:00:00+00:00",
+            "flex-model": {
+                "soc-at-start": 12.1,
+                "soc-unit": "kWh"
+            }
         }
 
 .. note:: At the moment, FlexMeasures only supports flexibility models suitable for batteries and car chargers here (asset types "battery", "one-way_evse" or "two-way_evse").
           This will be expanded to other flexible assets as needed.
 
-.. note:: Flexibility states are not persisted. To record a history of the state of charge, set up a separate sensor and post data to it using `[POST]  /sensors/data <../api/v3_0.html#post--api-v3_0-sensors-data>`_ (see :ref:`posting_sensor_data`).
+.. note:: Flexibility states are persisted on sensor attributes. To record a more complete history of the state of charge, set up a separate sensor and post data to it using `[POST]  /sensors/data <../api/v3_0.html#post--api-v3_0-sensors-data>`_ (see :ref:`posting_sensor_data`).
 
-In :ref:`how_queue_scheduling`, we'll cover what happens when FlexMeasurers is triggered to create a new schedule, and how those schedules can be retrieved via the API, so they can be used to steer assets.
+In :ref:`how_queue_scheduling`, we'll cover what happens when FlexMeasures is triggered to create a new schedule, and how those schedules can be retrieved via the API, so they can be used to steer assets.

@@ -67,6 +67,7 @@ class SensorIdField(MarshmallowClickMixin, fields.Int):
             raise FMValidationError(f"No sensor found with id {value}.")
         # lazy loading now (sensor is somehow not in session after this)
         sensor.generic_asset
+        sensor.generic_asset.generic_asset_type
         return sensor
 
     def _serialize(self, sensor: Sensor, attr, data, **kwargs) -> int:
