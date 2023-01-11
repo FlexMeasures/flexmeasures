@@ -5,6 +5,11 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL, allowing developers to upgrade at their own pace.
 
+v3.0-6 | 2023-02-01
+"""""""""""""""""""
+
+- Sunset all fields that were moved to ``flex-model`` and ``flex-context`` fields to `/sensors/<id>/schedules/trigger` (POST). See v3.0-5.
+
 v3.0-5 | 2023-01-04
 """""""""""""""""""
 
