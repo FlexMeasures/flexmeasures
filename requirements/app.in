@@ -56,5 +56,5 @@ uniplot>=0.7.0
 # Maximum constraints here due to Flask-Classful not supporting Werkzeug 2.2.0 yet, see https://github.com/teracyhq/flask-classful/pull/145
 Flask-SQLAlchemy>=2.4.3,<3
 # flask should be after all the flask plugins, because setup might find they ARE flask
-flask>=1.0,<2.1.2
+flask>=1.0,<=2.1.2
 werkzeug <2.1
