@@ -1,8 +1,9 @@
 -c app.txt
 
-sphinx
+# these pins are waiting for rtd-theme 1.2 which allows higher docutils version
+sphinx<4.5
+sphinx-tabs<3.4
 sphinx-rtd-theme 
 sphinxcontrib.httpdomain
 sphinx_fontawesome
 sphinx_copybutton
-sphinx-tabs
