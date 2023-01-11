@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import List, Dict, Optional
+from typing import Optional
 
 from flask import current_app
 from flask_classful import FlaskView, route
@@ -7,7 +7,6 @@ from flask_json import as_json
 from flask_security import auth_required
 import isodate
 from marshmallow import fields, ValidationError
-from marshmallow.validate import OneOf
 from rq.job import Job, NoSuchJobError
 from timely_beliefs import BeliefsDataFrame
 from webargs.flaskparser import use_args, use_kwargs
@@ -41,7 +40,6 @@ from flexmeasures.data.services.scheduling import (
     get_data_source_for_job,
 )
 from flexmeasures.utils.time_utils import duration_isoformat
-from flexmeasures.utils.unit_utils import ur
 
 
 # Instantiate schemas outside of endpoint logic to minimize response time

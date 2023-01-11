@@ -94,9 +94,6 @@ def test_trigger_and_get_schedule(
     assert len(app.queues["scheduling"]) == 0
 
     sensor = Sensor.query.filter(Sensor.name == asset_name).one_or_none()
-    # # This makes sure we have fresh data. A hack we can remove after the deprecation cases are removed.
-    # TimedBelief.query.filter(TimedBelief.sensor_id == sensor.id).delete()
-
     with app.test_client() as client:
         auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
         trigger_schedule_response = client.post(
