@@ -6,6 +6,8 @@ FlexMeasures Changelog
 v0.13.0 | February XX, 2023
 ============================
 
+.. warning:: The API endpoint (`[POST] /sensors/(id)/schedules/trigger <api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_) to make new schedules sunsets the deprecated (since v0.12) storage flexibility parameters (they move to the ``flex-model`` parameter group), as well as the parameters describing other sensors (they move to ``flex-context``).
+
 
 
 v0.12.0 | January 4, 2023
