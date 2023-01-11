@@ -38,7 +38,8 @@ Flask-SSLify
 Flask_JSON
 Flask-Migrate
 Flask-WTF
-Flask-Login
+# This should be looked at together with Security (see below). We get 401's with 0.6
+Flask-Login <= 0.5
 Flask-Mail
 # We wait a little with upgrading to 5, until it's less fresh (Aug 2022)
 Flask-Security-Too>=4.0, <5.0
