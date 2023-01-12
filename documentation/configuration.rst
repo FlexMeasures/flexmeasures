@@ -264,9 +264,10 @@ FLEXMEASURES_MAX_PLANNING_HORIZON
 
 The maximum horizon for making schedules.
 API users are not able to request longer schedules.
+Can be set to a specific ``datetime.timedelta`` or to an integer number of planning steps, where the duration of a planning step is equal to the resolution of the applicable power sensor.
 Set to ``None`` to forgo this limitation.
 
-Default: ``timedelta(days=7, hours=1)``
+Default: ``676``
 
 
 Access Tokens

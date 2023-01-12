@@ -251,7 +251,9 @@ class StorageScheduler(Scheduler):
         self.ensure_soc_min_max()
 
         # Now it's time to check if our flex configurations holds up to schemas
-        self.flex_model = StorageFlexModelSchema(self.start).load(self.flex_model)
+        self.flex_model = StorageFlexModelSchema(
+            start=self.start, sensor=self.sensor
+        ).load(self.flex_model)
         self.flex_context = FlexContextSchema().load(self.flex_context)
 
         # Extend schedule period in case a target exceeds its end
@@ -276,6 +278,8 @@ class StorageScheduler(Scheduler):
                 max_server_horizon = current_app.config.get(
                     "FLEXMEASURES_MAX_PLANNING_HORIZON"
                 )
+                if isinstance(max_server_horizon, int):
+                    max_server_horizon *= self.sensor.event_resolution
                 if max_server_horizon:
                     self.end = min(max_target_datetime, self.start + max_server_horizon)
                 else:
@@ -378,8 +382,13 @@ def build_device_soc_targets(
             )  # otherwise DST would be problematic
             if target_datetime > end_of_schedule:
                 # Skip too-far-into-the-future target
+                max_server_horizon = current_app.config.get(
+                    "FLEXMEASURES_MAX_PLANNING_HORIZON"
+                )
+                if isinstance(max_server_horizon, int):
+                    max_server_horizon *= resolution
                 current_app.logger.warning(
-                    f'Disregarding target datetime {target_datetime}, because it exceeds {end_of_schedule}. Maximum scheduling horizon is {current_app.config.get("FLEXMEASURES_MAX_PLANNING_HORIZON")}.'
+                    f"Disregarding target datetime {target_datetime}, because it exceeds {end_of_schedule}. Maximum scheduling horizon is {max_server_horizon}."
                 )
                 continue
 

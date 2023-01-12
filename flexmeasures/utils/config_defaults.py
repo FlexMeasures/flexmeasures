@@ -115,7 +115,7 @@ class Config(object):
     FLEXMEASURES_LP_SOLVER: str = "cbc"
     FLEXMEASURES_JOB_TTL: timedelta = timedelta(days=1)
     FLEXMEASURES_PLANNING_HORIZON: timedelta = timedelta(days=2)
-    FLEXMEASURES_MAX_PLANNING_HORIZON: timedelta | None = timedelta(days=7, hours=1)
+    FLEXMEASURES_MAX_PLANNING_HORIZON: timedelta | int | None = (7 * 24 + 1) * 4
     FLEXMEASURES_PLANNING_TTL: timedelta = timedelta(
         days=7
     )  # Time to live for UDI event ids of successful scheduling jobs. Set a negative timedelta to persist forever.
