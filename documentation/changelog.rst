@@ -3,7 +3,7 @@
 FlexMeasures Changelog
 **********************
 
-v0.12.1 | January XX, 2023
+v0.12.1 | January 12, 2023
 ============================
 
 Bugfixes
