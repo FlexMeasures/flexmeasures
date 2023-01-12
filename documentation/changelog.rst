@@ -3,6 +3,14 @@
 FlexMeasures Changelog
 **********************
 
+v0.12.1 | January XX, 2023
+============================
+
+Bugfixes
+-----------
+* Fix validation of (deprecated) API parameter ``roundtrip-efficiency`` [see `PR #582 <https://www.github.com/FlexMeasures/flexmeasures/pull/582>`_]
+
+
 v0.12.0 | January 4, 2023
 ============================
 
