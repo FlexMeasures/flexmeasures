@@ -10,7 +10,7 @@ version: "3.4"
 # Instead of local code (which is useful for development purposes),
 # you can also use the official (and stable) FlexMeasures docker image
 # (lfenergy/flexmeasures). Replace the two `build` directives with
-# an `image`directive.
+# an `image` directive.
 # ------------------------------------------------------------------
 
 services:
