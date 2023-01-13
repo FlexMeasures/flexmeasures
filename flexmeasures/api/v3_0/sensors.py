@@ -223,7 +223,7 @@ class SensorAPI(FlaskView):
             ),
             "flex_model": fields.Dict(data_key="flex-model"),
             "soc_sensor_id": fields.Str(data_key="soc-sensor", required=False),
-            "roundtrip_efficiency": fields.Str(data_key="roundtrip-efficiency"),
+            "roundtrip_efficiency": fields.Raw(data_key="roundtrip-efficiency"),
             "start_value": fields.Float(data_key="soc-at-start"),
             "soc_min": fields.Float(data_key="soc-min"),
             "soc_max": fields.Float(data_key="soc-max"),
