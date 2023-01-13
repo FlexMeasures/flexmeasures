@@ -243,7 +243,7 @@ Default: ``timedelta(days=1)``
 FLEXMEASURES_PLANNING_TTL
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Time to live for UDI event ids of successful scheduling jobs. Set a negative timedelta to persist forever.
+Time to live for schedule UUIDs of successful scheduling jobs. Set a negative timedelta to persist forever.
 
 Default: ``timedelta(days=7)``
 
