@@ -19,6 +19,7 @@ from flexmeasures.data.models.planning.utils import (
 )
 from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
 from flexmeasures.data.schemas.scheduling import FlexContextSchema
+from flexmeasures.utils.time_utils import get_max_planning_horizon
 
 
 class StorageScheduler(Scheduler):
@@ -275,11 +276,7 @@ class StorageScheduler(Scheduler):
                 [soc_target["datetime"] for soc_target in soc_targets]
             )
             if max_target_datetime > self.end:
-                max_server_horizon = current_app.config.get(
-                    "FLEXMEASURES_MAX_PLANNING_HORIZON"
-                )
-                if isinstance(max_server_horizon, int):
-                    max_server_horizon *= self.sensor.event_resolution
+                max_server_horizon = get_max_planning_horizon(self.resolution)
                 if max_server_horizon:
                     self.end = min(max_target_datetime, self.start + max_server_horizon)
                 else:
@@ -382,11 +379,7 @@ def build_device_soc_targets(
             )  # otherwise DST would be problematic
             if target_datetime > end_of_schedule:
                 # Skip too-far-into-the-future target
-                max_server_horizon = current_app.config.get(
-                    "FLEXMEASURES_MAX_PLANNING_HORIZON"
-                )
-                if isinstance(max_server_horizon, int):
-                    max_server_horizon *= resolution
+                max_server_horizon = get_max_planning_horizon(resolution)
                 current_app.logger.warning(
                     f"Disregarding target datetime {target_datetime}, because it exceeds {end_of_schedule}. Maximum scheduling horizon is {max_server_horizon}."
                 )
