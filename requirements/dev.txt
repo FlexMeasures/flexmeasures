@@ -23,7 +23,7 @@ flake8==4.0.1
     # via -r requirements/dev.in
 flake8-blind-except==0.2.1
     # via -r requirements/dev.in
-identify==2.5.12
+identify==2.5.13
     # via pre-commit
 mccabe==0.6.1
     # via flake8
