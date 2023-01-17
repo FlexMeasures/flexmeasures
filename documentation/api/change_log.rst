@@ -5,6 +5,11 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL, allowing developers to upgrade at their own pace.
 
+v3.0-6 | 2023-02-01
+"""""""""""""""""""
+
+- Sunset all fields that were moved to ``flex-model`` and ``flex-context`` fields to `/sensors/<id>/schedules/trigger` (POST). See v3.0-5.
+
 v3.0-5 | 2023-01-04
 """""""""""""""""""
 
@@ -21,7 +26,7 @@ v3.0-5 | 2023-01-04
     - ``production-price-sensor`` -> send in ``flex-context`` instead
     - ``inflexible-device-sensors`` -> send in ``flex-context`` instead
 
-- Introduced the ``duration``field to `/sensors/<id>/schedules/trigger` (POST) for setting a planning horizon explicitly.
+- Introduced the ``duration`` field to `/sensors/<id>/schedules/trigger` (POST) for setting a planning horizon explicitly.
 - Allow posting ``soc-targets`` to `/sensors/<id>/schedules/trigger` (POST) that exceed the default planning horizon, and ignore posted targets that exceed the max planning horizon.
 - Added a subsection on deprecating and sunsetting to the Introduction section.
 - Added a subsection on describing flexibility to the Notation section.

@@ -76,14 +76,7 @@ def test_trigger_schedule_with_invalid_flexmodel(
 @pytest.mark.parametrize(
     "message, asset_name",
     [
-        (message_for_trigger_schedule(deprecated_format_pre012=True), "Test battery"),
         (message_for_trigger_schedule(), "Test battery"),
-        (
-            message_for_trigger_schedule(
-                with_targets=True, deprecated_format_pre012=True
-            ),
-            "Test charging station",
-        ),
         (message_for_trigger_schedule(with_targets=True), "Test charging station"),
     ],
 )
@@ -101,9 +94,6 @@ def test_trigger_and_get_schedule(
     assert len(app.queues["scheduling"]) == 0
 
     sensor = Sensor.query.filter(Sensor.name == asset_name).one_or_none()
-    # This makes sure we have fresh data. A hack we can remove after the deprecation cases are removed.
-    TimedBelief.query.filter(TimedBelief.sensor_id == sensor.id).delete()
-
     with app.test_client() as client:
         auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
         trigger_schedule_response = client.post(
@@ -112,11 +102,6 @@ def test_trigger_and_get_schedule(
             headers={"Authorization": auth_token},
         )
         print("Server responded with:\n%s" % trigger_schedule_response.json)
-        if "flex-model" not in message:
-            check_deprecation(trigger_schedule_response)
-            assert (
-                "soc-min" in trigger_schedule_response.json["message"]
-            )  # deprecation warning
         assert trigger_schedule_response.status_code == 200
         job_id = trigger_schedule_response.json["schedule"]
 
