@@ -89,7 +89,9 @@ def create(
 
     # Set up rate limiter
     app.config["RATELIMIT_STORAGE_URI"] = "redis://"
-    app.config["RATELIMIT_STORAGE_OPTIONS"] = {"connection_pool": redis_conn.connection_pool}
+    app.config["RATELIMIT_STORAGE_OPTIONS"] = {
+        "connection_pool": redis_conn.connection_pool
+    }
     app.limiter = Limiter(
         get_remote_address,
         app=app,

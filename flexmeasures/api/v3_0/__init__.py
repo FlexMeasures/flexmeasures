@@ -18,7 +18,14 @@ def register_at(app: Flask):
         return 0
 
     # Apply rate limit: a schedule can be triggered once per 5 minutes per sensor per account
-    SensorAPI.decorators.append(app.limiter.limit("1 per 5 minutes", key_func=lambda: str(current_user.account_id) + request.view_args.get("id", ""), cost=cost_function))
+    SensorAPI.decorators.append(
+        app.limiter.limit(
+            "1 per 5 minutes",
+            key_func=lambda: str(current_user.account_id)
+            + request.view_args.get("id", ""),
+            cost=cost_function,
+        )
+    )
 
     SensorAPI.register(app, route_prefix=v3_0_api_prefix)
     UserAPI.register(app, route_prefix=v3_0_api_prefix)
