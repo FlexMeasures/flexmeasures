@@ -360,3 +360,12 @@ def to_http_time(dt: pd.Timestamp | datetime) -> str:
     IMF-fixdate: https://www.rfc-editor.org/rfc/rfc7231#section-7.1.1.1
     """
     return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
+
+
+def get_max_planning_horizon(resolution: timedelta) -> timedelta | None:
+    """Determine the maximum planning horizon for the given sensor resolution."""
+    max_planning_horizon = current_app.config.get("FLEXMEASURES_MAX_PLANNING_HORIZON")
+    if isinstance(max_planning_horizon, int):
+        # Config setting specifies maximum number of planning steps
+        max_planning_horizon *= resolution
+    return max_planning_horizon
