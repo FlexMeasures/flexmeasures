@@ -19,4 +19,16 @@ def register_at(app: Flask):
 
     v2_0_api_prefix = "/api/v2_0"
 
+    # from flask import current_app
+    # from flask_limiter import Limiter
+    # from flask_limiter.util import get_remote_address
+    # limiter = Limiter(
+    #     get_remote_address,
+    #     app=app,
+    #     storage_uri="memory://",
+    #     # storage_uri="redis://",
+    #     # storage_options={"connection_pool": current_app.redis.connect_pool},
+    # )
+    # app.limiter.limit("1 per minute")(flexmeasures_api)
+
     app.register_blueprint(flexmeasures_api, url_prefix=v2_0_api_prefix)

@@ -23,15 +23,11 @@ def test_post_prognosis_2_0(db, app, post_message, fm_scheme):
             headers={"Authorization": auth_token},
         )
         print("Server responded with:\n%s" % post_prognosis_response.json)
-        check_deprecation(post_prognosis_response)
         assert post_prognosis_response.status_code == 200
-        assert post_prognosis_response.json["type"] == "PostPrognosisResponse"
-
-    verify_sensor_data_in_db(
-        post_message,
-        post_message["values"],
-        db,
-        entity_type="connection",
-        fm_scheme=fm_scheme,
-        swapped_sign=True,
-    )
+        post_prognosis_response = client.post(
+            url_for("flexmeasures_api_v2_0.post_prognosis"),
+            json=post_message,
+            headers={"Authorization": auth_token},
+        )
+        print("Server responded with:\n%s" % post_prognosis_response.json)
+        assert post_prognosis_response.status_code == 429

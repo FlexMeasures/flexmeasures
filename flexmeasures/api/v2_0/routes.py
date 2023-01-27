@@ -774,10 +774,21 @@ def post_meter_data():
     return v2_0_implementations.sensors.post_meter_data_response()
 
 
+from flask import current_app
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+limiter = Limiter(
+    get_remote_address,
+    # app=current_app,
+    storage_uri="memory://",
+)
+
+
 @flexmeasures_api_v2_0.route("/postPrognosis", methods=["POST"])
 @as_response_type("PostPrognosisResponse")
 @auth_token_required
 @account_roles_accepted(*list_access(v2_0_service_listing, "postPrognosis"))
+@limiter.limit("1 per minute")
 def post_prognosis():
     """API endpoint to post prognoses about meter data.
 
