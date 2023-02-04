@@ -298,6 +298,15 @@ def depopulate_prognoses(
     db: SQLAlchemy,
     sensor_id: Optional[id] = None,
 ):
+    """
+    Delete all prognosis data (with an horizon > 0).
+    This affects forecasts as well as schedules.
+
+    Pass a sensor ID to restrict to data on one sensor only.
+
+    If no sensor is specified, this function also deletes forecasting and scheduling jobs.
+    (Doing this only for jobs which forecast/schedule one sensor is not implemented and also tricky.)
+    """
     click.echo(
         "Deleting (time series) forecasts and schedules data from the database %s ..."
         % db.engine
