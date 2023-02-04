@@ -22,6 +22,14 @@ Infrastructure / Support
 * Sunset several API fields for `/sensors/<id>/schedules/trigger` (POST) that have moved into the ``flex-model`` or ``flex-context`` fields [see `PR #580 <https://www.github.com/FlexMeasures/flexmeasures/pull/580>`_]
 
 
+v0.12.2 | February 4, 2023
+============================
+
+Bugfixes
+-----------
+* Fix CLI command ``flexmeasures schedule for-storage`` without ``--as-job`` flag [see `PR #589 <https://www.github.com/FlexMeasures/flexmeasures/pull/589>`_]
+
+
 v0.12.1 | January 12, 2023
 ============================
 
