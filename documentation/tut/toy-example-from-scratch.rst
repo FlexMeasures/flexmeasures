@@ -57,7 +57,7 @@ Install Flexmeasures and the database
 
             $ docker exec -it flexmeasures-tutorial-fm bash
 
-        To leave the container session, hold CTRL-C or type "exit".
+        To leave the container session, hold CTRL-D or type "exit".
 
         To stop the containers, you can type
         
