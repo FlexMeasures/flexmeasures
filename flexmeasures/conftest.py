@@ -491,7 +491,9 @@ def create_beliefs(db: SQLAlchemy, setup_markets, setup_sources) -> int:
 
 
 @pytest.fixture(scope="module")
-def add_market_prices(db: SQLAlchemy, setup_assets, setup_markets, setup_sources):
+def add_market_prices(
+    db: SQLAlchemy, setup_assets, setup_markets, setup_sources
+) -> Dict[str, Sensor]:
     """Add two days of market prices for the EPEX day-ahead market."""
 
     # one day of test data (one complete sine curve)
@@ -533,6 +535,7 @@ def add_market_prices(db: SQLAlchemy, setup_assets, setup_markets, setup_sources
         for dt, val in zip(time_slots, values)
     ]
     db.session.add_all(day2_beliefs)
+    return {"epex_da": setup_markets["epex_da"].corresponding_sensor}
 
 
 @pytest.fixture(scope="module")

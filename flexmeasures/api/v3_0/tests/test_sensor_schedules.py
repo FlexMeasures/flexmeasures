@@ -97,6 +97,14 @@ def test_trigger_and_get_schedule(
     message,
     asset_name,
 ):
+
+    # Include the price sensor in the flex-context explicitly, to test deserialization
+    price_sensor_id = add_market_prices["epex_da"].id
+    message["flex-context"] = {
+        "consumption-price-sensor": price_sensor_id,
+        "production-price-sensor": price_sensor_id,
+    }
+
     # trigger a schedule through the /sensors/<id>/schedules/trigger [POST] api endpoint
     assert len(app.queues["scheduling"]) == 0
 
