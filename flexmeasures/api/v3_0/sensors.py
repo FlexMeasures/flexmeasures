@@ -205,8 +205,8 @@ class SensorAPI(FlaskView):
                 load_default=PlanningDurationField.load_default
             ),
             "flex_model": fields.Dict(data_key="flex-model"),
-            "flex_context": fields.Nested(
-                FlexContextSchema, required=False, data_key="flex-context"
+            "flex_context": fields.Dict(
+                required=False, data_key="flex-context"
             ),
         },
         location="json",
