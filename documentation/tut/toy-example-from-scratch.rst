@@ -57,7 +57,7 @@ Install Flexmeasures and the database
 
             $ docker exec -it flexmeasures-tutorial-fm bash
 
-        To leave the container session, hold CTRL-C or type "exit".
+        To leave the container session, hold CTRL-D or type "exit".
 
         To stop the containers, you can type
         
@@ -67,6 +67,8 @@ Install Flexmeasures and the database
             $ docker stop flexmeasures-tutorial-fm
 
         .. note:: A tip on Linux/macOS ― You might have the ``docker`` command, but need `sudo` rights to execute it. ``alias docker='sudo docker'`` enables you to still run this tutorial.
+
+        .. note:: For newer versions of MacOS, port 5000 is in use by default by Control Center. You can turn this off by going to System Preferences > Sharing and untick the "Airplay Receiver" box. If you don't want to do this for some reason, you can change the host port in the ``docker run`` command to some other port, for example 5001. To do this, change ``-p 5000:5000`` in the command to ``-p 5001:5000``. If you do this, remember that you will have to go to ``localhost:5001`` in your browser when you want to inspect the FlexMeasures UI.
 
         .. note:: Got docker-compose? You could run this tutorial with 5 containers :) ― Go to :ref:`docker-compose-tutorial`.
 

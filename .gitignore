@@ -12,6 +12,7 @@ venv
 *.rdb
 *.rdb.settings
 *.pickle
+.idea/
 
 .env-flexmeasures/
 flexmeasures.egg-info
