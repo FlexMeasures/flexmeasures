@@ -33,7 +33,6 @@ from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField
 from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
-from flexmeasures.data.schemas.scheduling import FlexContextSchema
 from flexmeasures.data.services.sensors import get_sensors
 from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
@@ -205,9 +204,7 @@ class SensorAPI(FlaskView):
                 load_default=PlanningDurationField.load_default
             ),
             "flex_model": fields.Dict(data_key="flex-model"),
-            "flex_context": fields.Nested(
-                FlexContextSchema, required=False, data_key="flex-context"
-            ),
+            "flex_context": fields.Dict(required=False, data_key="flex-context"),
         },
         location="json",
     )
