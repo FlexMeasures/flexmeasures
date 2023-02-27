@@ -5,7 +5,7 @@ Running a complete stack with docker-compose
 
 To install FlexMeasures, plus the libraries and databases it depends on, on your computer is some work, and can have unexpected hurdles, e.g. depending on the operating system. A nice alternative is to let that happen within Docker. The whole stack can be run via `Docker compose <https://docs.docker.com/compose/>`_, saving the developer much time.
 
-For this, we assume you are in the directory housing ``docker-compose.yml``.
+For this, we assume you are in the directory (in the `FlexMeasures git repository <https://github.com/FlexMeasures/flexmeasures>`_) housing ``docker-compose.yml``.
 
 
 .. note:: The minimum Docker version is 17.09 and for docker-compose we tested successfully at version 1.25. You can check your versions with ``docker[-compose] --version``.

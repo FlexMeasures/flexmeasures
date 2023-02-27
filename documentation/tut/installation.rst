@@ -260,6 +260,6 @@ Then, start workers in a console (or some other method to keep a long-running pr
 Where to go from here?
 ------------------------
 
-If your data structure is good, you should think about (continually) adding measurement data. This tutorial mentioned how to add data, but :ref:`_tut_posting_data` goes deeper with examples and terms & definitions.
+If your data structure is good, you should think about (continually) adding measurement data. This tutorial mentioned how to add data, but :ref:`tut_posting_data` goes deeper with examples and terms & definitions.
 
 Then, you probably want to use FlexMeasures to generate forecasts and schedules! For this, read further in :ref:`tut_forecasting_scheduling`. 
