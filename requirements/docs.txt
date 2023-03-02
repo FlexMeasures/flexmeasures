@@ -41,8 +41,9 @@ packaging==21.3
     # via
     #   -c requirements/app.txt
     #   sphinx
-pygments==2.11.2
+pygments==2.14.0
     # via
+    #   -c requirements/app.txt
     #   sphinx
     #   sphinx-tabs
 pyparsing==3.0.9
