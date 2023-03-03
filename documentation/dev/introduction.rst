@@ -23,18 +23,34 @@ Virtual environment
 Using a virtual environment is best practice for Python developers. We also strongly recommend using a dedicated one for your work on FlexMeasures, as our make target (see below) will use ``pip-sync`` to install dependencies, which could interfere with some libraries you already have installed.
 
 
-* Make a virtual environment: ``python3.8 -m venv flexmeasures-venv`` or use a different tool like ``mkvirtualenv`` or virtualenvwrapper. You can also use
-  an `Anaconda distribution <https://conda.io/docs/user-guide/tasks/manage-environments.html>`_ as base with ``conda create -n flexmeasures-venv python=3.8``.
+* Make a virtual environment: ``python3.10 -m venv flexmeasures-venv`` or use a different tool like ``mkvirtualenv`` or virtualenvwrapper. You can also use
+  an `Anaconda distribution <https://conda.io/docs/user-guide/tasks/manage-environments.html>`_ as base with ``conda create -n flexmeasures-venv python=3.10``.
 * Activate it, e.g.: ``source flexmeasures-venv/bin/activate``
+
+Download Flexmeasures
+^^^^^^^^^^^^^^^^^^^^^^^
+Clone the `Flexmeasures repository <https://github.com/FlexMeasures/flexmeasures.git>`_ from Github.
+
+.. code-block:: console
+
+   git clone https://github.com/FlexMeasures/flexmeasures.git
+
 
 Dependencies
 ^^^^^^^^^^^^^^^^^^^^
 
-Install all dependencies including the ones needed for development:
+Go into the ``flexmeasures`` folder and install all dependencies including the ones needed for development:
 
 .. code-block:: console
 
+   cd flexmeasures
    make install-for-dev
+
+:ref:`Install the LP solver <install-lp-solver>`. On Unix the Cbc LP solver can be installed with:
+
+.. code-block:: console
+
+   apt-get install coinor-cbc
 
 
 Configuration
