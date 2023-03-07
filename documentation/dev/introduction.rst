@@ -27,9 +27,9 @@ Using a virtual environment is best practice for Python developers. We also stro
   an `Anaconda distribution <https://conda.io/docs/user-guide/tasks/manage-environments.html>`_ as base with ``conda create -n flexmeasures-venv python=3.10``.
 * Activate it, e.g.: ``source flexmeasures-venv/bin/activate``
 
-Download Flexmeasures
+Download FlexMeasures
 ^^^^^^^^^^^^^^^^^^^^^^^
-Clone the `Flexmeasures repository <https://github.com/FlexMeasures/flexmeasures.git>`_ from Github.
+Clone the `FlexMeasures repository <https://github.com/FlexMeasures/flexmeasures.git>`_ from GitHub.
 
 .. code-block:: console
 
@@ -168,7 +168,7 @@ in your virtual environment.
 Now each git commit will first run ``flake8``, then ``black`` and finally ``mypy`` over the files affected by the commit
 (\ ``pre-commit`` will install these tools into its own structure on the first run).
 
-This is also what happens automatically server-side when code is committed to a branch (via Github Actions), but having those tests locally as well will help you spot these issues faster.
+This is also what happens automatically server-side when code is committed to a branch (via GitHub Actions), but having those tests locally as well will help you spot these issues faster.
 
 If ``flake8``, ``black`` or ``mypy`` propose changes to any file, the commit is aborted (saying that it "failed"). 
 The changes proposed by ``black`` are implemented automatically (you can review them with `git diff`). Some of them might even resolve the ``flake8`` warnings :)
