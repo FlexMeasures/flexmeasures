@@ -13,12 +13,9 @@ def logged_in_user_view():
     Basic information about the currently logged-in user.
     Plus basic actions (logout, reset pwd)
     """
-    number_of_assets_in_account = get_number_of_assets_in_account(
-        current_user.account_id
-    )
     return render_flexmeasures_template(
         "admin/logged_in_user.html",
         logged_in_user=current_user,
         roles=",".join([role.name for role in current_user.roles]),
-        num_assets=number_of_assets_in_account,
+        num_assets=get_number_of_assets_in_account(current_user.account_id),
     )
