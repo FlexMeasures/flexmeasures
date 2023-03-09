@@ -330,6 +330,8 @@ Recall that we only asked for a 12 hour schedule here. We started our schedule *
 Take into account solar production
 ---------------------------------------
 
+So far we haven't taken into account any other devices that consume or produce electricity. We'll now add solar production forecasts and reschedule, to see the effect of solar on the available headroom for the battery.
+
 First, we'll create a new csv file with solar forecasts (MW, see the setup for sensor 4 above) for tomorrow.
 
 .. code-block:: console
