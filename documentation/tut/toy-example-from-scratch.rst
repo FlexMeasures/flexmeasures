@@ -361,7 +361,12 @@ First, we'll create a new csv file with solar forecasts (MW, see the setup for s
     $ ${TOMORROW}T22:00:00,0.0
     $ ${TOMORROW}T23:00:00,0.0" > solar-tomorrow.csv
 
-Then, we register a new forecaster and read in the created CSV file as beliefs data:
+Then, we read in the created CSV file as beliefs data.
+This time, different to above, we want to use a new data source (not the user) ― it represents whoever is making these solar production forecasts.
+We create that data source first, so we can tell `flexmeasures add beliefs` to use it.
+Setting the data source type to "forecaster" helps FlexMeasures to visualize distinguish its data from e.g. schedules and measurements.
+
+.. note:: The ``flexmeasures add source`` command also allows to set a model and version, so sources can be distinguished in more detail. But that is not the point of this tutorial. See ``flexmeasures add source --help``.
 
 .. code-block:: console
 
