@@ -298,14 +298,23 @@ def depopulate_prognoses(
     db: SQLAlchemy,
     sensor_id: Optional[id] = None,
 ):
+    """
+    Delete all prognosis data (with an horizon > 0).
+    This affects forecasts as well as schedules.
+
+    Pass a sensor ID to restrict to data on one sensor only.
+
+    If no sensor is specified, this function also deletes forecasting and scheduling jobs.
+    (Doing this only for jobs which forecast/schedule one sensor is not implemented and also tricky.)
+    """
     click.echo(
         "Deleting (time series) forecasts and schedules data from the database %s ..."
         % db.engine
     )
 
-    # Clear all jobs
-    num_forecasting_jobs_deleted = app.queues["forecasting"].empty()
-    num_scheduling_jobs_deleted = app.queues["scheduling"].empty()
+    if not sensor_id:
+        num_forecasting_jobs_deleted = app.queues["forecasting"].empty()
+        num_scheduling_jobs_deleted = app.queues["scheduling"].empty()
 
     # Clear all forecasts (data with positive horizon)
     query = db.session.query(TimedBelief).filter(
@@ -315,8 +324,9 @@ def depopulate_prognoses(
         query = query.filter(TimedBelief.sensor_id == sensor_id)
     num_forecasts_deleted = query.delete()
 
-    click.echo("Deleted %d Forecast Jobs" % num_forecasting_jobs_deleted)
-    click.echo("Deleted %d Schedule Jobs" % num_scheduling_jobs_deleted)
+    if not sensor_id:
+        click.echo("Deleted %d Forecast Jobs" % num_forecasting_jobs_deleted)
+        click.echo("Deleted %d Schedule Jobs" % num_scheduling_jobs_deleted)
     click.echo("Deleted %d forecasts (ex-ante beliefs)" % num_forecasts_deleted)
 
 

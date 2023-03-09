@@ -1048,7 +1048,6 @@ def add_schedule_for_storage(
         roundtrip_efficiency = roundtrip_efficiency.magnitude / 100.0
 
     scheduling_kwargs = dict(
-        sensor=power_sensor,
         start=start,
         end=end,
         belief_time=server_now(),
@@ -1068,11 +1067,11 @@ def add_schedule_for_storage(
         },
     )
     if as_job:
-        job = create_scheduling_job(**scheduling_kwargs)
+        job = create_scheduling_job(sensor=power_sensor, **scheduling_kwargs)
         if job:
             print(f"New scheduling job {job.id} has been added to the queue.")
     else:
-        success = make_schedule(**scheduling_kwargs)
+        success = make_schedule(sensor_id=power_sensor.id, **scheduling_kwargs)
         if success:
             print("New schedule is stored.")
 
