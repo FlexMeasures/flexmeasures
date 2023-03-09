@@ -63,10 +63,8 @@ class AccountAPI(FlaskView):
         :status 422: UNPROCESSABLE_ENTITY
         """
         if user_has_admin_access(current_user, "read"):
-            print("YES ACCESS")
             accounts = get_accounts()
         else:
-            print("NO ACCESS")
             accounts = [current_user.account]
         return accounts_schema.dump(accounts), 200
 
