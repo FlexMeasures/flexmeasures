@@ -105,6 +105,7 @@ def chart_for_multiple_sensors(
         "unit": "yearmonthdatehoursminutesseconds",
         "step": minimum_non_zero_resolution.total_seconds(),
     }
+    # If a time window was set explicitly, adjust the domain to show the full window regardless of available data
     if event_starts_after and event_ends_before:
         event_start_field_definition["scale"] = {
             "domain": [
