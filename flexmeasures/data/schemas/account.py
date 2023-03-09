@@ -1,17 +1,31 @@
 from flask.cli import with_appcontext
+from flexmeasures.data import ma
 from marshmallow import fields
 
-from flexmeasures.data.models.user import Account
+from flexmeasures.data.models.user import Account as AccountModel
 from flexmeasures.data.schemas.utils import FMValidationError, MarshmallowClickMixin
+
+
+class AccountSchema(ma.SQLAlchemySchema):
+    """
+    This schema lists fields we support through this API (e.g. no password).
+    """
+
+    class Meta:
+        model = AccountModel
+
+    id = ma.auto_field(dump_only=True)
+    name = ma.auto_field(required=True)
+    account_roles = ma.auto_field()
 
 
 class AccountIdField(fields.Int, MarshmallowClickMixin):
     """Field that deserializes to an Account and serializes back to an integer."""
 
     @with_appcontext
-    def _deserialize(self, value, attr, obj, **kwargs) -> Account:
+    def _deserialize(self, value, attr, obj, **kwargs) -> AccountModel:
         """Turn an account id into an Account."""
-        account = Account.query.get(value)
+        account = AccountModel.query.get(value)
         if account is None:
             raise FMValidationError(f"No account found with id {value}.")
         # lazy loading now (account somehow is not in the session after this)

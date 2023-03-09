@@ -98,7 +98,7 @@ class UserAPI(FlaskView):
         .. :quickref: User; Get a user
 
         This endpoint gets a user.
-        Only admins or the user themselves can use this endpoint.
+        Only admins or the members of the same account can use this endpoint.
 
         **Example response**
 
@@ -136,11 +136,11 @@ class UserAPI(FlaskView):
         .. :quickref: User; Patch data for an existing user
 
         This endpoint sets data for an existing user.
+        It has to be used by the user themselves, admins or account-admins (of the same account).
         Any subset of user fields can be sent.
-        Only the user themselves or admins are allowed to update its data,
-        while a non-admin can only edit a few of their own fields.
+        If the user us not an (account-)admin, they can only edit a few of their own fields.
 
-        The following fields are not allowed to be updated:
+        The following fields are not allowed to be updated at all:
          - id
          - account_id
 
