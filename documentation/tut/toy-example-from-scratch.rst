@@ -378,7 +378,7 @@ Now, we'll reschedule the battery while taking into account the solar production
 
 .. code-block:: console
 
-    $ flexmeasures add schedule --sensor-id 2 --consumption-price-sensor 3 \
+    $ flexmeasures add schedule for-storage --sensor-id 2 --consumption-price-sensor 3 \
         --inflexible-device-sensor 4 \
         --start ${TOMORROW}T07:00+01:00 --duration PT12H \
         --soc-at-start 50% --roundtrip-efficiency 90%
