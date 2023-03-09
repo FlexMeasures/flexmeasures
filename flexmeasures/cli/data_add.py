@@ -1095,7 +1095,10 @@ def add_toy_account(kind: str, name: str):
         # make an account (if not exist)
         account = Account.query.filter(Account.name == name).one_or_none()
         if account:
-            click.echo(f"Account already exists: {account}")
+            click.echo(
+                f"Account '{account}' already exists. Use `flexmeasures delete account --id {account.id}` to remove it first."
+            )
+            raise click.Abort
         # make an account user (account-admin?)
         email = "toy-user@flexmeasures.io"
         user = User.query.filter_by(email=email).one_or_none()
