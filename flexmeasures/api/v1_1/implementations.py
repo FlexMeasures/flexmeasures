@@ -255,7 +255,7 @@ def get_prognosis_response(
     belief_time_window = (None, prior)
 
     # Check the user's intention first, fall back to schedules, then forecasts, then other data from script
-    source_types = ["user", "scheduling script", "forecasting script", "script"]
+    source_types = ["user", "scheduler", "forecaster", "script"]
 
     return collect_connection_and_value_groups(
         unit,

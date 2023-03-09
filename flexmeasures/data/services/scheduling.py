@@ -125,7 +125,7 @@ def make_schedule(
         data_source_name=data_source_info["name"],
         data_source_model=data_source_info["model"],
         data_source_version=data_source_info["version"],
-        data_source_type="scheduling script",
+        data_source_type="scheduler",
     )
 
     # saving info on the job, so the API for a job can look the data up
@@ -273,7 +273,7 @@ def get_data_source_for_job(job: Job | None) -> DataSource | None:
         )
     scheduler_sources = (
         DataSource.query.filter_by(
-            type="scheduling script",
+            type="scheduler",
             **data_source_info,
         )
         .order_by(DataSource.version.desc())

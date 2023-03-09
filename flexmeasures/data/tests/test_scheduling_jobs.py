@@ -29,7 +29,7 @@ def test_scheduling_a_battery(db, app, add_battery_assets, setup_test_data):
 
     assert (
         DataSource.query.filter_by(
-            name="FlexMeasures", type="scheduling script"
+            name="FlexMeasures", type="scheduler"
         ).one_or_none()
         is None
     )  # Make sure the scheduler data source isn't there
@@ -47,7 +47,7 @@ def test_scheduling_a_battery(db, app, add_battery_assets, setup_test_data):
     work_on_rq(app.queues["scheduling"], exc_handler=exception_reporter)
 
     scheduler_source = DataSource.query.filter_by(
-        name="Seita", type="scheduling script"
+        name="Seita", type="scheduler"
     ).one_or_none()
     assert (
         scheduler_source is not None
@@ -125,7 +125,7 @@ def test_assigning_custom_scheduler(db, app, add_battery_assets, is_path: bool):
     assert finished_job.meta["data_source_info"]["model"] == scheduler_specs["class"]
 
     scheduler_source = DataSource.query.filter_by(
-        type="scheduling script",
+        type="scheduler",
         **finished_job.meta["data_source_info"],
     ).one_or_none()
     assert (

@@ -55,7 +55,7 @@ def get_power_data(
             end=query_window[-1],
             resolution=resolution,
             belief_horizon_window=(None, timedelta(hours=0)),
-            exclude_source_types=["scheduling script"],
+            exclude_source_types=["scheduler"],
         )
         if showing_individual_traces_for == "power":
             power_bdf = resource.power_data
@@ -87,7 +87,7 @@ def get_power_data(
             end=query_window[-1],
             resolution=resolution,
             belief_horizon_window=(forecast_horizon, None),
-            exclude_source_types=["scheduling script"],
+            exclude_source_types=["scheduler"],
         ).aggregate_power_data
         power_forecast_df: pd.DataFrame = simplify_index(
             power_forecast_bdf, index_levels_to_columns=["belief_horizon", "source"]
@@ -103,7 +103,7 @@ def get_power_data(
             end=query_window[-1],
             resolution=resolution,
             belief_horizon_window=(None, None),
-            source_types=["scheduling script"],
+            source_types=["scheduler"],
         )
         if showing_individual_traces_for == "schedules":
             power_schedule_bdf = resource.power_data
@@ -205,7 +205,7 @@ def get_prices_data(
         resolution=resolution,
         horizons_at_least=forecast_horizon,
         horizons_at_most=None,
-        source_types=["user", "forecasting script", "script"],
+        source_types=["user", "forecaster", "script"],
     )
     price_forecast_df: pd.DataFrame = simplify_index(
         price_forecast_bdf, index_levels_to_columns=["belief_horizon", "source"]
@@ -297,7 +297,7 @@ def get_weather_data(
                 resolution=resolution,
                 horizons_at_least=forecast_horizon,
                 horizons_at_most=None,
-                source_types=["user", "forecasting script", "script"],
+                source_types=["user", "forecaster", "script"],
                 sum_multiple=False,
             )
             weather_forecast_df_dict: Dict[str, pd.DataFrame] = {}
