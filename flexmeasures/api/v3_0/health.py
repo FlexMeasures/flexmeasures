@@ -24,6 +24,17 @@ class HealthAPI(FlaskView):
     def is_ready(self):
         """
         Get readiness status
+
+        .. :quickref: Health; Get readiness status
+
+        **Example response:**
+
+        .. sourcecode:: json
+
+            {
+                'database_sql': True
+            }
+
         """
         status = {"database_sql": _check_sql_database()}  # TODO: check redis
         if all(status.values()):
