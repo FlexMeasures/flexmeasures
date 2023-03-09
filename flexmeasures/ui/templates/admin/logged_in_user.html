@@ -1,105 +1,109 @@
-{% extends "base.html" %}
+{% extends "base.html" %} {% set active_page = "logged-in-user" %} {% block title %} Your user overview {% endblock %} {% block divs %}
 
-{% set active_page = "logged-in-user" %}
-
-{% block title %} Your user overview {% endblock %}
-
-{% block divs %}
-
-    <div class="container-fluid">
-        <div class="row">
-            <div class="col-sm-2 on-top-md">
-                <div class="header-action-button">
-                    <div class="user-action-button">
-                        <form action="/logout" method="get">
-                            <button class="btn btn-sm btn-responsive btn-info" type="submit">Log out</button>
-                        </form>
-                    </div>
-                    <div class="user-action-button">
-                        <form action="/users/reset_password_for/{{ logged_in_user.id }}" method="get">
-                            <button class="btn btn-sm btn-responsive btn-info delete-button" type="submit" title="Reset the password and send instructions how to choose a new one.">Reset password</button>
-                        </form>
-                    </div>
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-sm-2 on-top-md">
+            <div class="header-action-button">
+                <div class="user-action-button">
+                    <form action="/logout" method="get">
+                        <button class="btn btn-sm btn-responsive btn-info" type="submit">Log out</button>
+                    </form>
+                </div>
+                <div class="user-action-button">
+                    <form action="/users/reset_password_for/{{ logged_in_user.id }}" method="get">
+                        <button class="btn btn-sm btn-responsive btn-info delete-button" type="submit" title="Reset the password and send instructions how to choose a new one.">Reset password</button>
+                    </form>
                 </div>
             </div>
-            <div class="col-sm-8">
-                <div class="user-data-table card">
-                    <h2>User overview</h2>
-                    <small>Logged-in user: {{ logged_in_user.username }}</small>
-                    <table class="table table-striped table-responsive">
-                        <tbody>
-                            <tr>
-                                <td>
-                                    Email address
-                                </td>
-                                <td>
-                                    {{logged_in_user.email }}
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>
-                                    Account
-                                </td>
-                                <td>
-                                    {{ logged_in_user.account.name }}
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>
-                                    Assets in account
-                                </td>
-                                <td>
-                                    <a href="/assets/owned_by/{{ logged_in_user.account.id }}">{{ num_assets }}</a>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>
-                                    Time Zone
-                                </td>
-                                <td>
-                                    {{logged_in_user.timezone }}
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>
-                                    Last login
-                                </td>
-                                <td title="{{  logged_in_user.last_login_at | localized_datetime }}">
-                                    {{ logged_in_user.last_login_at | naturalized_datetime }}
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>
-                                    Last seen
-                                </td>
-                                <td title="{{  logged_in_user.last_seen_at | localized_datetime }}">
-                                    {{ logged_in_user.last_seen_at | naturalized_datetime }}
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>
-                                    Roles
-                                </td>
-                                <td>
-                                    {{ roles }}
-                                </td>
-                            </tr>
-                            {% if not user_is_anonymous %}
-                            <tr>
-                                <td>
-                                    Fresh access token
-                                </td>
-                                <td>
-                                    {{ logged_in_user.get_auth_token() }}
-                                </td>
-                            </tr>
-                            {% endif %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            <div class="col-sm-2"></div>
         </div>
+        <div class="col-sm-8">
+            <div class="user-data-table card">
+                <h2>User overview</h2>
+                <small>Logged-in user: {{ logged_in_user.username }}</small>
+                <table class="table table-striped table-responsive">
+                    <tbody>
+                        <tr>
+                            <td>
+                                Email address
+                            </td>
+                            <td>
+                                {{logged_in_user.email }}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                Account
+                            </td>
+                            <td>
+                                {{ logged_in_user.account.name }}
+                            </td>
+                        </tr>
+                        {% if account_roles %}
+                        <tr>
+                            <td>
+                                Account Roles
+                            </td>
+                            <td>
+                                {{ account_roles }}
+                            </td>
+                        </tr>
+                        {% endif %}
+                        <tr>
+                            <td>
+                                Assets in account
+                            </td>
+                            <td>
+                                <a href="/assets/owned_by/{{ logged_in_user.account.id }}">{{ num_assets }}</a>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                Time Zone
+                            </td>
+                            <td>
+                                {{logged_in_user.timezone }}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                Last login
+                            </td>
+                            <td title="{{  logged_in_user.last_login_at | localized_datetime }}">
+                                {{ logged_in_user.last_login_at | naturalized_datetime }}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                Last seen
+                            </td>
+                            <td title="{{  logged_in_user.last_seen_at | localized_datetime }}">
+                                {{ logged_in_user.last_seen_at | naturalized_datetime }}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                Roles
+                            </td>
+                            <td>
+                                {{ roles }}
+                            </td>
+                        </tr>
+                        {% if not user_is_anonymous %}
+                        <tr>
+                            <td>
+                                Fresh access token
+                            </td>
+                            <td>
+                                {{ logged_in_user.get_auth_token() }}
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="col-sm-2"></div>
     </div>
+</div>
 
 {% endblock %}
