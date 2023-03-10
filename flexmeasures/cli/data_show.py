@@ -55,7 +55,7 @@ def list_accounts():
 @with_appcontext
 def list_roles():
     """
-    Show available account an user roles
+    Show available account and user roles
     """
     account_roles = AccountRole.query.order_by(AccountRole.name).all()
     if not account_roles:

@@ -142,8 +142,22 @@ def create_test_accounts(db) -> Dict[str, Account]:
         name="Test Dummy Account", account_roles=[dummy_account_role]
     )
     db.session.add(dummy_account)
+    empty_account = Account(name="Test Empty Account")
+    db.session.add(empty_account)
+    multi_role_account = Account(
+        name="Multi Role Account",
+        account_roles=[
+            prosumer_account_role,
+            supplier_account_role,
+            dummy_account_role,
+        ],
+    )
+    db.session.add(multi_role_account)
     return dict(
-        Prosumer=prosumer_account, Supplier=supplier_account, Dummy=dummy_account
+        Prosumer=prosumer_account,
+        Supplier=supplier_account,
+        Dummy=dummy_account,
+        Multi=multi_role_account,
     )
 
 
