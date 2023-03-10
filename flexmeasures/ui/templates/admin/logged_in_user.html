@@ -44,7 +44,7 @@
                                 Account Roles
                             </td>
                             <td>
-                                {{ account_roles }}
+                                {{ account_role_names|join(", ") }}
                             </td>
                         </tr>
                         {% endif %}

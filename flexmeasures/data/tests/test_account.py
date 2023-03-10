@@ -13,8 +13,9 @@ def test_get_number_of_assets_in_account(db, setup_assets):
 
 def test_get_account_roles(db):
     """Get the account roles"""
-    assert get_account_roles(1) == "Prosumer"
-    assert get_account_roles(2) == "Supplier"
-    assert get_account_roles(3) == "Dummy"
-    assert get_account_roles(4) is None
-    assert get_account_roles(5) == "Prosumer, Supplier, Dummy"
+    assert get_account_roles(1)[0].name == "Prosumer"
+    assert get_account_roles(2)[0].name == "Supplier"
+    assert get_account_roles(3)[0].name == "Dummy"
+    assert get_account_roles(4) == []
+    multiple_roles = get_account_roles(5)
+    assert [i.name for i in multiple_roles] == ["Prosumer", "Supplier", "Dummy"]
