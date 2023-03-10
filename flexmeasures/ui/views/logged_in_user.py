@@ -25,5 +25,4 @@ def logged_in_user_view():
         roles=",".join([role.name for role in current_user.roles]),
         num_assets=get_number_of_assets_in_account(current_user.account_id),
         account_role_names=account_role_names,
-        account_roles=account_roles,
     )
