@@ -34,7 +34,8 @@ def test_get_accounts(client, setup_api_test_data, as_admin):
     )
     print("Server responded with:\n%s" % get_accounts_response.data)
     if as_admin:
-        assert len(get_accounts_response.json) == 3
+        assert len(get_accounts_response.json) == 5
+
     else:
         assert len(get_accounts_response.json) == 1
         get_accounts_response.json[0]["name"] == "Test Prosumer Account"
