@@ -41,7 +41,7 @@ class AccountAPI(FlaskView):
 
         **Example response**
 
-        An example of one user being returned:
+        An example of one account being returned:
 
         .. sourcecode:: json
 
@@ -77,7 +77,7 @@ class AccountAPI(FlaskView):
 
         .. :quickref: Account; Get an account
 
-        This endpoint gets an account.
+        This endpoint retrieves an account, given its id.
         Only admins or the user themselves can use this endpoint.
 
         **Example response**

@@ -138,7 +138,7 @@ class UserAPI(FlaskView):
         This endpoint sets data for an existing user.
         It has to be used by the user themselves, admins or account-admins (of the same account).
         Any subset of user fields can be sent.
-        If the user us not an (account-)admin, they can only edit a few of their own fields.
+        If the user is not an (account-)admin, they can only edit a few of their own fields.
 
         The following fields are not allowed to be updated at all:
          - id
