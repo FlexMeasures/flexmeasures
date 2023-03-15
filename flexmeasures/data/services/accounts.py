@@ -15,5 +15,7 @@ def get_accounts(
         role = AccountRole.query.filter(AccountRole.name == role_name).one_or_none()
         if role:
             account_query = account_query.filter(Account.account_roles.contains(role))
+        else:
+            return []
 
     return account_query.all()
