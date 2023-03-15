@@ -1,0 +1,38 @@
+{% extends "base.html" %} {% set active_page = "accounts" %} {% block title %} Account listing {% endblock %} {% block divs %}
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-sm-2"></div>
+        <div class="col-sm-8">
+            <table class="table table-striped table-responsive paginate">
+                <thead>
+                    <tr>
+                        <th>Account</th>
+                        <th>ID</th>
+                        <th>Roles</th>
+
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for account in accounts %}
+                    <tr>
+                        <td>
+                            {{ account["name"] }}
+                        </td>
+                        <td>
+                            {{ account["id"] }}
+                        </td>
+                        <td>
+                            {{ account["account_roles"]|join(", ") }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="col-sm-2"></div>
+</div>
+</div>
+
+{% block paginate_tables_script %} {{ super() }} {% endblock %} {% endblock%}

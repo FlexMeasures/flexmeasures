@@ -75,3 +75,27 @@ def mock_api_data_as_form_input(api_data: dict) -> dict:
     form_input = copy.deepcopy(api_data)
     form_input["account"] = api_data["account_id"]
     return form_input
+
+
+def mock_account_response(
+    account_id: int = 1,
+    account_name: str = "test_account",
+    account_roles: list = [],
+    as_list: bool = True,
+    multiple: bool = False,
+) -> Union[dict, List[dict]]:
+    account = dict(
+        id=account_id,
+        name=account_name,
+        account_roles=account_roles,
+    )
+    if as_list:
+        account_list = [account]
+        if multiple:
+            user2 = copy.deepcopy(account)
+            user2["id"] = 2
+            user2["account_name"] = "test_account2"
+            user2["account_roles"] = []
+            account_list.append(user2)
+        return account_list
+    return account
