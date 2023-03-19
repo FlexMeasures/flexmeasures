@@ -24,7 +24,7 @@ rq-dashboard
 # the following uses environment markers (see PEP 496)
 rq-win; os_name == 'nt' or os_name == 'win'
 # This limit resolves a conflict with test.in. The culprit is fakeredis (check their pyproject.toml)
-redis < 4.5
+redis >4.5, <5
 tldextract
 pyomo>=5.6
 tabulate
@@ -33,7 +33,7 @@ timely-beliefs[forecast]>=1.18
 python-dotenv
 # a backport, not needed in Python3.8
 importlib_metadata
-sqlalchemy>=1.4.0
+sqlalchemy>=1.4.0, <2
 Flask-SSLify
 Flask_JSON
 Flask-Migrate
