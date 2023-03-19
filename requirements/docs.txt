@@ -18,7 +18,7 @@ charset-normalizer==3.1.0
     # via
     #   -c requirements/app.txt
     #   requests
-docutils==0.17.1
+docutils==0.18.1
     # via
     #   sphinx
     #   sphinx-rtd-theme
@@ -55,7 +55,7 @@ six==1.16.0
     #   sphinxcontrib-httpdomain
 snowballstemmer==2.2.0
     # via sphinx
-sphinx==4.4.0
+sphinx==6.1.3
     # via
     #   -r requirements/docs.in
     #   sphinx-copybutton
@@ -70,7 +70,7 @@ sphinx-fontawesome==0.0.6
     # via -r requirements/docs.in
 sphinx-rtd-theme==1.2.0
     # via -r requirements/docs.in
-sphinx-tabs==3.3.1
+sphinx-tabs==3.4.1
     # via -r requirements/docs.in
 sphinxcontrib-applehelp==1.0.4
     # via sphinx
