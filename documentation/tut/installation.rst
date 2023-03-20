@@ -225,6 +225,8 @@ Set mail settings
 
 For FlexMeasures to be able to send email to users (e.g. for resetting passwords), you need an email account which can do that (e.g. GMail). Set the MAIL_* settings in your configuration, see :ref:`mail-config`.
 
+.. _install-lp-solver:
+
 Install an LP solver
 ^^^^^^^^^^^^^^^^^^^^
 
@@ -260,6 +262,6 @@ Then, start workers in a console (or some other method to keep a long-running pr
 Where to go from here?
 ------------------------
 
-If your data structure is good, you should think about (continually) adding measurement data. This tutorial mentioned how to add data, but :ref:`_tut_posting_data` goes deeper with examples and terms & definitions.
+If your data structure is good, you should think about (continually) adding measurement data. This tutorial mentioned how to add data, but :ref:`tut_posting_data` goes deeper with examples and terms & definitions.
 
 Then, you probably want to use FlexMeasures to generate forecasts and schedules! For this, read further in :ref:`tut_forecasting_scheduling`. 

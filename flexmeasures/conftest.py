@@ -142,8 +142,22 @@ def create_test_accounts(db) -> Dict[str, Account]:
         name="Test Dummy Account", account_roles=[dummy_account_role]
     )
     db.session.add(dummy_account)
+    empty_account = Account(name="Test Empty Account")
+    db.session.add(empty_account)
+    multi_role_account = Account(
+        name="Multi Role Account",
+        account_roles=[
+            prosumer_account_role,
+            supplier_account_role,
+            dummy_account_role,
+        ],
+    )
+    db.session.add(multi_role_account)
     return dict(
-        Prosumer=prosumer_account, Supplier=supplier_account, Dummy=dummy_account
+        Prosumer=prosumer_account,
+        Supplier=supplier_account,
+        Dummy=dummy_account,
+        Multi=multi_role_account,
     )
 
 
@@ -491,7 +505,9 @@ def create_beliefs(db: SQLAlchemy, setup_markets, setup_sources) -> int:
 
 
 @pytest.fixture(scope="module")
-def add_market_prices(db: SQLAlchemy, setup_assets, setup_markets, setup_sources):
+def add_market_prices(
+    db: SQLAlchemy, setup_assets, setup_markets, setup_sources
+) -> Dict[str, Sensor]:
     """Add two days of market prices for the EPEX day-ahead market."""
 
     # one day of test data (one complete sine curve)
@@ -533,6 +549,7 @@ def add_market_prices(db: SQLAlchemy, setup_assets, setup_markets, setup_sources
         for dt, val in zip(time_slots, values)
     ]
     db.session.add_all(day2_beliefs)
+    return {"epex_da": setup_markets["epex_da"].corresponding_sensor}
 
 
 @pytest.fixture(scope="module")

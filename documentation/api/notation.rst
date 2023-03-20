@@ -367,7 +367,7 @@ The resolution of the underlying data will remain zero (and the returned message
 .. _sources:
 
 Sources
--------
+^^^^^^^
 
 Requests for data may filter by source. FlexMeasures keeps track of the data source (the data's author, for example, a user, forecaster or scheduler belonging to a given organisation) of time series data.
 For example, to obtain data originating from data source 42, include the following:

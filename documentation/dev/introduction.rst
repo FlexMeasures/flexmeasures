@@ -23,18 +23,34 @@ Virtual environment
 Using a virtual environment is best practice for Python developers. We also strongly recommend using a dedicated one for your work on FlexMeasures, as our make target (see below) will use ``pip-sync`` to install dependencies, which could interfere with some libraries you already have installed.
 
 
-* Make a virtual environment: ``python3.8 -m venv flexmeasures-venv`` or use a different tool like ``mkvirtualenv`` or virtualenvwrapper. You can also use
-  an `Anaconda distribution <https://conda.io/docs/user-guide/tasks/manage-environments.html>`_ as base with ``conda create -n flexmeasures-venv python=3.8``.
+* Make a virtual environment: ``python3.10 -m venv flexmeasures-venv`` or use a different tool like ``mkvirtualenv`` or virtualenvwrapper. You can also use
+  an `Anaconda distribution <https://conda.io/docs/user-guide/tasks/manage-environments.html>`_ as base with ``conda create -n flexmeasures-venv python=3.10``.
 * Activate it, e.g.: ``source flexmeasures-venv/bin/activate``
+
+Download FlexMeasures
+^^^^^^^^^^^^^^^^^^^^^^^
+Clone the `FlexMeasures repository <https://github.com/FlexMeasures/flexmeasures.git>`_ from GitHub.
+
+.. code-block:: console
+
+   git clone https://github.com/FlexMeasures/flexmeasures.git
+
 
 Dependencies
 ^^^^^^^^^^^^^^^^^^^^
 
-Install all dependencies including the ones needed for development:
+Go into the ``flexmeasures`` folder and install all dependencies including the ones needed for development:
 
 .. code-block:: console
 
+   cd flexmeasures
    make install-for-dev
+
+:ref:`Install the LP solver <install-lp-solver>`. On Unix the Cbc LP solver can be installed with:
+
+.. code-block:: console
+
+   apt-get install coinor-cbc
 
 
 Configuration
@@ -152,7 +168,7 @@ in your virtual environment.
 Now each git commit will first run ``flake8``, then ``black`` and finally ``mypy`` over the files affected by the commit
 (\ ``pre-commit`` will install these tools into its own structure on the first run).
 
-This is also what happens automatically server-side when code is committed to a branch (via Github Actions), but having those tests locally as well will help you spot these issues faster.
+This is also what happens automatically server-side when code is committed to a branch (via GitHub Actions), but having those tests locally as well will help you spot these issues faster.
 
 If ``flake8``, ``black`` or ``mypy`` propose changes to any file, the commit is aborted (saying that it "failed"). 
 The changes proposed by ``black`` are implemented automatically (you can review them with `git diff`). Some of them might even resolve the ``flake8`` warnings :)

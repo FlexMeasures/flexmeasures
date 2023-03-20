@@ -45,7 +45,6 @@ def message_for_trigger_schedule(
     with_targets: bool = False,
     realistic_targets: bool = True,
     too_far_into_the_future_targets: bool = False,
-    deprecated_format_pre012: bool = False,
 ) -> dict:
     message = {
         "start": "2015-01-01T00:00:00+01:00",
@@ -56,18 +55,13 @@ def message_for_trigger_schedule(
             "start"
         ] = "2040-01-01T00:00:00+01:00"  # We have no beliefs in our test database about 2040 prices
 
-    flex_model = {
+    message["flex-model"] = {
         "soc-at-start": 12.1,  # in kWh, according to soc-unit
         "soc-min": 0,  # in kWh, according to soc-unit
         "soc-max": 40,  # in kWh, according to soc-unit
         "soc-unit": "kWh",
         "roundtrip-efficiency": "98%",
     }
-    if deprecated_format_pre012:
-        # unpack flex model directly as message fields
-        message = dict(**message, **flex_model)
-    else:
-        message["flex-model"] = flex_model
     if with_targets:
         if realistic_targets:
             # this target (in kWh, according to soc-unit) is well below the soc_max_in_mwh on the battery's sensor attributes
@@ -80,9 +74,7 @@ def message_for_trigger_schedule(
             target_datetime = "2015-02-02T23:00:00+01:00"
         else:
             target_datetime = "2015-01-02T23:00:00+01:00"
-        targets = [{"value": target_value, "datetime": target_datetime}]
-        if deprecated_format_pre012:
-            message["soc-targets"] = targets
-        else:
-            message["flex-model"]["soc-targets"] = targets
+        message["flex-model"]["soc-targets"] = [
+            {"value": target_value, "datetime": target_datetime}
+        ]
     return message

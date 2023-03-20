@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import List, Dict, Optional
+from typing import Optional
 
 from flask import current_app
 from flask_classful import FlaskView, route
@@ -7,7 +7,6 @@ from flask_json import as_json
 from flask_security import auth_required
 import isodate
 from marshmallow import fields, ValidationError
-from marshmallow.validate import OneOf
 from rq.job import Job, NoSuchJobError
 from timely_beliefs import BeliefsDataFrame
 from webargs.flaskparser import use_args, use_kwargs
@@ -18,7 +17,6 @@ from flexmeasures.api.common.responses import (
     unknown_schedule,
     invalid_flex_config,
 )
-from flexmeasures.api.common.utils.deprecation_utils import deprecate_fields
 from flexmeasures.api.common.utils.validators import (
     optional_duration_accepted,
 )
@@ -35,33 +33,18 @@ from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField
 from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
-from flexmeasures.data.schemas.scheduling import FlexContextSchema
 from flexmeasures.data.services.sensors import get_sensors
 from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
     get_data_source_for_job,
 )
 from flexmeasures.utils.time_utils import duration_isoformat
-from flexmeasures.utils.unit_utils import ur
 
 
 # Instantiate schemas outside of endpoint logic to minimize response time
 get_sensor_schema = GetSensorDataSchema()
 post_sensor_schema = PostSensorDataSchema()
 sensors_schema = SensorSchema(many=True)
-
-DEPRECATED_FLEX_CONFIGURATION_FIELDS = [
-    "soc-at-start",
-    "soc-min",
-    "soc-max",
-    "soc-unit",
-    "roundtrip-efficiency",
-    "prefer-charging-sooner",
-    "soc-targets",
-    "consumption-price-sensor",
-    "production-price-sensor",
-    "inflexible-device-sensors",
-]
 
 
 class SensorAPI(FlaskView):
@@ -211,7 +194,6 @@ class SensorAPI(FlaskView):
         {"sensor": SensorIdField(data_key="id")},
         location="path",
     )
-    # TODO: Everything other than start_of_schedule, prior, flex_model and flex_context is to be deprecated in 0.13. We let the scheduler decide (flex model) or nest (portfolio)
     @use_kwargs(
         {
             "start_of_schedule": AwareDateTimeField(
@@ -222,36 +204,7 @@ class SensorAPI(FlaskView):
                 load_default=PlanningDurationField.load_default
             ),
             "flex_model": fields.Dict(data_key="flex-model"),
-            "soc_sensor_id": fields.Str(data_key="soc-sensor", required=False),
-            "roundtrip_efficiency": fields.Str(data_key="roundtrip-efficiency"),
-            "start_value": fields.Float(data_key="soc-at-start"),
-            "soc_min": fields.Float(data_key="soc-min"),
-            "soc_max": fields.Float(data_key="soc-max"),
-            "unit": fields.Str(
-                data_key="soc-unit",
-                validate=OneOf(
-                    [
-                        "kWh",
-                        "MWh",
-                    ]
-                ),
-            ),  # todo: allow unit to be set per field, using QuantityField("%", validate=validate.Range(min=0, max=1))
-            "targets": fields.List(fields.Dict, data_key="soc-targets"),
-            "prefer_charging_sooner": fields.Bool(
-                data_key="prefer-charging-sooner", required=False
-            ),
-            "flex_context": fields.Nested(
-                FlexContextSchema, required=False, data_key="flex-context"
-            ),
-            "consumption_price_sensor": SensorIdField(
-                data_key="consumption-price-sensor", required=False
-            ),
-            "production_price_sensor": SensorIdField(
-                data_key="production-price-sensor", required=False
-            ),
-            "inflexible_device_sensors": fields.List(
-                SensorIdField, data_key="inflexible-device-sensors", required=False
-            ),
+            "flex_context": fields.Dict(required=False, data_key="flex-context"),
         },
         location="json",
     )
@@ -261,16 +214,6 @@ class SensorAPI(FlaskView):
         start_of_schedule: datetime,
         duration: timedelta,
         belief_time: Optional[datetime] = None,
-        start_value: Optional[float] = None,
-        soc_min: Optional[float] = None,
-        soc_max: Optional[float] = None,
-        unit: Optional[str] = None,
-        roundtrip_efficiency: Optional[ur.Quantity] = None,
-        prefer_charging_sooner: Optional[bool] = True,
-        consumption_price_sensor: Optional[Sensor] = None,
-        production_price_sensor: Optional[Sensor] = None,
-        inflexible_device_sensors: Optional[List[Sensor]] = None,
-        soc_sensor_id: Optional[int] = None,
         flex_model: Optional[dict] = None,
         flex_context: Optional[dict] = None,
         **kwargs,
@@ -299,7 +242,7 @@ class SensorAPI(FlaskView):
         The length of the schedule can be set explicitly through the 'duration' field.
         Otherwise, it is set by the config setting :ref:`planning_horizon_config`, which defaults to 48 hours.
         If the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.
-        Finally, the schedule length is limited by :ref:`max_planning_horizon_config`, which defaults to 169 hours.
+        Finally, the schedule length is limited by :ref:`max_planning_horizon_config`, which defaults to 2520 steps of the sensor's resolution.
         Targets that exceed the max planning horizon are not accepted.
 
         The appropriate algorithm is chosen by FlexMeasures (based on asset type).
@@ -383,69 +326,6 @@ class SensorAPI(FlaskView):
         :status 405: INVALID_METHOD
         :status 422: UNPROCESSABLE_ENTITY
         """
-        # -- begin deprecation logic, can be removed after 0.13
-        deprecate_fields(
-            DEPRECATED_FLEX_CONFIGURATION_FIELDS,
-            deprecation_date="2022-12-14",
-            deprecation_link="https://flexmeasures.readthedocs.io/en/latest/api/change_log.html#v3-0-5-2022-12-30",
-            sunset_date="2023-02-01",
-            sunset_link="https://flexmeasures.readthedocs.io/en/latest/api/change_log.html#v3-0-5-2022-12-30",
-        )
-        found_fields: Dict[str, List[str]] = dict(model=[], context=[])
-        deprecation_message = ""
-        # flex-model
-        for param, param_name in [
-            (start_value, "soc-at-start"),
-            (soc_min, "soc-min"),
-            (soc_max, "soc-max"),
-            (unit, "soc-unit"),
-            (kwargs.get("targets"), "soc-targets"),
-            (roundtrip_efficiency, "roundtrip-efficiency"),
-            (
-                prefer_charging_sooner,
-                "prefer-charging-sooner",
-            ),
-        ]:
-            if flex_model is None:
-                flex_model = {}
-            if param is not None:
-                if param_name not in flex_model:
-                    flex_model[param_name] = param
-                found_fields["model"].append(param_name)
-        # flex-context
-        for param, param_name in [
-            (
-                consumption_price_sensor,
-                "consumption-price-sensor",
-            ),
-            (
-                production_price_sensor,
-                "production-price-sensor",
-            ),
-            (
-                inflexible_device_sensors,
-                "inflexible-device-sensors",
-            ),
-        ]:
-            if flex_context is None:
-                flex_context = {}
-            if param is not None:
-                if param_name not in flex_context:
-                    flex_context[param_name] = param
-                found_fields["context"].append(param_name)
-        if found_fields["model"] or found_fields["context"]:
-            deprecation_message = "The following fields you sent are deprecated and will be sunset in the next version:"
-            if found_fields["model"]:
-                deprecation_message += f" {', '.join(found_fields['model'])} (please pass as part of flex_model)."
-            if found_fields["context"]:
-                deprecation_message += f" {', '.join(found_fields['context'])} (please pass as part of flex_context)."
-
-        if soc_sensor_id is not None:
-            deprecation_message += (
-                "The field soc-sensor-id is be deprecated and will be sunset in v0.13."
-            )
-        # -- end deprecation logic
-
         end_of_schedule = start_of_schedule + duration
         scheduler_kwargs = dict(
             sensor=sensor,
@@ -470,7 +350,7 @@ class SensorAPI(FlaskView):
         db.session.commit()
 
         response = dict(schedule=job.id)
-        d, s = request_processed(deprecation_message)
+        d, s = request_processed()
         return dict(**response, **d), s
 
     @route("/<id>/schedules/<uuid>", methods=["GET"])

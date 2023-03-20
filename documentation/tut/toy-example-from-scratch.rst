@@ -51,13 +51,15 @@ Install Flexmeasures and the database
             $ docker run --rm --name flexmeasures-tutorial-fm --env SQLALCHEMY_DATABASE_URI=postgresql://postgres:fm-db-passwd@flexmeasures-tutorial-db:5432/flexmeasures-db --env SECRET_KEY=notsecret --env FLASK_ENV=development --env LOGGING_LEVEL=INFO -d --network=flexmeasures_network -p 5000:5000 lfenergy/flexmeasures
             $ docker exec flexmeasures-tutorial-fm bash -c "flexmeasures db upgrade"
 
+        .. note:: A tip on Linux/macOS ― You might have the ``docker`` command, but need `sudo` rights to execute it. ``alias docker='sudo docker'`` enables you to still run this tutorial.
+
         Now - what's *very important* to remember is this: The rest of this tutorial will happen *inside* the ``flexmeasures-tutorial-fm`` container! This is how you hop inside the container and run a terminal there:
 
         .. code-block:: console
 
             $ docker exec -it flexmeasures-tutorial-fm bash
 
-        To leave the container session, hold CTRL-C or type "exit".
+        To leave the container session, hold CTRL-D or type "exit".
 
         To stop the containers, you can type
         
@@ -66,7 +68,14 @@ Install Flexmeasures and the database
             $ docker stop flexmeasures-tutorial-db
             $ docker stop flexmeasures-tutorial-fm
 
-        .. note:: A tip on Linux/macOS ― You might have the ``docker`` command, but need `sudo` rights to execute it. ``alias docker='sudo docker'`` enables you to still run this tutorial.
+        To start the containers again, do this (note that re-running the `docker run` commands above *deletes and re-creates* all data!):
+        
+        .. code-block:: console
+        
+            $ docker start flexmeasures-tutorial-db
+            $ docker start flexmeasures-tutorial-fm
+
+        .. note:: For newer versions of MacOS, port 5000 is in use by default by Control Center. You can turn this off by going to System Preferences > Sharing and untick the "Airplay Receiver" box. If you don't want to do this for some reason, you can change the host port in the ``docker run`` command to some other port, for example 5001. To do this, change ``-p 5000:5000`` in the command to ``-p 5001:5000``. If you do this, remember that you will have to go to ``localhost:5001`` in your browser when you want to inspect the FlexMeasures UI.
 
         .. note:: Got docker-compose? You could run this tutorial with 5 containers :) ― Go to :ref:`docker-compose-tutorial`.
 
