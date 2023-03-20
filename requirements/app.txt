@@ -256,7 +256,7 @@ pytz==2022.7.1
     #   pandas
     #   timely-beliefs
     #   timetomodel
-redis==4.5.1
+redis==4.5.2
     # via
     #   -r requirements/app.in
     #   rq
@@ -274,7 +274,9 @@ rq==1.13.0
 rq-dashboard==0.6.1
     # via -r requirements/app.in
 scikit-learn==1.2.2
-    # via sktime
+    # via
+    #   sktime
+    #   timetomodel
 scipy==1.10.1
     # via
     #   properscoring
@@ -293,8 +295,6 @@ six==1.16.0
     #   patsy
     #   python-dateutil
     #   requests-file
-sklearn==0.0.post1
-    # via timetomodel
 sktime==0.16.1
     # via timely-beliefs
 sqlalchemy==1.4.47
@@ -313,7 +313,7 @@ threadpoolctl==3.1.0
     # via scikit-learn
 timely-beliefs[forecast]==1.19.0
     # via -r requirements/app.in
-timetomodel==0.7.1
+timetomodel==0.7.2
     # via -r requirements/app.in
 tldextract==3.4.0
     # via -r requirements/app.in

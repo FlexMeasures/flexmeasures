@@ -71,7 +71,7 @@ typing-extensions==4.5.0
     #   setuptools-scm
 virtualenv==20.21.0
     # via pre-commit
-watchdog==2.3.1
+watchdog==3.0.0
     # via -r requirements/dev.in
 
 # The following packages are considered to be unsafe in a requirements file:

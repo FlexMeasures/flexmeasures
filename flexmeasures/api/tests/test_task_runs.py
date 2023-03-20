@@ -60,6 +60,7 @@ def test_api_task_run_get_nonexistent_task(client):
 
 def test_api_task_run_post_no_name(client):
     task_run = post_task_run(client, "")
+    task_run = post_task_run(client, "")
     assert task_run.status_code == 400
     assert task_run.json["status"] == "ERROR"
     assert task_run.json["reason"] == "No task name given."
