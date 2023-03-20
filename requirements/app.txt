@@ -83,7 +83,7 @@ flask-cors==3.0.10
     # via -r requirements/app.in
 flask-json==0.3.5
     # via -r requirements/app.in
-flask-login==0.5.0
+flask-login==0.6.1
     # via
     #   -r requirements/app.in
     #   flask-security-too
@@ -95,7 +95,7 @@ flask-migrate==4.0.4
     # via -r requirements/app.in
 flask-principal==0.4.0
     # via flask-security-too
-flask-security-too==4.1.6
+flask-security-too==5.1.2
     # via -r requirements/app.in
 flask-sqlalchemy==2.5.1
     # via
@@ -336,12 +336,15 @@ werkzeug==2.0.3
     # via
     #   -r requirements/app.in
     #   flask
+    #   flask-login
 workalendar==17.0.0
     # via -r requirements/app.in
 wrapt==1.15.0
     # via deprecated
 wtforms==3.0.1
-    # via flask-wtf
+    # via
+    #   flask-security-too
+    #   flask-wtf
 xlrd==2.0.1
     # via -r requirements/app.in
 zipp==3.15.0
