@@ -92,10 +92,10 @@ def mock_account_response(
     if as_list:
         account_list = [account]
         if multiple:
-            user2 = copy.deepcopy(account)
-            user2["id"] = 2
-            user2["account_name"] = "test_account2"
-            user2["account_roles"] = []
-            account_list.append(user2)
+            account2 = copy.deepcopy(account)
+            account2["id"] = 2
+            account2["name"] = "test_account2"
+            account2["account_roles"] = []
+            account_list.append(account2)
         return account_list
     return account

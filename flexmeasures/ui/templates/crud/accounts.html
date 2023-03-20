@@ -17,13 +17,13 @@
                     {% for account in accounts %}
                     <tr>
                         <td>
-                            {{ account["name"] }}
+                            {{ account.name }}
                         </td>
                         <td>
-                            {{ account["id"] }}
+                            {{ account.id }}
                         </td>
                         <td>
-                            {{ account["account_roles"]|join(", ") }}
+                            {{ account.account_roles | join(", ") }}
                         </td>
                     </tr>
                     {% endfor %}

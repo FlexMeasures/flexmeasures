@@ -16,11 +16,11 @@ def get_accounts():
     else:
         accounts = [
             {
-                "id": current_user.user_account.id,
+                "id": current_user.account.id,
                 "name": current_user.account.name,
                 "account_roles": [
                     current_user.account.account_roles[i].id
-                    for i in current_user.account.account_roles
+                    for i in range(len(list(current_user.account.account_roles)))
                 ],
             }
         ]
@@ -49,6 +49,7 @@ class AccountCrudUI(FlaskView):
         )
 
     def get(self, account_id: str):
+        """/accounts/<account_id>"""
         account = get_account(account_id)
         return render_flexmeasures_template(
             "crud/account.html",
