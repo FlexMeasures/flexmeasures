@@ -7,11 +7,9 @@ def test_get_accounts_as_nonadmin(client, as_prosumer_user1, requests_mock):
     requests_mock.get(
         "http://localhost//api/v3_0/accounts",
         status_code=200,
-        json=mock_account_response(multiple=True),
+        json=mock_account_response(multiple=False),
     )
-    assert get_accounts() == [
-        {"id": 1, "name": "Test Prosumer Account", "account_roles": [1]}
-    ]
+    assert get_accounts() == [{"id": 1, "name": "test_account", "account_roles": []}]
 
 
 def test_get_accounts_as_admin(client, as_admin, requests_mock):

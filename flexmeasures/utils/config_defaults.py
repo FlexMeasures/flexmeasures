@@ -105,6 +105,7 @@ class Config(object):
         "dashboard",
         "assets",
         "users",
+        "accounts",
     ]
     FLEXMEASURES_MENU_LISTED_VIEW_ICONS: Dict[str, str] = {}
     FLEXMEASURES_MENU_LISTED_VIEW_TITLES: Dict[str, str] = {}
