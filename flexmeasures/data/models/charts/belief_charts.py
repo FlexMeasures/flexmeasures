@@ -88,13 +88,10 @@ def chart_for_multiple_sensors(
     event_ends_before: datetime | None = None,
     **override_chart_specs: dict,
 ):
-    # Unpack nested sensors
-    sensors = flatten_unique(sensors_to_show)
-
     # Determine the shared data resolution
     condition = list(
         sensor.event_resolution
-        for sensor in sensors
+        for sensor in flatten_unique(sensors_to_show)
         if sensor.event_resolution > timedelta(0)
     )
     minimum_non_zero_resolution = min(condition) if any(condition) else timedelta(0)
