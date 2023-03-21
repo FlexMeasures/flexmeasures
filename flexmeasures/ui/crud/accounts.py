@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 from flask import url_for
 from flask_classful import FlaskView
 from flexmeasures.ui.crud.api_wrapper import InternalApi
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 
 
-def get_accounts():
+def get_accounts() -> list[dict]:
     """/accounts"""
     accounts = []
     accounts_response = InternalApi().get(url_for("AccountAPI:index"))
@@ -13,7 +15,7 @@ def get_accounts():
     return accounts
 
 
-def get_account(account_id: str):
+def get_account(account_id: str) -> dict:
     account_response = InternalApi().get(url_for("AccountAPI:get", id=account_id))
     account = account_response.json()
 

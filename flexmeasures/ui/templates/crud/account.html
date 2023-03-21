@@ -18,10 +18,10 @@
                         </tr>
                         <tr>
                             <td>
-                                Account Roles
+                                Roles
                             </td>
                             <td>
-                                {{ account.account_roles }}
+                                {{ account.account_roles | join(", ") }}
                             </td>
                         </tr>
                     </tbody>
