@@ -43,6 +43,7 @@ def bar_chart(
         }
     chart_specs = {
         "description": "A simple bar chart showing sensor data.",
+        # the sensor type is already shown as the y-axis title (avoid redundant info)
         "title": capitalize(sensor.name) if sensor.name != sensor.sensor_type else None,
         "layer": [
             {
@@ -196,6 +197,7 @@ def chart_for_multiple_sensors(
                 [
                     f"{capitalize(sensor.name)}"
                     for sensor in row_sensors
+                    # the sensor type is already shown as the y-axis title (avoid redundant info)
                     if sensor.name != sensor.sensor_type
                 ]
             ),
