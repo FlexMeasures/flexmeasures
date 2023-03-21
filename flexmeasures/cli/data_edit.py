@@ -13,6 +13,7 @@ from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.utils import save_to_db
+from flexmeasures.cli.utils import ColorCode
 
 
 @click.group("edit")
@@ -112,7 +113,7 @@ def edit_attribute(
         sensor.attributes[attribute_key] = attribute_value
         db.session.add(sensor)
     db.session.commit()
-    print("Successfully edited/added attribute.")
+    click.secho("Successfully edited/added attribute.", **ColorCode.SUCCESS)
 
 
 @fm_edit_data.command("resample-data")
@@ -164,7 +165,7 @@ def resample_sensor_data(
     for sensor_id in sensor_ids:
         sensor = Sensor.query.get(sensor_id)
         if sensor.event_resolution == event_resolution:
-            print(f"{sensor} already has the desired event resolution.")
+            click.secho(f"{sensor} already has the desired event resolution.")
             continue
         df_original = sensor.search_beliefs(
             most_recent_beliefs_only=False,
@@ -199,7 +200,7 @@ def resample_sensor_data(
         query.delete()
         save_to_db(df_resampled, bulk_save_objects=True)
     db.session.commit()
-    print("Successfully resampled sensor data.")
+    click.secho("Successfully resampled sensor data.", **ColorCode.SUCCESS)
 
 
 app.cli.add_command(fm_edit_data)

@@ -13,6 +13,7 @@ from sentry_sdk import (
 from flexmeasures.data.models.task_runs import LatestTaskRun
 from flexmeasures.data.models.user import User
 from flexmeasures.utils.time_utils import server_now
+from flexmeasures.cli.utils import ColorCode
 
 
 @click.group("monitor")
@@ -77,8 +78,9 @@ def monitor_task(ctx, task, custom_message):
     Check if the given task's last successful execution happened less than the allowed time ago.
     If not, alert someone, via email or sentry.
     """
-    click.echo(
-        "This function has been renamed (and is now deprecated). Please use flexmeasures monitor latest-run."
+    click.secho(
+        "This function has been renamed (and is now deprecated). Please use flexmeasures monitor latest-run.",
+        **ColorCode.ERROR,
     )
     ctx.forward(monitor_latest_run)
 
@@ -250,8 +252,9 @@ def monitor_last_seen(
         users = [user for user in users if user.has_role(user_role)]
 
     if not users:
-        click.echo(
-            f"All good ― no users were found with relevant criteria and last_seen_at longer than {maximum_minutes_since_last_seen} minutes ago."
+        click.secho(
+            f"All good ― no users were found with relevant criteria and last_seen_at longer than {maximum_minutes_since_last_seen} minutes ago.",
+            **ColorCode.SUCCESS,
         )
         return
 
@@ -276,7 +279,7 @@ def monitor_last_seen(
             email.body = msg
             app.mail.send(email)
     else:
-        click.echo("Users are not being alerted.")
+        click.secho("Users are not being alerted.", **ColorCode.ERROR)
 
     send_lastseen_monitoring_alert(
         users,
