@@ -1255,7 +1255,14 @@ def get_or_create_model(
         if hasattr(model_attribute, "type") and isinstance(model_attribute.type, JSON):
             filter_json_kwargs[kw] = filter_by_kwargs.pop(kw)
         elif callable(arg) and isinstance(model_attribute.type, String):
+            # Callables are stored in the database by their name
+            # e.g. knowledge_horizon_fnc = x_days_ago_at_y_oclock
+            # is stored as "x_days_ago_at_y_oclock"
             filter_by_kwargs[kw] = filter_by_kwargs[kw].__name__
+        else:
+            # The kw is already present in filter_by_kwargs and doesn't need to be adapted
+            # i.e. it can be used as an argument to .filter_by()
+            pass
 
     # See if the model already exists as a db row
     model_query = model_class.query.filter_by(**filter_by_kwargs)
