@@ -13,7 +13,7 @@ from sentry_sdk import (
 from flexmeasures.data.models.task_runs import LatestTaskRun
 from flexmeasures.data.models.user import User
 from flexmeasures.utils.time_utils import server_now
-from flexmeasures.cli.utils import ColorCode
+from flexmeasures.cli.utils import MsgStyle
 
 
 @click.group("monitor")
@@ -80,7 +80,7 @@ def monitor_task(ctx, task, custom_message):
     """
     click.secho(
         "This function has been renamed (and is now deprecated). Please use flexmeasures monitor latest-run.",
-        **ColorCode.ERROR,
+        **MsgStyle.ERROR,
     )
     ctx.forward(monitor_latest_run)
 
@@ -114,7 +114,8 @@ def monitor_latest_run(task, custom_message):
         if latest_run is None:
             msg = f"Task {task_name} has no last run and thus cannot be monitored. Is it configured properly?"
             send_task_monitoring_alert(task_name, msg, custom_msg=custom_message)
-            return
+            raise click.Abort()
+
         now = server_now()
         acceptable_interval = timedelta(minutes=t[1])
         # check if latest run was recently enough
@@ -254,9 +255,9 @@ def monitor_last_seen(
     if not users:
         click.secho(
             f"All good ― no users were found with relevant criteria and last_seen_at longer than {maximum_minutes_since_last_seen} minutes ago.",
-            **ColorCode.SUCCESS,
+            **MsgStyle.SUCCESS,
         )
-        return
+        raise click.Abort()
 
     # inform users & monitoring recipients
     if alert_users:
@@ -279,7 +280,7 @@ def monitor_last_seen(
             email.body = msg
             app.mail.send(email)
     else:
-        click.secho("Users are not being alerted.", **ColorCode.ERROR)
+        click.secho("Users are not being alerted.", **MsgStyle.ERROR)
 
     send_lastseen_monitoring_alert(
         users,

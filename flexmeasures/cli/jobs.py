@@ -10,7 +10,7 @@ from sqlalchemy.orm import configure_mappers
 
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
-from flexmeasures.cli.utils import ColorCode
+from flexmeasures.cli.utils import MsgStyle
 
 
 @click.group("jobs")
@@ -73,7 +73,7 @@ def run_worker(queue: str, name: Optional[str]):
     click.secho(
         'Worker "%s" initialised: %s ― processing %s queue(s)'
         % (worker.name, worker, len(q_list)),
-        **ColorCode.SUCCESS,
+        **MsgStyle.SUCCESS,
     )
     for q in q_list:
         click.echo("Running against %s on %s" % (q, q.connection))
@@ -130,7 +130,7 @@ def clear_queue(queue: str, failed: bool):
             count_after = reg.count
             click.secho(
                 f"Cleared {count_before - count_after} failed jobs from the registry at {the_queue}.",
-                **ColorCode.WARN,
+                **MsgStyle.WARN,
             )
         else:
             count_before = the_queue.count
@@ -139,12 +139,12 @@ def clear_queue(queue: str, failed: bool):
             count_after = the_queue.count
             click.secho(
                 f"Cleared {count_before - count_after} jobs from {the_queue}.",
-                **ColorCode.SUCCESS,
+                **MsgStyle.SUCCESS,
             )
         if count_after > 0:
             click.secho(
                 f"There are {count_after} jobs which could not be removed for some reason.",
-                **ColorCode.WARN,
+                **MsgStyle.WARN,
             )
         else:
             click.echo("No jobs left.")

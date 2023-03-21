@@ -18,7 +18,7 @@ import timely_beliefs as tb
 import timely_beliefs.utils as tb_utils
 from workalendar.registry import registry as workalendar_registry
 
-from flexmeasures.cli.utils import DeprecatedDefaultGroup, ColorCode
+from flexmeasures.cli.utils import DeprecatedDefaultGroup, MsgStyle
 from flexmeasures.data import db
 from flexmeasures.data.scripts.data_gen import (
     add_transmission_zone_asset,
@@ -77,14 +77,14 @@ def new_account_role(name: str, description: str):
     """
     role = AccountRole.query.filter_by(name=name).one_or_none()
     if role is not None:
-        click.secho(f"Account role '{name}' already exists.", **ColorCode.ERROR)
-        raise click.Abort
+        click.secho(f"Account role '{name}' already exists.", **MsgStyle.ERROR)
+        raise click.Abort()
     role = AccountRole(name=name, description=description)
     db.session.add(role)
     db.session.commit()
     click.secho(
         f"Account role '{name}' (ID: {role.id}) successfully created.",
-        **ColorCode.SUCCESS,
+        **MsgStyle.SUCCESS,
     )
 
 
@@ -98,15 +98,15 @@ def new_account(name: str, roles: str):
     """
     account = db.session.query(Account).filter_by(name=name).one_or_none()
     if account is not None:
-        click.secho(f"Account '{name}' already exists.", **ColorCode.ERROR)
-        raise click.Abort
+        click.secho(f"Account '{name}' already exists.", **MsgStyle.ERROR)
+        raise click.Abort()
     account = Account(name=name)
     db.session.add(account)
     if roles:
         for role_name in roles.split(","):
             role = AccountRole.query.filter_by(name=role_name).one_or_none()
             if role is None:
-                click.secho(f"Adding account role {role_name} ...", **ColorCode.ERROR)
+                click.secho(f"Adding account role {role_name} ...", **MsgStyle.ERROR)
                 role = AccountRole(name=role_name)
                 db.session.add(role)
             db.session.flush()
@@ -114,7 +114,7 @@ def new_account(name: str, roles: str):
     db.session.commit()
     click.secho(
         f"Account '{name}' (ID: {account.id}) successfully created.",
-        **ColorCode.SUCCESS,
+        **MsgStyle.SUCCESS,
     )
 
 
@@ -146,24 +146,24 @@ def new_user(
         timezone = app.config.get("FLEXMEASURES_TIMEZONE", "UTC")
         click.secho(
             f"Setting user timezone to {timezone} (taken from FLEXMEASURES_TIMEZONE config setting)...",
-            **ColorCode.WARN,
+            **MsgStyle.WARN,
         )
     else:
         timezone = timezone_optional
     try:
         pytz.timezone(timezone)
     except pytz.UnknownTimeZoneError:
-        click.secho(f"Timezone {timezone} is unknown!", **ColorCode.ERROR)
-        raise click.Abort
+        click.secho(f"Timezone {timezone} is unknown!", **MsgStyle.ERROR)
+        raise click.Abort()
     account = db.session.query(Account).get(account_id)
     if account is None:
-        click.secho(f"No account with ID {account_id} found!", **ColorCode.ERROR)
-        raise click.Abort
+        click.secho(f"No account with ID {account_id} found!", **MsgStyle.ERROR)
+        raise click.Abort()
     pwd1 = getpass.getpass(prompt="Please enter the password:")
     pwd2 = getpass.getpass(prompt="Please repeat the password:")
     if pwd1 != pwd2:
-        click.secho("Passwords do not match!", **ColorCode.ERROR)
-        raise click.Abort
+        click.secho("Passwords do not match!", **MsgStyle.ERROR)
+        raise click.Abort()
     created_user = create_user(
         username=username,
         email=email,
@@ -174,7 +174,7 @@ def new_user(
         check_email_deliverability=False,
     )
     db.session.commit()
-    click.secho(f"Successfully created user {created_user}", **ColorCode.SUCCESS)
+    click.secho(f"Successfully created user {created_user}", **MsgStyle.SUCCESS)
 
 
 @fm_add_data.command("sensor")
@@ -214,7 +214,7 @@ def add_sensor(**args):
     except json.decoder.JSONDecodeError as jde:
         click.secho(
             f"Error decoding --attributes. Please check your JSON: {jde}",
-            **ColorCode.ERROR,
+            **MsgStyle.ERROR,
         )
         raise click.Abort()
     del args["attributes"]  # not part of schema
@@ -222,22 +222,22 @@ def add_sensor(**args):
     args["event_resolution"] = timedelta(minutes=args["event_resolution"])
     sensor = Sensor(**args)
     if not isinstance(attributes, dict):
-        click.secho("Attributes should be a dict.", **ColorCode.ERROR)
+        click.secho("Attributes should be a dict.", **MsgStyle.ERROR)
         raise click.Abort()
     sensor.attributes = attributes
     if sensor.measures_power:
         if "capacity_in_mw" not in sensor.attributes:
             click.secho(
                 "A sensor which measures power needs a capacity (see --attributes).",
-                **ColorCode.ERROR,
+                **MsgStyle.ERROR,
             )
-            raise click.Abort
+            raise click.Abort()
     db.session.add(sensor)
     db.session.commit()
-    click.secho(f"Successfully created sensor with ID {sensor.id}", **ColorCode.SUCCESS)
+    click.secho(f"Successfully created sensor with ID {sensor.id}", **MsgStyle.SUCCESS)
     click.secho(
         f"You can access it at its entity address {sensor.entity_address}",
-        **ColorCode.SUCCESS,
+        **MsgStyle.SUCCESS,
     )
 
 
@@ -257,9 +257,9 @@ def add_asset_type(**args):
     db.session.commit()
     click.secho(
         f"Successfully created asset type with ID {generic_asset_type.id}.",
-        **ColorCode.SUCCESS,
+        **MsgStyle.SUCCESS,
     )
-    click.secho("You can now assign assets to it.", **ColorCode.SUCCESS)
+    click.secho("You can now assign assets to it.", **MsgStyle.SUCCESS)
 
 
 @fm_add_data.command("asset")
@@ -290,9 +290,9 @@ def add_asset(**args):
     db.session.add(generic_asset)
     db.session.commit()
     click.secho(
-        f"Successfully created asset with ID {generic_asset.id}.", **ColorCode.SUCCESS
+        f"Successfully created asset with ID {generic_asset.id}.", **MsgStyle.SUCCESS
     )
-    click.secho("You can now assign sensors to it.", **ColorCode.SUCCESS)
+    click.secho("You can now assign sensors to it.", **MsgStyle.SUCCESS)
 
 
 @fm_add_data.command("initial-structure")
@@ -531,9 +531,9 @@ def add_beliefs(
     if any(duplicate_rows) > 0:
         click.secho(
             "Duplicates found. Dropping duplicates for the following records:",
-            **ColorCode.WARN,
+            **MsgStyle.WARN,
         )
-        click.secho(bdf[duplicate_rows], **ColorCode.WARN)
+        click.secho(bdf[duplicate_rows], **MsgStyle.WARN)
         bdf = bdf[~duplicate_rows]
     if unit is not None:
         bdf["event_value"] = convert_units(
@@ -550,17 +550,17 @@ def add_beliefs(
             bulk_save_objects=True,
             commit_transaction=True,
         )
-        click.secho(f"Successfully created beliefs\n{bdf}", **ColorCode.SUCCESS)
+        click.secho(f"Successfully created beliefs\n{bdf}", **MsgStyle.SUCCESS)
     except IntegrityError as e:
         db.session.rollback()
         click.secho(
             f"Failed to create beliefs due to the following error: {e.orig}",
-            **ColorCode.ERROR,
+            **MsgStyle.ERROR,
         )
         if not allow_overwrite:
             click.secho(
                 "As a possible workaround, use the --allow-overwrite flag.",
-                **ColorCode.ERROR,
+                **MsgStyle.ERROR,
             )
 
 
@@ -665,7 +665,7 @@ def add_annotation(
     for sensor in sensors:
         sensor.annotations.append(annotation)
     db.session.commit()
-    click.secho("Successfully added annotation.", **ColorCode.SUCCESS)
+    click.secho("Successfully added annotation.", **MsgStyle.SUCCESS)
 
 
 @fm_add_data.command("holidays")
@@ -747,7 +747,7 @@ def add_holidays(
     db.session.commit()
     click.secho(
         f"Successfully added holidays to {len(accounts)} {flexmeasures_inflection.pluralize('account', len(accounts))} and {len(assets)} {flexmeasures_inflection.pluralize('asset', len(assets))}:\n{num_holidays}",
-        **ColorCode.SUCCESS,
+        **MsgStyle.SUCCESS,
     )
 
 
@@ -841,7 +841,7 @@ def create_forecasts(
                 num_jobs += len(jobs)
         click.secho(
             f"{num_jobs} new forecasting job(s) added to the queue.",
-            **ColorCode.SUCCESS,
+            **MsgStyle.SUCCESS,
         )
     else:
         from flexmeasures.data.scripts.data_gen import populate_time_series_forecasts
@@ -1003,7 +1003,7 @@ def add_schedule_for_storage(
     if not power_sensor.measures_power:
         click.secho(
             f"Sensor with ID {power_sensor.id} is not a power sensor.",
-            **ColorCode.ERROR,
+            **MsgStyle.ERROR,
         )
         raise click.Abort()
     if production_price_sensor is None:
@@ -1015,7 +1015,7 @@ def add_schedule_for_storage(
         check_required_attributes(power_sensor, [("max_soc_in_mwh", float)])
     except MissingAttributeException:
         click.secho(
-            f"Sensor {power_sensor} has no max_soc_in_mwh attribute.", **ColorCode.ERROR
+            f"Sensor {power_sensor} has no max_soc_in_mwh attribute.", **MsgStyle.ERROR
         )
         raise click.Abort()
     capacity_str = f"{power_sensor.get_attribute('max_soc_in_mwh')} MWh"
@@ -1061,12 +1061,12 @@ def add_schedule_for_storage(
         if job:
             click.secho(
                 f"New scheduling job {job.id} has been added to the queue.",
-                **ColorCode.SUCCESS,
+                **MsgStyle.SUCCESS,
             )
     else:
         success = make_schedule(sensor_id=power_sensor.id, **scheduling_kwargs)
         if success:
-            click.secho("New schedule is stored.", **ColorCode.SUCCESS)
+            click.secho("New schedule is stored.", **MsgStyle.SUCCESS)
 
 
 @fm_add_data.command("toy-account")
@@ -1089,14 +1089,14 @@ def add_toy_account(kind: str, name: str):
         account = Account.query.filter(Account.name == name).one_or_none()
         if account:
             click.echo(f"Account {name} already exists.")
-            return
+            return click.Abort()
         # make an account user (account-admin?)
         email = "toy-user@flexmeasures.io"
         user = User.query.filter_by(email=email).one_or_none()
         if user is not None:
             click.secho(
                 f"User with email {email} already exists in account {user.account.name}.",
-                **ColorCode.ERROR,
+                **MsgStyle.ERROR,
             )
         else:
             user = create_user(
@@ -1162,15 +1162,15 @@ def add_toy_account(kind: str, name: str):
 
     click.secho(
         f"Toy account {name} with user {user.email} created successfully. You might want to run `flexmeasures show account --id {user.account.id}`",
-        **ColorCode.SUCCESS,
+        **MsgStyle.SUCCESS,
     )
     click.secho(
         f"The sensor for battery discharging is {charging_sensor} (ID: {charging_sensor.id}).",
-        **ColorCode.SUCCESS,
+        **MsgStyle.SUCCESS,
     )
     click.secho(
         f"The sensor for Day ahead prices is {day_ahead_sensor} (ID: {day_ahead_sensor.id}).",
-        **ColorCode.SUCCESS,
+        **MsgStyle.SUCCESS,
     )
 
 
@@ -1181,25 +1181,25 @@ def check_timezone(timezone):
     try:
         pytz.timezone(timezone)
     except pytz.UnknownTimeZoneError:
-        click.secho("Timezone %s is unknown!" % timezone, **ColorCode.ERROR)
-        raise click.Abort
+        click.secho("Timezone %s is unknown!" % timezone, **MsgStyle.ERROR)
+        raise click.Abort()
 
 
 def check_errors(errors: Dict[str, List[str]]):
     if errors:
         click.secho(
             f"Please correct the following errors:\n{errors}.\n Use the --help flag to learn more.",
-            **ColorCode.ERROR,
+            **MsgStyle.ERROR,
         )
-        raise click.Abort
+        raise click.Abort()
 
 
 def parse_source(source):
     if source.isdigit():
         _source = get_source_or_none(int(source))
         if not _source:
-            click.secho(f"Failed to find source {source}.", **ColorCode.ERROR)
-            return
+            click.secho(f"Failed to find source {source}.", **MsgStyle.ERROR)
+            raise click.Abort()
     else:
         _source = get_or_create_source(source, source_type="CLI script")
     return _source

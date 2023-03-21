@@ -22,7 +22,7 @@ from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
 from flexmeasures.data.services.time_series import simplify_index
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
-from flexmeasures.cli.utils import ColorCode
+from flexmeasures.cli.utils import MsgStyle
 
 
 @click.group("show")
@@ -38,8 +38,8 @@ def list_accounts():
     """
     accounts = Account.query.order_by(Account.name).all()
     if not accounts:
-        click.secho("No accounts created yet.", **ColorCode.WARN)
-        return
+        click.secho("No accounts created yet.", **MsgStyle.WARN)
+        raise click.Abort()
     click.echo("All accounts on this FlexMeasures instance:\n ")
     account_data = [
         (
@@ -60,8 +60,8 @@ def list_roles():
     """
     account_roles = AccountRole.query.order_by(AccountRole.name).all()
     if not account_roles:
-        click.secho("No account roles created yet.", **ColorCode.WARN)
-        return
+        click.secho("No account roles created yet.", **MsgStyle.WARN)
+        raise click.Abort()
     click.echo("Account roles:\n")
     click.echo(
         tabulate(
@@ -72,8 +72,8 @@ def list_roles():
     click.echo()
     user_roles = Role.query.order_by(Role.name).all()
     if not user_roles:
-        click.secho("No user roles created yet, not even admin.", **ColorCode.WARN)
-        return
+        click.secho("No user roles created yet, not even admin.", **MsgStyle.WARN)
+        raise click.Abort()
     click.echo("User roles:\n")
     click.echo(
         tabulate(
@@ -99,12 +99,12 @@ def show_account(account):
             f"Account role(s): {','.join([role.name for role in account.account_roles])}"
         )
     else:
-        click.secho("Account has no roles.", **ColorCode.WARN)
+        click.secho("Account has no roles.", **MsgStyle.WARN)
     click.echo()
 
     users = User.query.filter_by(account_id=account.id).order_by(User.username).all()
     if not users:
-        click.secho("No users in account ...", **ColorCode.WARN)
+        click.secho("No users in account ...", **MsgStyle.WARN)
     else:
         click.echo("All users:\n ")
         user_data = [
@@ -128,7 +128,7 @@ def show_account(account):
         .all()
     )
     if not assets:
-        click.secho("No assets in account ...", **ColorCode.WARN)
+        click.secho("No assets in account ...", **MsgStyle.WARN)
     else:
         click.echo("All assets:\n ")
         asset_data = [
@@ -146,8 +146,8 @@ def list_asset_types():
     """
     asset_types = GenericAssetType.query.order_by(GenericAssetType.name).all()
     if not asset_types:
-        click.secho("No asset types created yet.", **ColorCode.WARN)
-        return
+        click.secho("No asset types created yet.", **MsgStyle.WARN)
+        raise click.Abort()
     click.echo(
         tabulate(
             [(t.id, t.name, t.description) for t in asset_types],
@@ -181,8 +181,9 @@ def show_generic_asset(asset):
         Sensor.query.filter_by(generic_asset_id=asset.id).order_by(Sensor.name).all()
     )
     if not sensors:
-        click.secho("No sensors in asset ...", **ColorCode.WARN)
-        return
+        click.secho("No sensors in asset ...", **MsgStyle.WARN)
+        raise click.Abort()
+
     click.echo("All sensors in asset:\n ")
     sensor_data = [
         (
@@ -211,8 +212,8 @@ def list_data_sources():
     """
     sources = DataSource.query.order_by(DataSource.name).all()
     if not sources:
-        click.secho("No data sources created yet.", **ColorCode.WARN)
-        return
+        click.secho("No data sources created yet.", **MsgStyle.WARN)
+        raise click.Abort()
     click.echo(
         tabulate(
             [(s.id, s.name, s.type, s.user_id, s.model, s.version) for s in sources],
@@ -315,14 +316,14 @@ def plot_beliefs(
     for s in sensors:
         if beliefs_by_sensor[s.name].empty:
             click.secho(
-                f"No data found for sensor '{s.name}' (ID: {s.id})", **ColorCode.WARN
+                f"No data found for sensor '{s.name}' (ID: {s.id})", **MsgStyle.WARN
             )
             beliefs_by_sensor.pop(s.name)
             empty_sensors.append(s)
     for s in empty_sensors:
         sensors.remove(s)
     if len(beliefs_by_sensor.keys()) == 0:
-        click.secho("No data found!", **ColorCode.WARN)
+        click.secho("No data found!", **MsgStyle.WARN)
         raise click.Abort()
     if all(sensor.unit == sensors[0].unit for sensor in sensors):
         shared_unit = sensors[0].unit
@@ -330,7 +331,7 @@ def plot_beliefs(
         shared_unit = ""
         click.secho(
             "The y-axis shows no unit, because the selected sensors do not share the same unit.",
-            **ColorCode.WARN,
+            **MsgStyle.WARN,
         )
     df = pd.concat([simplify_index(df) for df in beliefs_by_sensor.values()], axis=1)
     df.columns = beliefs_by_sensor.keys()
@@ -367,7 +368,7 @@ def plot_beliefs(
             [df.columns, [df.sensor.unit for df in beliefs_by_sensor.values()]]
         )
         df.to_csv(filepath)
-        click.secho("Data saved to file.", **ColorCode.SUCCESS)
+        click.secho("Data saved to file.", **MsgStyle.SUCCESS)
 
 
 app.cli.add_command(fm_show_data)

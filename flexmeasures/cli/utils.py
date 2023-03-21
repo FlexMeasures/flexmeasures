@@ -2,11 +2,11 @@ import click
 from click_default_group import DefaultGroup
 
 
-class ColorCode(object):
+class MsgStyle(object):
     """Stores the text styles for the different events
 
     Styles options are the attributes of the `click.style` which can be found
-    [here](https://click.palletsprojects.com/en/7.x/api/#click.style).
+    [here](https://click.palletsprojects.com/en/8.1.x/api/#click.style).
 
     """
 

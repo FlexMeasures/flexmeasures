@@ -14,7 +14,7 @@ from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.services.users import find_user_by_email, delete_user
-from flexmeasures.cli.utils import ColorCode
+from flexmeasures.cli.utils import MsgStyle
 
 
 @click.group("delete")
@@ -32,8 +32,8 @@ def delete_account_role(name: str):
     """
     role: AccountRole = AccountRole.query.filter_by(name=name).one_or_none()
     if role is None:
-        click.secho(f"Account role '{name}' does not exist.", **ColorCode.ERROR)
-        raise click.Abort
+        click.secho(f"Account role '{name}' does not exist.", **MsgStyle.ERROR)
+        raise click.Abort()
     accounts = role.accounts.all()
     if len(accounts) > 0:
         click.secho(
@@ -43,7 +43,7 @@ def delete_account_role(name: str):
             account.account_roles.remove(role)
     db.session.delete(role)
     db.session.commit()
-    click.secho(f"Account role '{name}'' has been deleted.", **ColorCode.SUCCESS)
+    click.secho(f"Account role '{name}' has been deleted.", **MsgStyle.SUCCESS)
 
 
 @fm_delete_data.command("account")
@@ -58,8 +58,8 @@ def delete_account(id: int, force: bool):
     """
     account: Account = db.session.query(Account).get(id)
     if account is None:
-        click.secho(f"Account with ID '{id}' does not exist.", **ColorCode.ERROR)
-        raise click.Abort
+        click.secho(f"Account with ID '{id}' does not exist.", **MsgStyle.ERROR)
+        raise click.Abort()
     if not force:
         prompt = f"Delete account '{account.name}', including generic assets, users and all their data?\n"
         users = User.query.filter(User.account_id == id).all()
@@ -80,17 +80,17 @@ def delete_account(id: int, force: bool):
         account_id=account.id
     ).all():
         role = AccountRole.query.get(role_account_association.role_id)
-        click.secho(
+        click.echo(
             f"Deleting association of account {account.name} and role {role.name} ...",
         )
         db.session.delete(role_account_association)
     for asset in account.generic_assets:
-        click.secho(f"Deleting generic asset {asset} (and sensors & beliefs) ...")
+        click.echo(f"Deleting generic asset {asset} (and sensors & beliefs) ...")
         db.session.delete(asset)
     account_name = account.name
     db.session.delete(account)
     db.session.commit()
-    click.secho(f"Account {account_name} has been deleted.", **ColorCode.SUCCESS)
+    click.secho(f"Account {account_name} has been deleted.", **MsgStyle.SUCCESS)
 
 
 @fm_delete_data.command("user")
@@ -109,9 +109,9 @@ def delete_a_user(email: str, force: bool):
     the_user = find_user_by_email(email)
     if the_user is None:
         click.secho(
-            f"Could not find user with email address '{email}' ...", **ColorCode.WARN
+            f"Could not find user with email address '{email}' ...", **MsgStyle.WARN
         )
-        return
+        raise click.Abort()
     delete_user(the_user)
     db.session.commit()
 
@@ -228,9 +228,9 @@ def delete_unchanged_beliefs(
         if sensor is None:
             click.secho(
                 f"Failed to delete any beliefs: no sensor found with id {sensor_id}.",
-                **ColorCode.ERROR,
+                **MsgStyle.ERROR,
             )
-            return
+            raise click.Abort()
         q = q.filter(TimedBelief.sensor_id == sensor.id)
     num_beliefs_before = q.count()
 
@@ -270,12 +270,12 @@ def delete_unchanged_beliefs(
     batch_size = 10000
     for i, b in enumerate(beliefs_up_for_deletion, start=1):
         if i % batch_size == 0 or i == num_beliefs_up_for_deletion:
-            click.secho(f"{i} beliefs processed ...")
+            click.echo(f"{i} beliefs processed ...")
         db.session.delete(b)
     click.secho(f"Removing {num_beliefs_up_for_deletion} beliefs ...")
     db.session.commit()
     num_beliefs_after = q.count()
-    click.secho(f"Done! {num_beliefs_after} beliefs left", **ColorCode.SUCCESS)
+    click.secho(f"Done! {num_beliefs_after} beliefs left", **MsgStyle.SUCCESS)
 
 
 @fm_delete_data.command("nan-beliefs")
@@ -295,7 +295,7 @@ def delete_nan_beliefs(sensor_id: Optional[int] = None):
     click.confirm(prompt, abort=True)
     query.delete()
     db.session.commit()
-    click.secho(f"Done! {q.count()} beliefs left", **ColorCode.SUCCESS)
+    click.secho(f"Done! {q.count()} beliefs left", **MsgStyle.SUCCESS)
 
 
 @fm_delete_data.command("sensor")

@@ -120,10 +120,10 @@ def test_generic_model(
         ).all()
         if len(sensors) == 0:
             click.echo("No such sensor in db, so I will not add any forecasts.")
-            return
+            raise click.Abort()
         elif len(sensors) > 1:
             click.echo("No unique sensor found in db, so I will not add any forecasts.")
-            return
+            raise click.Abort()
 
         linear_model_configurator = lookup_model_specs_configurator("linear")
         (

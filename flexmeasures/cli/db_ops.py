@@ -8,7 +8,7 @@ from flask.cli import with_appcontext
 import flask_migrate as migrate
 import click
 
-from flexmeasures.cli.utils import ColorCode
+from flexmeasures.cli.utils import MsgStyle
 
 BACKUP_PATH: str = app.config.get("FLEXMEASURES_DB_BACKUP_PATH")  # type: ignore
 
@@ -28,8 +28,8 @@ def reset():
             % app.db.engine
         )
         if not click.confirm(prompt):
-            click.secho("I did nothing.", **ColorCode.WARN)
-            return
+            click.secho("I did nothing.", **MsgStyle.WARN)
+            raise click.Abort()
     from flexmeasures.data.scripts.data_gen import reset_db
 
     current_version = migrate.current()
@@ -61,7 +61,7 @@ def save(name: str, dir: str = BACKUP_PATH, structure: bool = True, data: bool =
     else:
         click.secho(
             "You must specify a unique name for the backup: --name <unique name>",
-            **ColorCode.ERROR,
+            **MsgStyle.ERROR,
         )
 
 
@@ -85,7 +85,7 @@ def load(name: str, dir: str = BACKUP_PATH, structure: bool = True, data: bool =
     else:
         click.secho(
             "You must specify the name of the backup: --name <unique name>",
-            **ColorCode.ERROR,
+            **MsgStyle.ERROR,
         )
 
 
@@ -102,13 +102,11 @@ def dump():
     command_for_dumping = f"pg_dump --no-privileges --no-owner --data-only --format=c --file={dump_filename} {db_uri}"
     try:
         subprocess.check_output(command_for_dumping, shell=True)
-        click.secho(
-            f"db dump successful: saved to {dump_filename}", **ColorCode.SUCCESS
-        )
+        click.secho(f"db dump successful: saved to {dump_filename}", **MsgStyle.SUCCESS)
 
     except Exception as e:
-        click.echo(f"Exception happened during dump: {e}", **ColorCode.ERROR)
-        click.echo("db dump unsuccessful", **ColorCode.ERROR)
+        click.echo(f"Exception happened during dump: {e}", **MsgStyle.ERROR)
+        click.echo("db dump unsuccessful", **MsgStyle.ERROR)
 
 
 @fm_db_ops.command()
@@ -131,11 +129,11 @@ def restore(file: str):
     command_for_restoring = f"pg_restore -d {db_uri} {file}"
     try:
         subprocess.check_output(command_for_restoring, shell=True)
-        click.secho("db restore successful", **ColorCode.SUCCESS)
+        click.secho("db restore successful", **MsgStyle.SUCCESS)
 
     except Exception as e:
-        click.secho(f"Exception happened during restore: {e}", **ColorCode.ERROR)
-        click.secho("db restore unsuccessful", **ColorCode.ERROR)
+        click.secho(f"Exception happened during restore: {e}", **MsgStyle.ERROR)
+        click.secho("db restore unsuccessful", **MsgStyle.ERROR)
 
 
 app.cli.add_command(fm_db_ops)
