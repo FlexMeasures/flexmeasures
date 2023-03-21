@@ -1,7 +1,7 @@
 -c app.txt
 
 sphinx
-sphinx-rtd-theme 
+sphinx-rtd-theme >= 1.2
 sphinxcontrib.httpdomain
 sphinx_fontawesome
 sphinx_copybutton
