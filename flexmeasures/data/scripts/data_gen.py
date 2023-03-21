@@ -18,6 +18,7 @@ from timetomodel.exceptions import MissingData, NaNData
 from humanize import naturaldelta
 import inflect
 
+from flexmeasures.data.models.annotations import Annotation
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
 from flexmeasures.data.models.data_sources import DataSource
@@ -439,5 +440,5 @@ def get_affected_classes(structure: bool = True, data: bool = False) -> List:
             DataSource,
         ]
     if data:
-        affected_classes += [TimedBelief]
+        affected_classes += [TimedBelief, Annotation]
     return affected_classes
