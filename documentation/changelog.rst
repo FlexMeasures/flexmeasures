@@ -3,6 +3,20 @@
 FlexMeasures Changelog
 **********************
 
+v0.13.X | March XX, 2023
+============================
+
+New features
+-------------
+* Different text styles for CLI output for errors, warnings or success messages.
+
+Infrastructure / Support
+----------------------
+* Minor change in the documentation to update a deprecated command (`new-user`).
+* language_version removed from pre-commit configuration, pre-commit will take the system wide python.
+
+
+
 v0.13.0 | February XX, 2023
 ============================
 
