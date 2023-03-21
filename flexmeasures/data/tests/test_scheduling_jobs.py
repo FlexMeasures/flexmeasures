@@ -28,9 +28,7 @@ def test_scheduling_a_battery(db, app, add_battery_assets, setup_test_data):
     resolution = timedelta(minutes=15)
 
     assert (
-        DataSource.query.filter_by(
-            name="FlexMeasures", type="scheduler"
-        ).one_or_none()
+        DataSource.query.filter_by(name="FlexMeasures", type="scheduler").one_or_none()
         is None
     )  # Make sure the scheduler data source isn't there
 
