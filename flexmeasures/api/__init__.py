@@ -54,7 +54,7 @@ def request_auth_token():
                 )
 
             if "password" not in request.json:
-                return {"errors": ["Please provide the 'password' parameter."]}
+                return {"errors": ["Please provide the 'password' parameter."]}, 400
             if not verify_password(request.json["password"], user.password):
                 return {"errors": ["User password does not match."]}, 401
         token = user.get_auth_token()
