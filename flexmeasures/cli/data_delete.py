@@ -14,6 +14,7 @@ from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.services.users import find_user_by_email, delete_user
+from flexmeasures.cli.utils import MsgStyle
 
 
 @click.group("delete")
@@ -31,18 +32,18 @@ def delete_account_role(name: str):
     """
     role: AccountRole = AccountRole.query.filter_by(name=name).one_or_none()
     if role is None:
-        click.echo(f"Account role '{name}' does not exist.")
-        raise click.Abort
+        click.secho(f"Account role '{name}' does not exist.", **MsgStyle.ERROR)
+        raise click.Abort()
     accounts = role.accounts.all()
     if len(accounts) > 0:
-        click.echo(
-            f"The following accounts have role '{role.name}': {','.join([a.name for a in accounts])}. Removing this role from them ..."
+        click.secho(
+            f"The following accounts have role '{role.name}': {','.join([a.name for a in accounts])}. Removing this role from them ...",
         )
         for account in accounts:
             account.account_roles.remove(role)
     db.session.delete(role)
     db.session.commit()
-    print(f"Account role '{name}'' has been deleted.")
+    click.secho(f"Account role '{name}' has been deleted.", **MsgStyle.SUCCESS)
 
 
 @fm_delete_data.command("account")
@@ -57,8 +58,8 @@ def delete_account(id: int, force: bool):
     """
     account: Account = db.session.query(Account).get(id)
     if account is None:
-        print(f"Account with ID '{id}' does not exist.")
-        raise click.Abort
+        click.secho(f"Account with ID '{id}' does not exist.", **MsgStyle.ERROR)
+        raise click.Abort()
     if not force:
         prompt = f"Delete account '{account.name}', including generic assets, users and all their data?\n"
         users = User.query.filter(User.account_id == id).all()
@@ -73,23 +74,23 @@ def delete_account(id: int, force: bool):
             )
         click.confirm(prompt, abort=True)
     for user in account.users:
-        print(f"Deleting user {user} ...")
+        click.secho(f"Deleting user {user} ...")
         delete_user(user)
     for role_account_association in RolesAccounts.query.filter_by(
         account_id=account.id
     ).all():
         role = AccountRole.query.get(role_account_association.role_id)
-        print(
-            f"Deleting association of account {account.name} and role {role.name} ..."
+        click.echo(
+            f"Deleting association of account {account.name} and role {role.name} ...",
         )
         db.session.delete(role_account_association)
     for asset in account.generic_assets:
-        print(f"Deleting generic asset {asset} (and sensors & beliefs) ...")
+        click.echo(f"Deleting generic asset {asset} (and sensors & beliefs) ...")
         db.session.delete(asset)
     account_name = account.name
     db.session.delete(account)
     db.session.commit()
-    print(f"Account {account_name} has been deleted.")
+    click.secho(f"Account {account_name} has been deleted.", **MsgStyle.SUCCESS)
 
 
 @fm_delete_data.command("user")
@@ -107,8 +108,10 @@ def delete_a_user(email: str, force: bool):
         click.confirm(prompt, abort=True)
     the_user = find_user_by_email(email)
     if the_user is None:
-        print(f"Could not find user with email address '{email}' ...")
-        return
+        click.secho(
+            f"Could not find user with email address '{email}' ...", **MsgStyle.WARN
+        )
+        raise click.Abort()
     delete_user(the_user)
     db.session.commit()
 
@@ -223,8 +226,11 @@ def delete_unchanged_beliefs(
     if sensor_id:
         sensor = Sensor.query.filter(Sensor.id == sensor_id).one_or_none()
         if sensor is None:
-            print(f"Failed to delete any beliefs: no sensor found with id {sensor_id}.")
-            return
+            click.secho(
+                f"Failed to delete any beliefs: no sensor found with id {sensor_id}.",
+                **MsgStyle.ERROR,
+            )
+            raise click.Abort()
         q = q.filter(TimedBelief.sensor_id == sensor.id)
     num_beliefs_before = q.count()
 
@@ -264,12 +270,12 @@ def delete_unchanged_beliefs(
     batch_size = 10000
     for i, b in enumerate(beliefs_up_for_deletion, start=1):
         if i % batch_size == 0 or i == num_beliefs_up_for_deletion:
-            print(f"{i} beliefs processed ...")
+            click.echo(f"{i} beliefs processed ...")
         db.session.delete(b)
-    print(f"Removing {num_beliefs_up_for_deletion} beliefs ...")
+    click.secho(f"Removing {num_beliefs_up_for_deletion} beliefs ...")
     db.session.commit()
     num_beliefs_after = q.count()
-    print(f"Done! {num_beliefs_after} beliefs left")
+    click.secho(f"Done! {num_beliefs_after} beliefs left", **MsgStyle.SUCCESS)
 
 
 @fm_delete_data.command("nan-beliefs")
@@ -289,7 +295,7 @@ def delete_nan_beliefs(sensor_id: Optional[int] = None):
     click.confirm(prompt, abort=True)
     query.delete()
     db.session.commit()
-    print(f"Done! {q.count()} beliefs left")
+    click.secho(f"Done! {q.count()} beliefs left", **MsgStyle.SUCCESS)
 
 
 @fm_delete_data.command("sensor")
