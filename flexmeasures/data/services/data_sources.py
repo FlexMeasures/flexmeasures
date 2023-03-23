@@ -1,13 +1,12 @@
+from __future__ import annotations
+from typing import Optional, Union
+
+from flask import current_app
+
 from flexmeasures import User
 from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.user import is_user
-
-
-from flask import current_app
-
-
-from typing import Optional, Union
 
 
 def get_or_create_source(
