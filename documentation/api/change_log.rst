@@ -5,6 +5,12 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL, allowing developers to upgrade at their own pace.
 
+v3.0-8 | 2023-03-23
+"""""""""""""""""""
+
+- Added REST endpoint for listing accounts: `/accounts` (GET)
+- Added REST endpoint for showing an account: `/account/<id>` (GET)
+
 v3.0-7 | 2023-02-28
 """""""""""""""""""
 
