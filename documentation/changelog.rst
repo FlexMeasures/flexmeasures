@@ -3,6 +3,14 @@
 FlexMeasures Changelog
 **********************
 
+v0.14.0 | March 23, 2023
+============================
+
+New features
+-------------
+* Added API endpoints and webpages `/accounts` and `/account/<id>` to list accounts and show a single account [see `PR #432 <https://www.github.com/FlexMeasures/flexmeasures/pull/432>`_]
+
+
 v0.13.0 | February XX, 2023
 ============================
 
