@@ -31,7 +31,7 @@ class AccountAPI(FlaskView):
     @auth_required("token", "session")
     @as_json
     def index(self):
-        """API endpoint to list all users of an account.
+        """API endpoint to list all accounts accessible to the current user.
 
         .. :quickref: Account; Download account list
 
