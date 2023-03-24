@@ -84,9 +84,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
 
         # Check type
         if not isinstance(sensors_to_show, list):
-            raise ValidationError(
-                "sensors_to_show should be a list."
-            )
+            raise ValidationError("sensors_to_show should be a list.")
         for sensor_listing in sensors_to_show:
             if not isinstance(sensor_listing, (int, list)):
                 raise ValidationError(
@@ -101,6 +99,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
 
         # Check whether IDs represent accessible sensors
         from flexmeasures.data.schemas import SensorIdField
+
         sensor_ids = flatten_unique(sensors_to_show)
         for sensor_id in sensor_ids:
             SensorIdField().deserialize(sensor_id)
