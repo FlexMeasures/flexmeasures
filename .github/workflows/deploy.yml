@@ -18,7 +18,7 @@ jobs:
           running-workflow-name: "Deploy (main to staging)"  # name of the check that will wait for other checks
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           wait-interval: 20 # seconds
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           fetch-depth: '0'
           ref: 'main'
