@@ -299,8 +299,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         :param dataset_name: optionally name the dataset used in the chart (the default name is sensor_<id>)
         :returns: JSON string defining vega-lite chart specs
         """
-        sensors_to_show = self.sensors_to_show
-        sensors = flatten_unique(sensors_to_show)
+        sensors = flatten_unique(self.sensors_to_show)
         for sensor in sensors:
             sensor.sensor_type = sensor.get_attribute("sensor_type", sensor.name)
 
@@ -313,7 +312,7 @@ class GenericAsset(db.Model, AuthModelMixin):
             kwargs["event_ends_before"] = event_ends_before
         chart_specs = chart_type_to_chart_specs(
             chart_type,
-            sensors_to_show=sensors_to_show,
+            sensors_to_show=self.sensors_to_show,
             dataset_name=dataset_name,
             **kwargs,
         )
