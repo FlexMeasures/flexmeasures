@@ -17,13 +17,13 @@ from flexmeasures.cli import is_running as running_as_cli
 
 
 class JSON(fields.Field):
-    def _deserialize(self, value, attr, data, **kwargs):
+    def _deserialize(self, value, attr, data, **kwargs) -> dict:
         try:
             return json.loads(value)
         except ValueError:
             raise ValidationError("Not a valid JSON string.")
 
-    def _serialize(self, value, attr, data, **kwargs):
+    def _serialize(self, value, attr, data, **kwargs) -> str:
         return json.dumps(value)
 
 
