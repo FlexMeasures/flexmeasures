@@ -302,6 +302,7 @@ def create_generic_assets(db, setup_generic_asset_types, setup_accounts):
         name="Test grid connected battery storage",
         generic_asset_type=setup_generic_asset_types["battery"],
         owner=setup_accounts["Prosumer"],
+        attributes={"some-attribute": "some-value", "sensors_to_show": [1, 2]},
     )
     db.session.add(test_battery)
     test_wind_turbine = GenericAsset(

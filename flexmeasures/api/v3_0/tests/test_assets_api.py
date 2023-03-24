@@ -179,6 +179,9 @@ def test_alter_an_asset_with_json_attributes(
         auth_token = prosumer1.get_auth_token()
     with AccountContext("Test Prosumer Account") as prosumer:
         prosumer_asset = prosumer.generic_assets[0]
+        assert prosumer_asset.attributes[
+            "sensors_to_show"
+        ]  # make sure we run this test on an asset with a non-empty sensors_to_show attribute
     asset_edit_response = client.patch(
         url_for("AssetAPI:patch", id=prosumer_asset.id),
         headers={"content-type": "application/json", "Authorization": auth_token},
