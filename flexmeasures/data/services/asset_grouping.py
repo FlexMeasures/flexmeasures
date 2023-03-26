@@ -4,11 +4,15 @@ For example, group by asset type or by location.
 """
 
 from __future__ import annotations
-from typing import List, Optional
+from typing import List, Optional, Dict
 import inflect
 
 from sqlalchemy.orm import Query
 
+from flexmeasures.data.queries.generic_assets import (
+    get_asset_group_queries as get_asset_group_queries_new,
+)
+from flexmeasures.utils.coding_utils import deprecated
 from flexmeasures.utils.flexmeasures_inflection import parameterize
 from flexmeasures.data.models.generic_assets import (
     GenericAssetType,
@@ -17,6 +21,35 @@ from flexmeasures.data.models.generic_assets import (
 )
 
 p = inflect.engine()
+
+
+@deprecated("flexmeasures.data.services.generic_asse:get_asset_group_queries")
+def get_asset_group_queries(
+    group_by_type: bool = True,
+    group_by_account: bool = False,
+    group_by_location: bool = False,
+    custom_aggregate_type_groups: Optional[Dict[str, List[str]]] = None,
+) -> Dict[str, Query]:
+    """
+    An asset group is defined by Asset queries, which this function can generate.
+
+    Each query has a name (for the asset group it represents).
+    These queries still need an executive call, like all(), count() or first().
+
+    This function limits the assets to be queried to the current user's account,
+    if the user is not an admin.
+
+    Note: Make sure the current user has the "read" permission on their account (on GenericAsset.__class__?? See https://github.com/FlexMeasures/flexmeasures/issues/200) or is an admin.
+
+    :param group_by_type: If True, groups will be made for assets with the same type. We prefer pluralised group names here. Defaults to True.
+    :param group_by_account: If True, groups will be made for assets within the same account. This makes sense for admins, as they can query across accounts.
+    :param group_by_location: If True, groups will be made for assets at the same location. Naming of the location currently supports charge points (for EVSEs).
+    :param custom_aggregate_type_groups: dict of asset type groupings (mapping group names to names of asset types). See also the setting FLEXMEASURES_ASSET_TYPE_GROUPS.
+    """
+
+    return get_asset_group_queries_new(
+        group_by_type, group_by_account, group_by_location, custom_aggregate_type_groups
+    )
 
 
 class AssetGroup:

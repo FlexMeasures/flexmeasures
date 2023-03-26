@@ -1,5 +1,6 @@
 import functools
 import time
+import warnings
 
 
 def make_registering_decorator(foreign_decorator):
@@ -129,3 +130,23 @@ def timeit(func):
         return result
 
     return new_func
+
+
+def deprecated(alternative: str):
+    """Decorator for printing a warning error.
+    Pass a string with the alternative function to be used.
+    """
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            warnings.warn(
+                f"The method or function {func.__name__} is deprecated. Switch to using {alternative} to suppress this warning.",
+                FutureWarning,
+            )
+
+            func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
