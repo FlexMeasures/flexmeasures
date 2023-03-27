@@ -1,5 +1,6 @@
 import functools
 import time
+import inspect
 import warnings
 
 
@@ -132,16 +133,16 @@ def timeit(func):
     return new_func
 
 
-def deprecated(alternative: str):
+def deprecated(alternative):
     """Decorator for printing a warning error.
-    Pass a string with the alternative function to be used.
+    Pass an importable object to use as an alternative to the function/method decorated
     """
 
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             warnings.warn(
-                f"The method or function {func.__name__} is deprecated. Switch to using {alternative} to suppress this warning.",
+                f"The method or function {func.__name__} is deprecated. Switch to using {inspect.getmodule(alternative).__name__}:{alternative.__name__} to suppress this warning.",
                 FutureWarning,
             )
 

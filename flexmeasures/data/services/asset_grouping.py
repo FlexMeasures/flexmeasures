@@ -23,7 +23,7 @@ from flexmeasures.data.models.generic_assets import (
 p = inflect.engine()
 
 
-@deprecated("flexmeasures.data.services.generic_asse:get_asset_group_queries")
+@deprecated(get_asset_group_queries_new)
 def get_asset_group_queries(
     group_by_type: bool = True,
     group_by_account: bool = False,

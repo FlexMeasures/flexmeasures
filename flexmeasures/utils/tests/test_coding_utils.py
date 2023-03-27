@@ -2,10 +2,14 @@ from flexmeasures.utils.coding_utils import deprecated
 import warnings
 
 
+def other_function():
+    pass
+
+
 def test_deprecated_decorator():
 
     # defining a function that is deprecated
-    @deprecated("other place for the function")
+    @deprecated(other_function)
     def deprecated_function():
         pass
 
@@ -18,7 +22,7 @@ def test_deprecated_decorator():
         assert len(w) == 1  # only 1 warning being printed
         assert issubclass(
             w[-1].category, FutureWarning
-        )  # warning type is DeprecationWarning
-        assert "other place for the function" in str(
+        )  # warning type is FutureWarning
+        assert "flexmeasures.utils.tests.test_coding_utils:other_function" in str(
             w[-1].message
         )  # checking that the message is correct
