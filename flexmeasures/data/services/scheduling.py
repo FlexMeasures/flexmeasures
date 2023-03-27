@@ -19,8 +19,10 @@ from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.utils import get_data_source, save_to_db
 from flexmeasures.utils.time_utils import server_now
+from flexmeasures.data.services.utils import redis_cache
 
 
+@redis_cache("scheduling")
 def create_scheduling_job(
     sensor: Sensor,
     job_id: str | None = None,
