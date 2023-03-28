@@ -29,6 +29,16 @@ from flexmeasures.data.services.utils import hash_function_arguments, redis_cach
             True,
         ),
         (
+            [1, 2, "1"],
+            {
+                "key1": "value1",
+                "key2": "value2",
+                "key3": 3,
+                "key4": {"key2_nested": 2, "key1_nested": 1},
+            },
+            True,
+        ),
+        (
             [1, 2, 1],
             {
                 "key1": "value1",
@@ -52,6 +62,16 @@ from flexmeasures.data.services.utils import hash_function_arguments, redis_cach
             [1, 2, "1"],
             {
                 "different": "value1",
+                "key2": "value2",
+                "key3": 3,
+                "key4": {"key1_nested": 1, "key2_nested": 2},
+            },
+            False,
+        ),
+        (
+            ["1", 1, 2],
+            {
+                "key1": "value1",
                 "key2": "value2",
                 "key3": 3,
                 "key4": {"key1_nested": 1, "key2_nested": 2},
@@ -115,16 +135,21 @@ def test_hashing(db, app, add_charging_station_assets, setup_test_data):
 
     hash = hash_function_arguments(args, kwargs)
     print(hash)
-    # checks that hashes are consistent between calls
+
+    # checks that hashes are consistent between different runtime calls
     assert hash == "+aVb5DY1c64pu7wHl8XHvmbClu6Y9fqww8QDOrlrtCM="
 
-    # checks that different arguments yield different hashes
     kwargs2 = copy.deepcopy(kwargs)
+    args2 = copy.deepcopy(args)
+
+    # checks that hashes are consistent within the same runtime calls
+    hash2 = hash_function_arguments(args2, kwargs2)
+    assert hash2 == hash
+
+    # checks that different arguments yield different hashes
     kwargs2["resolution"] = timedelta(minutes=12)
-
-    hash2 = hash_function_arguments(args, kwargs2)
-
-    assert hash != hash2
+    hash3 = hash_function_arguments(args2, kwargs2)
+    assert hash != hash3
 
 
 def test_scheduling_multiple_triggers(
