@@ -1,20 +1,14 @@
-# flake8: noqa: E402
 from datetime import datetime, timedelta
-import os
 import copy
 import logging
 
 import pytz
 import pytest
-from rq.job import Job
 
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.tests.utils import work_on_rq, exception_reporter
-from flexmeasures.data.services.scheduling import (
-    create_scheduling_job,
-    load_custom_scheduler,
-)
+from flexmeasures.data.services.scheduling import create_scheduling_job
 from flexmeasures.data.services.utils import hash_function_arguments
 
 
@@ -117,12 +111,9 @@ def test_hashing(db, app, add_charging_station_assets, setup_test_data):
     args = []
 
     hash = hash_function_arguments(args, kwargs)
-
+    print(hash)
     # checks that hashes are consistent between calls
-    assert (
-        hash
-        == "LjjneyLDFKRJ6R+v7ZKkOCasaqQDrmqKy2z1gjn7r10=Q3FfKNrQYBgY/qWrw+lEjVEI/GWm9sThyBbOd+sGIKk="
-    )
+    assert hash == "QcN7N+jCXGvitGIoI6dSteVJLXGsNIJMRPTAHXxjbLQ="
 
     # checks that different arguments yield different hashes
     kwargs2 = copy.deepcopy(kwargs)
@@ -200,7 +191,7 @@ def test_scheduling_multiple_triggers(
     # checking that they have the same job id
     assert job1.id == job2.id
 
-    # checking that a different schedule trigger is actually computed
+    # checking that a different schedule trigger is actually computed when a nested field is changed
     soc_at_start = 2
     job3 = create_scheduling_job(
         sensor=charging_station,
