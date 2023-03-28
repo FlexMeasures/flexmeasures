@@ -1,6 +1,6 @@
 import functools
 from flask import current_app
-from rq.job import Job
+from rq.job import Job, JobStatus
 
 import hashlib
 import base64
@@ -76,21 +76,24 @@ def redis_cache(queue):
                 # get job id
                 job_id = current_app.queues[queue].connection.get(args_hash).decode()
 
-                # get job object from job id
-                return Job.fetch(
+                job = Job.fetch(
                     job_id, connection=current_app.queues[queue].connection
-                )
-            else:  # new call
+                )  # get job object from job id
 
-                # call function
-                job = func(*args, **kwargs)
+                # only fetch job when the status is not failed
+                if job.get_status() != JobStatus.FAILED:
+                    return job
 
-                # store function call in redis
-                current_app.queues[queue].connection.set(
-                    args_hash, job.id
-                )  # setting return value of function call to the hash of its inputs
+            # if the job hasn't been called before or the job has failed -> create job
 
-                return job  # todo: try catch, if it fails, don't hash it or impose a max retry number
+            job = func(*args, **kwargs)  # create a new job
+
+            # store function call in redis
+            current_app.queues[queue].connection.set(
+                args_hash, job.id
+            )  # setting return value of function call to the hash of its inputs
+
+            return job
 
         return wrapper
 

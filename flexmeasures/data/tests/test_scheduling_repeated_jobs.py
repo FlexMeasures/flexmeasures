@@ -4,12 +4,13 @@ import logging
 
 import pytz
 import pytest
+from rq.job import Job, JobStatus
 
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.tests.utils import work_on_rq, exception_reporter
 from flexmeasures.data.services.scheduling import create_scheduling_job
-from flexmeasures.data.services.utils import hash_function_arguments
+from flexmeasures.data.services.utils import hash_function_arguments, redis_cache
 
 
 @pytest.mark.parametrize(
@@ -204,3 +205,38 @@ def test_scheduling_multiple_triggers(
     work_on_rq(app.queues["scheduling"], exc_handler=exception_reporter)
 
     assert job3.id != job1.id
+
+
+def test_allow_trigger_failed_jobs(caplog, db, app):
+    def failing_function():
+        raise Exception()
+
+    @redis_cache("scheduling")
+    def create_failing_job(
+        arg1: int,
+        kwarg1: int | None = None,
+        kwarg2: int | None = None,
+    ) -> Job:
+        """
+        This function creates and enques a failing job.
+        """
+
+        job = Job.create(
+            failing_function,
+            kwargs=dict(kwarg1=kwarg1, kwarg2=kwarg2),
+            connection=app.queues["scheduling"].connection,
+        )
+
+        app.queues["scheduling"].enqueue_job(job)
+
+        return job
+
+    job1 = create_failing_job(1, 1, 1)  # this job fails
+    work_on_rq(app.queues["scheduling"], exc_handler=exception_reporter)
+
+    assert job1.get_status() == JobStatus.FAILED  # check that the job fails
+
+    job2 = create_failing_job(1, 1, 1)
+    work_on_rq(app.queues["scheduling"], exc_handler=exception_reporter)
+
+    assert job1.id != job2.id
