@@ -2,8 +2,11 @@ from __future__ import annotations
 
 from flask import url_for
 from flask_classful import FlaskView
+from flask_security import login_required
 from flexmeasures.ui.crud.api_wrapper import InternalApi
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
+from flexmeasures.ui.crud.assets import get_assets_by_account
+from flexmeasures.ui.crud.users import get_users_by_account
 
 
 def get_accounts() -> list[dict]:
@@ -26,6 +29,7 @@ class AccountCrudUI(FlaskView):
     route_base = "/accounts"
     trailing_slash = False
 
+    @login_required
     def index(self):
         """/accounts"""
         accounts = get_accounts()
@@ -35,10 +39,16 @@ class AccountCrudUI(FlaskView):
             accounts=accounts,
         )
 
+    @login_required
     def get(self, account_id: str):
         """/accounts/<account_id>"""
         account = get_account(account_id)
+        assets = get_assets_by_account(account_id)
+        users = get_users_by_account(account_id)
+        # users = get_users_by_account(users)
         return render_flexmeasures_template(
             "crud/account.html",
             account=account,
+            assets=assets,
+            users=users,
         )
