@@ -5,8 +5,6 @@ from rq.job import Job
 import hashlib
 import base64
 
-from flexmeasures.data.models.time_series import Sensor
-
 
 def make_hash_sha256(o):
     """
@@ -33,20 +31,24 @@ def make_hashable(o):
     if isinstance(o, (set, frozenset)):
         return tuple(sorted(make_hashable(e) for e in o))
 
-    if isinstance(o, Sensor):
-        return tuple(
-            (
-                make_hashable(getattr(o, attr, None))
-                for attr in ["attributes", "annotations", "id"]
-            )
-        )
+    if callable(
+        getattr(o, "make_hashable", None)
+    ):  # checks if the object o has the method make_hashable
+        return o.make_hashable()
 
     return o
 
 
 def hash_function_arguments(args, kwags):
-    """
-    https://crypto.stackexchange.com/questions/55162/best-way-to-hash-two-values-into-one
+    """Combines the hashes of the args and kargs
+
+    The way to go to do h(x,y) = hash(hash(x) || hash(y)) because it avoid the following:
+
+    1) h(x,y) = hash(x || y), might create a collision if we delete the last n characters of x and we append them in front of y. e.g h("abc", "d") = h("ab", "cd")
+    2) we don't want to sort x and y, because we need the function h(x,y) != h(y,x)
+    3) extra hashing just avoid that we can't decompose the input arguments and track if the same args or kwarg are called several times. More of a security measure I think.
+
+    source: https://crypto.stackexchange.com/questions/55162/best-way-to-hash-two-values-into-one
     """
     return make_hash_sha256(
         make_hash_sha256(args) + make_hash_sha256(kwags)

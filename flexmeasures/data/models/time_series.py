@@ -524,6 +524,17 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         else:
             return query.limit(n).all()
 
+    def make_hashable(self) -> tuple:
+        """Returns a tuple with the properties subject to change
+        In principle all properties (except ID) of a given sensor could be changed, but not all changes are relevant to warrant reanalysis (e.g. scheduling or forecasting).
+        """
+
+        generic_asset_attributes = getattr(self.generic_asset, "attribute", None)
+
+        parameters = [self.id, self.attributes, generic_asset_attributes]
+
+        return tuple(parameters)
+
 
 class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
     """A timed belief holds a precisely timed record of a belief about an event.

@@ -113,7 +113,7 @@ def test_hashing(db, app, add_charging_station_assets, setup_test_data):
     hash = hash_function_arguments(args, kwargs)
     print(hash)
     # checks that hashes are consistent between calls
-    assert hash == "QcN7N+jCXGvitGIoI6dSteVJLXGsNIJMRPTAHXxjbLQ="
+    assert hash == "+aVb5DY1c64pu7wHl8XHvmbClu6Y9fqww8QDOrlrtCM="
 
     # checks that different arguments yield different hashes
     kwargs2 = copy.deepcopy(kwargs)
