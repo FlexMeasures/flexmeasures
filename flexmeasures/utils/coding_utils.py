@@ -2,6 +2,7 @@ import functools
 import time
 import inspect
 import warnings
+from typing import Union
 
 
 def make_registering_decorator(foreign_decorator):
@@ -133,16 +134,17 @@ def timeit(func):
     return new_func
 
 
-def deprecated(alternative):
+def deprecated(alternative, version: Union[str, None] = None):
     """Decorator for printing a warning error.
-    Pass an importable object to use as an alternative to the function/method decorated
+    alternative: importable object to use as an alternative to the function/method decorated
+    version: version in which the function will be sunset
     """
 
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             warnings.warn(
-                f"The method or function {func.__name__} is deprecated. Switch to using {inspect.getmodule(alternative).__name__}:{alternative.__name__} to suppress this warning.",
+                f"The method or function {func.__name__} is deprecated and it is unspected to sunset in version {version}. Please, switch to using {inspect.getmodule(alternative).__name__}:{alternative.__name__} to suppress this warning.",
                 FutureWarning,
             )
 

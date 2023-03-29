@@ -13,7 +13,7 @@ from flexmeasures.data.services.data_sources import (
 )
 
 
-@deprecated(get_or_create_source_new)
+@deprecated(get_or_create_source_new, "0.14")
 def get_or_create_source(
     source: Union[User, str],
     source_type: Optional[str] = None,
@@ -23,7 +23,7 @@ def get_or_create_source(
     return get_or_create_source_new(source, source_type, model, flush)
 
 
-@deprecated(get_source_or_none_new)
+@deprecated(get_source_or_none_new, "0.14")
 def get_source_or_none(
     source: int | str, source_type: str | None = None
 ) -> DataSource | None:
