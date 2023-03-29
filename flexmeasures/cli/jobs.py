@@ -10,6 +10,7 @@ from sqlalchemy.orm import configure_mappers
 
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
+from flexmeasures.cli.utils import MsgStyle
 
 
 @click.group("jobs")
@@ -69,9 +70,10 @@ def run_worker(queue: str, name: Optional[str]):
     )
 
     click.echo("\n=========================================================")
-    click.echo(
+    click.secho(
         'Worker "%s" initialised: %s ― processing %s queue(s)'
-        % (worker.name, worker, len(q_list))
+        % (worker.name, worker, len(q_list)),
+        **MsgStyle.SUCCESS,
     )
     for q in q_list:
         click.echo("Running against %s on %s" % (q, q.connection))
@@ -126,18 +128,23 @@ def clear_queue(queue: str, failed: bool):
             for job_id in reg.get_job_ids():
                 reg.remove(job_id)  # not actually deleting the job
             count_after = reg.count
-            click.echo(
-                f"Cleared {count_before - count_after} failed jobs from the registry at {the_queue}."
+            click.secho(
+                f"Cleared {count_before - count_after} failed jobs from the registry at {the_queue}.",
+                **MsgStyle.WARN,
             )
         else:
             count_before = the_queue.count
             if count_before > 0:
                 the_queue.empty()
             count_after = the_queue.count
-            click.echo(f"Cleared {count_before - count_after} jobs from {the_queue}.")
+            click.secho(
+                f"Cleared {count_before - count_after} jobs from {the_queue}.",
+                **MsgStyle.SUCCESS,
+            )
         if count_after > 0:
-            click.echo(
-                f"There are {count_after} jobs which could not be removed for some reason."
+            click.secho(
+                f"There are {count_after} jobs which could not be removed for some reason.",
+                **MsgStyle.WARN,
             )
         else:
             click.echo("No jobs left.")

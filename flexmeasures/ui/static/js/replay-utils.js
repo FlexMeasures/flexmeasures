@@ -42,3 +42,22 @@ export function updateBeliefs(oldBeliefs, newBeliefs) {
 
 //  Define the step duration for the replay (value in ms)
 export var beliefTimedelta = 3600000
+
+
+/**
+ * Timer that can be canceled using the optional AbortSignal.
+ * Adapted from https://www.bennadel.com/blog/4195-using-abortcontroller-to-debounce-settimeout-calls-in-javascript.htm
+ * MIT License: https://www.bennadel.com/blog/license.htm
+ */
+export function setAbortableTimeout(callback, delayInMilliseconds, signal) {
+    signal?.addEventListener( "abort", handleAbort );
+    var internalTimer = setTimeout(internalCallback, delayInMilliseconds);
+
+    function internalCallback() {
+        signal?.removeEventListener( "abort", handleAbort );
+        callback();
+    }
+    function handleAbort() {
+        clearTimeout( internalTimer );
+    }
+}

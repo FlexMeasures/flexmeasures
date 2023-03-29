@@ -23,8 +23,8 @@ rq
 rq-dashboard
 # the following uses environment markers (see PEP 496)
 rq-win; os_name == 'nt' or os_name == 'win'
-# This limit resolves a conflict with test.in. The culprit is fakeredis (check their setup.cfg)
-redis < 4.4.0
+# This limit resolves a conflict with test.in. The culprit is fakeredis (check their pyproject.toml)
+redis >4.5, <5
 tldextract
 pyomo>=5.6
 tabulate
@@ -33,17 +33,17 @@ timely-beliefs[forecast]>=1.18
 python-dotenv
 # a backport, not needed in Python3.8
 importlib_metadata
-sqlalchemy>=1.4.0
+# see GH#607 for issue on this pin
+sqlalchemy>=1.4.0, <2
 Flask-SSLify
 Flask_JSON
 Flask-Limiter[redis]
-Flask-SQLAlchemy>=2.4.3
 Flask-Migrate
 Flask-WTF
-Flask-Login
 Flask-Mail
-# We wait a little with upgrading to 5, until it's less fresh (Aug 2022)
-Flask-Security-Too>=4.0, <5.0
+Flask-Security-Too>=5.0
+# This pin is tough to debug, but logging in (in API) stops working at 0.6.2. Maybe Flask 2.2 will help resolve this.
+Flask-Login <= 0.6.1
 Flask-Classful
 Flask-Marshmallow
 Flask-Cors
@@ -54,8 +54,8 @@ marshmallow-sqlalchemy>=0.23.1
 webargs
 # Minimum version that correctly aligns time series that include NaN values
 uniplot>=0.7.0
+# Maximum constraints here due to Flask-Classful not supporting Werkzeug 2.2.0 yet, see GH#595 and https://github.com/teracyhq/flask-classful/pull/145
+Flask-SQLAlchemy>=2.4.3,<3
 # flask should be after all the flask plugins, because setup might find they ARE flask
-# Minimum here due to Flask-Classful not supporting Werkzeug 2.2.0 yet, see https://github.com/teracyhq/flask-classful/pull/145
-flask>=1.0, <=2.1.2
-# remove if flask max constraint (see above) is removed 
+flask>=1.0,<=2.1.2
 werkzeug <2.1

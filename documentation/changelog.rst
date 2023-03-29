@@ -3,14 +3,16 @@
 FlexMeasures Changelog
 **********************
 
-v0.13.0 | February XX, 2023
+v0.13.0 | April XX, 2023
 ============================
 
 .. warning:: The API endpoint (`[POST] /sensors/(id)/schedules/trigger <api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_) to make new schedules sunsets the deprecated (since v0.12) storage flexibility parameters (they move to the ``flex-model`` parameter group), as well as the parameters describing other sensors (they move to ``flex-context``).
 
 New features
 -------------
+* Keyboard control over replay [see `PR #562 <https://www.github.com/FlexMeasures/flexmeasures/pull/562>`_]
 * The ``FLEXMEASURES_MAX_PLANNING_HORIZON`` config setting can also be set as an integer number of planning steps rather than just as a fixed duration, which makes it possible to schedule further ahead in coarser time steps [see `PR #583 <https://www.github.com/FlexMeasures/flexmeasures/pull/583>`_]
+* Different text styles for CLI output for errors, warnings or success messages. [see `PR #609 <https://www.github.com/FlexMeasures/flexmeasures/pull/609>`_]
 
 Bugfixes
 -----------
@@ -19,6 +21,23 @@ Bugfixes
 Infrastructure / Support
 ----------------------
 * Sunset several API fields for `/sensors/<id>/schedules/trigger` (POST) that have moved into the ``flex-model`` or ``flex-context`` fields [see `PR #580 <https://www.github.com/FlexMeasures/flexmeasures/pull/580>`_]
+
+
+v0.12.3 | February 28, 2023
+============================
+
+Bugfixes
+-----------
+
+- Fix premature deserialization of ``flex-context`` field for `/sensors/<id>/schedules/trigger` (POST) [see `PR #593 <https://www.github.com/FlexMeasures/flexmeasures/pull/593>`_]
+
+
+v0.12.2 | February 4, 2023
+============================
+
+Bugfixes
+-----------
+* Fix CLI command ``flexmeasures schedule for-storage`` without ``--as-job`` flag [see `PR #589 <https://www.github.com/FlexMeasures/flexmeasures/pull/589>`_]
 
 
 v0.12.1 | January 12, 2023
