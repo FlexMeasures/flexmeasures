@@ -28,7 +28,7 @@ coverage[toml]==7.2.2
     # via pytest-cov
 exceptiongroup==1.1.1
     # via pytest
-fakeredis==2.10.1
+fakeredis==2.10.2
     # via -r requirements/test.in
 flask==2.1.2
     # via
@@ -73,7 +73,7 @@ pytest-flask==1.2.0
     # via -r requirements/test.in
 pytest-sugar==0.9.6
     # via -r requirements/test.in
-redis==4.5.2
+redis==4.5.4
     # via
     #   -c requirements/app.txt
     #   fakeredis
