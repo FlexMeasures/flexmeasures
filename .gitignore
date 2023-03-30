@@ -7,7 +7,7 @@ venv
 .eggs
 .env
 .vscode
-!.vscode/settings.json.suggested
+!.vscode/settings.json
 !.vscode/spellright.dict
 .coverage.*
 .mypy_cache/
