@@ -42,7 +42,7 @@ from flexmeasures.api.common.utils.api_utils import (
     get_sensor_by_generic_asset_type_and_location,
 )
 from flexmeasures.data.models.time_series import TimedBelief
-from flexmeasures.data.queries.data_sources import get_or_create_source
+from flexmeasures.data.services.data_sources import get_or_create_source
 from flexmeasures.data.services.resources import get_sensors
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 
