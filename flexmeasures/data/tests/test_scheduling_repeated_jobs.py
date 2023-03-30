@@ -253,8 +253,10 @@ def test_scheduling_multiple_triggers(
     assert job3.id != job1.id
 
 
-def test_allow_trigger_failed_jobs(caplog, db, app):
-    def failing_function():
+def test_allow_trigger_failed_jobs(
+    caplog, db, app, add_charging_station_assets, setup_test_data
+):
+    def failing_function(kwarg1, kwarg2):
         raise Exception()
 
     @redis_cache("scheduling")
@@ -285,4 +287,45 @@ def test_allow_trigger_failed_jobs(caplog, db, app):
     job2 = create_failing_job(1, 1, 1)
     work_on_rq(app.queues["scheduling"], exc_handler=exception_reporter)
 
-    assert job1.id != job2.id
+    assert job1.id == job2.id
+
+
+def test_force_new_job_creation(db, app, add_charging_station_assets, setup_test_data):
+    def successful_function(kwarg1, kwarg2):
+        pass
+
+    @redis_cache("scheduling")
+    def create_successful_job(
+        arg1: int,
+        kwarg1: int | None = None,
+        kwarg2: int | None = None,
+        force_new_job_creation=False,
+    ) -> Job:
+        """
+        This function creates and enques a successful job.
+        """
+
+        job = Job.create(
+            successful_function,
+            kwargs=dict(kwarg1=kwarg1, kwarg2=kwarg2),
+            connection=app.queues["scheduling"].connection,
+        )
+
+        app.queues["scheduling"].enqueue_job(job)
+
+        return job
+
+    job1 = create_successful_job(1, 1, 1, force_new_job_creation=True)
+    work_on_rq(app.queues["scheduling"], exc_handler=exception_reporter)
+
+    job2 = create_successful_job(1, 1, 1, force_new_job_creation=False)
+    work_on_rq(app.queues["scheduling"], exc_handler=exception_reporter)
+
+    # check that `force_new_job_creation` doesn't affect the hash
+    assert job1.id == job2.id  # caching job
+
+    job3 = create_successful_job(1, 1, 1, force_new_job_creation=True)
+    work_on_rq(app.queues["scheduling"], exc_handler=exception_reporter)
+
+    # check that `force_new_job_creation=True` actually triggers a new job creation
+    assert job2.id != job3.id

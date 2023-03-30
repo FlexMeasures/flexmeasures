@@ -1,6 +1,6 @@
 import functools
 from flask import current_app
-from rq.job import Job, JobStatus
+from rq.job import Job
 
 import hashlib
 import base64
@@ -64,11 +64,23 @@ def redis_cache(queue):
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            # Creating a hash from args and kwargs
+
+            # checking if force is an input argument of `func`
+            force_new_job_creation = False
+            if "force_new_job_creation" in kwargs:
+                force_new_job_creation = kwargs["force_new_job_creation"]
+                del kwargs[
+                    "force_new_job_creation"
+                ]  # delete 'force' from the keyword arguments
+
+            # creating a hash from args and kwargs
             args_hash = hash_function_arguments(args, kwargs)
 
-            # check if the key hash exists in the redis queue
-            if current_app.queues[queue].connection.exists(args_hash):
+            # check if the key hash exists in the redis equeue
+            if (
+                current_app.queues[queue].connection.exists(args_hash)
+                and not force_new_job_creation
+            ):
                 current_app.logger.info(
                     f"The function {func.__name__} has been called alread with the same arguments. Skipping..."
                 )
@@ -80,20 +92,17 @@ def redis_cache(queue):
                     job_id, connection=current_app.queues[queue].connection
                 )  # get job object from job id
 
-                # only fetch job when the status is not failed
-                if job.get_status() != JobStatus.FAILED:
-                    return job
+                return job  # returning the same job regardless of the status (SUCCESS, FAILED, ...)
+            else:
+                # if the job hasn't been called before or the job has failed -> create job
+                job = func(*args, **kwargs)  # create a new job
 
-            # if the job hasn't been called before or the job has failed -> create job
+                # store function call in redis
+                current_app.queues[queue].connection.set(
+                    args_hash, job.id
+                )  # setting return value of function call to the hash of its inputs
 
-            job = func(*args, **kwargs)  # create a new job
-
-            # store function call in redis
-            current_app.queues[queue].connection.set(
-                args_hash, job.id
-            )  # setting return value of function call to the hash of its inputs
-
-            return job
+                return job
 
         return wrapper
 
