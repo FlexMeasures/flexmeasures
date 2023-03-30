@@ -338,7 +338,7 @@ def add_source(name: str, model: str, version: str, source_type: str):
         source_type=source_type,
     )
     db.session.commit()
-    print(f"Added source {source.__repr__()}")
+    click.secho(f"Added source {source.__repr__()}", **MsgStyle.SUCCESS)
 
 
 @fm_add_data.command("beliefs")
