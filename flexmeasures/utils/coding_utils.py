@@ -1,5 +1,8 @@
 import functools
 import time
+import inspect
+from typing import Union
+from flask import current_app
 
 
 def make_registering_decorator(foreign_decorator):
@@ -129,3 +132,23 @@ def timeit(func):
         return result
 
     return new_func
+
+
+def deprecated(alternative, version: Union[str, None] = None):
+    """Decorator for printing a warning error.
+    alternative: importable object to use as an alternative to the function/method decorated
+    version: version in which the function will be sunset
+    """
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            current_app.logger.warning(
+                f"The method or function {func.__name__} is deprecated and it is expected to be sunset in version {version}. Please, switch to using {inspect.getmodule(alternative).__name__}:{alternative.__name__} to suppress this warning."
+            )
+
+            func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
