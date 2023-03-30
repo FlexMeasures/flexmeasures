@@ -66,12 +66,7 @@ def redis_cache(queue):
         def wrapper(*args, **kwargs):
 
             # checking if force is an input argument of `func`
-            force_new_job_creation = False
-            if "force_new_job_creation" in kwargs:
-                force_new_job_creation = kwargs["force_new_job_creation"]
-                del kwargs[
-                    "force_new_job_creation"
-                ]  # delete 'force' from the keyword arguments
+            force_new_job_creation = kwargs.pop("force_new_job_creation", False)
 
             # creating a hash from args and kwargs
             args_hash = hash_function_arguments(args, kwargs)
