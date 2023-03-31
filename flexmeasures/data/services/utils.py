@@ -57,8 +57,8 @@ def hash_function_arguments(args, kwags):
 
 def job_cache(queue):
     """
-    To avoid recomputing the same task multiple times, this decortator checks if the function was already been called with the
-    same arguments. Input arguments are hashed and stored as Redis keys with values the job ids (`input_arguments_hash:job_id`).
+    To avoid recomputing the same task multiple times, this decorator checks if the function was already been called with the
+    same arguments. Input arguments are hashed and stored as Redis keys with the values being the job IDs `input_arguments_hash:job_id`).
 
     The benefits of using redis to store the input arguments over a local cache, such as LRU Cache, are:
     1) It will work in distributed environments (in computing clusters), where multiple workers will avoid repeating
