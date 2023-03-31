@@ -12,7 +12,7 @@ from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.tests.utils import work_on_rq, exception_reporter
 from flexmeasures.data.services.scheduling import create_scheduling_job
-from flexmeasures.data.services.utils import hash_function_arguments, redis_cache
+from flexmeasures.data.services.utils import hash_function_arguments, job_cache
 
 
 @pytest.mark.parametrize(
@@ -178,7 +178,6 @@ def test_scheduling_multiple_triggers(
         logging.INFO
     )  # setting the logging level of the log capture fixture
 
-    soc_at_start = 1
     target_soc = 5
     duration_until_target = timedelta(hours=2)
 
@@ -199,57 +198,35 @@ def test_scheduling_multiple_triggers(
         is None
     )  # Make sure the scheduler data source isn't there
 
-    # schedule 1 job
-    job1 = create_scheduling_job(
-        sensor=charging_station,
-        start=start,
-        end=end,
-        belief_time=start,
-        resolution=resolution,
-        flex_model={"soc-at-start": soc_at_start, "soc-targets": soc_targets},
-    )
-    work_on_rq(app.queues["scheduling"], exc_handler=exception_reporter)
-
+    # clear logs
     caplog.clear()
 
-    # Schedule same job
-    job2 = create_scheduling_job(
-        sensor=charging_station,
-        start=start,
-        end=end,
-        belief_time=start,
-        resolution=resolution,
-        flex_model={"soc-at-start": soc_at_start, "soc-targets": soc_targets},
-    )
-    work_on_rq(app.queues["scheduling"], exc_handler=exception_reporter)
+    jobs = []
 
-    # checking that the decorator is detecting that the job is repeated
-    assert (
-        sum(
-            [
-                "The function create_scheduling_job has been called alread with the same arguments. Skipping..."
-                in rec.message
-                for rec in caplog.records
-            ]
+    # create jobs
+    for soc_start in [1, 1, 3]:
+        job = create_scheduling_job(
+            sensor=charging_station,
+            start=start,
+            end=end,
+            belief_time=start,
+            resolution=resolution,
+            flex_model={"soc-at-start": soc_start, "soc-targets": soc_targets},
+            enqueue=False,
         )
-        == 1
-    )
 
-    # checking that they have the same job id
+        # enqueue & run job
+        app.queues["scheduling"].enqueue_job(job)
+        work_on_rq(app.queues["scheduling"], exc_handler=exception_reporter)
+
+        jobs.append(job)
+
+    job1, job2, job3 = jobs
+
+    # checking that jobs 1 & 2 they have the same job id
     assert job1.id == job2.id
 
-    # checking that a different schedule trigger is actually computed when a nested field is changed
-    soc_at_start = 2
-    job3 = create_scheduling_job(
-        sensor=charging_station,
-        start=start,
-        end=end,
-        belief_time=start,
-        resolution=resolution,
-        flex_model={"soc-at-start": soc_at_start, "soc-targets": soc_targets},
-    )
-    work_on_rq(app.queues["scheduling"], exc_handler=exception_reporter)
-
+    # checking that job3 has different id
     assert job3.id != job1.id
 
 
@@ -259,14 +236,14 @@ def test_allow_trigger_failed_jobs(
     def failing_function(kwarg1, kwarg2):
         raise Exception()
 
-    @redis_cache("scheduling")
+    @job_cache("scheduling")
     def create_failing_job(
         arg1: int,
         kwarg1: int | None = None,
         kwarg2: int | None = None,
     ) -> Job:
         """
-        This function creates and enques a failing job.
+        This function creates and enqueues a failing job.
         """
 
         job = Job.create(
@@ -294,7 +271,7 @@ def test_force_new_job_creation(db, app, add_charging_station_assets, setup_test
     def successful_function(kwarg1, kwarg2):
         pass
 
-    @redis_cache("scheduling")
+    @job_cache("scheduling")
     def create_successful_job(
         arg1: int,
         kwarg1: int | None = None,
@@ -302,7 +279,7 @@ def test_force_new_job_creation(db, app, add_charging_station_assets, setup_test
         force_new_job_creation=False,
     ) -> Job:
         """
-        This function creates and enques a successful job.
+        This function creates and enqueues a successful job.
         """
 
         job = Job.create(
