@@ -55,9 +55,9 @@ def hash_function_arguments(args, kwags):
     )  # concat two hashes
 
 
-def job_cache(queue):
+def job_cache(queue: str):
     """
-    To avoid recomputing the same task multiple times, this decorator checks if the function was already been called with the
+    To avoid recomputing the same task multiple times, this decorator checks if the function has already been called with the
     same arguments. Input arguments are hashed and stored as Redis keys with the values being the job IDs `input_arguments_hash:job_id`).
 
     The benefits of using redis to store the input arguments over a local cache, such as LRU Cache, are:
@@ -95,13 +95,13 @@ def job_cache(queue):
 
                 return job  # returning the same job regardless of the status (SUCCESS, FAILED, ...)
             else:
-                # if the job hasn't been called before or the job has failed -> create job
+                # if the job description is new -> create job
                 job = func(*args, **kwargs)  # create a new job
 
                 # store function call in redis
                 current_app.queues[queue].connection.set(
                     args_hash, job.id
-                )  # setting return value of function call to the hash of its inputs
+                )  # mapping the hash of the inputs of `func` to its job Id
 
                 return job
 
