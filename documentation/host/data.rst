@@ -199,7 +199,7 @@ First, you can get the database structure with:
 
 .. note:: If you develop code (and might want to make changes to the data model), you should also check out the maintenance section about database migrations.
 
-You can create users with the ``new-user`` command. Check it out:
+You can create users with the ``add user`` command. Check it out:
 
 .. code-block:: console
 
