@@ -13,6 +13,8 @@ divs %}
                     <tr>
                         <th>Account</th>
                         <th>ID</th>
+                        <th>asset_count</th>
+                        <th>user_count</th>
                         <th>Roles</th>
 
                     </tr>
@@ -25,6 +27,12 @@ divs %}
                         </td>
                         <td>
                             {{ account.id }}
+                        </td>
+                        <td>
+                            {{ account.asset_count }}
+                        </td>
+                        <td>
+                            {{ account.user_count }}
                         </td>
                         <td>
                             {{ account.account_roles | join(", ") }}
