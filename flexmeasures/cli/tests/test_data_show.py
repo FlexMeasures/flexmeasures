@@ -86,7 +86,7 @@ def test_show_asset(app, fresh_db, setup_generic_assets_fresh_db):
 
     assert "Asset Test wind turbine" in result.output
     assert "No sensors in asset" in result.output
-    assert result.exit_code == 0
+    assert result.exit_code == 1  # command raises a click.Abort Exception
 
 
 @pytest.mark.skip_github

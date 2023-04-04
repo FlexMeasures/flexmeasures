@@ -225,6 +225,8 @@ Set mail settings
 
 For FlexMeasures to be able to send email to users (e.g. for resetting passwords), you need an email account which can do that (e.g. GMail). Set the MAIL_* settings in your configuration, see :ref:`mail-config`.
 
+.. _install-lp-solver:
+
 Install an LP solver
 ^^^^^^^^^^^^^^^^^^^^
 
