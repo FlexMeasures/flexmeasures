@@ -13,7 +13,7 @@ New features
 * Keyboard control over replay [see `PR #562 <https://www.github.com/FlexMeasures/flexmeasures/pull/562>`_]
 * The ``FLEXMEASURES_MAX_PLANNING_HORIZON`` config setting can also be set as an integer number of planning steps rather than just as a fixed duration, which makes it possible to schedule further ahead in coarser time steps [see `PR #583 <https://www.github.com/FlexMeasures/flexmeasures/pull/583>`_]
 * Different text styles for CLI output for errors, warnings or success messages. [see `PR #609 <https://www.github.com/FlexMeasures/flexmeasures/pull/609>`_]
-* Avoid Recomputing Schedules[see `PR #616 <https://www.github.com/FlexMeasures/flexmeasures/pull/616>`_]
+* Avoid redundantly recomputing schedules that are triggered without a relevant state change [see `PR #616 <https://www.github.com/FlexMeasures/flexmeasures/pull/616>`_]
 
 Bugfixes
 -----------
