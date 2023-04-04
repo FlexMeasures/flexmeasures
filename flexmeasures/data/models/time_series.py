@@ -529,11 +529,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         In principle all properties (except ID) of a given sensor could be changed, but not all changes are relevant to warrant reanalysis (e.g. scheduling or forecasting).
         """
 
-        generic_asset_attributes = getattr(self.generic_asset, "attribute", None)
-
-        parameters = [self.id, self.attributes, generic_asset_attributes]
-
-        return tuple(parameters)
+        return (self.id, self.attributes, self.generic_asset.attributes)
 
 
 class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
