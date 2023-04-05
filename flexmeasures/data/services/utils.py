@@ -70,6 +70,8 @@ def job_cache(queue: str):
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
+            enqueue = kwargs.pop("enqueue", True)
+            requeue = kwargs.pop("requeue", False)
 
             # checking if force is an input argument of `func`
             force_new_job_creation = kwargs.pop("force_new_job_creation", False)
@@ -89,21 +91,35 @@ def job_cache(queue: str):
                 # get job id
                 job_id = current_app.queues[queue].connection.get(args_hash).decode()
 
-                job = Job.fetch(
-                    job_id, connection=current_app.queues[queue].connection
-                )  # get job object from job id
+                # check if the job exists and, if it doesn't, skip fetching and generate new job
+                if Job.exists(job_id, connection=current_app.queues[queue].connection):
+                    job = Job.fetch(
+                        job_id, connection=current_app.queues[queue].connection
+                    )  # get job object from job id
 
-                return job  # returning the same job regardless of the status (SUCCESS, FAILED, ...)
-            else:
-                # if the job description is new -> create job
-                job = func(*args, **kwargs)  # create a new job
+                    # requeue if failed and requeue flag is
+                    if job.is_failed and requeue:
+                        job.requeue()
+                        return job
 
-                # store function call in redis
-                current_app.queues[queue].connection.set(
-                    args_hash, job.id
-                )  # mapping the hash of the inputs of `func` to its job Id
+                    return job  # returning the same job regardless of the status (SUCCESS, FAILED, ...)
 
+            # if the job description is new -> create job
+            job = func(*args, **kwargs)  # create a new job
+
+            # store function call in redis
+            current_app.queues[queue].connection.set(
+                args_hash, job.id
+            )  # mapping the hash of the inputs of `func` to its job Id
+
+            # in case the function enqueues it
+            job_status = job.get_status(refresh=True)
+
+            if enqueue and not job_status:
+                current_app.queues[queue].enqueue_job(job)
                 return job
+
+            return job
 
         return wrapper
 

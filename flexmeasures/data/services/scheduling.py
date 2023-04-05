@@ -27,6 +27,7 @@ def create_scheduling_job(
     sensor: Sensor,
     job_id: str | None = None,
     enqueue: bool = True,
+    requeue: bool = False,
     **scheduler_kwargs,
 ) -> Job:
     """
@@ -64,8 +65,6 @@ def create_scheduling_job(
             ).total_seconds()
         ),  # NB job.cleanup docs says a negative number of seconds means persisting forever
     )
-    if enqueue:
-        current_app.queues["scheduling"].enqueue_job(job)
 
     return job
 
@@ -80,6 +79,7 @@ def make_schedule(
     flex_context: dict | None = None,
     flex_config_has_been_deserialized: bool = False,
 ) -> bool:
+
     """
     This function computes a schedule. It returns True if it ran successfully.
 
