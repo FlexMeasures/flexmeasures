@@ -65,7 +65,9 @@ def test_get_one_account(
     assert get_account_response.status_code == status_code
     if status_code == 200:
         assert get_account_response.json["name"] == "Test Prosumer Account"
-        assert get_account_response.json["account_roles"] == [1]
+        assert get_account_response.json["account_roles"] == [
+            {"id": 1, "name": "Prosumer"}
+        ]
 
 
 def make_headers_for(user_email: str | None, client) -> dict:
