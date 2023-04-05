@@ -1,0 +1,17 @@
+{
+    "spellright.language": [
+        "en_US"
+    ],
+    "spellright.documentTypes": [
+        "markdown",
+        "latex",
+        "plaintext",
+        "restructuredtext",
+        "python"
+    ],
+    "python.linting.enabled": true,
+    "python.linting.pylintEnabled": false,
+    "python.linting.flake8Enabled": true,
+    "workbench.editor.wrapTabs": true,
+    "python.formatting.provider": "black"
+}
