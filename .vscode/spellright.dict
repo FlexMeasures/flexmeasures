@@ -52,7 +52,6 @@ fmplugin
 init
 py
 Jinja2
-'fmplugin'
 bp
 msg
 appcontext
@@ -127,7 +126,7 @@ divs
 OLS
 configurator
 requeue
-'PGPASSWORD'
+PGPASSWORD
 uri
 pg
 pgbackup
