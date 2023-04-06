@@ -145,7 +145,7 @@ Write:
    SQLALCHEMY_DATABASE_URI = "postgresql://flexmeasures:<password>@127.0.0.1/flexmeasures"
 
 
-into the config file you are using, e.g. ~/flexmeasures.cfg
+into the config file you are using, e.g. ~/.flexmeasures.cfg
 
 
 Get structure (and some data) into place
