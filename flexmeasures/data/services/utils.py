@@ -65,6 +65,12 @@ def job_cache(queue: str):
       work as the cache will be shared across them.
     2) Cached calls are logged, which means that we can easily debug.
     3) Cache will still be there on restarts.
+
+    Arguments
+    :param enqueue: triggers the enqueuing of the job
+    :param requeue: triggers renqueuing on failing jobs when they are fetched from the cache
+    :param force_new_job_creation: If set to True, this attribute forces a new job creation (skipping cache).
+    :returns: the job
     """
 
     def decorator(func):
@@ -97,7 +103,7 @@ def job_cache(queue: str):
                         job_id, connection=current_app.queues[queue].connection
                     )  # get job object from job id
 
-                    # requeue if failed and requeue flag is
+                    # requeue if failed and requeue flag is true
                     if job.is_failed and requeue:
                         job.requeue()
                         return job
@@ -115,6 +121,7 @@ def job_cache(queue: str):
             # in case the function enqueues it
             job_status = job.get_status(refresh=True)
 
+            # with job_status=None, we ensure that only fresh new jobs are enqued (in the contrary they should be renqueued)
             if enqueue and not job_status:
                 current_app.queues[queue].enqueue_job(job)
                 return job

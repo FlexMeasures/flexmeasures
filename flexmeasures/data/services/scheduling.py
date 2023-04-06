@@ -42,6 +42,15 @@ def create_scheduling_job(
     1. A scheduling job is born here (in create_scheduling_job).
     2. It is run in make_schedule which writes results to the db.
     3. If an error occurs (and the worker is configured accordingly), handle_scheduling_exception comes in.
+
+    Arguments:
+    :param sensor:
+    :param job_id: Id of the job
+    :param enqueue: triggers the enqueuing of the job
+    :param requeue: triggers renqueuing on failing jobs when they are fetched from the cache
+    :param force_new_job_creation: If set to True, this attribute forces a new job creation (skipping cache).
+    :returns: the job
+
     """
     # We first create a scheduler and check if deserializing works, so the flex config is checked
     # and errors are raised before the job is enqueued (so users get a meaningful response right away).

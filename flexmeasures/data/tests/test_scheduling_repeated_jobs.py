@@ -35,7 +35,7 @@ class FailingScheduler(Scheduler):
 
 
 @pytest.mark.parametrize(
-    "args_modified,kwargs_modified,equal",
+    "args_modified, kwargs_modified, equal",
     [
         (
             [1, 2, "1"],
@@ -274,8 +274,6 @@ def test_allow_trigger_failed_jobs(
             kwargs=dict(kwarg1=kwarg1, kwarg2=kwarg2),
             connection=app.queues["scheduling"].connection,
         )
-
-        app.queues["scheduling"].enqueue_job(job)
 
         return job
 
