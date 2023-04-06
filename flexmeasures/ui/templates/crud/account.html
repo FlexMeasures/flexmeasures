@@ -1,5 +1,5 @@
 {% extends "base.html" %} {% set active_page = "accounts" %}{% block title %} Account overview {% endblock %} {% block
-divs %} 
+divs %}
 
 <div class="container-fluid">
     <div class="row">
@@ -25,12 +25,12 @@ divs %}
                                 Roles
                             </td>
                             <td>
-                                {{ account.account_roles | join(", ") }}
+                                {{ account.account_roles | map(attribute='name') | join(", ") }}
                             </td>
                         </tr>
                     </tbody>
                 </table>
-            <h3>Users</h3>
+                <h3>Users</h3>
 
                 <form class="text-right form-inline" role="form" target="" method="get" id="user-list-options">
                     <div class="checkbox">

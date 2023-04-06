@@ -80,7 +80,7 @@ def mock_api_data_as_form_input(api_data: dict) -> dict:
 def mock_account_response(
     account_id: int = 1,
     account_name: str = "test_account",
-    account_roles: list = [],
+    account_roles: list = [{"id": 1, "name": "Prosumer"}],
     as_list: bool = True,
     multiple: bool = False,
 ) -> Union[dict, List[dict]]:

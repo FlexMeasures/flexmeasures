@@ -9,7 +9,13 @@ def test_get_accounts_as_nonadmin(client, as_prosumer_user1, requests_mock):
         status_code=200,
         json=mock_account_response(multiple=False),
     )
-    assert get_accounts() == [{"id": 1, "name": "test_account", "account_roles": []}]
+    assert get_accounts() == [
+        {
+            "id": 1,
+            "name": "test_account",
+            "account_roles": [{"id": 1, "name": "Prosumer"}],
+        }
+    ]
 
 
 def test_get_accounts_as_admin(client, as_admin, requests_mock):
@@ -19,7 +25,11 @@ def test_get_accounts_as_admin(client, as_admin, requests_mock):
         json=mock_account_response(multiple=True),
     )
     assert get_accounts() == [
-        {"id": 1, "name": "test_account", "account_roles": []},
+        {
+            "id": 1,
+            "name": "test_account",
+            "account_roles": [{"id": 1, "name": "Prosumer"}],
+        },
         {"id": 2, "name": "test_account2", "account_roles": []},
     ]
 
@@ -34,7 +44,7 @@ def test_get_account_as_admin(client, as_admin, requests_mock):
     assert get_account(account_id="1") == {
         "id": 1,
         "name": "test_account",
-        "account_roles": [],
+        "account_roles": [{"id": 1, "name": "Prosumer"}],
     }
 
 
@@ -48,5 +58,5 @@ def test_get_account_as_nonadmin(client, as_prosumer_user1, requests_mock):
     assert get_account(account_id=current_user.account.id) == {
         "id": current_user.account.id,
         "name": "test_account",
-        "account_roles": [],
+        "account_roles": [{"id": 1, "name": "Prosumer"}],
     }
