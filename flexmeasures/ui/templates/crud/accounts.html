@@ -35,7 +35,11 @@ divs %}
                             {{ account.user_count }}
                         </td>
                         <td>
-                            {{ account.account_roles | join(", ") }}
+
+                            {% if account.account_roles %}
+                            {{ account.account_roles | selectattr('name') | join(", ") }}
+                            
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
