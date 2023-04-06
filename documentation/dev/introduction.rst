@@ -35,6 +35,8 @@ Clone the `FlexMeasures repository <https://github.com/FlexMeasures/flexmeasures
 
    git clone https://github.com/FlexMeasures/flexmeasures.git
 
+.. note:: Are you using Visual Studio Code? Then the code you just cloned also contains the editor configuration (part of) our team is using!
+
 
 Dependencies
 ^^^^^^^^^^^^^^^^^^^^

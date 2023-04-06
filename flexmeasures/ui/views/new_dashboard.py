@@ -2,6 +2,7 @@ from flask import request, current_app
 from flask_security import login_required
 from flask_security.core import current_user
 from flexmeasures.auth.policy import user_has_admin_access
+from flexmeasures.data.queries.generic_assets import get_asset_group_queries
 
 from flexmeasures.ui.views import flexmeasures_ui
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template, clear_session
@@ -11,7 +12,6 @@ from flexmeasures.data.models.generic_assets import (
 )
 from flexmeasures.data.services.asset_grouping import (
     AssetGroup,
-    get_asset_group_queries,
 )
 
 
