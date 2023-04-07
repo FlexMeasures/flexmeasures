@@ -13,7 +13,7 @@ New features
 * Keyboard control over replay [see `PR #562 <https://www.github.com/FlexMeasures/flexmeasures/pull/562>`_]
 * The ``FLEXMEASURES_MAX_PLANNING_HORIZON`` config setting can also be set as an integer number of planning steps rather than just as a fixed duration, which makes it possible to schedule further ahead in coarser time steps [see `PR #583 <https://www.github.com/FlexMeasures/flexmeasures/pull/583>`_]
 * Different text styles for CLI output for errors, warnings or success messages. [see `PR #609 <https://www.github.com/FlexMeasures/flexmeasures/pull/609>`_]
-* Added API endpoints and webpages `/accounts` and `/account/<id>` to list accounts and show an overview of the assets, users and account roles of an account [see `PR #605 <https://github.com/FlexMeasures/flexmeasures/pull/605>`_]
+* Added API endpoints and webpages `/accounts` and `/accounts/<id>` to list accounts and show an overview of the assets, users and account roles of an account [see `PR #605 <https://github.com/FlexMeasures/flexmeasures/pull/605>`_]
 
 Bugfixes
 -----------
