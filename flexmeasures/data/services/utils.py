@@ -103,7 +103,6 @@ def job_cache(queue: str):
                     # requeue if failed and requeue flag is true
                     if job.is_failed and requeue:
                         job.requeue()
-                        return job
 
                     return job  # returning the same job regardless of the status (SUCCESS, FAILED, ...)
 
@@ -119,7 +118,6 @@ def job_cache(queue: str):
             # with job_status=None, we ensure that only fresh new jobs are enqued (in the contrary they should be renqueued)
             if enqueue and not job_status:
                 current_app.queues[queue].enqueue_job(job)
-                return job
 
             return job
 
