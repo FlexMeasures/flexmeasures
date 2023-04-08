@@ -67,7 +67,7 @@ def job_cache(queue: str):
     3) Cache will still be there on restarts.
 
     Arguments
-    :param queue: name of the queue (used to enqueue new jobs)
+    :param queue: name of the queue (just used to find the redis connection)
     """
 
     def decorator(func):
@@ -76,7 +76,6 @@ def job_cache(queue: str):
             # Get the redis connection for the given queue
             connection = current_app.queues[queue].connection
 
-            enqueue = kwargs.pop("enqueue", True)
             requeue = kwargs.pop("requeue", False)
 
             # checking if force is an input argument of `func`
@@ -111,13 +110,6 @@ def job_cache(queue: str):
 
             # store function call in redis by mapping the hash of the function arguments to its job id
             connection.set(args_hash, job.id)
-
-            # in case the function enqueues it
-            job_status = job.get_status(refresh=True)
-
-            # with job_status=None, we ensure that only fresh new jobs are enqued (in the contrary they should be renqueued)
-            if enqueue and not job_status:
-                current_app.queues[queue].enqueue_job(job)
 
             return job
 

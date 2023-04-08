@@ -275,9 +275,11 @@ def test_allow_trigger_failed_jobs(
             connection=app.queues["scheduling"].connection,
         )
 
+        app.queues["scheduling"].enqueue_job(job)
+
         return job
 
-    job1 = create_failing_job(1, 1, 1)  # this job fails
+    job1 = create_failing_job(1, 1, 1)  # this job will fail when worked on
     work_on_rq(app.queues["scheduling"], exc_handler=exception_reporter)
 
     assert job1.get_status() == JobStatus.FAILED  # check that the job fails

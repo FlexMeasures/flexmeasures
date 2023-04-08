@@ -75,6 +75,13 @@ def create_scheduling_job(
         ),  # NB job.cleanup docs says a negative number of seconds means persisting forever
     )
 
+    # in case the function enqueues it
+    job_status = job.get_status(refresh=True)
+
+    # with job_status=None, we ensure that only fresh new jobs are enqued (in the contrary they should be re-enqueued)
+    if enqueue and not job_status:
+        current_app.queues["scheduling"].enqueue_job(job)
+
     return job
 
 
