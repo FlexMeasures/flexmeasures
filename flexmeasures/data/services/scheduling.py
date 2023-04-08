@@ -28,6 +28,7 @@ def create_scheduling_job(
     job_id: str | None = None,
     enqueue: bool = True,
     requeue: bool = False,
+    force_new_job_creation: bool = False,
     **scheduler_kwargs,
 ) -> Job:
     """
@@ -48,7 +49,9 @@ def create_scheduling_job(
     :param job_id:                  optionally, set a job id explicitly
     :param enqueue:                 if True, enqueues the job in case it is new
     :param requeue:                 if True, requeues the job in case it is not new and had previously failed
+                                    (this argument is used by the @job_cache decorator)
     :param force_new_job_creation:  if True, this attribute forces a new job to be created (skipping cache)
+                                    (this argument is used by the @job_cache decorator)
     :returns: the job
 
     """
