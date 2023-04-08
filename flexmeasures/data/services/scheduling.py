@@ -44,11 +44,11 @@ def create_scheduling_job(
     3. If an error occurs (and the worker is configured accordingly), handle_scheduling_exception comes in.
 
     Arguments:
-    :param sensor:
-    :param job_id: Id of the job
-    :param enqueue: triggers the enqueuing of the job
-    :param requeue: triggers renqueuing on failing jobs when they are fetched from the cache
-    :param force_new_job_creation: If set to True, this attribute forces a new job creation (skipping cache).
+    :param sensor:                  sensor for which the schedule is computed
+    :param job_id:                  optionally, set a job id explicitly
+    :param enqueue:                 if True, enqueues the job in case it is new
+    :param requeue:                 if True, re-enqueues the job in case it is not new and had previously failed
+    :param force_new_job_creation:  if True, this attribute forces a new job to be created (skipping cache)
     :returns: the job
 
     """
