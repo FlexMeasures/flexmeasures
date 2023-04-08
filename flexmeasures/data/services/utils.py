@@ -73,6 +73,9 @@ def job_cache(queue: str):
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
+            # Get the redis connection for the given queue
+            connection = current_app.queues[queue].connection
+
             enqueue = kwargs.pop("enqueue", True)
             requeue = kwargs.pop("requeue", False)
 
@@ -83,21 +86,18 @@ def job_cache(queue: str):
             args_hash = hash_function_arguments(args, kwargs)
 
             # check if the key hash exists in the redis equeue
-            if (
-                current_app.queues[queue].connection.exists(args_hash)
-                and not force_new_job_creation
-            ):
+            if connection.exists(args_hash) and not force_new_job_creation:
                 current_app.logger.info(
                     f"The function {func.__name__} has been called already with the same arguments. Skipping..."
                 )
 
                 # get job id
-                job_id = current_app.queues[queue].connection.get(args_hash).decode()
+                job_id = connection.get(args_hash).decode()
 
                 # check if the job exists and, if it doesn't, skip fetching and generate new job
-                if Job.exists(job_id, connection=current_app.queues[queue].connection):
+                if Job.exists(job_id, connection=connection):
                     job = Job.fetch(
-                        job_id, connection=current_app.queues[queue].connection
+                        job_id, connection=connection
                     )  # get job object from job id
 
                     # requeue if failed and requeue flag is true
@@ -110,10 +110,8 @@ def job_cache(queue: str):
             # if the job description is new -> create job
             job = func(*args, **kwargs)  # create a new job
 
-            # store function call in redis
-            current_app.queues[queue].connection.set(
-                args_hash, job.id
-            )  # mapping the hash of the inputs of `func` to its job Id
+            # store function call in redis by mapping the hash of the function arguments to its job id
+            connection.set(args_hash, job.id)
 
             # in case the function enqueues it
             job_status = job.get_status(refresh=True)
