@@ -84,7 +84,7 @@ def job_cache(queue: str):
             # creating a hash from args and kwargs
             args_hash = hash_function_arguments(args, kwargs)
 
-            # check if the key hash exists in the redis equeue
+            # check the redis connection for whether the key hash exists
             if connection.exists(args_hash) and not force_new_job_creation:
                 current_app.logger.info(
                     f"The function {func.__name__} has been called already with the same arguments. Skipping..."
