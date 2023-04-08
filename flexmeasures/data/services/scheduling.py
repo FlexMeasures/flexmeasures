@@ -47,7 +47,7 @@ def create_scheduling_job(
     :param sensor:                  sensor for which the schedule is computed
     :param job_id:                  optionally, set a job id explicitly
     :param enqueue:                 if True, enqueues the job in case it is new
-    :param requeue:                 if True, re-enqueues the job in case it is not new and had previously failed
+    :param requeue:                 if True, requeues the job in case it is not new and had previously failed
     :param force_new_job_creation:  if True, this attribute forces a new job to be created (skipping cache)
     :returns: the job
 
@@ -78,7 +78,7 @@ def create_scheduling_job(
     # in case the function enqueues it
     job_status = job.get_status(refresh=True)
 
-    # with job_status=None, we ensure that only fresh new jobs are enqued (in the contrary they should be re-enqueued)
+    # with job_status=None, we ensure that only fresh new jobs are enqueued (in the contrary they should be requeued)
     if enqueue and not job_status:
         current_app.queues["scheduling"].enqueue_job(job)
 

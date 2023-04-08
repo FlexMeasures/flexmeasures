@@ -393,5 +393,5 @@ def test_requeue_failing_job(
     print("JOB2: ", job2.enqueued_at)
     print("JOB1: ", job1.enqueued_at)
 
-    # check if job2 has actually been reenqueued
+    # check if job2 has actually been requeued
     assert job1.enqueued_at < job2.enqueued_at
