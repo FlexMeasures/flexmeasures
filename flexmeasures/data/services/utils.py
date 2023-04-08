@@ -67,10 +67,7 @@ def job_cache(queue: str):
     3) Cache will still be there on restarts.
 
     Arguments
-    :param enqueue: triggers the enqueuing of the job
-    :param requeue: triggers renqueuing on failing jobs when they are fetched from the cache
-    :param force_new_job_creation: If set to True, this attribute forces a new job creation (skipping cache).
-    :returns: the job
+    :param queue: name of the queue (used to enqueue new jobs)
     """
 
     def decorator(func):
