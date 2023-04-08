@@ -259,7 +259,7 @@ def failing_function(*args, **kwargs):
 def test_allow_trigger_failed_jobs(
     caplog, db, app, add_charging_station_assets, setup_test_data
 ):
-    @job_cache("scheduling")
+    @job_cache()
     def create_failing_job(
         arg1: int,
         kwarg1: int | None = None,
@@ -295,7 +295,7 @@ def successful_function(*args, **kwargs):
 
 
 def test_force_new_job_creation(db, app, add_charging_station_assets, setup_test_data):
-    @job_cache("scheduling")
+    @job_cache()
     def create_successful_job(
         arg1: int,
         kwarg1: int | None = None,

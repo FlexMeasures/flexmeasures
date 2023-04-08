@@ -55,7 +55,7 @@ def hash_function_arguments(args, kwags):
     )  # concat two hashes
 
 
-def job_cache(queue: str):
+def job_cache():
     """
     To avoid recomputing the same task multiple times, this decorator checks if the function has already been called with the
     same arguments. Input arguments are hashed and stored as Redis keys with the values being the job IDs `input_arguments_hash:job_id`).
@@ -65,16 +65,13 @@ def job_cache(queue: str):
       work as the cache will be shared across them.
     2) Cached calls are logged, which means that we can easily debug.
     3) Cache will still be there on restarts.
-
-    Arguments
-    :param queue: name of the queue (just used to find the redis connection)
     """
 
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            # Get the redis connection for the given queue
-            connection = current_app.queues[queue].connection
+            # Get the redis connection
+            connection = current_app.redis_connection
 
             requeue = kwargs.pop("requeue", False)
 

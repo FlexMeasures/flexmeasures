@@ -22,7 +22,7 @@ from flexmeasures.utils.time_utils import server_now
 from flexmeasures.data.services.utils import job_cache
 
 
-@job_cache("scheduling")
+@job_cache()
 def create_scheduling_job(
     sensor: Sensor,
     job_id: str | None = None,
