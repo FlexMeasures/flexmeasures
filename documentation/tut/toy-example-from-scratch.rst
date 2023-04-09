@@ -157,9 +157,10 @@ If you want, you can inspect what you created:
 
     Type     Location           Attributes
     -------  -----------------  ---------------------
-    battery  (52.374, 4.88969)  capacity_in_mw:0.5
-                                min_soc_in_mwh:0.05
-                                max_soc_in_mwh:0.45
+    battery  (52.374, 4.88969)  capacity_in_mw: 0.5
+                                min_soc_in_mwh: 0.05
+                                max_soc_in_mwh: 0.45
+                                sensors_to_show: [3, [4, 2]]
 
     All sensors in asset:
     
