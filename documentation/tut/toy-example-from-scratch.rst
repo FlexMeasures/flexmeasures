@@ -164,9 +164,9 @@ If you want, you can inspect what you created:
 
     All sensors in asset:
     
-      Id  Name      Unit    Resolution    Timezone          Attributes
-    ----  --------  ------  ------------  ----------------  ------------
-       2  charging  MW      15 minutes    Europe/Amsterdam
+      Id  Name         Unit    Resolution    Timezone          Attributes
+    ----  -----------  ------  ------------  ----------------  ------------
+       2  discharging  MW      15 minutes    Europe/Amsterdam
 
 
 Yes, that is quite a large battery :)
@@ -274,7 +274,7 @@ Make a schedule
 
 Finally, we can create the schedule, which is the main benefit of FlexMeasures (smart real-time control).
 
-We'll ask FlexMeasures for a schedule for our charging sensor (Id 2). We also need to specify what to optimise against. Here we pass the Id of our market price sensor (3).
+We'll ask FlexMeasures for a schedule for our discharging sensor (Id 2). We also need to specify what to optimise against. Here we pass the Id of our market price sensor (3).
 To keep it short, we'll only ask for a 12-hour window starting at 7am. Finally, the scheduler should know what the state of charge of the battery is when the schedule starts (50%) and what its roundtrip efficiency is (90%).
 
 .. code-block:: console
