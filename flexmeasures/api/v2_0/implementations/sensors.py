@@ -32,7 +32,7 @@ from flexmeasures.api.common.utils.validators import (
     period_required,
     values_required,
 )
-from flexmeasures.data.queries.data_sources import get_or_create_source
+from flexmeasures.data.services.data_sources import get_or_create_source
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.data.services.resources import get_sensors
