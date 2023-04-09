@@ -373,8 +373,8 @@ Setting the data source type to "forecaster" helps FlexMeasures to visualize dis
 .. code-block:: console
 
     $ flexmeasures add source --name "toy-forecaster" --type forecaster
-    Added source <Data source 2 (toy-forecaster)>
-    $ flexmeasures add beliefs --sensor-id 3 --source 2 solar-tomorrow.csv --timezone Europe/Amsterdam
+    Added source <Data source 4 (toy-forecaster)>
+    $ flexmeasures add beliefs --sensor-id 3 --source 4 solar-tomorrow.csv --timezone Europe/Amsterdam
     Successfully created beliefs
 
 The one-hour CSV data is automatically resampled to the 15-minute resolution of the sensor that is recording solar production.
