@@ -16,7 +16,7 @@ Below are the ``flexmeasures`` CLI commands we'll run, and which we'll explain s
 
 .. code-block:: console
 
-    # setup an account with a user, a battery (Id 2) and a market (Id 3)
+    # setup an account with a user, battery (ID 2) and market (ID 3)
     $ flexmeasures add toy-account --kind battery
     # load prices to optimise the schedule against
     $ flexmeasures add beliefs --sensor-id 3 --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam
@@ -143,7 +143,7 @@ If you want, you can inspect what you created:
 
     All assets:
     
-      Id  Name          Type      Location
+      ID  Name          Type      Location
     ----  ------------  --------  -----------------
        3  toy-battery   battery   (52.374, 4.88969)
        2  toy-building  building  (52.374, 4.88969)
@@ -164,7 +164,7 @@ If you want, you can inspect what you created:
 
     All sensors in asset:
     
-      Id  Name         Unit    Resolution    Timezone          Attributes
+      ID  Name         Unit    Resolution    Timezone          Attributes
     ----  -----------  ------  ------------  ----------------  ------------
        2  discharging  MW      15 minutes    Europe/Amsterdam
 
@@ -234,7 +234,7 @@ Let's look at the price data we just loaded:
 .. code-block:: console
 
     $ flexmeasures show beliefs --sensor-id 3 --start ${TOMORROW}T00:00:00+01:00 --duration PT24H
-    Beliefs for Sensor 'day-ahead prices' (Id 3).
+    Beliefs for Sensor 'day-ahead prices' (ID 3).
     Data spans a day and starts at 2022-03-03 00:00:00+01:00.
     The time resolution (x-axis) is an hour.
     ┌────────────────────────────────────────────────────────────┐
@@ -274,7 +274,7 @@ Make a schedule
 
 Finally, we can create the schedule, which is the main benefit of FlexMeasures (smart real-time control).
 
-We'll ask FlexMeasures for a schedule for our discharging sensor (Id 2). We also need to specify what to optimise against. Here we pass the Id of our market price sensor (3).
+We'll ask FlexMeasures for a schedule for our discharging sensor (ID 2). We also need to specify what to optimise against. Here we pass the Id of our market price sensor (3).
 To keep it short, we'll only ask for a 12-hour window starting at 7am. Finally, the scheduler should know what the state of charge of the battery is when the schedule starts (50%) and what its roundtrip efficiency is (90%).
 
 .. code-block:: console
@@ -289,7 +289,7 @@ Great. Let's see what we made:
 .. code-block:: console
 
     $ flexmeasures show beliefs --sensor-id 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
-    Beliefs for Sensor 'discharging' (Id 2).
+    Beliefs for Sensor 'discharging' (ID 2).
     Data spans 12 hours and starts at 2022-03-04 07:00:00+01:00.
     The time resolution (x-axis) is 15 minutes.
     ┌────────────────────────────────────────────────────────────┐
