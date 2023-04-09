@@ -3,8 +3,12 @@ from __future__ import annotations
 import functools
 import time
 import inspect
+import typing
 from typing import Union
 from flask import current_app
+
+if typing.TYPE_CHECKING:
+    from flexmeasures.data.models.time_series import Sensor
 
 
 def make_registering_decorator(foreign_decorator):
@@ -123,9 +127,8 @@ def sort_dict(unsorted_dict: dict) -> dict:
 
 
 def flatten_unique(
-    nested_list_of_objects: list[int | list[int]]
-    | list["Sensor" | list["Sensor"]],  # noqa F821
-) -> list[int] | list["Sensor"]:  # noqa F821
+    nested_list_of_objects: list[int | list[int]] | list[Sensor | list[Sensor]],
+) -> list[int] | list[Sensor]:
     """Returns unique objects in a possibly nested (one level) list of objects.
 
     For example:
