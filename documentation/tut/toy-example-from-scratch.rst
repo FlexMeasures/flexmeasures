@@ -16,12 +16,12 @@ Below are the ``flexmeasures`` CLI commands we'll run, and which we'll explain s
 
 .. code-block:: console
 
-    # setup an account with a user, battery (ID 2) and market (ID 3)
+    # setup an account with a user, battery (ID 1) and market (ID 2)
     $ flexmeasures add toy-account --kind battery
     # load prices to optimise the schedule against
-    $ flexmeasures add beliefs --sensor-id 3 --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam
+    $ flexmeasures add beliefs --sensor-id 2 --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam
     # make the schedule
-    $ flexmeasures add schedule for-storage --sensor-id 2 --consumption-price-sensor 3 \
+    $ flexmeasures add schedule for-storage --sensor-id 1 --consumption-price-sensor 2 \
         --start ${TOMORROW}T07:00+01:00 --duration PT12H \
         --soc-at-start 50% --roundtrip-efficiency 90%
 
@@ -117,9 +117,9 @@ FlexMeasures offers a command to create a toy account with a battery:
     $ flexmeasures add toy-account --kind battery
 
     Toy account Toy Account with user toy-user@flexmeasures.io created successfully. You might want to run `flexmeasures show account --id 1`
-    The sensor recording battery power is <Sensor 2: discharging, unit: MW res.: 0:15:00>.
-    The sensor recording day-ahead prices is <Sensor 3: day-ahead prices, unit: EUR/MWh res.: 1:00:00>.
-    The sensor recording solar forecasts is <Sensor 4: production, unit: MW res.: 0:15:00>.
+    The sensor recording battery power is <Sensor 1: discharging, unit: MW res.: 0:15:00>.
+    The sensor recording day-ahead prices is <Sensor 2: day-ahead prices, unit: EUR/MWh res.: 1:00:00>.
+    The sensor recording solar forecasts is <Sensor 3: production, unit: MW res.: 0:15:00>.
 
 And with that, we're done with the structural data for this tutorial! 
 
@@ -145,14 +145,13 @@ If you want, you can inspect what you created:
     
       ID  Name          Type      Location
     ----  ------------  --------  -----------------
-       3  toy-battery   battery   (52.374, 4.88969)
-       2  toy-building  building  (52.374, 4.88969)
-       1  toy-solar     solar     (52.374, 4.88969)
+       1  toy-battery   battery   (52.374, 4.88969)
+       3  toy-solar     solar     (52.374, 4.88969)
 
-    $ flexmeasures show asset --id 3
+    $ flexmeasures show asset --id 1
     
     =========================
-    Asset toy-battery (ID: 3)
+    Asset toy-battery (ID: 1)
     =========================
 
     Type     Location           Attributes
@@ -160,13 +159,13 @@ If you want, you can inspect what you created:
     battery  (52.374, 4.88969)  capacity_in_mw: 0.5
                                 min_soc_in_mwh: 0.05
                                 max_soc_in_mwh: 0.45
-                                sensors_to_show: [3, [4, 2]]
+                                sensors_to_show: [2, [3, 1]]
 
     All sensors in asset:
     
       ID  Name         Unit    Resolution    Timezone          Attributes
     ----  -----------  ------  ------------  ----------------  ------------
-       2  discharging  MW      15 minutes    Europe/Amsterdam
+       1  discharging  MW      15 minutes    Europe/Amsterdam
 
 
 Yes, that is quite a large battery :)
@@ -187,7 +186,7 @@ Visit `http://localhost:5000/assets <http://localhost:5000/assets>`_ (username i
 Add some price data
 ---------------------------------------
 
-Now to add price data. First, we'll create the csv file with prices (EUR/MWh, see the setup for sensor 3 above) for tomorrow.
+Now to add price data. First, we'll create the csv file with prices (EUR/MWh, see the setup for sensor 2 above) for tomorrow.
 
 .. code-block:: console
 
@@ -222,7 +221,7 @@ This is time series data, in FlexMeasures we call "beliefs". Beliefs can also be
 
 .. code-block:: console
 
-    $ flexmeasures add beliefs --sensor-id 3 --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam
+    $ flexmeasures add beliefs --sensor-id 2 --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam
     Successfully created beliefs
 
 In FlexMeasures, all beliefs have a data source. Here, we use the username of the user we created earlier. We could also pass a user ID, or the name of a new data source we want to use for CLI scripts.
@@ -233,8 +232,8 @@ Let's look at the price data we just loaded:
 
 .. code-block:: console
 
-    $ flexmeasures show beliefs --sensor-id 3 --start ${TOMORROW}T00:00:00+01:00 --duration PT24H
-    Beliefs for Sensor 'day-ahead prices' (ID 3).
+    $ flexmeasures show beliefs --sensor-id 2 --start ${TOMORROW}T00:00:00+01:00 --duration PT24H
+    Beliefs for Sensor 'day-ahead prices' (ID 2).
     Data spans a day and starts at 2022-03-03 00:00:00+01:00.
     The time resolution (x-axis) is an hour.
     ┌────────────────────────────────────────────────────────────┐
@@ -261,7 +260,7 @@ Let's look at the price data we just loaded:
 
 
 
-Again, we can also view these prices in the `FlexMeasures UI <http://localhost:5000/sensors/3/>`_:
+Again, we can also view these prices in the `FlexMeasures UI <http://localhost:5000/sensors/2/>`_:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-prices.png
     :align: center
@@ -274,12 +273,12 @@ Make a schedule
 
 Finally, we can create the schedule, which is the main benefit of FlexMeasures (smart real-time control).
 
-We'll ask FlexMeasures for a schedule for our discharging sensor (ID 2). We also need to specify what to optimise against. Here we pass the Id of our market price sensor (3).
+We'll ask FlexMeasures for a schedule for our discharging sensor (ID 1). We also need to specify what to optimise against. Here we pass the Id of our market price sensor (3).
 To keep it short, we'll only ask for a 12-hour window starting at 7am. Finally, the scheduler should know what the state of charge of the battery is when the schedule starts (50%) and what its roundtrip efficiency is (90%).
 
 .. code-block:: console
 
-    $ flexmeasures add schedule for-storage --sensor-id 2 --consumption-price-sensor 3 \
+    $ flexmeasures add schedule for-storage --sensor-id 1 --consumption-price-sensor 2 \
         --start ${TOMORROW}T07:00+01:00 --duration PT12H \
         --soc-at-start 50% --roundtrip-efficiency 90%
     New schedule is stored.
@@ -288,8 +287,8 @@ Great. Let's see what we made:
 
 .. code-block:: console
 
-    $ flexmeasures show beliefs --sensor-id 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
-    Beliefs for Sensor 'discharging' (ID 2).
+    $ flexmeasures show beliefs --sensor-id 1 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
+    Beliefs for Sensor 'discharging' (ID 1).
     Data spans 12 hours and starts at 2022-03-04 07:00:00+01:00.
     The time resolution (x-axis) is 15 minutes.
     ┌────────────────────────────────────────────────────────────┐
@@ -317,7 +316,7 @@ Great. Let's see what we made:
 
 Here, negative values denote output from the grid, so that's when the battery gets charged. 
 
-We can also look at the charging schedule in the `FlexMeasures UI <http://localhost:5000/sensors/2/>`_ (reachable via the asset page for the battery):
+We can also look at the charging schedule in the `FlexMeasures UI <http://localhost:5000/sensors/1/>`_ (reachable via the asset page for the battery):
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-charging.png
     :align: center
@@ -333,7 +332,7 @@ Take into account solar production
 
 So far we haven't taken into account any other devices that consume or produce electricity. We'll now add solar production forecasts and reschedule, to see the effect of solar on the available headroom for the battery.
 
-First, we'll create a new csv file with solar forecasts (MW, see the setup for sensor 4 above) for tomorrow.
+First, we'll create a new csv file with solar forecasts (MW, see the setup for sensor 3 above) for tomorrow.
 
 .. code-block:: console
 
@@ -375,7 +374,7 @@ Setting the data source type to "forecaster" helps FlexMeasures to visualize dis
 
     $ flexmeasures add source --name "toy-forecaster" --type forecaster
     Added source <Data source 2 (toy-forecaster)>
-    $ flexmeasures add beliefs --sensor-id 4 --source 2 solar-tomorrow.csv --timezone Europe/Amsterdam
+    $ flexmeasures add beliefs --sensor-id 3 --source 2 solar-tomorrow.csv --timezone Europe/Amsterdam
     Successfully created beliefs
 
 The one-hour CSV data is automatically resampled to the 15-minute resolution of the sensor that is recording solar production.
@@ -386,8 +385,8 @@ Now, we'll reschedule the battery while taking into account the solar production
 
 .. code-block:: console
 
-    $ flexmeasures add schedule for-storage --sensor-id 2 --consumption-price-sensor 3 \
-        --inflexible-device-sensor 4 \
+    $ flexmeasures add schedule for-storage --sensor-id 1 --consumption-price-sensor 2 \
+        --inflexible-device-sensor 3 \
         --start ${TOMORROW}T07:00+01:00 --duration PT12H \
         --soc-at-start 50% --roundtrip-efficiency 90%
     New schedule is stored.
