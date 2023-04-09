@@ -134,7 +134,7 @@ def create(
 
     from flexmeasures.ui import register_at as register_ui_at
 
-    register_ui_at(apetstp)
+    register_ui_at(app)
 
     # Profile endpoints (if needed, e.g. during development)
 
