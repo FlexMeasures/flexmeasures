@@ -163,9 +163,9 @@ def show_generic_asset(asset):
     """
     Show asset info and list sensors
     """
-    click.echo(f"======{len(asset.name) * '='}=========")
+    click.echo(f"======{len(asset.name) * '='}========")
     click.echo(f"Asset {asset.name} (ID: {asset.id})")
-    click.echo(f"======{len(asset.name) * '='}=========\n")
+    click.echo(f"======{len(asset.name) * '='}========\n")
 
     asset_data = [
         (

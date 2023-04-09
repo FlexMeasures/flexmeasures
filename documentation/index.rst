@@ -94,7 +94,7 @@ Your journey, from dipping your toes in the water towards being a happy FlexMeas
 
 
 
-Where to start reading ?
+Where to start reading?
 --------------------------
 
 You (the reader) might be a user connecting with a FlexMeasures server or working on hosting FlexMeasures. Maybe you are planning to develop a plugin or even core functionality. In :ref:`getting_started`, we have some helpful tips how to dive into this documentation!

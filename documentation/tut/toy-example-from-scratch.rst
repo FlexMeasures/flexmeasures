@@ -129,9 +129,9 @@ If you want, you can inspect what you created:
 
     $ flexmeasures show account --id 1                       
     
-    =============================
-    Account Toy Account (ID:1):
-    =============================
+    ===========================
+    Account Toy Account (ID: 1)
+    ===========================
 
     Account has no roles.
 
@@ -151,9 +151,9 @@ If you want, you can inspect what you created:
 
     $ flexmeasures show asset --id 3
     
-    ===========================
-    Asset toy-battery (ID:3):
-    ===========================
+    =========================
+    Asset toy-battery (ID: 3)
+    =========================
 
     Type     Location           Attributes
     -------  -----------------  ---------------------
