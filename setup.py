@@ -35,13 +35,19 @@ setup(
     },
     license="Apache2.0",
     classifiers=[
+        "Environment :: Console",
+        "Environment :: Web Environment",
         "Programming Language :: Python",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
-        "Development Status :: 3 - Alpha",
+        "Programming Language :: Python :: 3.10",
+        "Framework :: Flask",
+        "Development Status :: 5 - Production/Stable",
         "License :: OSI Approved :: Apache Software License",
         "Operating System :: OS Independent",
+        "Operating System :: POSIX :: Linux",
+        "Operating System :: MacOS :: MacOS X",
     ],
     long_description="""\
 The *FlexMeasures Platform* is the intelligent backend to support real-time energy flexibility apps, rapidly and scalable.
