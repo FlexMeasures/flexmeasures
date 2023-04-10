@@ -106,7 +106,9 @@ def job_cache():
             job = func(*args, **kwargs)  # create a new job
 
             # store function call in redis by mapping the hash of the function arguments to its job id
-            connection.set(args_hash, job.id)
+            connection.set(
+                args_hash, job.id, ex=current_app.config["FLEXMEASURES_JOB_CACHE_TTL"]
+            )
 
             return job
 
