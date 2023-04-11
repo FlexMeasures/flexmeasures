@@ -5,6 +5,8 @@ from typing import Optional, List
 
 from flask import Flask, g, request
 from flask.cli import load_dotenv
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from flask_mail import Mail
 from flask_sslify import SSLify
 from flask_json import FlaskJSON
@@ -67,10 +69,7 @@ def create(
     if app.testing:
         from fakeredis import FakeStrictRedis
 
-        app.queues = dict(
-            forecasting=Queue(connection=FakeStrictRedis(), name="forecasting"),
-            scheduling=Queue(connection=FakeStrictRedis(), name="scheduling"),
-        )
+        redis_conn = FakeStrictRedis()
     else:
         redis_conn = Redis(
             app.config["FLEXMEASURES_REDIS_URL"],
@@ -83,10 +82,20 @@ def create(
             redis_conn = Redis("MY-DB-NAME", unix_socket_path="/tmp/my-redis.socket",
             )
         """
-        app.queues = dict(
-            forecasting=Queue(connection=redis_conn, name="forecasting"),
-            scheduling=Queue(connection=redis_conn, name="scheduling"),
-        )
+    app.queues = dict(
+        forecasting=Queue(connection=redis_conn, name="forecasting"),
+        scheduling=Queue(connection=redis_conn, name="scheduling"),
+    )
+
+    # Set up rate limiter
+    app.config["RATELIMIT_STORAGE_URI"] = "redis://"
+    app.config["RATELIMIT_STORAGE_OPTIONS"] = {
+        "connection_pool": redis_conn.connection_pool
+    }
+    app.limiter = Limiter(
+        get_remote_address,
+        app=app,
+    )
 
     # Some basic security measures
 

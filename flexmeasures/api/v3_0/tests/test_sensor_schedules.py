@@ -113,6 +113,15 @@ def test_trigger_and_get_schedule(
         assert trigger_schedule_response.status_code == 200
         job_id = trigger_schedule_response.json["schedule"]
 
+        # Check rate limiter kicks in when immediately reattempting to trigger a schedule
+        trigger_schedule_response = client.post(
+            url_for("SensorAPI:trigger_schedule", id=sensor.id),
+            json=message,
+            headers={"Authorization": auth_token},
+        )
+        print("Server responded with:\n%s" % trigger_schedule_response.json)
+        assert trigger_schedule_response.status_code == 429
+
     # look for scheduling jobs in queue
     assert (
         len(app.queues["scheduling"]) == 1
@@ -205,6 +214,16 @@ def test_trigger_and_get_schedule(
     )
     print("Server responded with:\n%s" % get_schedule_response.json)
     assert get_schedule_response.status_code == 200
+
+    # Check rate limiter does not kick in when immediately reattempting to fetch a schedule
+    get_schedule_response = client.get(
+        url_for("SensorAPI:get_schedule", id=sensor.id, uuid=job_id),
+        query_string=get_schedule_message,
+        headers={"content-type": "application/json", "Authorization": auth_token},
+    )
+    print("Server responded with:\n%s" % get_schedule_response.json)
+    assert get_schedule_response.status_code == 200  # not 429
+
     # assert get_schedule_response.json["type"] == "GetDeviceMessageResponse"
     assert len(get_schedule_response.json["values"]) == expected_length_of_schedule
 

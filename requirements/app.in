@@ -37,6 +37,7 @@ importlib_metadata
 sqlalchemy>=1.4.0, <2
 Flask-SSLify
 Flask_JSON
+Flask-Limiter[redis]
 Flask-Migrate
 Flask-WTF
 Flask-Mail

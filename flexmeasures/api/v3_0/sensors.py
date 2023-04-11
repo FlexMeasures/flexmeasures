@@ -1,10 +1,10 @@
 from datetime import datetime, timedelta
 from typing import Optional
 
-from flask import current_app
+from flask import current_app, Flask, request
 from flask_classful import FlaskView, route
 from flask_json import as_json
-from flask_security import auth_required
+from flask_security import auth_required, current_user
 import isodate
 from marshmallow import fields, ValidationError
 from rq.job import Job, NoSuchJobError
@@ -52,6 +52,15 @@ class SensorAPI(FlaskView):
     route_base = "/sensors"
     trailing_slash = False
     decorators = [auth_required()]
+
+    @classmethod
+    def _rate_limiter(cls, app: Flask):
+        # a schedule can be triggered once per 5 minutes per account & sensor
+        return app.limiter.limit(
+            "1 per 5 minutes",
+            key_func=lambda: f"{current_user.account_id}-{request.view_args.get('id', '')}",
+            cost=lambda: 1 if request.endpoint == "SensorAPI:trigger_schedule" else 0,
+        )
 
     @route("", methods=["GET"])
     @use_kwargs(

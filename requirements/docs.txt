@@ -43,6 +43,7 @@ packaging==23.0
     #   sphinx
 pygments==2.14.0
     # via
+    #   -c requirements/app.txt
     #   sphinx
     #   sphinx-tabs
 requests==2.28.2
