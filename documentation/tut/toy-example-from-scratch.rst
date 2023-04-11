@@ -344,4 +344,5 @@ Then we will the get database structure with
 
     $ flexmeasures db migrate
     $ flexmeasures db upgrade
+
 .. note:: The ``flexmeasures add schedule for-storage`` command also accepts state-of-charge targets, so the schedule can be more sophisticated. But that is not the point of this tutorial. See ``flexmeasures add schedule for-storage --help``. 
