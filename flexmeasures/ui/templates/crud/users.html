@@ -52,10 +52,10 @@
                                     <td>
                                         {{ user.timezone }}
                                     </td>
-                                    <td title="{{  user.last_login_at | localized_datetime }}">
+                                    <td title="{{  user.last_login_at | localized_datetime }}" data-sort="{{ user.last_login_at }}" >
                                         {{ user.last_login_at | naturalized_datetime}}
                                     </td>
-                                    <td title="{{  user.last_seen_at | localized_datetime }}">
+                                    <td title="{{  user.last_seen_at | localized_datetime }}" data-sort="{{ user.last_seen_at }}">
                                         {{ user.last_seen_at | naturalized_datetime}}
                                     </td>
                                     <td>
