@@ -33,8 +33,7 @@ def test_scheduling_a_charging_station(
     soc_targets = [dict(datetime=target_datetime.isoformat(), value=target_soc)]
 
     assert (
-        DataSource.query.filter_by(name="Seita", type="scheduling script").one_or_none()
-        is None
+        DataSource.query.filter_by(name="Seita", type="scheduler").one_or_none() is None
     )  # Make sure the scheduler data source isn't there
 
     job = create_scheduling_job(
@@ -51,7 +50,7 @@ def test_scheduling_a_charging_station(
     work_on_rq(app.queues["scheduling"], exc_handler=exception_reporter)
 
     scheduler_source = DataSource.query.filter_by(
-        name="Seita", type="scheduling script"
+        name="Seita", type="scheduler"
     ).one_or_none()
     assert (
         scheduler_source is not None

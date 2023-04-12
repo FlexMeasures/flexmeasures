@@ -126,8 +126,8 @@ class Config(object):
     FLEXMEASURES_REDIS_PASSWORD: Optional[str] = None
     FLEXMEASURES_JS_VERSIONS: dict = dict(
         vega="5.22.1",
-        vegaembed="6.20.8",
-        vegalite="5.2.0",
+        vegaembed="6.21.0",
+        vegalite="5.5.0",  # "5.6.0" has a problematic bar chart: see our sensor page and https://github.com/vega/vega-lite/issues/8496
         # todo: expand with other js versions used in FlexMeasures
     )
 
