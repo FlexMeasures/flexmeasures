@@ -14,16 +14,17 @@ from flexmeasures.data.schemas.utils import (
 )
 from flexmeasures.auth.policy import user_has_admin_access
 from flexmeasures.cli import is_running as running_as_cli
+from flexmeasures.utils.coding_utils import flatten_unique
 
 
 class JSON(fields.Field):
-    def _deserialize(self, value, attr, data, **kwargs):
+    def _deserialize(self, value, attr, data, **kwargs) -> dict:
         try:
             return json.loads(value)
         except ValueError:
             raise ValidationError("Not a valid JSON string.")
 
-    def _serialize(self, value, attr, data, **kwargs):
+    def _serialize(self, value, attr, data, **kwargs) -> str:
         return json.dumps(value)
 
 
@@ -76,6 +77,32 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
             raise ValidationError(
                 "User is not allowed to create assets for this account."
             )
+
+    @validates("attributes")
+    def validate_attributes(self, attributes: dict):
+        sensors_to_show = attributes.get("sensors_to_show", [])
+
+        # Check type
+        if not isinstance(sensors_to_show, list):
+            raise ValidationError("sensors_to_show should be a list.")
+        for sensor_listing in sensors_to_show:
+            if not isinstance(sensor_listing, (int, list)):
+                raise ValidationError(
+                    "sensors_to_show should only contain sensor IDs (integers) or lists thereof."
+                )
+            if isinstance(sensor_listing, list):
+                for sensor_id in sensor_listing:
+                    if not isinstance(sensor_id, int):
+                        raise ValidationError(
+                            "sensors_to_show should only contain sensor IDs (integers) or lists thereof."
+                        )
+
+        # Check whether IDs represent accessible sensors
+        from flexmeasures.data.schemas import SensorIdField
+
+        sensor_ids = flatten_unique(sensors_to_show)
+        for sensor_id in sensor_ids:
+            SensorIdField().deserialize(sensor_id)
 
 
 class GenericAssetTypeSchema(ma.SQLAlchemySchema):

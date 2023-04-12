@@ -58,7 +58,7 @@ In FlexMeasures, the usual way of creating forecasting jobs would be right in th
 So technically, you don't have to do anything to keep fresh forecasts.
 
 The decision which horizons to forecast is currently also taken by FlexMeasures. For power data, FlexMeasures makes this decision depending on the asset resolution. For instance, a resolution of 15 minutes leads to forecast horizons of 1, 6, 24 and 48 hours. For price data, FlexMeasures chooses to forecast prices forward 24 and 48 hours
-These are decent defaults, and fixing them has the advantage that scheduling scripts (see below) will know what to expect. However, horizons will probably become more configurable in the near future of FlexMeasures. 
+These are decent defaults, and fixing them has the advantage that schedulers (see below) will know what to expect. However, horizons will probably become more configurable in the near future of FlexMeasures.
 
 You can also add forecasting jobs directly via the CLI. We explain this practice in the next section. 
 

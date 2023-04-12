@@ -203,7 +203,7 @@ def upgrade_data():
     sequence_name = "%s_id_seq" % t_sensors.name
     # Set next id for table seq to just after max id of all old sensors combined
     connection.execute(
-        "SELECT setval('%s', %s, true);"
+        "SELECT setval('%s', %s, false);"  # is_called = False
         % (sequence_name, max_asset_id + max_market_id + max_weather_sensor_id + 1)
     )
 
