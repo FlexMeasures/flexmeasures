@@ -14,7 +14,7 @@ This is a small guide for creating new versions of the API and its docs.
     :depth: 2
 
 
-Introducting a new API version
+Introducing a new API version
 ---------------------
 
 Larger changes to the API, other than fixes and refactoring, should be done by creating a new API version.
