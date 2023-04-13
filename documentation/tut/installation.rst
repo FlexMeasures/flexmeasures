@@ -95,9 +95,9 @@ This suffices for a quick start.
 
 .. note:: For a more permanent configuration, you can create your FlexMeasures configuration file at ``~/.flexmeasures.cfg`` and add this:
 
-    .. code-block:: console
+    .. code-block:: python
 
-        SQLALCHEMY_DATABASE_URI="postgresql://<user>:<password>@<host-address>[:<port>]/<db>"
+        SQLALCHEMY_DATABASE_URI = "postgresql://<user>:<password>@<host-address>[:<port>]/<db>"
 
 
 Adding data
