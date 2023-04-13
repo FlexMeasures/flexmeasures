@@ -201,7 +201,7 @@ I added this to my ~/.bashrc, so I only need to type ``fm`` to get started and h
 
    addssh(){
        eval `ssh-agent -s`
-       ssh-add ~/.ssh/id_bitbucket
+       ssh-add ~/.ssh/id_github
    }
    fm(){
        addssh
