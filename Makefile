@@ -87,3 +87,11 @@ show-data-model:
 	# With --dev, you'll see the currently experimental parts, as well.
 	# Use --help to learn more. 
 	./flexmeasures/data/scripts/visualize_data_model.py --uml --dev
+
+clean_db:
+	sudo -i -u postgres dropdb -U postgres --if-exists ${db_name}
+	sudo -i -u postgres createdb -U postgres ${db_name}
+	sudo -i -u postgres psql -c "\connect ${db_name}" -c "CREATE EXTENSION cube;"
+	sudo -i -u postgres psql -c "\connect ${db_name}" -c "CREATE EXTENSION earthdistance;"
+	flexmeasures db-ops reset
+	flexmeasures db upgrade
