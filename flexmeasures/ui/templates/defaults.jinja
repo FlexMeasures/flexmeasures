@@ -10,7 +10,6 @@
 
 {% set nav_bar_specs = {
     "dashboard": dict(title="Dashboard", icon="dashboard"),
-    "assets": dict(title="Assets", icon="list-ul"),
     "upload": dict(title="Upload data", icon="cloud-upload"),
     "control": dict(title="Flexibility actions", icon="wrench")
 }
@@ -37,11 +36,12 @@
 
 {% set admin_view = True if current_user.is_authenticated and (current_user.has_role('admin') or FLEXMEASURES_MODE == "demo") else False %}
 {% do navigation_bar.append(('accounts', 'accounts', 'Accounts', '', 'cubes')) if admin_view %}
+{% do navigation_bar.append(('assets', 'assets', 'Assets', '', 'list-ul')) if admin_view %}
 {% do navigation_bar.append(('users', 'users', 'Users', '', 'users')) if admin_view %}
 {% do navigation_bar.append(('tasks', 'tasks', 'Tasks', '', 'tasks')) if admin_view %}
 
 {% set non_admin_view = True if current_user.is_authenticated and not (current_user.has_role('admin') or FLEXMEASURES_MODE == "demo") else False %}
-{% do navigation_bar.append(("accounts/{}".format(current_user.account.id), 'accounts', 'Account', '', 'cubes')) if non_admin_view %}
+{% do navigation_bar.append(("accounts/{}".format(current_user.account.id), 'accounts', 'My Account', '', 'cubes')) if non_admin_view %}
 
 {% do navigation_bar.append(('logged-in-user', 'logged-in-user', '', user_name, 'user')) if current_user.is_authenticated %}
 

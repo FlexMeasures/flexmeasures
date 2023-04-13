@@ -103,7 +103,6 @@ class Config(object):
     FLEXMEASURES_ROOT_VIEW: Union[str, List[Union[str, Tuple[str, List[str]]]]] = []
     FLEXMEASURES_MENU_LISTED_VIEWS: List[Union[str, Tuple[str, List[str]]]] = [
         "dashboard",
-        "assets",
     ]
     FLEXMEASURES_MENU_LISTED_VIEW_ICONS: Dict[str, str] = {}
     FLEXMEASURES_MENU_LISTED_VIEW_TITLES: Dict[str, str] = {}
