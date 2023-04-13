@@ -21,6 +21,7 @@ New features
 Bugfixes
 -----------
 
+* Fix copy button on tutorials and other documentation, so that only commands are copied and no output or comments [see `PR #636 <https://www.github.com/FlexMeasures/flexmeasures/pull/636>`_]
 
 Infrastructure / Support
 ----------------------

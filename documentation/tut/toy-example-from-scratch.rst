@@ -14,7 +14,7 @@ What do you need? Your own computer, with one of two situations: either you have
 
 Below are the ``flexmeasures`` CLI commands we'll run, and which we'll explain step by step. There are some other crucial steps for installation and setup, so this becomes a complete example from scratch, but this is the meat:
 
-.. code-block:: console
+.. code-block:: bash
 
     # setup an account with a user, battery (ID 1) and market (ID 2)
     $ flexmeasures add toy-account --kind battery
@@ -42,7 +42,7 @@ Install Flexmeasures and the database
 
         We start by installing the FlexMeasures platform, and then use Docker to run a postgres database and tell FlexMeasures to create all tables.
 
-        .. code-block:: console
+        .. code-block:: bash
 
             $ docker pull lfenergy/flexmeasures:latest
             $ docker pull postgres
@@ -55,7 +55,7 @@ Install Flexmeasures and the database
 
         Now - what's *very important* to remember is this: The rest of this tutorial will happen *inside* the ``flexmeasures-tutorial-fm`` container! This is how you hop inside the container and run a terminal there:
 
-        .. code-block:: console
+        .. code-block:: bash
 
             $ docker exec -it flexmeasures-tutorial-fm bash
 
@@ -63,14 +63,14 @@ Install Flexmeasures and the database
 
         To stop the containers, you can type
         
-        .. code-block:: console
+        .. code-block:: bash
         
             $ docker stop flexmeasures-tutorial-db
             $ docker stop flexmeasures-tutorial-fm
 
         To start the containers again, do this (note that re-running the `docker run` commands above *deletes and re-creates* all data!):
         
-        .. code-block:: console
+        .. code-block:: bash
         
             $ docker start flexmeasures-tutorial-db
             $ docker start flexmeasures-tutorial-fm
@@ -85,16 +85,16 @@ Install Flexmeasures and the database
 
         We'll create a database for FlexMeasures:
 
-        .. code-block:: console
+        .. code-block:: bash
 
-            sudo -i -u postgres
-            createdb -U postgres flexmeasures-db
-            createuser --pwprompt -U postgres flexmeasures-user      # enter your password, we'll use "fm-db-passwd"
-            exit
+            $ sudo -i -u postgres
+            $ createdb -U postgres flexmeasures-db
+            $ createuser --pwprompt -U postgres flexmeasures-user      # enter your password, we'll use "fm-db-passwd"
+            $ exit
 
         Then, we can install FlexMeasures itself, set some variables and tell FlexMeasures to create all tables:
 
-        .. code-block:: console
+        .. code-block:: bash
 
             $ pip install flexmeasures
             $ export SQLALCHEMY_DATABASE_URI="postgresql://flexmeasures-user:fm-db-passwd@localhost:5432/flexmeasures-db" SECRET_KEY=notsecret LOGGING_LEVEL="INFO" DEBUG=0
@@ -112,7 +112,7 @@ Let's create the structural data first.
 
 FlexMeasures offers a command to create a toy account with a battery:
 
-.. code-block:: console
+.. code-block:: bash
 
     $ flexmeasures add toy-account --kind battery
 
@@ -125,7 +125,7 @@ And with that, we're done with the structural data for this tutorial!
 
 If you want, you can inspect what you created:
 
-.. code-block:: console
+.. code-block:: bash
 
     $ flexmeasures show account --id 1                       
     
@@ -188,7 +188,7 @@ Add some price data
 
 Now to add price data. First, we'll create the csv file with prices (EUR/MWh, see the setup for sensor 2 above) for tomorrow.
 
-.. code-block:: console
+.. code-block:: bash
 
     $ TOMORROW=$(date --date="next day" '+%Y-%m-%d')
     $ echo "Hour,Price                                      
@@ -219,7 +219,7 @@ Now to add price data. First, we'll create the csv file with prices (EUR/MWh, se
 
 This is time series data, in FlexMeasures we call "beliefs". Beliefs can also be sent to FlexMeasures via API or imported from open data hubs like `ENTSO-E <https://github.com/SeitaBV/flexmeasures-entsoe>`_ or `OpenWeatherMap <https://github.com/SeitaBV/flexmeasures-openweathermap>`_. However, in this tutorial we'll show how you can read data in from a CSV file. Sometimes that's just what you need :)
 
-.. code-block:: console
+.. code-block:: bash
 
     $ flexmeasures add beliefs --sensor-id 2 --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam
     Successfully created beliefs
@@ -230,7 +230,7 @@ In FlexMeasures, all beliefs have a data source. Here, we use the username of th
 
 Let's look at the price data we just loaded:
 
-.. code-block:: console
+.. code-block:: bash
 
     $ flexmeasures show beliefs --sensor-id 2 --start ${TOMORROW}T00:00:00+01:00 --duration PT24H
     Beliefs for Sensor 'day-ahead prices' (ID 2).
@@ -276,7 +276,7 @@ Finally, we can create the schedule, which is the main benefit of FlexMeasures (
 We'll ask FlexMeasures for a schedule for our discharging sensor (ID 1). We also need to specify what to optimise against. Here we pass the Id of our market price sensor (3).
 To keep it short, we'll only ask for a 12-hour window starting at 7am. Finally, the scheduler should know what the state of charge of the battery is when the schedule starts (50%) and what its roundtrip efficiency is (90%).
 
-.. code-block:: console
+.. code-block:: bash
 
     $ flexmeasures add schedule for-storage --sensor-id 1 --consumption-price-sensor 2 \
         --start ${TOMORROW}T07:00+01:00 --duration PT12H \
@@ -285,7 +285,7 @@ To keep it short, we'll only ask for a 12-hour window starting at 7am. Finally, 
 
 Great. Let's see what we made:
 
-.. code-block:: console
+.. code-block:: bash
 
     $ flexmeasures show beliefs --sensor-id 1 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
     Beliefs for Sensor 'discharging' (ID 1).
@@ -334,7 +334,7 @@ So far we haven't taken into account any other devices that consume or produce e
 
 First, we'll create a new csv file with solar forecasts (MW, see the setup for sensor 3 above) for tomorrow.
 
-.. code-block:: console
+.. code-block:: bash
 
     $ TOMORROW=$(date --date="next day" '+%Y-%m-%d')
     $ echo "Hour,Price
@@ -370,7 +370,7 @@ Setting the data source type to "forecaster" helps FlexMeasures to visualize dis
 
 .. note:: The ``flexmeasures add source`` command also allows to set a model and version, so sources can be distinguished in more detail. But that is not the point of this tutorial. See ``flexmeasures add source --help``.
 
-.. code-block:: console
+.. code-block:: bash
 
     $ flexmeasures add source --name "toy-forecaster" --type forecaster
     Added source <Data source 4 (toy-forecaster)>
@@ -383,7 +383,7 @@ The one-hour CSV data is automatically resampled to the 15-minute resolution of 
 
 Now, we'll reschedule the battery while taking into account the solar production. This will have an effect on the available headroom for the battery.
 
-.. code-block:: console
+.. code-block:: bash
 
     $ flexmeasures add schedule for-storage --sensor-id 1 --consumption-price-sensor 2 \
         --inflexible-device-sensor 3 \
