@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import argparse
-import os
 import sys
 from getpass import getpass
 import inspect
@@ -27,8 +26,6 @@ For rendering of graphs (instead of saving a PNG), you'll need pillow:
 """
 
 DEBUG = True
-FALLBACK_VIEWER_CMD = "gwenview"  # Use this program if none of the standard viewers
-# (e.g. display) can be found. Can be overwritten as env var.
 
 RELEVANT_MODULES = [
     "task_runs",
@@ -143,7 +140,7 @@ def create_schema_pic(pg_url, pg_user, pg_pwd, store: bool = False, dev: bool = 
         print("Storing as image (db_schema.png) ...")
         graph.write_png("db_schema.png")  # write out the file
     else:
-        show_image(graph, fb_viewer_command=FALLBACK_VIEWER_CMD)
+        show_image(graph)
 
 
 @uses_dot
@@ -192,11 +189,11 @@ def create_uml_pic(store: bool = False, dev: bool = False):
         print("Storing as image (uml_diagram.png) ...")
         graph.write_png("uml_diagram.png")  # write out the file
     else:
-        show_image(graph, fb_viewer_command=FALLBACK_VIEWER_CMD)
+        show_image(graph)
 
 
 @uses_dot
-def show_image(graph, fb_viewer_command: str):
+def show_image(graph):
     """
     Show an image created through sqlalchemy_schemadisplay.
 
@@ -219,9 +216,7 @@ def show_image(graph, fb_viewer_command: str):
     iostream = BytesIO(graph.create_png())
 
     print("Showing image ...")
-    if DEBUG:
-        print("(fallback viewer is %s)" % fb_viewer_command)
-    Image.open(iostream).show(command=fb_viewer_command)
+    Image.open(iostream).show()
 
 
 if __name__ == "__main__":
@@ -266,9 +261,6 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-
-    if args.store is False:
-        FALLBACK_VIEWER_CMD = os.environ.get("FALLBACK_VIEWER_CMD", FALLBACK_VIEWER_CMD)
 
     if args.schema:
         pg_pwd = getpass(f"Please input the postgres password for user {args.pg_user}:")
