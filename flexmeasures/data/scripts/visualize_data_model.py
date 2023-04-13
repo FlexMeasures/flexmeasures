@@ -267,7 +267,7 @@ if __name__ == "__main__":
         create_schema_pic(
             args.pg_url, args.pg_user, pg_pwd, store=args.store, dev=args.dev
         )
-    if args.uml:
+    elif args.uml:
         try:
             from flexmeasures.data import db as flexmeasures_db
         except ImportError as ie:
@@ -276,3 +276,5 @@ if __name__ == "__main__":
             )
             sys.exit(0)
         create_uml_pic(store=args.store, dev=args.dev)
+    else:
+        print("Please specify either --uml or --schema. What do you want to see?")
