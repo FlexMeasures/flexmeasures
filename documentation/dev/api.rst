@@ -101,8 +101,8 @@ Test the entire api or just your new version:
 
 .. code-block:: bash
 
-   pytest -k api
-   pytest -k v1_1
+   $ pytest -k api
+   $ pytest -k v1_1
 
 UI Crud
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
