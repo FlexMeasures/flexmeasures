@@ -24,18 +24,18 @@ Here we assume you have access to a Redis server and configured it (see :ref:`re
 
 Start to run one worker for each kind of job (in a separate terminal):
 
-.. code-block:: console
+.. code-block:: bash
 
-   flexmeasures jobs run-worker --queue forecasting
-   flexmeasures jobs run-worker --queue scheduling
+   $ flexmeasures jobs run-worker --queue forecasting
+   $ flexmeasures jobs run-worker --queue scheduling
 
 
 You can also clear the job queues:
 
-.. code-block:: console
+.. code-block:: bash
 
-   flexmeasures jobs clear-queue --queue forecasting
-   flexmeasures jobs clear-queue --queue scheduling
+   $ flexmeasures jobs clear-queue --queue forecasting
+   $ flexmeasures jobs clear-queue --queue scheduling
 
 
 When the main FlexMeasures process runs (e.g. by ``flexmeasures run``\ ), the queues of forecasting and scheduling jobs can be visited at ``http://localhost:5000/tasks/forecasting`` and ``http://localhost:5000/tasks/schedules``\ , respectively (by admins).
@@ -73,9 +73,9 @@ If you host FlexMeasures yourself, we provide a CLI task for adding forecasts fo
 
 Here we request 6-hour forecasts to be made for two sensors, for a period of two days:
 
-.. code-block:: console
+.. code-block:: bash
 
-    flexmeasures add forecasts --sensor-id 2 --sensor-id 3 \
+    $ flexmeasures add forecasts --sensor-id 2 --sensor-id 3 \
         --from-date 2015-02-01 --to-date 2015-08-31 \
         --horizon 6 --as-job
 
@@ -129,9 +129,9 @@ If FlexMeasures receives this message, a scheduling job will be made and put int
 
 A second way to add scheduling jobs is via the CLI, so this is available for people who host FlexMeasures themselves:
 
-.. code-block:: console
+.. code-block:: bash
 
-    flexmeasures add schedule for-storage --sensor-id 2 --optimization-context-id 3 \
+    $ flexmeasures add schedule for-storage --sensor-id 1 --consumption-price-sensor 2 \
         --start 2022-07-05T07:00+01:00 --duration PT12H \
         --soc-at-start 50% --roundtrip-efficiency 90% --as-job
 

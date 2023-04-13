@@ -31,9 +31,9 @@ Download FlexMeasures
 ^^^^^^^^^^^^^^^^^^^^^^^
 Clone the `FlexMeasures repository <https://github.com/FlexMeasures/flexmeasures.git>`_ from GitHub.
 
-.. code-block:: console
+.. code-block:: bash
 
-   git clone https://github.com/FlexMeasures/flexmeasures.git
+   $ git clone https://github.com/FlexMeasures/flexmeasures.git
 
 .. note:: Are you using Visual Studio Code? Then the code you just cloned also contains the editor configuration (part of) our team is using!
 
@@ -43,16 +43,16 @@ Dependencies
 
 Go into the ``flexmeasures`` folder and install all dependencies including the ones needed for development:
 
-.. code-block:: console
+.. code-block:: bash
 
-   cd flexmeasures
-   make install-for-dev
+   $ cd flexmeasures
+   $ make install-for-dev
 
 :ref:`Install the LP solver <install-lp-solver>`. On Unix the Cbc LP solver can be installed with:
 
-.. code-block:: console
+.. code-block:: bash
 
-   apt-get install coinor-cbc
+   $ apt-get install coinor-cbc
 
 
 Configuration
@@ -72,9 +72,9 @@ Loading data
 
 If you have a SQL Dump file, you can load that:
 
-.. code-block:: console
+.. code-block:: bash
 
-   psql -U {user_name} -h {host_name} -d {database_name} -f {file_path}
+   $ psql -U {user_name} -h {host_name} -d {database_name} -f {file_path}
 
 
 Run locally
@@ -82,16 +82,16 @@ Run locally
 
 Now, to start the web application, you can run:
 
-.. code-block:: console
+.. code-block:: bash
 
-   flexmeasures run
+   $ flexmeasures run
 
 
 Or:
 
-.. code-block:: console
+.. code-block:: bash
 
-   python run-local.py
+   $ python run-local.py
 
 
 And access the server at http://localhost:5000
@@ -112,27 +112,27 @@ Tests
 
 You can run automated tests with:
 
-.. code-block:: console
+.. code-block:: bash
 
-   make test
+   $ make test
 
 
 which behind the curtains installs dependencies and calls pytest.
 
 A coverage report can be created like this:
 
-.. code-block:: console
+.. code-block:: bash
 
-   pytest --cov=flexmeasures --cov-config .coveragerc
+   $ pytest --cov=flexmeasures --cov-config .coveragerc
 
 
 You can add --cov-report=html after which a htmlcov/index.html is generated.
 
 It's also possible to use:
 
-.. code-block:: console
+.. code-block:: bash
 
-   python setup.py test
+   $ python setup.py test
 
 
 
@@ -159,10 +159,10 @@ We also run `mypy <http://mypy-lang.org/>`_ on many files to do some static type
 We do this so real problems are found faster and the discussion about formatting is limited.
 All of these can be installed by using ``pip``, but we recommend using them as a pre-commit hook. To activate that behaviour, do:
 
-.. code-block:: console
+.. code-block:: bash
 
-   pip install pre-commit
-   pre-commit install
+   $ pip install pre-commit
+   $ pre-commit install
 
 
 in your virtual environment.
@@ -182,10 +182,10 @@ A hint about using notebooks
 
 If you edit notebooks, make sure results do not end up in git:
 
-.. code-block:: console
+.. code-block:: bash
 
-   conda install -c conda-forge nbstripout
-   nbstripout --install
+   $ conda install -c conda-forge nbstripout
+   $ nbstripout --install
 
 
 (on Windows, maybe you need to look closer at https://github.com/kynan/nbstripout)
@@ -201,7 +201,7 @@ I added this to my ~/.bashrc, so I only need to type ``fm`` to get started and h
 
    addssh(){
        eval `ssh-agent -s`
-       ssh-add ~/.ssh/id_bitbucket
+       ssh-add ~/.ssh/id_github
    }
    fm(){
        addssh
