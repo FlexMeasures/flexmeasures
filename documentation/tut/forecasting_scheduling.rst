@@ -131,7 +131,7 @@ A second way to add scheduling jobs is via the CLI, so this is available for peo
 
 .. code-block:: bash
 
-    $ flexmeasures add schedule for-storage --sensor-id 2 --optimization-context-id 3 \
+    $ flexmeasures add schedule for-storage --sensor-id 1 --consumption-price-sensor 2 \
         --start 2022-07-05T07:00+01:00 --duration PT12H \
         --soc-at-start 50% --roundtrip-efficiency 90% --as-job
 
