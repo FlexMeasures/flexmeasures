@@ -112,7 +112,9 @@ def uses_dot(func):
 
 
 @uses_dot
-def create_schema_pic(pg_url, pg_user, pg_pwd, store: bool = False, dev: bool = False):
+def create_schema_pic(
+    pg_url, pg_user, pg_pwd, store: bool = False, deprecated: bool = False
+):
     """Create a picture of the SCHEMA of relevant tables."""
     print("CREATING SCHEMA PICTURE ...")
     print(
@@ -120,10 +122,10 @@ def create_schema_pic(pg_url, pg_user, pg_pwd, store: bool = False, dev: bool = 
     )
     db_metadata = MetaData(f"postgresql://{pg_user}:{pg_pwd}@{pg_url}")
     relevant_tables = RELEVANT_TABLES
-    if dev:
-        relevant_tables += RELEVANT_TABLES_DEV
-    else:
+    if deprecated:
         relevant_tables += LEGACY_TABLES
+    else:
+        relevant_tables += RELEVANT_TABLES_DEV
     kwargs = dict(
         metadata=db_metadata,
         show_datatypes=False,  # The image would get nasty big if we'd show the datatypes
@@ -144,7 +146,7 @@ def create_schema_pic(pg_url, pg_user, pg_pwd, store: bool = False, dev: bool = 
 
 
 @uses_dot
-def create_uml_pic(store: bool = False, dev: bool = False):
+def create_uml_pic(store: bool = False, deprecated: bool = False):
     print("CREATING UML CODE DIAGRAM ...")
     print("Finding all the relevant mappers in our model...")
     mappers = []
@@ -163,10 +165,10 @@ def create_uml_pic(store: bool = False, dev: bool = False):
             }
         )
     relevant_tables = RELEVANT_TABLES
-    if dev:
-        relevant_tables += RELEVANT_TABLES_DEV
-    else:
+    if deprecated:
         relevant_tables += LEGACY_TABLES
+    else:
+        relevant_tables += RELEVANT_TABLES_DEV
     if DEBUG:
         print(f"Relevant tables: {relevant_tables}")
         print(f"Relevant models: {relevant_models}")
@@ -240,9 +242,9 @@ if __name__ == "__main__":
         help="Visualize the relationships available in code (UML style).",
     )
     parser.add_argument(
-        "--dev",
+        "--deprecated",
         action="store_true",
-        help="If given, include the parts of the new data model which are in development.",
+        help="If given, include the parts of the depcrecated data model, and leave out their new counterparts.",
     )
     parser.add_argument(
         "--store",
@@ -265,7 +267,11 @@ if __name__ == "__main__":
     if args.schema:
         pg_pwd = getpass(f"Please input the postgres password for user {args.pg_user}:")
         create_schema_pic(
-            args.pg_url, args.pg_user, pg_pwd, store=args.store, dev=args.dev
+            args.pg_url,
+            args.pg_user,
+            pg_pwd,
+            store=args.store,
+            deprecated=args.deprecated,
         )
     elif args.uml:
         try:
@@ -275,6 +281,6 @@ if __name__ == "__main__":
                 f"We need flexmeasures.data to be in the path, so we can read the data model. Error: '{ie}''."
             )
             sys.exit(0)
-        create_uml_pic(store=args.store, dev=args.dev)
+        create_uml_pic(store=args.store, deprecated=args.deprecated)
     else:
         print("Please specify either --uml or --schema. What do you want to see?")
