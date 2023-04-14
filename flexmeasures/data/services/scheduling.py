@@ -19,12 +19,16 @@ from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.utils import get_data_source, save_to_db
 from flexmeasures.utils.time_utils import server_now
+from flexmeasures.data.services.utils import job_cache
 
 
+@job_cache("scheduling")
 def create_scheduling_job(
     sensor: Sensor,
     job_id: str | None = None,
     enqueue: bool = True,
+    requeue: bool = False,
+    force_new_job_creation: bool = False,
     **scheduler_kwargs,
 ) -> Job:
     """
@@ -39,6 +43,17 @@ def create_scheduling_job(
     1. A scheduling job is born here (in create_scheduling_job).
     2. It is run in make_schedule which writes results to the db.
     3. If an error occurs (and the worker is configured accordingly), handle_scheduling_exception comes in.
+
+    Arguments:
+    :param sensor:                  sensor for which the schedule is computed
+    :param job_id:                  optionally, set a job id explicitly
+    :param enqueue:                 if True, enqueues the job in case it is new
+    :param requeue:                 if True, requeues the job in case it is not new and had previously failed
+                                    (this argument is used by the @job_cache decorator)
+    :param force_new_job_creation:  if True, this attribute forces a new job to be created (skipping cache)
+                                    (this argument is used by the @job_cache decorator)
+    :returns: the job
+
     """
     # We first create a scheduler and check if deserializing works, so the flex config is checked
     # and errors are raised before the job is enqueued (so users get a meaningful response right away).
@@ -62,7 +77,12 @@ def create_scheduling_job(
             ).total_seconds()
         ),  # NB job.cleanup docs says a negative number of seconds means persisting forever
     )
-    if enqueue:
+
+    # in case the function enqueues it
+    job_status = job.get_status(refresh=True)
+
+    # with job_status=None, we ensure that only fresh new jobs are enqueued (in the contrary they should be requeued)
+    if enqueue and not job_status:
         current_app.queues["scheduling"].enqueue_job(job)
 
     return job
@@ -78,6 +98,7 @@ def make_schedule(
     flex_context: dict | None = None,
     flex_config_has_been_deserialized: bool = False,
 ) -> bool:
+
     """
     This function computes a schedule. It returns True if it ran successfully.
 

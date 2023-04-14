@@ -119,6 +119,7 @@ class Config(object):
     FLEXMEASURES_PLANNING_TTL: timedelta = timedelta(
         days=7
     )  # Time to live for UDI event ids of successful scheduling jobs. Set a negative timedelta to persist forever.
+    FLEXMEASURES_JOB_CACHE_TTL: int = 3600  # Time to live for the job caching keys in seconds. Set a negative timedelta to persist forever.
     FLEXMEASURES_TASK_CHECK_AUTH_TOKEN: Optional[str] = None
     FLEXMEASURES_REDIS_URL: str = "localhost"
     FLEXMEASURES_REDIS_PORT: int = 6379
