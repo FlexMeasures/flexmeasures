@@ -98,7 +98,8 @@ Install Flexmeasures and the database
 
             $ pip install flexmeasures
             $ export SQLALCHEMY_DATABASE_URI="postgresql://flexmeasures-user:fm-db-passwd@localhost:5432/flexmeasures-db" SECRET_KEY=notsecret LOGGING_LEVEL="INFO" DEBUG=0
-            $ flexmeasures db upgrade 
+            $ export FLASK_ENV = "development"
+            $ flexmeasures db upgrade
 
         .. note:: When installing with ``pip``, on some platforms problems might come up (e.g. macOS, Windows). One reason is that FlexMeasures requires some libraries with lots of C code support (e.g. Numpy). One way out is to use Docker, which uses a prepared Linux image, so it'll definitely work.
 
@@ -171,14 +172,7 @@ Yes, that is quite a large battery :)
 
 .. note:: Obviously, you can use the ``flexmeasures`` command to create your own, custom account and assets. See :ref:`cli`. And to create, edit or read asset data via the API, see :ref:`v3_0`.
 
-We can also look at the battery asset in the UI of FlexMeasures (in Docker, the FlexMeasures web server already runs, on your PC you can start it with ``flexmeasures run``), but before this we need to add two environment variables.
-First create ``.env`` file in ``~/flexmeasures`` directory and then add the following variables.
-
-.. code-block:: console
-
-    SECRET_KEY = key                   # key can be anything
-    FLASK_ENV = "development"
-
+We can also look at the battery asset in the UI of FlexMeasures (in Docker, the FlexMeasures web server already runs, on your PC you can start it with ``flexmeasures run``).
 Visit `http://localhost:5000/assets <http://localhost:5000/assets>`_ (username is "toy-user@flexmeasures.io", password is "toy-password") and select "toy-battery":
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/asset-view.png
@@ -329,27 +323,4 @@ We can also look at the charging schedule in the `FlexMeasures UI <http://localh
 
 Recall that we only asked for a 12 hour schedule here. We started our schedule *after* the high price peak (at 5am) and it also had to end *before* the second price peak fully realised (at 9pm). Our scheduler didn't have many opportunities to optimize, but it found some. For instance, it does buy at the lowest price (around 3pm) and sells it off when prices start rising again (around 6pm).
 
-.. note:: In case we want to delete toy-account and add it again to run the tutorial, it is recommended to delete the database ``flexmeasures-db`` that we have created for this tutorial because on the same database we will get different IDs for the sensors. Follow the following commands.
-
-.. code-block:: console
-
-    # logged in as the postgres superuser
-    $ sudo -u postgres psql
-    # delete the database
-    $ DROP DATABASE flexmeasures-db
-    # create new database
-    $ CREATE DATABASE flexmeasures-db
-    # now connect to database and create extensions
-    $ \connect flexmeasures-db
-    $ CREATE EXTENSION cube;
-    $ CREATE EXTENSION earthdistance;
-    $ exit
-
-Then we will the get database structure with
-
-.. code-block:: console
-
-    $ flexmeasures db migrate
-    $ flexmeasures db upgrade
-
-.. note:: The ``flexmeasures add schedule for-storage`` command also accepts state-of-charge targets, so the schedule can be more sophisticated. But that is not the point of this tutorial. See ``flexmeasures add schedule for-storage --help``. 
+.. note:: The ``flexmeasures add schedule for-storage`` command also accepts state-of-charge targets, so the schedule can be more sophisticated. But that is not the point of this tutorial. See ``flexmeasures add schedule for-storage --help``.
