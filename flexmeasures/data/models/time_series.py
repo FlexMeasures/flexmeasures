@@ -489,6 +489,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         return dict(
             id=self.id,
             name=self.name,
+            description=f"{self.name} ({self.generic_asset.name})",
         )
 
     @classmethod
@@ -523,6 +524,13 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             return query.first()
         else:
             return query.limit(n).all()
+
+    def make_hashable(self) -> tuple:
+        """Returns a tuple with the properties subject to change
+        In principle all properties (except ID) of a given sensor could be changed, but not all changes are relevant to warrant reanalysis (e.g. scheduling or forecasting).
+        """
+
+        return (self.id, self.attributes, self.generic_asset.attributes)
 
 
 class TimedBelief(db.Model, tb.TimedBeliefDBMixin):

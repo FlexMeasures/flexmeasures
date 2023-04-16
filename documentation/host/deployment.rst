@@ -55,9 +55,9 @@ Cbc needs to be present on the server where FlexMeasures runs, under the ``cbc``
 
 You can install it on Debian like this:
 
-.. code-block:: console
+.. code-block:: bash
 
-   apt-get install coinor-cbc
+   $ apt-get install coinor-cbc
 
 
 If you can't use the package manager on your host, the solver has to be installed from source.

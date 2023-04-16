@@ -25,7 +25,7 @@ def humanize(word):
 
 
 def parameterize(word):
-    """Parameterize the word so it can be used as a python or javascript variable name.
+    """Parameterize the word, so it can be used as a python or javascript variable name.
     For example:
     >>> word = "Acme® EV-Charger™"
     "acme_ev_chargertm"
@@ -55,3 +55,7 @@ def titleize(word):
     for ac in ACRONYMS:
         word = re.sub(inflection.titleize(ac), ac, word)
     return word
+
+
+def join_words_into_a_list(words: list[str]) -> str:
+    return p.join(words, final_sep="")

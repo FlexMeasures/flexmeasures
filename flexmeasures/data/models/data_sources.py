@@ -15,7 +15,7 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
     __tablename__ = "data_source"
     __table_args__ = (db.UniqueConstraint("name", "user_id", "model", "version"),)
 
-    # The type of data source (e.g. user, forecasting script or scheduling script)
+    # The type of data source (e.g. user, forecaster or scheduler)
     type = db.Column(db.String(80), default="")
 
     # The id of the user source (can link e.g. to fm_user table)
@@ -50,12 +50,12 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
     @property
     def label(self):
-        """Human-readable label (preferably not starting with a capital letter so it can be used in a sentence)."""
+        """Human-readable label (preferably not starting with a capital letter, so it can be used in a sentence)."""
         if self.type == "user":
             return f"data entered by user {self.user.username}"  # todo: give users a display name
-        elif self.type == "forecasting script":
+        elif self.type == "forecaster":
             return f"forecast by {self.name}"  # todo: give DataSource an optional db column to persist versioned models separately to the name of the data source?
-        elif self.type == "scheduling script":
+        elif self.type == "scheduler":
             return f"schedule by {self.name}"
         elif self.type == "crawling script":
             return f"data retrieved from {self.name}"
@@ -70,7 +70,7 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
         For example:
 
-            >>> DataSource("Seita", type="forecasting script", model="naive", version="1.2").description
+            >>> DataSource("Seita", type="forecaster", model="naive", version="1.2").description
             <<< "Seita's naive model v1.2.0"
 
         """
@@ -90,10 +90,11 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
     def to_dict(self) -> dict:
         model_incl_version = self.model if self.model else ""
         if self.model and self.version:
-            model_incl_version += f" ({self.version}"
+            model_incl_version += f" (v{self.version})"
         return dict(
             id=self.id,
             name=self.name,
             model=model_incl_version,
+            type=self.type if self.type in ("forecaster", "scheduler") else "other",
             description=self.description,
         )

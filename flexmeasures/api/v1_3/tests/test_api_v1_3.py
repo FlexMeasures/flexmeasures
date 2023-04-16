@@ -93,7 +93,7 @@ def test_post_udi_event_and_get_device_message(
     job.refresh()  # catch meta info that was added on this very instance
     data_source_info = job.meta.get("data_source_info")
     scheduler_source = DataSource.query.filter_by(
-        type="scheduling script", **data_source_info
+        type="scheduler", **data_source_info
     ).one_or_none()
     assert (
         scheduler_source is not None

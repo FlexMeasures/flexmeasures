@@ -147,15 +147,25 @@ def test_alter_an_asset(client, setup_api_test_data, setup_accounts):
 
 
 @pytest.mark.parametrize(
-    "bad_json_str",
+    "bad_json_str, error_msg",
     [
-        None,
-        "{",
-        '{"hallo": world}',
+        (None, "may not be null"),
+        ("{", "Not a valid JSON"),
+        ('{"hallo": world}', "Not a valid JSON"),
+        ('{"sensors_to_show": [0, 1]}', "No sensor found"),  # no sensor with ID 0
+        ('{"sensors_to_show": [1, [0, 2]]}', "No sensor found"),  # no sensor with ID 0
+        (
+            '{"sensors_to_show": [1, [2, [3, 4]]]}',
+            "should only contain",
+        ),  # nesting level max 1
+        (
+            '{"sensors_to_show": [1, "2"]}',
+            "should only contain",
+        ),  # non-integer sensor ID
     ],
 )
 def test_alter_an_asset_with_bad_json_attributes(
-    client, setup_api_test_data, setup_accounts, bad_json_str
+    client, setup_api_test_data, setup_accounts, bad_json_str, error_msg
 ):
     """Check whether updating an asset's attributes with a badly structured JSON fails."""
     with UserContext("test_prosumer_user@seita.nl") as prosumer1:
@@ -169,6 +179,7 @@ def test_alter_an_asset_with_bad_json_attributes(
     )
     print(f"Editing Response: {asset_edit_response.json}")
     assert asset_edit_response.status_code == 422
+    assert error_msg in asset_edit_response.json["message"]["json"]["attributes"][0]
 
 
 def test_alter_an_asset_with_json_attributes(
@@ -179,6 +190,9 @@ def test_alter_an_asset_with_json_attributes(
         auth_token = prosumer1.get_auth_token()
     with AccountContext("Test Prosumer Account") as prosumer:
         prosumer_asset = prosumer.generic_assets[0]
+        assert prosumer_asset.attributes[
+            "sensors_to_show"
+        ]  # make sure we run this test on an asset with a non-empty sensors_to_show attribute
     asset_edit_response = client.patch(
         url_for("AssetAPI:patch", id=prosumer_asset.id),
         headers={"content-type": "application/json", "Authorization": auth_token},

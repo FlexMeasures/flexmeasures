@@ -22,23 +22,23 @@ Run workers
 
 Here is how to run one worker for each kind of job (in separate terminals):
 
-.. code-block:: console
+.. code-block:: bash
 
-   flexmeasures jobs run-worker --name our-only-worker --queue forecasting|scheduling
+   $ flexmeasures jobs run-worker --name our-only-worker --queue forecasting|scheduling
 
 Running multiple workers in parallel might be a great idea.
 
-.. code-block:: console
+.. code-block:: bash
 
-   flexmeasures jobs run-worker --name forecaster --queue forecasting
-   flexmeasures jobs run-worker --name scheduler --queue scheduling
+   $ flexmeasures jobs run-worker --name forecaster --queue forecasting
+   $ flexmeasures jobs run-worker --name scheduler --queue scheduling
 
 You can also clear the job queues:
 
-.. code-block:: console
+.. code-block:: bash
 
-   flexmeasures jobs clear-queue --queue forecasting
-   flexmeasures jobs clear-queue --queue scheduling
+   $ flexmeasures jobs clear-queue --queue forecasting
+   $ flexmeasures jobs clear-queue --queue scheduling
 
 
 When the main FlexMeasures process runs (e.g. by ``flexmeasures run``\ ), the queues of forecasting and scheduling jobs can be visited at ``http://localhost:5000/tasks/forecasting`` and ``http://localhost:5000/tasks/schedules``\ , respectively (by admins).
@@ -50,10 +50,10 @@ Inspect the queue and jobs
 
 The first option to inspect the state of the ``forecasting`` queue should be via the formidable `RQ dashboard <https://github.com/Parallels/rq-dashboard>`_. If you have admin rights, you can access it at ``your-flexmeasures-url/rq/``\ , so for instance ``http://localhost:5000/rq/``. You can also start RQ dashboard yourself (but you need to know the redis server credentials):
 
-.. code-block:: console
+.. code-block:: bash
 
-   pip install rq-dashboard
-   rq-dashboard --redis-host my.ip.addr.ess --redis-password secret --redis-database 0
+   $ pip install rq-dashboard
+   $ rq-dashboard --redis-host my.ip.addr.ess --redis-password secret --redis-database 0
 
 
 RQ dashboard shows you ongoing and failed jobs, and you can see the error messages of the latter, which is very useful.
