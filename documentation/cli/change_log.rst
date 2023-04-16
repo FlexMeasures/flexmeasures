@@ -4,6 +4,12 @@
 FlexMeasures CLI Changelog
 **********************
 
+since v0.13.0 | April XX, 2023
+=================================
+
+* Add ``flexmeasures add source`` CLI command for adding a new data source.
+* Add ``--inflexible-device-sensor`` option to ``flexmeasures add schedule``.
+
 since v0.12.0 | January 04, 2023
 =================================
 

@@ -57,6 +57,7 @@ from flexmeasures.data.models.user import User
 from flexmeasures.data.services.data_sources import (
     get_source_or_none,
 )
+from flexmeasures.data.services.utils import get_or_create_model
 from flexmeasures.utils import flexmeasures_inflection
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.utils.unit_utils import convert_units, ur
@@ -300,6 +301,44 @@ def add_asset(**args):
 def add_initial_structure():
     """Initialize useful structural data."""
     populate_initial_structure(db)
+
+
+@fm_add_data.command("source")
+@with_appcontext
+@click.option(
+    "--name",
+    required=True,
+    type=str,
+    help="Name of the source (usually an organisation)",
+)
+@click.option(
+    "--model",
+    required=False,
+    type=str,
+    help="Optionally, specify a model (for example, a class name, function name or url).",
+)
+@click.option(
+    "--version",
+    required=False,
+    type=str,
+    help="Optionally, specify a version (for example, '1.0'.",
+)
+@click.option(
+    "--type",
+    "source_type",
+    required=True,
+    type=str,
+    help="Type of source (for example, 'forecaster' or 'scheduler').",
+)
+def add_source(name: str, model: str, version: str, source_type: str):
+    source = get_or_create_source(
+        source=name,
+        model=model,
+        version=version,
+        source_type=source_type,
+    )
+    db.session.commit()
+    click.secho(f"Added source {source.__repr__()}", **MsgStyle.SUCCESS)
 
 
 @fm_add_data.command("beliefs")
@@ -910,6 +949,14 @@ def create_schedule(ctx):
     help="To be deprecated. Use consumption-price-sensor instead.",
 )
 @click.option(
+    "--inflexible-device-sensor",
+    "inflexible_device_sensors",
+    type=SensorIdField(),
+    multiple=True,
+    help="Take into account the power flow of inflexible devices. Follow up with the sensor's ID."
+    " This argument can be given multiple times.",
+)
+@click.option(
     "--start",
     "start",
     type=AwareDateTimeField(format="iso"),
@@ -975,6 +1022,7 @@ def add_schedule_for_storage(
     consumption_price_sensor: Sensor,
     production_price_sensor: Sensor,
     optimization_context_sensor: Sensor,
+    inflexible_device_sensors: list[Sensor],
     start: datetime,
     duration: timedelta,
     soc_at_start: ur.Quantity,
@@ -1054,6 +1102,7 @@ def add_schedule_for_storage(
         flex_context={
             "consumption-price-sensor": consumption_price_sensor.id,
             "production-price-sensor": production_price_sensor.id,
+            "inflexible-device-sensors": [s.id for s in inflexible_device_sensors],
         },
     )
     if as_job:
@@ -1088,7 +1137,10 @@ def add_toy_account(kind: str, name: str):
         # make an account (if not exist)
         account = Account.query.filter(Account.name == name).one_or_none()
         if account:
-            click.echo(f"Account {name} already exists.")
+            click.secho(
+                f"Account '{account}' already exists. Use `flexmeasures delete account --id {account.id}` to remove it first.",
+                **MsgStyle.ERROR,
+            )
             raise click.Abort()
         # make an account user (account-admin?)
         email = "toy-user@flexmeasures.io"
@@ -1106,57 +1158,69 @@ def add_toy_account(kind: str, name: str):
                 user_roles=["account-admin"],
                 account_name=name,
             )
-        # make assets
-        for asset_type in ("solar", "building", "battery"):
-            asset = GenericAsset(
+
+        def create_power_asset(asset_type: str, sensor_name: str, **attributes):
+            asset = get_or_create_model(
+                GenericAsset,
                 name=f"toy-{asset_type}",
                 generic_asset_type=asset_types[asset_type],
                 owner=user.account,
                 latitude=location[0],
                 longitude=location[1],
             )
-            db.session.add(asset)
-            if asset_type == "battery":
-                asset.attributes = dict(
-                    capacity_in_mw=0.5,
-                    min_soc_in_mwh=0.05,
-                    max_soc_in_mwh=0.45,
-                )
-                # add charging sensor to battery
-                charging_sensor = Sensor(
-                    name="discharging",
-                    generic_asset=asset,
-                    unit="MW",
-                    timezone="Europe/Amsterdam",
-                    event_resolution=timedelta(minutes=15),
-                )
-                db.session.add(charging_sensor)
+            asset.attributes = attributes
+            power_sensor_specs = dict(
+                generic_asset=asset,
+                unit="MW",
+                timezone="Europe/Amsterdam",
+                event_resolution=timedelta(minutes=15),
+            )
+            power_sensor = get_or_create_model(
+                Sensor,
+                name=sensor_name,
+                **power_sensor_specs,
+            )
+            return power_sensor
+
+        # create battery
+        discharging_sensor = create_power_asset(
+            "battery",
+            "discharging",
+            capacity_in_mw=0.5,
+            min_soc_in_mwh=0.05,
+            max_soc_in_mwh=0.45,
+        )
 
         # add public day-ahead market (as sensor of transmission zone asset)
         nl_zone = add_transmission_zone_asset("NL", db=db)
-        day_ahead_sensor = Sensor.query.filter(
-            Sensor.generic_asset == nl_zone, Sensor.name == "Day ahead prices"
-        ).one_or_none()
-        if not day_ahead_sensor:
-            day_ahead_sensor = Sensor(
-                name="Day ahead prices",
-                generic_asset=nl_zone,
-                unit="EUR/MWh",
-                timezone="Europe/Amsterdam",
-                event_resolution=timedelta(minutes=60),
-                knowledge_horizon=(
-                    x_days_ago_at_y_oclock,
-                    {"x": 1, "y": 12, "z": "Europe/Paris"},
-                ),
-            )
-        db.session.add(day_ahead_sensor)
+        day_ahead_sensor = get_or_create_model(
+            Sensor,
+            name="day-ahead prices",
+            generic_asset=nl_zone,
+            unit="EUR/MWh",
+            timezone="Europe/Amsterdam",
+            event_resolution=timedelta(minutes=60),
+            knowledge_horizon=(
+                x_days_ago_at_y_oclock,
+                {"x": 1, "y": 12, "z": "Europe/Paris"},
+            ),
+        )
 
-        # add day-ahead sensor to battery page
+        # create solar
+        production_sensor = create_power_asset(
+            "solar",
+            "production",
+        )
+
+        # add day-ahead price sensor and PV production sensor to show on the battery's asset page
         db.session.flush()
-        battery = charging_sensor.generic_asset
+        battery = discharging_sensor.generic_asset
         battery.attributes["sensors_to_show"] = [
             day_ahead_sensor.id,
-            charging_sensor.id,
+            [
+                production_sensor.id,
+                discharging_sensor.id,
+            ],
         ]
     db.session.commit()
 
@@ -1165,11 +1229,15 @@ def add_toy_account(kind: str, name: str):
         **MsgStyle.SUCCESS,
     )
     click.secho(
-        f"The sensor for battery discharging is {charging_sensor} (ID: {charging_sensor.id}).",
+        f"The sensor recording battery discharging is {discharging_sensor} (ID: {discharging_sensor.id}).",
         **MsgStyle.SUCCESS,
     )
     click.secho(
-        f"The sensor for Day ahead prices is {day_ahead_sensor} (ID: {day_ahead_sensor.id}).",
+        f"The sensor recording day-ahead prices is {day_ahead_sensor} (ID: {day_ahead_sensor.id}).",
+        **MsgStyle.SUCCESS,
+    )
+    click.secho(
+        f"The sensor recording solar forecasts is {production_sensor} (ID: {production_sensor.id}).",
         **MsgStyle.SUCCESS,
     )
 
