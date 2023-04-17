@@ -93,7 +93,7 @@ def setup_dummy_sensors(db, app):
                 "transformations": [
                     {"df_output": "output1", "df_input": "sensor_1", "method": "copy"},
                     {"method": "copy"},
-                    {"df_output": "final_output", "method": "resample"},
+                    {"df_output": "final_output", "method": "resample", "args": ["1h"]},
                 ],
                 "final_df_output": "final_output",
             },
@@ -116,11 +116,12 @@ def setup_dummy_sensors(db, app):
                 "transformations": [
                     {"df_output": "output1", "df_input": "sensor_1", "method": "copy"},
                     {"method": "copy"},
-                    {"df_output": "final_output", "method": "resample"},
+                    {"df_output": "final_output", "method": "resample", "args": ["1h"]},
+                    {"method": "sum"},
                 ],
                 "final_df_output": "final_output",
             },
-            False,
+            True,
         ),
     ],
 )

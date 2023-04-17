@@ -59,7 +59,9 @@ class Reporter:
                 self.data[f"source_{source.id}"] = source
 
             # saving bdf
-            self.data[f"sensor_{sensor.id}"] = bdf
+            self.data[
+                f"sensor_{sensor.id}"
+            ] = bdf  # TODO: Add alias to reference dataframes easily. e.g: dict(sensor = 1, alias="power"),
 
     def compute(self, *args, **kwargs) -> Optional[pd.DataFrame]:
         """This method triggers the creation of a new report. This method allows to update the fields

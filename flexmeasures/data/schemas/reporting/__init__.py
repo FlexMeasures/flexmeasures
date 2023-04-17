@@ -18,8 +18,8 @@ class TimeBeliefQueryConfigSchema(Schema):
     beliefs_after = fields.DateTime()
     beliefs_before = fields.DateTime()
 
-    horizons_at_least = fields.TimeDelta(precision="minutes")
-    horizons_at_most = fields.TimeDelta(precision="minutes")
+    horizons_at_least = fields.TimeDelta(precision=fields.TimeDelta.SECONDS)
+    horizons_at_most = fields.TimeDelta(precision=fields.TimeDelta.SECONDS)
 
     source = DataSourceIdField()
     # user_source_ids: Optional[Union[int, List[int]]] = None,
@@ -31,7 +31,7 @@ class TimeBeliefQueryConfigSchema(Schema):
 
     one_deterministic_belief_per_event = fields.Boolean()
     one_deterministic_belief_per_event_per_source = fields.Boolean()
-    resolution = fields.TimeDelta()
+    resolution = fields.TimeDelta(precision=fields.TimeDelta.SECONDS)
     sum_multiple = fields.Boolean()
 
 
