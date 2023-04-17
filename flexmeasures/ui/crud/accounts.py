@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from flask import url_for
+from flask import request, url_for
 from flask_classful import FlaskView
 from flask_security import login_required
 from flexmeasures.ui.crud.api_wrapper import InternalApi
@@ -44,13 +44,15 @@ class AccountCrudUI(FlaskView):
     @login_required
     def get(self, account_id: str):
         """/accounts/<account_id>"""
+        include_inactive = request.args.get("include_inactive", "0") != "0"
         account = get_account(account_id)
         assets = get_assets_by_account(account_id)
         assets += get_assets_by_account(account_id=None)
-        users = get_users_by_account(account_id)
+        users = get_users_by_account(account_id, include_inactive=include_inactive)
         return render_flexmeasures_template(
             "crud/account.html",
             account=account,
             assets=assets,
             users=users,
+            include_inactive=include_inactive,
         )
