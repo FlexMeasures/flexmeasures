@@ -11,7 +11,6 @@ from flexmeasures.ui.crud.users import get_users_by_account
 
 def get_accounts() -> list[dict]:
     """/accounts"""
-    accounts = []
     accounts_response = InternalApi().get(url_for("AccountAPI:index"))
     accounts = accounts_response.json()
 
@@ -49,7 +48,6 @@ class AccountCrudUI(FlaskView):
         assets = get_assets_by_account(account_id)
         assets += get_assets_by_account(account_id=None)
         users = get_users_by_account(account_id)
-        # users = get_users_by_account(users)
         return render_flexmeasures_template(
             "crud/account.html",
             account=account,
