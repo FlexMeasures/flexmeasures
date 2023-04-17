@@ -1,0 +1,153 @@
+{% extends "base.html" %} 
+{% set active_page = "accounts" %}
+{% block title %} Account overview {% endblock %} 
+{% block divs %}
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-sm-2"></div>
+        <div class="col-sm-8">
+            <div class="card">
+                <h3>Account</h3>
+                <small>Account: {{ account.name }}</small>
+
+                <table class="table table-striped table-responsive">
+                    <tbody>
+                        <tr>
+                            <td>
+                                ID
+                            </td>
+                            <td>
+                                {{ account.id }}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                Roles
+                            </td>
+                            <td>
+                                {{ account.account_roles | map(attribute='name') | join(", ") }}
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="card">
+                <h3>Users</h3>
+
+                <form class="text-right form-inline" role="form" target="" method="get" id="user-list-options">
+                    <div class="checkbox">
+                        <label>
+                            <input name="include_inactive" {% if include_inactive %} checked="checked" {% endif %}
+                                type="checkbox"> Include inactive
+                        </label>
+                    </div>
+                </form>
+                <table class="table table-striped table-responsive paginate">
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Email</th>
+                            <th>Roles</th>
+                            <th>Timezone</th>
+                            <th>Last Login</th>
+                            <th>Last Seen</th>
+                            <th>Active</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        <tr>
+                            <td>
+                                <a href="/users/{{ user.id }}" title="View/edit this user">{{ user.username
+                                    }}</a>
+                            </td>
+                            <td>
+                                <a href="mailto:{{ user.email }}" title="Mail this user">{{ user.email }}</a>
+                            </td>
+                            <td>{% for role in user.flexmeasures_roles %}
+                                {{ role.name }}{{ "," if not loop.last }}
+                                {% endfor %}
+                            </td>
+                            <td>
+                                {{ user.timezone }}
+                            </td>
+                            <td title="{{  user.last_login_at | localized_datetime }}" data-sort="{{ user.last_login_at }}">
+                                {{ user.last_login_at | naturalized_datetime}}
+                            </td>
+                            <td title="{{  user.last_seen_at | localized_datetime }}" data-sort="{{ user.last_seen_at }}">
+                                {{ user.last_seen_at | naturalized_datetime}}
+                            </td>
+                            <td>
+                                {{ user.active }}
+                            </td>
+
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="card">
+                <h3>Assets</h3>
+
+                <table class="table table-striped table-responsive paginate">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Location</th>
+                            <th>Asset ID</th>
+                            <th>Account</th>
+                            <th>Sensors</th>
+                            <th class="text-right no-sort">
+                                {% if user_can_create_assets %}
+                                <form action="/assets/new" method="get">
+                                    <button class="btn btn-sm btn-responsive btn-success create-button"
+                                        type="submit">Create
+                                        new
+                                        asset</button>
+                                </form>
+                                {% endif %}
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for asset in assets %}
+                        <tr>
+                            <td>
+                                <i class="{{ asset.generic_asset_type.name | asset_icon }} left-icon"><a
+                                        href="/assets/{{ asset.id }}" alt="View this asset">{{ asset.name }}</a></i>
+                            </td>
+                            <td>
+                                {% if asset.latitude and asset.longitude %}
+                                LAT: {{ "{:,.4f}".format( asset.latitude ) }} LONG:
+                                {{ "{:,.4f}".format( asset.longitude ) }}
+                                {% endif %}
+                            </td>
+                            <td>
+                                {{ asset.id }}
+                            </td>
+                            <td>
+                                {% if asset.owner %}
+                                {{ asset.owner.name }}
+                                {% else %}
+                                PUBLIC
+                                {% endif %}
+                            </td>
+                            <td>
+                                {{ asset.sensors | length }}
+                            </td>
+                            <td class="text-right">
+                            </td>
+
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="col-sm-2"></div>
+{% block paginate_tables_script %} {{ super() }} {% endblock %}
+
+{% endblock %}

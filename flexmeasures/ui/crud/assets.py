@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Union, Optional, List, Tuple
 import copy
 import json
@@ -169,6 +171,19 @@ def user_can_delete(asset) -> bool:
     return True
 
 
+def get_assets_by_account(account_id: int | str | None) -> List[GenericAsset]:
+    if account_id is not None:
+        get_assets_response = InternalApi().get(
+            url_for("AssetAPI:index"), query={"account_id": account_id}
+        )
+    else:
+        get_assets_response = InternalApi().get(url_for("AssetAPI:public"))
+    return [
+        process_internal_api_response(ad, make_obj=True)
+        for ad in get_assets_response.json()
+    ]
+
+
 class AssetCrudUI(FlaskView):
     """
     These views help us offer a Jinja2-based UI.
@@ -187,24 +202,12 @@ class AssetCrudUI(FlaskView):
         """
         assets = []
 
-        def get_asset_by_account(account_id) -> List[GenericAsset]:
-            if account_id is not None:
-                get_assets_response = InternalApi().get(
-                    url_for("AssetAPI:index"), query={"account_id": account_id}
-                )
-            else:
-                get_assets_response = InternalApi().get(url_for("AssetAPI:public"))
-            return [
-                process_internal_api_response(ad, make_obj=True)
-                for ad in get_assets_response.json()
-            ]
-
         if user_has_admin_access(current_user, "read"):
             for account in Account.query.all():
-                assets += get_asset_by_account(account.id)
-            assets += get_asset_by_account(account_id=None)
+                assets += get_assets_by_account(account.id)
+            assets += get_assets_by_account(account_id=None)
         else:
-            assets = get_asset_by_account(current_user.account_id)
+            assets = get_assets_by_account(current_user.account_id)
 
         return render_flexmeasures_template(
             "crud/assets.html",
