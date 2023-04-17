@@ -57,7 +57,7 @@ LEGACY_TABLES = [
     "weather_sensor",
     "weather_sensor_type",
 ]
-RELEVANT_TABLES_DEV = [
+RELEVANT_TABLES_NEW = [
     "generic_asset_type",
     "generic_asset",
     "sensor",
@@ -101,9 +101,7 @@ def uses_dot(func):
         except FileNotFoundError as fnfe:
             if '"dot" not found in path' in str(fnfe):
                 print(fnfe)
-                print(
-                    "Try this (on debian-based Linux): sudo apt install python3-pydot python3-pydot-ng graphviz"
-                )
+                print("Try this (on debian-based Linux): sudo apt install graphviz")
                 sys.exit(2)
             else:
                 raise
@@ -125,7 +123,7 @@ def create_schema_pic(
     if deprecated:
         relevant_tables += LEGACY_TABLES
     else:
-        relevant_tables += RELEVANT_TABLES_DEV
+        relevant_tables += RELEVANT_TABLES_NEW
     kwargs = dict(
         metadata=db_metadata,
         show_datatypes=False,  # The image would get nasty big if we'd show the datatypes
@@ -168,7 +166,7 @@ def create_uml_pic(store: bool = False, deprecated: bool = False):
     if deprecated:
         relevant_tables += LEGACY_TABLES
     else:
-        relevant_tables += RELEVANT_TABLES_DEV
+        relevant_tables += RELEVANT_TABLES_NEW
     if DEBUG:
         print(f"Relevant tables: {relevant_tables}")
         print(f"Relevant models: {relevant_models}")
