@@ -96,6 +96,7 @@ class UserCrudUI(FlaskView):
     route_base = "/users"
     trailing_slash = False
 
+    @login_required
     def index(self):
         """/users"""
         include_inactive = request.args.get("include_inactive", "0") != "0"
@@ -112,6 +113,7 @@ class UserCrudUI(FlaskView):
             "crud/users.html", users=users, include_inactive=include_inactive
         )
 
+    @login_required
     @roles_accepted(ADMIN_ROLE, ADMIN_READER_ROLE)
     def get(self, id: str):
         """GET from /users/<id>"""
