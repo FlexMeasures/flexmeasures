@@ -75,7 +75,9 @@ def process_internal_api_response(
     return user_data
 
 
-def get_users_by_account(account_id: int, include_inactive: bool = False) -> list[User]:
+def get_users_by_account(
+    account_id: int | str, include_inactive: bool = False
+) -> list[User]:
     get_users_response = InternalApi().get(
         url_for(
             "UserAPI:index",

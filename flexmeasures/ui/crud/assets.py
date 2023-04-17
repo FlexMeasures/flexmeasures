@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Union, Optional, List, Tuple
 import copy
 import json
@@ -169,7 +171,7 @@ def user_can_delete(asset) -> bool:
     return True
 
 
-def get_assets_by_account(account_id: int) -> List[GenericAsset]:
+def get_assets_by_account(account_id: int | str | None) -> List[GenericAsset]:
     if account_id is not None:
         get_assets_response = InternalApi().get(
             url_for("AssetAPI:index"), query={"account_id": account_id}
