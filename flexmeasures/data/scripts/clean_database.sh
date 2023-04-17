@@ -1,5 +1,4 @@
 #!/bin/bash
-cd /temp
 
 # function for checking database existence
 function is_database() {

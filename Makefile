@@ -1,6 +1,6 @@
 # Note: use tabs
 # actions which are virtual, i.e. not a script
-.PHONY: install install-for-dev install-deps install-flexmeasures run-local test freeze-deps upgrade-deps update-docs update-docs-pdf show-file-space show-data-model
+.PHONY: install install-for-dev install-deps install-flexmeasures run-local test freeze-deps upgrade-deps update-docs update-docs-pdf show-file-space show-data-model clean-db
 
 
 # ---- Development ---
@@ -84,6 +84,9 @@ upgrade-db:
 show-data-model:
 	# This generates the data model, as currently written in code, as a PNG picture.
 	# Also try with --schema for the database model. 
-	# With --deprecated, you'll see the legacy models, and not their replacements.
+	# With --dev, you'll see the currently experimental parts, as well.
 	# Use --help to learn more. 
-	./flexmeasures/data/scripts/visualize_data_model.py --uml
+	./flexmeasures/data/scripts/visualize_data_model.py --uml --dev
+
+clean-db:
+    ./flexmeasures/data/scripts/clean_database.sh ${db_name}
