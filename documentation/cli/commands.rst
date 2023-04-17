@@ -33,6 +33,7 @@ of which some are referred to in this documentation.
 ``flexmeasures add asset``                        Create a new asset.
 ``flexmeasures add sensor``                       Add a new sensor.
 ``flexmeasures add beliefs``                      Load beliefs from file.
+``flexmeasures add source``                       Add a new data source.
 ``flexmeasures add forecasts``                    Create forecasts.
 ``flexmeasures add schedule for-storage``         Create a charging schedule for a storage asset.
 ``flexmeasures add holidays``                     Add holiday annotations to accounts and/or assets.

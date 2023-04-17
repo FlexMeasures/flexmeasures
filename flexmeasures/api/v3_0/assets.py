@@ -15,6 +15,7 @@ from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
 from flexmeasures.api.common.schemas.generic_assets import AssetIdField
 from flexmeasures.api.common.schemas.users import AccountIdField
+from flexmeasures.utils.coding_utils import flatten_unique
 from flexmeasures.ui.utils.view_utils import set_time_range_for_session
 
 
@@ -309,5 +310,5 @@ class AssetAPI(FlaskView):
 
         Data for use in charts (in case you have the chart specs already).
         """
-        sensors = asset.sensors_to_show
+        sensors = flatten_unique(asset.sensors_to_show)
         return asset.search_beliefs(sensors=sensors, as_json=True, **kwargs)

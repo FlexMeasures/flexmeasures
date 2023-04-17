@@ -117,6 +117,7 @@ class Config(object):
     FLEXMEASURES_PLANNING_TTL: timedelta = timedelta(
         days=7
     )  # Time to live for UDI event ids of successful scheduling jobs. Set a negative timedelta to persist forever.
+    FLEXMEASURES_JOB_CACHE_TTL: int = 3600  # Time to live for the job caching keys in seconds. Set a negative timedelta to persist forever.
     FLEXMEASURES_TASK_CHECK_AUTH_TOKEN: Optional[str] = None
     FLEXMEASURES_REDIS_URL: str = "localhost"
     FLEXMEASURES_REDIS_PORT: int = 6379
@@ -124,8 +125,8 @@ class Config(object):
     FLEXMEASURES_REDIS_PASSWORD: Optional[str] = None
     FLEXMEASURES_JS_VERSIONS: dict = dict(
         vega="5.22.1",
-        vegaembed="6.20.8",
-        vegalite="5.2.0",
+        vegaembed="6.21.0",
+        vegalite="5.5.0",  # "5.6.0" has a problematic bar chart: see our sensor page and https://github.com/vega/vega-lite/issues/8496
         # todo: expand with other js versions used in FlexMeasures
     )
 

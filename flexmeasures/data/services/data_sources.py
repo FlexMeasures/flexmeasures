@@ -13,6 +13,7 @@ def get_or_create_source(
     source: Union[User, str],
     source_type: Optional[str] = None,
     model: Optional[str] = None,
+    version: Optional[str] = None,
     flush: bool = True,
 ) -> DataSource:
     if is_user(source):
@@ -20,6 +21,8 @@ def get_or_create_source(
     query = DataSource.query.filter(DataSource.type == source_type)
     if model is not None:
         query = query.filter(DataSource.model == model)
+    if version is not None:
+        query = query.filter(DataSource.version == version)
     if is_user(source):
         query = query.filter(DataSource.user == source)
     elif isinstance(source, str):
@@ -29,11 +32,13 @@ def get_or_create_source(
     _source = query.one_or_none()
     if not _source:
         if is_user(source):
-            _source = DataSource(user=source, model=model)
+            _source = DataSource(user=source, model=model, version=version)
         else:
             if source_type is None:
                 raise TypeError("Please specify a source type")
-            _source = DataSource(name=source, model=model, type=source_type)
+            _source = DataSource(
+                name=source, model=model, version=version, type=source_type
+            )
         current_app.logger.info(f"Setting up {_source} as new data source...")
         db.session.add(_source)
         if flush:
