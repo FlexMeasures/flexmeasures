@@ -67,10 +67,7 @@ def create(
     if app.testing:
         from fakeredis import FakeStrictRedis
 
-        app.queues = dict(
-            forecasting=Queue(connection=FakeStrictRedis(), name="forecasting"),
-            scheduling=Queue(connection=FakeStrictRedis(), name="scheduling"),
-        )
+        redis_conn = FakeStrictRedis()
     else:
         redis_conn = Redis(
             app.config["FLEXMEASURES_REDIS_URL"],
@@ -83,10 +80,11 @@ def create(
             redis_conn = Redis("MY-DB-NAME", unix_socket_path="/tmp/my-redis.socket",
             )
         """
-        app.queues = dict(
-            forecasting=Queue(connection=redis_conn, name="forecasting"),
-            scheduling=Queue(connection=redis_conn, name="scheduling"),
-        )
+    app.redis_connection = redis_conn
+    app.queues = dict(
+        forecasting=Queue(connection=redis_conn, name="forecasting"),
+        scheduling=Queue(connection=redis_conn, name="scheduling"),
+    )
 
     # Some basic security measures
 

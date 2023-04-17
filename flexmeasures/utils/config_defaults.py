@@ -103,8 +103,6 @@ class Config(object):
     FLEXMEASURES_ROOT_VIEW: Union[str, List[Union[str, Tuple[str, List[str]]]]] = []
     FLEXMEASURES_MENU_LISTED_VIEWS: List[Union[str, Tuple[str, List[str]]]] = [
         "dashboard",
-        "assets",
-        "users",
     ]
     FLEXMEASURES_MENU_LISTED_VIEW_ICONS: Dict[str, str] = {}
     FLEXMEASURES_MENU_LISTED_VIEW_TITLES: Dict[str, str] = {}
@@ -119,6 +117,7 @@ class Config(object):
     FLEXMEASURES_PLANNING_TTL: timedelta = timedelta(
         days=7
     )  # Time to live for UDI event ids of successful scheduling jobs. Set a negative timedelta to persist forever.
+    FLEXMEASURES_JOB_CACHE_TTL: int = 3600  # Time to live for the job caching keys in seconds. Set a negative timedelta to persist forever.
     FLEXMEASURES_TASK_CHECK_AUTH_TOKEN: Optional[str] = None
     FLEXMEASURES_REDIS_URL: str = "localhost"
     FLEXMEASURES_REDIS_PORT: int = 6379

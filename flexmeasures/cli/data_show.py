@@ -113,12 +113,16 @@ def show_account(account):
                 user.username,
                 user.email,
                 naturaltime(user.last_login_at),
+                naturaltime(user.last_seen_at),
                 ",".join([role.name for role in user.roles]),
             )
             for user in users
         ]
         click.echo(
-            tabulate(user_data, headers=["ID", "Name", "Email", "Last Login", "Roles"])
+            tabulate(
+                user_data,
+                headers=["ID", "Name", "Email", "Last Login", "Last Seen", "Roles"],
+            )
         )
 
     click.echo()
