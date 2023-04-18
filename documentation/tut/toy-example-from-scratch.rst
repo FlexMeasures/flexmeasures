@@ -62,11 +62,16 @@ Install Flexmeasures and the database
         To leave the container session, hold CTRL-D or type "exit".
 
         To stop the containers, you can type
+
         .. code-block:: bash
+
             $ docker stop flexmeasures-tutorial-db
             $ docker stop flexmeasures-tutorial-fm
+
         To start the containers again, do this (note that re-running the `docker run` commands above *deletes and re-creates* all data!):
+
         .. code-block:: bash
+
             $ docker start flexmeasures-tutorial-db
             $ docker start flexmeasures-tutorial-fm
 
@@ -93,6 +98,7 @@ Install Flexmeasures and the database
 
             $ pip install flexmeasures
             $ export SQLALCHEMY_DATABASE_URI="postgresql://flexmeasures-user:fm-db-passwd@localhost:5432/flexmeasures-db" SECRET_KEY=notsecret LOGGING_LEVEL="INFO" DEBUG=0
+            $ export FLASK_ENV="development"
             $ flexmeasures db upgrade
 
         .. note:: When installing with ``pip``, on some platforms problems might come up (e.g. macOS, Windows). One reason is that FlexMeasures requires some libraries with lots of C code support (e.g. Numpy). One way out is to use Docker, which uses a prepared Linux image, so it'll definitely work.
@@ -128,6 +134,7 @@ If you want, you can inspect what you created:
 .. code-block:: bash
 
     $ flexmeasures show account --id 1
+
     ===========================
     Account Toy Account (ID: 1)
     ===========================
@@ -135,11 +142,13 @@ If you want, you can inspect what you created:
     Account has no roles.
 
     All users:
+
       Id  Name      Email                     Last Login    Roles
     ----  --------  ------------------------  ------------  -------------
        1  toy-user  toy-user@flexmeasures.io                account-admin
 
     All assets:
+
       ID  Name          Type      Location
     ----  ------------  --------  -----------------
        1  toy-battery   battery   (52.374, 4.88969)
@@ -159,6 +168,7 @@ If you want, you can inspect what you created:
                                 sensors_to_show: [2, [3, 1]]
 
     All sensors in asset:
+
       ID  Name         Unit    Resolution    Timezone          Attributes
     ----  -----------  ------  ------------  ----------------  ------------
        1  discharging  MW      15 minutes    Europe/Amsterdam
