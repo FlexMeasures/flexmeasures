@@ -98,7 +98,6 @@ Install Flexmeasures and the database
 
             $ pip install flexmeasures
             $ export SQLALCHEMY_DATABASE_URI="postgresql://flexmeasures-user:fm-db-passwd@localhost:5432/flexmeasures-db" SECRET_KEY=notsecret LOGGING_LEVEL="INFO" DEBUG=0
-            $ export FLASK_ENV="developement"
             $ flexmeasures db upgrade
 
         .. note:: When installing with ``pip``, on some platforms problems might come up (e.g. macOS, Windows). One reason is that FlexMeasures requires some libraries with lots of C code support (e.g. Numpy). One way out is to use Docker, which uses a prepared Linux image, so it'll definitely work.
@@ -106,6 +105,7 @@ Install Flexmeasures and the database
         In case you want to re-run the tutorial, then it's recommended to delete the old database and create a fresh one. Run the following command to create a clean database.
 
         .. code-block:: bash
+
             $ make clean-db db_name=flexmeasures-db
 
 Add some structural data
