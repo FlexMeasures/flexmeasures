@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import argparse
-import os
 import sys
 from getpass import getpass
 import inspect
@@ -27,8 +26,6 @@ For rendering of graphs (instead of saving a PNG), you'll need pillow:
 """
 
 DEBUG = True
-FALLBACK_VIEWER_CMD = "gwenview"  # Use this program if none of the standard viewers
-# (e.g. display) can be found. Can be overwritten as env var.
 
 RELEVANT_MODULES = [
     "task_runs",
@@ -60,7 +57,7 @@ LEGACY_TABLES = [
     "weather_sensor",
     "weather_sensor_type",
 ]
-RELEVANT_TABLES_DEV = [
+RELEVANT_TABLES_NEW = [
     "generic_asset_type",
     "generic_asset",
     "sensor",
@@ -104,9 +101,7 @@ def uses_dot(func):
         except FileNotFoundError as fnfe:
             if '"dot" not found in path' in str(fnfe):
                 print(fnfe)
-                print(
-                    "Try this (on debian-based Linux): sudo apt install python3-pydot python3-pydot-ng graphviz"
-                )
+                print("Try this (on debian-based Linux): sudo apt install graphviz")
                 sys.exit(2)
             else:
                 raise
@@ -115,7 +110,9 @@ def uses_dot(func):
 
 
 @uses_dot
-def create_schema_pic(pg_url, pg_user, pg_pwd, store: bool = False, dev: bool = False):
+def create_schema_pic(
+    pg_url, pg_user, pg_pwd, store: bool = False, deprecated: bool = False
+):
     """Create a picture of the SCHEMA of relevant tables."""
     print("CREATING SCHEMA PICTURE ...")
     print(
@@ -123,10 +120,10 @@ def create_schema_pic(pg_url, pg_user, pg_pwd, store: bool = False, dev: bool = 
     )
     db_metadata = MetaData(f"postgresql://{pg_user}:{pg_pwd}@{pg_url}")
     relevant_tables = RELEVANT_TABLES
-    if dev:
-        relevant_tables += RELEVANT_TABLES_DEV
-    else:
+    if deprecated:
         relevant_tables += LEGACY_TABLES
+    else:
+        relevant_tables += RELEVANT_TABLES_NEW
     kwargs = dict(
         metadata=db_metadata,
         show_datatypes=False,  # The image would get nasty big if we'd show the datatypes
@@ -143,11 +140,11 @@ def create_schema_pic(pg_url, pg_user, pg_pwd, store: bool = False, dev: bool = 
         print("Storing as image (db_schema.png) ...")
         graph.write_png("db_schema.png")  # write out the file
     else:
-        show_image(graph, fb_viewer_command=FALLBACK_VIEWER_CMD)
+        show_image(graph)
 
 
 @uses_dot
-def create_uml_pic(store: bool = False, dev: bool = False):
+def create_uml_pic(store: bool = False, deprecated: bool = False):
     print("CREATING UML CODE DIAGRAM ...")
     print("Finding all the relevant mappers in our model...")
     mappers = []
@@ -166,10 +163,10 @@ def create_uml_pic(store: bool = False, dev: bool = False):
             }
         )
     relevant_tables = RELEVANT_TABLES
-    if dev:
-        relevant_tables += RELEVANT_TABLES_DEV
-    else:
+    if deprecated:
         relevant_tables += LEGACY_TABLES
+    else:
+        relevant_tables += RELEVANT_TABLES_NEW
     if DEBUG:
         print(f"Relevant tables: {relevant_tables}")
         print(f"Relevant models: {relevant_models}")
@@ -192,11 +189,11 @@ def create_uml_pic(store: bool = False, dev: bool = False):
         print("Storing as image (uml_diagram.png) ...")
         graph.write_png("uml_diagram.png")  # write out the file
     else:
-        show_image(graph, fb_viewer_command=FALLBACK_VIEWER_CMD)
+        show_image(graph)
 
 
 @uses_dot
-def show_image(graph, fb_viewer_command: str):
+def show_image(graph):
     """
     Show an image created through sqlalchemy_schemadisplay.
 
@@ -219,9 +216,7 @@ def show_image(graph, fb_viewer_command: str):
     iostream = BytesIO(graph.create_png())
 
     print("Showing image ...")
-    if DEBUG:
-        print("(fallback viewer is %s)" % fb_viewer_command)
-    Image.open(iostream).show(command=fb_viewer_command)
+    Image.open(iostream).show()
 
 
 if __name__ == "__main__":
@@ -245,9 +240,9 @@ if __name__ == "__main__":
         help="Visualize the relationships available in code (UML style).",
     )
     parser.add_argument(
-        "--dev",
+        "--deprecated",
         action="store_true",
-        help="If given, include the parts of the new data model which are in development.",
+        help="If given, include the parts of the depcrecated data model, and leave out their new counterparts.",
     )
     parser.add_argument(
         "--store",
@@ -267,15 +262,16 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    if args.store is False:
-        FALLBACK_VIEWER_CMD = os.environ.get("FALLBACK_VIEWER_CMD", FALLBACK_VIEWER_CMD)
-
     if args.schema:
         pg_pwd = getpass(f"Please input the postgres password for user {args.pg_user}:")
         create_schema_pic(
-            args.pg_url, args.pg_user, pg_pwd, store=args.store, dev=args.dev
+            args.pg_url,
+            args.pg_user,
+            pg_pwd,
+            store=args.store,
+            deprecated=args.deprecated,
         )
-    if args.uml:
+    elif args.uml:
         try:
             from flexmeasures.data import db as flexmeasures_db
         except ImportError as ie:
@@ -283,4 +279,6 @@ if __name__ == "__main__":
                 f"We need flexmeasures.data to be in the path, so we can read the data model. Error: '{ie}''."
             )
             sys.exit(0)
-        create_uml_pic(store=args.store, dev=args.dev)
+        create_uml_pic(store=args.store, deprecated=args.deprecated)
+    else:
+        print("Please specify either --uml or --schema. What do you want to see?")
