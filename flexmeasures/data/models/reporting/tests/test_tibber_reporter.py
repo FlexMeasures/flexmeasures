@@ -30,7 +30,7 @@ entsoe_prices = [
     -50.07,
     -50.00,
     -0.90,
-    08.10,
+    108.10,
     128.10,
     151.00,
     155.20,
@@ -64,18 +64,18 @@ tibber_app_price = [
     35.8,
     33.6,
     32.0,
-]  # EUR/MWh
+]  # cents/kWh
 
 
 class TibberReporter(PandasReporter):
     def __init__(self, start: datetime, end: datetime) -> None:
         """This class calculates the price of energy of a tariff indexed to the Day Ahead prices.
-        Energy Price = (1 + VAT) x ( EB + Tiber + DA Prices)
+        Energy Price = (1 + VAT) x ( EnergyTax + Tiber + DA Prices)
         """
 
         # search the sensors
-        EB = Sensor.query.filter(Sensor.name == "EB").one_or_none()
-        BWV = Sensor.query.filter(Sensor.name == "BWV").one_or_none()
+        EnergyTax = Sensor.query.filter(Sensor.name == "EnergyTax").one_or_none()
+        VAT = Sensor.query.filter(Sensor.name == "VAT").one_or_none()
         tibber_tariff = Sensor.query.filter(
             Sensor.name == "Tibber Tariff"
         ).one_or_none()
@@ -84,31 +84,29 @@ class TibberReporter(PandasReporter):
 
         tb_query_config_extra = dict(
             resolution=3600,  # 1h = 3600s
-            event_starts_after=str(start),
-            event_ends_before=str(end),
         )
 
         # creating the PandasReporter reporter config
-        reporter_config_raw = dict(
+        reporter_config = dict(
             start=str(start),
             end=str(end),
             tb_query_config=[
-                dict(sensor=EB.id, **tb_query_config_extra),
-                dict(sensor=BWV.id, **tb_query_config_extra),
+                dict(sensor=EnergyTax.id, **tb_query_config_extra),
+                dict(sensor=VAT.id, **tb_query_config_extra),
                 dict(sensor=tibber_tariff.id, **tb_query_config_extra),
                 dict(sensor=da_prices.id, **tb_query_config_extra),
             ],
             transformations=[
                 dict(
                     df_input="sensor_1",
-                    df_output="BWV",
+                    df_output="VAT",
                     method="droplevel",
                     args=[[1, 2, 3]],
                 ),
-                dict(method="add", args=[1]),  # this is to get 1 + BWV
+                dict(method="add", args=[1]),  # this is to get 1 + VAT
                 dict(
                     df_input="sensor_2",
-                    df_output="EB",
+                    df_output="EnergyTax",
                     method="droplevel",
                     args=[[1, 2, 3]],
                 ),
@@ -125,22 +123,21 @@ class TibberReporter(PandasReporter):
                     args=[[1, 2, 3]],
                 ),
                 dict(
-                    method="multiply",
-                    args=[1 / 1000],
-                ),
+                    method="add", args=["@tibber_tariff"]
+                ),  # da_prices = da_prices + tibber_tariff
                 dict(
-                    df_output="energy_price",
-                    df_input="EB",
-                    method="add",
-                    args=["@tibber_tariff"],
-                ),
-                dict(method="add", args=["@da_prices"]),
-                dict(method="multiply", args=["@BWV"]),
+                    method="add", args=["@EnergyTax"]
+                ),  # da_prices = da_prices + EnergyTax
+                dict(
+                    method="multiply", args=["@VAT"]
+                ),  # da_prices = da_price * VAT, VAT
+                dict(method="round", args=[2]),  # round 2 decimals
+                dict(method="round", args=[1]),  # round 1 decimal
             ],
-            final_df_output="energy_price",
+            final_df_output="da_prices",
         )
 
-        super().__init__(reporter_config_raw)
+        super().__init__(reporter_config)
 
 
 def beliefs_from_timeseries(index, values, sensor, source):
@@ -172,16 +169,24 @@ def tibber_test_data(fresh_db, app):
 
     electricity_price = GenericAsset(name="Electricity Price", generic_asset_type=price)
 
-    VAT = GenericAsset(name="VAT", generic_asset_type=tax)
+    VAT_asset = GenericAsset(name="VAT", generic_asset_type=tax)
 
     electricity_tax = GenericAsset(name="Energy Tax", generic_asset_type=tax)
 
-    db.session.add_all([electricity_price, VAT, electricity_tax])
+    db.session.add_all([electricity_price, VAT_asset, electricity_tax])
 
     # Taxes
-    BWV = Sensor("BWV", generic_asset=VAT, event_resolution=timedelta(days=365))
-    EB = Sensor(
-        "EB", generic_asset=electricity_tax, event_resolution=timedelta(days=365)
+    VAT = Sensor(
+        "VAT",
+        generic_asset=VAT_asset,
+        event_resolution=timedelta(days=365),
+        unit="unit range",
+    )
+    EnergyTax = Sensor(
+        "EnergyTax",
+        generic_asset=electricity_tax,
+        event_resolution=timedelta(days=365),
+        unit="EUR/MWh",
     )
 
     # Tibber Tariff
@@ -189,19 +194,20 @@ def tibber_test_data(fresh_db, app):
         "Tibber Tariff",
         generic_asset=electricity_price,
         event_resolution=timedelta(days=365),
+        unit="EUR/MWh",
     )
 
-    db.session.add_all([BWV, EB, tibber_tariff])
+    db.session.add_all([VAT, EnergyTax, tibber_tariff])
 
     """
         Saving TimeBeliefs to the DB
     """
 
-    # Adding EB, BWV and Tibber Tarriff beliefs to the DB
+    # Adding EnergyTax, VAT and Tibber Tarriff beliefs to the DB
     for sensor, source_name, value in [
-        (BWV, "Belastingdienst", 0.21),
-        (EB, "Belastingdienst", 0.12599),
-        (tibber_tariff, "Tibber", 0.018),
+        (VAT, "Tax Authority", 0.21),  # unit interval
+        (EnergyTax, "Tax Authority", 125.99),  # EUR / MWh
+        (tibber_tariff, "Tibber", 18.0),  # EUR /MWh
     ]:
         belief = TimedBelief(
             sensor=sensor,
@@ -243,10 +249,16 @@ def test_tibber_reporter(tibber_test_data):
     assert len(result) == 24
 
     tibber_app_price_df = (
-        pd.DataFrame(tibber_app_price, index=index, columns=["event_value"]) / 100
+        pd.DataFrame(tibber_app_price, index=index, columns=["event_value"])
+        * 10  # converting cents/kWh to EUR/MWh
     )
 
-    # checking that (EPEX+EB + Tibber Tariff)*(1+BWV) = Tibber App Price
-    assert (
-        abs(result - tibber_app_price_df).mean().iloc[0] < 0.01
-    )  # difference of less than 1 cent / kWh
+    error = abs(result - tibber_app_price_df)
+
+    # checking that (EPEX + EnergyTax + Tibber Tariff)*(1 + VAT) = Tibber App Price
+
+    # mean error is low enough, i.e 1 EUR/MWh = 0.1 cent/kWh
+    assert error.mean().iloc[0] < 1
+
+    # max error is low enough, i.e 1 EUR/MWh = 0.1 cent/kWh
+    assert error.max().iloc[0] < 1

@@ -1,4 +1,7 @@
 import pandas as pd
+
+from flask import current_app
+
 from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.schemas.reporting.pandas_reporter import (
     PandasReporterConfigSchema,
@@ -12,20 +15,25 @@ class PandasReporter(Reporter):
     __author__ = None
     schema = PandasReporterConfigSchema()
 
-    def deserialize_report_config(self):
-        # call super class deserialize_report_config
-        super().deserialize_report_config()
+    def deserialize_reporter_config(self):
+        # call super class deserialize_reporter_config
+        super().deserialize_reporter_config()
 
         # extract PandasReporter specific fields
         self.transformations = self.reporter_config.get("transformations")
         self.final_df_output = self.reporter_config.get("final_df_output")
 
     def _compute(self) -> pd.Series:
-        """"""
-        # apply pandas transformations to the dataframes in `self.data``
-        self.apply_transformations()
+        """
+        This method applies the transformations and outputs the dataframe
+        defined in `final_df_output` field of the report_config.
+        """
+
+        # apply pandas transformations to the dataframes in `self.data`
+        self._apply_transformations()
 
         final_output = self.data[self.final_df_output]
+
         return final_output
 
     def get_object_or_literal(self, value, method):
@@ -40,10 +48,14 @@ class PandasReporter(Reporter):
 
         Examples
         >> self.get_object_or_literal(["@sensor_1", "@sensor_2"], "sum")
-        [[                    ...n: 0:00:00,                     ...n: 0:00:00]]
+        [[ <BeliefsDataFrame sensor: VAT>, <BeliefsDataFrame sensor=PV>]]
         """
 
         if method in ["eval", "query"]:
+            if isinstance(value, str) and value.startswith("@"):
+                current_app.logger.warning(
+                    "Cannot reference objects in self.data using the method eval or query. That is because these methods use the symbol `@` to make reference to local variables."
+                )
             return value
 
         if isinstance(value, str) and value.startswith("@"):
@@ -55,7 +67,7 @@ class PandasReporter(Reporter):
 
         return value
 
-    def process_pandas_args(self, args, method):
+    def _process_pandas_args(self, args, method):
         """This method applies the function get_object_or_literal to all the arguments
         to detect where to replace a string "@<object-name>" with the actual object stored in `self.data["<object-name>"]`.
         """
@@ -63,7 +75,7 @@ class PandasReporter(Reporter):
             args[i] = self.get_object_or_literal(args[i], method)
         return args
 
-    def process_pandas_kwargs(self, kwargs, method):
+    def _process_pandas_kwargs(self, kwargs, method):
         """This method applies the function get_object_or_literal to all the keyword arguments
         to detect where to replace a string "@<object-name>" with the actual object stored in `self.data["<object-name>"]`.
         """
@@ -71,15 +83,15 @@ class PandasReporter(Reporter):
             kwargs[k] = self.get_object_or_literal(v, method)
         return kwargs
 
-    def apply_transformations(self) -> pd.Series:
+    def _apply_transformations(self) -> pd.Series:
         """Convert the series using the given list of transformation specs, which is called in the order given.
 
         Each transformation specs should include a 'method' key specifying a method name of a Pandas DataFrame.
 
         Optionally, 'args' and 'kwargs' keys can be specified to pass on arguments or keyword arguments to the given method.
 
-        All data exchange is made through the dictionary `self.data`. The superclass Reporter already fetches and saves BeliefDataFrames
-        of the input sensors in the fields `sensor_<sensor_id>`. In case you need to perform complex operations on dataframes, you can
+        All data exchange is made through the dictionary `self.data`. The superclass Reporter already fetches BeliefsDataFrames of
+        the sensors and saves them in the self.data dictionary fields  `sensor_<sensor_id>`. In case you need to perform complex operations on dataframes, you can
         split the operations in several steps and saving the intermediate results using the parameters `df_input` and `df_output` for the
         input and output dataframes, respectively.
 
@@ -104,8 +116,8 @@ class PandasReporter(Reporter):
             )  # default is OUTPUT = INPUT.method()
 
             method = transformation.get("method")
-            args = self.process_pandas_args(transformation.get("args", []), method)
-            kwargs = self.process_pandas_kwargs(
+            args = self._process_pandas_args(transformation.get("args", []), method)
+            kwargs = self._process_pandas_kwargs(
                 transformation.get("kwargs", {}), method
             )
 

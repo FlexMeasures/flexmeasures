@@ -117,13 +117,13 @@ class Reporter:
             source_info["version"] = str(cls.__version__)
         else:
             current_app.logger.warning(
-                f"Scheduler {cls.__name__} loaded, but has no __version__ attribute."
+                f"Reporter {cls.__name__} loaded, but has no __version__ attribute."
             )
         if hasattr(cls, "__author__"):
             source_info["name"] = str(cls.__author__)
         else:
             current_app.logger.warning(
-                f"Scheduler {cls.__name__} has no __author__ attribute."
+                f"Reporter {cls.__name__} has no __author__ attribute."
             )
         return source_info
 
@@ -132,7 +132,7 @@ class Reporter:
         Check all configurations we have, throwing either ValidationErrors or ValueErrors.
         Other code can decide if/how to handle those.
         """
-        self.deserialize_report_config()
+        self.deserialize_reporter_config()
         self.deserialize_timing_config()
 
     def deserialize_timing_config(self):
@@ -149,7 +149,7 @@ class Reporter:
             if end < start:
                 raise ValueError(f"Start {start} cannot be after end {end}.")
 
-    def deserialize_report_config(self):
+    def deserialize_reporter_config(self):
         """
         Validate the report config against a Marshmallow Schema.
         Ideas:
