@@ -180,7 +180,7 @@ def tibber_test_data(fresh_db, app):
         "VAT",
         generic_asset=VAT_asset,
         event_resolution=timedelta(days=365),
-        unit="unit range",
+        unit="",
     )
     EnergyTax = Sensor(
         "EnergyTax",
@@ -205,7 +205,7 @@ def tibber_test_data(fresh_db, app):
 
     # Adding EnergyTax, VAT and Tibber Tarriff beliefs to the DB
     for sensor, source_name, value in [
-        (VAT, "Tax Authority", 0.21),  # unit interval
+        (VAT, "Tax Authority", 0.21),
         (EnergyTax, "Tax Authority", 125.99),  # EUR / MWh
         (tibber_tariff, "Tibber", 18.0),  # EUR /MWh
     ]:
