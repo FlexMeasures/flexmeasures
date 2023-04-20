@@ -84,7 +84,7 @@ upgrade-db:
 show-data-model:
 	# This generates the data model, as currently written in code, as a PNG picture.
 	# Also try with --schema for the database model. 
-	# With --dev, you'll see the currently experimental parts, as well.
+	# With --deprecated, you'll see the legacy models, and not their replacements.
 	# Use --help to learn more. 
 	./flexmeasures/data/scripts/visualize_data_model.py --uml
 
