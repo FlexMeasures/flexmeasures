@@ -51,14 +51,14 @@ class Reporter:
             # using start / end instead of event_starts_after/event_ends_before when not defined
             event_starts_after = tb_query.pop("event_starts_after", self.start)
             event_ends_before = tb_query.pop("event_ends_before", self.end)
-            event_resolution = tb_query.pop("event_resolution", self.input_resolution)
+            resolution = tb_query.pop("resolution", self.input_resolution)
 
             sensor = tb_query.pop("sensor", None)
 
             bdf = sensor.search_beliefs(
                 event_starts_after=event_starts_after,
                 event_ends_before=event_ends_before,
-                event_resolution=event_resolution,
+                resolution=resolution,
                 **tb_query,
             )
 
