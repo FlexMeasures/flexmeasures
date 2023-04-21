@@ -47,8 +47,8 @@ class PandasReporter(Reporter):
         given that they also use `@` to allow using local variables.
 
         Examples
-        >> self.get_object_or_literal(["@sensor_1", "@sensor_2"], "sum")
-        [[ <BeliefsDataFrame sensor: VAT>, <BeliefsDataFrame sensor=PV>]]
+        >> self.get_object_or_literal(["@df_wind", "@df_solar"], "sum")
+        [[ <BeliefsDataFrame sensor=Wind Turbine>, <BeliefsDataFrame sensor=Solar Panel>]]
         """
 
         if method in ["eval", "query"]:

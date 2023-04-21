@@ -43,8 +43,8 @@ def setup_dummy_sensors(db, app):
                 "tb_query_config": [
                     {
                         "sensor": 1,
-                        "event_starts_after": "2022-01-01T00:00:00",
-                        "event_ends_before": "2022-01-01T23:00:00",
+                        "event_starts_after": "2022-01-01T00:00:00 00:00",
+                        "event_ends_before": "2022-01-01T23:00:00 00:00",
                     },
                 ],
                 "transformations": [
@@ -63,8 +63,8 @@ def setup_dummy_sensors(db, app):
                 "tb_query_config": [
                     {
                         "sensor": 1,
-                        "event_starts_after": "2022-01-01T00:00:00",
-                        "event_ends_before": "2022-01-01T23:00:00",
+                        "event_starts_after": "2022-01-01T00:00:00 00:00",
+                        "event_ends_before": "2022-01-01T23:00:00 00:00",
                     },
                 ],
                 "transformations": [
@@ -81,13 +81,13 @@ def setup_dummy_sensors(db, app):
                 "tb_query_config": [
                     {
                         "sensor": 1,
-                        "event_starts_after": "2022-01-01T00:00:00",
-                        "event_ends_before": "2022-01-01T23:00:00",
+                        "event_starts_after": "2022-01-01T00:00:00 00:00",
+                        "event_ends_before": "2022-01-01T23:00:00 00:00",
                     },
                     {
                         "sensor": 2,
-                        "event_starts_after": "2022-01-01T00:00:00",
-                        "event_ends_before": "2022-01-01T23:00:00",
+                        "event_starts_after": "2022-01-01T00:00:00 00:00",
+                        "event_ends_before": "2022-01-01T23:00:00 00:00",
                     },
                 ],
                 "transformations": [
@@ -104,13 +104,13 @@ def setup_dummy_sensors(db, app):
                 "tb_query_config": [
                     {
                         "sensor": 1,
-                        "event_starts_after": "2022-01-01T00:00:00",
-                        "event_ends_before": "2022-01-01T23:00:00",
+                        "event_starts_after": "2022-01-01T00:00:00 00:00",
+                        "event_ends_before": "2022-01-01T23:00:00 00:00",
                     },
                     {
                         "sensor": 2,
-                        "event_starts_after": "2022-01-01T00:00:00",
-                        "event_ends_before": "2022-01-01T23:00:00",
+                        "event_starts_after": "2022-01-01T00:00:00 00:00",
+                        "event_ends_before": "2022-01-01T23:00:00 00:00",
                     },
                 ],
                 "transformations": [

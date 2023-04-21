@@ -4,8 +4,7 @@ import pandas as pd
 from flask import current_app
 
 from flexmeasures.data.schemas.reporting import ReporterConfigSchema
-from flexmeasures.data.models.time_series import TimedBelief
-from flexmeasures.data.queries.utils import simplify_index
+from flexmeasures.data.models.time_series import Sensor
 
 import timely_beliefs as tb
 
@@ -16,17 +15,25 @@ class Reporter:
     __version__ = None
     __author__ = None
 
+    sensor: Sensor = None
+
     reporter_config: Optional[dict] = None
     reporter_config_raw: Optional[dict] = None
     schema = ReporterConfigSchema
     data: Dict[str, Union[tb.BeliefsDataFrame, pd.DataFrame]] = None
 
-    def __init__(self, reporter_config_raw: Optional[dict] = None) -> None:
+    def __init__(
+        self, sensor: Sensor, reporter_config_raw: Optional[dict] = None
+    ) -> None:
         """
         Initialize a new Reporter.
 
-
+        Attributes:
+        :param sensor: sensor where the output of the reporter will be saved to.
+        :param reporter_config_raw: unserialized configuration of the reporter.
         """
+
+        self.sensor = sensor
 
         if not reporter_config_raw:
             reporter_config_raw = {}
@@ -44,13 +51,14 @@ class Reporter:
             # using start / end instead of event_starts_after/event_ends_before when not defined
             event_starts_after = tb_query.pop("event_starts_after", self.start)
             event_ends_before = tb_query.pop("event_ends_before", self.end)
+            event_resolution = tb_query.pop("event_resolution", self.input_resolution)
 
             sensor = tb_query.pop("sensor", None)
 
-            bdf = TimedBelief.search(
-                sensors=sensor,
+            bdf = sensor.search_beliefs(
                 event_starts_after=event_starts_after,
                 event_ends_before=event_ends_before,
+                event_resolution=event_resolution,
                 **tb_query,
             )
 
@@ -63,7 +71,7 @@ class Reporter:
                 f"sensor_{sensor.id}"
             ] = bdf  # TODO: Add alias to reference dataframes easily. e.g: dict(sensor = 1, alias="power"),
 
-    def compute(self, *args, **kwargs) -> Optional[pd.DataFrame]:
+    def compute(self, *args, **kwargs) -> tb.BeliefsDataFrame:
         """This method triggers the creation of a new report. This method allows to update the fields
         in reporter_config_raw passing them as keyword arguments or the whole `reporter_config_raw` by
         passing it in the kwarg `reporter_config_raw`.
@@ -80,8 +88,16 @@ class Reporter:
             self.reporter_config_raw.update(kwargs.get("reporter_config_raw"))
         else:  # check for arguments in kwarg that could be potential fields of reporter config
             for key, value in kwargs.items():
-                if key in self.reporter_config_raw:
+
+                if (
+                    key in self.reporter_config_raw
+                ):  # update reporter_config_raw with inputs from the method
                     self.reporter_config_raw[key] = value
+
+                elif key in ["start", "end"]:  # convert datetime to string
+                    self.reporter_config_raw[key] = value.isoformat().replace("+", " ")
+                elif key in ["input_resolution"]:  # convert timedelta into string
+                    self.reporter_config_raw[key] = pd.Timedelta(value).isoformat()
 
         # deserialize configuration
         self.deserialize_config()
@@ -92,14 +108,19 @@ class Reporter:
         # Result
         result = self._compute()
 
-        if isinstance(result, tb.BeliefsDataFrame):
-            result = simplify_index(result)
+        # checking that the event_resolution of the output BeliefDataFrame is equal to the one of the output sensor
+        assert self.sensor.event_resolution == result.event_resolution
+
+        # Assign sensor to BeliefDataFrame
+        result.sensor = self.sensor
 
         return result
 
-    def _compute(self) -> Optional[pd.DataFrame]:
+    def _compute(self) -> Optional[tb.BeliefsDataFrame]:
         """
         Overwrite with the actual computation of your report.
+
+        :returns BeliefsDataFrame: report as a BeliefsDataFrame.
         """
         raise NotImplementedError()
 
@@ -168,3 +189,4 @@ class Reporter:
         )  # extracting TimeBelief query configuration parameters
         self.start = self.reporter_config.get("start")
         self.end = self.reporter_config.get("end")
+        self.input_resolution = self.reporter_config.get("input_resolution")

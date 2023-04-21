@@ -17,18 +17,27 @@ def setup_dummy_data(db, app):
     Create Sensors 2, 1 Asset and 1 AssetType
     """
     dummy_asset_type = GenericAssetType(name="DummyGenericAssetType")
-    db.session.add(dummy_asset_type)
+    report_asset_type = GenericAssetType(name="ReportAssetType")
+
+    db.session.add_all([dummy_asset_type, report_asset_type])
 
     dummy_asset = GenericAsset(
         name="DummyGenericAsset", generic_asset_type=dummy_asset_type
     )
-    db.session.add(dummy_asset)
 
-    sensor1 = Sensor("sensor 1", generic_asset=dummy_asset)
+    pandas_report = GenericAsset(
+        name="PandasReport", generic_asset_type=report_asset_type
+    )
+
+    db.session.add_all([dummy_asset, pandas_report])
+
+    sensor1 = Sensor("sensor 1", generic_asset=dummy_asset, event_resolution="1h")
     db.session.add(sensor1)
-    sensor2 = Sensor("sensor 2", generic_asset=dummy_asset)
+    sensor2 = Sensor("sensor 2", generic_asset=dummy_asset, event_resolution="1h")
     db.session.add(sensor2)
-    report_sensor = Sensor("report sensor", generic_asset=dummy_asset)
+    report_sensor = Sensor(
+        "report sensor", generic_asset=pandas_report, event_resolution="1h"
+    )
     db.session.add(report_sensor)
 
     """
@@ -77,8 +86,8 @@ def test_reporter(setup_dummy_data):
     s1, s2, reporter_sensor = setup_dummy_data
 
     reporter_config_raw = dict(
-        start=str(datetime(2023, 4, 10, tzinfo=utc)),
-        end=str(datetime(2023, 4, 10, 10, tzinfo=utc)),
+        start="2023-04-10T00:00:00 00:00",
+        end="2023-04-10T10:00:00 00:00",
         tb_query_config=[dict(sensor=s1.id), dict(sensor=s2.id)],
         transformations=[
             dict(
@@ -109,13 +118,18 @@ def test_reporter(setup_dummy_data):
         final_df_output="df_merge",
     )
 
-    reporter = PandasReporter(reporter_config_raw=reporter_config_raw)
+    reporter = PandasReporter(reporter_sensor, reporter_config_raw=reporter_config_raw)
 
     report1 = reporter.compute()
 
     assert len(report1) == 5
     assert str(report1.index[0]) == "2023-04-10 00:00:00+00:00"
+    assert (
+        report1.sensor == reporter_sensor
+    )  # check that the output sensor is effectively assigned.
 
-    report2 = reporter.compute(start=str(datetime(2023, 4, 10, 3, tzinfo=utc)))
+    report2 = reporter.compute(start=datetime(2023, 4, 10, 3, tzinfo=utc))
     assert len(report2) == 4
     assert str(report2.index[0]) == "2023-04-10 02:00:00+00:00"
+
+    # TODO: resample with BeliefDataFrame specific method (resample_event)

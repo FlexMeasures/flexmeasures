@@ -79,7 +79,7 @@ class PandasReporterConfigSchema(ReporterConfigSchema):
     final_df_output = fields.Str(required=True)
 
     @validates_schema
-    def validate_chainning(self, data, **kwargs):
+    def validate_chaining(self, data, **kwargs):
         """
         This validator ensures that we are always given an input and that the
         final_df_output is computed.

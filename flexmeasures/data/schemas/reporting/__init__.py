@@ -3,6 +3,8 @@ from marshmallow import Schema, fields
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.schemas.sources import DataSourceIdField
 
+from flexmeasures.data.schemas import AwareDateTimeField, DurationField
+
 
 class TimeBeliefQueryConfigSchema(Schema):
     """
@@ -12,14 +14,14 @@ class TimeBeliefQueryConfigSchema(Schema):
 
     sensor = SensorIdField(required=True)
 
-    event_starts_after = fields.DateTime()
-    event_ends_before = fields.DateTime()
+    event_starts_after = AwareDateTimeField()
+    event_ends_before = AwareDateTimeField()
 
-    beliefs_after = fields.DateTime()
-    beliefs_before = fields.DateTime()
+    beliefs_after = AwareDateTimeField()
+    beliefs_before = AwareDateTimeField()
 
-    horizons_at_least = fields.TimeDelta(precision=fields.TimeDelta.SECONDS)
-    horizons_at_most = fields.TimeDelta(precision=fields.TimeDelta.SECONDS)
+    horizons_at_least = DurationField()
+    horizons_at_most = DurationField()
 
     source = DataSourceIdField()
     # user_source_ids: Optional[Union[int, List[int]]] = None,
@@ -31,7 +33,7 @@ class TimeBeliefQueryConfigSchema(Schema):
 
     one_deterministic_belief_per_event = fields.Boolean()
     one_deterministic_belief_per_event_per_source = fields.Boolean()
-    resolution = fields.TimeDelta(precision=fields.TimeDelta.SECONDS)
+    resolution = DurationField()
     sum_multiple = fields.Boolean()
 
 
@@ -47,5 +49,6 @@ class ReporterConfigSchema(Schema):
     tb_query_config = fields.List(
         fields.Nested(TimeBeliefQueryConfigSchema()), required=True
     )
-    start = fields.DateTime()
-    end = fields.DateTime()
+    start = AwareDateTimeField()
+    end = AwareDateTimeField()
+    input_resolution = DurationField()

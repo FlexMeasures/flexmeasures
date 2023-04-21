@@ -68,7 +68,7 @@ tibber_app_price = [
 
 
 class TibberReporter(PandasReporter):
-    def __init__(self, start: datetime, end: datetime) -> None:
+    def __init__(self, sensor) -> None:
         """This class calculates the price of energy of a tariff indexed to the Day Ahead prices.
         Energy Price = (1 + VAT) x ( EnergyTax + Tiber + DA Prices)
         """
@@ -83,13 +83,11 @@ class TibberReporter(PandasReporter):
         da_prices = Sensor.query.filter(Sensor.name == "DA prices").one_or_none()
 
         tb_query_config_extra = dict(
-            resolution=3600,  # 1h = 3600s
+            resolution="PT1H",
         )
 
         # creating the PandasReporter reporter config
         reporter_config = dict(
-            start=str(start),
-            end=str(end),
             tb_query_config=[
                 dict(sensor=EnergyTax.id, **tb_query_config_extra),
                 dict(sensor=VAT.id, **tb_query_config_extra),
@@ -131,13 +129,11 @@ class TibberReporter(PandasReporter):
                 dict(
                     method="multiply", args=["@VAT"]
                 ),  # da_prices = da_price * VAT, VAT
-                dict(method="round", args=[2]),  # round 2 decimals
-                dict(method="round", args=[1]),  # round 1 decimal
             ],
             final_df_output="da_prices",
         )
 
-        super().__init__(reporter_config)
+        super().__init__(sensor, reporter_config)
 
 
 def beliefs_from_timeseries(index, values, sensor, source):
@@ -162,10 +158,11 @@ def tibber_test_data(fresh_db, app):
 
     tax = GenericAssetType(name="Tax")
     price = GenericAssetType(name="Price")
+    report = GenericAssetType(name="Report")
 
     db.session.add_all([tax, price])
 
-    # Belastingdienst
+    # Taxes
 
     electricity_price = GenericAsset(name="Electricity Price", generic_asset_type=price)
 
@@ -173,7 +170,9 @@ def tibber_test_data(fresh_db, app):
 
     electricity_tax = GenericAsset(name="Energy Tax", generic_asset_type=tax)
 
-    db.session.add_all([electricity_price, VAT_asset, electricity_tax])
+    tibber_report = GenericAsset(name="TibberReport", generic_asset_type=report)
+
+    db.session.add_all([electricity_price, VAT_asset, electricity_tax, tibber_report])
 
     # Taxes
     VAT = Sensor(
@@ -230,7 +229,15 @@ def tibber_test_data(fresh_db, app):
     da_prices_beliefs = beliefs_from_timeseries(index, entsoe_prices, da_prices, entsoe)
     db.session.add_all(da_prices_beliefs)
 
-    return
+    tibber_report_sensor = Sensor(
+        "TibberReportSensor",
+        generic_asset=tibber_report,
+        event_resolution=timedelta(hours=1),
+        unit="EUR/MWh",
+    )
+    db.session.add(tibber_report_sensor)
+
+    return tibber_report_sensor
 
 
 def test_tibber_reporter(tibber_test_data):
@@ -239,11 +246,13 @@ def test_tibber_reporter(tibber_test_data):
     displayed in Tibber's App.
     """
 
-    tibber_reporter = TibberReporter(
-        datetime(2023, 4, 13, tzinfo=utc), datetime(2023, 4, 14, tzinfo=utc)
-    )
+    tibber_report_sensor = tibber_test_data
 
-    result = tibber_reporter.compute()
+    tibber_reporter = TibberReporter(tibber_report_sensor)
+
+    result = tibber_reporter.compute(
+        start=datetime(2023, 4, 13, tzinfo=utc), end=datetime(2023, 4, 14, tzinfo=utc)
+    )
 
     # checking that we've get a result for 24 hours
     assert len(result) == 24
