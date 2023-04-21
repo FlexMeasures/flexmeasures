@@ -94,9 +94,9 @@ class Reporter:
                 ):  # update reporter_config_raw with inputs from the method
                     self.reporter_config_raw[key] = value
 
-                elif key in ["start", "end"]:  # convert datetime to string
+                if key in ["start", "end"]:  # convert datetime to string
                     self.reporter_config_raw[key] = value.isoformat().replace("+", " ")
-                elif key in ["input_resolution"]:  # convert timedelta into string
+                if key in ["input_resolution"]:  # convert timedelta into string
                     self.reporter_config_raw[key] = pd.Timedelta(value).isoformat()
 
         # deserialize configuration
