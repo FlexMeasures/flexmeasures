@@ -83,7 +83,7 @@ class PandasReporter(Reporter):
             kwargs[k] = self.get_object_or_literal(v, method)
         return kwargs
 
-    def _apply_transformations(self) -> pd.Series:
+    def _apply_transformations(self):
         """Convert the series using the given list of transformation specs, which is called in the order given.
 
         Each transformation specs should include a 'method' key specifying a method name of a Pandas DataFrame.
