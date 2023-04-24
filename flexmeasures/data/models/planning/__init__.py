@@ -54,7 +54,7 @@ class Scheduler:
         """
         Initialize a new Scheduler.
 
-        TODO: We might adapt the class design, so that A Scheduler object is initialized with configuration parameters,
+        TODO: We might adapt the class design, so that a Scheduler object is initialized with configuration parameters,
               and can then be used multiple times (via compute()) to compute schedules of different kinds, e.g.
                 If we started later (put in a later start), what would the schedule be?
                 If we could change set points less often (put in a coarser resolution), what would the schedule be?
@@ -78,6 +78,8 @@ class Scheduler:
     def compute_schedule(self) -> Optional[pd.Series]:
         """
         Overwrite with the actual computation of your schedule.
+
+        Deprecated method in v0.14. As an alternative, use Scheduler.compute().
         """
         return None
 
@@ -156,6 +158,6 @@ class Scheduler:
 Deprecations
 """
 
-Scheduler.compute_schedule = deprecated(Scheduler.compute, 14)(
+Scheduler.compute_schedule = deprecated(Scheduler.compute, "0.14")(
     Scheduler.compute_schedule
 )
