@@ -27,7 +27,7 @@ class StorageScheduler(Scheduler):
     __version__ = "1"
     __author__ = "Seita"
 
-    def compute_schedule(
+    def compute(
         self,
     ) -> pd.Series | None:
         """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
