@@ -4,9 +4,37 @@ from typing import Optional, TYPE_CHECKING
 import timely_beliefs as tb
 
 from flexmeasures.data import db
+from flask import current_app
 
 if TYPE_CHECKING:
     from flexmeasures.data.models.user import User
+
+
+class DataGenerator:
+    @classmethod
+    def get_data_source_info(cls: type) -> dict:
+        """
+        Create and return the data source info, from which a data source lookup/creation is possible.
+
+        See for instance get_data_source_for_job().
+        """
+        source_info = dict(
+            model=cls.__name__, version="1", name="Unknown author"
+        )  # default
+
+        if hasattr(cls, "__version__"):
+            source_info["version"] = str(cls.__version__)
+        else:
+            current_app.logger.warning(
+                f"{cls.__data_generator_base__} {cls.__name__} loaded, but has no __version__ attribute."
+            )
+        if hasattr(cls, "__author__"):
+            source_info["name"] = str(cls.__author__)
+        else:
+            current_app.logger.warning(
+                f"{cls.__data_generator_base__} {cls.__name__} has no __author__ attribute."
+            )
+        return source_info
 
 
 class DataSource(db.Model, tb.BeliefSourceDBMixin):

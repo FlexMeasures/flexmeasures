@@ -1,19 +1,20 @@
 from typing import Optional, Union, Dict
 
 import pandas as pd
-from flask import current_app
 
 from flexmeasures.data.schemas.reporting import ReporterConfigSchema
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.data_sources import DataGenerator
 
 import timely_beliefs as tb
 
 
-class Reporter:
+class Reporter(DataGenerator):
     """Superclass for all FlexMeasures Reporters."""
 
     __version__ = None
     __author__ = None
+    __data_generator_base__ = "Reporter"
 
     sensor: Sensor = None
 
@@ -123,30 +124,6 @@ class Reporter:
         :returns BeliefsDataFrame: report as a BeliefsDataFrame.
         """
         raise NotImplementedError()
-
-    @classmethod
-    def get_data_source_info(cls: type) -> dict:
-        """
-        Create and return the data source info, from which a data source lookup/creation is possible.
-        See for instance get_data_source_for_job().
-        """
-        source_info = dict(
-            model=cls.__name__, version="1", name="Unknown author"
-        )  # default
-
-        if hasattr(cls, "__version__"):
-            source_info["version"] = str(cls.__version__)
-        else:
-            current_app.logger.warning(
-                f"Reporter {cls.__name__} loaded, but has no __version__ attribute."
-            )
-        if hasattr(cls, "__author__"):
-            source_info["name"] = str(cls.__author__)
-        else:
-            current_app.logger.warning(
-                f"Reporter {cls.__name__} has no __author__ attribute."
-            )
-        return source_info
 
     def deserialize_config(self):
         """
