@@ -53,7 +53,8 @@ class Reporter:
             event_ends_before = tb_query.pop("event_ends_before", self.end)
             resolution = tb_query.pop("resolution", self.input_resolution)
 
-            sensor = tb_query.pop("sensor", None)
+            sensor: Sensor = tb_query.pop("sensor", None)
+            alias: str = tb_query.pop("alias", None)
 
             bdf = sensor.search_beliefs(
                 event_starts_after=event_starts_after,
@@ -62,14 +63,15 @@ class Reporter:
                 **tb_query,
             )
 
-            # adding sources
+            # store data source as local variable
             for source in bdf.sources.unique():
                 self.data[f"source_{source.id}"] = source
 
-            # saving bdf
-            self.data[
-                f"sensor_{sensor.id}"
-            ] = bdf  # TODO: Add alias to reference dataframes easily. e.g: dict(sensor = 1, alias="power"),
+            # store BeliefsDataFrame as local variable
+            if alias:
+                self.data[alias] = bdf
+            else:
+                self.data[f"sensor_{sensor.id}"] = bdf
 
     def compute(self, *args, **kwargs) -> tb.BeliefsDataFrame:
         """This method triggers the creation of a new report. This method allows to update the fields

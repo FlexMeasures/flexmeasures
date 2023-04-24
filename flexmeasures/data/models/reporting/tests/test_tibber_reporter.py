@@ -86,7 +86,7 @@ class TibberReporter(PandasReporter):
         reporter_config = dict(
             input_resolution="PT1H",
             tb_query_config=[
-                dict(sensor=EnergyTax.id),
+                dict(sensor=EnergyTax.id, alias="energy_tax_df"),
                 dict(sensor=VAT.id),
                 dict(sensor=tibber_tariff.id),
                 dict(sensor=da_prices.id),
@@ -100,7 +100,7 @@ class TibberReporter(PandasReporter):
                 ),
                 dict(method="add", args=[1]),  # this is to get 1 + VAT
                 dict(
-                    df_input="sensor_2",
+                    df_input="energy_tax_df",
                     df_output="EnergyTax",
                     method="droplevel",
                     args=[[1, 2, 3]],
