@@ -633,6 +633,21 @@ def create_test_battery_assets(
 def add_charging_station_assets(
     db: SQLAlchemy, setup_roles_users, setup_markets
 ) -> Dict[str, Asset]:
+    return create_charging_station_assets(db, setup_roles_users, setup_markets)
+
+
+@pytest.fixture(scope="function")
+def add_charging_station_assets_fresh_db(
+    fresh_db: SQLAlchemy, setup_roles_users_fresh_db, setup_markets_fresh_db
+) -> Dict[str, Asset]:
+    return create_charging_station_assets(
+        fresh_db, setup_roles_users_fresh_db, setup_markets_fresh_db
+    )
+
+
+def create_charging_station_assets(
+    db: SQLAlchemy, setup_roles_users, setup_markets
+) -> Dict[str, Asset]:
     """Add uni- and bi-directional charging station assets, set their capacity value and their initial SOC."""
     db.session.add(
         AssetType(
