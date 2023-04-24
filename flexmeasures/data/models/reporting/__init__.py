@@ -86,7 +86,7 @@ class Reporter:
         # if report_config in kwargs
         if "reporter_config_raw" in kwargs:
             self.reporter_config_raw.update(kwargs.get("reporter_config_raw"))
-        else:  # check for arguments in kwarg that could be potential fields of reporter config
+        else:  # check for arguments in kwargs that could be potential fields of reporter config
             for key, value in kwargs.items():
 
                 if (
