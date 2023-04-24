@@ -82,7 +82,7 @@ class TibberReporter(PandasReporter):
 
         da_prices = Sensor.query.filter(Sensor.name == "DA prices").one_or_none()
 
-        # creating the PandasReporter reporter config
+        # create the PandasReporter reporter config
         reporter_config = dict(
             input_resolution="PT1H",
             tb_query_config=[
@@ -199,7 +199,7 @@ def tibber_test_data(fresh_db, app):
         Saving TimeBeliefs to the DB
     """
 
-    # Adding EnergyTax, VAT and Tibber Tarriff beliefs to the DB
+    # Add EnergyTax, VAT and Tibber Tariff beliefs to the DB
     for sensor, source_name, value in [
         (VAT, "Tax Authority", 0.21),
         (EnergyTax, "Tax Authority", 125.99),  # EUR / MWh
@@ -256,7 +256,7 @@ def test_tibber_reporter(tibber_test_data):
 
     tibber_app_price_df = (
         pd.DataFrame(tibber_app_price, index=index, columns=["event_value"])
-        * 10  # converting cents/kWh to EUR/MWh
+        * 10  # convert cents/kWh to EUR/MWh
     )
 
     error = abs(result - tibber_app_price_df)
