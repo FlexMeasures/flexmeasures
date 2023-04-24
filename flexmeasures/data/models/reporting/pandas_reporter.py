@@ -1,3 +1,5 @@
+from typing import Any
+
 from flask import current_app
 import timely_beliefs as tb
 
@@ -35,7 +37,7 @@ class PandasReporter(Reporter):
 
         return final_output
 
-    def get_object_or_literal(self, value, method):
+    def get_object_or_literal(self, value: Any, method: str) -> Any:
         """This method allows using the dataframes as inputs of the Pandas methods that
         are run in the transformations. Make sure that they have been created before accessed.
 
@@ -66,7 +68,7 @@ class PandasReporter(Reporter):
 
         return value
 
-    def _process_pandas_args(self, args, method):
+    def _process_pandas_args(self, args: list, method: str) -> list:
         """This method applies the function get_object_or_literal to all the arguments
         to detect where to replace a string "@<object-name>" with the actual object stored in `self.data["<object-name>"]`.
         """
@@ -74,7 +76,7 @@ class PandasReporter(Reporter):
             args[i] = self.get_object_or_literal(args[i], method)
         return args
 
-    def _process_pandas_kwargs(self, kwargs, method):
+    def _process_pandas_kwargs(self, kwargs: dict, method: str) -> dict:
         """This method applies the function get_object_or_literal to all the keyword arguments
         to detect where to replace a string "@<object-name>" with the actual object stored in `self.data["<object-name>"]`.
         """
