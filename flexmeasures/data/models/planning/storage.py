@@ -20,6 +20,7 @@ from flexmeasures.data.models.planning.utils import (
 from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
 from flexmeasures.data.schemas.scheduling import FlexContextSchema
 from flexmeasures.utils.time_utils import get_max_planning_horizon
+from flexmeasures.utils.coding_utils import deprecated
 
 
 class StorageScheduler(Scheduler):
@@ -27,7 +28,16 @@ class StorageScheduler(Scheduler):
     __version__ = "1"
     __author__ = "Seita"
 
-    def compute_schedule(
+    def compute_schedule(self) -> pd.Series | None:
+        """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
+        For the resulting consumption schedule, consumption is defined as positive values.
+
+        Deprecated method in v0.14. As an alternative, use StorageScheduler.compute().
+        """
+
+        return self.compute()
+
+    def compute(
         self,
     ) -> pd.Series | None:
         """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
@@ -402,3 +412,8 @@ def build_device_soc_targets(
     ) - soc_at_start * (timedelta(hours=1) / resolution)
 
     return device_targets
+
+
+StorageScheduler.compute_schedule = deprecated(StorageScheduler.compute, "0.14")(
+    StorageScheduler.compute_schedule
+)
