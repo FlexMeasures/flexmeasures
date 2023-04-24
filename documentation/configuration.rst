@@ -247,6 +247,15 @@ Time to live for schedule UUIDs of successful scheduling jobs. Set a negative ti
 
 Default: ``timedelta(days=7)``
 
+.. _datasource_config:
+
+FLEXMEASURES_DEFAULT_DATASOURCE
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Data generation classes will have this data source name as its sensor's data source output default.
+
+Default: ``"FlexMeasures"``
+
 
 .. _planning_horizon_config:
 
