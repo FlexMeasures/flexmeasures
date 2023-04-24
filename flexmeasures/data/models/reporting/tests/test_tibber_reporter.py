@@ -251,7 +251,7 @@ def test_tibber_reporter(tibber_test_data):
         start=datetime(2023, 4, 13, tzinfo=utc), end=datetime(2023, 4, 14, tzinfo=utc)
     )
 
-    # checking that we've get a result for 24 hours
+    # check that we got a result for 24 hours
     assert len(result) == 24
 
     tibber_app_price_df = (
@@ -261,7 +261,7 @@ def test_tibber_reporter(tibber_test_data):
 
     error = abs(result - tibber_app_price_df)
 
-    # checking that (EPEX + EnergyTax + Tibber Tariff)*(1 + VAT) = Tibber App Price
+    # check that (EPEX + EnergyTax + Tibber Tariff)*(1 + VAT) = Tibber App Price
 
     # mean error is low enough, i.e 1 EUR/MWh = 0.1 cent/kWh
     assert error.mean().iloc[0] < 1
