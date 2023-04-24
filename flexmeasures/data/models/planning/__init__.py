@@ -5,6 +5,7 @@ import pandas as pd
 from flask import current_app
 
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.utils.coding_utils import deprecated
 
 
 class Scheduler:
@@ -54,7 +55,7 @@ class Scheduler:
         Initialize a new Scheduler.
 
         TODO: We might adapt the class design, so that A Scheduler object is initialized with configuration parameters,
-              and can then be used multiple times (via compute_schedule()) to compute schedules of different kinds, e.g.
+              and can then be used multiple times (via compute()) to compute schedules of different kinds, e.g.
                 If we started later (put in a later start), what would the schedule be?
                 If we could change set points less often (put in a coarser resolution), what would the schedule be?
                 If we knew what was going to happen (put in a later belief_time), what would the schedule have been?
@@ -79,6 +80,13 @@ class Scheduler:
         Overwrite with the actual computation of your schedule.
         """
         return None
+
+    def compute(self) -> Optional[pd.Series]:
+        """
+        Overwrite with the actual computation of your schedule.
+        """
+
+        return self.compute_schedule()
 
     @classmethod
     def get_data_source_info(cls: type) -> dict:
@@ -142,3 +150,12 @@ class Scheduler:
         Raises ValidationErrors or ValueErrors.
         """
         pass
+
+
+"""
+Deprecations
+"""
+
+Scheduler.compute_schedule = deprecated(Scheduler.compute, 14)(
+    Scheduler.compute_schedule
+)

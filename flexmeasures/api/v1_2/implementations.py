@@ -108,7 +108,7 @@ def get_device_message_response(generic_asset_name_groups, duration):
                 },
             )
             try:
-                schedule = scheduler.compute_schedule()
+                schedule = scheduler.compute()
             except UnknownPricesException:
                 return unknown_prices()
             except UnknownMarketException:
