@@ -249,7 +249,8 @@ def test_tibber_reporter(tibber_test_data):
     tibber_reporter = TibberReporter(tibber_report_sensor)
 
     result = tibber_reporter.compute(
-        start=datetime(2023, 4, 13, tzinfo=utc), end=datetime(2023, 4, 14, tzinfo=utc)
+        start=datetime(2023, 4, 13, tzinfo=utc),
+        end=datetime(2023, 4, 13, 23, tzinfo=utc),
     )
 
     # check that we got a result for 24 hours

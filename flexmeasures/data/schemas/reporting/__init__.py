@@ -53,3 +53,5 @@ class ReporterConfigSchema(Schema):
     start = AwareDateTimeField()
     end = AwareDateTimeField()
     input_resolution = DurationField()
+    beliefs_after = AwareDateTimeField()
+    beliefs_before = AwareDateTimeField()

@@ -6,6 +6,9 @@ from flexmeasures.data.schemas.reporting import ReporterConfigSchema
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.data_sources import DataGenerator
 
+
+from datetime import datetime, timedelta
+
 import timely_beliefs as tb
 
 
@@ -22,6 +25,11 @@ class Reporter(DataGenerator):
     reporter_config_raw: Optional[dict] = None
     schema = ReporterConfigSchema
     data: Dict[str, Union[tb.BeliefsDataFrame, pd.DataFrame]] = None
+    start: datetime = None
+    end: datetime = None
+    input_resolution: timedelta = None
+    beliefs_after: datetime = None
+    beliefs_before: datetime = None
 
     def __init__(
         self, sensor: Sensor, reporter_config_raw: Optional[dict] = None
@@ -53,6 +61,8 @@ class Reporter(DataGenerator):
             event_starts_after = tb_query.pop("event_starts_after", self.start)
             event_ends_before = tb_query.pop("event_ends_before", self.end)
             resolution = tb_query.pop("resolution", self.input_resolution)
+            beliefs_after = tb_query.pop("beliefs_after", self.beliefs_after)
+            beliefs_before = tb_query.pop("beliefs_before", self.beliefs_before)
 
             sensor: Sensor = tb_query.pop("sensor", None)
             alias: str = tb_query.pop("alias", None)
@@ -61,6 +71,8 @@ class Reporter(DataGenerator):
                 event_starts_after=event_starts_after,
                 event_ends_before=event_ends_before,
                 resolution=resolution,
+                beliefs_after=beliefs_after,
+                beliefs_before=beliefs_before,
                 **tb_query,
             )
 
@@ -74,7 +86,16 @@ class Reporter(DataGenerator):
             else:
                 self.data[f"sensor_{sensor.id}"] = bdf
 
-    def compute(self, *args, **kwargs) -> tb.BeliefsDataFrame:
+    def compute(
+        self,
+        *args,
+        start: datetime = None,
+        end: datetime = None,
+        input_resolution: datetime = None,
+        beliefs_after: datetime = None,
+        beliefs_before: datetime = None,
+        **kwargs,
+    ) -> tb.BeliefsDataFrame:
         """This method triggers the creation of a new report. This method allows to update the fields
         in reporter_config_raw passing them as keyword arguments or the whole `reporter_config_raw` by
         passing it in the kwarg `reporter_config_raw`.
@@ -89,21 +110,15 @@ class Reporter(DataGenerator):
         # if report_config in kwargs
         if "reporter_config_raw" in kwargs:
             self.reporter_config_raw.update(kwargs.get("reporter_config_raw"))
-        else:  # check for arguments in kwargs that could be potential fields of reporter config
-            for key, value in kwargs.items():
-
-                if (
-                    key in self.reporter_config_raw
-                ):  # update reporter_config_raw with inputs from the method
-                    self.reporter_config_raw[key] = value
-
-                if key in ["start", "end"]:  # convert datetime to string
-                    self.reporter_config_raw[key] = value.isoformat().replace("+", " ")
-                if key in ["input_resolution"]:  # convert timedelta into string
-                    self.reporter_config_raw[key] = pd.Timedelta(value).isoformat()
 
         # deserialize configuration
         self.deserialize_config()
+
+        self.start = start
+        self.end = end
+        self.input_resolution = input_resolution
+        self.beliefs_after = beliefs_after
+        self.beliefs_before = beliefs_before
 
         # fetch data
         self.fetch_data()
@@ -146,8 +161,11 @@ class Reporter(DataGenerator):
             start = tb_query.get("event_starts_after", self.start)
             end = tb_query.get("event_ends_before ", self.end)
 
-            if end < start:
-                raise ValueError(f"Start {start} cannot be after end {end}.")
+            if (
+                start is not None and end is not None
+            ):  # not testing when start or end are missing
+                if end < start:
+                    raise ValueError(f"Start {start} cannot be after end {end}.")
 
     def deserialize_reporter_config(self):
         """
@@ -169,3 +187,4 @@ class Reporter(DataGenerator):
         self.start = self.reporter_config.get("start")
         self.end = self.reporter_config.get("end")
         self.input_resolution = self.reporter_config.get("input_resolution")
+        self.belief_time = self.reporter_config.get("belief_time")
