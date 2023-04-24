@@ -29,10 +29,10 @@ Install
 
 On Unix:
 
-.. code-block:: console
+.. code-block:: bash
 
-   sudo apt-get install postgresql-12
-   pip install psycopg2-binary
+   $ sudo apt-get install postgresql-12
+   $ pip install psycopg2-binary
 
 
 On Windows:
@@ -61,9 +61,9 @@ Find the ``timezone`` setting and set it to 'UTC'.
 
 Then restart the postgres server.
 
-.. code-block:: console
+.. code-block:: bash
 
-    service postgresql restart
+    $ service postgresql restart
 
 
 Setup the "flexmeasures" Unix user
@@ -71,9 +71,9 @@ Setup the "flexmeasures" Unix user
 
 This may in fact not be needed:
 
-.. code-block:: console
+.. code-block:: bash
 
-   sudo /usr/sbin/adduser flexmeasures
+   $ sudo /usr/sbin/adduser flexmeasures
 
 
 Create "flexmeasures" and "flexmeasures_test" databases and users
@@ -84,14 +84,14 @@ From the terminal:
 Open a console (use your Windows key and type ``cmd``\ ).
 Proceed to create a database as the postgres superuser (using your postgres user password):
 
-.. code-block:: console
+.. code-block:: bash
 
-   sudo -i -u postgres
-   createdb -U postgres flexmeasures
-   createdb -U postgres flexmeasures_test
-   createuser --pwprompt -U postgres flexmeasures      # enter your password
-   createuser --pwprompt -U postgres flexmeasures_test  # enter "flexmeasures_test" as password
-   exit
+   $ sudo -i -u postgres
+   $ createdb -U postgres flexmeasures
+   $ createdb -U postgres flexmeasures_test
+   $ createuser --pwprompt -U postgres flexmeasures      # enter your password
+   $ createuser --pwprompt -U postgres flexmeasures_test  # enter "flexmeasures_test" as password
+   $ exit
 
 
 Or, from within Postgres console:
@@ -106,9 +106,9 @@ Or, from within Postgres console:
 
 Finally, test if you can log in as the flexmeasures user:
 
-.. code-block:: console
+.. code-block:: bash
 
-   psql -U flexmeasures --password -h 127.0.0.1 -d flexmeasures
+   $ psql -U flexmeasures --password -h 127.0.0.1 -d flexmeasures
 
 .. code-block:: sql
 
@@ -121,9 +121,9 @@ Add Postgres Extensions to your database(s)
 To find the nearest sensors, FlexMeasures needs some extra Postgres support.
 Add the following extensions while logged in as the postgres superuser:
 
-.. code-block:: console
+.. code-block:: bash
 
-   sudo -u postgres psql
+   $ sudo -u postgres psql
 
 .. code-block:: sql
 
@@ -161,25 +161,25 @@ Here is a short recipe to import data from a FlexMeasures database (e.g. a demo 
 
 On the to-be-exported database:
 
-.. code-block:: console
+.. code-block:: bash
 
-   flexmeasures db-ops dump
+   $ flexmeasures db-ops dump
 
 
 .. note:: Only the data gets dumped here.
 
 Then, we create the structure in our database anew, based on the data model given by the local codebase:
 
-.. code-block:: console
+.. code-block:: bash
 
-   flexmeasures db-ops reset
+   $ flexmeasures db-ops reset
 
 
 Then we import the data dump we made earlier:
 
-.. code-block:: console
+.. code-block:: bash
 
-   flexmeasures db-ops restore <DATABASE DUMP FILENAME>
+   $ flexmeasures db-ops restore <DATABASE DUMP FILENAME>
 
 
 A potential ``alembic_version`` error should not prevent other data tables from being restored.
@@ -192,40 +192,40 @@ Create data manually
 
 First, you can get the database structure with:
 
-.. code-block:: console
+.. code-block:: bash
 
-   flexmeasures db upgrade
+   $ flexmeasures db upgrade
 
 
 .. note:: If you develop code (and might want to make changes to the data model), you should also check out the maintenance section about database migrations.
 
 You can create users with the ``add user`` command. Check it out:
 
-.. code-block:: console
+.. code-block:: bash
 
-   flexmeasures add user --help
+   $ flexmeasures add user --help
 
 
 You can create some pre-determined asset types and data sources with this command:
 
-.. code-block:: console
+.. code-block:: bash
 
-   flexmeasures add initial-structure
+   $ flexmeasures add initial-structure
 
 You can also create assets in the FlexMeasures UI.
 
 On the command line, you can add many things. Check what data you can add yourself:
 
-.. code-block:: console
+.. code-block:: bash
 
-   flexmeasures add --help
+   $ flexmeasures add --help
 
 
 For instance, you can create forecasts for your existing metered data with this command:
 
-.. code-block:: console
+.. code-block:: bash
 
-   flexmeasures add forecasts --help
+   $ flexmeasures add forecasts --help
 
 
 Check out it's ``--help`` content to learn more. You can set which assets and which time window you want to forecast. Of course, making forecasts takes a while for a larger dataset.
@@ -233,9 +233,9 @@ You can also simply queue a job with this command (and run a worker to process t
 
 Just to note, there are also commands to get rid of data. Check:
 
-.. code-block:: console
+.. code-block:: bash
 
-   flexmeasures delete --help
+   $ flexmeasures delete --help
 
 Check out the :ref:`cli` documentation for more details.
 
@@ -246,9 +246,9 @@ Visualize the data model
 
 You can visualise the data model like this:
 
-.. code-block:: console
+.. code-block:: bash
 
-   make show-data-model
+   $ make show-data-model
 
 
 This will generate a picture based on the model code.
@@ -267,11 +267,11 @@ Make first migration
 
 Run these commands from the repository root directory (read below comments first):
 
-.. code-block:: console
+.. code-block:: bash
 
-   flexmeasures db init
-   flexmeasures db migrate
-   flexmeasures db upgrade
+   $ flexmeasures db init
+   $ flexmeasures db migrate
+   $ flexmeasures db upgrade
 
 
 The first command (\ ``flexmeasures db init``\ ) is only needed here once, it initialises the alembic migration tool.
@@ -287,10 +287,10 @@ Make another migration
 
 Just to be clear that the ``db init`` command is needed only at the beginning - you usually do, if your model changed:
 
-.. code-block:: console
+.. code-block:: bash
 
-   flexmeasures db migrate --message "Please explain what you did, it helps for later"
-   flexmeasures db upgrade
+   $ flexmeasures db migrate --message "Please explain what you did, it helps for later"
+   $ flexmeasures db upgrade
 
 
 Get database structure updated
@@ -298,9 +298,9 @@ Get database structure updated
 
 The goal is that on any other computer, you can always execute
 
-.. code-block:: console
+.. code-block:: bash
 
-   flexmeasures db upgrade
+   $ flexmeasures db upgrade
 
 
 to have the database structure up-to-date with all migrations.
@@ -310,18 +310,18 @@ Working with the migration history
 
 The history of migrations is at your fingertips:
 
-.. code-block:: console
+.. code-block:: bash
 
-   flexmeasures db current
-   flexmeasures db history
+   $ flexmeasures db current
+   $ flexmeasures db history
 
 
 You can move back and forth through the history:
 
-.. code-block:: console
+.. code-block:: bash
 
-   flexmeasures db downgrade
-   flexmeasures db upgrade
+   $ flexmeasures db downgrade
+   $ flexmeasures db upgrade
 
 
 Both of these accept a specific revision id parameter, as well.
@@ -331,9 +331,9 @@ Check out database status
 
 Log in into the database:
 
-.. code-block:: console
+.. code-block:: bash
 
-   psql -U flexmeasures --password -h 127.0.0.1 -d flexmeasures
+   $ psql -U flexmeasures --password -h 127.0.0.1 -d flexmeasures
 
 
 with the password from flexmeasures/development_config.py. Check which tables are there:

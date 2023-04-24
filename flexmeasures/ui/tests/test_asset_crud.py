@@ -4,6 +4,7 @@ import pytest
 
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.ui.tests.utils import mock_asset_response, mock_api_data_as_form_input
+from flexmeasures.ui.crud.assets import get_assets_by_account
 
 """
 Testing if our asset UI proceeds with the expected round trip.
@@ -19,6 +20,14 @@ def test_assets_page_empty(db, client, requests_mock, as_prosumer_user1):
     requests_mock.get(f"{api_path_assets}/public", status_code=200, json={})
     asset_index = client.get(url_for("AssetCrudUI:index"), follow_redirects=True)
     assert asset_index.status_code == 200
+
+
+def test_get_assets_by_account(db, client, requests_mock, as_prosumer_user1):
+    mock_assets = mock_asset_response(multiple=True)
+    requests_mock.get(
+        f"{api_path_assets}?account_id=1", status_code=200, json=mock_assets
+    )
+    assert get_assets_by_account(1)[1].name == "TestAsset2"
 
 
 @pytest.mark.parametrize("use_owned_by", [False, True])

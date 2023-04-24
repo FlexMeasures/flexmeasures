@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import functools
 import time
 import inspect
@@ -118,6 +120,22 @@ def optional_arg_decorator(fn):
 def sort_dict(unsorted_dict: dict) -> dict:
     sorted_dict = dict(sorted(unsorted_dict.items(), key=lambda item: item[0]))
     return sorted_dict
+
+
+def flatten_unique(nested_list_of_objects: list) -> list:
+    """Returns unique objects in a possibly nested (one level) list of objects.
+
+    For example:
+    >>> flatten_unique([1, [2, 3, 4], 3, 5])
+    <<< [1, 2, 3, 4, 5]
+    """
+    all_objects = []
+    for s in nested_list_of_objects:
+        if isinstance(s, list):
+            all_objects.extend(s)
+        else:
+            all_objects.append(s)
+    return list(set(all_objects))
 
 
 def timeit(func):

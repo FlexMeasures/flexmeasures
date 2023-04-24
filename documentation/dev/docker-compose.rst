@@ -19,7 +19,7 @@ Run this:
 
 .. code-block:: bash
 
-    docker-compose build
+    $ docker-compose build
 
 This pulls the images you need, and re-builds the FlexMeasures ones from code. If you change code, re-running this will re-build that image.
 
@@ -36,16 +36,16 @@ Start the stack like this:
 
 .. code-block:: bash
 
-    docker-compose up
+    $ docker-compose up
 
 .. warning:: This might fail if ports 5000 (Flask) or 6379 (Redis) are in use on your system. Stop these processes before you continue.
 
 Check ``docker ps`` or ``docker-compose ps`` to see if your containers are running:
 
 
-.. code-block:: console
+.. code-block:: bash
 
-    ± docker ps
+    $ docker ps
     CONTAINER ID   IMAGE                 COMMAND                  CREATED          STATUS                             PORTS                    NAMES
     beb9bf567303   flexmeasures_server   "bash -c 'flexmeasur…"   44 seconds ago   Up 38 seconds (health: starting)   0.0.0.0:5000->5000/tcp   flexmeasures-server-1
     e36cd54a7fd5   flexmeasures_worker   "flexmeasures jobs r…"   44 seconds ago   Up 5 seconds                       5000/tcp                 flexmeasures-worker-1
@@ -86,23 +86,23 @@ The `flexmeasures-server` container already creates the toy account when it star
 
 Let's go into the `flexmeasures-worker` container:
 
-.. code-block:: console
+.. code-block:: bash
 
-    docker exec -it flexmeasures-worker-1 bash
+    $ docker exec -it flexmeasures-worker-1 bash
 
 There, we add the price data, as described in :ref:`tut_toy_schedule_price_data`. Create the prices and add them to the FlexMeasures DB in the container's bash session.
 
 Next, we put a scheduling job in the worker's queue. This only works because we have the Redis container running ― the toy tutorial doesn't have it. The difference is that we're adding ``--as-job``:
 
-.. code-block:: console
+.. code-block:: bash
 
-    flexmeasures add schedule for-storage --sensor-id 2 --consumption-price-sensor 3 \
+    $ flexmeasures add schedule for-storage --sensor-id 1 --consumption-price-sensor 2 \
         --start ${TOMORROW}T07:00+01:00 --duration PT12H --soc-at-start 50% \
         --roundtrip-efficiency 90% --as-job
 
 We should now see in the output of ``docker logs flexmeasures-worker-1`` something like the following:
 
-.. code-block:: console
+.. code-block:: bash
 
     Running Scheduling Job d3e10f6d-31d2-46c6-8308-01ede48f8fdd: <Sensor 2: charging, unit: MW res.: 0:15:00>, from 2022-07-06 07:00:00+01:00 to 2022-07-06 19:00:00+01:00
 
@@ -110,38 +110,38 @@ So the job had been queued in Redis, was then picked up by the worker process, a
 
 We'll not go into the server container this time, but simply send a command:
 
-.. code-block:: console
+.. code-block:: bash
 
-    TOMORROW=$(date --date="next day" '+%Y-%m-%d')
-    docker exec -it flexmeasures-server-1 bash -c "flexmeasures show beliefs --sensor-id 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H"
+    $ TOMORROW=$(date --date="next day" '+%Y-%m-%d')
+    $ docker exec -it flexmeasures-server-1 bash -c "flexmeasures show beliefs --sensor-id 1 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H"
 
 The charging/discharging schedule should be there:
 
-.. code-block:: console
+.. code-block:: bash
 
     ┌────────────────────────────────────────────────────────────┐
-    │   ▐                      ▐▀▀▌                           ▛▀▀│ 
-    │   ▞▌                     ▞  ▐                           ▌  │ 0.4MW
-    │   ▌▌                     ▌  ▐                          ▐   │ 
-    │  ▗▘▌                     ▌  ▐                          ▐   │ 
-    │  ▐ ▐                    ▗▘  ▝▖                         ▐   │ 
-    │  ▞ ▐                    ▐    ▌                         ▌   │ 0.2MW
-    │ ▗▘ ▐                    ▐    ▌                         ▌   │ 
-    │ ▐  ▝▖                   ▌    ▚                        ▞    │ 
-    │▀▘───▀▀▀▀▀▀▀▀▀▀▀▀▀▀▌────▐─────▝▀▀▀▀▀▀▀▀▜─────▐▀▀▀▀▀▀▀▀▀─────│ 0MW
-    │                   ▌    ▞              ▐    ▗▘              │ 
-    │                   ▚    ▌              ▐    ▐               │ 
-    │                   ▐   ▗▘              ▝▖   ▌               │ -0.2MW
-    │                   ▐   ▐                ▌   ▌               │ 
-    │                   ▐   ▐                ▌  ▗▘               │ 
-    │                    ▌  ▞                ▌  ▐                │ 
-    │                    ▌  ▌                ▐  ▐                │ -0.4MW
-    │                    ▙▄▄▌                ▐▄▄▞                │ 
+    │   ▐            ▐▀▀▌                                     ▛▀▀│ 0.5MW
+    │   ▞▌           ▌  ▌                                     ▌  │
+    │   ▌▌           ▌  ▐                                    ▗▘  │
+    │   ▌▌           ▌  ▐                                    ▐   │
+    │  ▐ ▐          ▐   ▐                                    ▐   │
+    │  ▐ ▐          ▐   ▝▖                                   ▞   │
+    │  ▌ ▐          ▐    ▌                                   ▌   │
+    │ ▐  ▝▖         ▌    ▌                                   ▌   │
+    │▀▘───▀▀▀▀▖─────▌────▀▀▀▀▀▀▀▀▀▌─────▐▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▘───│ 0.0MW
+    │         ▌    ▐              ▚     ▌                        │
+    │         ▌    ▞              ▐    ▗▘                        │
+    │         ▌    ▌              ▐    ▞                         │
+    │         ▐   ▐               ▝▖   ▌                         │
+    │         ▐   ▐                ▌  ▗▘                         │
+    │         ▐   ▌                ▌  ▐                          │
+    │         ▝▖  ▌                ▌  ▞                          │
+    │          ▙▄▟                 ▐▄▄▌                          │ -0.5MW
     └────────────────────────────────────────────────────────────┘
-            10           20           30          40
-                         ██ charging
+               10           20           30          40
+                            ██ discharging
 
-Like in the original toy tutorial, we can also check in the server container's `web UI <http://localhost:5000/sensors/2/>`_ (username is "toy-user@flexmeasures.io", password is "toy-password"):
+Like in the original toy tutorial, we can also check in the server container's `web UI <http://localhost:5000/sensors/1/>`_ (username is "toy-user@flexmeasures.io", password is "toy-password"):
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-charging.png
     :align: center
@@ -167,8 +167,8 @@ You can run tests in the flexmeasures docker container, using the database servi
 
 After you've started the compose stack with ``docker-compose up``, run:
 
-.. code-block:: console
+.. code-block:: bash
 
-    docker exec -it -e SQLALCHEMY_TEST_DATABASE_URI="postgresql://fm-test-db-user:fm-test-db-pass@test-db:5432/fm-test-db" flexmeasures-server-1 pytest
+    $ docker exec -it -e SQLALCHEMY_TEST_DATABASE_URI="postgresql://fm-test-db-user:fm-test-db-pass@test-db:5432/fm-test-db" flexmeasures-server-1 pytest
 
 This rounds up the dev experience offered by running FlexMeasures in Docker. Now you can develop FlexMeasures and also run your tests. If you develop plugins, you could extend the command being used, e.g. ``bash -c "cd /path/to/my/plugin && pytest"``. 
