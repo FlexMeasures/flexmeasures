@@ -81,14 +81,14 @@ class Scheduler:
 
         Deprecated method in v0.14. As an alternative, use Scheduler.compute().
         """
-        return None
+        return self.compute()
 
     def compute(self) -> Optional[pd.Series]:
         """
         Overwrite with the actual computation of your schedule.
         """
 
-        return self.compute_schedule()
+        return None
 
     @classmethod
     def get_data_source_info(cls: type) -> dict:
