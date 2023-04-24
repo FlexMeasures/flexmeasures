@@ -22,7 +22,7 @@ class FailingScheduler(Scheduler):
     __author__ = "Test Organization"
     __version__ = "1"
 
-    def compute_schedule(self):
+    def compute(self):
         """
         This is a schedule that fails
         """
