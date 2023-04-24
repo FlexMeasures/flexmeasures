@@ -51,7 +51,7 @@ tibber_app_price = [
     32.2,
     30.2,
     27.5,
-    21.7,
+    21.6,  # originally 21.7 due to a rounding error from 216.4569 EUR/MWh (probably via 216.5) to 217 EUR/MWh
     16.9,
     11.4,
     11.4,
@@ -82,16 +82,14 @@ class TibberReporter(PandasReporter):
 
         da_prices = Sensor.query.filter(Sensor.name == "DA prices").one_or_none()
 
-        tb_query_config_extra = dict()
-
-        # creating the PandasReporter reporter config
+        # create the PandasReporter reporter config
         reporter_config = dict(
             input_resolution="PT1H",
             tb_query_config=[
-                dict(sensor=EnergyTax.id, **tb_query_config_extra),
-                dict(sensor=VAT.id, **tb_query_config_extra),
-                dict(sensor=tibber_tariff.id, **tb_query_config_extra),
-                dict(sensor=da_prices.id, **tb_query_config_extra),
+                dict(sensor=EnergyTax.id, alias="energy_tax_df"),
+                dict(sensor=VAT.id),
+                dict(sensor=tibber_tariff.id),
+                dict(sensor=da_prices.id),
             ],
             transformations=[
                 dict(
@@ -102,7 +100,7 @@ class TibberReporter(PandasReporter):
                 ),
                 dict(method="add", args=[1]),  # this is to get 1 + VAT
                 dict(
-                    df_input="sensor_2",
+                    df_input="energy_tax_df",
                     df_output="EnergyTax",
                     method="droplevel",
                     args=[[1, 2, 3]],
@@ -128,6 +126,7 @@ class TibberReporter(PandasReporter):
                 dict(
                     method="multiply", args=["@VAT"]
                 ),  # da_prices = da_price * VAT, VAT
+                dict(method="round"),
             ],
             final_df_output="da_prices",
         )
@@ -201,7 +200,7 @@ def tibber_test_data(fresh_db, app):
         Saving TimeBeliefs to the DB
     """
 
-    # Adding EnergyTax, VAT and Tibber Tarriff beliefs to the DB
+    # Add EnergyTax, VAT and Tibber Tariff beliefs to the DB
     for sensor, source_name, value in [
         (VAT, "Tax Authority", 0.21),
         (EnergyTax, "Tax Authority", 125.99),  # EUR / MWh
@@ -253,20 +252,15 @@ def test_tibber_reporter(tibber_test_data):
         start=datetime(2023, 4, 13, tzinfo=utc), end=datetime(2023, 4, 14, tzinfo=utc)
     )
 
-    # checking that we've get a result for 24 hours
+    # check that we got a result for 24 hours
     assert len(result) == 24
 
     tibber_app_price_df = (
         pd.DataFrame(tibber_app_price, index=index, columns=["event_value"])
-        * 10  # converting cents/kWh to EUR/MWh
+        * 10  # convert cents/kWh to EUR/MWh
     )
 
     error = abs(result - tibber_app_price_df)
 
-    # checking that (EPEX + EnergyTax + Tibber Tariff)*(1 + VAT) = Tibber App Price
-
-    # mean error is low enough, i.e 1 EUR/MWh = 0.1 cent/kWh
-    assert error.mean().iloc[0] < 1
-
-    # max error is low enough, i.e 1 EUR/MWh = 0.1 cent/kWh
-    assert error.max().iloc[0] < 1
+    # check that (EPEX + EnergyTax + Tibber Tariff)*(1 + VAT) = Tibber App Price
+    assert error.sum()[0] == 0

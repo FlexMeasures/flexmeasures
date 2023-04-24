@@ -53,7 +53,8 @@ class Reporter:
             event_ends_before = tb_query.pop("event_ends_before", self.end)
             resolution = tb_query.pop("resolution", self.input_resolution)
 
-            sensor = tb_query.pop("sensor", None)
+            sensor: Sensor = tb_query.pop("sensor", None)
+            alias: str = tb_query.pop("alias", None)
 
             bdf = sensor.search_beliefs(
                 event_starts_after=event_starts_after,
@@ -62,31 +63,32 @@ class Reporter:
                 **tb_query,
             )
 
-            # adding sources
+            # store data source as local variable
             for source in bdf.sources.unique():
                 self.data[f"source_{source.id}"] = source
 
-            # saving bdf
-            self.data[
-                f"sensor_{sensor.id}"
-            ] = bdf  # TODO: Add alias to reference dataframes easily. e.g: dict(sensor = 1, alias="power"),
+            # store BeliefsDataFrame as local variable
+            if alias:
+                self.data[alias] = bdf
+            else:
+                self.data[f"sensor_{sensor.id}"] = bdf
 
     def compute(self, *args, **kwargs) -> tb.BeliefsDataFrame:
         """This method triggers the creation of a new report. This method allows to update the fields
         in reporter_config_raw passing them as keyword arguments or the whole `reporter_config_raw` by
         passing it in the kwarg `reporter_config_raw`.
 
-            Overall, this method follows these steps:
-                1) Updating the reporter_config with the kwargs of the method compute.
-                2) Triggers config deserialization.
-                3) Fetches the data of the sensors described by the field `tb_query_config`.
-                4) If the output is BeliefsDataFrame, it simplifies it into a DataFrame
+        Overall, this method follows these steps:
+            1) Updating the reporter_config with the kwargs of the method compute.
+            2) Triggers config deserialization.
+            3) Fetches the data of the sensors described by the field `tb_query_config`.
+            4) If the output is BeliefsDataFrame, it simplifies it into a DataFrame
 
         """
         # if report_config in kwargs
         if "reporter_config_raw" in kwargs:
             self.reporter_config_raw.update(kwargs.get("reporter_config_raw"))
-        else:  # check for arguments in kwarg that could be potential fields of reporter config
+        else:  # check for arguments in kwargs that could be potential fields of reporter config
             for key, value in kwargs.items():
 
                 if (
@@ -116,7 +118,7 @@ class Reporter:
 
         return result
 
-    def _compute(self) -> Optional[tb.BeliefsDataFrame]:
+    def _compute(self) -> tb.BeliefsDataFrame:
         """
         Overwrite with the actual computation of your report.
 

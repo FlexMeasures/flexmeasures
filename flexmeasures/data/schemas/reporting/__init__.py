@@ -13,6 +13,7 @@ class TimeBeliefQueryConfigSchema(Schema):
     """
 
     sensor = SensorIdField(required=True)
+    alias = fields.Str()
 
     event_starts_after = AwareDateTimeField()
     event_ends_before = AwareDateTimeField()
