@@ -82,16 +82,14 @@ class TibberReporter(PandasReporter):
 
         da_prices = Sensor.query.filter(Sensor.name == "DA prices").one_or_none()
 
-        tb_query_config_extra = dict()
-
         # creating the PandasReporter reporter config
         reporter_config = dict(
             input_resolution="PT1H",
             tb_query_config=[
-                dict(sensor=EnergyTax.id, **tb_query_config_extra),
-                dict(sensor=VAT.id, **tb_query_config_extra),
-                dict(sensor=tibber_tariff.id, **tb_query_config_extra),
-                dict(sensor=da_prices.id, **tb_query_config_extra),
+                dict(sensor=EnergyTax.id),
+                dict(sensor=VAT.id),
+                dict(sensor=tibber_tariff.id),
+                dict(sensor=da_prices.id),
             ],
             transformations=[
                 dict(
