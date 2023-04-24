@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Any
 
 from flask import current_app
@@ -15,6 +17,8 @@ class PandasReporter(Reporter):
     __version__ = "1"
     __author__ = None
     schema = PandasReporterConfigSchema()
+    transformations: list[dict[str, Any]] = None
+    final_df_output: str = None
 
     def deserialize_reporter_config(self):
         # call super class deserialize_reporter_config
