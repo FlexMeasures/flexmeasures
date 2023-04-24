@@ -1,6 +1,5 @@
-import pandas as pd
-
 from flask import current_app
+import timely_beliefs as tb
 
 from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.schemas.reporting.pandas_reporter import (
@@ -23,7 +22,7 @@ class PandasReporter(Reporter):
         self.transformations = self.reporter_config.get("transformations")
         self.final_df_output = self.reporter_config.get("final_df_output")
 
-    def _compute(self) -> pd.Series:
+    def _compute(self) -> tb.BeliefsDataFrame:
         """
         This method applies the transformations and outputs the dataframe
         defined in `final_df_output` field of the report_config.

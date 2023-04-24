@@ -116,7 +116,7 @@ class Reporter:
 
         return result
 
-    def _compute(self) -> Optional[tb.BeliefsDataFrame]:
+    def _compute(self) -> tb.BeliefsDataFrame:
         """
         Overwrite with the actual computation of your report.
 
