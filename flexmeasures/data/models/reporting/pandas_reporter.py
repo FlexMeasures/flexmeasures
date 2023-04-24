@@ -45,9 +45,9 @@ class PandasReporter(Reporter):
         This functionality is disabled for methods `eval`and `query` to avoid interfering their internal behaviour
         given that they also use `@` to allow using local variables.
 
-        Examples
-        >> self.get_object_or_literal(["@df_wind", "@df_solar"], "sum")
-        [[ <BeliefsDataFrame sensor=Wind Turbine>, <BeliefsDataFrame sensor=Solar Panel>]]
+        Example:
+        >>> self.get_object_or_literal(["@df_wind", "@df_solar"], "sum")
+        [<BeliefsDataFrame for Wind Turbine sensor>, <BeliefsDataFrame for Solar Panel sensor>]
         """
 
         if method in ["eval", "query"]:
