@@ -76,11 +76,11 @@ class Reporter:
         in reporter_config_raw passing them as keyword arguments or the whole `reporter_config_raw` by
         passing it in the kwarg `reporter_config_raw`.
 
-            Overall, this method follows these steps:
-                1) Updating the reporter_config with the kwargs of the method compute.
-                2) Triggers config deserialization.
-                3) Fetches the data of the sensors described by the field `tb_query_config`.
-                4) If the output is BeliefsDataFrame, it simplifies it into a DataFrame
+        Overall, this method follows these steps:
+            1) Updating the reporter_config with the kwargs of the method compute.
+            2) Triggers config deserialization.
+            3) Fetches the data of the sensors described by the field `tb_query_config`.
+            4) If the output is BeliefsDataFrame, it simplifies it into a DataFrame
 
         """
         # if report_config in kwargs
