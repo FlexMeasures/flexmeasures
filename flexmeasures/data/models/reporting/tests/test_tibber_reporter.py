@@ -51,7 +51,7 @@ tibber_app_price = [
     32.2,
     30.2,
     27.5,
-    21.7,
+    21.6,  # originally 21.7 due to a rounding error from 216.4569 EUR/MWh (probably via 216.5) to 217 EUR/MWh
     16.9,
     11.4,
     11.4,
@@ -126,6 +126,7 @@ class TibberReporter(PandasReporter):
                 dict(
                     method="multiply", args=["@VAT"]
                 ),  # da_prices = da_price * VAT, VAT
+                dict(method="round"),
             ],
             final_df_output="da_prices",
         )
@@ -262,9 +263,4 @@ def test_tibber_reporter(tibber_test_data):
     error = abs(result - tibber_app_price_df)
 
     # check that (EPEX + EnergyTax + Tibber Tariff)*(1 + VAT) = Tibber App Price
-
-    # mean error is low enough, i.e 1 EUR/MWh = 0.1 cent/kWh
-    assert error.mean().iloc[0] < 1
-
-    # max error is low enough, i.e 1 EUR/MWh = 0.1 cent/kWh
-    assert error.max().iloc[0] < 1
+    assert error.sum()[0] == 0
