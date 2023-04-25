@@ -32,7 +32,9 @@ def test_get_users_bad_auth(client, setup_api_test_data, use_auth):
 
 
 @pytest.mark.parametrize("include_inactive", [False, True])
-def test_get_users_inactive(client, setup_inactive_user, include_inactive):
+def test_get_users_inactive(
+    client, setup_api_test_data, setup_inactive_user, include_inactive
+):
     headers = {
         "content-type": "application/json",
         "Authorization": get_auth_token(
@@ -64,7 +66,7 @@ def test_get_users_inactive(client, setup_inactive_user, include_inactive):
         ("test_admin_user@seita.nl", 200),  # admin can do this from another account
     ],
 )
-def test_get_one_user(client, requesting_user, status_code):
+def test_get_one_user(client, setup_api_test_data, requesting_user, status_code):
     test_user2_id = find_user_by_email("test_prosumer_user_2@seita.nl").id
     headers = {"content-type": "application/json"}
     if requesting_user:
@@ -80,7 +82,7 @@ def test_get_one_user(client, requesting_user, status_code):
         assert get_user_response.json["username"] == "Test Prosumer User 2"
 
 
-def test_edit_user(client):
+def test_edit_user(client, setup_api_test_data):
     with UserContext("test_prosumer_user_2@seita.nl") as user2:
         user2_auth_token = user2.get_auth_token()  # user2 is no admin
         user2_id = user2.id
@@ -137,7 +139,9 @@ def test_edit_user(client):
         dict(account_id=10),  # account_id is a dump_only field
     ],
 )
-def test_edit_user_with_unexpected_fields(client, unexpected_fields: dict):
+def test_edit_user_with_unexpected_fields(
+    client, setup_api_test_data, unexpected_fields: dict
+):
     """Sending unexpected fields (not in Schema) is an Unprocessable Entity error."""
     with UserContext("test_prosumer_user_2@seita.nl") as user2:
         user2_id = user2.id
