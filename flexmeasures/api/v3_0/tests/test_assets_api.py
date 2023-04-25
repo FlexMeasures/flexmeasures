@@ -102,6 +102,14 @@ def test_get_assets(
         assert turbine["account_id"] == setup_accounts["Supplier"].id
 
 
+def test_get_public_assets_noauth(client, setup_api_test_data, setup_accounts):
+    get_assets_response = client.get(
+        url_for("AssetAPI:public"), headers={"content-type": "application/json"}
+    )
+    print("Server responded with:\n%s" % get_assets_response.json)
+    assert get_assets_response.status_code == 401
+
+
 def test_get_public_assets(client, setup_api_test_data, setup_accounts):
     auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
     get_assets_response = client.get(
@@ -109,6 +117,7 @@ def test_get_public_assets(client, setup_api_test_data, setup_accounts):
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
     print("Server responded with:\n%s" % get_assets_response.json)
+    assert get_assets_response.status_code == 200
     assert len(get_assets_response.json) == 1
     assert get_assets_response.json[0]["name"] == "troposphere"
 
