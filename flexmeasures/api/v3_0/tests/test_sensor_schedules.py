@@ -5,9 +5,11 @@ from isodate import parse_datetime, parse_duration
 import pandas as pd
 from rq.job import Job
 
+from flexmeasures.api.common.responses import unknown_schedule
 from flexmeasures.api.tests.utils import check_deprecation, get_auth_token
 from flexmeasures.api.v1_3.tests.utils import message_for_get_device_message
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.tests.utils import work_on_rq
 from flexmeasures.data.services.scheduling import (
@@ -71,6 +73,72 @@ def test_trigger_schedule_with_invalid_flexmodel(
             assert (
                 err_msg in trigger_schedule_response.json["message"]["json"][field][0]
             )
+
+
+@pytest.mark.parametrize("message", [message_for_trigger_schedule(unknown_prices=True)])
+def test_trigger_and_get_schedule_with_unknown_prices(
+    app,
+    add_market_prices,
+    add_battery_assets,
+    battery_soc_sensor,
+    add_charging_station_assets,
+    keep_scheduling_queue_empty,
+    message,
+):
+    auth_token = None
+    with app.test_client() as client:
+        sensor = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
+
+        # trigger a schedule through the /sensors/<id>/schedules/trigger [POST] api endpoint
+        auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
+        trigger_schedule_response = client.post(
+            url_for("SensorAPI:trigger_schedule", id=sensor.id),
+            json=message,
+            headers={"Authorization": auth_token},
+        )
+        print("Server responded with:\n%s" % trigger_schedule_response.json)
+        check_deprecation(trigger_schedule_response, deprecation=None, sunset=None)
+        assert trigger_schedule_response.status_code == 200
+        job_id = trigger_schedule_response.json["schedule"]
+
+        # look for scheduling jobs in queue
+        assert (
+            len(app.queues["scheduling"]) == 1
+        )  # only 1 schedule should be made for 1 asset
+        job = app.queues["scheduling"].jobs[0]
+        assert job.kwargs["sensor_id"] == sensor.id
+        assert job.kwargs["start"] == parse_datetime(message["start"])
+        assert job.id == job_id
+
+        # process the scheduling queue
+        work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
+        assert (
+            Job.fetch(job_id, connection=app.queues["scheduling"].connection).is_failed
+            is True
+        )
+
+        # check results are not in the database
+        scheduler_source = DataSource.query.filter_by(
+            name="Seita", type="scheduler"
+        ).one_or_none()
+        assert (
+            scheduler_source is None
+        )  # Make sure the scheduler data source is still not there
+
+        # try to retrieve the schedule through the /sensors/<id>/schedules/<job_id> [GET] api endpoint
+        message = message_for_get_device_message()
+        message["event"] = message["event"] % sensor.id
+        auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
+        get_schedule_response = client.get(
+            url_for("SensorAPI:get_schedule", id=sensor.id, uuid=job_id),
+            query_string=message,
+            headers={"content-type": "application/json", "Authorization": auth_token},
+        )
+        print("Server responded with:\n%s" % get_schedule_response.json)
+        check_deprecation(get_schedule_response, deprecation=None, sunset=None)
+        assert get_schedule_response.status_code == 400
+        assert get_schedule_response.json["status"] == unknown_schedule()[0]["status"]
+        assert "prices unknown" in get_schedule_response.json["message"].lower()
 
 
 @pytest.mark.parametrize(
