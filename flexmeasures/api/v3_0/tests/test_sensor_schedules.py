@@ -5,9 +5,8 @@ from isodate import parse_datetime, parse_duration
 import pandas as pd
 from rq.job import Job
 
-from flexmeasures.api.common.responses import unknown_schedule
+from flexmeasures.api.common.responses import unknown_schedule, unrecognized_event
 from flexmeasures.api.tests.utils import check_deprecation, get_auth_token
-from flexmeasures.api.v1_3.tests.utils import message_for_get_device_message
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
@@ -17,6 +16,28 @@ from flexmeasures.data.services.scheduling import (
     get_data_source_for_job,
 )
 from flexmeasures.utils.calculations import integrate_time_series
+
+
+def test_get_schedule_wrong_job_id(
+    app,
+    add_market_prices,
+    add_battery_assets,
+    battery_soc_sensor,
+    add_charging_station_assets,
+    keep_scheduling_queue_empty,
+):
+    wrong_job_id = 9999
+    sensor = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
+    with app.test_client() as client:
+        auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
+        get_schedule_response = client.get(
+            url_for("SensorAPI:get_schedule", id=sensor.id, uuid=wrong_job_id),
+            headers={"content-type": "application/json", "Authorization": auth_token},
+        )
+    print("Server responded with:\n%s" % get_schedule_response.json)
+    check_deprecation(get_schedule_response, deprecation=None, sunset=None)
+    assert get_schedule_response.status_code == 400
+    assert get_schedule_response.json == unrecognized_event(wrong_job_id, "job")[0]
 
 
 @pytest.mark.parametrize(
@@ -126,12 +147,9 @@ def test_trigger_and_get_schedule_with_unknown_prices(
         )  # Make sure the scheduler data source is still not there
 
         # try to retrieve the schedule through the /sensors/<id>/schedules/<job_id> [GET] api endpoint
-        message = message_for_get_device_message()
-        message["event"] = message["event"] % sensor.id
         auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
         get_schedule_response = client.get(
             url_for("SensorAPI:get_schedule", id=sensor.id, uuid=job_id),
-            query_string=message,
             headers={"content-type": "application/json", "Authorization": auth_token},
         )
         print("Server responded with:\n%s" % get_schedule_response.json)
@@ -261,14 +279,10 @@ def test_trigger_and_get_schedule(
             assert soc_schedule[target["datetime"]] == target["value"] / 1000
 
     # try to retrieve the schedule through the /sensors/<id>/schedules/<job_id> [GET] api endpoint
-    get_schedule_message = message_for_get_device_message(
-        targets="soc-targets" in message
-    )
-    del get_schedule_message["type"]
     auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
     get_schedule_response = client.get(
         url_for("SensorAPI:get_schedule", id=sensor.id, uuid=job_id),
-        query_string=get_schedule_message,
+        query_string={"duration": "PT48H"},
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
     print("Server responded with:\n%s" % get_schedule_response.json)
@@ -277,10 +291,9 @@ def test_trigger_and_get_schedule(
     assert len(get_schedule_response.json["values"]) == expected_length_of_schedule
 
     # Test that a shorter planning horizon yields the same result for the shorter planning horizon
-    get_schedule_message["duration"] = "PT6H"
     get_schedule_response_short = client.get(
         url_for("SensorAPI:get_schedule", id=sensor.id, uuid=job_id),
-        query_string=get_schedule_message,
+        query_string={"duration": "PT6H"},
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
     assert (
@@ -289,10 +302,9 @@ def test_trigger_and_get_schedule(
     )
 
     # Test that a much longer planning horizon yields the same result (when there are only 2 days of prices)
-    get_schedule_message["duration"] = "PT1000H"
     get_schedule_response_long = client.get(
         url_for("SensorAPI:get_schedule", id=sensor.id, uuid=job_id),
-        query_string=get_schedule_message,
+        query_string={"duration": "PT1000H"},
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
     assert (
