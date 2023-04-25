@@ -1,8 +1,38 @@
+from __future__ import annotations
+
 from flask import url_for
 import pytest
 
+from flexmeasures import Sensor
 from flexmeasures.api.tests.utils import get_auth_token
 from flexmeasures.api.v3_0.tests.utils import make_sensor_data_request_for_gas_sensor
+
+
+def test_get_no_sensor_data(
+    client,
+    setup_api_test_data: dict[str, Sensor],
+):
+    """Check the /sensors/data endpoint for fetching data for a period without any data."""
+    sensor = setup_api_test_data["some gas sensor"]
+    message = {
+        "sensor": f"ea1.2021-01.io.flexmeasures:fm1.{sensor.id}",
+        "start": "1921-05-02T00:00:00+02:00",  # we have loaded no test data for this year
+        "duration": "PT1H20M",
+        "horizon": "PT0H",
+        "unit": "m³/h",
+        "resolution": "PT20M",
+    }
+    auth_token = get_auth_token(client, "test_supplier_user_4@seita.nl", "testtest")
+    response = client.get(
+        url_for("SensorAPI:get_data"),
+        query_string=message,
+        headers={"content-type": "application/json", "Authorization": auth_token},
+    )
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 200
+    values = response.json["values"]
+    # We expect only null values (which are converted to None by .json)
+    assert all(a == b for a, b in zip(values, [None, None, None, None]))
 
 
 @pytest.mark.parametrize("use_auth", [False, True])
