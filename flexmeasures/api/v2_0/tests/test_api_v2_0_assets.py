@@ -66,38 +66,3 @@ def test_post_an_asset(client):
     asset: Asset = Asset.query.filter(Asset.name == "Test battery 2").one_or_none()
     assert asset is not None
     assert asset.capacity_in_mw == 3
-
-
-def test_edit_an_asset(client, db):
-    with UserContext("test_prosumer_user@seita.nl") as prosumer:
-        existing_asset = prosumer.assets[1]
-
-    post_data = dict(latitude=10, id=999)  # id will be ignored
-    auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
-    edit_asset_response = client.patch(
-        url_for("flexmeasures_api_v2_0.patch_asset", id=existing_asset.id),
-        json=post_data,
-        headers={"content-type": "application/json", "Authorization": auth_token},
-    )
-    check_deprecation(edit_asset_response)
-    assert edit_asset_response.status_code == 200
-    updated_asset = Asset.query.filter_by(id=existing_asset.id).one_or_none()
-    assert updated_asset.latitude == 10  # changed value
-    assert updated_asset.longitude == existing_asset.longitude
-    assert updated_asset.capacity_in_mw == existing_asset.capacity_in_mw
-    assert updated_asset.name == existing_asset.name
-
-
-def test_delete_an_asset(client, db):
-    with UserContext("test_prosumer_user@seita.nl") as prosumer:
-        existing_asset_id = prosumer.assets[0].id
-
-    auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
-    delete_asset_response = client.delete(
-        url_for("flexmeasures_api_v2_0.delete_asset", id=existing_asset_id),
-        headers={"content-type": "application/json", "Authorization": auth_token},
-    )
-    check_deprecation(delete_asset_response)
-    assert delete_asset_response.status_code == 204
-    deleted_asset = Asset.query.filter_by(id=existing_asset_id).one_or_none()
-    assert deleted_asset is None

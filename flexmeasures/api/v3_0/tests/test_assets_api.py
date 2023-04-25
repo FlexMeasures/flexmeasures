@@ -139,7 +139,7 @@ def test_alter_an_asset(client, setup_api_test_data, setup_accounts):
         url_for("AssetAPI:patch", id=prosumer_asset.id),
         headers={"content-type": "application/json", "Authorization": auth_token},
         json={
-            "latitude": prosumer_asset.latitude
+            "latitude": prosumer_asset.latitude,
         },  # we're not changing values to keep other tests clean here
     )
     print(f"Editing Response: {asset_edit_response.json}")
@@ -315,3 +315,17 @@ def test_post_an_asset_with_invalid_data(client, setup_api_test_data):
         GenericAsset.query.filter_by(account_id=prosumer.id).count()
         == num_assets_before
     )
+
+
+def test_delete_an_asset(client, setup_api_test_data):
+
+    existing_asset_id = setup_api_test_data["some gas sensor"].generic_asset.id
+
+    auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
+    delete_asset_response = client.delete(
+        url_for("AssetAPI:delete", id=existing_asset_id),
+        headers={"content-type": "application/json", "Authorization": auth_token},
+    )
+    assert delete_asset_response.status_code == 204
+    deleted_asset = GenericAsset.query.filter_by(id=existing_asset_id).one_or_none()
+    assert deleted_asset is None
