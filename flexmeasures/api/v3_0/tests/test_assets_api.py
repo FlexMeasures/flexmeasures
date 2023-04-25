@@ -335,7 +335,9 @@ def test_post_an_asset(client, setup_api_test_data):
     assert post_assets_response.status_code == 201
     assert post_assets_response.json["latitude"] == 30.1
 
-    asset: GenericAsset = GenericAsset.query.filter_by(name="Test battery 2").one_or_none()
+    asset: GenericAsset = GenericAsset.query.filter_by(
+        name="Test battery 2"
+    ).one_or_none()
     assert asset is not None
     assert asset.latitude == 30.1
 
