@@ -3,20 +3,5 @@
 Version 1.2
 ===========
 
-.. warning:: This API version is deprecated since December 14, 2022, and will likely be sunset in February 2023. Please update to :ref:`v3_0`. For more information about how FlexMeasures handles deprecation and sunsetting, see :ref:`api_deprecation`.
 
-Summary
--------
-
-.. qrefflask:: flexmeasures.app:create(env="documentation")
-    :blueprints: flexmeasures_api, flexmeasures_api_play, flexmeasures_api_v1_2
-    :order: path
-    :include-empty-docstring:
-
-API Details
------------
-
-.. autoflask:: flexmeasures.app:create(env="documentation")
-    :blueprints: flexmeasures_api, flexmeasures_api_play, flexmeasures_api_v1_2
-    :order: path
-    :include-empty-docstring:
+.. note:: This API version has been sunset. Please update to :ref:`v3_0`. For more information about how FlexMeasures handles deprecation and sunsetting, see :ref:`api_deprecation`. In case your FlexMeasures host still runs ``flexmeasures<0.13``, a snapshot of documentation for API version 1.2 will stay available `here on readthedocs.org <https://flexmeasures.readthedocs.io/en/v0.12.3/api/v1_2.html>`_.
