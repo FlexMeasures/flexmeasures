@@ -317,6 +317,29 @@ def test_post_an_asset_with_invalid_data(client, setup_api_test_data):
     )
 
 
+def test_post_an_asset(client, setup_api_test_data):
+    """
+    Post one extra asset, as an admin user.
+    TODO: Soon we'll allow creating assets on an account-basis, i.e. for users
+          who have the user role "account-admin" or something similar. Then we'll
+          test that here.
+    """
+    auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
+    post_data = get_asset_post_data()
+    post_assets_response = client.post(
+        url_for("AssetAPI:post"),
+        json=post_data,
+        headers={"content-type": "application/json", "Authorization": auth_token},
+    )
+    print("Server responded with:\n%s" % post_assets_response.json)
+    assert post_assets_response.status_code == 201
+    assert post_assets_response.json["latitude"] == 30.1
+
+    asset: GenericAsset = GenericAsset.query.filter_by(name="Test battery 2").one_or_none()
+    assert asset is not None
+    assert asset.latitude == 30.1
+
+
 def test_delete_an_asset(client, setup_api_test_data):
 
     existing_asset_id = setup_api_test_data["some gas sensor"].generic_asset.id

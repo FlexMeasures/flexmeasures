@@ -42,27 +42,3 @@ def test_get_assets(client, add_charging_station_assets, use_owner_id, num_asset
     )
     assert battery["owner_id"] == test_prosumer2_id
     assert battery["capacity_in_mw"] == 2
-
-
-def test_post_an_asset(client):
-    """
-    Post one extra asset, as an admin user.
-    TODO: Soon we'll allow creating assets on an account-basis, i.e. for users
-          who have the user role "account-admin" or sthg similar. Then we'll
-          test that here.
-    """
-    auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
-    post_data = get_asset_post_data()
-    post_assets_response = client.post(
-        url_for("flexmeasures_api_v2_0.post_assets"),
-        json=post_data,
-        headers={"content-type": "application/json", "Authorization": auth_token},
-    )
-    print("Server responded with:\n%s" % post_assets_response.json)
-    check_deprecation(post_assets_response)
-    assert post_assets_response.status_code == 201
-    assert post_assets_response.json["latitude"] == 30.1
-
-    asset: Asset = Asset.query.filter(Asset.name == "Test battery 2").one_or_none()
-    assert asset is not None
-    assert asset.capacity_in_mw == 3
