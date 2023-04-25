@@ -51,7 +51,7 @@ def test_get_users_inactive(client, setup_inactive_user, include_inactive):
     if include_inactive is False:
         assert len(get_users_response.json) == 2
     else:
-        assert len(get_users_response.json) == 3
+        assert len(get_users_response.json) == 4
 
 
 @pytest.mark.parametrize(

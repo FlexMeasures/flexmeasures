@@ -85,6 +85,39 @@ def test_post_sensor_data(
     )
 
 
+def test_auto_fix_missing_registration_of_user_as_data_source(
+    client,
+    setup_api_fresh_test_data,
+    setup_user_without_data_source,
+):
+    """Try to post sensor data as a user that has not been properly registered as a data source.
+    The API call should succeed and the user should be automatically registered as a data source.
+    """
+
+    # Make sure the user is not yet registered as a data source
+    data_source = Source.query.filter_by(
+        user=setup_user_without_data_source
+    ).one_or_none()
+    assert data_source is None
+
+    post_data = make_sensor_data_request_for_gas_sensor(
+        num_values=6, unit="m³/h", include_a_null=False
+    )
+    auth_token = get_auth_token(client, "improper_user@seita.nl", "testtest")
+    response = client.post(
+        url_for("SensorAPI:post_data"),
+        json=post_data,
+        headers={"Authorization": auth_token},
+    )
+    assert response.status_code == 200
+
+    # Make sure the user is now registered as a data source
+    data_source = Source.query.filter_by(
+        user=setup_user_without_data_source
+    ).one_or_none()
+    assert data_source is not None
+
+
 def test_get_sensor_data(
     client,
     setup_api_fresh_test_data: dict[str, Sensor],
