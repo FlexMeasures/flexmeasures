@@ -153,3 +153,16 @@ def test_edit_user_with_unexpected_fields(client, unexpected_fields: dict):
     )
     print("Server responded with:\n%s" % user_edit_response.json)
     assert user_edit_response.status_code == 422
+
+
+def test_logout(client, setup_api_test_data):
+    """Tries to log out, which should succeed as a url direction."""
+
+    # log out
+    with UserContext("test_admin_user@seita.nl") as admin:
+        auth_token = admin.get_auth_token()
+    logout_response = client.get(
+        url_for("security.logout"),
+        headers={"Authorization ": auth_token, "content-type": "application/json"},
+    )
+    assert logout_response.status_code == 302
