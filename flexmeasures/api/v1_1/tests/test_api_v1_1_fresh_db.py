@@ -53,39 +53,3 @@ def test_post_price_data_unexpected_resolution(
             post_message, [v for v in post_message["values"] for i in range(4)], db
         )
 
-
-@pytest.mark.parametrize(
-    "post_message",
-    [message_for_post_weather_data(as_forecasts=False)],
-)
-def test_post_weather_data(
-    setup_fresh_api_v1_1_test_data,
-    add_weather_sensors_fresh_db,
-    app,
-    client,
-    post_message,
-):
-    """
-    Try to post wind speed data as a logged-in test user, which should lead to forecasting jobs.
-    """
-    auth_token = get_auth_token(client, "test_prosumer_user_2@seita.nl", "testtest")
-    post_weather_data_response = client.post(
-        url_for("flexmeasures_api_v1_1.post_weather_data"),
-        json=post_message,
-        headers={"Authorization": auth_token},
-    )
-    print("Server responded with:\n%s" % post_weather_data_response.json)
-    check_deprecation(post_weather_data_response)
-    assert post_weather_data_response.status_code == 200
-    assert post_weather_data_response.json["type"] == "PostWeatherDataResponse"
-
-    forecast_horizons = forecast_horizons_for(timedelta(minutes=5))
-    jobs = get_forecasting_jobs(last_n=len(forecast_horizons))
-    for job, horizon in zip(
-        sorted(jobs, key=lambda x: x.kwargs["horizon"]), forecast_horizons
-    ):
-        # check if jobs have expected horizons
-        assert job.kwargs["horizon"] == horizon
-        # check if jobs' start time (the time to be forecasted)
-        # is the weather observation plus the horizon
-        assert job.kwargs["start"] == parse_date(post_message["start"]) + horizon
