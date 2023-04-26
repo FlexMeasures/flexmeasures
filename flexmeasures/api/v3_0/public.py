@@ -67,9 +67,9 @@ def quickref_directive(content):
         qref = rcomp.match(line)
         if qref:
             quickref = qref.group("quick")
-            parts = quickref.split("; ", 1)
+            parts = quickref.split(";", 1)
             if len(parts) > 1:
-                description = parts[1]
+                description = parts[1].lstrip(" ")
             else:
                 description = quickref
             break
