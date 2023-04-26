@@ -33,9 +33,9 @@ class ServicesAPI(FlaskView):
                 methods: str = "/".join(
                     [m for m in rule.methods if m not in ("OPTIONS", "HEAD")]
                 )
-                stripped_url = url.lstrip(self.route_base)
+                stripped_url = url.removeprefix(self.route_base)
                 full_url = (
-                    request.url_root.rstrip("/") + url
+                    request.url_root.removesuffix("/") + url
                     if url.startswith("/")
                     else request.url_root + url
                 )
