@@ -88,7 +88,7 @@ v3.0-0 | 2022-03-25
     - *getDeviceMessage* -> use `/sensors/<id>/schedules/<uuid>` (GET) instead, where <id> is the sensor id from the "event" field and <uuid> is the value of the "schedule" field returned by `/sensors/<id>/schedules/trigger` (POST)
     - *getMeterData* -> use `/sensors/data` (GET) instead, replacing the "connection" field with "sensor"
     - *getPrognosis* -> use `/sensors/data` (GET) instead, replacing the "connection" field with "sensor"
-    - *getService* -> consult the public API documentation instead, at https://flexmeasures.readthedocs.io
+    - *getService* -> use `/api/v3_0` (GET) instead (since v3.0-9), or consult the public API documentation instead, at https://flexmeasures.readthedocs.io
     - *postMeterData* -> use `/sensors/data` (POST) instead, replacing the "connection" field with "sensor"
     - *postPriceData* -> use `/sensors/data` (POST) instead, replacing the "market" field with "sensor"
     - *postPrognosis* -> use `/sensors/data` (POST) instead, replacing the "connection" field with "sensor"

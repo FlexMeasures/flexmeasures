@@ -7,7 +7,6 @@ from flask_classful import FlaskView, route
 from flask_json import as_json
 
 from flexmeasures.api.common.responses import request_processed
-from flexmeasures.api.common.utils.decorators import as_response_type
 
 
 class ServicesAPI(FlaskView):
@@ -15,10 +14,9 @@ class ServicesAPI(FlaskView):
     route_base = "/api/v3_0"
     trailing_slash = False
 
-    @route("/getService", methods=["GET"])
-    @as_response_type("GetServiceResponse")
+    @route("", methods=["GET"])
     @as_json
-    def get_service(self):
+    def index(self):
         """API endpoint to get a service listing for this version.
 
         .. :quickref: Public; Obtain a service listing for this version
