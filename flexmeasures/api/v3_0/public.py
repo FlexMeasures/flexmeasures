@@ -1,4 +1,6 @@
 from operator import itemgetter
+import re
+import six
 
 from flask import current_app, request
 from flask_classful import FlaskView, route
@@ -37,13 +39,14 @@ class ServicesAPI(FlaskView):
                     if url.startswith("/")
                     else request.url_root + url
                 )
+                quickref = quickref_directive(
+                    current_app.view_functions[rule.endpoint].__doc__
+                )
                 services.append(
                     dict(
                         url=full_url,
                         name=f"{methods} {stripped_url}",
-                        description=current_app.view_functions[
-                            rule.endpoint
-                        ].__doc__.split("\n")[0],
+                        description=quickref,
                     )
                 )
         response = dict(
@@ -53,3 +56,24 @@ class ServicesAPI(FlaskView):
 
         d, s = request_processed()
         return dict(**response, **d), s
+
+
+def quickref_directive(content):
+    """Adapted from sphinxcontrib/autohttp/flask_base.py:quickref_directive."""
+    rcomp = re.compile(r"^\s*.. :quickref:\s*(?P<quick>.*)$")
+
+    if isinstance(content, six.string_types):
+        content = content.splitlines()
+    description = ""
+    for line in content:
+        qref = rcomp.match(line)
+        if qref:
+            quickref = qref.group("quick")
+            parts = quickref.split("; ", 1)
+            if len(parts) > 1:
+                description = parts[1]
+            else:
+                description = quickref
+            break
+
+    return description
