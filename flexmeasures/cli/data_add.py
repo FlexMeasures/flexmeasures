@@ -942,6 +942,20 @@ def create_schedule(ctx):
     help="Optimize production against this sensor. Defaults to the consumption price sensor. The sensor typically records an electricity price (e.g. in EUR/kWh), but this field can also be used to optimize against some emission intensity factor (e.g. in kg CO₂ eq./kWh). Follow up with the sensor's ID.",
 )
 @click.option(
+    "--consumption-price-sensor-per-device",
+    "consumption_price_sensor_per_device",
+    type=dict,
+    required=False,
+    help="",
+)
+@click.option(
+    "--production-price-sensor-per-device",
+    "production_price_sensor_per_device",
+    type=dict,
+    required=False,
+    help="",
+)
+@click.option(
     "--optimization-context-id",
     "optimization_context_sensor",
     type=SensorIdField(),
@@ -1023,6 +1037,8 @@ def add_schedule_for_storage(
     production_price_sensor: Sensor,
     optimization_context_sensor: Sensor,
     inflexible_device_sensors: list[Sensor],
+    consumption_price_sensors_per_device: dict(Sensor, Sensor),
+    production_price_sensors_per_device: dict(Sensor, Sensor),
     start: datetime,
     duration: timedelta,
     soc_at_start: ur.Quantity,
@@ -1103,6 +1119,8 @@ def add_schedule_for_storage(
             "consumption-price-sensor": consumption_price_sensor.id,
             "production-price-sensor": production_price_sensor.id,
             "inflexible-device-sensors": [s.id for s in inflexible_device_sensors],
+            "consumption-price-sensors-per-device": {(power.id, price.id) for (power, price) in consumption_price_sensors_per_device.items()},
+            "production-price-sensors-per-device": {(power.id, price.id) for (power, price) in production_price_sensors_per_device.items()},
         },
     )
     if as_job:
