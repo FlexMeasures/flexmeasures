@@ -7,6 +7,8 @@ The FlexMeasures API is the main way that third-parties can automate their inter
 
 This is a small guide for creating new versions of the API and its docs.
 
+.. warning:: This guide was written for API versions below v3.0 and is currently out of date.
+
 .. todo:: A guide for endpoint design, e.g. using Marshmallow schemas and common validators.
 
 .. contents:: Table of contents
