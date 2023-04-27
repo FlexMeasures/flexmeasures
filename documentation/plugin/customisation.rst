@@ -31,7 +31,7 @@ The following minimal example gives you an idea of some meta information you can
         __author__ = "My Company"
         __version__ = "2"
 
-        def compute_schedule(
+        def compute(
             self,
             *args,
             **kwargs
