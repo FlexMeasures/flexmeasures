@@ -1,4 +1,5 @@
 #!/bin/bash
+# save the current directory
 MAIN_DIR=$(pwd)
 
 # function for checking database existence
@@ -27,7 +28,6 @@ function delete_database() {
 }
 
 # Check if the database name is provided
-
 if [ -z "$1" ]; then
   echo "Error: db_name is required. Please provide a value for db_name, e.g., make clean_db db_name=flexmeasures-db"
   exit 1
@@ -38,16 +38,14 @@ if is_database $1
 then
   echo "$1 exists"
   read -r -p "Make a backup first? [y/N] " response
-  response=${response,,}    # tolower
+  response=${response,,}    # make lowercase
   if [[ "$response" =~ ^(yes|y)$ ]]; then
     echo "Making db dump ..."
-    cd ${MAIN_DIR}
     flexmeasures db-ops dump
   fi
 
   read -r -p "This will drop your database and re-create a clean one. Continue?[y/N] " response
-  response=${response,,}
-
+  response=${response,,} # make lowercase
   if [[ "$response" =~ ^(yes|y)$ ]]; then
      delete_database $1
      create_database $1
