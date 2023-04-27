@@ -2,7 +2,6 @@ from marshmallow import Schema, fields, ValidationError, validates_schema
 from inspect import signature
 
 from flexmeasures.data.schemas.reporting import ReporterConfigSchema
-from pandas import DataFrame
 
 from timely_beliefs import BeliefsDataFrame
 
@@ -21,12 +20,12 @@ class PandasMethodCall(Schema):
 
         method = data["method"]
         method_callable = getattr(
-            DataFrame, method, None
-        )  # what if the object which is applied to is not a DataFrame...
+            BeliefsDataFrame, method, None
+        )  # what if the object which is applied to is not a BeliefsDataFrame...
 
         if not callable(method_callable):
             raise ValidationError(
-                f"method {method} is not a valid Pandas DataFrame method."
+                f"method {method} is not a valid BeliefsDataFrame method."
             )
 
         method_signature = signature(method_callable)
@@ -35,7 +34,7 @@ class PandasMethodCall(Schema):
             args = data.get("args", []).copy()
             _kwargs = data.get("kwargs", {}).copy()
 
-            args.insert(0, DataFrame)
+            args.insert(0, BeliefsDataFrame)
 
             method_signature.bind(*args, **_kwargs)
         except TypeError:
@@ -107,7 +106,7 @@ class PandasReporterConfigSchema(ReporterConfigSchema):
             if not previous_df and not df_input:
                 raise ValidationError("Cannot find the input DataFrame.")
 
-            previous_df = df_output  # keeping last dataframe calculation
+            previous_df = df_output  # keeping last BeliefsDataFrame calculation
 
             fake_data[df_output] = BeliefsDataFrame
 
