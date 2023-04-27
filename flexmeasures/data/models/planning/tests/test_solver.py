@@ -43,7 +43,7 @@ def test_battery_solver_day_1(
             else []
         },
     )
-    schedule = scheduler.compute_schedule()
+    schedule = scheduler.compute()
     soc_schedule = integrate_time_series(schedule, soc_at_start, decimal_precision=6)
 
     with pd.option_context("display.max_rows", None, "display.max_columns", 3):
@@ -100,7 +100,7 @@ def test_battery_solver_day_2(add_battery_assets, roundtrip_efficiency: float):
             "roundtrip-efficiency": roundtrip_efficiency,
         },
     )
-    schedule = scheduler.compute_schedule()
+    schedule = scheduler.compute()
     soc_schedule = integrate_time_series(
         schedule,
         soc_at_start,
@@ -192,7 +192,7 @@ def test_charging_station_solver_day_2(target_soc, charging_station_name):
     scheduler.config_deserialized = (
         True  # soc targets are already a DataFrame, names get underscore
     )
-    consumption_schedule = scheduler.compute_schedule()
+    consumption_schedule = scheduler.compute()
     soc_schedule = integrate_time_series(
         consumption_schedule, soc_at_start, decimal_precision=6
     )
@@ -265,7 +265,7 @@ def test_fallback_to_unsolvable_problem(target_soc, charging_station_name):
     scheduler.config_deserialized = (
         True  # soc targets are already a DataFrame, names get underscore
     )
-    consumption_schedule = scheduler.compute_schedule()
+    consumption_schedule = scheduler.compute()
     soc_schedule = integrate_time_series(
         consumption_schedule, soc_at_start, decimal_precision=6
     )
@@ -359,7 +359,7 @@ def test_building_solver_day_2(
     scheduler.config_deserialized = (
         True  # inflexible device sensors are already objects, names get underscore
     )
-    schedule = scheduler.compute_schedule()
+    schedule = scheduler.compute()
     soc_schedule = integrate_time_series(schedule, soc_at_start, decimal_precision=6)
 
     with pd.option_context("display.max_rows", None, "display.max_columns", 3):

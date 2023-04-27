@@ -23,6 +23,7 @@ Bugfixes
 -----------
 
 * Fix copy button on tutorials and other documentation, so that only commands are copied and no output or comments [see `PR #636 <https://www.github.com/FlexMeasures/flexmeasures/pull/636>`_]
+* GET /api/v3_0/assets/public should ask for token authentication and not forward to login page [see `PR #649 <https://www.github.com/FlexMeasures/flexmeasures/pull/649>`_]
 
 Infrastructure / Support
 ----------------------

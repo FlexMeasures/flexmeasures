@@ -7,7 +7,7 @@ class DummyScheduler(Scheduler):
     __author__ = "Test Organization"
     __version__ = "3"
 
-    def compute_schedule(self):
+    def compute(self):
         """
         Just a dummy scheduler that always plans to consume at maximum capacity.
         (Schedulers return positive values for consumption, and negative values for production)
