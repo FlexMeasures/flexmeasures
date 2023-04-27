@@ -100,6 +100,12 @@ def create(
 
     register_db_at(app)
 
+    # Register Reporters
+    from flexmeasures.utils.coding_utils import get_classes_module
+    from flexmeasures.data.models.reporting import Reporter
+
+    app.reporters = get_classes_module("flexmeasures.data.models.reporting", Reporter)
+
     # add auth policy
 
     from flexmeasures.auth import register_at as register_auth_at
