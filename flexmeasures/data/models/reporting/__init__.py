@@ -91,7 +91,7 @@ class Reporter(DataGenerator):
         *args,
         start: datetime = None,
         end: datetime = None,
-        input_resolution: datetime = None,
+        input_resolution: timedelta = None,
         beliefs_after: datetime = None,
         beliefs_before: datetime = None,
         **kwargs,
