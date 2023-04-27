@@ -37,8 +37,8 @@ infl_eng = inflect.engine()
 def add_default_data_sources(db: SQLAlchemy):
     for source_name, source_type in (
         ("Seita", "demo script"),
-        ("Seita", "forecasting script"),
-        ("Seita", "scheduling script"),
+        ("Seita", "forecaster"),
+        ("Seita", "scheduler"),
     ):
         source = DataSource.query.filter(
             and_(DataSource.name == source_name, DataSource.type == source_type)

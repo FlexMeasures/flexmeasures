@@ -13,10 +13,5 @@
     "python.linting.pylintEnabled": false,
     "python.linting.flake8Enabled": true,
     "workbench.editor.wrapTabs": true,
-    "python.formatting.provider": "black",
-    "python.testing.pytestArgs": [
-        "flexmeasures"
-    ],
-    "python.testing.unittestEnabled": false,
-    "python.testing.pytestEnabled": true
+    "python.formatting.provider": "black"
 }

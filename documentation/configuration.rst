@@ -247,6 +247,23 @@ Time to live for schedule UUIDs of successful scheduling jobs. Set a negative ti
 
 Default: ``timedelta(days=7)``
 
+FLEXMEASURES_JOB_CACHE_TTL
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Time to live for the job caching keys in seconds. The default value of 1h responds to the reality that within an hour, there is not
+much change, other than the input arguments, that justifies recomputing the schedules.
+
+In an hour, we will have more accurate forecasts available and the situation of the power grid
+might have changed (imbalance prices, distribution level congestion, activation of FCR or aFRR reserves, ...).
+
+Set a negative value to persist forever.
+
+.. warning::
+    Keep in mind that unless a proper clean up mechanism is set up, the number of
+    caching keys will grow with time if the TTL is set to a negative value.
+
+Default: ``3600``
+
 .. _datasource_config:
 
 FLEXMEASURES_DEFAULT_DATASOURCE

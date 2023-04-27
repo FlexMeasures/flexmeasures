@@ -113,12 +113,16 @@ def show_account(account):
                 user.username,
                 user.email,
                 naturaltime(user.last_login_at),
+                naturaltime(user.last_seen_at),
                 ",".join([role.name for role in user.roles]),
             )
             for user in users
         ]
         click.echo(
-            tabulate(user_data, headers=["ID", "Name", "Email", "Last Login", "Roles"])
+            tabulate(
+                user_data,
+                headers=["ID", "Name", "Email", "Last Login", "Last Seen", "Roles"],
+            )
         )
 
     click.echo()
@@ -163,9 +167,9 @@ def show_generic_asset(asset):
     """
     Show asset info and list sensors
     """
-    click.echo(f"======{len(asset.name) * '='}=========")
+    click.echo(f"======{len(asset.name) * '='}========")
     click.echo(f"Asset {asset.name} (ID: {asset.id})")
-    click.echo(f"======{len(asset.name) * '='}=========\n")
+    click.echo(f"======{len(asset.name) * '='}========\n")
 
     asset_data = [
         (
@@ -343,9 +347,9 @@ def plot_beliefs(
 
     # Build title
     if len(sensors) == 1:
-        title = f"Beliefs for Sensor '{sensors[0].name}' (Id {sensors[0].id}).\n"
+        title = f"Beliefs for Sensor '{sensors[0].name}' (ID {sensors[0].id}).\n"
     else:
-        title = f"Beliefs for Sensor(s) [{', '.join([s.name for s in sensors])}], (Id(s): [{', '.join([str(s.id) for s in sensors])}]).\n"
+        title = f"Beliefs for Sensor(s) [{', '.join([s.name for s in sensors])}], (ID(s): [{', '.join([str(s.id) for s in sensors])}]).\n"
     title += f"Data spans {naturaldelta(duration)} and starts at {start}."
     if belief_time_before:
         title += f"\nOnly beliefs made before: {belief_time_before}."

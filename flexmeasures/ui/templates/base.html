@@ -38,7 +38,7 @@
     {% if active_page == "tasks" %}
     <link href="{{ url_for('flexmeasures_ui.static', filename='css/external/rq-dashboard-bootstrap.min.css') }}"
         rel="stylesheet" />
-    {% elif active_page in ("assets", "users", "portfolio") %}
+    {% elif active_page in ("assets", "users", "portfolio","accounts") %}
     <link href="https://cdn.datatables.net/1.10.22/css/jquery.dataTables.min.css" rel="stylesheet" />
     {% endif %}
     {% if extra_css %}

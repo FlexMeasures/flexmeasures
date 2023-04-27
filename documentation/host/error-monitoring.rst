@@ -19,9 +19,9 @@ The CLI task ``flexmeasures monitor last-seen`` lets you be alerted if a user ha
 
 Here is an example for illustration:
 
-.. code-block:: console
+.. code-block:: bash
 
-    flexmeasures monitor last-seen --account-role SubscriberToServiceXYZ --user-role bot --maximum-minutes-since-last-seen 100
+    $ flexmeasures monitor last-seen --account-role SubscriberToServiceXYZ --user-role bot --maximum-minutes-since-last-seen 100
 
 As you see, users are filtered by roles. You might need to add roles before this works as you want.
 
@@ -36,9 +36,9 @@ The alerts will come in via Sentry, but you can also send them to email addresse
 
 For illustration, here is one example of how we monitor the latest run times of tasks on a server ― the below is run in a cron script every hour and checks if every listed task ran 60, 6 or 1440 minutes ago, respectively:
 
-.. code-block:: console
+.. code-block:: bash
 
-    flexmeasures monitor latest-run --task get_weather_forecasts 60 --task get_recent_meter_data 6  --task import_epex_prices 1440
+    $ flexmeasures monitor latest-run --task get_weather_forecasts 60 --task get_recent_meter_data 6  --task import_epex_prices 1440
 
 The first task (get_weather_forecasts) is actually supported within FlexMeasures, while the other two sit in plugins we wrote.
 
