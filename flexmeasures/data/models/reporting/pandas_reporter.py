@@ -58,7 +58,7 @@ class PandasReporter(Reporter):
 
         if method in ["eval", "query"]:
             if isinstance(value, str) and value.startswith("@"):
-                current_app.logger.warning(
+                current_app.logger.debug(
                     "Cannot reference objects in self.data using the method eval or query. That is because these methods use the symbol `@` to make reference to local variables."
                 )
             return value
