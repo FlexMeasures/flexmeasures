@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from flexmeasures.data.models.user import User
 
 
-class DataGenerator:
+class DataGeneratorMixin:
     @classmethod
     def get_data_source_info(cls: type) -> dict:
         """

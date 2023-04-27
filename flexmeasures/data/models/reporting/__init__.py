@@ -4,7 +4,7 @@ import pandas as pd
 
 from flexmeasures.data.schemas.reporting import ReporterConfigSchema
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.models.data_sources import DataGenerator
+from flexmeasures.data.models.data_sources import DataGeneratorMixin
 
 
 from datetime import datetime, timedelta
@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 import timely_beliefs as tb
 
 
-class Reporter(DataGenerator):
+class Reporter(DataGeneratorMixin):
     """Superclass for all FlexMeasures Reporters."""
 
     __version__ = None
