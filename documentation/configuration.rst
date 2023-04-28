@@ -617,4 +617,4 @@ FLEXMEASURES_API_SUNSET_LINK
 
 Allow to override the default sunset link for your clients.
 
-Default: ``None`` (defaults are set internally for each sunset API version, e.g. ``"https://flexmeasures.readthedocs.io/en/latest/api/v2_0.html"`` for v2.0)
+Default: ``None`` (defaults are set internally for each sunset API version, e.g. ``"https://flexmeasures.readthedocs.io/en/v0.13.0/api/v2_0.html"`` for v2.0)

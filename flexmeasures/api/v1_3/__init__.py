@@ -12,12 +12,12 @@ deprecate_blueprint(
     deprecation_date="2022-12-14",
     deprecation_link="https://flexmeasures.readthedocs.io/en/latest/api/v1_3.html",
     sunset_date="2023-05-01",
-    sunset_link="https://flexmeasures.readthedocs.io/en/latest/api/v1_3.html",
+    sunset_link="https://flexmeasures.readthedocs.io/en/v0.13.0/api/v1_3.html",
 )
 sunset_blueprint(
     flexmeasures_api,
     "1.3",
-    "https://flexmeasures.readthedocs.io/en/latest/api/v1_3.html",
+    "https://flexmeasures.readthedocs.io/en/v0.13.0/api/v1_3.html",
 )
 
 
