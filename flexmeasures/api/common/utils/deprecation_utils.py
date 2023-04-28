@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from flask import abort, current_app, request, Blueprint, Response, after_this_request
 from flask_security.core import current_user
 import pandas as pd
@@ -21,11 +23,7 @@ def sunset_blueprint(
     def let_host_switch_to_returning_410():
 
         # Override with custom info link, if set by host
-        sunset_link_from_config = current_app.config["FLEXMEASURES_API_SUNSET_LINK"]
-        if sunset_link_from_config is not None:
-            _sunset_link = sunset_link_from_config
-        else:
-            _sunset_link = sunset_link
+        _sunset_link = override_from_config(sunset_link, "FLEXMEASURES_API_SUNSET_LINK")
 
         if current_app.config["FLEXMEASURES_API_SUNSET_ACTIVE"]:
             abort(
@@ -95,18 +93,12 @@ def deprecate_fields(
             )
 
             # Override sunset date if host used corresponding config setting
-            sunset_date_from_config = current_app.config["FLEXMEASURES_API_SUNSET_DATE"]
-            if sunset_date_from_config is not None:
-                _sunset = sunset_date_from_config
-            else:
-                _sunset = sunset
+            _sunset = override_from_config(sunset, "FLEXMEASURES_API_SUNSET_DATE")
 
             # Override sunset link if host used corresponding config setting
-            sunset_link_from_config = current_app.config["FLEXMEASURES_API_SUNSET_LINK"]
-            if sunset_link_from_config is not None:
-                _sunset_link = sunset_link_from_config
-            else:
-                _sunset_link = sunset_link
+            _sunset_link = override_from_config(
+                sunset_link, "FLEXMEASURES_API_SUNSET_LINK"
+            )
 
             return _add_headers(
                 response,
@@ -163,18 +155,10 @@ def deprecate_blueprint(
         )
 
         # Override sunset date if host used corresponding config setting
-        sunset_date_from_config = current_app.config["FLEXMEASURES_API_SUNSET_DATE"]
-        if sunset_date_from_config is not None:
-            _sunset = sunset_date_from_config
-        else:
-            _sunset = sunset
+        _sunset = override_from_config(sunset, "FLEXMEASURES_API_SUNSET_DATE")
 
         # Override sunset link if host used corresponding config setting
-        sunset_link_from_config = current_app.config["FLEXMEASURES_API_SUNSET_LINK"]
-        if sunset_link_from_config is not None:
-            _sunset_link = sunset_link_from_config
-        else:
-            _sunset_link = sunset_link
+        _sunset_link = override_from_config(sunset_link, "FLEXMEASURES_API_SUNSET_LINK")
 
         return _add_headers(
             response,
@@ -224,3 +208,13 @@ def _format_sunset(sunset_date):
     else:
         sunset = None
     return sunset
+
+
+def override_from_config(setting: Any, config_setting_name: str) -> Any:
+    """Override setting by config setting, unless the latter is None or is missing."""
+    config_setting = current_app.config.get(config_setting_name)
+    if config_setting is not None:
+        _setting = config_setting
+    else:
+        _setting = setting
+    return _setting
