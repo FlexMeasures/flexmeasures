@@ -72,7 +72,7 @@ def error_handling_router(error: HTTPException):
     )
 
     if request.is_json or (
-        hasattr(request.url_rule, "rule") and request.url_rule.rule.startswith("/api")
+        request.url_rule is not None and request.url_rule.rule.startswith("/api")
     ):
         response = jsonify(
             dict(
