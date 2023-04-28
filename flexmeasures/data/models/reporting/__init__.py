@@ -28,8 +28,7 @@ class Reporter(DataGeneratorMixin):
     start: datetime = None
     end: datetime = None
     input_resolution: timedelta = None
-    beliefs_after: datetime = None
-    beliefs_before: datetime = None
+    belief_time: datetime = None
 
     def __init__(
         self, sensor: Sensor, reporter_config_raw: Optional[dict] = None
@@ -61,8 +60,7 @@ class Reporter(DataGeneratorMixin):
             event_starts_after = tb_query.pop("event_starts_after", self.start)
             event_ends_before = tb_query.pop("event_ends_before", self.end)
             resolution = tb_query.pop("resolution", self.input_resolution)
-            beliefs_after = tb_query.pop("beliefs_after", self.beliefs_after)
-            beliefs_before = tb_query.pop("beliefs_before", self.beliefs_before)
+            belief_time = tb_query.pop("belief_time", self.belief_time)
 
             sensor: Sensor = tb_query.pop("sensor", None)
             alias: str = tb_query.pop("alias", None)
@@ -71,8 +69,7 @@ class Reporter(DataGeneratorMixin):
                 event_starts_after=event_starts_after,
                 event_ends_before=event_ends_before,
                 resolution=resolution,
-                beliefs_after=beliefs_after,
-                beliefs_before=beliefs_before,
+                beliefs_before=belief_time,
                 **tb_query,
             )
 
@@ -92,8 +89,7 @@ class Reporter(DataGeneratorMixin):
         start: datetime = None,
         end: datetime = None,
         input_resolution: timedelta = None,
-        beliefs_after: datetime = None,
-        beliefs_before: datetime = None,
+        belief_time: datetime = None,
         **kwargs,
     ) -> tb.BeliefsDataFrame:
         """This method triggers the creation of a new report. This method allows to update the fields
@@ -117,8 +113,7 @@ class Reporter(DataGeneratorMixin):
         self.start = start
         self.end = end
         self.input_resolution = input_resolution
-        self.beliefs_after = beliefs_after
-        self.beliefs_before = beliefs_before
+        self.belief_time = belief_time
 
         # fetch data
         self.fetch_data()
