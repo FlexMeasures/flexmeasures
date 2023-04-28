@@ -131,7 +131,9 @@ class Config(object):
     )
 
     # Custom sunset switches
-    FLEXMEASURES_API_1_AND_2_SUNSET_ACTIVE: bool = False  # if active, sunset endpoints will return 410 (Gone)
+    FLEXMEASURES_API_1_AND_2_SUNSET_ACTIVE: bool = (
+        False  # if active, sunset endpoints will return 410 (Gone)
+    )
     FLEXMEASURES_API_1_AND_2_SUNSET_DATE: str | None = None  # e.g. 2023-05-01
     FLEXMEASURES_API_1_AND_2_SUNSET_LINK: str | None = None  # e.g. https://flexmeasures.readthedocs.io/en/latest/api/introduction.html#deprecation-and-sunset
 
