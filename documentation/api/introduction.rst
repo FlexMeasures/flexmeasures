@@ -150,13 +150,17 @@ Here is a client-side code example in Python (this merely prints out the depreca
 FlexMeasures hosts
 ^^^^^^^^^^^^^^^^^^
 
-When upgrading to a FlexMeasures version that sunsets an API version, clients will receive ``HTTP status 410 (Gone)`` responses when calling corresponding endpoints.
-After upgrading to one of the next FlexMeasures versions, they will receive ``HTTP status 404 (Not Found)`` responses.
+When upgrading to a FlexMeasures version that sunsets an API version (e.g. ``flexmeasures==0.13.0`` sunsets API version 2), clients will receive ``HTTP status 410 (Gone)`` responses when calling corresponding endpoints.
+After upgrading to one of the next FlexMeasures versions (e.g. ``flexmeasures==0.14.0``), they will receive ``HTTP status 404 (Not Found)`` responses.
 
 Hosts should not expect every client to monitor response headers and proactively upgrade to newer API versions.
 Please make sure that your users have upgraded before you upgrade to a FlexMeasures version that sunsets an API version.
 You can do this by checking your server logs for warnings about users who are still calling deprecated endpoints.
 
-In case you have users that haven't upgraded yet, and would still like to upgrade FlexMeasures, you can.
-Just set the config setting ``FLEXMEASURES_API_SUNSET_ACTIVE = False`` and consider announcing some blackout tests to your users, during which you can set this setting to ``True`` to activate the sunset.
+In addition, we recommend announcing blackout tests to your users, during which you can set the config setting ``FLEXMEASURES_API_SUNSET_ACTIVE = True`` to activate the sunset.
+Preferably, you'd do this only after the original sunset date.
 During such a blackout test, clients will receive ``HTTP status 410 (Gone)`` responses when calling corresponding endpoints.
+
+In case you have users that haven't upgraded yet, and would still like to upgrade FlexMeasures (to the version that officially sunsets the API version), you can.
+For a little while after sunset (usually one more minor version), we will continue to support "letting the sun unset".
+To enable this, just set the config setting ``FLEXMEASURES_API_SUNSET_ACTIVE = False`` and consider announcing some more blackout tests to your users, during which you can set this setting to ``True`` to activate the sunset.
