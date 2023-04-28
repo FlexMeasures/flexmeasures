@@ -71,7 +71,9 @@ def error_handling_router(error: HTTPException):
         error, "description", f"Something went wrong: {error.__class__.__name__}"
     )
 
-    if request.is_json or request.url_rule.rule.startswith("/api"):
+    if request.is_json or (
+        hasattr(request.url_rule, "rule") and request.url_rule.rule.startswith("/api")
+    ):
         response = jsonify(
             dict(
                 message=getattr(error, "description", str(error)),
