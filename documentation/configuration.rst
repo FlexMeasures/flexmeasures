@@ -610,11 +610,11 @@ FLEXMEASURES_API_SUNSET_DATE
 
 Allow to override the default sunset date for your clients.
 
-Default: ``None`` (defaults are set internally for each sunset API version, e.g. ``"2023-05-01"`` for version 2.0)
+Default: ``None`` (defaults are set internally for each sunset API version, e.g. ``"2023-05-01"`` for v2.0)
 
 FLEXMEASURES_API_SUNSET_LINK
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Allow to override the default sunset link for your clients.
 
-Default: ``None`` (defaults are set internally for each sunset API version, e.g. ``"https://flexmeasures.readthedocs.io/en/latest/api/v2_0.html"`` for version 2.0)
+Default: ``None`` (defaults are set internally for each sunset API version, e.g. ``"https://flexmeasures.readthedocs.io/en/latest/api/v2_0.html"`` for v2.0)
