@@ -22,10 +22,10 @@ def sunset_blueprint(
 
         # Override with custom info link, if set by host
         _sunset_info_link = current_app.config.get(
-            "FLEXMEASURES_API_1_AND_2_SUNSET_LINK", sunset_info_link
+            "FLEXMEASURES_API_SUNSET_LINK", sunset_info_link
         )
 
-        if current_app.config["FLEXMEASURES_API_1_AND_2_SUNSET_ACTIVE"]:
+        if current_app.config["FLEXMEASURES_API_SUNSET_ACTIVE"]:
             abort(
                 410,
                 f"API version {api_version_sunset} has been sunset. Please upgrade to API version {api_version_upgrade_to}. See {_sunset_info_link} for more information.",
@@ -94,12 +94,12 @@ def deprecate_fields(
 
             # Override sunset date if host used corresponding config setting
             _sunset = _format_sunset(
-                current_app.config.get("FLEXMEASURES_API_1_AND_2_SUNSET_DATE", sunset)
+                current_app.config.get("FLEXMEASURES_API_SUNSET_DATE", sunset)
             )
 
             # Override sunset link if host used corresponding config setting
             _sunset_link = current_app.config.get(
-                "FLEXMEASURES_API_1_AND_2_SUNSET_LINK", sunset_link
+                "FLEXMEASURES_API_SUNSET_LINK", sunset_link
             )
 
             return _add_headers(
@@ -158,12 +158,12 @@ def deprecate_blueprint(
 
         # Override sunset date if host used corresponding config setting
         _sunset = _format_sunset(
-            current_app.config.get("FLEXMEASURES_API_1_AND_2_SUNSET_DATE", sunset)
+            current_app.config.get("FLEXMEASURES_API_SUNSET_DATE", sunset)
         )
 
         # Override sunset link if host used corresponding config setting
         _sunset_link = current_app.config.get(
-            "FLEXMEASURES_API_1_AND_2_SUNSET_LINK", sunset_link
+            "FLEXMEASURES_API_SUNSET_LINK", sunset_link
         )
 
         return _add_headers(

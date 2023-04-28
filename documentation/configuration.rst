@@ -596,24 +596,24 @@ Default: ``None``
 Sunset
 ------
 
-FLEXMEASURES_API_1_AND_2_SUNSET_ACTIVE
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FLEXMEASURES_API_SUNSET_ACTIVE
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Allow control over the effect of sunsetting API versions 1.0, 1.1, 1.2, 1.3 and 2.0.
-Specifically, if True, the endpoints in these versions will return 410 (Gone) status codes.
+Allow control over the effect of sunsetting API versions.
+Specifically, if True, the endpoints in sunset versions will return ``HTTP status 410 (Gone)`` status codes.
 If False, the endpoints will work like before, including Deprecation and Sunset headers in their response.
 
 Default: ``True``
 
-FLEXMEASURES_API_1_AND_2_SUNSET_DATE
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FLEXMEASURES_API_SUNSET_DATE
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Allow to override the default sunset date for your clients.
 
 Default: ``None`` (defaults are set internally for each sunset API version, e.g. ``"2023-05-01"`` for version 2.0)
 
-FLEXMEASURES_API_1_AND_2_SUNSET_LINK
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FLEXMEASURES_API_SUNSET_LINK
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Allow to override the default sunset link for your clients.
 
