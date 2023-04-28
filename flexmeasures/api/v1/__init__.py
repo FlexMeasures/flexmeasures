@@ -16,7 +16,9 @@ deprecate_blueprint(
     sunset_link="https://flexmeasures.readthedocs.io/en/v0.13.0/api/v1.html",
 )
 sunset_blueprint(
-    flexmeasures_api, "1.0", "https://flexmeasures.readthedocs.io/en/v0.13.0/api/v1.html"
+    flexmeasures_api,
+    "1.0",
+    "https://flexmeasures.readthedocs.io/en/v0.13.0/api/v1.html",
 )
 
 
