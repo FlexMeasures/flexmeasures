@@ -101,7 +101,7 @@ def register_plugins(app: Flask):
         # Loading reporters
         from flexmeasures.data.models.reporting import Reporter
 
-        app.reporters.extend(get_classes_module(module, Reporter))
+        app.reporters.update(get_classes_module(module, Reporter))
 
         app.config["LOADED_PLUGINS"][plugin_name] = plugin_version
     app.logger.info(f"Loaded plugins: {app.config['LOADED_PLUGINS']}")
