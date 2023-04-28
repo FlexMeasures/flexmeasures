@@ -138,7 +138,7 @@ def make_schedule(
     )
     if flex_config_has_been_deserialized:
         scheduler.config_deserialized = True
-    consumption_schedule = scheduler.compute_schedule()
+    consumption_schedule = scheduler.compute()
     if rq_job:
         click.echo("Job %s made schedule." % rq_job.id)
 
@@ -250,7 +250,7 @@ def load_custom_scheduler(scheduler_specs: dict) -> type:
     ), f"Module at {module_descr} has no class {scheduler_specs['class']}"
 
     scheduler_class = getattr(module, scheduler_specs["class"])
-    schedule_function_name = "compute_schedule"
+    schedule_function_name = "compute"
     if not hasattr(scheduler_class, schedule_function_name):
         raise NotImplementedError(
             f"No function {schedule_function_name} in {scheduler_class}. Cannot load custom scheduler."
