@@ -55,7 +55,7 @@ jobs:
         run: pytest -m "not skip_github"
         if: ${{ matrix.coverage != 'yes' }}
       - name: Run all tests except those marked to be skipped by GitHub AND record coverage
-        run: pytest -v -m "not skip_github" --cov=flexmeasures --cov-branch
+        run: pytest -v -m "not skip_github" --cov=flexmeasures --cov-branch --cov-report=lcov
         if: ${{ matrix.coverage == 'yes' }}
       - name: Coveralls
         uses: coverallsapp/github-action@v2
