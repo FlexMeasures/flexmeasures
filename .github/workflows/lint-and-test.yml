@@ -51,16 +51,14 @@ jobs:
         run: |
           make install-pip-tools
           make install-for-test
-          pip install coveralls
       - name: Run all tests except those marked to be skipped by GitHub
         run: pytest -m "not skip_github"
         if: ${{ matrix.coverage != 'yes' }}
       - name: Run all tests except those marked to be skipped by GitHub AND record coverage
         run: pytest -v -m "not skip_github" --cov=flexmeasures --cov-branch
         if: ${{ matrix.coverage == 'yes' }}
-      - run: coveralls --service=github
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Coveralls
+        uses: coverallsapp/github-action@v2
         if: ${{ matrix.coverage == 'yes' }}
     env:
       PGHOST: 127.0.0.1
