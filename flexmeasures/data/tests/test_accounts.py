@@ -1,7 +1,14 @@
-from flexmeasures.data.services.account import (
+from flexmeasures.data.services.accounts import (
+    get_accounts,
     get_number_of_assets_in_account,
     get_account_roles,
 )
+
+
+def test_get_accounts(db, setup_assets):
+    dummy_accounts = get_accounts("Dummy")
+    assert len(dummy_accounts) == 2  # Dummy and Multi-Role
+    assert dummy_accounts[0].name == "Test Dummy Account"
 
 
 def test_get_number_of_assets_in_account(db, setup_assets):
