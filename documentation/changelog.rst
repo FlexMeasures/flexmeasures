@@ -3,7 +3,20 @@
 FlexMeasures Changelog
 **********************
 
-v0.13.0 | April XX, 2023
+v0.14.0 | June XX, 2023
+============================
+
+New features
+-------------
+
+Bugfixes
+-----------
+
+Infrastructure / Support
+----------------------
+
+
+v0.13.0 | May 1, 2023
 ============================
 
 .. warning:: Sunset notice for API versions 1.0, 1.1, 1.2, 1.3 and 2.0: after upgrading to ``flexmeasures==0.13``, users of these API versions may receive ``HTTP status 410 (Gone)`` responses.
@@ -13,6 +26,8 @@ v0.13.0 | April XX, 2023
 .. warning:: The API endpoint (`[POST] /sensors/(id)/schedules/trigger <api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_) to make new schedules sunsets the deprecated (since v0.12) storage flexibility parameters (they move to the ``flex-model`` parameter group), as well as the parameters describing other sensors (they move to ``flex-context``).
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/013-overlay-charts/>`__.
 
 New features
 -------------
