@@ -27,6 +27,7 @@ Bugfixes
 -----------
 
 * Fix copy button on tutorials and other documentation, so that only commands are copied and no output or comments [see `PR #636 <https://www.github.com/FlexMeasures/flexmeasures/pull/636>`_]
+* GET /api/v3_0/assets/public should ask for token authentication and not forward to login page [see `PR #649 <https://www.github.com/FlexMeasures/flexmeasures/pull/649>`_]
 
 Infrastructure / Support
 ----------------------
@@ -34,7 +35,7 @@ Infrastructure / Support
 * Sunset API versions 1.0, 1.1, 1.2, 1.3 and 2.0 [see `PR #650 <https://www.github.com/FlexMeasures/flexmeasures/pull/650>`_]
 * Sunset several API fields for `/sensors/<id>/schedules/trigger` (POST) that have moved into the ``flex-model`` or ``flex-context`` fields [see `PR #580 <https://www.github.com/FlexMeasures/flexmeasures/pull/580>`_]
 * Fix broken `make show-data-model` command [see `PR #638 <https://www.github.com/FlexMeasures/flexmeasures/pull/638>`_]
-
+* Bash script for a clean database to run toy-tutorial by using `make clean-db db_name=database_name` command [see `PR #640 <https://github.com/FlexMeasures/flexmeasures/pull/640>`_]
 
 v0.12.3 | February 28, 2023
 ============================

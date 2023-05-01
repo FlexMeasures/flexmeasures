@@ -47,7 +47,7 @@ Install Flexmeasures and the database
             $ docker pull lfenergy/flexmeasures:latest
             $ docker pull postgres
             $ docker network create flexmeasures_network
-            $ docker run --rm --name flexmeasures-tutorial-db -e POSTGRES_PASSWORD=fm-db-passwd -e POSTGRES_DB=flexmeasures-db -d --network=flexmeasures_network postgres:latest 
+            $ docker run --rm --name flexmeasures-tutorial-db -e POSTGRES_PASSWORD=fm-db-passwd -e POSTGRES_DB=flexmeasures-db -d --network=flexmeasures_network postgres:latest
             $ docker run --rm --name flexmeasures-tutorial-fm --env SQLALCHEMY_DATABASE_URI=postgresql://postgres:fm-db-passwd@flexmeasures-tutorial-db:5432/flexmeasures-db --env SECRET_KEY=notsecret --env FLASK_ENV=development --env LOGGING_LEVEL=INFO -d --network=flexmeasures_network -p 5000:5000 lfenergy/flexmeasures
             $ docker exec flexmeasures-tutorial-fm bash -c "flexmeasures db upgrade"
 
@@ -62,16 +62,16 @@ Install Flexmeasures and the database
         To leave the container session, hold CTRL-D or type "exit".
 
         To stop the containers, you can type
-        
+
         .. code-block:: bash
-        
+
             $ docker stop flexmeasures-tutorial-db
             $ docker stop flexmeasures-tutorial-fm
 
         To start the containers again, do this (note that re-running the `docker run` commands above *deletes and re-creates* all data!):
-        
+
         .. code-block:: bash
-        
+
             $ docker start flexmeasures-tutorial-db
             $ docker start flexmeasures-tutorial-fm
 
@@ -80,7 +80,7 @@ Install Flexmeasures and the database
         .. note:: Got docker-compose? You could run this tutorial with 5 containers :) ― Go to :ref:`docker-compose-tutorial`.
 
   .. tab:: On your PC
-        
+
         This example is from scratch, so we'll assume you have nothing prepared but a (Unix) computer with Python (3.8+) and two well-known developer tools, `pip <https://pip.pypa.io>`_ and `postgres <https://www.postgresql.org/download/>`_.
 
         We'll create a database for FlexMeasures:
@@ -98,10 +98,16 @@ Install Flexmeasures and the database
 
             $ pip install flexmeasures
             $ export SQLALCHEMY_DATABASE_URI="postgresql://flexmeasures-user:fm-db-passwd@localhost:5432/flexmeasures-db" SECRET_KEY=notsecret LOGGING_LEVEL="INFO" DEBUG=0
-            $ flexmeasures db upgrade 
+            $ export FLASK_ENV="development"
+            $ flexmeasures db upgrade
 
         .. note:: When installing with ``pip``, on some platforms problems might come up (e.g. macOS, Windows). One reason is that FlexMeasures requires some libraries with lots of C code support (e.g. Numpy). One way out is to use Docker, which uses a prepared Linux image, so it'll definitely work.
 
+        In case you want to re-run the tutorial, then it's recommended to delete the old database and create a fresh one. Run the following command to create a clean database.
+
+        .. code-block:: bash
+
+            $ make clean-db db_name=flexmeasures-db
 
 Add some structural data
 ---------------------------------------
@@ -121,14 +127,14 @@ FlexMeasures offers a command to create a toy account with a battery:
     The sensor recording day-ahead prices is <Sensor 2: day-ahead prices, unit: EUR/MWh res.: 1:00:00>.
     The sensor recording solar forecasts is <Sensor 3: production, unit: MW res.: 0:15:00>.
 
-And with that, we're done with the structural data for this tutorial! 
+And with that, we're done with the structural data for this tutorial!
 
 If you want, you can inspect what you created:
 
 .. code-block:: bash
 
-    $ flexmeasures show account --id 1                       
-    
+    $ flexmeasures show account --id 1
+
     ===========================
     Account Toy Account (ID: 1)
     ===========================
@@ -136,20 +142,20 @@ If you want, you can inspect what you created:
     Account has no roles.
 
     All users:
-    
+
       Id  Name      Email                     Last Login    Roles
     ----  --------  ------------------------  ------------  -------------
        1  toy-user  toy-user@flexmeasures.io                account-admin
 
     All assets:
-    
+
       ID  Name          Type      Location
     ----  ------------  --------  -----------------
        1  toy-battery   battery   (52.374, 4.88969)
        3  toy-solar     solar     (52.374, 4.88969)
 
     $ flexmeasures show asset --id 1
-    
+
     =========================
     Asset toy-battery (ID: 1)
     =========================
@@ -162,7 +168,7 @@ If you want, you can inspect what you created:
                                 sensors_to_show: [2, [3, 1]]
 
     All sensors in asset:
-    
+
       ID  Name         Unit    Resolution    Timezone          Attributes
     ----  -----------  ------  ------------  ----------------  ------------
        1  discharging  MW      15 minutes    Europe/Amsterdam
@@ -191,7 +197,7 @@ Now to add price data. First, we'll create the csv file with prices (EUR/MWh, se
 .. code-block:: bash
 
     $ TOMORROW=$(date --date="next day" '+%Y-%m-%d')
-    $ echo "Hour,Price                                      
+    $ echo "Hour,Price
     $ ${TOMORROW}T00:00:00,10
     $ ${TOMORROW}T01:00:00,11
     $ ${TOMORROW}T02:00:00,12
@@ -314,7 +320,7 @@ Great. Let's see what we made:
                             ██ discharging
 
 
-Here, negative values denote output from the grid, so that's when the battery gets charged. 
+Here, negative values denote output from the grid, so that's when the battery gets charged.
 
 We can also look at the charging schedule in the `FlexMeasures UI <http://localhost:5000/sensors/1/>`_ (reachable via the asset page for the battery):
 
