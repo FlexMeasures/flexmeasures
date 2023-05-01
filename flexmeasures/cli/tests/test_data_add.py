@@ -98,7 +98,7 @@ def test_cli_help(app):
         assert "Usage" in result.output
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def setup_dummy_data(db, app):
 
     """
@@ -173,7 +173,7 @@ def setup_dummy_data(db, app):
     db.session.commit()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def reporter_config_raw(app, db, setup_dummy_data):
     sensor1, sensor2, report_sensor = setup_dummy_data
 
