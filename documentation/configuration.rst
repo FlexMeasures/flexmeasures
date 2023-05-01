@@ -269,7 +269,7 @@ Default: ``3600``
 FLEXMEASURES_DEFAULT_DATASOURCE
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Data generation classes will have this data source name as its sensor's data source output default.
+The default DataSource of the resulting data from `DataGeneration` classes.
 
 Default: ``"FlexMeasures"``
 
