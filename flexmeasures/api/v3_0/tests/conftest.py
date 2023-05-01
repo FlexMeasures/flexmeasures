@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 from flask_security import SQLAlchemySessionUserDatastore, hash_password
 
-from flexmeasures import Sensor, Source
+from flexmeasures import Sensor, Source, User, UserRole
 from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
 from flexmeasures.data.models.time_series import TimedBelief
 
@@ -40,18 +40,46 @@ def setup_api_fresh_test_data(
 @pytest.fixture(scope="module")
 def setup_inactive_user(db, setup_accounts, setup_roles_users):
     """
-    Set up one inactive user.
+    Set up one inactive user and one inactive admin.
     """
-    from flexmeasures.data.models.user import User, Role
-
-    user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
+    user_datastore = SQLAlchemySessionUserDatastore(db.session, User, UserRole)
     user_datastore.create_user(
         username="inactive test user",
-        email="inactive@seita.nl",
+        email="inactive_user@seita.nl",
         password=hash_password("testtest"),
         account_id=setup_accounts["Prosumer"].id,
         active=False,
     )
+    admin = user_datastore.create_user(
+        username="inactive test admin",
+        email="inactive_admin@seita.nl",
+        password=hash_password("testtest"),
+        account_id=setup_accounts["Prosumer"].id,
+        active=False,
+    )
+    role = user_datastore.find_role("admin")
+    user_datastore.add_role_to_user(admin, role)
+
+
+@pytest.fixture(scope="function")
+def setup_user_without_data_source(
+    fresh_db, setup_accounts_fresh_db, setup_roles_users_fresh_db
+) -> User:
+    """
+    Set up one user directly without setting up a corresponding data source.
+    """
+
+    user_datastore = SQLAlchemySessionUserDatastore(fresh_db.session, User, UserRole)
+    user = user_datastore.create_user(
+        username="test admin with improper registration as a data source",
+        email="improper_user@seita.nl",
+        password=hash_password("testtest"),
+        account_id=setup_accounts_fresh_db["Prosumer"].id,
+        active=True,
+    )
+    role = user_datastore.find_role("admin")
+    user_datastore.add_role_to_user(user, role)
+    return user
 
 
 @pytest.fixture(scope="function")
