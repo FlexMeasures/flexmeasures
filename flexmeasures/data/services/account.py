@@ -12,5 +12,6 @@ def get_number_of_assets_in_account(account_id: int) -> int:
 
 def get_account_roles(account_id: int) -> AccountRole:
     account = Account.query.filter_by(id=account_id).one_or_none()
-
+    if account is None:
+        return []
     return account.account_roles
