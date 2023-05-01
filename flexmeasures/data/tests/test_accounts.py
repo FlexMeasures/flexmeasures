@@ -6,6 +6,8 @@ from flexmeasures.data.services.accounts import (
 
 
 def test_get_accounts(db, setup_assets):
+    no_accounts = get_accounts("Not-an-existing-role")
+    assert len(no_accounts) == 0
     dummy_accounts = get_accounts("Dummy")
     assert len(dummy_accounts) == 2  # Dummy and Multi-Role
     assert dummy_accounts[0].name == "Test Dummy Account"
