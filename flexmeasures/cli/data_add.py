@@ -4,7 +4,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 import json
-from pathlib import Path
+
+# from pathlib import Path
 
 from marshmallow import validate
 import pandas as pd
@@ -62,8 +63,9 @@ from flexmeasures.data.services.utils import get_or_create_model
 from flexmeasures.utils import flexmeasures_inflection
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.utils.unit_utils import convert_units, ur
-from flexmeasures.data.utils import save_to_db
-from flexmeasures.cli.utils import get_timerange_from_flags
+
+# from flexmeasures.data.utils import save_to_db
+# from flexmeasures.cli.utils import get_timerange_from_flags
 
 
 @click.group("add")
@@ -1121,198 +1123,198 @@ def add_schedule_for_storage(
             click.secho("New schedule is stored.", **MsgStyle.SUCCESS)
 
 
-@fm_add_data.command("report")
-@with_appcontext
-@click.option(
-    "--reporter",
-    "reporter_class",
-    required=True,
-    type=click.STRING,
-    help="Reporter class registered in flexmeasures.data.models.reporting or in an available flexmeasures plugin .",
-)
-@click.option(
-    "--sensor-id",
-    "sensor",
-    type=SensorIdField(),
-    required=True,
-    help="ID of the report sensor. Needs to exist in advanced.",
-)
-@click.option(
-    "--reporter-config-file",
-    "reporter_config_file",
-    required=True,
-    type=click.Path(exists=True),
-    help="Path to the JSON file with the reporter configuration.",
-)
-@click.option(
-    "--start",
-    "start",
-    type=AwareDateTimeField(format="iso"),
-    required=False,
-    help="Report start time. Follow up with a timezone-aware datetime in ISO 6801 format.",
-)
-@click.option(
-    "--end",
-    "end",
-    type=AwareDateTimeField(format="iso"),
-    required=False,
-    help="Report end time. Follow up with a timezone-aware datetime in ISO 6801 format.",
-)
-@click.option(
-    "--resolution",
-    "resolution",
-    type=DurationField(format="iso"),
-    required=False,
-    help="Time resolution of the input time series to employ for the calculations. Follow up with a ISO 8601 duration string",
-)
-@click.option(
-    "--output-file",
-    "output_file",
-    required=False,
-    type=click.Path(),
-    help="Path to the output file of the results of the report."
-    "Use the `.csv` suffix to save the results as Comma Separated Values and `.xlsx` to export them as Excel sheets.",
-)
-@click.option(
-    "--timezone",
-    "timezone_optional",
-    help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam' (defaults to FLEXMEASURES_TIMEZONE config setting)",
-)
-@click.option(
-    "--last-hour",
-    "last_hour",
-    is_flag=True,
-    help="Use the last known 1 hour period for the scope of the report.",
-)
-@click.option(
-    "--last-day",
-    "last_day",
-    is_flag=True,
-    help="Use the last known 1 day period for the scope of the report.",
-)
-@click.option(
-    "--last-week",
-    "last_week",
-    is_flag=True,
-    help="Use the last known 7 days period for the scope of the report.",
-)
-@click.option(
-    "--last-month",
-    "last_month",
-    is_flag=True,
-    help="Use the last known 1 month period for the scope of the report.",
-)
-@click.option(
-    "--last-year",
-    "last_year",
-    is_flag=True,
-    help="Use the last known 1 year period for the scope of the report.",
-)
-@click.option(
-    "--save-to-database",
-    "save_to_database",
-    is_flag=True,
-    help="Whether to save the report to the database.",
-)
-def add_report(
-    reporter_class: str,
-    sensor: Sensor,
-    reporter_config_file: Path,
-    start: Optional[datetime] = None,
-    end: Optional[datetime] = None,
-    resolution: Optional[timedelta] = None,
-    output_file: Optional[Path] = None,
-    save_to_database: bool = False,
-    last_hour: bool = False,
-    last_day: bool = False,
-    last_week: bool = False,
-    last_month: bool = False,
-    last_year: bool = False,
-    timezone_optional: Optional[str] = None,
-):
-    """
-    Create a new report using the Reporter class and save the results
-    to the database or export them as csv or excel files.
-    """
+# @fm_add_data.command("report")
+# @with_appcontext
+# @click.option(
+#     "--reporter",
+#     "reporter_class",
+#     required=True,
+#     type=click.STRING,
+#     help="Reporter class registered in flexmeasures.data.models.reporting or in an available flexmeasures plugin .",
+# )
+# @click.option(
+#     "--sensor-id",
+#     "sensor",
+#     type=SensorIdField(),
+#     required=True,
+#     help="ID of the report sensor. Needs to exist in advanced.",
+# )
+# @click.option(
+#     "--reporter-config-file",
+#     "reporter_config_file",
+#     required=True,
+#     type=click.Path(exists=True),
+#     help="Path to the JSON file with the reporter configuration.",
+# )
+# @click.option(
+#     "--start",
+#     "start",
+#     type=AwareDateTimeField(format="iso"),
+#     required=False,
+#     help="Report start time. Follow up with a timezone-aware datetime in ISO 6801 format.",
+# )
+# @click.option(
+#     "--end",
+#     "end",
+#     type=AwareDateTimeField(format="iso"),
+#     required=False,
+#     help="Report end time. Follow up with a timezone-aware datetime in ISO 6801 format.",
+# )
+# @click.option(
+#     "--resolution",
+#     "resolution",
+#     type=DurationField(format="iso"),
+#     required=False,
+#     help="Time resolution of the input time series to employ for the calculations. Follow up with a ISO 8601 duration string",
+# )
+# @click.option(
+#     "--output-file",
+#     "output_file",
+#     required=False,
+#     type=click.Path(),
+#     help="Path to the output file of the results of the report."
+#     "Use the `.csv` suffix to save the results as Comma Separated Values and `.xlsx` to export them as Excel sheets.",
+# )
+# @click.option(
+#     "--timezone",
+#     "timezone_optional",
+#     help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam' (defaults to FLEXMEASURES_TIMEZONE config setting)",
+# )
+# @click.option(
+#     "--last-hour",
+#     "last_hour",
+#     is_flag=True,
+#     help="Use the last known 1 hour period for the scope of the report.",
+# )
+# @click.option(
+#     "--last-day",
+#     "last_day",
+#     is_flag=True,
+#     help="Use the last known 1 day period for the scope of the report.",
+# )
+# @click.option(
+#     "--last-week",
+#     "last_week",
+#     is_flag=True,
+#     help="Use the last known 7 days period for the scope of the report.",
+# )
+# @click.option(
+#     "--last-month",
+#     "last_month",
+#     is_flag=True,
+#     help="Use the last known 1 month period for the scope of the report.",
+# )
+# @click.option(
+#     "--last-year",
+#     "last_year",
+#     is_flag=True,
+#     help="Use the last known 1 year period for the scope of the report.",
+# )
+# @click.option(
+#     "--save-to-database",
+#     "save_to_database",
+#     is_flag=True,
+#     help="Whether to save the report to the database.",
+# )
+# def add_report(
+#     reporter_class: str,
+#     sensor: Sensor,
+#     reporter_config_file: Path,
+#     start: Optional[datetime] = None,
+#     end: Optional[datetime] = None,
+#     resolution: Optional[timedelta] = None,
+#     output_file: Optional[Path] = None,
+#     save_to_database: bool = False,
+#     last_hour: bool = False,
+#     last_day: bool = False,
+#     last_week: bool = False,
+#     last_month: bool = False,
+#     last_year: bool = False,
+#     timezone_optional: Optional[str] = None,
+# ):
+#     """
+#     Create a new report using the Reporter class and save the results
+#     to the database or export them as csv or excel files.
+#     """
 
-    check_timezone(timezone_optional)
+#     check_timezone(timezone_optional)
 
-    tz = pytz.timezone(
-        zone=timezone_optional
-        if timezone_optional
-        else app.config.get("FLEXMEASURES_TIMEZONE", "UTC")
-    )
+#     tz = pytz.timezone(
+#         zone=timezone_optional
+#         if timezone_optional
+#         else app.config.get("FLEXMEASURES_TIMEZONE", "UTC")
+#     )
 
-    start, end = get_timerange_from_flags(
-        start,
-        end,
-        tz,
-        last_hour=last_hour,
-        last_day=last_day,
-        last_week=last_week,
-        last_month=last_month,
-        last_year=last_year,
-    )
+#     start, end = get_timerange_from_flags(
+#         start,
+#         end,
+#         tz,
+#         last_hour=last_hour,
+#         last_day=last_day,
+#         last_week=last_week,
+#         last_month=last_month,
+#         last_year=last_year,
+#     )
 
-    click.echo(f"Report scope:\n\tstart={start}\n\tend={end}")
+#     click.echo(f"Report scope:\n\tstart={start}\n\tend={end}")
 
-    click.echo(
-        f"Looking for the Reporter {reporter_class} among all the registered reporters.",
-    )
+#     click.echo(
+#         f"Looking for the Reporter {reporter_class} among all the registered reporters.",
+#     )
 
-    ReporterClass = app.reporters.get(reporter_class)
+#     ReporterClass = app.reporters.get(reporter_class)
 
-    if ReporterClass is None:
-        click.secho(
-            f"Reporter class `{reporter_class}` not available.",
-            **MsgStyle.ERROR,
-        )
-        raise click.Abort()
+#     if ReporterClass is None:
+#         click.secho(
+#             f"Reporter class `{reporter_class}` not available.",
+#             **MsgStyle.ERROR,
+#         )
+#         raise click.Abort()
 
-    click.secho(f"Reporter {reporter_class} found", **MsgStyle.SUCCESS)
+#     click.secho(f"Reporter {reporter_class} found", **MsgStyle.SUCCESS)
 
-    with open(reporter_config_file, "r") as f:
-        reporter_config_raw = json.load(f)
+#     with open(reporter_config_file, "r") as f:
+#         reporter_config_raw = json.load(f)
 
-    reporter = ReporterClass(sensor=sensor, reporter_config_raw=reporter_config_raw)
+#     reporter = ReporterClass(sensor=sensor, reporter_config_raw=reporter_config_raw)
 
-    result = reporter.compute(start=start, end=end, input_resolution=resolution)
+#     result = reporter.compute(start=start, end=end, input_resolution=resolution)
 
-    click.secho("Report computation done.", **MsgStyle.SUCCESS)
+#     click.secho("Report computation done.", **MsgStyle.SUCCESS)
 
-    if save_to_database:
-        click.echo("Storing report to the database...")
-        save_to_db(result)
-        db.session.commit()
-        click.secho(
-            "Success. The report has been saved to the database.",
-            **MsgStyle.SUCCESS,
-        )
+#     if save_to_database:
+#         click.echo("Storing report to the database...")
+#         save_to_db(result)
+#         db.session.commit()
+#         click.secho(
+#             "Success. The report has been saved to the database.",
+#             **MsgStyle.SUCCESS,
+#         )
 
-    if output_file:
+#     if output_file:
 
-        suffix = str(output_file).split(".")[-1] if "." in str(output_file) else ""
+#         suffix = str(output_file).split(".")[-1] if "." in str(output_file) else ""
 
-        if suffix == "xlsx":
-            result.to_excel(output_file)
-            click.secho(
-                f"Success. The report has been exported as EXCEL to the file `{output_file}`",
-                **MsgStyle.SUCCESS,
-            )
+#         if suffix == "xlsx":
+#             result.to_excel(output_file)
+#             click.secho(
+#                 f"Success. The report has been exported as EXCEL to the file `{output_file}`",
+#                 **MsgStyle.SUCCESS,
+#             )
 
-        elif suffix == "csv":
-            result.to_csv(output_file)
-            click.secho(
-                f"Success. The report has been exported as CSV to the file `{output_file}`",
-                **MsgStyle.SUCCESS,
-            )
+#         elif suffix == "csv":
+#             result.to_csv(output_file)
+#             click.secho(
+#                 f"Success. The report has been exported as CSV to the file `{output_file}`",
+#                 **MsgStyle.SUCCESS,
+#             )
 
-        else:
-            click.secho(
-                f"File suffix not provided. Exporting results as CSV to file {output_file}",
-                **MsgStyle.WARN,
-            )
-            reporter.to_csv(output_file)
+#         else:
+#             click.secho(
+#                 f"File suffix not provided. Exporting results as CSV to file {output_file}",
+#                 **MsgStyle.WARN,
+#             )
+#             reporter.to_csv(output_file)
 
 
 @fm_add_data.command("toy-account")
