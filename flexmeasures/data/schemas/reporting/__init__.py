@@ -1,4 +1,4 @@
-from marshmallow import Schema, fields
+from marshmallow import Schema, fields, validate
 
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.schemas.sources import DataSourceIdField
@@ -48,7 +48,9 @@ class ReporterConfigSchema(Schema):
     """
 
     tb_query_config = fields.List(
-        fields.Nested(TimeBeliefQueryConfigSchema()), required=True
+        fields.Nested(TimeBeliefQueryConfigSchema()),
+        required=True,
+        validator=validate.Length(min=1),
     )
     start = AwareDateTimeField()
     end = AwareDateTimeField()

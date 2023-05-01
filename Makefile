@@ -1,6 +1,6 @@
 # Note: use tabs
 # actions which are virtual, i.e. not a script
-.PHONY: install install-for-dev install-deps install-flexmeasures run-local test freeze-deps upgrade-deps update-docs update-docs-pdf show-file-space show-data-model
+.PHONY: install install-for-dev install-deps install-flexmeasures run-local test freeze-deps upgrade-deps update-docs update-docs-pdf show-file-space show-data-model clean-db
 
 
 # ---- Development ---
@@ -87,3 +87,6 @@ show-data-model:
 	# With --deprecated, you'll see the legacy models, and not their replacements.
 	# Use --help to learn more. 
 	./flexmeasures/data/scripts/visualize_data_model.py --uml
+
+clean-db:
+	./flexmeasures/data/scripts/clean_database.sh ${db_name}

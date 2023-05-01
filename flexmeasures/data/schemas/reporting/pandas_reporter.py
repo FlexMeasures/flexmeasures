@@ -51,12 +51,12 @@ class PandasReporterConfigSchema(ReporterConfigSchema):
 
     {
         "input_sensors" : [
-            {'sensor' : 1}
+            {"sensor" : 1, "alias" : "df1"}
         ],
         "transformations" : [
             {
-                "df_input" : "df2",
-                "df_output" : "df1",
+                "df_input" : "df1",
+                "df_output" : "df2",
                 "method" : "copy"
             },
             {
@@ -68,10 +68,8 @@ class PandasReporterConfigSchema(ReporterConfigSchema):
                 "method" : "sum",
                 "kwargs" : {"axis" : 0}
             }
-
-        ]
-    }
-
+        ],
+        "final_df_output" : "df2"
     """
 
     transformations = fields.List(fields.Nested(PandasMethodCall()), required=True)
