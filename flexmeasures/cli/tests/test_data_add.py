@@ -99,7 +99,7 @@ def test_cli_help(app):
 
 
 @pytest.fixture
-def setup_dummy_data(db, app):
+def setup_dummy_data_2(db, app):
 
     """
     Create Sensors 2, 1 Asset and 1 AssetType
@@ -174,8 +174,8 @@ def setup_dummy_data(db, app):
 
 
 @pytest.fixture
-def reporter_config_raw(app, db, setup_dummy_data):
-    sensor1, sensor2, report_sensor = setup_dummy_data
+def reporter_config_raw(app, db, setup_dummy_data_2):
+    sensor1, sensor2, report_sensor = setup_dummy_data_2
 
     reporter_config_raw = dict(
         start="2023-04-10T00:00:00 00:00",
@@ -196,10 +196,10 @@ def reporter_config_raw(app, db, setup_dummy_data):
     return reporter_config_raw
 
 
-def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
+def test_add_reporter(app, db, setup_dummy_data_2, reporter_config_raw):
     from flexmeasures.cli.data_add import add_report
 
-    sensor1, sensor2, report_sensor = setup_dummy_data
+    sensor1, sensor2, report_sensor = setup_dummy_data_2
     report_sensor_id = report_sensor.id
 
     runner = app.test_cli_runner()

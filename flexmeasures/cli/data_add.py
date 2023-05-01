@@ -1232,7 +1232,7 @@ def add_report(
 ):
     """
     Create a new report using the Reporter class and save the results
-    to the database or export them as csv or excel file.
+    to the database or export them as csv or excel files.
     """
 
     check_timezone(timezone_optional)
