@@ -165,6 +165,7 @@ If a sunset happens in version ``0.13``, and you are hosting a version which inc
 During such a blackout test, clients will receive ``HTTP status 410 (Gone)`` responses when calling corresponding endpoints.
 
 .. admonition:: What is a blackout test
+   :class: info-icon
 
    A blackout test is a planned, timeboxed event when a host will turn off a certain API or some of the API capabilities.
    The test is meant to help developers understand the impact the retirement will have on the applications and users.
