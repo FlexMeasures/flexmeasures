@@ -593,6 +593,8 @@ so that old imported data can be demoed as if it were current.
 
 Default: ``None``
 
+.. _sunset-config:
+
 Sunset
 ------
 

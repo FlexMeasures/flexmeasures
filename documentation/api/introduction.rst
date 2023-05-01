@@ -157,9 +157,18 @@ Hosts should not expect every client to monitor response headers and proactively
 Please make sure that your users have upgraded before you upgrade to a FlexMeasures version that sunsets an API version.
 You can do this by checking your server logs for warnings about users who are still calling deprecated endpoints.
 
-In addition, we recommend announcing blackout tests to your users, during which you can set the config setting ``FLEXMEASURES_API_SUNSET_ACTIVE = True`` to activate the sunset.
-Preferably, you'd do this only after the original sunset date.
+In addition, we recommend running blackout tests during the deprecation notice phase.
+You (and your users) can learn which systems need attention and how to deal with them.
+Be sure to announce these beforehand.
+Here is an example of how to run a blackout test:
+If a sunset happens in version ``0.13``, and you are hosting a version which includes the deprecation notice (e.g. ``0.12``), FlexMeasures will simulate the sunset if you set the config setting ``FLEXMEASURES_API_SUNSET_ACTIVE = True`` (see :ref:`Sunset Configuration<sunset-config>`).
 During such a blackout test, clients will receive ``HTTP status 410 (Gone)`` responses when calling corresponding endpoints.
+
+.. admonition:: What is a blackout test
+
+   A blackout test is a planned, timeboxed event when a host will turn off a certain API or some of the API capabilities.
+   The test is meant to help developers understand the impact the retirement will have on the applications and users.
+   `Source: Platform of Trust <https://design.oftrust.net/api-migration-policies/blackout-testing>`_
 
 In case you have users that haven't upgraded yet, and would still like to upgrade FlexMeasures (to the version that officially sunsets the API version), you can.
 For a little while after sunset (usually one more minor version), we will continue to support "letting the sun unset".
