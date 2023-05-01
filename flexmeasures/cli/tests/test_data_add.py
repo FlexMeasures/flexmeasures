@@ -86,6 +86,7 @@ def test_add_holidays(app, db, setup_roles_users):
     )
 
 
+@pytest.mark.skip_github
 def test_cli_help(app):
     """Test that showing help does not throw an error."""
     from flexmeasures.cli import data_add
