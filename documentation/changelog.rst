@@ -3,6 +3,19 @@
 FlexMeasures Changelog
 **********************
 
+v0.14.0 | June XX, 2023
+============================
+
+New features
+-------------
+
+Bugfixes
+-----------
+
+Infrastructure / Support
+----------------------
+
+
 v0.13.0 | May 1, 2023
 ============================
 
@@ -14,7 +27,7 @@ v0.13.0 | May 1, 2023
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
 
-   .. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/013-overlay-charts/>`__.
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/013-overlay-charts/>`__.
 
 New features
 -------------
