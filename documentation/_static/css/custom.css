@@ -21,3 +21,7 @@ div .contents li {
     page-break-inside: avoid;
     break-inside: avoid-column;
 }
+
+div.admonition.info-icon > .admonition-title:before {
+  content: "\f05a"; /* the fa-circle-info icon */
+}

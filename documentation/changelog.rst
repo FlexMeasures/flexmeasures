@@ -6,6 +6,10 @@ FlexMeasures Changelog
 v0.13.0 | April XX, 2023
 ============================
 
+.. warning:: Sunset notice for API versions 1.0, 1.1, 1.2, 1.3 and 2.0: after upgrading to ``flexmeasures==0.13``, users of these API versions may receive ``HTTP status 410 (Gone)`` responses.
+             See the `documentation for deprecation and sunset <https://flexmeasures.readthedocs.io/en/latest/api/introduction.html#deprecation-and-sunset>`_.
+             The relevant endpoints have been deprecated since ``flexmeasures==0.12``.
+
 .. warning:: The API endpoint (`[POST] /sensors/(id)/schedules/trigger <api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_) to make new schedules sunsets the deprecated (since v0.12) storage flexibility parameters (they move to the ``flex-model`` parameter group), as well as the parameters describing other sensors (they move to ``flex-context``).
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
@@ -27,6 +31,8 @@ Bugfixes
 
 Infrastructure / Support
 ----------------------
+* Support blackout tests for sunset API versions [see `PR #651 <https://www.github.com/FlexMeasures/flexmeasures/pull/651>`_]
+* Sunset API versions 1.0, 1.1, 1.2, 1.3 and 2.0 [see `PR #650 <https://www.github.com/FlexMeasures/flexmeasures/pull/650>`_]
 * Sunset several API fields for `/sensors/<id>/schedules/trigger` (POST) that have moved into the ``flex-model`` or ``flex-context`` fields [see `PR #580 <https://www.github.com/FlexMeasures/flexmeasures/pull/580>`_]
 * Fix broken `make show-data-model` command [see `PR #638 <https://www.github.com/FlexMeasures/flexmeasures/pull/638>`_]
 * Bash script for a clean database to run toy-tutorial by using `make clean-db db_name=database_name` command [see `PR #640 <https://github.com/FlexMeasures/flexmeasures/pull/640>`_]
@@ -533,7 +539,7 @@ Infrastructure / Support
 * Integration with `timely beliefs <https://github.com/SeitaBV/timely-beliefs>`__ lib: Sensors [see `PR #13 <https://www.github.com/FlexMeasures/flexmeasures/pull/13>`_]
 * Apache 2.0 license [see `PR #16 <https://www.github.com/FlexMeasures/flexmeasures/pull/16>`_]
 * Load js & css from CDN [see `PR #21 <https://www.github.com/FlexMeasures/flexmeasures/pull/21>`_]
-* Start using marshmallow for input validation, also introducing ``HTTP status 422`` in the API [see `PR #25 <https://www.github.com/FlexMeasures/flexmeasures/pull/25>`_]
+* Start using marshmallow for input validation, also introducing ``HTTP status 422 (Unprocessable Entity)`` in the API [see `PR #25 <https://www.github.com/FlexMeasures/flexmeasures/pull/25>`_]
 * Replace ``solarpy`` with ``pvlib`` (due to license conflict) [see `PR #16 <https://www.github.com/FlexMeasures/flexmeasures/pull/16>`_]
 * Stop supporting the creation of new users on asset creation (to reduce complexity) [see `PR #36 <https://www.github.com/FlexMeasures/flexmeasures/pull/36>`_]
 
