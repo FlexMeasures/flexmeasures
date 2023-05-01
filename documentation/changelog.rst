@@ -7,6 +7,7 @@ v0.13.0 | April XX, 2023
 ============================
 
 .. warning:: Sunset notice for API versions 1.0, 1.1, 1.2, 1.3 and 2.0: after upgrading to ``flexmeasures==0.13``, users of these API versions may receive ``HTTP status 410 (Gone)`` responses.
+             See the `documentation for deprecation and sunset <https://flexmeasures.readthedocs.io/en/latest/api/introduction.html#deprecation-and-sunset>`_.
              The relevant endpoints have been deprecated since ``flexmeasures==0.12``.
 
 .. warning:: The API endpoint (`[POST] /sensors/(id)/schedules/trigger <api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_) to make new schedules sunsets the deprecated (since v0.12) storage flexibility parameters (they move to the ``flex-model`` parameter group), as well as the parameters describing other sensors (they move to ``flex-context``).
@@ -30,6 +31,7 @@ Bugfixes
 
 Infrastructure / Support
 ----------------------
+* Support blackout tests for sunset API versions [see `PR #651 <https://www.github.com/FlexMeasures/flexmeasures/pull/651>`_]
 * Sunset API versions 1.0, 1.1, 1.2, 1.3 and 2.0 [see `PR #650 <https://www.github.com/FlexMeasures/flexmeasures/pull/650>`_]
 * Sunset several API fields for `/sensors/<id>/schedules/trigger` (POST) that have moved into the ``flex-model`` or ``flex-context`` fields [see `PR #580 <https://www.github.com/FlexMeasures/flexmeasures/pull/580>`_]
 * Fix broken `make show-data-model` command [see `PR #638 <https://www.github.com/FlexMeasures/flexmeasures/pull/638>`_]
