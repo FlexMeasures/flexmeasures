@@ -1,3 +1,7 @@
+div section {
+    text-align: justify;
+}
+
 div .toctree-wrapper > ul {
     column-count: 2;
     margin: 0;
