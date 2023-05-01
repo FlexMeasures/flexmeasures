@@ -1,7 +1,12 @@
 from importlib_metadata import version, PackageNotFoundError
 
 from flexmeasures.data.models.annotations import Annotation  # noqa F401
-from flexmeasures.data.models.user import Account, AccountRole, User  # noqa F401
+from flexmeasures.data.models.user import (  # noqa F401
+    Account,
+    AccountRole,
+    User,
+    Role as UserRole,
+)
 from flexmeasures.data.models.data_sources import DataSource as Source  # noqa F401
 from flexmeasures.data.models.generic_assets import (  # noqa F401
     GenericAsset as Asset,
