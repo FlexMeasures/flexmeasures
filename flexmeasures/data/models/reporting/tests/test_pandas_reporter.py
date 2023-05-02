@@ -1,8 +1,8 @@
 import pytest
-
 from datetime import datetime, timedelta
-
 from pytz import utc
+
+import pandas as pd
 
 from flexmeasures.data.models.reporting.pandas_reporter import PandasReporter
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
@@ -128,8 +128,63 @@ def test_reporter(setup_dummy_data):
         report1.sensor == reporter_sensor
     )  # check that the output sensor is effectively assigned.
 
-    report2 = reporter.compute(start=datetime(2023, 4, 10, 3, tzinfo=utc))
-    assert len(report2) == 4
-    assert str(report2.index[0]) == "2023-04-10 02:00:00+00:00"
+    # check that calling compute with different parameters changes the result
+    report3 = reporter.compute(start=datetime(2023, 4, 10, 3, tzinfo=utc))
+    assert len(report3) == 4
+    assert str(report3.index[0]) == "2023-04-10 02:00:00+00:00"
 
     # TODO: resample with BeliefDataFrame specific method (resample_event)
+
+
+def test_reporter_repeated(setup_dummy_data):
+    """check that calling compute doesn't change the result"""
+
+    s1, s2, reporter_sensor = setup_dummy_data
+
+    reporter_config_raw = dict(
+        tb_query_config=[
+            dict(
+                sensor=s1.id,
+                event_starts_after="2023-04-10T00:00:00 00:00",
+                event_ends_before="2023-04-10T10:00:00 00:00",
+            ),
+            dict(
+                sensor=s2.id,
+                event_starts_after="2023-04-10T00:00:00 00:00",
+                event_ends_before="2023-04-10T10:00:00 00:00",
+            ),
+        ],
+        transformations=[
+            dict(
+                df_input="sensor_1",
+                df_output="sensor_1_source_1",
+                method="xs",
+                args=["@source_1"],
+                kwargs=dict(level=2),
+            ),
+            dict(
+                df_input="sensor_2",
+                df_output="sensor_2_source_1",
+                method="xs",
+                args=["@source_1"],
+                kwargs=dict(level=2),
+            ),
+            dict(
+                df_output="df_merge",
+                df_input="sensor_1_source_1",
+                method="merge",
+                args=["@sensor_2_source_1"],
+                kwargs=dict(on="event_start", suffixes=("_sensor1", "_sensor2")),
+            ),
+            dict(method="resample", args=["2h"]),
+            dict(method="mean"),
+            dict(method="sum", kwargs=dict(axis=1)),
+        ],
+        final_df_output="df_merge",
+    )
+
+    reporter = PandasReporter(reporter_sensor, reporter_config_raw=reporter_config_raw)
+
+    report1 = reporter.compute()
+    report2 = reporter.compute()
+    pd.testing.assert_series_equal(report1, report2)

@@ -55,22 +55,22 @@ class Reporter(DataGeneratorMixin):
 
         self.data = {}
         for tb_query in self.tb_query_config:
-
+            _tb_query = tb_query.copy()
             # using start / end instead of event_starts_after/event_ends_before when not defined
-            event_starts_after = tb_query.pop("event_starts_after", self.start)
-            event_ends_before = tb_query.pop("event_ends_before", self.end)
-            resolution = tb_query.pop("resolution", self.input_resolution)
-            belief_time = tb_query.pop("belief_time", self.belief_time)
+            event_starts_after = _tb_query.pop("event_starts_after", self.start)
+            event_ends_before = _tb_query.pop("event_ends_before", self.end)
+            resolution = _tb_query.pop("resolution", self.input_resolution)
+            belief_time = _tb_query.pop("belief_time", self.belief_time)
 
-            sensor: Sensor = tb_query.pop("sensor", None)
-            alias: str = tb_query.pop("alias", None)
+            sensor: Sensor = _tb_query.pop("sensor", None)
+            alias: str = _tb_query.pop("alias", None)
 
             bdf = sensor.search_beliefs(
                 event_starts_after=event_starts_after,
                 event_ends_before=event_ends_before,
                 resolution=resolution,
                 beliefs_before=belief_time,
-                **tb_query,
+                **_tb_query,
             )
 
             # store data source as local variable
@@ -96,23 +96,17 @@ class Reporter(DataGeneratorMixin):
         belief_time: datetime = None,
         **kwargs,
     ) -> tb.BeliefsDataFrame:
-        """This method triggers the creation of a new report. This method allows to update the fields
-        in reporter_config_raw passing them as keyword arguments or the whole `reporter_config_raw` by
-        passing it in the kwarg `reporter_config_raw`.
+        """This method triggers the creation of a new report.
 
-        Overall, this method follows these steps:
-            1) Updating the reporter_config with the kwargs of the method compute.
-            2) Triggers config deserialization.
-            3) Fetches the data of the sensors described by the field `tb_query_config`.
-            4) If the output is BeliefsDataFrame, it simplifies it into a DataFrame
+        The same object can generate multiple reports with different start, end, input_resolution
+        and belief_time values.
 
+        In the future, this function will parse arbitrary input arguments defined in a schema.
         """
-        # if report_config in kwargs
-        if "reporter_config_raw" in kwargs:
-            self.reporter_config_raw.update(kwargs.get("reporter_config_raw"))
 
         # deserialize configuration
-        self.deserialize_config()
+        if self.reporter_config is None:
+            self.deserialize_config()
 
         # if provided, update the class attributes
         self.update_attribute("start", start)
