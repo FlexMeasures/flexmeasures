@@ -10,7 +10,7 @@ from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def setup_dummy_data(db, app):
 
     """
