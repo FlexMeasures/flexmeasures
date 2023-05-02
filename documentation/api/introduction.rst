@@ -107,6 +107,11 @@ which gives a response like this if the credentials are correct:
 Deprecation and sunset
 ----------------------
 
+Some sunsetting options are available for FlexMeasures hosts. See :ref:`api_deprecation_hosts`.
+
+FlexMeasures clients
+^^^^^^^^^^^^^^^^^^^^
+
 Professional API users should monitor API responses for the ``"Deprecation"`` and ``"Sunset"`` response headers [see `draft-ietf-httpapi-deprecation-header-02 <https://datatracker.ietf.org/doc/draft-ietf-httpapi-deprecation-header/>`_ and `RFC 8594 <https://www.rfc-editor.org/rfc/rfc8594>`_, respectively], so system administrators can be warned when using API endpoints that are flagged for deprecation and/or are likely to become unresponsive in the future.
 
 The deprecation header field shows an `IMF-fixdate <https://www.rfc-editor.org/rfc/rfc7231#section-7.1.1.1>`_ indicating when the API endpoint was deprecated.
@@ -139,3 +144,33 @@ Here is a client-side code example in Python (this merely prints out the depreca
                 print(f"Your request to {url} returned a sunset warning. Sunset: {content}")
             elif header == "Link" and ('rel="deprecation";' in content or 'rel="sunset";' in content):
                 print(f"Further info is available: {content}")
+
+.. _api_deprecation_hosts:
+
+FlexMeasures hosts
+^^^^^^^^^^^^^^^^^^
+
+When upgrading to a FlexMeasures version that sunsets an API version (e.g. ``flexmeasures==0.13.0`` sunsets API version 2), clients will receive ``HTTP status 410 (Gone)`` responses when calling corresponding endpoints.
+After upgrading to one of the next FlexMeasures versions (e.g. ``flexmeasures==0.14.0``), they will receive ``HTTP status 404 (Not Found)`` responses.
+
+Hosts should not expect every client to monitor response headers and proactively upgrade to newer API versions.
+Please make sure that your users have upgraded before you upgrade to a FlexMeasures version that sunsets an API version.
+You can do this by checking your server logs for warnings about users who are still calling deprecated endpoints.
+
+In addition, we recommend running blackout tests during the deprecation notice phase.
+You (and your users) can learn which systems need attention and how to deal with them.
+Be sure to announce these beforehand.
+Here is an example of how to run a blackout test:
+If a sunset happens in version ``0.13``, and you are hosting a version which includes the deprecation notice (e.g. ``0.12``), FlexMeasures will simulate the sunset if you set the config setting ``FLEXMEASURES_API_SUNSET_ACTIVE = True`` (see :ref:`Sunset Configuration<sunset-config>`).
+During such a blackout test, clients will receive ``HTTP status 410 (Gone)`` responses when calling corresponding endpoints.
+
+.. admonition:: What is a blackout test
+   :class: info-icon
+
+   A blackout test is a planned, timeboxed event when a host will turn off a certain API or some of the API capabilities.
+   The test is meant to help developers understand the impact the retirement will have on the applications and users.
+   `Source: Platform of Trust <https://design.oftrust.net/api-migration-policies/blackout-testing>`_
+
+In case you have users that haven't upgraded yet, and would still like to upgrade FlexMeasures (to the version that officially sunsets the API version), you can.
+For a little while after sunset (usually one more minor version), we will continue to support "letting the sun unset".
+To enable this, just set the config setting ``FLEXMEASURES_API_SUNSET_ACTIVE = False`` and consider announcing some more blackout tests to your users, during which you can set this setting to ``True`` to activate the sunset.

@@ -116,6 +116,7 @@ html_theme_options = {
 # relative to this directory. They are copied after the builtin _static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
+html_css_files = ["css/custom.css"]
 
 # Custom sidebar templates, must be a dictionary that maps document names
 # to template names.
@@ -223,4 +224,3 @@ def setup(sphinx_app):
         "live",
         "env",  # hard-coded, documentation is not server-specific for the time being
     )
-    sphinx_app.add_css_file("css/custom.css")

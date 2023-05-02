@@ -7,6 +7,7 @@ from werkzeug.exceptions import (
     InternalServerError,
     BadRequest,
     NotFound,
+    Gone,
 )
 from sqlalchemy.orm import Query
 
@@ -70,7 +71,9 @@ def error_handling_router(error: HTTPException):
         error, "description", f"Something went wrong: {error.__class__.__name__}"
     )
 
-    if request.is_json:
+    if request.is_json or (
+        request.url_rule is not None and request.url_rule.rule.startswith("/api")
+    ):
         response = jsonify(
             dict(
                 message=getattr(error, "description", str(error)),
@@ -99,6 +102,7 @@ def add_basic_error_handlers(app: Flask):
     app.register_error_handler(BadRequest, error_handling_router)
     app.register_error_handler(HTTPException, error_handling_router)
     app.register_error_handler(NotFound, error_handling_router)
+    app.register_error_handler(Gone, error_handling_router)
     app.register_error_handler(Exception, error_handling_router)
 
 

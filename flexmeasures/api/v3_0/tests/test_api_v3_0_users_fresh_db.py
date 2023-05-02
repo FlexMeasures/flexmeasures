@@ -7,13 +7,14 @@ from flexmeasures.data.services.users import find_user_by_email
 
 @pytest.mark.parametrize(
     "sender",
-    (
-        (""),
-        ("test_prosumer_user@seita.nl"),
-        ("test_prosumer_user_2@seita.nl"),
-        ("test_admin_user@seita.nl"),
-        ("inactive@seita.nl"),
-    ),
+    [
+        "",
+        "test_prosumer_user@seita.nl",
+        "test_prosumer_user_2@seita.nl",
+        "test_admin_user@seita.nl",
+        "inactive_user@seita.nl",
+        "inactive_admin@seita.nl",
+    ],
 )
 def test_user_reset_password(app, client, setup_inactive_user, sender):
     """
@@ -34,7 +35,7 @@ def test_user_reset_password(app, client, setup_inactive_user, sender):
         )
         print("Server responded with:\n%s" % pwd_reset_response.json)
 
-        if sender in ("", "inactive@seita.nl"):
+        if sender in ("", "inactive_user@seita.nl", "inactive_admin@seita.nl"):
             assert pwd_reset_response.status_code == 401
             return
         if sender == "test_prosumer_user@seita.nl":
