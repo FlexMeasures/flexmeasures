@@ -26,6 +26,8 @@ Level above which log messages are added to the log file. See the ``logging`` pa
 
 Default: ``logging.WARNING``
 
+.. note:: This setting is also recognized as environment variable.
+
 
 .. _modes-config:
 
@@ -72,6 +74,7 @@ FLEXMEASURES_PLUGINS
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
 A list of plugins you want FlexMeasures to load (e.g. for custom views or CLI functions). 
+This can be a Python list (e.g. ``["plugin1", "plugin2"]``) or a comma-separated string (e.g. ``"plugin1, plugin2"``).
 
 Two types of entries are possible here:
 
@@ -80,8 +83,9 @@ Two types of entries are possible here:
 
 Added functionality in plugins needs to be based on Flask Blueprints. See :ref:`plugins` for more information and examples.
 
-
 Default: ``[]``
+
+.. note:: This setting is also recognized as environment variable.
 
 
 FLEXMEASURES_DB_BACKUP_PATH
@@ -299,6 +303,8 @@ Token for accessing the MapBox API (for displaying maps on the dashboard and ass
 
 Default: ``None``
 
+.. note:: This setting is also recognized as environment variable.
+
 .. _sentry_access_token:
 
 SENTRY_SDN
@@ -308,6 +314,8 @@ Set tokenized URL, so errors will be sent to Sentry when ``app.env`` is not in `
 E.g.: ``https://<examplePublicKey>@o<something>.ingest.sentry.io/<project-Id>``
 
 Default: ``None``
+
+.. note:: This setting is also recognized as environment variable.
 
 
 SQLAlchemy
@@ -322,6 +330,9 @@ SQLALCHEMY_DATABASE_URI (**)
 Connection string to the postgres database, format: ``postgresql://<user>:<password>@<host-address>[:<port>]/<db>``
 
 Default: ``None``
+
+.. note:: This setting is also recognized as environment variable.
+
 
 SQLALCHEMY_ENGINE_OPTIONS
 ^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -431,6 +442,8 @@ For FlexMeasures to be able to send email to users (e.g. for resetting passwords
 
 This is only a selection of the most important settings.
 See `the Flask-Mail Docs <https://flask-mail.readthedocs.io/en/latest/#configuring-flask-mail>`_ for others.
+
+.. note:: The mail settings are also recognized as environment variables.
 
 MAIL_SERVER (*)
 ^^^^^^^^^^^^^^^
@@ -542,6 +555,9 @@ Redis
 -----
 
 FlexMeasures uses the Redis database to support our forecasting and scheduling job queues.
+
+.. note:: The redis settings are also recognized as environment variables.
+
 
 FLEXMEASURES_REDIS_URL (*)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^

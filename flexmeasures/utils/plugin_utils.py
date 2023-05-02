@@ -24,6 +24,8 @@ def register_plugins(app: Flask):
     (last part of the path).
     """
     plugins = app.config.get("FLEXMEASURES_PLUGINS", [])
+    if isinstance(plugins, str):
+        plugins = [plugin.strip() for plugin in plugins.split(",")]
     if not isinstance(plugins, list):
         app.logger.error(
             f"The value of FLEXMEASURES_PLUGINS is not a list: {plugins}. Cannot install plugins ..."
