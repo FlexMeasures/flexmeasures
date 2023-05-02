@@ -250,7 +250,7 @@ def test_tibber_reporter(tibber_test_data):
 
     result = tibber_reporter.compute(
         start=datetime(2023, 4, 13, tzinfo=utc),
-        end=datetime(2023, 4, 13, 23, tzinfo=utc),
+        end=datetime(2023, 4, 14, tzinfo=utc),
     )
 
     # check that we got a result for 24 hours
@@ -264,4 +264,4 @@ def test_tibber_reporter(tibber_test_data):
     error = abs(result - tibber_app_price_df)
 
     # check that (EPEX + EnergyTax + Tibber Tariff)*(1 + VAT) = Tibber App Price
-    assert error.sum()[0] == 0
+    assert error.sum(min_count=1).event_value == 0
