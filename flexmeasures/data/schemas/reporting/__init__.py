@@ -18,8 +18,7 @@ class TimeBeliefQueryConfigSchema(Schema):
     event_starts_after = AwareDateTimeField()
     event_ends_before = AwareDateTimeField()
 
-    beliefs_after = AwareDateTimeField()
-    beliefs_before = AwareDateTimeField()
+    belief_time = AwareDateTimeField()
 
     horizons_at_least = DurationField()
     horizons_at_most = DurationField()
@@ -55,5 +54,4 @@ class ReporterConfigSchema(Schema):
     start = AwareDateTimeField()
     end = AwareDateTimeField()
     input_resolution = DurationField()
-    beliefs_after = AwareDateTimeField()
-    beliefs_before = AwareDateTimeField()
+    belief_time = AwareDateTimeField()
