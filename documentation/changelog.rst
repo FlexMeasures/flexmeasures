@@ -15,6 +15,8 @@ Bugfixes
 Infrastructure / Support
 ----------------------
 
+.. warning:: The setting `FLEXMEASURES_PLUGIN_PATHS` has been sunset. It had been deprecated since v0.7.
+
 
 v0.13.0 | May 1, 2023
 ============================
