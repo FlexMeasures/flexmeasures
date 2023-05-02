@@ -83,6 +83,10 @@ class Reporter(DataGeneratorMixin):
             else:
                 self.data[f"sensor_{sensor.id}"] = bdf
 
+    def update_attribute(self, attribute, default):
+        if default is not None:
+            setattr(self, attribute, default)
+
     def compute(
         self,
         *args,
@@ -110,10 +114,11 @@ class Reporter(DataGeneratorMixin):
         # deserialize configuration
         self.deserialize_config()
 
-        self.start = start
-        self.end = end
-        self.input_resolution = input_resolution
-        self.belief_time = belief_time
+        # if provided, update the class attributes
+        self.update_attribute("start", start)
+        self.update_attribute("end", end)
+        self.update_attribute("input_resolution", input_resolution)
+        self.update_attribute("belief_time", belief_time)
 
         # fetch data
         self.fetch_data()
