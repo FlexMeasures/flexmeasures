@@ -98,6 +98,7 @@ def test_cli_help(app):
 
 
 @pytest.fixture(scope="module")
+@pytest.mark.skip_github
 def setup_dummy_data(db, app):
 
     """
@@ -173,6 +174,7 @@ def setup_dummy_data(db, app):
 
 
 @pytest.fixture(scope="module")
+@pytest.mark.skip_github
 def reporter_config_raw(app, db, setup_dummy_data):
     sensor1, sensor2, report_sensor = setup_dummy_data
 
@@ -195,6 +197,7 @@ def reporter_config_raw(app, db, setup_dummy_data):
     return reporter_config_raw
 
 
+@pytest.mark.skip_github
 def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
     from flexmeasures.cli.data_add import add_report
 
