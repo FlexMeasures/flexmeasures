@@ -81,6 +81,35 @@ get computed by your custom function! For later lookup, the data will be linked 
 .. todo:: We're planning to use a similar approach to allow for custom forecasting algorithms, as well.
 
 
+Deploying your plugin via Docker
+----------------------------------
+
+You can extend the FlexMeasures Docker image with your plugin's logic.
+
+Imagine your package (with an ``__init__.py`` file, one of the setups we discussed in :ref:`plugin_showcase`) is called ``flexmeasures_testplugin``.
+Then, this is a minimal possible Dockerfile:
+
+.. code-block:: docker
+
+    FROM lfenergy/flexmeasures
+
+    COPY flexmeasures_testplugin/ /app/flexmeasures_testplugin
+    ENV FLEXMEASURES_PLUGINS="/app/flexmeasures_testplugin"
+
+
+If you also want to install your requirements, you could for instance add these layers:
+
+.. code-block:: docker
+
+    COPY requirements/app.in /app/requirements/flexmeasures_testplugin.txt
+    RUN pip3 install --no-cache-dir -r requirements/flexmeasures_testplugin.txt
+
+.. note:: No need to install flexmeasures here, as the Docker image we are based on already installed FlexMeasures from code. If you pip3-install your plugin here (assuming it's on Pypi), check if it recongizes that FlexMeasures installation as it should.
+
+.. warning:: Using the :ref:`plugin-config` setting like this depends on FlexMeasures version v0.14.
+
+
+
 Adding your own style sheets
 ----------------------------
 
