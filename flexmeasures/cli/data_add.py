@@ -1257,7 +1257,7 @@ def add_report(
     click.echo(f"Report scope:\n\tstart={start}\n\tend={end}")
 
     click.echo(
-        f"Looking for the Reporter {reporter_class} among all the registered reporters.",
+        f"Looking for the Reporter {reporter_class} among all the registered reporters...",
     )
 
     ReporterClass = app.reporters.get(reporter_class)
