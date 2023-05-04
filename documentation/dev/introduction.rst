@@ -1,6 +1,7 @@
 .. _developing:
 
 
+
 Developing for FlexMeasures
 ===========================
 
@@ -27,6 +28,7 @@ Using a virtual environment is best practice for Python developers. We also stro
   an `Anaconda distribution <https://conda.io/docs/user-guide/tasks/manage-environments.html>`_ as base with ``conda create -n flexmeasures-venv python=3.10``.
 * Activate it, e.g.: ``source flexmeasures-venv/bin/activate``
 
+
 Download FlexMeasures
 ^^^^^^^^^^^^^^^^^^^^^^^
 Clone the `FlexMeasures repository <https://github.com/FlexMeasures/flexmeasures.git>`_ from GitHub.
@@ -34,8 +36,6 @@ Clone the `FlexMeasures repository <https://github.com/FlexMeasures/flexmeasures
 .. code-block:: bash
 
    $ git clone https://github.com/FlexMeasures/flexmeasures.git
-
-.. note:: Are you using Visual Studio Code? Then the code you just cloned also contains the editor configuration (part of) our team is using!
 
 
 Dependencies
@@ -174,6 +174,23 @@ This is also what happens automatically server-side when code is committed to a 
 
 If ``flake8``, ``black`` or ``mypy`` propose changes to any file, the commit is aborted (saying that it "failed"). 
 The changes proposed by ``black`` are implemented automatically (you can review them with `git diff`). Some of them might even resolve the ``flake8`` warnings :)
+
+
+Using Visual Studio, including spell checking
+----------------------------------------------
+
+Are you using Visual Studio Code? Then the code you just cloned also contains the editor configuration (part of) our team is using (see `.vscode`)!
+
+We recommend to install the flake8 and spellright extensions.
+
+For the latter, the FlexMeasures repository contains our project dictionary. Here are steps to link main dictionaries, which usually work on a Linux system:
+
+.. code-block:: bash
+
+   $ mkdir $HOME/.config/Code/Dictionaries
+   $ ln -s /usr/share/hunspell/* ~/.config/Code/Dictionaries
+
+Consult the extension's Readme for other systems.
 
 
 
