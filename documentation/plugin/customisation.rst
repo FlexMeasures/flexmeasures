@@ -16,7 +16,7 @@ but in the background your custom scheduling algorithm is being used.
 Let's walk through an example!
 
 First, we need to write a a class (inhering from the Base Scheduler) with a `schedule` function which accepts arguments just like the in-built schedulers (their code is `here <https://github.com/FlexMeasures/flexmeasures/tree/main/flexmeasures/data/models/planning>`_).
-The following minimal example gives you an idea of some meta information you can add for labelling your data, as well as the inputs and outputs of such a scheduling function:
+The following minimal example gives you an idea of some meta information you can add for labeling your data, as well as the inputs and outputs of such a scheduling function:
 
 .. code-block:: python
 
@@ -86,8 +86,8 @@ Deploying your plugin via Docker
 
 You can extend the FlexMeasures Docker image with your plugin's logic.
 
-Imagine your package (with an ``__init__.py`` file, one of the setups we discussed in :ref:`plugin_showcase`) is called ``flexmeasures_testplugin``.
-Then, this is a minimal possible Dockerfile:
+Imagine your plugin package (with an ``__init__.py`` file, one of the setups we discussed in :ref:`plugin_showcase`) is called ``flexmeasures_testplugin``.
+Then, this is a minimal possible Dockerfile ― containers based on this will serve FlexMeasures (see the original Dockerfile in the FlexMeasures repository) with the plugin logic, like endpoints:
 
 .. code-block:: docker
 
@@ -96,6 +96,7 @@ Then, this is a minimal possible Dockerfile:
     COPY flexmeasures_testplugin/ /app/flexmeasures_testplugin
     ENV FLEXMEASURES_PLUGINS="/app/flexmeasures_testplugin"
 
+You can of course also add multiple plugins this way.
 
 If you also want to install your requirements, you could for instance add these layers:
 
