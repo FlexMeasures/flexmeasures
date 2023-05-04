@@ -1149,14 +1149,14 @@ def add_schedule_for_storage(
     "start",
     type=AwareDateTimeField(format="iso"),
     required=False,
-    help="Report start time. Follow up with a timezone-aware datetime in ISO 6801 format.",
+    help="Report start time. Either `--last-X` flag can be used instead. Follow up with a timezone-aware datetime in ISO 6801 format.",
 )
 @click.option(
     "--end",
     "end",
     type=AwareDateTimeField(format="iso"),
     required=False,
-    help="Report end time. Follow up with a timezone-aware datetime in ISO 6801 format.",
+    help="Report end time. Either `--last-X` flag can be used instead. Follow up with a timezone-aware datetime in ISO 6801 format.",
 )
 @click.option(
     "--resolution",
