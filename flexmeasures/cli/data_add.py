@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Type
 import json
 from pathlib import Path
 
@@ -64,6 +64,8 @@ from flexmeasures.utils.time_utils import server_now
 from flexmeasures.utils.unit_utils import convert_units, ur
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.cli.utils import get_timerange_from_flags
+from flexmeasures.data.models.reporting import Reporter
+from timely_beliefs import BeliefsDataFrame
 
 
 @click.group("add")
@@ -1274,11 +1276,15 @@ def add_report(
     with open(reporter_config_file, "r") as f:
         reporter_config_raw = json.load(f)
 
-    reporter = ReporterClass(sensor=sensor, reporter_config_raw=reporter_config_raw)
+    reporter: Type[Reporter] = ReporterClass(
+        sensor=sensor, reporter_config_raw=reporter_config_raw
+    )
 
     click.echo("Report computation is running....")
 
-    result = reporter.compute(start=start, end=end, input_resolution=resolution)
+    result: Type[BeliefsDataFrame] = reporter.compute(
+        start=start, end=end, input_resolution=resolution
+    )
 
     click.secho("Report computation done.", **MsgStyle.SUCCESS)
 
