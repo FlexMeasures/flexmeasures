@@ -24,6 +24,9 @@ def register_plugins(app: Flask):
     (last part of the path).
     """
     plugins = app.config.get("FLEXMEASURES_PLUGINS", [])
+    if not plugins and "FLEXMEASURES_PLUGIN_PATHS" in app.config:
+        app.logger.warning("Plugins found via FLEXMEASURES_PLUGIN_PATHS. This setting will be sunset in v0.14. Please switch to FLEXMEASURES_PLUGINS."
+        plugins = app.config.get("FLEXMEASURES_PLUGIN_PATHS", [])
     if isinstance(plugins, str):
         plugins = [plugin.strip() for plugin in plugins.split(",")]
     if not isinstance(plugins, list):

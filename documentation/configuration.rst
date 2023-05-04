@@ -6,7 +6,7 @@ Configuration
 The following configurations are used by FlexMeasures.
 
 Required settings (e.g. postgres db) are marked with a double star (**).
-To enable easier quickstart tutorials, these required settings can be set by environment variables.
+To enable easier quickstart tutorials, continuous integration use cases and basic usage of FlexMeasures within other projects, these required settings, as well as a few others, can be set by environment variables ― this is also noted per setting.
 Recommended settings (e.g. mail, redis) are marked by one star (*).
 
 .. note:: FlexMeasures is best configured via a config file. The config file for FlexMeasures can be placed in one of two locations: 
@@ -85,7 +85,7 @@ Added functionality in plugins needs to be based on Flask Blueprints. See :ref:`
 
 Default: ``[]``
 
-.. note:: This setting is also recognized as environment variable.
+.. note:: This setting is also recognized as environment variable (since v0.14, which is also the version required to pass this setting as a string).
 
 
 FLEXMEASURES_DB_BACKUP_PATH

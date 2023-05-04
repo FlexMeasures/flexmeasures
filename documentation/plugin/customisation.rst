@@ -104,9 +104,7 @@ If you also want to install your requirements, you could for instance add these 
     COPY requirements/app.in /app/requirements/flexmeasures_testplugin.txt
     RUN pip3 install --no-cache-dir -r requirements/flexmeasures_testplugin.txt
 
-.. note:: No need to install flexmeasures here, as the Docker image we are based on already installed FlexMeasures from code. If you pip3-install your plugin here (assuming it's on Pypi), check if it recongizes that FlexMeasures installation as it should.
-
-.. warning:: Using the :ref:`plugin-config` setting like this depends on FlexMeasures version v0.14.
+.. note:: No need to install flexmeasures here, as the Docker image we are based on already installed FlexMeasures from code. If you pip3-install your plugin here (assuming it's on Pypi), check if it recognizes that FlexMeasures installation as it should.
 
 
 
