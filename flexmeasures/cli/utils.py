@@ -1,9 +1,11 @@
-from typing import Tuple, Mapping, Optional
+from typing import Tuple, Mapping
 from datetime import datetime, timedelta
 
 
 import click
 from click_default_group import DefaultGroup
+
+from flexmeasures.utils.time_utils import get_most_recent_hour
 
 
 class MsgStyle(object):
@@ -65,42 +67,51 @@ class DeprecatedDefaultGroup(DefaultGroup):
         return super().get_command(ctx, cmd_name)
 
 
-def get_timerange_from_flags(
-    start: Optional[datetime], end: Optional[datetime], timezone, **kwargs
-) -> Tuple[Optional[datetime], Optional[datetime]]:
+def get_timerange_from_flag(
+    last_hour: bool = False,
+    last_day: bool = False,
+    last_week: bool = False,
+    last_month: bool = False,
+    last_year: bool = False,
+) -> Tuple[datetime, datetime]:
+    """This function returns a time range [start,end] of the last-X period.
+    See input parameters for more details.
 
-    flags = ["last_hour", "last_day", "last_week", "last_month", "last_year"]
+    :param bool last_hour: flag to get the time range of the last finished hour.
+    :param bool last_day: flag to get the time range for yesterday.
+    :param bool last_week: flag to get the time range of the previous 7 days.
+    :param bool last_month: flag to get the time range of last calendar month
+    :param bool last_year: flag to get the last completed calendar year
+    :returns: start:datetime, end:datetime
+    """
 
-    # if any of the flag in `flags` is passed in kwargs
-    if len([kwarg for kwarg in kwargs if kwarg in flags]) > 0:
-        end = datetime.now(tz=timezone).replace(microsecond=0, second=0, minute=0)
-    else:
-        return start, end
+    current_hour = get_most_recent_hour()
 
-    """ Handle different flags """
-    if kwargs.get("last_hour"):  # last finished hour
-        end = end
-        start = end - timedelta(hours=1)
+    if last_hour:  # last finished hour
+        end = current_hour
+        start = current_hour - timedelta(hours=1)
 
-    if kwargs.get("last_day"):  # yesterday
-        end = end.replace(hour=0)
-        start = end - timedelta(days=1)
+    if last_day:  # yesterday
+        end = current_hour.replace(hour=0)
+        start = current_hour - timedelta(days=1)
 
-    if kwargs.get("last_week"):  # last finished 7 week period.
-        end = end.replace(hour=0)
+    if last_week:  # last finished 7 week period.
+        end = current_hour.replace(hour=0)
         start = end - timedelta(days=7)
 
-    if kwargs.get("last_month"):
-        end = end.replace(hour=0) - timedelta(
+    if last_month:
+        end = current_hour.replace(hour=0) - timedelta(
             days=end.day
         )  # to get the last day of the previous month
         start = end - timedelta(
             days=end.day - 1
         )  # equivalent to start.day = end.day-end.day +1
 
-    if kwargs.get("last_year"):
-        end = end.replace(hour=0) - timedelta(
+    if last_year:  # last calendar year
+        end = current_hour.replace(hour=0) - timedelta(
             days=end.day
-        )  # to get the last day of the previous month
+        )  # to get the last day of the previous year
+
+        start = end.replace(day=1, month=1)
 
     return start, end

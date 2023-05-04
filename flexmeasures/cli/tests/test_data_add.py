@@ -212,7 +212,6 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
         "reporter": "PandasReporter",
         "start": "2023-04-10T00:00:00 00:00",
         "end": "2023-04-10T10:00:00 00:00",
-        "timezone": "UTC",
         "output_file": "test.csv",
     }
 

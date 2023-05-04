@@ -63,7 +63,7 @@ from flexmeasures.utils import flexmeasures_inflection
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.utils.unit_utils import convert_units, ur
 from flexmeasures.data.utils import save_to_db
-from flexmeasures.cli.utils import get_timerange_from_flags
+from flexmeasures.cli.utils import get_timerange_from_flag
 from flexmeasures.data.models.reporting import Reporter
 from timely_beliefs import BeliefsDataFrame
 
@@ -1176,11 +1176,6 @@ def add_schedule_for_storage(
     "Use the `.csv` suffix to save the results as Comma Separated Values and `.xlsx` to export them as Excel sheets.",
 )
 @click.option(
-    "--timezone",
-    "timezone_optional",
-    help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam' (defaults to FLEXMEASURES_TIMEZONE config setting)",
-)
-@click.option(
     "--last-hour",
     "last_hour",
     is_flag=True,
@@ -1230,31 +1225,31 @@ def add_report(
     last_week: bool = False,
     last_month: bool = False,
     last_year: bool = False,
-    timezone_optional: Optional[str] = None,
 ):
     """
     Create a new report using the Reporter class and save the results
     to the database or export them as csv or excel file.
     """
 
-    check_timezone(timezone_optional)
+    # check that only 1 flag is provided
+    last_x_flags = [last_hour, last_day, last_week, last_month, last_year]
+    last_x_flag_given = last_x_flags.count(True) == 1
 
-    tz = pytz.timezone(
-        zone=timezone_optional
-        if timezone_optional
-        else app.config.get("FLEXMEASURES_TIMEZONE", "UTC")
-    )
+    if ((start is None) or (end is None)) and not last_x_flag_given:
+        click.secho(
+            "Either --start and --end or any of the --last-X flags should be provided.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
 
-    start, end = get_timerange_from_flags(
-        start,
-        end,
-        tz,
-        last_hour=last_hour,
-        last_day=last_day,
-        last_week=last_week,
-        last_month=last_month,
-        last_year=last_year,
-    )
+    if last_x_flag_given:
+        start, end = get_timerange_from_flag(
+            last_hour=last_hour,
+            last_day=last_day,
+            last_week=last_week,
+            last_month=last_month,
+            last_year=last_year,
+        )
 
     click.echo(f"Report scope:\n\tstart={start}\n\tend={end}")
 
