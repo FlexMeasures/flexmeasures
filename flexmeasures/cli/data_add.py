@@ -1276,6 +1276,8 @@ def add_report(
 
     reporter = ReporterClass(sensor=sensor, reporter_config_raw=reporter_config_raw)
 
+    click.echo("Report computation is running....")
+
     result = reporter.compute(start=start, end=end, input_resolution=resolution)
 
     click.secho("Report computation done.", **MsgStyle.SUCCESS)
