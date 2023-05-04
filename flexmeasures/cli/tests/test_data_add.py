@@ -217,9 +217,6 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
 
     cli_input = to_flags(cli_input_params)
 
-    flags = ["--save-to-database"]
-    cli_input.extend(flags)
-
     with runner.isolated_filesystem():
 
         # save reporter_config to a json file

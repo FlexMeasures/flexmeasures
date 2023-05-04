@@ -1206,10 +1206,10 @@ def add_schedule_for_storage(
     help="Use the last known 1 year period for the scope of the report.",
 )
 @click.option(
-    "--save-to-database",
-    "save_to_database",
+    "--dry-run",
+    "dry_run",
     is_flag=True,
-    help="Whether to save the report to the database.",
+    help="Add this flag to avoid saving the results to the database.",
 )
 def add_report(
     reporter_class: str,
@@ -1219,7 +1219,7 @@ def add_report(
     end: Optional[datetime] = None,
     resolution: Optional[timedelta] = None,
     output_file: Optional[Path] = None,
-    save_to_database: bool = False,
+    dry_run: bool = True,
     last_hour: bool = False,
     last_day: bool = False,
     last_week: bool = False,
@@ -1283,7 +1283,7 @@ def add_report(
 
     click.secho("Report computation done.", **MsgStyle.SUCCESS)
 
-    if save_to_database:
+    if not dry_run:
         click.echo("Storing report to the database...")
         save_to_db(result)
         db.session.commit()
