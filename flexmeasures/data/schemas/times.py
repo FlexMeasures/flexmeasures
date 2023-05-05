@@ -1,4 +1,5 @@
-from typing import Union, Optional
+from __future__ import annotations
+
 from datetime import datetime, timedelta
 
 from flask import current_app
@@ -20,7 +21,7 @@ class DurationField(MarshmallowClickMixin, fields.Str):
 
     def _deserialize(
         self, value, attr, obj, **kwargs
-    ) -> Union[timedelta, isodate.Duration]:
+    ) -> timedelta | isodate.Duration:
         """
         Use the isodate library to turn an ISO8601 string into a timedelta.
         For some non-obvious cases, it will become an isodate.Duration, see
@@ -44,7 +45,7 @@ class DurationField(MarshmallowClickMixin, fields.Str):
 
     @staticmethod
     def ground_from(
-        duration: Union[timedelta, isodate.Duration], start: Optional[datetime]
+        duration: timedelta | isodate.Duration, start: datetime | None
     ) -> timedelta:
         """
         For some valid duration strings (such as "P1M", a month),

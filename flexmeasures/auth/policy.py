@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-# Use | instead of Union when FM stops supporting Python 3.9 (https://github.com/python/cpython/issues/86399)
+# Use | instead of Union when FM stops supporting Python 3.9 (because of https://github.com/python/cpython/issues/86399)
 from typing import Union
 
 from flask import current_app
