@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 def load_requirements(use_case):
     reqs = []
-    with open("requirements/%s.txt" % use_case, "r") as f:
+    with open("requirements/%s.in" % use_case, "r") as f:
         reqs = [
             req
             for req in f.read().splitlines()
