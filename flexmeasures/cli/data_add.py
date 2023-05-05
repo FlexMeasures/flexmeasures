@@ -14,6 +14,7 @@ from flask.cli import with_appcontext
 import click
 import getpass
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import func
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
 import timely_beliefs as tb
 import timely_beliefs.utils as tb_utils
@@ -1237,10 +1238,27 @@ def add_report(
 
     if ((start is None) or (end is None)) and not last_x_flag_given:
         click.secho(
-            "Either --start and --end or any of the --last-X flags should be provided.",
-            **MsgStyle.ERROR,
+            "Either --start and --end, any of the --last-X flags should be provided."
+            "Trying to use the the latest datapoint of the report sensor as the start time and "
+            "the current time as the end...",
+            **MsgStyle.WARN,
         )
-        raise click.Abort()
+
+        last_value_datetime = (
+            db.session.query(func.max(TimedBelief.event_start))
+            .filter(TimedBelief.sensor_id == sensor.id)
+            .one_or_none()
+        )
+
+        if last_value_datetime is not None:
+            start = last_value_datetime[0]
+            end = server_now()
+        else:
+            click.secho(
+                f"Could not find any data for the report sensor {sensor}.",
+                **MsgStyle.ERROR,
+            )
+            raise click.Abort()
 
     if last_x_flag_given:
         start, end = get_timerange_from_flag(

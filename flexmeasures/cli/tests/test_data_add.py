@@ -15,6 +15,7 @@ from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetTy
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 
 from flexmeasures.cli.tests.utils import get_click_commands
+from flexmeasures.utils.time_utils import server_now
 
 
 @pytest.mark.skip_github
@@ -145,7 +146,7 @@ def setup_dummy_data(db, app):
     """
     beliefs = []
     for sensor in [sensor1, sensor2]:
-        for t in range(20):
+        for t in range(200):
             beliefs.append(
                 TimedBelief(
                     event_start=datetime(2023, 4, 10, tzinfo=utc) + timedelta(hours=t),
@@ -179,8 +180,6 @@ def reporter_config_raw(app, db, setup_dummy_data):
     sensor1, sensor2, report_sensor = setup_dummy_data
 
     reporter_config_raw = dict(
-        start="2023-04-10T00:00:00 00:00",
-        end="2023-04-10T10:00:00 00:00",
         tb_query_config=[dict(sensor=sensor1.id), dict(sensor=sensor2.id)],
         transformations=[
             dict(
@@ -242,6 +241,49 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
             event_ends_before=cli_input_params.get("end").replace(" ", "+"),
         )
         assert len(stored_report) == 5
+
+        assert os.path.exists("test.csv")  # check that the file has been created
+        assert (
+            os.path.getsize("test.csv") > 100
+        )  # bytes. Check that the file is not empty
+
+    ##
+    previous_command_end = cli_input_params.get("end").replace(" ", "+")
+
+    cli_input_params = {
+        "sensor-id": report_sensor_id,
+        "reporter-config-file": "reporter_config.json",
+        "reporter": "PandasReporter",
+        "output_file": "test.csv",
+    }
+
+    cli_input = to_flags(cli_input_params)
+
+    with runner.isolated_filesystem():
+
+        # save reporter_config to a json file
+        with open("reporter_config.json", "w") as f:
+            json.dump(reporter_config_raw, f)
+
+        # call command
+        result = runner.invoke(add_report, cli_input)
+
+        print(result)
+
+        assert result.exit_code == 0  # run command without errors
+
+        assert "Reporter PandasReporter found" in result.output
+        assert "Report computation done." in result.output
+
+        # Check if the report is saved to the database
+        report_sensor = (
+            db.session.query(Sensor).filter(Sensor.id == report_sensor_id).one_or_none()
+        )  # get fresh report sensor instance
+        stored_report = report_sensor.search_beliefs(
+            event_starts_after=previous_command_end,
+            event_ends_before=server_now(),
+        )
+        assert len(stored_report) == 95
 
         assert os.path.exists("test.csv")  # check that the file has been created
         assert (
