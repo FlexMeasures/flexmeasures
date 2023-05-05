@@ -1,6 +1,7 @@
 """CLI Tasks for listing database contents - most useful in development"""
 
-from typing import Optional, List
+from __future__ import annotations
+
 from datetime import datetime, timedelta
 
 import click
@@ -286,14 +287,14 @@ def list_data_sources():
     help="Set a filepath to store the beliefs as a CSV file.",
 )
 def plot_beliefs(
-    sensors: List[Sensor],
+    sensors: list[Sensor],
     start: datetime,
     duration: timedelta,
-    resolution: Optional[timedelta],
-    timezone: Optional[str],
-    belief_time_before: Optional[datetime],
-    source: Optional[DataSource],
-    filepath: Optional[str],
+    resolution: timedelta | None,
+    timezone: str | None,
+    belief_time_before: datetime | None,
+    source: DataSource | None,
+    filepath: str | None,
 ):
     """
     Show a simple plot of belief data directly in the terminal, and optionally, save the data to a CSV file.

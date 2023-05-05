@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 from datetime import datetime, timedelta
-from typing import List
 
 from flask import current_app
 import click
@@ -47,11 +48,11 @@ def create_forecasting_jobs(
     start_of_roll: datetime,
     end_of_roll: datetime,
     resolution: timedelta = None,
-    horizons: List[timedelta] = None,
+    horizons: list[timedelta] = None,
     model_search_term="linear-OLS",
     custom_model_params: dict = None,
     enqueue: bool = True,
-) -> List[Job]:
+) -> list[Job]:
     """Create forecasting jobs by rolling through a time window, for a number of given forecast horizons.
     Start and end of the forecasting jobs are equal to the time window (start_of_roll, end_of_roll) plus the horizon.
 
@@ -91,7 +92,7 @@ def create_forecasting_jobs(
                 "Cannot create forecasting jobs - set either horizons or resolution."
             )
         horizons = forecast_horizons_for(resolution)
-    jobs: List[Job] = []
+    jobs: list[Job] = []
     for horizon in horizons:
         job = Job.create(
             make_rolling_viewpoint_forecasts,

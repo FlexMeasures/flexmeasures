@@ -2,8 +2,9 @@
 These, and only these, functions should help you with treating your own code
 in the context of one database transaction. Which makes our lives easier.
 """
+from __future__ import annotations
+
 import sys
-from typing import Optional
 
 import click
 from flask import current_app
@@ -76,7 +77,7 @@ class PartialTaskCompletionException(Exception):
 
 
 @optional_arg_decorator
-def task_with_status_report(task_function, task_name: Optional[str] = None):
+def task_with_status_report(task_function, task_name: str | None = None):
     """Decorator for tasks which should report their runtime and status in the db (as LatestTaskRun entries).
     Tasks decorated with this endpoint should also leave committing or rolling back the session to this
     decorator (for the reasons that it is nice to centralise that but also practically, this decorator

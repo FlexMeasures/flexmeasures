@@ -1,7 +1,6 @@
-# flake8: noqa: E402
-import os
+from __future__ import annotations
+
 import time
-from typing import Optional, List
 
 from flask import Flask, g, request
 from flask.cli import load_dotenv
@@ -14,10 +13,10 @@ from redis import Redis
 from rq import Queue
 
 
-def create(
-    env: Optional[str] = None,
-    path_to_config: Optional[str] = None,
-    plugins: Optional[List[str]] = None,
+def create(  # noqa C901
+    env: str | None = None,
+    path_to_config: str | None = None,
+    plugins: list[str] | None = None,
 ) -> Flask:
     """
     Create a Flask app and configure it.
@@ -56,12 +55,12 @@ def create(
     if plugins:
         app.config["FLEXMEASURES_PLUGINS"] += plugins
     add_basic_error_handlers(app)
-    if not app.env in ("development", "documentation") and not app.testing:
+    if app.env not in ("development", "documentation") and not app.testing:
         init_sentry(app)
 
     app.mail = Mail(app)
     FlaskJSON(app)
-    cors = CORS(app)
+    CORS(app)
 
     # configure Redis (for redis queue)
     if app.testing:
@@ -91,7 +90,7 @@ def create(
     set_secret_key(app)
     if app.config.get("SECURITY_PASSWORD_SALT", None) is None:
         app.config["SECURITY_PASSWORD_SALT"] = app.config["SECRET_KEY"]
-    if not app.env in ("documentation", "development"):
+    if app.env not in ("documentation", "development"):
         SSLify(app)
 
     # Register database and models, including user auth security handlers

@@ -1,6 +1,7 @@
+from __future__ import annotations
+
 from datetime import timedelta
 from itertools import chain
-from typing import Optional
 
 import click
 from flask import current_app as app
@@ -165,7 +166,7 @@ def delete_structure(force):
 )
 def delete_measurements(
     force: bool,
-    sensor_id: Optional[int] = None,
+    sensor_id: int | None = None,
 ):
     """Delete measurements (ex-post beliefs, i.e. with belief_horizon <= 0)."""
     if not force:
@@ -187,7 +188,7 @@ def delete_measurements(
 )
 def delete_prognoses(
     force: bool,
-    sensor_id: Optional[int] = None,
+    sensor_id: int | None = None,
 ):
     """Delete forecasts and schedules (ex-ante beliefs, i.e. with belief_horizon > 0)."""
     if not force:
@@ -217,7 +218,7 @@ def delete_prognoses(
     help="Use the --keep-measurements flag to keep beliefs with a zero or negative belief horizon (measurements, nowcasts and backcasts).",
 )
 def delete_unchanged_beliefs(
-    sensor_id: Optional[int] = None,
+    sensor_id: int | None = None,
     delete_unchanged_forecasts: bool = True,
     delete_unchanged_measurements: bool = True,
 ):
@@ -285,7 +286,7 @@ def delete_unchanged_beliefs(
     type=int,
     help="Delete NaN time series data for a single sensor only. Follow up with the sensor's ID.",
 )
-def delete_nan_beliefs(sensor_id: Optional[int] = None):
+def delete_nan_beliefs(sensor_id: int | None = None):
     """Delete NaN beliefs."""
     q = db.session.query(TimedBelief)
     if sensor_id is not None:

@@ -11,7 +11,6 @@ Percentages can be converted to units of some physical capacity if a capacity is
 from __future__ import annotations
 
 from datetime import timedelta
-from typing import List, Optional, Union
 
 from moneyed import list_all_currencies
 import numpy as np
@@ -87,7 +86,7 @@ def is_valid_unit(unit: str) -> bool:
 
 
 def determine_unit_conversion_multiplier(
-    from_unit: str, to_unit: str, duration: Optional[timedelta] = None
+    from_unit: str, to_unit: str, duration: timedelta | None = None
 ):
     """Determine the value multiplier for a given unit conversion.
     If needed, requires a duration to convert from units of stock change to units of flow, or vice versa.
@@ -209,7 +208,7 @@ def is_energy_price_unit(unit: str) -> bool:
 
 
 def _convert_time_units(
-    data: Union[tb.BeliefsSeries, pd.Series, List[Union[int, float]], int, float],
+    data: tb.BeliefsSeries | pd.Series | list[int | float] | int | float,
     from_unit: str,
     to_unit: str,
 ):
@@ -229,12 +228,12 @@ def _convert_time_units(
 
 
 def convert_units(
-    data: Union[tb.BeliefsSeries, pd.Series, List[Union[int, float]], int, float],
+    data: tb.BeliefsSeries | pd.Series | list[int | float] | int | float,
     from_unit: str,
     to_unit: str,
-    event_resolution: Optional[timedelta] = None,
-    capacity: Optional[str] = None,
-) -> Union[pd.Series, List[Union[int, float]], int, float]:
+    event_resolution: timedelta | None = None,
+    capacity: str | None = None,
+) -> pd.Series | list[int | float] | int | float:
     """Updates data values to reflect the given unit conversion."""
     if from_unit in ("datetime", "timedelta"):
         return _convert_time_units(data, from_unit, to_unit)

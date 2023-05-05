@@ -1,4 +1,5 @@
-from typing import Tuple, Union
+from __future__ import annotations
+
 import math
 
 
@@ -15,7 +16,7 @@ def rad_lng(longitude: float) -> float:
 
 
 def earth_distance(
-    location: Tuple[float, float], other_location: Tuple[float, float]
+    location: tuple[float, float], other_location: tuple[float, float]
 ) -> float:
     """Great circle distance in km between two locations on Earth."""
     r = 6371  # Radius of Earth in kilometres
@@ -34,7 +35,7 @@ def earth_distance(
     )
 
 
-def parse_lat_lng(kwargs) -> Union[Tuple[float, float], Tuple[None, None]]:
+def parse_lat_lng(kwargs) -> tuple[float, float] | tuple[None, None]:
     """Parses latitude and longitude values stated in kwargs.
 
     Can be called with an object that has latitude and longitude properties, for example:
