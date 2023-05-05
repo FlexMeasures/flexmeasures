@@ -1177,6 +1177,13 @@ def add_schedule_for_storage(
     "Use the `.csv` suffix to save the results as Comma Separated Values and `.xlsx` to export them as Excel sheets.",
 )
 @click.option(
+    "--timezone",
+    "timezone",
+    required=False,
+    default="UTC",
+    help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam' (defaults to FLEXMEASURES_TIMEZONE config setting)",
+)
+@click.option(
     "--last-hour",
     "last_hour",
     is_flag=True,
@@ -1226,11 +1233,16 @@ def add_report(
     last_week: bool = False,
     last_month: bool = False,
     last_year: bool = False,
+    timezone: str = "UTC",
 ):
     """
     Create a new report using the Reporter class and save the results
     to the database or export them as csv or excel file.
     """
+
+    check_timezone(timezone)
+
+    tz = pytz.timezone(zone=timezone)
 
     # check that only 1 flag is provided
     last_x_flags = [last_hour, last_day, last_week, last_month, last_year]
@@ -1250,9 +1262,12 @@ def add_report(
             .one_or_none()
         )
 
+        # If there's data saved to the reporter sensors, we use:
+        # - The latest date as the start.
+        # - The current time as the end.
         if last_value_datetime is not None:
             start = last_value_datetime[0]
-            end = server_now()
+            end = datetime.now(tz=tz)
         else:
             click.secho(
                 f"Could not find any data for the report sensor {sensor}.",
@@ -1311,7 +1326,6 @@ def add_report(
         )
 
     if output_file:
-
         suffix = str(output_file).split(".")[-1] if "." in str(output_file) else ""
 
         if suffix == "xlsx":

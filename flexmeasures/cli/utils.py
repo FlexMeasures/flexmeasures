@@ -3,9 +3,10 @@ from datetime import datetime, timedelta
 
 
 import click
+import pytz
 from click_default_group import DefaultGroup
 
-from flexmeasures.utils.time_utils import get_most_recent_hour
+from flexmeasures.utils.time_utils import get_most_recent_hour, get_timezone
 
 
 class MsgStyle(object):
@@ -73,6 +74,7 @@ def get_timerange_from_flag(
     last_week: bool = False,
     last_month: bool = False,
     last_year: bool = False,
+    timezone: pytz.BaseTzInfo = get_timezone(),
 ) -> Tuple[datetime, datetime]:
     """This function returns a time range [start,end] of the last-X period.
     See input parameters for more details.
@@ -82,10 +84,11 @@ def get_timerange_from_flag(
     :param bool last_week: flag to get the time range of the previous 7 days.
     :param bool last_month: flag to get the time range of last calendar month
     :param bool last_year: flag to get the last completed calendar year
+    :param timezone: timezone object to represent
     :returns: start:datetime, end:datetime
     """
 
-    current_hour = get_most_recent_hour()
+    current_hour = get_most_recent_hour().astimezone(timezone)
 
     if last_hour:  # last finished hour
         end = current_hour
