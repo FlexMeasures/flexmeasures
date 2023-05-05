@@ -225,9 +225,7 @@ def find_sensor_by_name(name: str):
     return sensor
 
 
-def drop_non_unique_ids(
-    a: int | list[int], b: int | list[int]
-) -> list[int]:
+def drop_non_unique_ids(a: int | list[int], b: int | list[int]) -> list[int]:
     """Removes all elements from B that are already in A."""
     a_l = a if type(a) == list else [a]
     b_l = b if type(b) == list else [b]

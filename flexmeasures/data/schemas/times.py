@@ -19,9 +19,7 @@ class DurationField(MarshmallowClickMixin, fields.Str):
     """Field that deserializes to a ISO8601 Duration
     and serializes back to a string."""
 
-    def _deserialize(
-        self, value, attr, obj, **kwargs
-    ) -> timedelta | isodate.Duration:
+    def _deserialize(self, value, attr, obj, **kwargs) -> timedelta | isodate.Duration:
         """
         Use the isodate library to turn an ISO8601 string into a timedelta.
         For some non-obvious cases, it will become an isodate.Duration, see
