@@ -31,7 +31,7 @@ On Unix:
 
 .. code-block:: bash
 
-   $ sudo apt-get install postgresql-12
+   $ sudo apt-get install postgresql-12  # replace 12 with the version available in your packages
    $ pip install psycopg2-binary
 
 
@@ -63,17 +63,7 @@ Then restart the postgres server.
 
 .. code-block:: bash
 
-    $ service postgresql restart
-
-
-Setup the "flexmeasures" Unix user
-^^^^^^^^^^^^^
-
-This may in fact not be needed:
-
-.. code-block:: bash
-
-   $ sudo /usr/sbin/adduser flexmeasures
+    $ sudo service postgresql restart
 
 
 Create "flexmeasures" and "flexmeasures_test" databases and users
