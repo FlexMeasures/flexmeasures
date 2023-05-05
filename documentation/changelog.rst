@@ -15,6 +15,10 @@ Bugfixes
 Infrastructure / Support
 ----------------------
 
+* The setting FLEXMEASURES_PLUGINS can be set as environment variable now (as a comma-separated list) [see `PR #660 <https://www.github.com/FlexMeasures/flexmeasures/pull/660>`_]
+
+.. warning:: The setting `FLEXMEASURES_PLUGIN_PATHS` has been deprecated since v0.7. It has now been sunset. Please replace it with :ref:`plugin-config`.
+
 
 v0.13.0 | May 1, 2023
 ============================
