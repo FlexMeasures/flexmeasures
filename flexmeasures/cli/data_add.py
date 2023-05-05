@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple, Type
 import json
 from pathlib import Path
+from io import TextIOBase
 
 from marshmallow import validate
 import pandas as pd
@@ -1144,7 +1145,7 @@ def add_schedule_for_storage(
     "--reporter-config-file",
     "reporter_config_file",
     required=True,
-    type=click.Path(exists=True),
+    type=click.File("r"),
     help="Path to the JSON file with the reporter configuration.",
 )
 @click.option(
@@ -1222,7 +1223,7 @@ def add_schedule_for_storage(
 def add_report(
     reporter_class: str,
     sensor: Sensor,
-    reporter_config_file: Path,
+    reporter_config_file: TextIOBase,
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
     resolution: Optional[timedelta] = None,
@@ -1301,8 +1302,7 @@ def add_report(
 
     click.secho(f"Reporter {reporter_class} found", **MsgStyle.SUCCESS)
 
-    with open(reporter_config_file, "r") as f:
-        reporter_config_raw = json.load(f)
+    reporter_config_raw = json.load(reporter_config_file)
 
     reporter: Type[Reporter] = ReporterClass(
         sensor=sensor, reporter_config_raw=reporter_config_raw
