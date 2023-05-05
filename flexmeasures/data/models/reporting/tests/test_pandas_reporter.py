@@ -1,5 +1,6 @@
 import pytest
 from datetime import datetime, timedelta
+
 from pytz import utc
 
 import pandas as pd
@@ -86,8 +87,6 @@ def test_reporter(setup_dummy_data):
     s1, s2, reporter_sensor = setup_dummy_data
 
     reporter_config_raw = dict(
-        start="2023-04-10T00:00:00 00:00",
-        end="2023-04-10T10:00:00 00:00",
         tb_query_config=[dict(sensor=s1.id), dict(sensor=s2.id)],
         transformations=[
             dict(
@@ -120,7 +119,9 @@ def test_reporter(setup_dummy_data):
 
     reporter = PandasReporter(reporter_sensor, reporter_config_raw=reporter_config_raw)
 
-    report1 = reporter.compute()
+    start = datetime(2023, 4, 10, tzinfo=utc)
+    end = datetime(2023, 4, 10, 10, tzinfo=utc)
+    report1 = reporter.compute(start, end)
 
     assert len(report1) == 5
     assert str(report1.index[0]) == "2023-04-10 00:00:00+00:00"
@@ -129,11 +130,9 @@ def test_reporter(setup_dummy_data):
     )  # check that the output sensor is effectively assigned.
 
     # check that calling compute with different parameters changes the result
-    report3 = reporter.compute(start=datetime(2023, 4, 10, 3, tzinfo=utc))
+    report3 = reporter.compute(start=datetime(2023, 4, 10, 3, tzinfo=utc), end=end)
     assert len(report3) == 4
     assert str(report3.index[0]) == "2023-04-10 02:00:00+00:00"
-
-    # TODO: resample with BeliefDataFrame specific method (resample_event)
 
 
 def test_reporter_repeated(setup_dummy_data):
@@ -184,7 +183,10 @@ def test_reporter_repeated(setup_dummy_data):
     )
 
     reporter = PandasReporter(reporter_sensor, reporter_config_raw=reporter_config_raw)
+    start = datetime(2023, 4, 10, tzinfo=utc)
+    end = datetime(2023, 4, 10, 10, tzinfo=utc)
 
-    report1 = reporter.compute()
-    report2 = reporter.compute()
+    report1 = reporter.compute(start=start, end=end)
+    report2 = reporter.compute(start=start, end=end)
+
     pd.testing.assert_series_equal(report1, report2)

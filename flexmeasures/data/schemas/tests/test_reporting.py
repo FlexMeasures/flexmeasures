@@ -36,7 +36,7 @@ def setup_dummy_sensors(db, app):
 
 
 @pytest.mark.parametrize(
-    "report_config, is_valid",
+    "reporter_config, is_valid",
     [
         (
             {  # this checks that the final_df_output dataframe is actually generated at some point of the processing pipeline
@@ -125,12 +125,14 @@ def setup_dummy_sensors(db, app):
         ),
     ],
 )
-def test_pandas_reporter(report_config, is_valid, db, app, setup_dummy_sensors):
+def test_pandas_reporter_schema(
+    reporter_config, is_valid, db, app, setup_dummy_sensors
+):
 
     schema = PandasReporterConfigSchema()
 
     if is_valid:
-        schema.load(report_config)
+        schema.load(reporter_config)
     else:
         with pytest.raises(ValidationError):
-            schema.load(report_config)
+            schema.load(reporter_config)

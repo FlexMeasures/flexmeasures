@@ -84,7 +84,6 @@ class TibberReporter(PandasReporter):
 
         # create the PandasReporter reporter config
         reporter_config = dict(
-            input_resolution="PT1H",
             tb_query_config=[
                 dict(sensor=EnergyTax.id, alias="energy_tax_df"),
                 dict(sensor=VAT.id),
@@ -251,6 +250,7 @@ def test_tibber_reporter(tibber_test_data):
     result = tibber_reporter.compute(
         start=datetime(2023, 4, 13, tzinfo=utc),
         end=datetime(2023, 4, 14, tzinfo=utc),
+        input_resolution=timedelta(hours=1),
     )
 
     # check that we got a result for 24 hours

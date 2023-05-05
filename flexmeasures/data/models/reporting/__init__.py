@@ -25,10 +25,6 @@ class Reporter(DataGeneratorMixin):
     reporter_config_raw: Optional[dict] = None
     schema = ReporterConfigSchema
     data: Dict[str, Union[tb.BeliefsDataFrame, pd.DataFrame]] = None
-    start: datetime = None
-    end: datetime = None
-    input_resolution: timedelta = None
-    belief_time: datetime = None
 
     def __init__(
         self, sensor: Sensor, reporter_config_raw: Optional[dict] = None
@@ -48,7 +44,13 @@ class Reporter(DataGeneratorMixin):
 
         self.reporter_config_raw = reporter_config_raw
 
-    def fetch_data(self):
+    def fetch_data(
+        self,
+        start: datetime,
+        end: datetime,
+        input_resolution: timedelta = None,
+        belief_time: datetime = None,
+    ):
         """
         Fetches the time_beliefs from the database
         """
@@ -57,10 +59,10 @@ class Reporter(DataGeneratorMixin):
         for tb_query in self.tb_query_config:
             _tb_query = tb_query.copy()
             # using start / end instead of event_starts_after/event_ends_before when not defined
-            event_starts_after = _tb_query.pop("event_starts_after", self.start)
-            event_ends_before = _tb_query.pop("event_ends_before", self.end)
-            resolution = _tb_query.pop("resolution", self.input_resolution)
-            belief_time = _tb_query.pop("belief_time", self.belief_time)
+            event_starts_after = _tb_query.pop("event_starts_after", start)
+            event_ends_before = _tb_query.pop("event_ends_before", end)
+            resolution = _tb_query.pop("resolution", input_resolution)
+            belief_time = _tb_query.pop("belief_time", belief_time)
 
             sensor: Sensor = _tb_query.pop("sensor", None)
             alias: str = _tb_query.pop("alias", None)
@@ -89,9 +91,8 @@ class Reporter(DataGeneratorMixin):
 
     def compute(
         self,
-        *args,
-        start: datetime = None,
-        end: datetime = None,
+        start: datetime,
+        end: datetime,
         input_resolution: timedelta = None,
         belief_time: datetime = None,
         **kwargs,
@@ -108,17 +109,11 @@ class Reporter(DataGeneratorMixin):
         if self.reporter_config is None:
             self.deserialize_config()
 
-        # if provided, update the class attributes
-        self.update_attribute("start", start)
-        self.update_attribute("end", end)
-        self.update_attribute("input_resolution", input_resolution)
-        self.update_attribute("belief_time", belief_time)
-
         # fetch data
-        self.fetch_data()
+        self.fetch_data(start, end, input_resolution, belief_time)
 
         # Result
-        result = self._compute()
+        result = self._compute(start, end, input_resolution, belief_time)
 
         # checking that the event_resolution of the output BeliefDataFrame is equal to the one of the output sensor
         assert self.sensor.event_resolution == result.event_resolution
@@ -128,7 +123,13 @@ class Reporter(DataGeneratorMixin):
 
         return result
 
-    def _compute(self) -> tb.BeliefsDataFrame:
+    def _compute(
+        self,
+        start: datetime,
+        end: datetime,
+        input_resolution: timedelta = None,
+        belief_time: datetime = None,
+    ) -> tb.BeliefsDataFrame:
         """
         Overwrite with the actual computation of your report.
 
@@ -137,31 +138,6 @@ class Reporter(DataGeneratorMixin):
         raise NotImplementedError()
 
     def deserialize_config(self):
-        """
-        Check all configurations we have, throwing either ValidationErrors or ValueErrors.
-        Other code can decide if/how to handle those.
-        """
-        self.deserialize_reporter_config()
-        self.deserialize_timing_config()
-
-    def deserialize_timing_config(self):
-        """
-        Check if the timing of the report is valid.
-
-        Raises ValueErrors.
-        """
-
-        for tb_query in self.tb_query_config:
-            start = tb_query.get("event_starts_after", self.start)
-            end = tb_query.get("event_ends_before ", self.end)
-
-            if (
-                start is not None and end is not None
-            ):  # not testing when start or end are missing
-                if end < start:
-                    raise ValueError(f"Start {start} cannot be after end {end}.")
-
-    def deserialize_reporter_config(self):
         """
         Validate the report config against a Marshmallow Schema.
         Ideas:
@@ -178,7 +154,3 @@ class Reporter(DataGeneratorMixin):
         self.tb_query_config = self.reporter_config.get(
             "tb_query_config"
         )  # extracting TimeBelief query configuration parameters
-        self.start = self.reporter_config.get("start")
-        self.end = self.reporter_config.get("end")
-        self.input_resolution = self.reporter_config.get("input_resolution")
-        self.belief_time = self.reporter_config.get("belief_time")

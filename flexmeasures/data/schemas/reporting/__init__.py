@@ -41,9 +41,6 @@ class ReporterConfigSchema(Schema):
     """
     This schema is used to validate Reporter class configurations (reporter_config).
     Inherit from this to extend this schema with your own parameters.
-
-    If the fields event_starts_after or event_ends_before are not present in `tb_query_config`
-    they will look up in the fields `start` and `end`
     """
 
     tb_query_config = fields.List(
@@ -51,7 +48,3 @@ class ReporterConfigSchema(Schema):
         required=True,
         validator=validate.Length(min=1),
     )
-    start = AwareDateTimeField()
-    end = AwareDateTimeField()
-    input_resolution = DurationField()
-    belief_time = AwareDateTimeField()
