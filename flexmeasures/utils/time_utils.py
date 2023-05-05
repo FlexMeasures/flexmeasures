@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import re
 from datetime import datetime, timedelta
-from typing import List, Union, Tuple, Optional
 
 from flask import current_app
 from flask_security.core import current_user
@@ -19,8 +18,8 @@ def server_now() -> datetime:
 
 
 def ensure_local_timezone(
-    dt: Union[pd.Timestamp, datetime], tz_name: str = "Europe/Amsterdam"
-) -> Union[pd.Timestamp, datetime]:
+    dt: pd.Timestamp | datetime, tz_name: str = "Europe/Amsterdam"
+) -> pd.Timestamp | datetime:
     """If no timezone is given, assume the datetime is in the given timezone and make it explicit.
     Otherwise, if a timezone is given, convert to that timezone."""
     if isinstance(dt, datetime):
@@ -62,8 +61,8 @@ def naive_utc_from(dt: datetime) -> datetime:
 
 
 def tz_index_naively(
-    data: Union[pd.DataFrame, pd.Series, pd.DatetimeIndex]
-) -> Union[pd.DataFrame, pd.Series, pd.DatetimeIndex]:
+    data: pd.DataFrame | pd.Series | pd.DatetimeIndex
+) -> pd.DataFrame | pd.Series | pd.DatetimeIndex:
     """Turn any DatetimeIndex into a tz-naive one, then return. Useful for bokeh, for instance."""
     if isinstance(data, pd.DatetimeIndex):
         return data.tz_localize(tz=None)
@@ -89,7 +88,7 @@ def localized_datetime_str(dt: datetime, dt_format: str = "%Y-%m-%d %I:%M %p") -
 
 
 def naturalized_datetime_str(
-    dt: Optional[datetime], now: Optional[datetime] = None
+    dt: datetime | None, now: datetime | None = None
 ) -> str:
     """
     Naturalise a datetime object (into a human-friendly string).
@@ -128,7 +127,7 @@ def naturalized_datetime_str(
         return naturaldate(local_dt)
 
 
-def resolution_to_hour_factor(resolution: Union[str, timedelta]) -> float:
+def resolution_to_hour_factor(resolution: str | timedelta) -> float:
     """Return the factor with which a value needs to be multiplied in order to get the value per hour,
     e.g. 10 MW at a resolution of 15min are 2.5 MWh per time step.
 
@@ -139,7 +138,7 @@ def resolution_to_hour_factor(resolution: Union[str, timedelta]) -> float:
     return pd.Timedelta(resolution).to_pytimedelta() / timedelta(hours=1)
 
 
-def decide_resolution(start: Optional[datetime], end: Optional[datetime]) -> str:
+def decide_resolution(start: datetime | None, end: datetime | None) -> str:
     """
     Decide on a practical resolution given the length of the selected time period.
     Useful for querying or plotting.
@@ -202,9 +201,9 @@ def get_most_recent_hour() -> datetime:
 
 def get_most_recent_clocktime_window(
     window_size_in_minutes: int,
-    now: Optional[datetime] = None,
-    grace_period_in_seconds: Optional[int] = 0,
-) -> Tuple[datetime, datetime]:
+    now: datetime | None = None,
+    grace_period_in_seconds: int | None = 0,
+) -> tuple[datetime, datetime]:
     """
     Calculate a recent time window, returning a start and end minute so that
     a full hour can be filled with such windows, e.g.:
@@ -270,8 +269,8 @@ def freq_label_to_human_readable_label(freq_label: str) -> str:
 
 
 def forecast_horizons_for(
-    resolution: Union[str, timedelta]
-) -> Union[List[str], List[timedelta]]:
+    resolution: str | timedelta
+) -> list[str] | list[timedelta]:
     """Return a list of horizons that are supported per resolution.
     Return values or of the same type as the input."""
     if isinstance(resolution, timedelta):
@@ -293,7 +292,7 @@ def forecast_horizons_for(
         return horizons
 
 
-def supported_horizons() -> List[timedelta]:
+def supported_horizons() -> list[timedelta]:
     return [
         timedelta(hours=1),
         timedelta(hours=6),
