@@ -1,7 +1,8 @@
 # flake8: noqa: E402
+from __future__ import annotations
+
 import os
 import time
-from typing import Optional, List
 
 from flask import Flask, g, request
 from flask.cli import load_dotenv
@@ -15,9 +16,9 @@ from rq import Queue
 
 
 def create(
-    env: Optional[str] = None,
-    path_to_config: Optional[str] = None,
-    plugins: Optional[List[str]] = None,
+    env: str | None = None,
+    path_to_config: str | None = None,
+    plugins: list[str] | None = None,
 ) -> Flask:
     """
     Create a Flask app and configure it.
