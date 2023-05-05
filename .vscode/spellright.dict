@@ -247,3 +247,6 @@ kwargs
 fsdomain
 filepath
 spellright
+Changelog
+Bugfixes
+Dockerfile

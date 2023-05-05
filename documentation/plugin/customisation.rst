@@ -16,7 +16,7 @@ but in the background your custom scheduling algorithm is being used.
 Let's walk through an example!
 
 First, we need to write a a class (inhering from the Base Scheduler) with a `schedule` function which accepts arguments just like the in-built schedulers (their code is `here <https://github.com/FlexMeasures/flexmeasures/tree/main/flexmeasures/data/models/planning>`_).
-The following minimal example gives you an idea of some meta information you can add for labelling your data, as well as the inputs and outputs of such a scheduling function:
+The following minimal example gives you an idea of some meta information you can add for labeling your data, as well as the inputs and outputs of such a scheduling function:
 
 .. code-block:: python
 
@@ -79,6 +79,34 @@ get computed by your custom function! For later lookup, the data will be linked 
 
 
 .. todo:: We're planning to use a similar approach to allow for custom forecasting algorithms, as well.
+
+
+Deploying your plugin via Docker
+----------------------------------
+
+You can extend the FlexMeasures Docker image with your plugin's logic.
+
+Imagine your plugin package (with an ``__init__.py`` file, one of the setups we discussed in :ref:`plugin_showcase`) is called ``flexmeasures_testplugin``.
+Then, this is a minimal possible Dockerfile ― containers based on this will serve FlexMeasures (see the original Dockerfile in the FlexMeasures repository) with the plugin logic, like endpoints:
+
+.. code-block:: docker
+
+    FROM lfenergy/flexmeasures
+
+    COPY flexmeasures_testplugin/ /app/flexmeasures_testplugin
+    ENV FLEXMEASURES_PLUGINS="/app/flexmeasures_testplugin"
+
+You can of course also add multiple plugins this way.
+
+If you also want to install your requirements, you could for instance add these layers:
+
+.. code-block:: docker
+
+    COPY requirements/app.in /app/requirements/flexmeasures_testplugin.txt
+    RUN pip3 install --no-cache-dir -r requirements/flexmeasures_testplugin.txt
+
+.. note:: No need to install flexmeasures here, as the Docker image we are based on already installed FlexMeasures from code. If you pip3-install your plugin here (assuming it's on Pypi), check if it recognizes that FlexMeasures installation as it should.
+
 
 
 Adding your own style sheets
