@@ -1,4 +1,6 @@
-from typing import Dict, Union, Tuple, List
+from __future__ import annotations
+
+from typing import Union  # Use | instead of Union when FM stops supporting Python 3.9
 
 from flask import current_app
 from flask_security import current_user
@@ -13,13 +15,13 @@ ADMIN_READER_ROLE = "admin-reader"
 # constants to allow access to certain groups
 EVERY_LOGGED_IN_USER = "every-logged-in-user"
 
-PRINCIPALS_TYPE = Union[str, Tuple[str], List[Union[str, Tuple[str]]]]
+PRINCIPALS_TYPE = Union[str, tuple[str], list[Union[str, tuple[str]]]]
 
 
 class AuthModelMixin(object):
-    def __acl__(self) -> Dict[str, PRINCIPALS_TYPE]:
+    def __acl__(self) -> dict[str, PRINCIPALS_TYPE]:
         """
-        This function returns an access control list (ACL) for a instance of a model which is relevant for authorization.
+        This function returns an access control list (ACL) for an instance of a model which is relevant for authorization.
 
         ACLs in FlexMeasures are inspired by Pyramid's resource ACLs.
         In an ACL, we list which principal (security contexts, see below) allow certain kinds of actions

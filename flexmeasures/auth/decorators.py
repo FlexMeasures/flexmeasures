@@ -1,4 +1,6 @@
-from typing import Callable, Optional
+from __future__ import annotations
+
+from typing import Callable
 from functools import wraps
 from flask import current_app
 from flask_json import as_json
@@ -99,9 +101,9 @@ def account_roles_required(*account_roles):
 
 def permission_required_for_context(
     permission: str,
-    arg_pos: Optional[int] = None,
-    arg_name: Optional[str] = None,
-    arg_loader: Optional[Callable] = None,
+    arg_pos: int | None = None,
+    arg_name: str | None = None,
+    arg_loader: Callable | None = None,
 ):
     """
     This decorator can be used to make sure that the current user has the necessary permission to access the context.
