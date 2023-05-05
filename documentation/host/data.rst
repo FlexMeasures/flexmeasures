@@ -20,12 +20,13 @@ Getting ready to use
 
 Notes: 
 
-* We use postgres 12 at the moment, but any version starting with 9 probably works.
 * We assume ``flexmeasures`` for your database and username here. You can use anything you like, of course.
 * The name ``flexmeasures_test`` for the test database is good to keep this way, as automated tests are looking for that database / user / password. 
 
 Install
 ^^^^^^^^^^^^^
+
+We believe FlexMeasures works with Postgres above version 9 and we ourselves have run it with versions up to 14.
 
 On Unix:
 

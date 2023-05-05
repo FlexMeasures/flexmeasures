@@ -91,13 +91,13 @@ If you have a SQL Dump file, you can load that:
 
 .. code-block:: bash
 
-   $ psql -U {user_name} -h {host_name} -d {database_name} -f {file_path}
+    $ psql -U {user_name} -h {host_name} -d {database_name} -f {file_path}
 
 One other possibility is to add a toy account (which owns some assets and a battery):
 
 .. code-block:: bash
 
-   flexmeasures add toy-account
+    $ flexmeasures add toy-account
 
 
 
@@ -108,14 +108,14 @@ Now, to start the web application, you can run:
 
 .. code-block:: bash
 
-   $ flexmeasures run
+    $ flexmeasures run
 
 
 Or:
 
 .. code-block:: bash
 
-   $ python run-local.py
+    $ python run-local.py
 
 
 And access the server at http://localhost:5000
@@ -125,8 +125,9 @@ If you added a toy account, you could log in with `toy-user@flexmeasures.io`, pa
 Otherwise, you need to add some other user first. Here is how we add an admin:
 
 .. code-block:: bash
-    flexmeasures add account --name MyCompany   
-    flexmeasures add user --username admin --account-id 1 --email admin@mycompany.io --roles admin
+    
+    $ flexmeasures add account --name MyCompany   
+    $ flexmeasures add user --username admin --account-id 1 --email admin@mycompany.io --roles admin
 
 (The account-id you need in the 2nd command is printed by the 1st)
 
