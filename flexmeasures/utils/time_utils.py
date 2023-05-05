@@ -61,7 +61,7 @@ def naive_utc_from(dt: datetime) -> datetime:
 
 
 def tz_index_naively(
-    data: pd.DataFrame | pd.Series | pd.DatetimeIndex
+    data: pd.DataFrame | pd.Series | pd.DatetimeIndex,
 ) -> pd.DataFrame | pd.Series | pd.DatetimeIndex:
     """Turn any DatetimeIndex into a tz-naive one, then return. Useful for bokeh, for instance."""
     if isinstance(data, pd.DatetimeIndex):
@@ -87,9 +87,7 @@ def localized_datetime_str(dt: datetime, dt_format: str = "%Y-%m-%d %I:%M %p") -
     return local_dt.strftime(dt_format)
 
 
-def naturalized_datetime_str(
-    dt: datetime | None, now: datetime | None = None
-) -> str:
+def naturalized_datetime_str(dt: datetime | None, now: datetime | None = None) -> str:
     """
     Naturalise a datetime object (into a human-friendly string).
     The dt parameter (as well as the now parameter if you use it)
@@ -268,9 +266,7 @@ def freq_label_to_human_readable_label(freq_label: str) -> str:
     return f2h_map.get(freq_label, freq_label)
 
 
-def forecast_horizons_for(
-    resolution: str | timedelta
-) -> list[str] | list[timedelta]:
+def forecast_horizons_for(resolution: str | timedelta) -> list[str] | list[timedelta]:
     """Return a list of horizons that are supported per resolution.
     Return values or of the same type as the input."""
     if isinstance(resolution, timedelta):
