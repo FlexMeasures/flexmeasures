@@ -1240,7 +1240,6 @@ def add_report(
     Create a new report using the Reporter class and save the results
     to the database or export them as csv or excel file.
     """
-
     check_timezone(timezone)
 
     tz = pytz.timezone(zone=timezone)
@@ -1276,6 +1275,7 @@ def add_report(
             )
             raise click.Abort()
 
+    # if any of the last-X flag is provided
     if last_x_flag_given:
         start, end = get_timerange_from_flag(
             last_hour=last_hour,
@@ -1291,8 +1291,10 @@ def add_report(
         f"Looking for the Reporter {reporter_class} among all the registered reporters...",
     )
 
+    # get reporter class
     ReporterClass = app.reporters.get(reporter_class)
 
+    # check if it exists
     if ReporterClass is None:
         click.secho(
             f"Reporter class `{reporter_class}` not available.",
@@ -1304,18 +1306,21 @@ def add_report(
 
     reporter_config_raw = json.load(reporter_config_file)
 
+    # initialize reporter class with the reporter sensor and reporter config
     reporter: Type[Reporter] = ReporterClass(
         sensor=sensor, reporter_config_raw=reporter_config_raw
     )
 
     click.echo("Report computation is running....")
 
+    # compute the report
     result: Type[BeliefsDataFrame] = reporter.compute(
         start=start, end=end, input_resolution=resolution
     )
 
     click.secho("Report computation done.", **MsgStyle.SUCCESS)
 
+    # save the report it's not running in dry mode
     if not dry_run:
         click.echo("Storing report to the database...")
         save_to_db(result)
@@ -1325,24 +1330,25 @@ def add_report(
             **MsgStyle.SUCCESS,
         )
 
+    # if an output file path is provided, save the results
     if output_file:
         suffix = str(output_file).split(".")[-1] if "." in str(output_file) else ""
 
-        if suffix == "xlsx":
+        if suffix == "xlsx":  # save to EXCEL
             result.to_excel(output_file)
             click.secho(
                 f"Success. The report has been exported as EXCEL to the file `{output_file}`",
                 **MsgStyle.SUCCESS,
             )
 
-        elif suffix == "csv":
+        elif suffix == "csv":  # save to CSV
             result.to_csv(output_file)
             click.secho(
                 f"Success. The report has been exported as CSV to the file `{output_file}`",
                 **MsgStyle.SUCCESS,
             )
 
-        else:
+        else:  # default output format: CSV.
             click.secho(
                 f"File suffix not provided. Exporting results as CSV to file {output_file}",
                 **MsgStyle.WARN,
