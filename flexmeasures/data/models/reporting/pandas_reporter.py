@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+from datetime import datetime, timedelta
 
 from flask import current_app
 import timely_beliefs as tb
@@ -20,15 +21,21 @@ class PandasReporter(Reporter):
     transformations: list[dict[str, Any]] = None
     final_df_output: str = None
 
-    def deserialize_reporter_config(self):
-        # call super class deserialize_reporter_config
-        super().deserialize_reporter_config()
+    def deserialize_config(self):
+        # call super class deserialize_config
+        super().deserialize_config()
 
         # extract PandasReporter specific fields
         self.transformations = self.reporter_config.get("transformations")
         self.final_df_output = self.reporter_config.get("final_df_output")
 
-    def _compute(self) -> tb.BeliefsDataFrame:
+    def _compute(
+        self,
+        start: datetime,
+        end: datetime,
+        input_resolution: timedelta = None,
+        belief_time: datetime = None,
+    ) -> tb.BeliefsDataFrame:
         """
         This method applies the transformations and outputs the dataframe
         defined in `final_df_output` field of the report_config.
