@@ -13,6 +13,8 @@ function is_database() {
 function create_database() {
  echo "Creating a new database ..."
  sudo -i -u postgres createdb -U postgres $1
+ echo "Creating database user ..."
+ sudo -i -u postgres createuser --pwprompt -U postgres $2
  echo "Creating cube extension in $1 ..."
  sudo -i -u postgres psql -c "\c $1" -c "CREATE EXTENSION cube;"
  echo "Creating earthdistance extension in $1 ..."
@@ -27,9 +29,9 @@ function delete_database() {
  sudo -i -u postgres dropdb -U postgres $1
 }
 
-# Check if the database name is provided
-if [ -z "$1" ]; then
-  echo "Error: db_name is required. Please provide a value for db_name, e.g., make clean_db db_name=flexmeasures-db"
+# Check if the database name and user are provided
+if [ -z "$1" ] || [ -z "$2" ]; then
+  echo "Error: db_name and db_user are required. Please provide a value for db_name and db_user, e.g., make clean-db db_name=flexmeasures-db db_user=flexmeasures"
   exit 1
 fi
 

@@ -103,11 +103,11 @@ Install Flexmeasures and the database
 
         .. note:: When installing with ``pip``, on some platforms problems might come up (e.g. macOS, Windows). One reason is that FlexMeasures requires some libraries with lots of C code support (e.g. Numpy). One way out is to use Docker, which uses a prepared Linux image, so it'll definitely work.
 
-        In case you want to re-run the tutorial, then it's recommended to delete the old database and create a fresh one. Run the following command to create a clean database.
+        In case you want to re-run the tutorial, then it's recommended to delete the old database and create a fresh one. Run the following command to create a clean database with a new user.
 
         .. code-block:: bash
 
-            $ make clean-db db_name=flexmeasures-db
+            $ make clean-db db_name=flexmeasures-db db_user=flexmeasures
 
 Add some structural data
 ---------------------------------------
