@@ -17,6 +17,7 @@ Infrastructure / Support
 
 * The setting FLEXMEASURES_PLUGINS can be set as environment variable now (as a comma-separated list) [see `PR #660 <https://www.github.com/FlexMeasures/flexmeasures/pull/660>`_]
 * Packaging was modernized to stop calling setup.py directly [see `PR #671 <https://www.github.com/FlexMeasures/flexmeasures/pull/671>`_]
+* Remove API versions 1.0, 1.1, 1.2, 1.3 and 2.0, while allowing hosts to switch between ``HTTP status 410 (Gone)`` and ``HTTP status 404 (Not Found)`` responses [see `PR #667 <https://www.github.com/FlexMeasures/flexmeasures/pull/667>`_]
 
 .. warning:: The setting `FLEXMEASURES_PLUGIN_PATHS` has been deprecated since v0.7. It has now been sunset. Please replace it with :ref:`plugin-config`.
 

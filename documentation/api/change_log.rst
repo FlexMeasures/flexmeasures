@@ -112,6 +112,11 @@ v3.0-0 | 2022-03-25
     - Rewrote the sections on roles and sources into a combined section that refers to account roles rather than USEF roles.
     - Deprecated the section on group notation.
 
+v2.0-7 | 2022-05-05
+"""""""""""""""""""
+
+*API v2.0 is removed.*
+
 v2.0-6 | 2022-04-26
 """""""""""""""""""
 
@@ -162,6 +167,12 @@ v2.0-0 | 2020-11-14
 """""""""""""""""""
 
 - Added REST endpoints for managing assets: `/assets/` (GET, POST) and `/asset/<id>` (GET, PATCH, DELETE).
+
+
+v1.3-14 | 2022-05-05
+""""""""""""""""""""
+
+*API v1.3 is removed.*
 
 v1.3-13 | 2022-04-26
 """"""""""""""""""""
@@ -259,6 +270,11 @@ v1.3-0 | 2020-01-28
 - The *postUdiEvent* endpoint now triggers scheduling jobs to be set up (rather than scheduling directly triggered by the *getDeviceMessage* endpoint)
 - The *getDeviceMessage* now queries the job queue and database for an available schedule
 
+v1.2-6 | 2022-05-05
+"""""""""""""""""""
+
+*API v1.2 is removed.*
+
 v1.2-5 | 2022-04-26
 """""""""""""""""""
 
@@ -314,6 +330,11 @@ v1.2-0 | 2018-09-08
 
 - Added a description of the *postUdiEvent* endpoint in the Prosumer and Simulation sections
 - Added a description of the *getDeviceMessage* endpoint in the Prosumer and Simulation sections
+
+v1.1-8 | 2022-05-05
+"""""""""""""""""""
+
+*API v1.1 is removed.*
 
 v1.1-7 | 2022-04-26
 """""""""""""""""""
@@ -377,6 +398,11 @@ v1.1-0 | 2018-07-15
     - Updated information about horizons
 
 - Added a description of the *getPrognosis* endpoint in the Supplier section
+
+v1.0-4 | 2022-05-05
+"""""""""""""""""""
+
+*API v1.0 is removed.*
 
 v1.0-3 | 2022-04-26
 """""""""""""""""""
