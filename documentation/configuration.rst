@@ -268,6 +268,15 @@ Set a negative value to persist forever.
 
 Default: ``3600``
 
+.. _datasource_config:
+
+FLEXMEASURES_DEFAULT_DATASOURCE
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The default DataSource of the resulting data from `DataGeneration` classes.
+
+Default: ``"FlexMeasures"``
+
 
 .. _planning_horizon_config:
 
