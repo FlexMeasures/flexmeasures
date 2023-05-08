@@ -84,7 +84,7 @@ class TibberReporter(PandasReporter):
 
         # create the PandasReporter reporter config
         reporter_config = dict(
-            beliefs_search_config_schema=[
+            beliefs_search_configs=[
                 dict(sensor=EnergyTax.id, alias="energy_tax_df"),
                 dict(sensor=VAT.id),
                 dict(sensor=tibber_tariff.id),

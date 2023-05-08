@@ -42,7 +42,7 @@ class ReporterConfigSchema(Schema):
     Inherit from this to extend this schema with your own parameters.
     """
 
-    beliefs_search_config_schema = fields.List(
+    beliefs_search_configs = fields.List(
         fields.Nested(BeliefsSearchConfigSchema()),
         required=True,
         validator=validate.Length(min=1),
