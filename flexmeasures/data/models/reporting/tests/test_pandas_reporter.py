@@ -87,7 +87,7 @@ def test_reporter(setup_dummy_data):
     s1, s2, reporter_sensor = setup_dummy_data
 
     reporter_config_raw = dict(
-        tb_query_config=[dict(sensor=s1.id), dict(sensor=s2.id)],
+        beliefs_search_config_schema=[dict(sensor=s1.id), dict(sensor=s2.id)],
         transformations=[
             dict(
                 df_input="sensor_1",
@@ -141,7 +141,7 @@ def test_reporter_repeated(setup_dummy_data):
     s1, s2, reporter_sensor = setup_dummy_data
 
     reporter_config_raw = dict(
-        tb_query_config=[
+        beliefs_search_config_schema=[
             dict(
                 sensor=s1.id,
                 event_starts_after="2023-04-10T00:00:00 00:00",

@@ -57,7 +57,7 @@ class Reporter(DataGeneratorMixin):
         """
 
         self.data = {}
-        for tb_query in self.tb_query_config:
+        for tb_query in self.beliefs_search_config_schema:
             _tb_query = tb_query.copy()
             # using start / end instead of event_starts_after/event_ends_before when not defined
             event_starts_after = _tb_query.pop("event_starts_after", start)
@@ -152,6 +152,6 @@ class Reporter(DataGeneratorMixin):
         self.reporter_config = self.schema.load(
             self.reporter_config_raw
         )  # validate reporter config
-        self.tb_query_config = self.reporter_config.get(
-            "tb_query_config"
+        self.beliefs_search_config_schema = self.reporter_config.get(
+            "beliefs_search_config_schema"
         )  # extracting TimeBelief query configuration parameters
