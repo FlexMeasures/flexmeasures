@@ -9,6 +9,9 @@ v0.14.0 | June XX, 2023
 New features
 -------------
 
+* Introduction of the classes `Reporter` and `PandasReporter` [see `PR #641 <https://www.github.com/FlexMeasures/flexmeasures/pull/641>`_]
+
+
 Bugfixes
 -----------
 
