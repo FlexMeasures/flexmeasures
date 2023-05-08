@@ -69,32 +69,14 @@ def setup_dummy_data(db, app):
 
     yield sensor1, sensor2, report_sensor
 
-    db.session.delete(sensor1)
-    db.session.delete(sensor2)
-
-    for b in beliefs:
-        db.session.delete(b)
-
-    db.session.delete(dummy_asset)
-    db.session.delete(dummy_asset_type)
-
-    db.session.commit()
-
 
 @pytest.fixture(scope="module")
 @pytest.mark.skip_github
 def reporter_config_raw(app, db, setup_dummy_data):
     """
-
-
-
-    This reporter_config is adding up the values of the BeliefDataframes of sensors 1 and 2
-      and
-
-    We add the sensor 1 and sensor 2, and the result is called df_agg.
-
-    Maybe we can pass df_output last, and method second, so this reads more naturally?
-    We resample. Where does resample_events live? (maybe a question for the other PR, actually).
+    This reporter_config defines the operations to add up the
+    values of the sensors 1 and 2 and resamples the result to a
+    two hour resolution.
     """
 
     sensor1, sensor2, report_sensor = setup_dummy_data
@@ -105,8 +87,8 @@ def reporter_config_raw(app, db, setup_dummy_data):
             dict(
                 df_input="sensor_1",
                 method="add",
-                df_output="df_agg",
                 args=["@sensor_2"],
+                df_output="df_agg",
             ),
             dict(method="resample_events", args=["2h"]),
         ],
