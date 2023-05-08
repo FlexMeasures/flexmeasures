@@ -197,7 +197,9 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
         assert "Report computation done." in result.output
 
         # Check if the report is saved to the database
-        report_sensor = Sensor.query.get(report_sensor_id)
+        report_sensor = Sensor.query.get(
+            report_sensor_id
+        )  # get fresh report sensor instance
 
         stored_report = report_sensor.search_beliefs(
             event_starts_after=previous_command_end,
