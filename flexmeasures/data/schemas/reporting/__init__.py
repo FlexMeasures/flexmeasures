@@ -24,7 +24,6 @@ class BeliefsSearchConfigSchema(Schema):
     horizons_at_most = DurationField()
 
     source = DataSourceIdField()
-    # user_source_ids: Optional[Union[int, List[int]]] = None,
 
     source_types = fields.List(fields.Str())
     exclude_source_types = fields.List(fields.Str())
