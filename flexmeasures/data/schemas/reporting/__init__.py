@@ -8,7 +8,7 @@ from flexmeasures.data.schemas import AwareDateTimeField, DurationField
 
 class BeliefsSearchConfigSchema(Schema):
     """
-    This schema implements the required fields to perform a TimeBeliefs search
+    This schema implements the required fields to perform a TimedBeliefs search
     using the method flexmeasures.data.models.time_series:Sensor.search_beliefs
     """
 
