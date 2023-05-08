@@ -131,7 +131,7 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
         assert "Reporter PandasReporter found" in result.output
         assert "Report computation done." in result.output
 
-        # Check report is save to the database
+        # Check report is saved to the database
         report_sensor = (
             db.session.query(Sensor).filter(Sensor.id == report_sensor_id).one_or_none()
         )  # get fresh report sensor instance
