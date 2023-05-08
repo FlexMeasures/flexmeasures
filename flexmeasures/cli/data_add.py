@@ -1354,6 +1354,11 @@ def add_report(
                 **MsgStyle.WARN,
             )
             reporter.to_csv(output_file)
+    else:
+        click.secho(
+            "Success.",
+            **MsgStyle.SUCCESS,
+        )
 
 
 @fm_add_data.command("toy-account")
