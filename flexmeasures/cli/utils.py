@@ -96,25 +96,26 @@ def get_timerange_from_flag(
 
     if last_day:  # yesterday
         end = current_hour.replace(hour=0)
-        start = current_hour - timedelta(days=1)
+        start = end - timedelta(days=1)
 
     if last_week:  # last finished 7 week period.
         end = current_hour.replace(hour=0)
         start = end - timedelta(days=7)
 
     if last_month:
-        end = current_hour.replace(hour=0) - timedelta(
-            days=end.day
-        )  # to get the last day of the previous month
-        start = end - timedelta(
-            days=end.day - 1
-        )  # equivalent to start.day = end.day-end.day +1
+        end = current_hour.replace(
+            hour=0, day=1
+        )  # get the first day of the current month
+        start = (end - timedelta(days=1)).replace(
+            day=1
+        )  # get first day oft the previous month
 
     if last_year:  # last calendar year
-        end = current_hour.replace(hour=0) - timedelta(
-            days=end.day
-        )  # to get the last day of the previous year
-
-        start = end.replace(day=1, month=1)
+        end = current_hour.replace(
+            month=1, day=1, hour=0
+        )  # get first day of current year
+        start = (end - timedelta(days=1)).replace(
+            day=1, month=1
+        )  # get first day of previous year
 
     return start, end
