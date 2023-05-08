@@ -11,10 +11,11 @@ from flexmeasures.data.models.time_series import Sensor, TimedBelief
 @pytest.fixture(scope="module")
 @pytest.mark.skip_github
 def setup_dummy_data(db, app):
+    """
+    Create an asset with two sensors (1 and 2), and add the same set of 200 beliefs with an hourly resolution to each of them.
+    Return the two sensors and a result sensor (which has no data).
+    """
 
-    """
-    Create Sensors 2, 1 Asset and 1 AssetType
-    """
     dummy_asset_type = GenericAssetType(name="DummyGenericAssetType")
     report_asset_type = GenericAssetType(name="ReportAssetType")
 
@@ -46,14 +47,10 @@ def setup_dummy_data(db, app):
     )
     db.session.add(report_sensor)
 
-    """
-        Create 1 DataSources
-    """
+    # Create 1 DataSources
     source = DataSource("source1")
 
-    """
-        Create TimedBeliefs
-    """
+    # Create TimedBeliefs
     beliefs = []
     for sensor in [sensor1, sensor2]:
         for t in range(200):
