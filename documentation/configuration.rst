@@ -627,10 +627,10 @@ FLEXMEASURES_API_SUNSET_ACTIVE
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Allow control over the effect of sunsetting API versions.
-Specifically, if True, the endpoints in sunset versions will return ``HTTP status 410 (Gone)`` status codes.
-If False, the endpoints will work like before, including Deprecation and Sunset headers in their response.
+Specifically, if True, the endpoints of sunset API versions will return ``HTTP status 410 (Gone)`` status codes.
+If False, these endpoints will either return ``HTTP status 404 (Not Found) status codes``, or work like before (including Deprecation and Sunset headers in their response), depending on whether the installed FlexMeasures version still contains the endpoint implementations.
 
-Default: ``True``
+Default: ``False``
 
 FLEXMEASURES_API_SUNSET_DATE
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^

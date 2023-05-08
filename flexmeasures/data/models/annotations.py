@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 from datetime import timedelta
-from typing import List
 
 import pandas as pd
 
@@ -55,7 +56,7 @@ class Annotation(db.Model):
         allow_overwrite: bool = False,
         bulk_save_objects: bool = False,
         commit_transaction: bool = False,
-    ) -> List["Annotation"]:
+    ) -> list["Annotation"]:
         """Add a data frame describing annotations to the database and return the Annotation objects.
 
         :param df:                  Data frame describing annotations.
@@ -203,7 +204,7 @@ def get_or_create_annotation(
     return existing_annotation
 
 
-def to_annotation_frame(annotations: List[Annotation]) -> pd.DataFrame:
+def to_annotation_frame(annotations: list[Annotation]) -> pd.DataFrame:
     """Transform a list of annotations into a DataFrame.
 
     We don't use a BeliefsDataFrame here, because they are designed for quantitative data only.

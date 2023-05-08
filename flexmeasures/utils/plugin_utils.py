@@ -1,9 +1,10 @@
+from __future__ import annotations
+
 import importlib.util
 import os
 import sys
 from importlib.abc import Loader
 from types import ModuleType
-from typing import Dict
 
 import sentry_sdk
 from flask import Flask, Blueprint
@@ -111,7 +112,7 @@ def register_plugins(app: Flask):
     sentry_sdk.set_context("plugins", app.config.get("LOADED_PLUGINS", {}))
 
 
-def check_config_settings(app, settings: Dict[str, dict]):
+def check_config_settings(app, settings: dict[str, dict]):
     """Make sure expected config settings exist.
 
     For example:

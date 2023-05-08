@@ -230,7 +230,6 @@ We demonstrate this here, and also show how you can add your own custom field sc
 .. code-block:: python
 
     from datetime import datetime
-    from typing import Optional
 
     import click
     from flexmeasures.data.schemas import AwareDateTimeField
@@ -258,7 +257,7 @@ We demonstrate this here, and also show how you can add your own custom field sc
     )
     def schedule_meeting(
         where: str,
-        when: Optional[datetime] = None,
+        when: datetime | None = None,
     ):
         print(f"Okay, see you {where} on {when}.")
 

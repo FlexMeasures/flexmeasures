@@ -1,4 +1,4 @@
-from typing import List
+from __future__ import annotations
 
 import pytest
 
@@ -8,7 +8,7 @@ from flexmeasures.auth.policy import user_matches_principals
 class MockAccount:
 
     id: int
-    account_roles: List[str]
+    account_roles: list[str]
 
     def __init__(self, id, roles):
         self.id = id
@@ -21,7 +21,7 @@ class MockAccount:
 class MockUser:
 
     id: int
-    roles: List[str]
+    roles: list[str]
     account: MockAccount
 
     def __init__(self, id, username, roles, account):
@@ -35,7 +35,7 @@ class MockUser:
 
 
 def make_mock_user(
-    user_id: int, user_roles: List[str], account_id: int, account_roles: List[str]
+    user_id: int, user_roles: list[str], account_id: int, account_roles: list[str]
 ) -> MockUser:
     account = MockAccount(account_id, account_roles)
     return MockUser(id=user_id, username="Tester", roles=user_roles, account=account)

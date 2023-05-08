@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 import copy
-from typing import List, Union
 
 from flask import url_for
 
@@ -23,7 +24,7 @@ def mock_asset_response(
     account_id: int = 1,
     as_list: bool = True,
     multiple: bool = False,
-) -> Union[dict, List[dict]]:
+) -> dict | list[dict]:
     asset = dict(
         id=asset_id,
         name="TestAsset",
@@ -49,7 +50,7 @@ def mock_user_response(
     active: bool = True,
     as_list: bool = True,
     multiple: bool = False,
-) -> Union[dict, List[dict]]:
+) -> dict | list[dict]:
     user = dict(
         id=user_id,
         username=username,
@@ -83,7 +84,7 @@ def mock_account_response(
     account_roles: list = [{"id": 1, "name": "Prosumer"}],
     as_list: bool = True,
     multiple: bool = False,
-) -> Union[dict, List[dict]]:
+) -> dict | list[dict]:
     account = dict(
         id=account_id,
         name=account_name,

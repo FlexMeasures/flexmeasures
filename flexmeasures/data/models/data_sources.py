@@ -1,5 +1,6 @@
 from __future__ import annotations
-from typing import Optional, TYPE_CHECKING
+
+from typing import TYPE_CHECKING
 
 import timely_beliefs as tb
 
@@ -49,9 +50,9 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
     def __init__(
         self,
-        name: Optional[str] = None,
-        type: Optional[str] = None,
-        user: Optional[User] = None,
+        name: str | None = None,
+        type: str | None = None,
+        user: User | None = None,
         **kwargs,
     ):
         if user is not None:

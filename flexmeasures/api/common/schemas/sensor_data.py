@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 from datetime import timedelta
-from typing import List, Union
 
 from flask_login import current_user
 from isodate import datetime_isoformat
@@ -33,16 +34,16 @@ from flexmeasures.auth.policy import check_access
 class SingleValueField(fields.Float):
     """Field that both de-serializes and serializes a single value to a list of floats (length 1)."""
 
-    def _deserialize(self, value, attr, obj, **kwargs) -> List[float]:
+    def _deserialize(self, value, attr, obj, **kwargs) -> list[float]:
         return [self._validated(value)]
 
-    def _serialize(self, value, attr, data, **kwargs) -> List[float]:
+    def _serialize(self, value, attr, data, **kwargs) -> list[float]:
         return [self._validated(value)]
 
 
 def select_schema_to_ensure_list_of_floats(
-    values: Union[List[float], float], _
-) -> Union[fields.List, SingleValueField]:
+    values: list[float] | float, _
+) -> fields.List | SingleValueField:
     """Allows both a single float and a list of floats. Always returns a list of floats.
 
     Meant to improve user experience by not needing to make a list out of a single item, such that:
