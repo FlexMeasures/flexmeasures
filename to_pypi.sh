@@ -70,7 +70,7 @@ python -m build
 
 if [ "$1" == "--dry-run" ]; then
     echo "[TO_PYPI] Not uploading to Pypi (--dry-run active) ..."
-    exit
+else
+    echo "[TO_PYPI] Uploading to Pypi ..."
+    twine upload dist/*
 fi
-echo "[TO_PYPI] Uploading to Pypi ..."
-twine upload dist/*
