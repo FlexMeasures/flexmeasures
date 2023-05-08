@@ -155,7 +155,9 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
             event_ends_before=cli_input_params.get("end").replace(" ", "+"),
         )
 
-        assert (stored_report.values.T == [1, 5, 9, 13, 17]).all()  # check values
+        assert (
+            stored_report.values.T == [1, 2 + 3, 4 + 5, 6 + 7, 8 + 9]
+        ).all()  # check values
 
         assert os.path.exists("test.csv")  # check that the file has been created
         assert (
