@@ -112,9 +112,7 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
     sensor1, sensor2, report_sensor = setup_dummy_data
     report_sensor_id = report_sensor.id
 
-    """
-        Running the command with start and end values.
-    """
+    # Running the command with start and end values.
 
     runner = app.test_cli_runner()
 
@@ -164,12 +162,9 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
             os.path.getsize("test.csv") > 100
         )  # bytes. Check that the file is not empty
 
-    """
-        Running the command without without timing params (last-X flags nor start/end).
-
-        This makes the command default the start time to the date of the last
-        value of the reporter sensor and the end time as the current time.
-    """
+    # Running the command without without timing params (last-X flags nor start/end).
+    # This makes the command default the start time to the date of the last
+    # value of the reporter sensor and the end time as the current time.
 
     previous_command_end = cli_input_params.get("end").replace(" ", "+")
 
