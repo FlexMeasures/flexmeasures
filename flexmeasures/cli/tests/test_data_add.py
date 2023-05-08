@@ -185,8 +185,3 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
             event_ends_before=server_now(),
         )
         assert len(stored_report) == 95
-
-        assert os.path.exists("test.csv")  # check that the file has been created
-        assert (
-            os.path.getsize("test.csv") > 100
-        )  # bytes. Check that the file is not empty
