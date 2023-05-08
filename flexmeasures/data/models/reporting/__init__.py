@@ -35,7 +35,7 @@ class Reporter(DataGeneratorMixin):
 
         Attributes:
         :param sensor: sensor where the output of the reporter will be saved to.
-        :param reporter_config_raw: unserialized configuration of the reporter.
+        :param reporter_config_raw: dictionary with the serialized configuration of the reporter.
         """
 
         self.sensor = sensor
