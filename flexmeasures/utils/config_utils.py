@@ -163,7 +163,7 @@ def read_env_vars(app: Flask):
     for var in (
         required
         + list(warnable.keys())
-        + ["LOGGING_LEVEL", "MAPBOX_ACCESS_TOKEN", "SENTRY_SDN"]
+        + ["LOGGING_LEVEL", "MAPBOX_ACCESS_TOKEN", "SENTRY_SDN", "FLEXMEASURES_PLUGINS"]
     ):
         app.config[var] = os.getenv(var, app.config.get(var, None))
     # DEBUG in env can come in as a string ("True") so make sure we don't trip here

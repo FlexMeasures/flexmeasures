@@ -6,7 +6,7 @@ Configuration
 The following configurations are used by FlexMeasures.
 
 Required settings (e.g. postgres db) are marked with a double star (**).
-To enable easier quickstart tutorials, these required settings can be set by environment variables.
+To enable easier quickstart tutorials, continuous integration use cases and basic usage of FlexMeasures within other projects, these required settings, as well as a few others, can be set by environment variables ― this is also noted per setting.
 Recommended settings (e.g. mail, redis) are marked by one star (*).
 
 .. note:: FlexMeasures is best configured via a config file. The config file for FlexMeasures can be placed in one of two locations: 
@@ -25,6 +25,8 @@ LOGGING_LEVEL
 Level above which log messages are added to the log file. See the ``logging`` package in the Python standard library.
 
 Default: ``logging.WARNING``
+
+.. note:: This setting is also recognized as environment variable.
 
 
 .. _modes-config:
@@ -72,6 +74,7 @@ FLEXMEASURES_PLUGINS
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
 A list of plugins you want FlexMeasures to load (e.g. for custom views or CLI functions). 
+This can be a Python list (e.g. ``["plugin1", "plugin2"]``) or a comma-separated string (e.g. ``"plugin1, plugin2"``).
 
 Two types of entries are possible here:
 
@@ -80,8 +83,9 @@ Two types of entries are possible here:
 
 Added functionality in plugins needs to be based on Flask Blueprints. See :ref:`plugins` for more information and examples.
 
-
 Default: ``[]``
+
+.. note:: This setting is also recognized as environment variable (since v0.14, which is also the version required to pass this setting as a string).
 
 
 FLEXMEASURES_DB_BACKUP_PATH
@@ -308,6 +312,8 @@ Token for accessing the MapBox API (for displaying maps on the dashboard and ass
 
 Default: ``None``
 
+.. note:: This setting is also recognized as environment variable.
+
 .. _sentry_access_token:
 
 SENTRY_SDN
@@ -317,6 +323,8 @@ Set tokenized URL, so errors will be sent to Sentry when ``app.env`` is not in `
 E.g.: ``https://<examplePublicKey>@o<something>.ingest.sentry.io/<project-Id>``
 
 Default: ``None``
+
+.. note:: This setting is also recognized as environment variable.
 
 
 SQLAlchemy
@@ -331,6 +339,9 @@ SQLALCHEMY_DATABASE_URI (**)
 Connection string to the postgres database, format: ``postgresql://<user>:<password>@<host-address>[:<port>]/<db>``
 
 Default: ``None``
+
+.. note:: This setting is also recognized as environment variable.
+
 
 SQLALCHEMY_ENGINE_OPTIONS
 ^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -440,6 +451,8 @@ For FlexMeasures to be able to send email to users (e.g. for resetting passwords
 
 This is only a selection of the most important settings.
 See `the Flask-Mail Docs <https://flask-mail.readthedocs.io/en/latest/#configuring-flask-mail>`_ for others.
+
+.. note:: The mail settings are also recognized as environment variables.
 
 MAIL_SERVER (*)
 ^^^^^^^^^^^^^^^
@@ -551,6 +564,9 @@ Redis
 -----
 
 FlexMeasures uses the Redis database to support our forecasting and scheduling job queues.
+
+.. note:: The redis settings are also recognized as environment variables.
+
 
 FLEXMEASURES_REDIS_URL (*)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^

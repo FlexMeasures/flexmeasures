@@ -95,7 +95,7 @@ class Config(object):
     # This setting contains the domain on which FlexMeasures runs
     # and the first month when the domain was under the current owner's administration
     FLEXMEASURES_HOSTS_AND_AUTH_START: dict = {"flexmeasures.io": "2021-01"}
-    FLEXMEASURES_PLUGINS: List[str] = []
+    FLEXMEASURES_PLUGINS: List[str] | str = []  # str will be checked for commas
     FLEXMEASURES_PROFILE_REQUESTS: bool = False
     FLEXMEASURES_DB_BACKUP_PATH: str = "migrations/dumps"
     FLEXMEASURES_MENU_LOGO_PATH: str = ""

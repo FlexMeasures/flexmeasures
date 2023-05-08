@@ -26,12 +26,15 @@ def register_plugins(app: Flask):
     (last part of the path).
     """
     plugins = app.config.get("FLEXMEASURES_PLUGINS", [])
-    if not plugins:
-        # this is deprecated behaviour which we should remove in version 1.0
-        app.logger.debug(
-            "No plugins configured. Attempting deprecated setting FLEXMEASURES_PLUGIN_PATHS ..."
+    if not plugins and "FLEXMEASURES_PLUGIN_PATHS" in app.config:
+        app.logger.warning(
+            "Plugins found via FLEXMEASURES_PLUGIN_PATHS. This setting will be sunset in v0.14. Please switch to FLEXMEASURES_PLUGINS."
         )
         plugins = app.config.get("FLEXMEASURES_PLUGIN_PATHS", [])
+    if isinstance(plugins, str):
+        plugins = [
+            plugin.strip() for plugin in plugins.split(",") if len(plugin.strip()) > 0
+        ]
     if not isinstance(plugins, list):
         app.logger.error(
             f"The value of FLEXMEASURES_PLUGINS is not a list: {plugins}. Cannot install plugins ..."
