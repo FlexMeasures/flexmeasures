@@ -20,18 +20,19 @@ Getting ready to use
 
 Notes: 
 
-* We use postgres 12 at the moment, but any version starting with 9 probably works.
 * We assume ``flexmeasures`` for your database and username here. You can use anything you like, of course.
 * The name ``flexmeasures_test`` for the test database is good to keep this way, as automated tests are looking for that database / user / password. 
 
 Install
 ^^^^^^^^^^^^^
 
+We believe FlexMeasures works with Postgres above version 9 and we ourselves have run it with versions up to 14.
+
 On Unix:
 
 .. code-block:: bash
 
-   $ sudo apt-get install postgresql-12
+   $ sudo apt-get install postgresql-12  # replace 12 with the version available in your packages
    $ pip install psycopg2-binary
 
 
@@ -63,17 +64,7 @@ Then restart the postgres server.
 
 .. code-block:: bash
 
-    $ service postgresql restart
-
-
-Setup the "flexmeasures" Unix user
-^^^^^^^^^^^^^
-
-This may in fact not be needed:
-
-.. code-block:: bash
-
-   $ sudo /usr/sbin/adduser flexmeasures
+    $ sudo service postgresql restart
 
 
 Create "flexmeasures" and "flexmeasures_test" databases and users

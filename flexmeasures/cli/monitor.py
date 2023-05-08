@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 from datetime import datetime, timedelta
-from typing import Optional, List
 
 import click
 from flask import current_app as app
@@ -24,8 +25,8 @@ def fm_monitor():
 def send_task_monitoring_alert(
     task_name: str,
     msg: str,
-    latest_run: Optional[LatestTaskRun] = None,
-    custom_msg: Optional[str] = None,
+    latest_run: LatestTaskRun | None = None,
+    custom_msg: str | None = None,
 ):
     """
     Send any monitoring message per Sentry and per email. Also log an error.
@@ -138,11 +139,11 @@ def monitor_latest_run(task, custom_message):
 
 
 def send_lastseen_monitoring_alert(
-    users: List[User],
+    users: list[User],
     last_seen_delta: timedelta,
     alerted_users: bool,
-    account_role: Optional[str] = None,
-    user_role: Optional[str] = None,
+    account_role: str | None = None,
+    user_role: str | None = None,
 ):
     """
     Tell monitoring recipients and Sentry about user(s) we haven't seen in a while.
@@ -226,9 +227,9 @@ def send_lastseen_monitoring_alert(
 def monitor_last_seen(
     maximum_minutes_since_last_seen: int,
     alert_users: bool = False,
-    account_role: Optional[str] = None,
-    user_role: Optional[str] = None,
-    custom_user_message: Optional[str] = None,
+    account_role: str | None = None,
+    user_role: str | None = None,
+    custom_user_message: str | None = None,
 ):
     """
     Check if given users last contact (via a request) happened less than the allowed time ago.
@@ -242,7 +243,7 @@ def monitor_last_seen(
     last_seen_delta = timedelta(minutes=maximum_minutes_since_last_seen)
 
     # find users we haven't seen in the given time window
-    users: List[User] = User.query.filter(
+    users: list[User] = User.query.filter(
         User.last_seen_at < datetime.utcnow() - last_seen_delta
     ).all()
 

@@ -1,8 +1,9 @@
 """Utilities for views"""
+from __future__ import annotations
+
 import json
 import os
 import subprocess
-from typing import Tuple, List, Optional
 from datetime import datetime
 
 from flask import render_template, request, session, current_app
@@ -175,9 +176,9 @@ def set_time_range_for_session():
 
 
 def ensure_timing_vars_are_set(
-    time_window: Tuple[Optional[datetime], Optional[datetime]],
-    resolution: Optional[str],
-) -> Tuple[Tuple[datetime, datetime], str]:
+    time_window: tuple[datetime | None, datetime | None],
+    resolution: str | None,
+) -> tuple[tuple[datetime, datetime], str]:
     """
     Ensure that time window and resolution variables are set,
     even if we don't have them available ― in that case,
@@ -219,7 +220,7 @@ def set_session_market(resource: Resource) -> Market:
 
 
 def set_session_sensor_type(
-    accepted_sensor_types: List[WeatherSensorType],
+    accepted_sensor_types: list[WeatherSensorType],
 ) -> WeatherSensorType:
     """Set session["sensor_type"] to something, based on the available sensor types or the request.
     Returns the selected sensor type, or None."""
@@ -253,8 +254,8 @@ def set_session_sensor_type(
 
 
 def set_session_resource(
-    assets: List[Asset], groups_with_assets: List[str]
-) -> Optional[Resource]:
+    assets: list[Asset], groups_with_assets: list[str]
+) -> Resource | None:
     """
     Set session["resource"] to something, based on the available asset groups or the request.
 
@@ -295,7 +296,7 @@ def set_individual_traces_for_session():
         session[var_name] = request.values[var_name]
 
 
-def get_git_description() -> Tuple[str, int, str]:
+def get_git_description() -> tuple[str, int, str]:
     """
     Get information about the SCM (git) state if possible (if a .git directory exists).
 

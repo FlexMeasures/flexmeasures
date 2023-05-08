@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import Optional, Union, Dict
 
 import pandas as pd
@@ -34,7 +35,7 @@ class Reporter(DataGeneratorMixin):
 
         Attributes:
         :param sensor: sensor where the output of the reporter will be saved to.
-        :param reporter_config_raw: unserialized configuration of the reporter.
+        :param reporter_config_raw: dictionary with the serialized configuration of the reporter.
         """
 
         self.sensor = sensor
@@ -56,7 +57,7 @@ class Reporter(DataGeneratorMixin):
         """
 
         self.data = {}
-        for tb_query in self.tb_query_config:
+        for tb_query in self.beliefs_search_configs:
             _tb_query = tb_query.copy()
             # using start / end instead of event_starts_after/event_ends_before when not defined
             event_starts_after = _tb_query.pop("event_starts_after", start)
@@ -93,8 +94,8 @@ class Reporter(DataGeneratorMixin):
         self,
         start: datetime,
         end: datetime,
-        input_resolution: timedelta = None,
-        belief_time: datetime = None,
+        input_resolution: timedelta | None = None,
+        belief_time: datetime | None = None,
         **kwargs,
     ) -> tb.BeliefsDataFrame:
         """This method triggers the creation of a new report.
@@ -151,6 +152,6 @@ class Reporter(DataGeneratorMixin):
         self.reporter_config = self.schema.load(
             self.reporter_config_raw
         )  # validate reporter config
-        self.tb_query_config = self.reporter_config.get(
-            "tb_query_config"
+        self.beliefs_search_configs = self.reporter_config.get(
+            "beliefs_search_configs"
         )  # extracting TimeBelief query configuration parameters

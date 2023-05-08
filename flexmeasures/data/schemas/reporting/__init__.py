@@ -6,10 +6,10 @@ from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.schemas import AwareDateTimeField, DurationField
 
 
-class TimeBeliefQueryConfigSchema(Schema):
+class BeliefsSearchConfigSchema(Schema):
     """
-    This schema implements the required fields to perform a TimeBeliefs search
-    using the method flexmeasures.data.models.time_series:TimedBelief.search
+    This schema implements the required fields to perform a TimedBeliefs search
+    using the method flexmeasures.data.models.time_series:Sensor.search_beliefs
     """
 
     sensor = SensorIdField(required=True)
@@ -24,7 +24,6 @@ class TimeBeliefQueryConfigSchema(Schema):
     horizons_at_most = DurationField()
 
     source = DataSourceIdField()
-    # user_source_ids: Optional[Union[int, List[int]]] = None,
 
     source_types = fields.List(fields.Str())
     exclude_source_types = fields.List(fields.Str())
@@ -43,8 +42,8 @@ class ReporterConfigSchema(Schema):
     Inherit from this to extend this schema with your own parameters.
     """
 
-    tb_query_config = fields.List(
-        fields.Nested(TimeBeliefQueryConfigSchema()),
+    beliefs_search_configs = fields.List(
+        fields.Nested(BeliefsSearchConfigSchema()),
         required=True,
         validator=validate.Length(min=1),
     )

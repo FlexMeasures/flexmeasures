@@ -1,8 +1,9 @@
+from __future__ import annotations
+
 from contextlib import contextmanager
 import pytest
 from random import random
 from datetime import datetime, timedelta
-from typing import List, Dict
 import pytz
 
 from isodate import parse_duration
@@ -113,16 +114,16 @@ def create_test_db(app):
 
 
 @pytest.fixture(scope="module")
-def setup_accounts(db) -> Dict[str, Account]:
+def setup_accounts(db) -> dict[str, Account]:
     return create_test_accounts(db)
 
 
 @pytest.fixture(scope="function")
-def setup_accounts_fresh_db(fresh_db) -> Dict[str, Account]:
+def setup_accounts_fresh_db(fresh_db) -> dict[str, Account]:
     return create_test_accounts(fresh_db)
 
 
-def create_test_accounts(db) -> Dict[str, Account]:
+def create_test_accounts(db) -> dict[str, Account]:
     prosumer_account_role = AccountRole(name="Prosumer", description="A Prosumer")
     prosumer_account = Account(
         name="Test Prosumer Account", account_roles=[prosumer_account_role]
@@ -162,18 +163,18 @@ def create_test_accounts(db) -> Dict[str, Account]:
 
 
 @pytest.fixture(scope="module")
-def setup_roles_users(db, setup_accounts) -> Dict[str, User]:
+def setup_roles_users(db, setup_accounts) -> dict[str, User]:
     return create_roles_users(db, setup_accounts)
 
 
 @pytest.fixture(scope="function")
-def setup_roles_users_fresh_db(fresh_db, setup_accounts_fresh_db) -> Dict[str, User]:
+def setup_roles_users_fresh_db(fresh_db, setup_accounts_fresh_db) -> dict[str, User]:
     return create_roles_users(fresh_db, setup_accounts_fresh_db)
 
 
-def create_roles_users(db, test_accounts) -> Dict[str, User]:
+def create_roles_users(db, test_accounts) -> dict[str, User]:
     """Create a minimal set of roles and users"""
-    new_users: List[User] = []
+    new_users: list[User] = []
     # Two Prosumer users
     new_users.append(
         create_user(
@@ -230,16 +231,16 @@ def create_roles_users(db, test_accounts) -> Dict[str, User]:
 
 
 @pytest.fixture(scope="module")
-def setup_markets(db) -> Dict[str, Market]:
+def setup_markets(db) -> dict[str, Market]:
     return create_test_markets(db)
 
 
 @pytest.fixture(scope="function")
-def setup_markets_fresh_db(fresh_db) -> Dict[str, Market]:
+def setup_markets_fresh_db(fresh_db) -> dict[str, Market]:
     return create_test_markets(fresh_db)
 
 
-def create_test_markets(db) -> Dict[str, Market]:
+def create_test_markets(db) -> dict[str, Market]:
     """Create the epex_da market."""
 
     day_ahead = MarketType(
@@ -262,16 +263,16 @@ def create_test_markets(db) -> Dict[str, Market]:
 
 
 @pytest.fixture(scope="module")
-def setup_sources(db) -> Dict[str, DataSource]:
+def setup_sources(db) -> dict[str, DataSource]:
     return create_sources(db)
 
 
 @pytest.fixture(scope="function")
-def setup_sources_fresh_db(fresh_db) -> Dict[str, DataSource]:
+def setup_sources_fresh_db(fresh_db) -> dict[str, DataSource]:
     return create_sources(fresh_db)
 
 
-def create_sources(db) -> Dict[str, DataSource]:
+def create_sources(db) -> dict[str, DataSource]:
     seita_source = DataSource(name="Seita", type="demo script")
     db.session.add(seita_source)
     entsoe_source = DataSource(name="ENTSO-E", type="demo script")
@@ -280,19 +281,19 @@ def create_sources(db) -> Dict[str, DataSource]:
 
 
 @pytest.fixture(scope="module")
-def setup_asset_types(db) -> Dict[str, AssetType]:
+def setup_asset_types(db) -> dict[str, AssetType]:
     return create_test_asset_types(db)
 
 
 @pytest.fixture(scope="function")
-def setup_asset_types_fresh_db(fresh_db) -> Dict[str, AssetType]:
+def setup_asset_types_fresh_db(fresh_db) -> dict[str, AssetType]:
     return create_test_asset_types(fresh_db)
 
 
 @pytest.fixture(scope="module")
 def setup_generic_assets(
     db, setup_generic_asset_types, setup_accounts
-) -> Dict[str, AssetType]:
+) -> dict[str, AssetType]:
     """Make some generic assets used throughout."""
     return create_generic_assets(db, setup_generic_asset_types, setup_accounts)
 
@@ -300,7 +301,7 @@ def setup_generic_assets(
 @pytest.fixture(scope="function")
 def setup_generic_assets_fresh_db(
     fresh_db, setup_generic_asset_types_fresh_db, setup_accounts_fresh_db
-) -> Dict[str, AssetType]:
+) -> dict[str, AssetType]:
     """Make some generic assets used throughout."""
     return create_generic_assets(
         fresh_db, setup_generic_asset_types_fresh_db, setup_accounts_fresh_db
@@ -334,13 +335,13 @@ def create_generic_assets(db, setup_generic_asset_types, setup_accounts):
 
 
 @pytest.fixture(scope="module")
-def setup_generic_asset_types(db) -> Dict[str, AssetType]:
+def setup_generic_asset_types(db) -> dict[str, AssetType]:
     """Make some generic asset types used throughout."""
     return create_generic_asset_types(db)
 
 
 @pytest.fixture(scope="function")
-def setup_generic_asset_types_fresh_db(fresh_db) -> Dict[str, AssetType]:
+def setup_generic_asset_types_fresh_db(fresh_db) -> dict[str, AssetType]:
     """Make some generic asset types used throughout."""
     return create_generic_asset_types(fresh_db)
 
@@ -371,7 +372,7 @@ def create_generic_asset_types(db):
     )
 
 
-def create_test_asset_types(db) -> Dict[str, AssetType]:
+def create_test_asset_types(db) -> dict[str, AssetType]:
     """Make some asset types used throughout.
     Deprecated. Remove with Asset model."""
 
@@ -397,7 +398,7 @@ def create_test_asset_types(db) -> Dict[str, AssetType]:
 @pytest.fixture(scope="module")
 def setup_assets(
     db, setup_roles_users, setup_markets, setup_sources, setup_asset_types
-) -> Dict[str, Asset]:
+) -> dict[str, Asset]:
     """Add assets to known test users.
     Deprecated. Remove with Asset model."""
 
@@ -508,7 +509,7 @@ def create_beliefs(db: SQLAlchemy, setup_markets, setup_sources) -> int:
 @pytest.fixture(scope="module")
 def add_market_prices(
     db: SQLAlchemy, setup_assets, setup_markets, setup_sources
-) -> Dict[str, Sensor]:
+) -> dict[str, Sensor]:
     """Add two days of market prices for the EPEX day-ahead market."""
 
     # one day of test data (one complete sine curve)
@@ -556,14 +557,14 @@ def add_market_prices(
 @pytest.fixture(scope="module")
 def add_battery_assets(
     db: SQLAlchemy, setup_roles_users, setup_markets
-) -> Dict[str, Asset]:
+) -> dict[str, Asset]:
     return create_test_battery_assets(db, setup_roles_users, setup_markets)
 
 
 @pytest.fixture(scope="function")
 def add_battery_assets_fresh_db(
     fresh_db, setup_roles_users_fresh_db, setup_markets_fresh_db
-) -> Dict[str, Asset]:
+) -> dict[str, Asset]:
     return create_test_battery_assets(
         fresh_db, setup_roles_users_fresh_db, setup_markets_fresh_db
     )
@@ -571,7 +572,7 @@ def add_battery_assets_fresh_db(
 
 def create_test_battery_assets(
     db: SQLAlchemy, setup_roles_users, setup_markets
-) -> Dict[str, Asset]:
+) -> dict[str, Asset]:
     """
     Add two battery assets, set their capacity values and their initial SOC.
     """
@@ -632,14 +633,14 @@ def create_test_battery_assets(
 @pytest.fixture(scope="module")
 def add_charging_station_assets(
     db: SQLAlchemy, setup_roles_users, setup_markets
-) -> Dict[str, Asset]:
+) -> dict[str, Asset]:
     return create_charging_station_assets(db, setup_roles_users, setup_markets)
 
 
 @pytest.fixture(scope="function")
 def add_charging_station_assets_fresh_db(
     fresh_db: SQLAlchemy, setup_roles_users_fresh_db, setup_markets_fresh_db
-) -> Dict[str, Asset]:
+) -> dict[str, Asset]:
     return create_charging_station_assets(
         fresh_db, setup_roles_users_fresh_db, setup_markets_fresh_db
     )
@@ -647,7 +648,7 @@ def add_charging_station_assets_fresh_db(
 
 def create_charging_station_assets(
     db: SQLAlchemy, setup_roles_users, setup_markets
-) -> Dict[str, Asset]:
+) -> dict[str, Asset]:
     """Add uni- and bi-directional charging station assets, set their capacity value and their initial SOC."""
     db.session.add(
         AssetType(
@@ -716,18 +717,18 @@ def create_charging_station_assets(
 
 
 @pytest.fixture(scope="module")
-def add_weather_sensors(db, setup_generic_asset_types) -> Dict[str, Sensor]:
+def add_weather_sensors(db, setup_generic_asset_types) -> dict[str, Sensor]:
     return create_weather_sensors(db, setup_generic_asset_types)
 
 
 @pytest.fixture(scope="function")
 def add_weather_sensors_fresh_db(
     fresh_db, setup_generic_asset_types_fresh_db
-) -> Dict[str, Sensor]:
+) -> dict[str, Sensor]:
     return create_weather_sensors(fresh_db, setup_generic_asset_types_fresh_db)
 
 
-def create_weather_sensors(db: SQLAlchemy, generic_asset_types) -> Dict[str, Sensor]:
+def create_weather_sensors(db: SQLAlchemy, generic_asset_types) -> dict[str, Sensor]:
     """Add a weather station asset with two weather sensors."""
 
     weather_station = GenericAsset(

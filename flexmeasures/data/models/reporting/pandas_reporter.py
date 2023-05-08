@@ -33,8 +33,8 @@ class PandasReporter(Reporter):
         self,
         start: datetime,
         end: datetime,
-        input_resolution: timedelta = None,
-        belief_time: datetime = None,
+        input_resolution: timedelta | None = None,
+        belief_time: datetime | None = None,
     ) -> tb.BeliefsDataFrame:
         """
         This method applies the transformations and outputs the dataframe

@@ -1,5 +1,6 @@
 # flake8: noqa: E402
-from typing import List, Optional
+from __future__ import annotations
+
 from datetime import datetime, timedelta
 import os
 
@@ -99,8 +100,8 @@ def test_making_forecasts():
     "--training", default=30, help="Number of days in the training and testing period."
 )
 def test_generic_model(
-    generic_asset_type_names: List[str],
-    sensor_name: Optional[str] = None,
+    generic_asset_type_names: list[str],
+    sensor_name: str | None = None,
     from_date: str = "2015-03-10",
     period: int = 3,
     horizon_hours: int = 1,

@@ -40,7 +40,7 @@ def setup_dummy_sensors(db, app):
     [
         (
             {  # this checks that the final_df_output dataframe is actually generated at some point of the processing pipeline
-                "tb_query_config": [
+                "beliefs_search_configs": [
                     {
                         "sensor": 1,
                         "event_starts_after": "2022-01-01T00:00:00 00:00",
@@ -60,7 +60,7 @@ def setup_dummy_sensors(db, app):
         ),
         (
             {  # this checks that chaining works, applying the method copy on the previous dataframe
-                "tb_query_config": [
+                "beliefs_search_configs": [
                     {
                         "sensor": 1,
                         "event_starts_after": "2022-01-01T00:00:00 00:00",
@@ -78,7 +78,7 @@ def setup_dummy_sensors(db, app):
         ),
         (
             {  # this checks that resample cannot be the last method being applied
-                "tb_query_config": [
+                "beliefs_search_configs": [
                     {
                         "sensor": 1,
                         "event_starts_after": "2022-01-01T00:00:00 00:00",
@@ -101,7 +101,7 @@ def setup_dummy_sensors(db, app):
         ),
         (
             {  # this checks that resample cannot be the last method being applied
-                "tb_query_config": [
+                "beliefs_search_configs": [
                     {
                         "sensor": 1,
                         "event_starts_after": "2022-01-01T00:00:00 00:00",

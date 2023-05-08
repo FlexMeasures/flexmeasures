@@ -1,7 +1,6 @@
 import pytest
 from datetime import datetime, timedelta
 from random import random
-from typing import Dict
 
 from isodate import parse_duration
 import pandas as pd
@@ -166,7 +165,7 @@ def add_failing_test_model(db):
 
 
 @pytest.fixture(scope="module")
-def add_nearby_weather_sensors(db, add_weather_sensors) -> Dict[str, Sensor]:
+def add_nearby_weather_sensors(db, add_weather_sensors) -> dict[str, Sensor]:
     temp_sensor_location = add_weather_sensors["temperature"].generic_asset.location
     weather_station_type = GenericAssetType.query.filter(
         GenericAssetType.name == "weather station"

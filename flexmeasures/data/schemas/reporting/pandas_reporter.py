@@ -86,7 +86,7 @@ class PandasReporterConfigSchema(ReporterConfigSchema):
         # loading the initial data, the sensors' data
         fake_data = dict(
             (f"sensor_{s['sensor'].id}", BeliefsDataFrame)
-            for s in data.get("tb_query_config")
+            for s in data.get("beliefs_search_configs")
         )
         final_df_output = data.get("final_df_output")
 

@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 from datetime import datetime, timedelta
-from typing import Optional
 
 from flask import current_app
 from flask_classful import FlaskView, route
@@ -213,9 +214,9 @@ class SensorAPI(FlaskView):
         sensor: Sensor,
         start_of_schedule: datetime,
         duration: timedelta,
-        belief_time: Optional[datetime] = None,
-        flex_model: Optional[dict] = None,
-        flex_context: Optional[dict] = None,
+        belief_time: datetime | None = None,
+        flex_model: dict | None = None,
+        flex_context: dict | None = None,
         **kwargs,
     ):
         """

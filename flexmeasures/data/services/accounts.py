@@ -1,12 +1,12 @@
-from typing import List, Optional
+from __future__ import annotations
 
 from flexmeasures.data.models.user import Account, AccountRole
 from flexmeasures.data.models.generic_assets import GenericAsset
 
 
 def get_accounts(
-    role_name: Optional[str] = None,
-) -> List[Account]:
+    role_name: str | None = None,
+) -> list[Account]:
     """Return a list of Account objects.
     The role_name parameter allows to filter by role.
     """
@@ -30,7 +30,7 @@ def get_number_of_assets_in_account(account_id: int) -> int:
     return number_of_assets_in_account
 
 
-def get_account_roles(account_id: int) -> List[AccountRole]:
+def get_account_roles(account_id: int) -> list[AccountRole]:
     account = Account.query.filter_by(id=account_id).one_or_none()
     if account is None:
         return []

@@ -5,7 +5,6 @@ import time
 import inspect
 import importlib
 import pkgutil
-from typing import Union
 from flask import current_app
 
 
@@ -154,7 +153,7 @@ def timeit(func):
     return new_func
 
 
-def deprecated(alternative, version: Union[str, None] = None):
+def deprecated(alternative, version: str | None = None):
     """Decorator for printing a warning error.
     alternative: importable object to use as an alternative to the function/method decorated
     version: version in which the function will be sunset

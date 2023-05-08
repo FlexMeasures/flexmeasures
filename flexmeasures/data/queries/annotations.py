@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional
 
 from sqlalchemy.orm import Query
 
@@ -14,9 +13,9 @@ from flexmeasures.data.models.data_sources import DataSource
 
 def query_asset_annotations(
     asset_id: int,
-    annotations_after: Optional[datetime] = None,
-    annotations_before: Optional[datetime] = None,
-    sources: Optional[List[DataSource]] = None,
+    annotations_after: datetime | None = None,
+    annotations_before: datetime | None = None,
+    sources: list[DataSource] | None = None,
     annotation_type: str | None = None,
 ) -> Query:
     """Match annotations assigned to the given asset."""
