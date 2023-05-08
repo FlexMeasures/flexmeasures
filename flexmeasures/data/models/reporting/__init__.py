@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import Optional, Union, Dict
 
 import pandas as pd
@@ -93,8 +94,8 @@ class Reporter(DataGeneratorMixin):
         self,
         start: datetime,
         end: datetime,
-        input_resolution: timedelta = None,
-        belief_time: datetime = None,
+        input_resolution: timedelta | None = None,
+        belief_time: datetime | None = None,
         **kwargs,
     ) -> tb.BeliefsDataFrame:
         """This method triggers the creation of a new report.
