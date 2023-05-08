@@ -97,10 +97,24 @@ def test_cli_help(app):
 
 @pytest.mark.skip_github
 def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
+    """
+    The reporter aggregates input data from two sensors (both have 200 data points)
+    to a two-hour resolution.
+
+    The command is run twice:
+        - In the first run is for ten hours, so you expect five results.
+        - In the second is run without timing params, so the rest of the data
+        is now aggregated, resulting in 95 data points.
+    """
+
     from flexmeasures.cli.data_add import add_report
 
     sensor1, sensor2, report_sensor = setup_dummy_data
     report_sensor_id = report_sensor.id
+
+    """
+        Running the command with start and end values.
+    """
 
     runner = app.test_cli_runner()
 
@@ -115,6 +129,7 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
 
     cli_input = to_flags(cli_input_params)
 
+    # run test in an isolated file system
     with runner.isolated_filesystem():
 
         # save reporter_config to a json file
@@ -132,14 +147,16 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
         assert "Report computation done." in result.output
 
         # Check report is saved to the database
-        report_sensor = (
-            db.session.query(Sensor).filter(Sensor.id == report_sensor_id).one_or_none()
+
+        report_sensor = Sensor.query.get(
+            report_sensor_id
         )  # get fresh report sensor instance
+
         stored_report = report_sensor.search_beliefs(
             event_starts_after=cli_input_params.get("start").replace(" ", "+"),
             event_ends_before=cli_input_params.get("end").replace(" ", "+"),
         )
-        assert len(stored_report) == 5
+
         assert (stored_report.values.T == [1, 5, 9, 13, 17]).all()  # check values
 
         assert os.path.exists("test.csv")  # check that the file has been created
@@ -147,7 +164,13 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
             os.path.getsize("test.csv") > 100
         )  # bytes. Check that the file is not empty
 
-    ##
+    """
+        Running the command without without timing params (last-X flags nor start/end).
+
+        This makes the command default the start time to the date of the last
+        value of the reporter sensor and the end time as the current time.
+    """
+
     previous_command_end = cli_input_params.get("end").replace(" ", "+")
 
     cli_input_params = {
@@ -177,11 +200,11 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
         assert "Report computation done." in result.output
 
         # Check if the report is saved to the database
-        report_sensor = (
-            db.session.query(Sensor).filter(Sensor.id == report_sensor_id).one_or_none()
-        )  # get fresh report sensor instance
+        report_sensor = Sensor.query.get(report_sensor_id)
+
         stored_report = report_sensor.search_beliefs(
             event_starts_after=previous_command_end,
             event_ends_before=server_now(),
         )
+
         assert len(stored_report) == 95

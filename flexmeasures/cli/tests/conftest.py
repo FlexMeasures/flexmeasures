@@ -84,6 +84,19 @@ def setup_dummy_data(db, app):
 @pytest.fixture(scope="module")
 @pytest.mark.skip_github
 def reporter_config_raw(app, db, setup_dummy_data):
+    """
+
+
+
+    This reporter_config is adding up the values of the BeliefDataframes of sensors 1 and 2
+      and
+
+    We add the sensor 1 and sensor 2, and the result is called df_agg.
+
+    Maybe we can pass df_output last, and method second, so this reads more naturally?
+    We resample. Where does resample_events live? (maybe a question for the other PR, actually).
+    """
+
     sensor1, sensor2, report_sensor = setup_dummy_data
 
     reporter_config_raw = dict(
@@ -91,8 +104,8 @@ def reporter_config_raw(app, db, setup_dummy_data):
         transformations=[
             dict(
                 df_input="sensor_1",
-                df_output="df_agg",
                 method="add",
+                df_output="df_agg",
                 args=["@sensor_2"],
             ),
             dict(method="resample_events", args=["2h"]),
