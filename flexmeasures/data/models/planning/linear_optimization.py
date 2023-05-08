@@ -328,6 +328,7 @@ def device_scheduler(  # noqa C901
                 start=start,
                 end=end,
                 resolution=to_offset(resolution),
+                inclusive="both",
             )
         )
 
