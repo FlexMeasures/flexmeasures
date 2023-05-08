@@ -702,7 +702,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 # todo: compute median of collective belief instead of median of first belief (update expected test results accordingly)
                 # todo: move to timely-beliefs: select mean/median belief
                 if (
-                    bdf.lineage.number_of_sources == 1
+                    bdf.lineage.number_of_sources <= 1
                     and bdf.lineage.probabilistic_depth == 1
                 ):
                     # Fast track, no need to loop over beliefs
