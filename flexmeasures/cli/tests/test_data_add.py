@@ -102,8 +102,8 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
     to a two-hour resolution.
 
     The command is run twice:
-        - In the first run is for ten hours, so you expect five results.
-        - In the second is run without timing params, so the rest of the data
+        - The first run is for ten hours, so you expect five results.
+        - The second is run without timing params, so the rest of the data
         is now aggregated, resulting in 95 data points.
     """
 
