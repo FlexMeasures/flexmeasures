@@ -33,7 +33,11 @@ setup(
     install_requires=load_requirements("app"),
     setup_requires=["setuptools_scm"],
     use_scm_version={"local_scheme": "no-local-version"},  # handled by setuptools_scm
-    packages=find_packages(),  # will include *.py files and some other types
+    packages=find_packages()
+    + [
+        "flexmeasures.ui.templates",
+        "flexmeasures.ui.static",
+    ],  # will include *.py files and some other types
     include_package_data=True,  # now setuptools_scm adds all files under source control
     entry_points={
         "console_scripts": [

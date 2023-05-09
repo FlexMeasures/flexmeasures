@@ -9,6 +9,8 @@ from types import ModuleType
 import sentry_sdk
 from flask import Flask, Blueprint
 
+from flexmeasures.utils.coding_utils import get_classes_module
+
 
 def register_plugins(app: Flask):
     """
@@ -99,6 +101,11 @@ def register_plugins(app: Flask):
         for plugin_blueprint in plugin_blueprints:
             app.logger.debug(f"Registering {plugin_blueprint} ...")
             app.register_blueprint(plugin_blueprint)
+
+        # Loading reporters
+        from flexmeasures.data.models.reporting import Reporter
+
+        app.reporters.update(get_classes_module(module.__name__, Reporter))
 
         app.config["LOADED_PLUGINS"][plugin_name] = plugin_version
     app.logger.info(f"Loaded plugins: {app.config['LOADED_PLUGINS']}")
