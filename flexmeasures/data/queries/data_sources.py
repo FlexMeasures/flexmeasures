@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Union, Optional
-
 from flexmeasures import User
 from flexmeasures.utils.coding_utils import deprecated
 from flexmeasures.data.models.data_sources import DataSource
@@ -15,9 +13,9 @@ from flexmeasures.data.services.data_sources import (
 
 @deprecated(get_or_create_source_new, "0.14")
 def get_or_create_source(
-    source: Union[User, str],
-    source_type: Optional[str] = None,
-    model: Optional[str] = None,
+    source: User | str,
+    source_type: str | None = None,
+    model: str | None = None,
     flush: bool = True,
 ) -> DataSource:
     return get_or_create_source_new(source, source_type, model, flush)

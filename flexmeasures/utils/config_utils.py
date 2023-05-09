@@ -1,7 +1,8 @@
+from __future__ import annotations
+
 import os
 import sys
 import logging
-from typing import Optional, List, Tuple
 from datetime import datetime
 from logging.config import dictConfig as loggingDictConfig
 from pathlib import Path
@@ -50,7 +51,7 @@ def configure_logging():
     loggingDictConfig(flexmeasures_logging_config)
 
 
-def check_app_env(env: Optional[str]):
+def check_app_env(env: str | None):
     if env not in (
         "documentation",
         "development",
@@ -64,7 +65,7 @@ def check_app_env(env: Optional[str]):
         sys.exit(2)
 
 
-def read_config(app: Flask, custom_path_to_config: Optional[str]):
+def read_config(app: Flask, custom_path_to_config: str | None):
     """Read configuration from various expected sources, complain if not setup correctly."""
 
     check_app_env(app.env)
@@ -163,7 +164,7 @@ def read_env_vars(app: Flask):
     for var in (
         required
         + list(warnable.keys())
-        + ["LOGGING_LEVEL", "MAPBOX_ACCESS_TOKEN", "SENTRY_SDN"]
+        + ["LOGGING_LEVEL", "MAPBOX_ACCESS_TOKEN", "SENTRY_SDN", "FLEXMEASURES_PLUGINS"]
     ):
         app.config[var] = os.getenv(var, app.config.get(var, None))
     # DEBUG in env can come in as a string ("True") so make sure we don't trip here
@@ -185,7 +186,7 @@ def are_required_settings_complete(app) -> bool:
     return True
 
 
-def get_config_warnings(app) -> Tuple[List[str], List[str]]:
+def get_config_warnings(app) -> tuple[list[str], list[str]]:
     """return missing settings and the warnings for them."""
     missing_settings = []
     config_warnings = []
@@ -197,7 +198,7 @@ def get_config_warnings(app) -> Tuple[List[str], List[str]]:
     return missing_settings, config_warnings
 
 
-def get_configuration_keys(app) -> List[str]:
+def get_configuration_keys(app) -> list[str]:
     """
     Collect all members of DefaultConfig who are not in-built fields or callables.
     """

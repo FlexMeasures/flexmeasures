@@ -4,7 +4,7 @@
 FlexMeasures CLI Changelog
 **********************
 
-since v0.13.0 | April XX, 2023
+since v0.13.0 | May 1, 2023
 =================================
 
 * Add ``flexmeasures add source`` CLI command for adding a new data source.

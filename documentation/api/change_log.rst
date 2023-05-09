@@ -5,6 +5,12 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL, allowing developers to upgrade at their own pace.
 
+v3.0-9 | 2023-04-26
+"""""""""""""""""""
+
+- Added missing documentation for the public endpoints for authentication and listing active API versions.
+- Added REST endpoint for listing available services for a specific API version: `/api/v3_0` (GET). This functionality is similar to the *getService* endpoint for older API versions, but now also returns the full URL for each available service.
+
 v3.0-8 | 2023-03-23
 """""""""""""""""""
 
@@ -82,7 +88,7 @@ v3.0-0 | 2022-03-25
     - *getDeviceMessage* -> use `/sensors/<id>/schedules/<uuid>` (GET) instead, where <id> is the sensor id from the "event" field and <uuid> is the value of the "schedule" field returned by `/sensors/<id>/schedules/trigger` (POST)
     - *getMeterData* -> use `/sensors/data` (GET) instead, replacing the "connection" field with "sensor"
     - *getPrognosis* -> use `/sensors/data` (GET) instead, replacing the "connection" field with "sensor"
-    - *getService* -> consult the public API documentation instead, at https://flexmeasures.readthedocs.io
+    - *getService* -> use `/api/v3_0` (GET) instead (since v3.0-9), or consult the public API documentation instead, at https://flexmeasures.readthedocs.io
     - *postMeterData* -> use `/sensors/data` (POST) instead, replacing the "connection" field with "sensor"
     - *postPriceData* -> use `/sensors/data` (POST) instead, replacing the "market" field with "sensor"
     - *postPrognosis* -> use `/sensors/data` (POST) instead, replacing the "connection" field with "sensor"
@@ -106,8 +112,18 @@ v3.0-0 | 2022-03-25
     - Rewrote the sections on roles and sources into a combined section that refers to account roles rather than USEF roles.
     - Deprecated the section on group notation.
 
+v2.0-7 | 2022-05-05
+"""""""""""""""""""
+
+*API v2.0 is removed.*
+
+v2.0-6 | 2022-04-26
+"""""""""""""""""""
+
+*API v2.0 is sunset.*
+
 v2.0-5 | 2022-02-13
-""""""""""""""""""""
+"""""""""""""""""""
 
 *API v2.0 is deprecated.*
 
@@ -151,6 +167,17 @@ v2.0-0 | 2020-11-14
 """""""""""""""""""
 
 - Added REST endpoints for managing assets: `/assets/` (GET, POST) and `/asset/<id>` (GET, PATCH, DELETE).
+
+
+v1.3-14 | 2022-05-05
+""""""""""""""""""""
+
+*API v1.3 is removed.*
+
+v1.3-13 | 2022-04-26
+""""""""""""""""""""
+
+*API v1.3 is sunset.*
 
 v1.3-12 | 2022-02-13
 """"""""""""""""""""
@@ -243,8 +270,18 @@ v1.3-0 | 2020-01-28
 - The *postUdiEvent* endpoint now triggers scheduling jobs to be set up (rather than scheduling directly triggered by the *getDeviceMessage* endpoint)
 - The *getDeviceMessage* now queries the job queue and database for an available schedule
 
+v1.2-6 | 2022-05-05
+"""""""""""""""""""
+
+*API v1.2 is removed.*
+
+v1.2-5 | 2022-04-26
+"""""""""""""""""""
+
+*API v1.2 is sunset.*
+
 v1.2-4 | 2022-02-13
-""""""""""""""""""""
+"""""""""""""""""""
 
 *API v1.2 is deprecated.*
 
@@ -294,8 +331,18 @@ v1.2-0 | 2018-09-08
 - Added a description of the *postUdiEvent* endpoint in the Prosumer and Simulation sections
 - Added a description of the *getDeviceMessage* endpoint in the Prosumer and Simulation sections
 
+v1.1-8 | 2022-05-05
+"""""""""""""""""""
+
+*API v1.1 is removed.*
+
+v1.1-7 | 2022-04-26
+"""""""""""""""""""
+
+*API v1.1 is sunset.*
+
 v1.1-6 | 2022-02-13
-""""""""""""""""""""
+"""""""""""""""""""
 
 *API v1.1 is deprecated.*
 
@@ -352,8 +399,18 @@ v1.1-0 | 2018-07-15
 
 - Added a description of the *getPrognosis* endpoint in the Supplier section
 
+v1.0-4 | 2022-05-05
+"""""""""""""""""""
+
+*API v1.0 is removed.*
+
+v1.0-3 | 2022-04-26
+"""""""""""""""""""
+
+*API v1.0 is sunset.*
+
 v1.0-2 | 2022-02-13
-""""""""""""""""""""
+"""""""""""""""""""
 
 *API v1.0 is deprecated.*
 

@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 from datetime import timedelta
-from typing import List, Union
 
 from flask_login import current_user
 from isodate import datetime_isoformat
@@ -10,12 +11,12 @@ from timely_beliefs import BeliefsDataFrame
 import pandas as pd
 
 from flexmeasures.data import ma
-from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.api.common.schemas.sensors import SensorField
 from flexmeasures.api.common.utils.api_utils import upsample_values
 from flexmeasures.data.models.planning.utils import initialize_index
 from flexmeasures.data.schemas import AwareDateTimeField, DurationField, SourceIdField
+from flexmeasures.data.services.data_sources import get_or_create_source
 from flexmeasures.data.services.time_series import simplify_index
 from flexmeasures.utils.time_utils import (
     decide_resolution,
@@ -33,16 +34,16 @@ from flexmeasures.auth.policy import check_access
 class SingleValueField(fields.Float):
     """Field that both de-serializes and serializes a single value to a list of floats (length 1)."""
 
-    def _deserialize(self, value, attr, obj, **kwargs) -> List[float]:
+    def _deserialize(self, value, attr, obj, **kwargs) -> list[float]:
         return [self._validated(value)]
 
-    def _serialize(self, value, attr, data, **kwargs) -> List[float]:
+    def _serialize(self, value, attr, data, **kwargs) -> list[float]:
         return [self._validated(value)]
 
 
 def select_schema_to_ensure_list_of_floats(
-    values: Union[List[float], float], _
-) -> Union[fields.List, SingleValueField]:
+    values: list[float] | float, _
+) -> fields.List | SingleValueField:
     """Allows both a single float and a list of floats. Always returns a list of floats.
 
     Meant to improve user experience by not needing to make a list out of a single item, such that:
@@ -350,14 +351,7 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         """
         Turn the de-serialized and validated data into a BeliefsDataFrame.
         """
-        source = DataSource.query.filter(
-            DataSource.user_id == current_user.id
-        ).one_or_none()
-        if not source:
-            raise ValidationError(
-                f"User {current_user.id} is not an accepted data source."
-            )
-
+        source = get_or_create_source(current_user)
         num_values = len(sensor_data["values"])
         event_resolution = sensor_data["duration"] / num_values
         dt_index = pd.date_range(

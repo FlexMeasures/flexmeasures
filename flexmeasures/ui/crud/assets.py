@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from typing import Union, Optional, List, Tuple
 import copy
 import json
 
@@ -101,9 +100,7 @@ class NewAssetForm(AssetForm):
     account_id = SelectField("Account", coerce=int)
 
 
-def with_options(
-    form: Union[AssetForm, NewAssetForm]
-) -> Union[AssetForm, NewAssetForm]:
+def with_options(form: AssetForm | NewAssetForm) -> AssetForm | NewAssetForm:
     if "generic_asset_type_id" in form:
         form.generic_asset_type_id.choices = [(-1, "--Select type--")] + [
             (atype.id, atype.name) for atype in GenericAssetType.query.all()
@@ -116,8 +113,8 @@ def with_options(
 
 
 def process_internal_api_response(
-    asset_data: dict, asset_id: Optional[int] = None, make_obj=False
-) -> Union[GenericAsset, dict]:
+    asset_data: dict, asset_id: int | None = None, make_obj=False
+) -> GenericAsset | dict:
     """
     Turn data from the internal API into something we can use to further populate the UI.
     Either as an asset object or a dict for form filling.
@@ -171,7 +168,7 @@ def user_can_delete(asset) -> bool:
     return True
 
 
-def get_assets_by_account(account_id: int | str | None) -> List[GenericAsset]:
+def get_assets_by_account(account_id: int | str | None) -> list[GenericAsset]:
     if account_id is not None:
         get_assets_response = InternalApi().get(
             url_for("AssetAPI:index"), query={"account_id": account_id}
@@ -397,7 +394,7 @@ class AssetCrudUI(FlaskView):
         )
 
 
-def _set_account(asset_form: NewAssetForm) -> Tuple[Optional[Account], Optional[str]]:
+def _set_account(asset_form: NewAssetForm) -> tuple[Account | None, str | None]:
     """Set an account for the to-be-created asset.
     Return the account (if available) and an error message"""
     account_error = None
@@ -419,7 +416,7 @@ def _set_account(asset_form: NewAssetForm) -> Tuple[Optional[Account], Optional[
 
 def _set_asset_type(
     asset_form: NewAssetForm,
-) -> Tuple[Optional[GenericAssetType], Optional[str]]:
+) -> tuple[GenericAssetType | None, str | None]:
     """Set an asset type for the to-be-created asset.
     Return the asset type (if available) and an error message."""
     asset_type = None

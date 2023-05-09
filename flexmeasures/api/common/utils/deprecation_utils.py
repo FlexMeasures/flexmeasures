@@ -1,10 +1,49 @@
 from __future__ import annotations
 
-from flask import current_app, request, Blueprint, Response, after_this_request
+from typing import Any
+
+from flask import abort, current_app, request, Blueprint, Response, after_this_request
 from flask_security.core import current_user
 import pandas as pd
 
 from flexmeasures.utils.time_utils import to_http_time
+
+
+def sunset_blueprint(
+    blueprint,
+    api_version_sunset: str,
+    sunset_link: str,
+    api_version_upgrade_to: str = "3.0",
+    blueprint_contents_removed: bool = True,
+):
+    """Sunsets every route on a blueprint by returning 410 (Gone) responses, if sunset is active.
+
+    Whether the sunset is active can be toggled using the config setting "FLEXMEASURES_API_SUNSET_ACTIVE".
+    If inactive, either:
+    - return 404 (Not Found) if the blueprint contents have been removed, or
+    - pass the request to be handled by the endpoint implementation.
+
+    Errors will be logged by utils.error_utils.error_handling_router.
+    """
+
+    def let_host_switch_to_returning_410():
+
+        # Override with custom info link, if set by host
+        _sunset_link = override_from_config(sunset_link, "FLEXMEASURES_API_SUNSET_LINK")
+
+        if current_app.config["FLEXMEASURES_API_SUNSET_ACTIVE"]:
+            abort(
+                410,
+                f"API version {api_version_sunset} has been sunset. Please upgrade to API version {api_version_upgrade_to}. See {_sunset_link} for more information.",
+            )
+        elif blueprint_contents_removed:
+            abort(404)
+        else:
+            # Sunset is inactive and blueprint contents are still there,
+            # so we let the request pass to the endpoint implementation
+            pass
+
+    blueprint.before_request(let_host_switch_to_returning_410)
 
 
 def deprecate_fields(
@@ -50,7 +89,8 @@ def deprecate_fields(
     """
     if not isinstance(fields, list):
         fields = [fields]
-    deprecation, sunset = _format_deprecation_and_sunset(deprecation_date, sunset_date)
+    deprecation = _format_deprecation(deprecation_date)
+    sunset = _format_sunset(sunset_date)
 
     @after_this_request
     def _after_request_handler(response: Response) -> Response:
@@ -63,12 +103,21 @@ def deprecate_fields(
             current_app.logger.warning(
                 f"Endpoint {request.endpoint} called by {current_user} with deprecated fields: {deprecated_fields_used}"
             )
+
+            # Override sunset date if host used corresponding config setting
+            _sunset = override_from_config(sunset, "FLEXMEASURES_API_SUNSET_DATE")
+
+            # Override sunset link if host used corresponding config setting
+            _sunset_link = override_from_config(
+                sunset_link, "FLEXMEASURES_API_SUNSET_LINK"
+            )
+
             return _add_headers(
                 response,
                 deprecation,
                 deprecation_link,
-                sunset,
-                sunset_link,
+                _sunset,
+                _sunset_link,
             )
         return response
 
@@ -109,18 +158,26 @@ def deprecate_blueprint(
     - Deprecation header: https://datatracker.ietf.org/doc/html/draft-ietf-httpapi-deprecation-header
     - Sunset header: https://www.rfc-editor.org/rfc/rfc8594
     """
-    deprecation, sunset = _format_deprecation_and_sunset(deprecation_date, sunset_date)
+    deprecation = _format_deprecation(deprecation_date)
+    sunset = _format_sunset(sunset_date)
 
     def _after_request_handler(response: Response) -> Response:
         current_app.logger.warning(
             f"Deprecated endpoint {request.endpoint} called by {current_user}"
         )
+
+        # Override sunset date if host used corresponding config setting
+        _sunset = override_from_config(sunset, "FLEXMEASURES_API_SUNSET_DATE")
+
+        # Override sunset link if host used corresponding config setting
+        _sunset_link = override_from_config(sunset_link, "FLEXMEASURES_API_SUNSET_LINK")
+
         return _add_headers(
             response,
             deprecation,
             deprecation_link,
-            sunset,
-            sunset_link,
+            _sunset,
+            _sunset_link,
         )
 
     blueprint.after_request(_after_request_handler)
@@ -149,13 +206,27 @@ def _add_link(response: Response, link: str, rel: str) -> Response:
     return response
 
 
-def _format_deprecation_and_sunset(deprecation_date, sunset_date):
+def _format_deprecation(deprecation_date):
     if deprecation_date:
         deprecation = to_http_time(pd.Timestamp(deprecation_date) - pd.Timedelta("1s"))
     else:
         deprecation = "true"
+    return deprecation
+
+
+def _format_sunset(sunset_date):
     if sunset_date:
         sunset = to_http_time(pd.Timestamp(sunset_date) - pd.Timedelta("1s"))
     else:
         sunset = None
-    return deprecation, sunset
+    return sunset
+
+
+def override_from_config(setting: Any, config_setting_name: str) -> Any:
+    """Override setting by config setting, unless the latter is None or is missing."""
+    config_setting = current_app.config.get(config_setting_name)
+    if config_setting is not None:
+        _setting = config_setting
+    else:
+        _setting = setting
+    return _setting

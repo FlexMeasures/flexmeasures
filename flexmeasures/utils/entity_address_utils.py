@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 import logging
-from typing import Optional, Union
 from urllib.parse import urlparse
 
 import re
@@ -44,7 +45,7 @@ def get_host() -> str:
 def build_entity_address(
     entity_info: dict,
     entity_type: str,
-    host: Optional[str] = None,
+    host: str | None = None,
     fm_scheme: str = FM1_ADDR_SCHEME,
 ) -> str:
     """
@@ -298,7 +299,7 @@ def parse_entity_address(  # noqa: C901
 
 
 def build_ea_scheme_and_naming_authority(
-    host: str, host_auth_start_month: Optional[str] = None
+    host: str, host_auth_start_month: str | None = None
 ) -> str:
     """
     This function creates the host identification part of
@@ -344,7 +345,7 @@ def build_ea_scheme_and_naming_authority(
     return f"{ADDR_SCHEME}.{host_auth_start_month}.{reversed_domain_name}"
 
 
-def reverse_domain_name(domain: Union[str, TldExtractResult]) -> str:
+def reverse_domain_name(domain: str | TldExtractResult) -> str:
     """
     Returns the reverse notation of the domain.
     You can pass in a string domain or an extraction result from tldextract

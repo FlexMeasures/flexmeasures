@@ -27,6 +27,7 @@ Using a virtual environment is best practice for Python developers. We also stro
   an `Anaconda distribution <https://conda.io/docs/user-guide/tasks/manage-environments.html>`_ as base with ``conda create -n flexmeasures-venv python=3.10``.
 * Activate it, e.g.: ``source flexmeasures-venv/bin/activate``
 
+
 Download FlexMeasures
 ^^^^^^^^^^^^^^^^^^^^^^^
 Clone the `FlexMeasures repository <https://github.com/FlexMeasures/flexmeasures.git>`_ from GitHub.
@@ -58,7 +59,23 @@ Go into the ``flexmeasures`` folder and install all dependencies including the o
 Configuration
 ^^^^^^^^^^^^^^^^^^^^
 
-Follow the configuration Quickstart advice in :ref:`getting_started` and :ref:`configuration`.
+Most configuration happens in a config file, see :ref:`configuration` on where it can live and all supported settings.
+
+For now, we let it live in your home directory and we add the first required setting: a secret key:
+
+.. code-block:: bash
+
+   echo "SECRET_KEY=\"`python3 -c 'import secrets; print(secrets.token_hex(24))'`\"" >> ~/.flexmeasures.cfg
+
+   
+Also, we add some env settings in an `.env` file. Create that file in the `flexmeasures` directory (from where you'll run flexmeasures) and enter:
+
+.. code-block:: bash
+
+    FLASK_ENV="development"
+    LOGGING_LEVEL="INFO"
+
+The development mode makes sure we don't need SSL to connect, among other things. 
 
 
 Database
@@ -74,7 +91,14 @@ If you have a SQL Dump file, you can load that:
 
 .. code-block:: bash
 
-   $ psql -U {user_name} -h {host_name} -d {database_name} -f {file_path}
+    $ psql -U {user_name} -h {host_name} -d {database_name} -f {file_path}
+
+One other possibility is to add a toy account (which owns some assets and a battery):
+
+.. code-block:: bash
+
+    $ flexmeasures add toy-account
+
 
 
 Run locally
@@ -84,17 +108,28 @@ Now, to start the web application, you can run:
 
 .. code-block:: bash
 
-   $ flexmeasures run
+    $ flexmeasures run
 
 
 Or:
 
 .. code-block:: bash
 
-   $ python run-local.py
+    $ python run-local.py
 
 
 And access the server at http://localhost:5000
+
+If you added a toy account, you could log in with `toy-user@flexmeasures.io`, password `toy-password`.
+
+Otherwise, you need to add some other user first. Here is how we add an admin:
+
+.. code-block:: bash
+    
+    $ flexmeasures add account --name MyCompany   
+    $ flexmeasures add user --username admin --account-id 1 --email admin@mycompany.io --roles admin
+
+(The account-id you need in the 2nd command is printed by the 1st)
 
 
 Logfile
