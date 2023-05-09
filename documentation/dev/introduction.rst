@@ -152,22 +152,34 @@ You can run automated tests with:
    $ make test
 
 
-which behind the curtains installs dependencies and calls pytest.
+which behind the curtains installs dependencies and calls ``pytest``.
 
-A coverage report can be created like this:
+However, a test postgres database is needed to run these tests. The section :ref:`host-data` has details on postgres. However, if you have postgres, here is the short version on how to add the test database:
+
+.. code-block:: bash
+
+    createdb -U postgres flexmeasures_test
+    createuser --pwprompt -U postgres flexmeasures_test  # enter "flexmeasures_test" as password
+
+And then within postgres (e.g. ``psql``):
+
+.. code-block:: bash
+    \connect flexmeasures_test
+    CREATE EXTENSION cube;
+    CREATE EXTENSION earthdistance;
+
+A coverage report (printed on the terminal) can be created like this:
 
 .. code-block:: bash
 
    $ pytest --cov=flexmeasures --cov-config .coveragerc
 
-
-You can add --cov-report=html after which a htmlcov/index.html is generated.
-
-It's also possible to use:
+You can add `--cov-report=html`, after which a file called `htmlcov/index.html` is generated.
+Or, after a test run like with coverage turned on, you can still generate it in another form:
 
 .. code-block:: bash
 
-   $ python setup.py test
+    $ python3 -m coverage [html|lcov|json]
 
 
 
