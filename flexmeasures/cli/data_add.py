@@ -945,14 +945,14 @@ def create_schedule(ctx):
     "consumption_price_sensor_per_device",
     type=dict,
     required=False,
-    help="",
+    help="Optimize consumption against this dictionary of sensors. The sensors typically record electricity prices (e.g. in EUR/kWh), but this field can also be used to optimize against some emission intensity factors (e.g. in kg CO₂ eq./kWh).",
 )
 @click.option(
     "--production-price-sensor-per-device",
     "production_price_sensor_per_device",
     type=dict,
     required=False,
-    help="",
+    help="Optimize production against this dictionary of sensors. Defaults to the consumption price sensor. The sensors typically record electricity prices (e.g. in EUR/kWh), but this field can also be used to optimize against some emission intensity factors (e.g. in kg CO₂ eq./kWh).",
 )
 @click.option(
     "--optimization-context-id",
