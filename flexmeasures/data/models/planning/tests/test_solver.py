@@ -234,6 +234,9 @@ def test_charging_station_solver_day_2(target_soc, charging_station_name):
             "roundtrip_efficiency": charging_station.get_attribute(
                 "roundtrip_efficiency", 1
             ),
+            "storage_efficiency": charging_station.get_attribute(
+                "storage_efficiency", 1
+            ),
             "soc_targets": soc_targets,
         },
     )
@@ -306,6 +309,9 @@ def test_fallback_to_unsolvable_problem(target_soc, charging_station_name):
             ),
             "roundtrip_efficiency": charging_station.get_attribute(
                 "roundtrip_efficiency", 1
+            ),
+            "storage_efficiency": charging_station.get_attribute(
+                "storage_efficiency", 1
             ),
             "soc_targets": soc_targets,
         },
@@ -397,6 +403,7 @@ def test_building_solver_day_2(
             "soc_min": soc_min,
             "soc_max": soc_max,
             "roundtrip_efficiency": battery.get_attribute("roundtrip_efficiency", 1),
+            "storage_efficiency": battery.get_attribute("storage_efficiency", 1),
         },
         flex_context={
             "inflexible_device_sensors": inflexible_devices.values(),
