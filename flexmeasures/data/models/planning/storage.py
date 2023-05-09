@@ -58,8 +58,8 @@ class StorageScheduler(Scheduler):
         roundtrip_efficiency = self.flex_model.get("roundtrip_efficiency")
         prefer_charging_sooner = self.flex_model.get("prefer_charging_sooner", True)
 
-        consumption_price_sensor = self.flex_context.get("consumption_price_sensor")
-        production_price_sensor = self.flex_context.get("production_price_sensor")
+        consumption_price_sensor_per_device = self.flex_context.get("consumption_price_sensor_per_device", {})
+        production_price_sensor_per_device = self.flex_context.get("production_price_sensor_per_device", {})
         inflexible_device_sensors = self.flex_context.get(
             "inflexible_device_sensors", []
         )
@@ -68,22 +68,28 @@ class StorageScheduler(Scheduler):
         self.sensor.check_required_attributes([("capacity_in_mw", (float, int))])
 
         # Check for known prices or price forecasts, trimming planning window accordingly
-        up_deviation_prices, (start, end) = get_prices(
-            (start, end),
-            resolution,
-            beliefs_before=belief_time,
-            price_sensor=consumption_price_sensor,
-            sensor=sensor,
-            allow_trimmed_query_window=False,
-        )
-        down_deviation_prices, (start, end) = get_prices(
-            (start, end),
-            resolution,
-            beliefs_before=belief_time,
-            price_sensor=production_price_sensor,
-            sensor=sensor,
-            allow_trimmed_query_window=False,
-        )
+        up_deviation_prices_array = []
+        for power_sensor, price_sensor in consumption_price_sensor_per_device.items():
+            up_deviation_prices, (start, end) = get_prices(
+                (start, end),
+                resolution,
+                beliefs_before=belief_time,
+                price_sensor=price_sensor,
+                sensor=power_sensor,
+                allow_trimmed_query_window=False,
+            )
+            up_deviation_prices_array.append(up_deviation_prices)
+        down_deviation_prices_array = []
+        for power_sensor, price_sensor in production_price_sensor_per_device.items():    
+            down_deviation_prices, (start, end) = get_prices(
+                (start, end),
+                resolution,
+                beliefs_before=belief_time,
+                price_sensor=price_sensor,
+                sensor=power_sensor,
+                allow_trimmed_query_window=False,
+            )
+            down_deviation_prices_array.append(down_deviation_prices)
 
         start = pd.Timestamp(start).tz_convert("UTC")
         end = pd.Timestamp(end).tz_convert("UTC")
@@ -91,23 +97,31 @@ class StorageScheduler(Scheduler):
         # Add tiny price slope to prefer charging now rather than later, and discharging later rather than now.
         # We penalise the future with at most 1 per thousand times the price spread.
         if prefer_charging_sooner:
-            up_deviation_prices = add_tiny_price_slope(
-                up_deviation_prices, "event_value"
-            )
-            down_deviation_prices = add_tiny_price_slope(
-                down_deviation_prices, "event_value"
-            )
+            for i in range(0, len(up_deviation_prices_array)):
+                up_deviation_prices_array[i] = add_tiny_price_slope(
+                    up_deviation_prices_array[i], "event_value"
+                )
+            for i in range(0, len(down_deviation_prices_array)):
+                down_deviation_prices_array[i] = add_tiny_price_slope(
+                    down_deviation_prices_array[i], "event_value"
+                )
 
         # Set up commitments to optimise for
         commitment_quantities = [initialize_series(0, start, end, self.resolution)]
 
         # Todo: convert to EUR/(deviation of commitment, which is in MW)
-        commitment_upwards_deviation_price = [
-            up_deviation_prices.loc[start : end - resolution]["event_value"]
-        ]
-        commitment_downwards_deviation_price = [
-            down_deviation_prices.loc[start : end - resolution]["event_value"]
-        ]
+        commitment_upwards_deviation_price_array = []
+        for up_deviation_price in up_deviation_prices_array:
+            commitment_upwards_deviation_price = [
+                up_deviation_price.loc[start : end - resolution]["event_value"]
+            ]
+            commitment_upwards_deviation_price_array.append(commitment_upwards_deviation_price)
+        commitment_downwards_deviation_price_array = []
+        for down_deviation_price in down_deviation_prices_array:    
+            commitment_downwards_deviation_price = [
+                down_deviation_price.loc[start : end - resolution]["event_value"]
+            ]
+            commitment_downwards_deviation_price_array.append(commitment_downwards_deviation_price)
 
         # Set up device constraints: only one scheduled flexible device for this EMS (at index 0), plus the forecasted inflexible devices (at indices 1 to n).
         columns = [
@@ -179,8 +193,10 @@ class StorageScheduler(Scheduler):
             device_constraints,
             ems_constraints,
             commitment_quantities,
-            commitment_downwards_deviation_price,
-            commitment_upwards_deviation_price,
+            consumption_price_sensor_per_device,
+            production_price_sensor_per_device,
+            commitment_downwards_deviation_price_array,
+            commitment_upwards_deviation_price_array,
         )
         if scheduler_results.solver.termination_condition == "infeasible":
             # Fallback policy if the problem was unsolvable

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Tuple
 import json
 
 from marshmallow import validate
@@ -1036,8 +1037,8 @@ def add_schedule_for_storage(
     production_price_sensor: Sensor,
     optimization_context_sensor: Sensor,
     inflexible_device_sensors: list[Sensor],
-    consumption_price_sensors_per_device: dict(Sensor, Sensor),
-    production_price_sensors_per_device: dict(Sensor, Sensor),
+    consumption_price_sensor_per_device: dict(Sensor, Sensor),
+    production_price_sensor_per_device: dict(Sensor, Sensor),
     start: datetime,
     duration: timedelta,
     soc_at_start: ur.Quantity,
@@ -1118,8 +1119,8 @@ def add_schedule_for_storage(
             "consumption-price-sensor": consumption_price_sensor.id,
             "production-price-sensor": production_price_sensor.id,
             "inflexible-device-sensors": [s.id for s in inflexible_device_sensors],
-            "consumption-price-sensors-per-device": {(power.id, price.id) for (power, price) in consumption_price_sensors_per_device.items()},
-            "production-price-sensors-per-device": {(power.id, price.id) for (power, price) in production_price_sensors_per_device.items()},
+            "consumption-price-sensor-per-device": {power.id: price.id for power, price in consumption_price_sensor_per_device.items()},
+            "production-price-sensor-per-device": {power.id: price.id for power, price in production_price_sensor_per_device.items()},
         },
     )
     if as_job:
