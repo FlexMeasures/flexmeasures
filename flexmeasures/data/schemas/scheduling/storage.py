@@ -46,6 +46,11 @@ class StorageFlexModelSchema(Schema):
         validate=validate.Range(min=0, max=1, min_inclusive=False, max_inclusive=True),
         data_key="roundtrip-efficiency",
     )
+    storage_efficiency = QuantityField(
+        "%",
+        validate=validate.Range(min=0, max=1, min_inclusive=False, max_inclusive=True),
+        data_key="storage-efficiency",
+    )
     prefer_charging_sooner = fields.Bool(data_key="prefer-charging-sooner")
 
     def __init__(self, start: datetime, sensor: Sensor, *args, **kwargs):
@@ -85,10 +90,10 @@ class StorageFlexModelSchema(Schema):
                     target["value"] /= 1000.0
             data["soc_unit"] = "MWh"
 
-        # Convert round-trip efficiency to dimensionless (to the (0,1] range)
-        if data.get("roundtrip_efficiency") is not None:
-            data["roundtrip_efficiency"] = (
-                data["roundtrip_efficiency"].to(ur.Quantity("dimensionless")).magnitude
-            )
+        # Convert efficiencies to dimensionless (to the (0,1] range)
+        efficiency_fields = ("storage_efficiency", "roundtrip_efficiency")
+        for field in efficiency_fields:
+            if data.get(field) is not None:
+                data[field] = data[field].to(ur.Quantity("dimensionless")).magnitude
 
         return data

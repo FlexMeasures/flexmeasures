@@ -11,10 +11,44 @@ from flexmeasures.data.models.planning.storage import StorageScheduler
 from flexmeasures.data.models.planning.utils import (
     initialize_series,
 )
-from flexmeasures.utils.calculations import integrate_time_series
+from flexmeasures.utils.calculations import (
+    apply_stock_changes_and_losses,
+    integrate_time_series,
+)
 
 
 TOLERANCE = 0.00001
+
+
+@pytest.mark.parametrize(
+    "initial_stock, stock_deltas, expected_stocks, storage_efficiency",
+    [
+        (
+            1000,
+            [100, -100, -100, 100],
+            [1000, 1089, 979.11, 870.3189, 960.615711],
+            0.99,
+        ),
+        (
+            2.5,
+            [-0.5, -0.5, -0.5, -0.5],
+            [2.5, 1.8, 1.17, 0.603, 0.0927],
+            0.9,
+        ),
+    ],
+)
+def test_storage_loss_function(
+    initial_stock, stock_deltas, expected_stocks, storage_efficiency
+):
+    stocks = apply_stock_changes_and_losses(
+        initial_stock,
+        stock_deltas,
+        storage_efficiency=storage_efficiency,
+        how="left",
+        decimal_precision=6,
+    )
+    print(stocks)
+    assert all(a == b for a, b in zip(stocks, expected_stocks))
 
 
 @pytest.mark.parametrize("use_inflexible_device", [False, True])
@@ -60,14 +94,18 @@ def test_battery_solver_day_1(
 
 
 @pytest.mark.parametrize(
-    "roundtrip_efficiency",
+    "roundtrip_efficiency, storage_efficiency",
     [
-        1,
-        0.99,
-        0.01,
+        (1, 1),
+        (1, 0.999),
+        (1, 0.5),
+        (0.99, 1),
+        (0.01, 1),
     ],
 )
-def test_battery_solver_day_2(add_battery_assets, roundtrip_efficiency: float):
+def test_battery_solver_day_2(
+    add_battery_assets, roundtrip_efficiency: float, storage_efficiency: float
+):
     """Check battery scheduling results for day 2, which is set up with
     8 expensive, then 8 cheap, then again 8 expensive hours.
     If efficiency losses aren't too bad, we expect the scheduler to:
@@ -98,6 +136,7 @@ def test_battery_solver_day_2(add_battery_assets, roundtrip_efficiency: float):
             "soc-min": soc_min,
             "soc-max": soc_max,
             "roundtrip-efficiency": roundtrip_efficiency,
+            "storage-efficiency": storage_efficiency,
         },
     )
     schedule = scheduler.compute()
@@ -106,6 +145,7 @@ def test_battery_solver_day_2(add_battery_assets, roundtrip_efficiency: float):
         soc_at_start,
         up_efficiency=roundtrip_efficiency**0.5,
         down_efficiency=roundtrip_efficiency**0.5,
+        storage_efficiency=storage_efficiency,
         decimal_precision=6,
     )
 
@@ -124,21 +164,29 @@ def test_battery_solver_day_2(add_battery_assets, roundtrip_efficiency: float):
         soc_min, battery.get_attribute("min_soc_in_mwh")
     )  # Battery sold out at the end of its planning horizon
 
-    # As long as the roundtrip efficiency isn't too bad (I haven't computed the actual switch point)
-    if roundtrip_efficiency > 0.9:
+    # As long as the efficiencies aren't too bad (I haven't computed the actual switch points)
+    if roundtrip_efficiency > 0.9 and storage_efficiency > 0.9:
         assert soc_schedule.loc[start + timedelta(hours=8)] == max(
             soc_min, battery.get_attribute("min_soc_in_mwh")
         )  # Sell what you begin with
         assert soc_schedule.loc[start + timedelta(hours=16)] == min(
             soc_max, battery.get_attribute("max_soc_in_mwh")
         )  # Buy what you can to sell later
-    else:
-        # If the roundtrip efficiency is poor, best to stand idle
+    elif storage_efficiency > 0.9:
+        # If only the roundtrip efficiency is poor, best to stand idle (keep a high SoC as long as possible)
         assert soc_schedule.loc[start + timedelta(hours=8)] == battery.get_attribute(
             "soc_in_mwh"
         )
         assert soc_schedule.loc[start + timedelta(hours=16)] == battery.get_attribute(
             "soc_in_mwh"
+        )
+    else:
+        # If the storage efficiency is poor, regardless of whether the roundtrip efficiency is poor, best to sell asap
+        assert soc_schedule.loc[start + timedelta(hours=8)] == max(
+            soc_min, battery.get_attribute("min_soc_in_mwh")
+        )
+        assert soc_schedule.loc[start + timedelta(hours=16)] == max(
+            soc_min, battery.get_attribute("min_soc_in_mwh")
         )
 
 
