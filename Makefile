@@ -46,7 +46,7 @@ install-deps:
 	pip-sync requirements/app.txt
 
 install-flexmeasures:
-	pip install -e
+	pip install -e .
 
 install-pip-tools:
 	pip3 install -q "pip-tools>=6.4"
