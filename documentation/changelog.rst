@@ -3,6 +3,13 @@
 FlexMeasures Changelog
 **********************
 
+v0.13.1 | May XX, 2023
+=======================
+Bugfixes
+---------
+* `@deprecated` not returning the output of the decorated function [see `PR #678 <https://www.github.com/FlexMeasures/flexmeasures/pull/678>`_]
+
+
 v0.13.0 | May 1, 2023
 ============================
 
@@ -14,7 +21,7 @@ v0.13.0 | May 1, 2023
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
 
-   .. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/013-overlay-charts/>`__.
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/013-overlay-charts/>`__.
 
 New features
 -------------
