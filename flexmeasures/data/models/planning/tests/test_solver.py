@@ -421,3 +421,100 @@ def test_building_solver_day_2(
     assert soc_schedule.iloc[-1] == max(
         soc_min, battery.get_attribute("min_soc_in_mwh")
     )
+
+
+def test_soc_bounds_timeseries(add_battery_assets):
+    """Check that the maxima and minima timeseries alter the result
+    of the optimization.
+
+    Two schedules are run:
+    - with global maximum and minimum values
+    - with global maximum and minimum values +  maxima / minima time series constraints
+    """
+
+    # get the sensors from the database
+    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
+    assert battery.get_attribute("market_id") == epex_da.id
+
+    # time paramaters
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 2))
+    end = tz.localize(datetime(2015, 1, 3))
+    resolution = timedelta(hours=1)
+
+    # soc parameters
+    soc_at_start = battery.get_attribute("soc_in_mwh")
+    soc_min = 0.5
+    soc_max = 4.5
+
+    def compute_schedule(flex_model):
+        scheduler = StorageScheduler(
+            battery,
+            start,
+            end,
+            resolution,
+            flex_model=flex_model,
+        )
+        schedule = scheduler.compute()
+
+        soc_schedule = integrate_time_series(
+            schedule,
+            soc_at_start,
+            decimal_precision=6,
+        )
+
+        return soc_schedule
+
+    flex_model = {
+        "soc-at-start": soc_at_start,
+        "soc-min": soc_min,
+        "soc-max": soc_max,
+    }
+
+    soc_schedule1 = compute_schedule(flex_model)
+
+    # soc maxima and soc minima
+    soc_maxima = [
+        {"datetime": "2015-01-02T15:00:00+01:00", "value": 1.0},
+        {"datetime": "2015-01-02T16:00:00+01:00", "value": 1.0},
+    ]
+
+    soc_minima = [{"datetime": "2015-01-02T08:00:00+01:00", "value": 3.5}]
+
+    soc_targets = [{"datetime": "2015-01-02T19:00:00+01:00", "value": 2.0}]
+
+    flex_model = {
+        "soc-at-start": soc_at_start,
+        "soc-min": soc_min,
+        "soc-max": soc_max,
+        "soc-maxima": soc_maxima,
+        "soc-minima": soc_minima,
+        "soc-targets": soc_targets,
+    }
+
+    soc_schedule2 = compute_schedule(flex_model)
+
+    # check that, in this case, adding the constraints
+    # alter the SOC profile
+    assert not soc_schedule2.equals(soc_schedule1)
+
+    # check that global minimum is achieved
+    assert soc_schedule1.min() == soc_min
+    assert soc_schedule2.min() == soc_min
+
+    # check that global maximum is achieved
+    assert soc_schedule1.max() == soc_max
+    assert soc_schedule2.max() == soc_max
+
+    # test for soc_minima
+    # check that the local minimum constraint is respected
+    assert soc_schedule2.loc[datetime(2015, 1, 2, 7)] == 3.5
+
+    # test for soc_maxima
+    # check that the local maximum constraint is respected
+    assert soc_schedule2.loc[datetime(2015, 1, 2, 14)] == 1.0
+
+    # test for soc_targets
+    # check that the SOC target (at 19 pm, local time) is met
+    assert soc_schedule2.loc[datetime(2015, 1, 2, 18)] == 2.0
