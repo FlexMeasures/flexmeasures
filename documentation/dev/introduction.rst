@@ -154,7 +154,7 @@ You can run automated tests with:
 
 which behind the curtains installs dependencies and calls ``pytest``.
 
-However, a test postgres database is needed to run these tests. The section :ref:`host-data` has details on postgres. However, if you have postgres, here is the short version on how to add the test database:
+However, a test postgres database is needed to run these tests. If you have postgres, here is the short version on how to add the test database:
 
 .. code-block:: bash
 
@@ -168,7 +168,18 @@ And then within postgres (e.g. ``psql``):
     CREATE EXTENSION cube;
     CREATE EXTENSION earthdistance;
 
-A coverage report (printed on the terminal) can be created like this:
+
+The section :ref:`host-data` has more details on using postgres for FlexMeasures.
+
+Alternatively, here is a docker command, if you don't feel like installing postgres for the time being:
+
+.. code-block:: docker
+
+    docker run --rm --name flexmeasures-test-db -e POSTGRES_PASSWORD=flexmeasures_test -e POSTGRES_DB=flexmeasures_test -e POSTGRES_USER=flexmeasures_test -p 5432:5432 -v ./ci/load-psql-extensions.sql:/docker-entrypoint-initdb.d/load-psql-extensions.sql -d postgres:latest
+
+.. warning:: This assumes that the port 5432 is not being used (for instance by an existing postgres database service).
+
+If you want the tests to create a coverage report (printed on the terminal), you can the ``pytest`` command like this:
 
 .. code-block:: bash
 
