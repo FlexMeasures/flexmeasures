@@ -42,7 +42,12 @@ def test_scheduling_a_charging_station(
         end=end,
         belief_time=start,
         resolution=resolution,
-        flex_model={"soc-at-start": soc_at_start, "soc-targets": soc_targets},
+        flex_model={
+            "soc-at-start": soc_at_start,
+            "soc-targets": soc_targets,
+            "roundtrip-efficiency": "100%",
+            "storage-efficiency": 1,
+        },
     )
 
     print("Job: %s" % job.id)
