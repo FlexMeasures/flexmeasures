@@ -45,6 +45,7 @@ from flexmeasures.data.schemas import (
     LongitudeField,
     SensorIdField,
 )
+from flexmeasures.data.schemas.scheduling.storage import EfficiencyField
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.generic_assets import (
@@ -1005,7 +1006,7 @@ def create_schedule(ctx):
 @click.option(
     "--roundtrip-efficiency",
     "roundtrip_efficiency",
-    type=QuantityField("%", validate=validate.Range(min=0, max=1)),
+    type=EfficiencyField(),
     required=False,
     default=1,
     help="Round-trip efficiency (e.g. 85% or 0.85) to use for the schedule. Defaults to 100% (no losses).",
@@ -1013,7 +1014,7 @@ def create_schedule(ctx):
 @click.option(
     "--storage-efficiency",
     "storage_efficiency",
-    type=QuantityField("%", validate=validate.Range(min=0, max=1)),
+    type=EfficiencyField(),
     required=False,
     default=1,
     help="Storage efficiency (e.g. 95% or 0.95) to use for the schedule,"

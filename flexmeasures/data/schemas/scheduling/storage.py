@@ -12,6 +12,18 @@ from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.utils.unit_utils import ur
 
 
+class EfficiencyField(QuantityField):
+    def __init__(self, *args, **kwargs):
+        super().__init__(
+            "%",
+            validate=validate.Range(
+                min=0, max=1, min_inclusive=False, max_inclusive=True
+            ),
+            *args,
+            **kwargs,
+        )
+
+
 class SOCTargetSchema(Schema):
     """
     A point in time with a target value.
@@ -41,16 +53,8 @@ class StorageFlexModelSchema(Schema):
         data_key="soc-unit",
     )  # todo: allow unit to be set per field, using QuantityField("%", validate=validate.Range(min=0, max=1))
     soc_targets = fields.List(fields.Nested(SOCTargetSchema()), data_key="soc-targets")
-    roundtrip_efficiency = QuantityField(
-        "%",
-        validate=validate.Range(min=0, max=1, min_inclusive=False, max_inclusive=True),
-        data_key="roundtrip-efficiency",
-    )
-    storage_efficiency = QuantityField(
-        "%",
-        validate=validate.Range(min=0, max=1, min_inclusive=False, max_inclusive=True),
-        data_key="storage-efficiency",
-    )
+    roundtrip_efficiency = EfficiencyField(data_key="roundtrip-efficiency")
+    storage_efficiency = EfficiencyField(data_key="storage-efficiency")
     prefer_charging_sooner = fields.Bool(data_key="prefer-charging-sooner")
 
     def __init__(self, start: datetime, sensor: Sensor, *args, **kwargs):
