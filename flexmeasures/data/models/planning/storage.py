@@ -55,6 +55,8 @@ class StorageScheduler(Scheduler):
         soc_targets = self.flex_model.get("soc_targets")
         soc_min = self.flex_model.get("soc_min")
         soc_max = self.flex_model.get("soc_max")
+        soc_maxima = self.flex_model.get("soc_maxima")
+        soc_minima = self.flex_model.get("soc_minima")
         roundtrip_efficiency = self.flex_model.get("roundtrip_efficiency")
         prefer_charging_sooner = self.flex_model.get("prefer_charging_sooner", True)
 
@@ -142,12 +144,43 @@ class StorageScheduler(Scheduler):
                 resolution,
             )
 
-        device_constraints[0]["min"] = (soc_min - soc_at_start) * (
-            timedelta(hours=1) / resolution
+        soc_min_change = (soc_min - soc_at_start) * timedelta(hours=1) / resolution
+        soc_max_change = (soc_max - soc_at_start) * timedelta(hours=1) / resolution
+
+        if soc_minima is not None:
+            device_constraints[0]["min"] = build_device_soc_targets(
+                soc_minima,
+                soc_at_start,
+                start,
+                end,
+                resolution,
+            )
+
+        device_constraints[0]["min"] = device_constraints[0]["min"].fillna(
+            soc_min_change
         )
-        device_constraints[0]["max"] = (soc_max - soc_at_start) * (
-            timedelta(hours=1) / resolution
+
+        if soc_maxima is not None:
+            device_constraints[0]["max"] = build_device_soc_targets(
+                soc_maxima,
+                soc_at_start,
+                start,
+                end,
+                resolution,
+            )
+
+        device_constraints[0]["max"] = device_constraints[0]["max"].fillna(
+            soc_max_change
         )
+
+        # limiting max and min to be in the range [soc_min, soc_max]
+        device_constraints[0]["min"] = device_constraints[0]["min"].clip(
+            lower=soc_min_change, upper=soc_max_change
+        )
+        device_constraints[0]["max"] = device_constraints[0]["max"].clip(
+            lower=soc_min_change, upper=soc_max_change
+        )
+
         if sensor.get_attribute("is_strictly_non_positive"):
             device_constraints[0]["derivative min"] = 0
         else:
@@ -347,19 +380,19 @@ class StorageScheduler(Scheduler):
                     )
 
 
-def build_device_soc_targets(
-    targets: List[Dict[str, datetime | float]] | pd.Series,
+def build_device_soc_values(
+    soc_values: List[Dict[str, datetime | float]] | pd.Series,
     soc_at_start: float,
     start_of_schedule: datetime,
     end_of_schedule: datetime,
     resolution: timedelta,
 ) -> pd.Series:
     """
-    Utility function to create a Pandas series from SOC targets we got from the flex-model.
+    Utility function to create a Pandas series from SOC values we got from the flex-model.
 
     Should set NaN anywhere where there is no target.
 
-    Target SOC values should be indexed by their due date. For example, for quarter-hourly targets between 5 and 6 AM:
+    SOC values should be indexed by their due date. For example, for quarter-hourly targets between 5 and 6 AM:
     >>> df = pd.Series(data=[1, 2, 2.5, 3], index=pd.date_range(datetime(2010,1,1,5), datetime(2010,1,1,6), freq=timedelta(minutes=15), inclusive="right"))
     >>> print(df)
         2010-01-01 05:15:00    1.0
@@ -368,13 +401,13 @@ def build_device_soc_targets(
         2010-01-01 06:00:00    3.0
         Freq: 15T, dtype: float64
 
-    TODO: this function could become the deserialization method of a new SOCTargetsSchema (targets, plural), which wraps SOCTargetSchema.
+    TODO: this function could become the deserialization method of a new SOCValueSchema (targets, plural), which wraps SOCValueSchema.
 
     """
-    if isinstance(targets, pd.Series):  # some tests prepare it this way
-        device_targets = targets
+    if isinstance(soc_values, pd.Series):  # some tests prepare it this way
+        device_values = soc_values
     else:
-        device_targets = initialize_series(
+        device_values = initialize_series(
             np.nan,
             start=start_of_schedule,
             end=end_of_schedule,
@@ -382,36 +415,50 @@ def build_device_soc_targets(
             inclusive="right",  # note that target values are indexed by their due date (i.e. inclusive="right")
         )
 
-        for target in targets:
-            target_value = target["value"]
-            target_datetime = target["datetime"].astimezone(
-                device_targets.index.tzinfo
+        for soc_value in soc_values:
+            soc = soc_value["value"]
+            soc_datetime = soc_value["datetime"].astimezone(
+                device_values.index.tzinfo
             )  # otherwise DST would be problematic
-            if target_datetime > end_of_schedule:
+            if soc_datetime > end_of_schedule:
                 # Skip too-far-into-the-future target
                 max_server_horizon = get_max_planning_horizon(resolution)
                 current_app.logger.warning(
-                    f"Disregarding target datetime {target_datetime}, because it exceeds {end_of_schedule}. Maximum scheduling horizon is {max_server_horizon}."
+                    f"Disregarding target datetime {soc_datetime}, because it exceeds {end_of_schedule}. Maximum scheduling horizon is {max_server_horizon}."
                 )
                 continue
 
-            device_targets.loc[target_datetime] = target_value
+            device_values.loc[soc_datetime] = soc
 
-        # soc targets are at the end of each time slot, while prices are indexed by the start of each time slot
-        device_targets = device_targets[
-            start_of_schedule + resolution : end_of_schedule
-        ]
+        # soc_values are at the end of each time slot, while prices are indexed by the start of each time slot
+        device_values = device_values[start_of_schedule + resolution : end_of_schedule]
 
-    device_targets = device_targets.tz_convert("UTC")
+    device_values = device_values.tz_convert("UTC")
 
     # shift "equals" constraint for target SOC by one resolution (the target defines a state at a certain time,
     # while the "equals" constraint defines what the total stock should be at the end of a time slot,
     # where the time slot is indexed by its starting time)
-    device_targets = device_targets.shift(-1, freq=resolution).values * (
+    device_values = device_values.shift(-1, freq=resolution).values * (
         timedelta(hours=1) / resolution
     ) - soc_at_start * (timedelta(hours=1) / resolution)
 
-    return device_targets
+    return device_values
+
+
+#####################
+# TO BE DEPRECATED #
+####################
+@deprecated(build_device_soc_values, "14")
+def build_device_soc_targets(
+    targets: List[Dict[str, datetime | float]] | pd.Series,
+    soc_at_start: float,
+    start_of_schedule: datetime,
+    end_of_schedule: datetime,
+    resolution: timedelta,
+) -> pd.Series:
+    return build_device_soc_values(
+        targets, soc_at_start, start_of_schedule, end_of_schedule, resolution
+    )
 
 
 StorageScheduler.compute_schedule = deprecated(StorageScheduler.compute, "0.14")(
