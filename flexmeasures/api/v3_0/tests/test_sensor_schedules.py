@@ -221,12 +221,18 @@ def test_trigger_and_get_schedule(
         roundtrip_efficiency = (
             float(message["roundtrip-efficiency"].replace("%", "")) / 100.0
         )
+        storage_efficiency = (
+            float(message["storage-efficiency"].replace("%", "")) / 100.0
+        )
         soc_targets = message.get("soc-targets")
     else:
         start_soc = message["flex-model"]["soc-at-start"] / 1000  # in MWh
         roundtrip_efficiency = (
             float(message["flex-model"]["roundtrip-efficiency"].replace("%", ""))
             / 100.0
+        )
+        storage_efficiency = (
+            float(message["flex-model"]["storage-efficiency"].replace("%", "")) / 100.0
         )
         soc_targets = message["flex-model"].get("soc-targets")
     resolution = sensor.event_resolution
@@ -271,6 +277,7 @@ def test_trigger_and_get_schedule(
             start_soc,
             up_efficiency=roundtrip_efficiency**0.5,
             down_efficiency=roundtrip_efficiency**0.5,
+            storage_efficiency=storage_efficiency,
             decimal_precision=6,
         )
         print(consumption_schedule)
