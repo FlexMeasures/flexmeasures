@@ -31,6 +31,7 @@ flexmeasures_logging_config = {
             "class": "logging.StreamHandler",
             "stream": sys.stdout,
             "formatter": "default",
+            "level": "INFO",
         },
         "file": {
             "class": "logging.handlers.RotatingFileHandler",
