@@ -16,6 +16,10 @@ function create_database() {
  if [[ -n "$2" ]]; then
    echo "Creating database user ..."
    sudo -i -u postgres createuser --pwprompt -U postgres $2
+   echo "Connect $2 to $1 "
+   sudo -i -u postgres psql -c "GRANT CONNECT ON DATABASE $1 TO $2"
+   echo "Grant required privileges"
+   sudo -i -u postgres psql -c "GRANT USAGE, SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO $2"
  fi
  echo "Creating cube extension in $1 ..."
  sudo -i -u postgres psql -c "\c $1" -c "CREATE EXTENSION cube;"
