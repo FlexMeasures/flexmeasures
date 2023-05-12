@@ -197,8 +197,8 @@ def device_scheduler(  # noqa C901
             return 1
         return eff
 
-    model.up_price = Param(model.c, model.j, initialize=price_up_select)
-    model.down_price = Param(model.c, model.j, initialize=price_down_select)
+    model.up_price = Param(model.p, model.c, model.j, initialize=price_up_select)
+    model.down_price = Param(model.p, model.c, model.j,  initialize=price_down_select)
     model.commitment_quantity = Param(
         model.c, model.j, initialize=commitment_quantity_select
     )
