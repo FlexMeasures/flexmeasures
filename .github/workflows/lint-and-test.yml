@@ -24,6 +24,7 @@ jobs:
         include:
           - python-version: "3.9"
             coverage: yes
+            upgrade: yes
     name: "Test (on Python ${{ matrix.py_version }})"
     steps:
       - uses: actions/setup-python@v4
@@ -59,6 +60,12 @@ jobs:
         run: pytest -v -m "not skip_github" --cov=flexmeasures --cov-branch
         if: ${{ matrix.coverage == 'yes' }}
       - run: coveralls --service=github
+      - name: Upgrade dependencies
+        run: pip install --upgrade --upgrade-strategy eager --no-cache-dir .
+        if: ${{ matrix.upgrade == 'yes' }}
+      - name: Run all tests except those marked to be skipped by GitHub
+        run: pytest -m "not skip_github"
+        if: ${{ matrix.upgrade == 'yes' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         if: ${{ matrix.coverage == 'yes' }}
