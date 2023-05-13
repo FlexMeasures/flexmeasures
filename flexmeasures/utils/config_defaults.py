@@ -113,6 +113,7 @@ class Config(object):
     FLEXMEASURES_PLANNING_TTL: timedelta = timedelta(
         days=7
     )  # Time to live for UDI event ids of successful scheduling jobs. Set a negative timedelta to persist forever.
+    FLEXMEASURES_DEFAULT_DATASOURCE: str = "FlexMeasures"
     FLEXMEASURES_JOB_CACHE_TTL: int = 3600  # Time to live for the job caching keys in seconds. Set a negative timedelta to persist forever.
     FLEXMEASURES_TASK_CHECK_AUTH_TOKEN: str | None = None
     FLEXMEASURES_REDIS_URL: str = "localhost"
@@ -127,7 +128,7 @@ class Config(object):
     )
 
     # Custom sunset switches
-    FLEXMEASURES_API_SUNSET_ACTIVE: bool = True  # if True, sunset endpoints return 410 (Gone) responses; if False, they will work as before
+    FLEXMEASURES_API_SUNSET_ACTIVE: bool = False  # if True, sunset endpoints return 410 (Gone) responses; if False, they return 404 (Not Found) responses or will work as before, depending on whether the current FlexMeasures version still contains the endpoint logic
     FLEXMEASURES_API_SUNSET_DATE: str | None = None  # e.g. 2023-05-01
     FLEXMEASURES_API_SUNSET_LINK: str | None = None  # e.g. https://flexmeasures.readthedocs.io/en/latest/api/introduction.html#deprecation-and-sunset
 
