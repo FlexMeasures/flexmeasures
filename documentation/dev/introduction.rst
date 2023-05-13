@@ -215,9 +215,9 @@ Using Visual Studio, including spell checking
 
 Are you using Visual Studio Code? Then the code you just cloned also contains the editor configuration (part of) our team is using (see `.vscode`)!
 
-We recommend to install the flake8 and spellright extensions.
+We recommend installing the flake8 and spellright extensions.
 
-For the latter, the FlexMeasures repository contains our project dictionary. Here are steps to link main dictionaries, which usually work on a Linux system:
+For spellright, the FlexMeasures repository contains the project dictionary. Here are steps to link main dictionaries, which usually work on a Linux system:
 
 .. code-block:: bash
 
