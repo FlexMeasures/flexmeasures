@@ -158,20 +158,12 @@ However, a test postgres database is needed to run these tests. If you have post
 
 .. code-block:: bash
 
-    createdb -U postgres flexmeasures_test
-    createuser --pwprompt -U postgres flexmeasures_test  # enter "flexmeasures_test" as password
+    make clean-db db_name=flexmeasures_test db_user=flexmeasures_test
+    # the password for the db user is "flexmeasures_test"
 
-And then within postgres (e.g. ``psql``):
+.. note:: The section :ref:`host-data` has more details on using postgres for FlexMeasures.
 
-.. code-block:: bash
-    \connect flexmeasures_test
-    CREATE EXTENSION cube;
-    CREATE EXTENSION earthdistance;
-
-
-The section :ref:`host-data` has more details on using postgres for FlexMeasures.
-
-Alternatively, here is a docker command, if you don't feel like installing postgres for the time being:
+Alternatively, if you don't feel like installing postgres for the time being, here is a docker command:
 
 .. code-block:: docker
 
@@ -179,14 +171,14 @@ Alternatively, here is a docker command, if you don't feel like installing postg
 
 .. warning:: This assumes that the port 5432 is not being used (for instance by an existing postgres database service).
 
-If you want the tests to create a coverage report (printed on the terminal), you can the ``pytest`` command like this:
+If you want the tests to create a coverage report (printed on the terminal), you can run the ``pytest`` command like this:
 
 .. code-block:: bash
 
    $ pytest --cov=flexmeasures --cov-config .coveragerc
 
 You can add `--cov-report=html`, after which a file called `htmlcov/index.html` is generated.
-Or, after a test run like with coverage turned on, you can still generate it in another form:
+Or, after a test run with coverage turned on as shown above, you can still generate it in another form:
 
 .. code-block:: bash
 
