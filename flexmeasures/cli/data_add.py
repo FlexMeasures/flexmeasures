@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
 import json
 
 from marshmallow import validate
@@ -134,8 +133,8 @@ def new_user(
     username: str,
     email: str,
     account_id: int,
-    roles: List[str],
-    timezone_optional: Optional[str],
+    roles: list[str],
+    timezone_optional: str | None,
 ):
     """
     Create a FlexMeasures user.
@@ -485,25 +484,25 @@ def add_beliefs(
     file: str,
     sensor: Sensor,
     source: str,
-    filter_columns: List[int],
-    filter_values: List[int],
-    unit: Optional[str] = None,
-    horizon: Optional[int] = None,
-    cp: Optional[float] = None,
+    filter_columns: list[int],
+    filter_values: list[int],
+    unit: str | None = None,
+    horizon: int | None = None,
+    cp: float | None = None,
     resample: bool = True,
     allow_overwrite: bool = False,
     skiprows: int = 1,
     na_values: list[str] | None = None,
     keep_default_na: bool = False,
-    nrows: Optional[int] = None,
+    nrows: int | None = None,
     datecol: int = 0,
     valuecol: int = 1,
-    beliefcol: Optional[int] = None,
-    timezone: Optional[str] = None,
+    beliefcol: int | None = None,
+    timezone: str | None = None,
     delimiter: str = ",",
     decimal: str = ".",
-    thousands: Optional[str] = None,
-    sheet_number: Optional[int] = None,
+    thousands: str | None = None,
+    sheet_number: int | None = None,
     **kwargs,  # in-code calls to this CLI command can set additional kwargs for use in pandas.read_csv or pandas.read_excel
 ):
     """Add sensor data from a csv file (also accepts xls or xlsx).
@@ -652,10 +651,10 @@ def add_beliefs(
 def add_annotation(
     content: str,
     start_str: str,
-    end_str: Optional[str],
-    account_ids: List[int],
-    generic_asset_ids: List[int],
-    sensor_ids: List[int],
+    end_str: str | None,
+    account_ids: list[int],
+    generic_asset_ids: list[int],
+    sensor_ids: list[int],
     user_id: int,
 ):
     """Add annotation to accounts, assets and/or sensors."""
@@ -737,9 +736,9 @@ def add_annotation(
 )
 def add_holidays(
     year: int,
-    countries: List[str],
-    generic_asset_ids: List[int],
-    account_ids: List[int],
+    countries: list[str],
+    generic_asset_ids: list[int],
+    account_ids: list[int],
 ):
     """Add holiday annotations to accounts and/or assets."""
     calendars = workalendar_registry.get_calendars(countries)
@@ -831,11 +830,11 @@ def add_holidays(
     "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'forecasting' queue. Defaults to False.",
 )
 def create_forecasts(
-    sensor_ids: List[int],
+    sensor_ids: list[int],
     from_date_str: str = "2015-02-08",
     to_date_str: str = "2015-12-31",
-    horizons_as_hours: List[str] = ["1"],
-    resolution: Optional[int] = None,
+    horizons_as_hours: list[str] = ["1"],
+    resolution: int | None = None,
     as_job: bool = False,
 ):
     """
@@ -859,7 +858,7 @@ def create_forecasts(
         timezone
     )
 
-    event_resolution: Optional[timedelta]
+    event_resolution: timedelta | None
     if resolution is not None:
         event_resolution = timedelta(minutes=resolution)
     else:
@@ -1026,10 +1025,10 @@ def add_schedule_for_storage(
     start: datetime,
     duration: timedelta,
     soc_at_start: ur.Quantity,
-    soc_target_strings: List[Tuple[ur.Quantity, str]],
-    soc_min: Optional[ur.Quantity] = None,
-    soc_max: Optional[ur.Quantity] = None,
-    roundtrip_efficiency: Optional[ur.Quantity] = None,
+    soc_target_strings: list[tuple[ur.Quantity, str]],
+    soc_min: ur.Quantity | None = None,
+    soc_max: ur.Quantity | None = None,
+    roundtrip_efficiency: ur.Quantity | None = None,
     as_job: bool = False,
 ):
     """Create a new schedule for a storage asset.
@@ -1253,7 +1252,7 @@ def check_timezone(timezone):
         raise click.Abort()
 
 
-def check_errors(errors: Dict[str, List[str]]):
+def check_errors(errors: dict[str, list[str]]):
     if errors:
         click.secho(
             f"Please correct the following errors:\n{errors}.\n Use the --help flag to learn more.",

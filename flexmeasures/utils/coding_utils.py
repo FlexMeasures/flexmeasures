@@ -3,7 +3,8 @@ from __future__ import annotations
 import functools
 import time
 import inspect
-from typing import Union
+import importlib
+import pkgutil
 from flask import current_app
 
 
@@ -152,7 +153,7 @@ def timeit(func):
     return new_func
 
 
-def deprecated(alternative, version: Union[str, None] = None):
+def deprecated(alternative, version: str | None = None):
     """Decorator for printing a warning error.
     alternative: importable object to use as an alternative to the function/method decorated
     version: version in which the function will be sunset
@@ -165,8 +166,41 @@ def deprecated(alternative, version: Union[str, None] = None):
                 f"The method or function {func.__name__} is deprecated and it is expected to be sunset in version {version}. Please, switch to using {inspect.getmodule(alternative).__name__}:{alternative.__name__} to suppress this warning."
             )
 
-            func(*args, **kwargs)
+            return func(*args, **kwargs)
 
         return wrapper
 
     return decorator
+
+
+def find_classes_module(module, superclass, skiptest=True):
+    classes = []
+    reporting_module = importlib.import_module(module)
+
+    for submodule in pkgutil.iter_modules(reporting_module.__path__):
+
+        if skiptest and ("test" in f"{module}.{submodule.name}"):
+            continue
+
+        if submodule.ispkg:
+            classes.extend(
+                find_classes_module(
+                    f"{module}.{submodule.name}", superclass, skiptest=skiptest
+                )
+            )
+        else:
+            module_object = importlib.import_module(f"{module}.{submodule.name}")
+            module_classes = inspect.getmembers(module_object, inspect.isclass)
+            classes.extend(
+                [
+                    (class_name, klass)
+                    for class_name, klass in module_classes
+                    if issubclass(klass, superclass) and klass != superclass
+                ]
+            )
+
+    return classes
+
+
+def get_classes_module(module, superclass, skiptest=True) -> dict:
+    return dict(find_classes_module(module, superclass, skiptest=skiptest))

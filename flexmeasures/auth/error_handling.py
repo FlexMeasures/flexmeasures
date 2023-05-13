@@ -5,9 +5,9 @@ Beware: There is a historical confusion of naming between authentication and aut
         Names of Responses have to be kept as they were called in original W3 protocols.
         See explanation below.
 """
+from __future__ import annotations
 
-
-from typing import Optional, Callable, List
+from typing import Callable
 
 from flask import request, jsonify, current_app
 
@@ -45,9 +45,7 @@ def unauthorized_handler_e(e):
     return unauthorized_handler()
 
 
-def unauthorized_handler(
-    func: Optional[Callable] = None, params: Optional[List] = None
-):
+def unauthorized_handler(func: Callable | None = None, params: list | None = None):
     """
     Handler for authorization problems.
     :param func: the Flask-Security-Too decorator, if relevant, and params are its parameters.
@@ -75,7 +73,7 @@ def unauthenticated_handler_e(e):
 
 
 def unauthenticated_handler(
-    mechanisms: Optional[List] = None, headers: Optional[dict] = None
+    mechanisms: list | None = None, headers: dict | None = None
 ):
     """
     Handler for authentication problems.

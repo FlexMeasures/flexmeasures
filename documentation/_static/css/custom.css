@@ -1,6 +1,9 @@
 div section {
     text-align: justify;
 }
+#table-of-contents {
+    text-align: left;
+}
 
 div .toctree-wrapper > ul {
     column-count: 2;

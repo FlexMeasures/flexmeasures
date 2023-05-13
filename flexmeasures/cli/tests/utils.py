@@ -1,4 +1,6 @@
-from typing import List, Callable
+from __future__ import annotations
+
+from typing import Callable
 
 from click.core import Command as ClickCommand
 
@@ -25,7 +27,7 @@ def to_flags(cli_input: dict) -> list:
     ]
 
 
-def get_click_commands(module) -> List[Callable]:
+def get_click_commands(module) -> list[Callable]:
     return [
         getattr(module, attr)
         for attr in dir(module)

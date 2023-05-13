@@ -1,4 +1,5 @@
-from typing import Dict, List, Union, Optional
+from __future__ import annotations
+
 import random
 import string
 
@@ -32,11 +33,11 @@ def get_user(id: str) -> User:
 
 
 def get_users(
-    account_name: Optional[str] = None,
-    role_name: Optional[str] = None,
-    account_role_name: Optional[str] = None,
+    account_name: str | None = None,
+    role_name: str | None = None,
+    account_role_name: str | None = None,
     only_active: bool = True,
-) -> List[User]:
+) -> list[User]:
     """Return a list of User objects.
     The role_name parameter allows to filter by role.
     Set only_active to False if you also want non-active users.
@@ -76,9 +77,9 @@ def find_user_by_email(user_email: str, keep_in_session: bool = True) -> User:
 
 def create_user(  # noqa: C901
     password: str = None,
-    user_roles: Union[Dict[str, str], List[Dict[str, str]], str, List[str]] = None,
+    user_roles: dict[str, str] | list[dict[str, str]] | str | list[str] | None = None,
     check_email_deliverability: bool = True,
-    account_name: Optional[str] = None,
+    account_name: str | None = None,
     **kwargs,
 ) -> User:
     """

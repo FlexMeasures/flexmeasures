@@ -1,4 +1,6 @@
-from typing import Optional, List, Dict, Any
+from __future__ import annotations
+
+from typing import Any
 
 from flask import current_app, request
 from flask_security import current_user
@@ -28,7 +30,7 @@ class InternalApi(object):
         }
 
     def _maybe_raise(
-        self, response: requests.Response, do_not_raise_for: Optional[List] = None
+        self, response: requests.Response, do_not_raise_for: list | None = None
     ):
         """
         Raise an error in the API (4xx, 5xx) if the error code is not in the list of codes
@@ -42,8 +44,8 @@ class InternalApi(object):
     def get(
         self,
         url: str,
-        query: Optional[Dict[str, Any]] = None,
-        do_not_raise_for: Optional[List] = None,
+        query: dict[str, Any] | None = None,
+        do_not_raise_for: list | None = None,
     ) -> requests.Response:
         current_app.logger.debug(
             f"{self._log_prefix} GETting {url} with query {query} ..."
@@ -59,8 +61,8 @@ class InternalApi(object):
     def post(
         self,
         url: str,
-        args: Optional[dict] = None,
-        do_not_raise_for: Optional[List] = None,
+        args: dict | None = None,
+        do_not_raise_for: list | None = None,
     ) -> requests.Response:
         current_app.logger.debug(
             f"{self._log_prefix} POSTing {url} with json data {args} ..."
@@ -76,8 +78,8 @@ class InternalApi(object):
     def patch(
         self,
         url: str,
-        args: Optional[dict] = None,
-        do_not_raise_for: Optional[List] = None,
+        args: dict | None = None,
+        do_not_raise_for: list | None = None,
     ) -> requests.Response:
         current_app.logger.debug(
             f"{self._log_prefix} PATCHing {url} with json data {args} ..."
@@ -93,7 +95,7 @@ class InternalApi(object):
     def delete(
         self,
         url: str,
-        do_not_raise_for: Optional[List] = None,
+        do_not_raise_for: list | None = None,
     ) -> requests.Response:
         current_app.logger.debug(f"{self._log_prefix} DELETEing {url} ...")
         response = requests.delete(
