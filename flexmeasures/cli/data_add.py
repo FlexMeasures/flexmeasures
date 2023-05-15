@@ -135,7 +135,7 @@ def new_account(name: str, roles: str):
 @click.option(
     "--timezone",
     "timezone_optional",
-    help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam' (defaults to FLEXMEASURES_TIMEZONE config setting)",
+    help="Timezone as string, e.g. 'UTC' or 'Europe/Amsterdam' (defaults to FLEXMEASURES_TIMEZONE config setting)",
 )
 def new_user(
     username: str,
@@ -198,7 +198,7 @@ def new_user(
 @click.option(
     "--timezone",
     required=True,
-    help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'",
+    help="Timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'",
 )
 @click.option(
     "--asset-id",
@@ -447,7 +447,7 @@ def add_source(name: str, model: str, version: str, source_type: str):
     "--timezone",
     required=False,
     default=None,
-    help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'",
+    help="Timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'",
 )
 @click.option(
     "--filter-column",
@@ -1183,7 +1183,7 @@ def add_schedule_for_storage(
     "timezone",
     required=False,
     default="UTC",
-    help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam' (defaults to FLEXMEASURES_TIMEZONE config setting)",
+    help="Timezone as string, e.g. 'UTC' or 'Europe/Amsterdam' (defaults to FLEXMEASURES_TIMEZONE config setting)",
 )
 @click.option(
     "--last-hour",
