@@ -149,7 +149,7 @@ You can run automated tests with:
 
 .. code-block:: bash
 
-   $ make test
+    $ make test
 
 
 which behind the curtains installs dependencies and calls ``pytest``.
@@ -158,8 +158,8 @@ However, a test postgres database is needed to run these tests. If you have post
 
 .. code-block:: bash
 
-    make clean-db db_name=flexmeasures_test db_user=flexmeasures_test
-    # the password for the db user is "flexmeasures_test"
+    $ make clean-db db_name=flexmeasures_test db_user=flexmeasures_test
+    $ # the password for the db user is "flexmeasures_test"
 
 .. note:: The section :ref:`host-data` has more details on using postgres for FlexMeasures.
 
@@ -167,7 +167,7 @@ Alternatively, if you don't feel like installing postgres for the time being, he
 
 .. code-block:: bash
 
-    docker run --rm --name flexmeasures-test-db -e POSTGRES_PASSWORD=flexmeasures_test -e POSTGRES_DB=flexmeasures_test -e POSTGRES_USER=flexmeasures_test -p 5432:5432 -v ./ci/load-psql-extensions.sql:/docker-entrypoint-initdb.d/load-psql-extensions.sql -d postgres:latest
+    $ docker run --rm --name flexmeasures-test-db -e POSTGRES_PASSWORD=flexmeasures_test -e POSTGRES_DB=flexmeasures_test -e POSTGRES_USER=flexmeasures_test -p 5432:5432 -v ./ci/load-psql-extensions.sql:/docker-entrypoint-initdb.d/load-psql-extensions.sql -d postgres:latest
 
 .. warning:: This assumes that the port 5432 is not being used (for instance by an existing postgres database service).
 
