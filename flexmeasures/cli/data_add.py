@@ -1357,7 +1357,7 @@ def add_report(
                 f"File suffix not provided. Exporting results as CSV to file {output_file}",
                 **MsgStyle.WARN,
             )
-            reporter.to_csv(output_file)
+            result.to_csv(output_file)
     else:
         click.secho(
             "Success.",
