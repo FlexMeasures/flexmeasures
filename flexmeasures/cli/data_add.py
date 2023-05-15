@@ -1326,13 +1326,15 @@ def add_report(
 
     # save the report it's not running in dry mode
     if not dry_run:
-        click.echo("Storing report to the database...")
+        click.echo("Saving report to the database...")
         save_to_db(result)
         db.session.commit()
         click.secho(
             "Success. The report has been saved to the database.",
             **MsgStyle.SUCCESS,
         )
+    else:
+        click.echo(f"Not saving report to the database (because of --dry-run), but this is what I computed:\n{result}")
 
     # if an output file path is provided, save the results
     if output_file:
