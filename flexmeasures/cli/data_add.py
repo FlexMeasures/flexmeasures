@@ -1252,7 +1252,7 @@ def add_report(
     if ((start is None) or (end is None)) and not last_x_flag_given:
         click.secho(
             "Either --start and --end, any of the --last-X flags should be provided."
-            "Trying to use the the latest datapoint of the report sensor as the start time and "
+            " Trying to use the latest datapoint of the report sensor as the start time and "
             "the current time as the end...",
             **MsgStyle.WARN,
         )
@@ -1303,7 +1303,7 @@ def add_report(
         )
         raise click.Abort()
 
-    click.secho(f"Reporter {reporter_class} found", **MsgStyle.SUCCESS)
+    click.secho(f"Reporter {reporter_class} found.", **MsgStyle.SUCCESS)
 
     reporter_config_raw = json.load(reporter_config_file)
 
@@ -1312,7 +1312,7 @@ def add_report(
         sensor=sensor, reporter_config_raw=reporter_config_raw
     )
 
-    click.echo("Report computation is running....")
+    click.echo("Report computation is running...")
 
     # compute the report
     result: Type[BeliefsDataFrame] = reporter.compute(
