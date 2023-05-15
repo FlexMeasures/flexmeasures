@@ -117,7 +117,9 @@ class Reporter(DataGeneratorMixin):
         result = self._compute(start, end, input_resolution, belief_time)
 
         # checking that the event_resolution of the output BeliefDataFrame is equal to the one of the output sensor
-        assert self.sensor.event_resolution == result.event_resolution
+        assert (
+            self.sensor.event_resolution == result.event_resolution
+        ), f"The resolution of the results ({result.event_resolution}) should match that of the output sensor ({self.sensor.event_resolution}, ID {self.sensor.id})."
 
         # Assign sensor to BeliefDataFrame
         result.sensor = self.sensor
