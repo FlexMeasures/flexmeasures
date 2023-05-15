@@ -1319,7 +1319,10 @@ def add_report(
         start=start, end=end, input_resolution=resolution
     )
 
-    click.secho("Report computation done.", **MsgStyle.SUCCESS)
+    if not result.empty:
+        click.secho("Report computation done.", **MsgStyle.SUCCESS)
+    else:
+        click.secho("Report computation done, but the report is empty.", **MsgStyle.WARN)
 
     # save the report it's not running in dry mode
     if not dry_run:
