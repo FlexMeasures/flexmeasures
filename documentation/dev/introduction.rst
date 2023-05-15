@@ -165,7 +165,7 @@ However, a test postgres database is needed to run these tests. If you have post
 
 Alternatively, if you don't feel like installing postgres for the time being, here is a docker command:
 
-.. code-block:: docker
+.. code-block:: bash
 
     docker run --rm --name flexmeasures-test-db -e POSTGRES_PASSWORD=flexmeasures_test -e POSTGRES_DB=flexmeasures_test -e POSTGRES_USER=flexmeasures_test -p 5432:5432 -v ./ci/load-psql-extensions.sql:/docker-entrypoint-initdb.d/load-psql-extensions.sql -d postgres:latest
 
