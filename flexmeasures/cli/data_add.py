@@ -1132,14 +1132,15 @@ def add_schedule_for_storage(
     "reporter_class",
     required=True,
     type=click.STRING,
-    help="Reporter class registered in flexmeasures.data.models.reporting or in an available flexmeasures plugin .",
+    help="Reporter class registered in flexmeasures.data.models.reporting or in an available flexmeasures plugin.",
 )
 @click.option(
     "--sensor-id",
     "sensor",
     type=SensorIdField(),
     required=True,
-    help="ID of the report sensor. Needs to exist in advanced.",
+    help="ID of the sensor used to save the report."
+    " If needed, use `flexmeasures add sensor` to create a new sensor first.",
 )
 @click.option(
     "--reporter-config-file",
@@ -1175,7 +1176,7 @@ def add_schedule_for_storage(
     required=False,
     type=click.Path(),
     help="Path to the output file of the results of the report."
-    "Use the `.csv` suffix to save the results as Comma Separated Values and `.xlsx` to export them as Excel sheets.",
+    " Use the `.csv` suffix to save the results as Comma Separated Values and `.xlsx` to export them as Excel sheets.",
 )
 @click.option(
     "--timezone",
