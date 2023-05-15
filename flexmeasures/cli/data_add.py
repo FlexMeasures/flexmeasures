@@ -135,7 +135,7 @@ def new_account(name: str, roles: str):
 @click.option(
     "--timezone",
     "timezone_optional",
-    help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam' (defaults to FLEXMEASURES_TIMEZONE config setting)",
+    help="Timezone as string, e.g. 'UTC' or 'Europe/Amsterdam' (defaults to FLEXMEASURES_TIMEZONE config setting)",
 )
 def new_user(
     username: str,
@@ -198,7 +198,7 @@ def new_user(
 @click.option(
     "--timezone",
     required=True,
-    help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'",
+    help="Timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'",
 )
 @click.option(
     "--asset-id",
@@ -447,7 +447,7 @@ def add_source(name: str, model: str, version: str, source_type: str):
     "--timezone",
     required=False,
     default=None,
-    help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'",
+    help="Timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'",
 )
 @click.option(
     "--filter-column",
@@ -1132,14 +1132,15 @@ def add_schedule_for_storage(
     "reporter_class",
     required=True,
     type=click.STRING,
-    help="Reporter class registered in flexmeasures.data.models.reporting or in an available flexmeasures plugin .",
+    help="Reporter class registered in flexmeasures.data.models.reporting or in an available flexmeasures plugin.",
 )
 @click.option(
     "--sensor-id",
     "sensor",
     type=SensorIdField(),
     required=True,
-    help="ID of the report sensor. Needs to exist in advanced.",
+    help="ID of the sensor used to save the report."
+    " If needed, use `flexmeasures add sensor` to create a new sensor first.",
 )
 @click.option(
     "--reporter-config-file",
@@ -1175,14 +1176,14 @@ def add_schedule_for_storage(
     required=False,
     type=click.Path(),
     help="Path to the output file of the results of the report."
-    "Use the `.csv` suffix to save the results as Comma Separated Values and `.xlsx` to export them as Excel sheets.",
+    " Use the `.csv` suffix to save the results as Comma Separated Values and `.xlsx` to export them as Excel sheets.",
 )
 @click.option(
     "--timezone",
     "timezone",
     required=False,
     default="UTC",
-    help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam' (defaults to FLEXMEASURES_TIMEZONE config setting)",
+    help="Timezone as string, e.g. 'UTC' or 'Europe/Amsterdam' (defaults to FLEXMEASURES_TIMEZONE config setting)",
 )
 @click.option(
     "--last-hour",
@@ -1251,7 +1252,7 @@ def add_report(
     if ((start is None) or (end is None)) and not last_x_flag_given:
         click.secho(
             "Either --start and --end, any of the --last-X flags should be provided."
-            "Trying to use the the latest datapoint of the report sensor as the start time and "
+            " Trying to use the latest datapoint of the report sensor as the start time and "
             "the current time as the end...",
             **MsgStyle.WARN,
         )
@@ -1285,7 +1286,7 @@ def add_report(
             last_year=last_year,
         )
 
-    click.echo(f"Report scope:\n\tstart={start}\n\tend={end}")
+    click.echo(f"Report scope:\n\tstart: {start}\n\tend: {end}")
 
     click.echo(
         f"Looking for the Reporter {reporter_class} among all the registered reporters...",
@@ -1302,7 +1303,7 @@ def add_report(
         )
         raise click.Abort()
 
-    click.secho(f"Reporter {reporter_class} found", **MsgStyle.SUCCESS)
+    click.secho(f"Reporter {reporter_class} found.", **MsgStyle.SUCCESS)
 
     reporter_config_raw = json.load(reporter_config_file)
 
@@ -1311,23 +1312,32 @@ def add_report(
         sensor=sensor, reporter_config_raw=reporter_config_raw
     )
 
-    click.echo("Report computation is running....")
+    click.echo("Report computation is running...")
 
     # compute the report
     result: Type[BeliefsDataFrame] = reporter.compute(
         start=start, end=end, input_resolution=resolution
     )
 
-    click.secho("Report computation done.", **MsgStyle.SUCCESS)
+    if not result.empty:
+        click.secho("Report computation done.", **MsgStyle.SUCCESS)
+    else:
+        click.secho(
+            "Report computation done, but the report is empty.", **MsgStyle.WARN
+        )
 
     # save the report it's not running in dry mode
     if not dry_run:
-        click.echo("Storing report to the database...")
+        click.echo("Saving report to the database...")
         save_to_db(result)
         db.session.commit()
         click.secho(
             "Success. The report has been saved to the database.",
             **MsgStyle.SUCCESS,
+        )
+    else:
+        click.echo(
+            f"Not saving report to the database (because of --dry-run), but this is what I computed:\n{result}"
         )
 
     # if an output file path is provided, save the results
@@ -1353,7 +1363,7 @@ def add_report(
                 f"File suffix not provided. Exporting results as CSV to file {output_file}",
                 **MsgStyle.WARN,
             )
-            reporter.to_csv(output_file)
+            result.to_csv(output_file)
     else:
         click.secho(
             "Success.",
