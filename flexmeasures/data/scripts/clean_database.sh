@@ -4,23 +4,65 @@ MAIN_DIR=$(pwd)
 
 # function for checking database existence
 function is_database() {
- cd /tmp
- sudo -u postgres psql -lqt | cut -d \| -f 1 | grep -wq $1
- cd ${MAIN_DIR}
+  sudo -i -u postgres psql -lqt | cut -d \| -f 1 | grep -wq $1
+}
+
+# check if the user exists
+function is_user() {
+  if sudo -i -u postgres psql -tAc "SELECT 1 FROM  pg_roles WHERE rolname='$1'" | grep -q 1; then
+    echo "$1 is already available."
+    return 0 # success (user exists)
+  else
+    echo "$1 is not created before."
+    return 1 # failure (user does not exist)
+  fi
+}
+
+# create a new user
+function create_user() {
+   echo "Creating database user ..."
+   read -s -p "Enter password for new user: " password
+   echo ""
+   read -s -p "Confirm password for new user: " password_confirm
+   echo ""
+
+   if [ "$password" != "$password_confirm" ]; then
+      echo "Error: Passwords do not match. Exiting..."
+      exit 1
+   fi
+   echo "user is ---------------------> $1"
+   sudo -i -u postgres psql -c "CREATE USER $1 WITH PASSWORD '$password'"
+}
+
+# function to give the required privileges to the newly created user
+function grant_privileges(){
+  echo "Connect $2 to $1 "
+   sudo -i -u postgres psql -c "GRANT CONNECT ON DATABASE $1 TO $2"
+   echo "Grant required privileges"
+   sudo -i -u postgres psql -c "GRANT USAGE, SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO $2"
 }
 
 # function for creating a new database
 function create_database() {
  echo "Creating a new database ..."
  sudo -i -u postgres createdb -U postgres $1
- if [[ -n "$2" ]]; then
-   echo "Creating database user ..."
-   sudo -i -u postgres createuser --pwprompt -U postgres $2
-   echo "Connect $2 to $1 "
-   sudo -i -u postgres psql -c "GRANT CONNECT ON DATABASE $1 TO $2"
-   echo "Grant required privileges"
-   sudo -i -u postgres psql -c "GRANT USAGE, SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO $2"
+
+ if [[ -n "$2" ]];
+    then
+      # check if the user exists
+      if is_user $2
+        then
+          # give the required permissions to the user
+          grant_privileges $1 $2
+      else
+        # if user doesn't exist, first create it and then give the permissions.
+        if create_user $2
+          then
+            grant_privileges $1 $2
+        fi
+      fi
  fi
+
  echo "Creating cube extension in $1 ..."
  sudo -i -u postgres psql -c "\c $1" -c "CREATE EXTENSION cube;"
  echo "Creating earthdistance extension in $1 ..."
