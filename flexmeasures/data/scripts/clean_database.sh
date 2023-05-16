@@ -30,7 +30,6 @@ function create_user() {
       echo "Error: Passwords do not match. Exiting..."
       exit 1
    fi
-   echo "user is ---------------------> $1"
    sudo -i -u postgres psql -c "CREATE USER $1 WITH PASSWORD '$password'"
 }
 
