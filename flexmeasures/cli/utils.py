@@ -98,7 +98,7 @@ def get_timerange_from_flag(
         end = current_hour.replace(hour=0)
         start = end - timedelta(days=1)
 
-    if last_week:  # last finished 7 week period.
+    if last_week:  # last finished 7 day period.
         end = current_hour.replace(hour=0)
         start = end - timedelta(days=7)
 
