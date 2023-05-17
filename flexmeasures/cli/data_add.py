@@ -1229,7 +1229,7 @@ def add_report(
     end: Optional[datetime] = None,
     resolution: Optional[timedelta] = None,
     output_file: Optional[Path] = None,
-    dry_run: bool = True,
+    dry_run: bool = False,
     last_hour: bool = False,
     last_day: bool = False,
     last_week: bool = False,
