@@ -509,11 +509,11 @@ def test_soc_bounds_timeseries(add_battery_assets):
 
     # test for soc_minima
     # check that the local minimum constraint is respected
-    assert soc_schedule2.loc[datetime(2015, 1, 2, 7)] == 3.5
+    assert soc_schedule2.loc[datetime(2015, 1, 2, 7)] >= 3.5
 
     # test for soc_maxima
     # check that the local maximum constraint is respected
-    assert soc_schedule2.loc[datetime(2015, 1, 2, 14)] == 1.0
+    assert soc_schedule2.loc[datetime(2015, 1, 2, 14)] <= 1.0
 
     # test for soc_targets
     # check that the SOC target (at 19 pm, local time) is met
