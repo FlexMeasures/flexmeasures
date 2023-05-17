@@ -118,11 +118,11 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
 
     cli_input_params = {
         "sensor-id": report_sensor_id,
-        "reporter-config-file": "reporter_config.json",
+        "reporter-config": "reporter_config.json",
         "reporter": "PandasReporter",
         "start": "2023-04-10T00:00:00 00:00",
         "end": "2023-04-10T10:00:00 00:00",
-        "output_file": "test.csv",
+        "output-file": "test.csv",
     }
 
     cli_input = to_flags(cli_input_params)
@@ -172,9 +172,9 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
 
     cli_input_params = {
         "sensor-id": report_sensor_id,
-        "reporter-config-file": "reporter_config.json",
+        "reporter-config": "reporter_config.json",
         "reporter": "PandasReporter",
-        "output_file": "test.csv",
+        "output-file": "test.csv",
         "timezone": "UTC",
     }
 
