@@ -82,7 +82,7 @@ def reporter_config_raw(app, db, setup_dummy_data):
     sensor1, sensor2, report_sensor = setup_dummy_data
 
     reporter_config_raw = dict(
-        tb_query_config=[dict(sensor=sensor1.id), dict(sensor=sensor2.id)],
+        beliefs_search_configs=[dict(sensor=sensor1.id), dict(sensor=sensor2.id)],
         transformations=[
             dict(
                 df_input="sensor_1",
