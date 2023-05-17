@@ -10,10 +10,10 @@ function is_database() {
 # check if the user exists
 function is_user() {
   if sudo -i -u postgres psql -tAc "SELECT 1 FROM  pg_roles WHERE rolname='$1'" | grep -q 1; then
-    echo "$1 is already available."
+    echo "User $1 is already available."
     return 0 # success (user exists)
   else
-    echo "$1 is not created before."
+    echo "User $1 is not created before."
     return 1 # failure (user does not exist)
   fi
 }
@@ -44,7 +44,12 @@ function grant_privileges(){
 # function for creating a new database
 function create_database() {
  echo "Creating a new database ..."
- sudo -i -u postgres createdb -U postgres $1
+ if sudo -i -u postgres createdb -U postgres $1; then
+   echo "$1 database is created"
+ else
+   echo "$1 database cannot be created"
+   exit 1
+ fi
 
  if [[ -n "$2" ]];
     then
@@ -72,8 +77,14 @@ function create_database() {
 
 # function for deleting the old database
 function delete_database() {
- echo "Deleting database ..."
- sudo -i -u postgres dropdb -U postgres $1
+ echo "Dropping database ..."
+ if sudo -i -u postgres dropdb -U postgres $1; then
+   echo "$1 database is dropped"
+   exit 0
+ else
+   echo "$1 database cannot be dropped"
+   exit 1
+ fi
 }
 
 # Check if the database name is provided
@@ -85,7 +96,7 @@ fi
 # Check if the database exists
 if is_database $1
 then
-  echo "$1 exists"
+  echo "$1 database exists"
   read -r -p "Make a backup first? [y/N] " response
   response=${response,,}    # make lowercase
   if [[ "$response" =~ ^(yes|y)$ ]]; then
@@ -102,6 +113,6 @@ then
 
 # otherwise, create a fresh database
 else
-  echo "$1 does not exist"
+  echo "$1 database does not exist"
   create_database $1 $2
 fi
