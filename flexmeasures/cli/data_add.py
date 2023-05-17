@@ -1144,8 +1144,8 @@ def add_schedule_for_storage(
     " If needed, use `flexmeasures add sensor` to create a new sensor first.",
 )
 @click.option(
-    "--reporter-config-file",
-    "reporter_config_file",
+    "--reporter-config",
+    "reporter_config",
     required=True,
     type=click.File("r"),
     help="Path to the JSON file with the reporter configuration.",
