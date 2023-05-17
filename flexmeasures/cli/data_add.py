@@ -1176,7 +1176,7 @@ def add_schedule_for_storage(
     "output_file",
     required=False,
     type=click.Path(),
-    help="Path to the output file of the results of the report."
+    help="Path to save the report to file. Will override any previous file contents."
     " Use the `.csv` suffix to save the results as Comma Separated Values and `.xlsx` to export them as Excel sheets.",
 )
 @click.option(
