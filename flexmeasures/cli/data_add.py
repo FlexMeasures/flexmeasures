@@ -62,7 +62,7 @@ from flexmeasures.data.services.data_sources import (
 )
 from flexmeasures.data.services.utils import get_or_create_model
 from flexmeasures.utils import flexmeasures_inflection
-from flexmeasures.utils.time_utils import server_now
+from flexmeasures.utils.time_utils import server_now, get_timezone
 from flexmeasures.utils.unit_utils import convert_units, ur
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.cli.utils import get_timerange_from_flag
@@ -1235,15 +1235,17 @@ def add_report(
     last_week: bool = False,
     last_month: bool = False,
     last_year: bool = False,
-    timezone: str = "UTC",
+    timezone: str | pytz.BaseTzInfo = get_timezone(),
 ):
     """
     Create a new report using the Reporter class and save the results
     to the database or export them as csv or excel file.
     """
-    check_timezone(timezone)
 
-    tz = pytz.timezone(zone=timezone)
+    # parse timezone into a BaseTzInfo object
+    if isinstance(timezone, str):
+        check_timezone(timezone)
+        timezone = pytz.timezone(zone=timezone)
 
     # check that only 1 flag is provided
     last_x_flags = [last_hour, last_day, last_week, last_month, last_year]
@@ -1268,7 +1270,7 @@ def add_report(
         # - The current time as the end.
         if last_value_datetime is not None:
             start = last_value_datetime[0]
-            end = datetime.now(tz=tz)
+            end = datetime.now(tz=timezone)
         else:
             click.secho(
                 f"Could not find any data for the report sensor {sensor}.",
@@ -1284,6 +1286,7 @@ def add_report(
             last_week=last_week,
             last_month=last_month,
             last_year=last_year,
+            timezone=timezone,
         )
 
     click.echo(f"Report scope:\n\tstart: {start}\n\tend: {end}")
