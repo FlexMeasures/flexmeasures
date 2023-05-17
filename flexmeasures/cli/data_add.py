@@ -1130,6 +1130,7 @@ def add_schedule_for_storage(
 @click.option(
     "--reporter",
     "reporter_class",
+    default="PandasReporter",
     required=True,
     type=click.STRING,
     help="Reporter class registered in flexmeasures.data.models.reporting or in an available flexmeasures plugin.",
