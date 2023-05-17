@@ -3,8 +3,6 @@ from datetime import datetime, timedelta
 
 from pytz import utc
 
-import pandas as pd
-
 from flexmeasures.data.models.reporting.pandas_reporter import PandasReporter
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.data_sources import DataSource
@@ -83,7 +81,7 @@ def setup_dummy_data(db, app):
     db.session.commit()
 
 
-def test_reporter(setup_dummy_data):
+def test_reporter(app, setup_dummy_data):
     s1, s2, reporter_sensor = setup_dummy_data
 
     reporter_config_raw = dict(
@@ -124,15 +122,19 @@ def test_reporter(setup_dummy_data):
     report1 = reporter.compute(start, end)
 
     assert len(report1) == 5
-    assert str(report1.index[0]) == "2023-04-10 00:00:00+00:00"
+    assert str(report1.event_starts[0]) == "2023-04-10 00:00:00+00:00"
     assert (
         report1.sensor == reporter_sensor
     )  # check that the output sensor is effectively assigned.
+    assert all(
+        source.name == app.config.get("FLEXMEASURES_DEFAULT_DATASOURCE")
+        for source in report1.sources
+    )  # check data source is assigned
 
     # check that calling compute with different parameters changes the result
     report3 = reporter.compute(start=datetime(2023, 4, 10, 3, tzinfo=utc), end=end)
     assert len(report3) == 4
-    assert str(report3.index[0]) == "2023-04-10 02:00:00+00:00"
+    assert str(report3.event_starts[0]) == "2023-04-10 02:00:00+00:00"
 
 
 def test_reporter_repeated(setup_dummy_data):
@@ -189,4 +191,4 @@ def test_reporter_repeated(setup_dummy_data):
     report1 = reporter.compute(start=start, end=end)
     report2 = reporter.compute(start=start, end=end)
 
-    pd.testing.assert_series_equal(report1, report2)
+    assert all(report2.values == report1.values)
