@@ -108,7 +108,7 @@ def get_timerange_from_flag(
         )  # get the first day of the current month
         start = (end - timedelta(days=1)).replace(
             day=1
-        )  # get first day oft the previous month
+        )  # get first day of the previous month
 
     if last_year:  # last calendar year
         end = current_hour.replace(
