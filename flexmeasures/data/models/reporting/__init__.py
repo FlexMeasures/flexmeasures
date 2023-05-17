@@ -126,8 +126,9 @@ class Reporter(DataGeneratorMixin):
 
         # update data source
         source_info = self.get_data_source_info()
-        result_sources = [DataSource(**source_info) for _ in range(len(result))]
-        result.index = result.index.set_levels(result_sources, level="source")
+        result.index = result.index.set_levels(
+            [DataSource(**source_info) for _ in range(len(result))], level="source"
+        )
 
         return result
 
