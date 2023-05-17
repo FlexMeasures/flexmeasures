@@ -1,14 +1,12 @@
 from __future__ import annotations
 from typing import Optional, Union, Dict
+from datetime import datetime, timedelta
 
 import pandas as pd
 
 from flexmeasures.data.schemas.reporting import ReporterConfigSchema
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.models.data_sources import DataGeneratorMixin
-
-
-from datetime import datetime, timedelta
+from flexmeasures.data.models.data_sources import DataGeneratorMixin, DataSource
 
 import timely_beliefs as tb
 
@@ -114,7 +112,9 @@ class Reporter(DataGeneratorMixin):
         self.fetch_data(start, end, input_resolution, belief_time)
 
         # Result
-        result = self._compute(start, end, input_resolution, belief_time)
+        result: tb.BeliefsDataFrame = self._compute(
+            start, end, input_resolution, belief_time
+        )
 
         # checking that the event_resolution of the output BeliefDataFrame is equal to the one of the output sensor
         assert (
@@ -123,6 +123,11 @@ class Reporter(DataGeneratorMixin):
 
         # Assign sensor to BeliefDataFrame
         result.sensor = self.sensor
+
+        # update data source
+        source_info = self.get_data_source_info()
+        result_sources = [DataSource(**source_info) for _ in range(len(result))]
+        result.index = result.index.set_levels(result_sources, level="source")
 
         return result
 
