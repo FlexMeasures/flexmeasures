@@ -1199,7 +1199,7 @@ def add_schedule_for_storage(
 )
 @click.option(
     "--last-week",
-    "last_week",
+    "last_7_days",
     is_flag=True,
     help="Use the last known 7 days period for the scope of the report.",
 )
@@ -1232,7 +1232,7 @@ def add_report(
     dry_run: bool = False,
     last_hour: bool = False,
     last_day: bool = False,
-    last_week: bool = False,
+    last_7_days: bool = False,
     last_month: bool = False,
     last_year: bool = False,
     timezone: str | pytz.BaseTzInfo = get_timezone(),
@@ -1248,7 +1248,7 @@ def add_report(
         timezone = pytz.timezone(zone=timezone)
 
     # check that only 1 flag is provided
-    last_x_flags = [last_hour, last_day, last_week, last_month, last_year]
+    last_x_flags = [last_hour, last_day, last_7_days, last_month, last_year]
     last_x_flag_given = last_x_flags.count(True) == 1
 
     if ((start is None) or (end is None)) and not last_x_flag_given:
@@ -1283,7 +1283,7 @@ def add_report(
         start, end = get_timerange_from_flag(
             last_hour=last_hour,
             last_day=last_day,
-            last_week=last_week,
+            last_7_days=last_7_days,
             last_month=last_month,
             last_year=last_year,
             timezone=timezone,

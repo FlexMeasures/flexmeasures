@@ -71,7 +71,7 @@ class DeprecatedDefaultGroup(DefaultGroup):
 def get_timerange_from_flag(
     last_hour: bool = False,
     last_day: bool = False,
-    last_week: bool = False,
+    last_7_days: bool = False,
     last_month: bool = False,
     last_year: bool = False,
     timezone: pytz.BaseTzInfo = get_timezone(),
@@ -81,7 +81,7 @@ def get_timerange_from_flag(
 
     :param bool last_hour: flag to get the time range of the last finished hour.
     :param bool last_day: flag to get the time range for yesterday.
-    :param bool last_week: flag to get the time range of the previous 7 days.
+    :param bool last_7_days: flag to get the time range of the previous 7 days.
     :param bool last_month: flag to get the time range of last calendar month
     :param bool last_year: flag to get the last completed calendar year
     :param timezone: timezone object to represent
@@ -98,7 +98,7 @@ def get_timerange_from_flag(
         end = current_hour.replace(hour=0)
         start = end - timedelta(days=1)
 
-    if last_week:  # last finished 7 day period.
+    if last_7_days:  # last finished 7 day period.
         end = current_hour.replace(hour=0)
         start = end - timedelta(days=7)
 

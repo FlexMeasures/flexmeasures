@@ -32,7 +32,7 @@ def test_cli_is_running(app, monkeypatch):
         ),
         (
             datetime(2023, 4, 8, 1, 30, tzinfo=utc),
-            "last_week",
+            "last_7_days",
             datetime(2023, 4, 1, 0, tzinfo=utc),
             datetime(2023, 4, 8, 0, tzinfo=utc),
         ),
