@@ -1225,7 +1225,7 @@ def add_schedule_for_storage(
 def add_report(
     reporter_class: str,
     sensor: Sensor,
-    reporter_config_file: TextIOBase,
+    reporter_config: TextIOBase,
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
     resolution: Optional[timedelta] = None,
@@ -1309,7 +1309,7 @@ def add_report(
 
     click.secho(f"Reporter {reporter_class} found.", **MsgStyle.SUCCESS)
 
-    reporter_config_raw = json.load(reporter_config_file)
+    reporter_config_raw = json.load(reporter_config)
 
     # initialize reporter class with the reporter sensor and reporter config
     reporter: Type[Reporter] = ReporterClass(
