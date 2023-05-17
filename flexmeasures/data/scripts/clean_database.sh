@@ -28,7 +28,7 @@ function create_user() {
 
    if [ "$password" != "$password_confirm" ]; then
       echo "Error: Passwords do not match. Exiting..."
-      exit 1
+      return 1
    fi
    sudo -i -u postgres psql -c "CREATE USER $1 WITH PASSWORD '$password'"
 }
@@ -60,9 +60,11 @@ function create_database() {
           grant_privileges $1 $2
       else
         # if user doesn't exist, first create it and then give the permissions.
-        if create_user $2
+        if ! create_user $2
           then
-            grant_privileges $1 $2
+            exit 1
+        else
+          grant_privileges $1 $2
         fi
       fi
  fi
@@ -80,10 +82,10 @@ function delete_database() {
  echo "Dropping database ..."
  if sudo -i -u postgres dropdb -U postgres $1; then
    echo "$1 database is dropped"
-   exit 0
+   return 0
  else
    echo "$1 database cannot be dropped"
-   exit 1
+   return 1
  fi
 }
 
@@ -107,7 +109,9 @@ then
   read -r -p "This will drop your database and re-create a clean one. Continue?[y/N] " response
   response=${response,,} # make lowercase
   if [[ "$response" =~ ^(yes|y)$ ]]; then
-     delete_database $1
+     if ! delete_database $1; then
+       exit 1
+     fi
      create_database $1 $2
   fi
 
