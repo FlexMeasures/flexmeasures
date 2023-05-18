@@ -1158,6 +1158,20 @@ def add_schedule_for_storage(
     help="Report start time. Either `--last-X` flag can be used instead. Follow up with a timezone-aware datetime in ISO 6801 format.",
 )
 @click.option(
+    "--start-offset",
+    "start_offset",
+    type=str,
+    required=False,
+    help="Report start offset time from now. Use multiple Pandas offset strings separated by commas, e.g: -3D,DB,1W. Use DB or HB to offset to the begin of the day or hour, respectively. Either `--last-X` flag can be used instead.",
+)
+@click.option(
+    "--end-offset",
+    "end_offset",
+    type=str,
+    required=False,
+    help="Report end offset time from now. Use multiple Pandas offset strings separated by commas, e.g: -3D,DB,1W. Use DB or HB to offset to the begin of the day or hour, respectively. Either `--last-X` flag can be used instead.",
+)
+@click.option(
     "--end",
     "end",
     type=AwareDateTimeField(format="iso"),
@@ -1222,12 +1236,14 @@ def add_schedule_for_storage(
     is_flag=True,
     help="Add this flag to avoid saving the results to the database.",
 )
-def add_report(
+def add_report(  # noqa: C901
     reporter_class: str,
     sensor: Sensor,
     reporter_config: TextIOBase,
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
+    start_offset: Optional[str] = None,
+    end_offset: Optional[str] = None,
     resolution: Optional[timedelta] = None,
     output_file: Optional[Path] = None,
     dry_run: bool = False,
