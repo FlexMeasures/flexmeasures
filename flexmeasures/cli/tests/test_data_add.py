@@ -103,8 +103,12 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
 
     The command is run twice:
         - The first run is for ten hours, so you expect five results.
+            - start and end are defined in the configuration: 2023-04-10T00:00 -> 2023-04-10T10:00
+            - this step uses 10 hours of data -> outputs 5 periods of 2 hours
         - The second is run without timing params, so the rest of the data
-        is now aggregated, resulting in 95 data points.
+            - start is the time of the latest report value
+            - end is the time of latest input data value
+            - this step uses 190 hours of data -> outputs 95 periods of 2 hours
     """
 
     from flexmeasures.cli.data_add import add_report
