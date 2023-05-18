@@ -6,7 +6,7 @@ import pandas as pd
 
 from flexmeasures.data.schemas.reporting import ReporterConfigSchema
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.models.data_sources import DataGeneratorMixin, DataSource
+from flexmeasures.data.models.data_sources import DataGeneratorMixin
 
 import timely_beliefs as tb
 
@@ -125,9 +125,8 @@ class Reporter(DataGeneratorMixin):
         result.sensor = self.sensor
 
         # update data source
-        source_info = self.get_data_source_info()
         result.index = result.index.set_levels(
-            [DataSource(**source_info) for _ in range(len(result))], level="source"
+            [self.data_source] * len(result), level="source", verify_integrity=False
         )
 
         return result
