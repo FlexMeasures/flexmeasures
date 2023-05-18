@@ -48,21 +48,21 @@ function create_database() {
    echo "$1 database is created"
  else
    echo "$1 database cannot be created"
-   exit 1
+   return 1
  fi
 
  if [[ -n "$2" ]];
     then
-      # check if the user exists
+      # check if the user already exists
       if is_user $2
         then
           # give the required permissions to the user
           grant_privileges $1 $2
       else
-        # if user doesn't exist, first create it and then give the permissions.
+        # if a user is created, then grant the required privileges
         if ! create_user $2
           then
-            exit 1
+            return 1
         else
           grant_privileges $1 $2
         fi
@@ -112,11 +112,15 @@ then
      if ! delete_database $1; then
        exit 1
      fi
-     create_database $1 $2
+     if ! create_database $1 $2; then
+       exit 1
+     fi
   fi
 
 # otherwise, create a fresh database
 else
   echo "$1 database does not exist"
-  create_database $1 $2
+  if ! create_database $1 $2; then
+    exit 1
+  fi
 fi
