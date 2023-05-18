@@ -448,7 +448,7 @@ def build_device_soc_values(
 #####################
 # TO BE DEPRECATED #
 ####################
-@deprecated(build_device_soc_values, "14")
+@deprecated(build_device_soc_values, "0.14")
 def build_device_soc_targets(
     targets: List[Dict[str, datetime | float]] | pd.Series,
     soc_at_start: float,
