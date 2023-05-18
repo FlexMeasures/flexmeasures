@@ -10,6 +10,7 @@ from flexmeasures.utils.time_utils import (
     server_now,
     naturalized_datetime_str,
     get_most_recent_clocktime_window,
+    apply_offset_chain,
 )
 
 
@@ -172,3 +173,32 @@ def test_recent_clocktime_window_invalid_window():
         get_most_recent_clocktime_window(25, now=datetime(2021, 4, 30, 3, 36))
         get_most_recent_clocktime_window(120, now=datetime(2021, 4, 30, 3, 36))
         get_most_recent_clocktime_window(0, now=datetime(2021, 4, 30, 3, 36))
+
+
+@pytest.mark.parametrize(
+    "input_date, offset_chain, output_date",
+    [
+        (
+            datetime(2023, 5, 17, 10, 15),
+            ",,, , , ",
+            pd.Timestamp(datetime(2023, 5, 17, 10, 15)),
+        ),
+        (
+            datetime(2023, 5, 17, 10, 15),
+            "",
+            pd.Timestamp(datetime(2023, 5, 17, 10, 15)),
+        ),
+        (
+            datetime(2023, 5, 17, 10, 15),
+            ",,hb, , , ",
+            pd.Timestamp(datetime(2023, 5, 17, 10)),
+        ),
+        (datetime(2023, 5, 17, 10, 15), "DB", pd.Timestamp(datetime(2023, 5, 17))),
+        (datetime(2023, 5, 17, 10, 15), "2D,DB", pd.Timestamp(datetime(2023, 5, 19))),
+        (datetime(2023, 5, 17, 10, 15), "-2D,DB", pd.Timestamp(datetime(2023, 5, 15))),
+    ],
+)
+def test_apply_offset_chain(
+    input_date: datetime, offset_chain: str, output_date: pd.Timestamp
+):
+    assert apply_offset_chain(input_date, offset_chain) == output_date
