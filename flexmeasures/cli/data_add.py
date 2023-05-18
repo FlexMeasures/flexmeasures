@@ -62,7 +62,7 @@ from flexmeasures.data.services.data_sources import (
 )
 from flexmeasures.data.services.utils import get_or_create_model
 from flexmeasures.utils import flexmeasures_inflection
-from flexmeasures.utils.time_utils import server_now, get_timezone
+from flexmeasures.utils.time_utils import server_now, get_timezone, apply_offset_chain
 from flexmeasures.utils.unit_utils import convert_units, ur
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.cli.utils import get_timerange_from_flag
@@ -1268,34 +1268,9 @@ def add_report(  # noqa: C901
     last_x_flags = [last_hour, last_day, last_7_days, last_month, last_year]
     last_x_flag_given = last_x_flags.count(True) == 1
 
-    if ((start is None) or (end is None)) and not last_x_flag_given:
-        click.secho(
-            "Either --start and --end, any of the --last-X flags should be provided."
-            " Trying to use the latest datapoint of the report sensor as the start time and "
-            "the current time as the end...",
-            **MsgStyle.WARN,
-        )
+    now = timezone.localize(datetime.now())
 
-        last_value_datetime = (
-            db.session.query(func.max(TimedBelief.event_start))
-            .filter(TimedBelief.sensor_id == sensor.id)
-            .one_or_none()
-        )
-
-        # If there's data saved to the reporter sensors, we use:
-        # - The latest date as the start.
-        # - The current time as the end.
-        if last_value_datetime is not None:
-            start = last_value_datetime[0]
-            end = datetime.now(tz=timezone)
-        else:
-            click.secho(
-                f"Could not find any data for the report sensor {sensor}.",
-                **MsgStyle.ERROR,
-            )
-            raise click.Abort()
-
-    # if any of the last-X flag is provided
+    # if any of the last-X flag is provided, override start and end
     if last_x_flag_given:
         start, end = get_timerange_from_flag(
             last_hour=last_hour,
@@ -1305,6 +1280,51 @@ def add_report(  # noqa: C901
             last_year=last_year,
             timezone=timezone,
         )
+
+    # apply offsets, if provided
+    if start_offset is not None:
+        if start is None:
+            start = now
+        start = apply_offset_chain(start, start_offset)
+
+    if end_offset is not None:
+        if end is None:
+            end = now
+        end = apply_offset_chain(now, end_offset)
+
+    # the case of not getting --start, --start-offset or any --last-X flag
+    if start is None:
+        click.secho(
+            "Either --start, --start-offset or any of the --last-X flags should be provided."
+            " Trying to use the latest datapoint of the report sensor as the start time and "
+            "the current time as the end...",
+            **MsgStyle.WARN,
+        )
+        last_value_datetime = (
+            db.session.query(func.max(TimedBelief.event_start))
+            .filter(TimedBelief.sensor_id == sensor.id)
+            .one_or_none()
+        )
+
+        # If there's data saved to the reporter sensors
+        if last_value_datetime[0] is not None:
+            start = last_value_datetime[0]
+        else:
+            click.secho(
+                f"Could not find any data for the report sensor {sensor}.",
+                **MsgStyle.ERROR,
+            )
+            raise click.Abort()
+
+    # the case of not getting --start, --start-offset or any --last-X flag
+    if end is None:
+        click.secho(
+            "Either --end, --end-offset or any of the --last-X flags should be provided."
+            " Trying to use the latest datapoint of the report sensor as the start time and "
+            "the current time as the end...",
+            **MsgStyle.WARN,
+        )
+        end = now
 
     click.echo(f"Report scope:\n\tstart: {start}\n\tend: {end}")
 
