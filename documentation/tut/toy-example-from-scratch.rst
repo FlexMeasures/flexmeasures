@@ -181,7 +181,7 @@ Yes, that is quite a large battery :)
 We can also look at the battery asset in the UI of FlexMeasures (in Docker, the FlexMeasures web server already runs, on your PC you can start it with ``flexmeasures run``).
 Visit `http://localhost:5000/assets <http://localhost:5000/assets>`_ (username is "toy-user@flexmeasures.io", password is "toy-password") and select "toy-battery":
 
-.. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/asset-view.png
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/asset-view-without-data.png
     :align: center
 
 .. note:: You won't see the map tiles, as we have not configured the :ref:`MAPBOX_ACCESS_TOKEN`. If you have one, you can configure it via ``flexmeasures.cfg`` (for Docker, see :ref:`docker_configuration`).
@@ -324,10 +324,13 @@ Here, negative values denote output from the grid, so that's when the battery ge
 
 We can also look at the charging schedule in the `FlexMeasures UI <http://localhost:5000/sensors/1/>`_ (reachable via the asset page for the battery):
 
-.. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-charging.png
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-discharging.png
     :align: center
 
 Recall that we only asked for a 12 hour schedule here. We started our schedule *after* the high price peak (at 4am) and it also had to end *before* the second price peak fully realised (at 8pm). Our scheduler didn't have many opportunities to optimize, but it found some. For instance, it does buy at the lowest price (at 2pm) and sells it off at the highest price within the given 12 hours (at 6pm).
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/asset-view-with-data.png
+    :align: center
 
 
 .. note:: The ``flexmeasures add schedule for-storage`` command also accepts state-of-charge targets, so the schedule can be more sophisticated. But that is not the point of this tutorial. See ``flexmeasures add schedule for-storage --help``.
@@ -383,7 +386,10 @@ Setting the data source type to "forecaster" helps FlexMeasures to visualize dis
     $ flexmeasures add beliefs --sensor-id 3 --source 4 solar-tomorrow.csv --timezone Europe/Amsterdam
     Successfully created beliefs
 
-The one-hour CSV data is automatically resampled to the 15-minute resolution of the sensor that is recording solar production.
+The one-hour CSV data is automatically resampled to the 15-minute resolution of the sensor that is recording solar production. We can see solar production in the `FlexMeasures UI <http://localhost:5000/sensors/3/>`_ :
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-production.png
+    :align: center
 
 .. note:: The ``flexmeasures add beliefs`` command has many options to make sure the read-in data is correctly interpreted (unit, timezone, delimiter, etc). But that is not the point of this tutorial. See ``flexmeasures add beliefs --help``.
 
@@ -397,3 +403,7 @@ Now, we'll reschedule the battery while taking into account the solar production
         --soc-at-start 50% --roundtrip-efficiency 90%
     New schedule is stored.
 
+We can see the updated scheduling in the `FlexMeasures UI <http://localhost:5000/sensors/1/>`_ :
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-discharging-solar.png
+    :align: center
