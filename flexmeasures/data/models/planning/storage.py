@@ -148,7 +148,7 @@ class StorageScheduler(Scheduler):
         soc_max_change = (soc_max - soc_at_start) * timedelta(hours=1) / resolution
 
         if soc_minima is not None:
-            device_constraints[0]["min"] = build_device_soc_targets(
+            device_constraints[0]["min"] = build_device_soc_values(
                 soc_minima,
                 soc_at_start,
                 start,
@@ -161,7 +161,7 @@ class StorageScheduler(Scheduler):
         )
 
         if soc_maxima is not None:
-            device_constraints[0]["max"] = build_device_soc_targets(
+            device_constraints[0]["max"] = build_device_soc_values(
                 soc_maxima,
                 soc_at_start,
                 start,
