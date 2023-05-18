@@ -126,8 +126,12 @@ def test_reporter(app, setup_dummy_data):
     assert (
         report1.sensor == reporter_sensor
     )  # check that the output sensor is effectively assigned.
+
+    data_source_name = app.config.get("FLEXMEASURES_DEFAULT_DATASOURCE")
+    data_source_type = "reporter"
+
     assert all(
-        source.name == app.config.get("FLEXMEASURES_DEFAULT_DATASOURCE")
+        (source.name == data_source_name) and (source.type == data_source_type)
         for source in report1.sources
     )  # check data source is assigned
 

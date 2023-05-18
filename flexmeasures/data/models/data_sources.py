@@ -29,10 +29,10 @@ class DataGeneratorMixin:
         from flexmeasures.data.models.planning import Scheduler
         from flexmeasures.data.models.reporting import Reporter
 
-        if isinstance(cls, Reporter):
-            source_info["type"] = "scheduler"
-        elif isinstance(cls, Scheduler):
+        if issubclass(cls, Reporter):
             source_info["type"] = "reporter"
+        elif issubclass(cls, Scheduler):
+            source_info["type"] = "scheduler"
         else:
             source_info["type"] = "undefined"
 
