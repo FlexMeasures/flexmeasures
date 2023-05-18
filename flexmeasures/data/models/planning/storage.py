@@ -136,7 +136,7 @@ class StorageScheduler(Scheduler):
         if soc_targets is not None:
             # make an equality series with the SOC targets set in the flex model
             # device_constraints[0] refers to the flexible device we are scheduling
-            device_constraints[0]["equals"] = build_device_soc_targets(
+            device_constraints[0]["equals"] = build_device_soc_values(
                 soc_targets,
                 soc_at_start,
                 start,
