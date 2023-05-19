@@ -1131,7 +1131,6 @@ def add_schedule_for_storage(
     "--reporter",
     "reporter_class",
     default="PandasReporter",
-    required=True,
     type=click.STRING,
     help="Reporter class registered in flexmeasures.data.models.reporting or in an available flexmeasures plugin."
     " Use the command `flexmeasures show reporters` to list all the available reporters.",
