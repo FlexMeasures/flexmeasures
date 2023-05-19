@@ -190,6 +190,12 @@ def test_recent_clocktime_window_invalid_window():
             "DB",
             pytz.timezone("Europe/Amsterdam").localize(datetime(2023, 5, 17)),
         ),
+        # Check Pandas structure, too.
+        (
+            pd.Timestamp("2023-05-17T00:15", tz="Europe/Amsterdam"),
+            "DB",
+            pd.Timestamp("2023-05-17", tz="Europe/Amsterdam"),
+        ),
     ],
 )
 def test_apply_offset_chain(
