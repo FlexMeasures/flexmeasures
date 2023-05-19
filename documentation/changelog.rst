@@ -10,7 +10,7 @@ New features
 -------------
 
 * Introduction of the classes `Reporter` and `PandasReporter` [see `PR #641 <https://www.github.com/FlexMeasures/flexmeasures/pull/641>`_]
-* Add CLI command ``flexmeasures add report`` [see `PR #686 <https://www.github.com/FlexMeasures/flexmeasures/pull/686>`_]
+* Add CLI command ``flexmeasures add report`` [see `PR #659 <https://www.github.com/FlexMeasures/flexmeasures/pull/659>`_]
 * Add CLI command ``flexmeasures show reporters`` [see `PR #686 <https://www.github.com/FlexMeasures/flexmeasures/pull/686>`_]
 
 Bugfixes
