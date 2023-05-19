@@ -153,7 +153,7 @@ You can run automated tests with:
 
 which behind the curtains installs dependencies and calls ``pytest``.
 
-However, a test postgres database is needed to run these tests. If you have postgres, here is the short version on how to add the test database:
+However, a test database (postgres) is needed to run these tests. If you have postgres, here is the short version on how to add the test database:
 
 .. code-block:: bash
 
@@ -162,13 +162,13 @@ However, a test postgres database is needed to run these tests. If you have post
 
 .. note:: The section :ref:`host-data` has more details on using postgres for FlexMeasures.
 
-Alternatively, if you don't feel like installing postgres for the time being, here is a docker command:
+Alternatively, if you don't feel like installing postgres for the time being, here is a docker command to provide a test database:
 
 .. code-block:: bash
 
     $ docker run --rm --name flexmeasures-test-db -e POSTGRES_PASSWORD=flexmeasures_test -e POSTGRES_DB=flexmeasures_test -e POSTGRES_USER=flexmeasures_test -p 5432:5432 -v ./ci/load-psql-extensions.sql:/docker-entrypoint-initdb.d/load-psql-extensions.sql -d postgres:latest
 
-.. warning:: This assumes that the port 5432 is not being used (for instance by an existing postgres database service).
+.. warning:: This assumes that the port 5432 is not being used on your machine (for instance by an existing postgres database service).
 
 If you want the tests to create a coverage report (printed on the terminal), you can run the ``pytest`` command like this:
 
