@@ -388,13 +388,14 @@ def list_reporters():
         tabulate(
             [
                 (
+                    reporter_class.__module__,
                     reporter_name,
                     reporter_class.__version__,
-                    str(reporter_class.__author__),
+                    reporter_class.__author__,
                 )
                 for reporter_name, reporter_class in app.reporters.items()
             ],
-            headers=["name", "version", "author"],
+            headers=["module", "name", "version", "author"],
         )
     )
 
