@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime, timedelta
 
 from isodate import duration_isoformat as original_duration_isoformat
@@ -178,27 +180,29 @@ def test_recent_clocktime_window_invalid_window():
 @pytest.mark.parametrize(
     "input_date, offset_chain, output_date",
     [
+        (datetime(2023, 5, 17, 10, 15), ",,, , , ", datetime(2023, 5, 17, 10, 15)),
+        (datetime(2023, 5, 17, 10, 15), "", datetime(2023, 5, 17, 10, 15)),
+        (datetime(2023, 5, 17, 10, 15), ",,hb, , , ", datetime(2023, 5, 17, 10)),
+        (datetime(2023, 5, 17, 10, 15), "DB", datetime(2023, 5, 17)),
+        (datetime(2023, 5, 17, 10, 15), "2D,DB", datetime(2023, 5, 19)),
+        (datetime(2023, 5, 17, 10, 15), "-2D,DB", datetime(2023, 5, 15)),
+        # The day of this moment started on May 17th in Amsterdam (but started on May 16th in UTC).
         (
-            datetime(2023, 5, 17, 10, 15),
-            ",,, , , ",
-            pd.Timestamp(datetime(2023, 5, 17, 10, 15)),
+            pytz.timezone("Europe/Amsterdam").localize(datetime(2023, 5, 17, 0, 15)),
+            "DB",
+            pytz.timezone("Europe/Amsterdam").localize(datetime(2023, 5, 17)),
         ),
+        # Check Pandas structure, too.
         (
-            datetime(2023, 5, 17, 10, 15),
-            "",
-            pd.Timestamp(datetime(2023, 5, 17, 10, 15)),
+            pd.Timestamp("2023-05-17T00:15", tz="Europe/Amsterdam"),
+            "DB",
+            pd.Timestamp("2023-05-17", tz="Europe/Amsterdam"),
         ),
-        (
-            datetime(2023, 5, 17, 10, 15),
-            ",,hb, , , ",
-            pd.Timestamp(datetime(2023, 5, 17, 10)),
-        ),
-        (datetime(2023, 5, 17, 10, 15), "DB", pd.Timestamp(datetime(2023, 5, 17))),
-        (datetime(2023, 5, 17, 10, 15), "2D,DB", pd.Timestamp(datetime(2023, 5, 19))),
-        (datetime(2023, 5, 17, 10, 15), "-2D,DB", pd.Timestamp(datetime(2023, 5, 15))),
     ],
 )
 def test_apply_offset_chain(
-    input_date: datetime, offset_chain: str, output_date: pd.Timestamp
+    input_date: pd.Timestamp | datetime,
+    offset_chain: str,
+    output_date: pd.Timestamp | datetime,
 ):
     assert apply_offset_chain(input_date, offset_chain) == output_date
