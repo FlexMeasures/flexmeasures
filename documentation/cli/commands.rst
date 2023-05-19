@@ -54,6 +54,7 @@ of which some are referred to in this documentation.
 ``flexmeasures show roles``                       List available account- and user roles.
 ``flexmeasures show data-sources``                List available data sources.
 ``flexmeasures show beliefs``                     Plot time series data.
+``flexmeasures show reporters``                   List available reporters.
 ================================================= =======================================
 
 
