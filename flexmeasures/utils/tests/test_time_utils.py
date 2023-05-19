@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime, timedelta
 
 from isodate import duration_isoformat as original_duration_isoformat
@@ -199,6 +201,8 @@ def test_recent_clocktime_window_invalid_window():
     ],
 )
 def test_apply_offset_chain(
-    input_date: datetime, offset_chain: str, output_date: pd.Timestamp
+    input_date: pd.Timestamp | datetime,
+    offset_chain: str,
+    output_date: pd.Timestamp | datetime,
 ):
     assert apply_offset_chain(input_date, offset_chain) == output_date
