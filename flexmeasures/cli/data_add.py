@@ -1128,14 +1128,6 @@ def add_schedule_for_storage(
 @fm_add_data.command("report")
 @with_appcontext
 @click.option(
-    "--reporter",
-    "reporter_class",
-    default="PandasReporter",
-    type=click.STRING,
-    help="Reporter class registered in flexmeasures.data.models.reporting or in an available flexmeasures plugin."
-    " Use the command `flexmeasures show reporters` to list all the available reporters.",
-)
-@click.option(
     "--sensor-id",
     "sensor",
     type=SensorIdField(),
@@ -1149,6 +1141,14 @@ def add_schedule_for_storage(
     required=True,
     type=click.File("r"),
     help="Path to the JSON file with the reporter configuration.",
+)
+@click.option(
+    "--reporter",
+    "reporter_class",
+    default="PandasReporter",
+    type=click.STRING,
+    help="Reporter class registered in flexmeasures.data.models.reporting or in an available flexmeasures plugin."
+    " Use the command `flexmeasures show reporters` to list all the available reporters.",
 )
 @click.option(
     "--start",
