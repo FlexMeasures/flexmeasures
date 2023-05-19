@@ -39,6 +39,7 @@ of which some are referred to in this documentation.
 ``flexmeasures add holidays``                     Add holiday annotations to accounts and/or assets.
 ``flexmeasures add annotation``                   Add annotation to accounts, assets and/or sensors.
 ``flexmeasures add toy-account``                  Create a toy account, for tutorials and trying things.
+``flexmeasures add report``                       Create a report.
 ================================================= =======================================
 
 
