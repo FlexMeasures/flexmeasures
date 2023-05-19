@@ -1333,7 +1333,7 @@ def add_report(  # noqa: C901
     )
 
     # get reporter class
-    ReporterClass = app.reporters.get(reporter_class)
+    ReporterClass: Type[Reporter] = app.reporters.get(reporter_class)
 
     # check if it exists
     if ReporterClass is None:
@@ -1348,14 +1348,14 @@ def add_report(  # noqa: C901
     reporter_config_raw = json.load(reporter_config)
 
     # initialize reporter class with the reporter sensor and reporter config
-    reporter: Type[Reporter] = ReporterClass(
+    reporter: Reporter = ReporterClass(
         sensor=sensor, reporter_config_raw=reporter_config_raw
     )
 
     click.echo("Report computation is running...")
 
     # compute the report
-    result: Type[BeliefsDataFrame] = reporter.compute(
+    result: BeliefsDataFrame = reporter.compute(
         start=start, end=end, input_resolution=resolution
     )
 
