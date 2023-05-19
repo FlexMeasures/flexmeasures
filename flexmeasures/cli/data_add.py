@@ -466,21 +466,21 @@ def add_source(name: str, model: str, version: str, source_type: str):
     required=True,
     type=str,
     default=",",
-    help="[For csv files] Character to delimit columns per row, defaults to comma",
+    help="[For CSV files] Character to delimit columns per row, defaults to comma",
 )
 @click.option(
     "--decimal",
     required=False,
     default=".",
     type=str,
-    help="[For csv files] decimal character, e.g. '.' for 10.5",
+    help="[For CSV files] decimal character, e.g. '.' for 10.5",
 )
 @click.option(
     "--thousands",
     required=False,
     default=None,
     type=str,
-    help="[For csv files] thousands separator, e.g. '.' for 10.035,2",
+    help="[For CSV files] thousands separator, e.g. '.' for 10.035,2",
 )
 @click.option(
     "--sheet_number",
@@ -513,9 +513,9 @@ def add_beliefs(
     sheet_number: int | None = None,
     **kwargs,  # in-code calls to this CLI command can set additional kwargs for use in pandas.read_csv or pandas.read_excel
 ):
-    """Add sensor data from a csv file (also accepts xls or xlsx).
+    """Add sensor data from a CSV or Excel file.
 
-    To use default settings, structure your csv file as follows:
+    To use default settings, structure your CSV file as follows:
 
         - One header line (will be ignored!)
         - UTC datetimes in 1st column
@@ -1257,7 +1257,7 @@ def add_report(  # noqa: C901
 ):
     """
     Create a new report using the Reporter class and save the results
-    to the database or export them as csv or excel file.
+    to the database or export them as CSV or Excel file.
     """
 
     # parse timezone into a BaseTzInfo object
