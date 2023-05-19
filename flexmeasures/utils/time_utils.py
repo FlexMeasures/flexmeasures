@@ -373,11 +373,11 @@ def apply_offset_chain(
 
     An offset chain consist of multiple (pandas) offset strings separated by commas. Moreover,
     this function implements the offset string "DB", which stands for Day Begin, to
-    get a date from a datetime, i.e removing time details finer than a day.
+    get a date from a datetime, i.e. removing time details finer than a day.
 
     Args:
         time (pd.Timestamp | datetime)
-        offsets (str)
+        offset_chain (str)
 
     Returns:
         pd.Timestamp: time +
