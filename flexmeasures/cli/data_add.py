@@ -1290,7 +1290,7 @@ def add_report(  # noqa: C901
     if end_offset is not None:
         if end is None:
             end = now
-        end = apply_offset_chain(now, end_offset)
+        end = apply_offset_chain(end, end_offset)
 
     # the case of not getting --start, --start-offset or any --last-X flag
     if start is None:
