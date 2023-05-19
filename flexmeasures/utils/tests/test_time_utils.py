@@ -178,24 +178,12 @@ def test_recent_clocktime_window_invalid_window():
 @pytest.mark.parametrize(
     "input_date, offset_chain, output_date",
     [
-        (
-            datetime(2023, 5, 17, 10, 15),
-            ",,, , , ",
-            pd.Timestamp(datetime(2023, 5, 17, 10, 15)),
-        ),
-        (
-            datetime(2023, 5, 17, 10, 15),
-            "",
-            pd.Timestamp(datetime(2023, 5, 17, 10, 15)),
-        ),
-        (
-            datetime(2023, 5, 17, 10, 15),
-            ",,hb, , , ",
-            pd.Timestamp(datetime(2023, 5, 17, 10)),
-        ),
-        (datetime(2023, 5, 17, 10, 15), "DB", pd.Timestamp(datetime(2023, 5, 17))),
-        (datetime(2023, 5, 17, 10, 15), "2D,DB", pd.Timestamp(datetime(2023, 5, 19))),
-        (datetime(2023, 5, 17, 10, 15), "-2D,DB", pd.Timestamp(datetime(2023, 5, 15))),
+        (datetime(2023, 5, 17, 10, 15), ",,, , , ", datetime(2023, 5, 17, 10, 15)),
+        (datetime(2023, 5, 17, 10, 15), "", datetime(2023, 5, 17, 10, 15)),
+        (datetime(2023, 5, 17, 10, 15), ",,hb, , , ", datetime(2023, 5, 17, 10)),
+        (datetime(2023, 5, 17, 10, 15), "DB", datetime(2023, 5, 17)),
+        (datetime(2023, 5, 17, 10, 15), "2D,DB", datetime(2023, 5, 19)),
+        (datetime(2023, 5, 17, 10, 15), "-2D,DB", datetime(2023, 5, 15)),
     ],
 )
 def test_apply_offset_chain(
