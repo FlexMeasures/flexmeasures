@@ -1326,7 +1326,7 @@ def add_report(  # noqa: C901
         )
         end = now
 
-    click.echo(f"Report scope:\n\tstart: {start}\n\tend: {end}")
+    click.echo(f"Report scope:\n\tstart: {start}\n\tend:   {end}")
 
     click.echo(
         f"Looking for the Reporter {reporter_class} among all the registered reporters...",
