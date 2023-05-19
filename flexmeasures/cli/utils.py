@@ -1,4 +1,6 @@
-from typing import Tuple, Mapping
+from __future__ import annotations
+
+from typing import Any
 from datetime import datetime, timedelta
 
 
@@ -17,9 +19,9 @@ class MsgStyle(object):
 
     """
 
-    SUCCESS: Mapping = {"fg": "green"}
-    WARN: Mapping = {"fg": "yellow"}
-    ERROR: Mapping = {"fg": "red"}
+    SUCCESS: dict[str, Any] = {"fg": "green"}
+    WARN: dict[str, Any] = {"fg": "yellow"}
+    ERROR: dict[str, Any] = {"fg": "red"}
 
 
 class DeprecatedDefaultGroup(DefaultGroup):
@@ -75,7 +77,7 @@ def get_timerange_from_flag(
     last_month: bool = False,
     last_year: bool = False,
     timezone: pytz.BaseTzInfo = get_timezone(),
-) -> Tuple[datetime, datetime]:
+) -> tuple[datetime, datetime]:
     """This function returns a time range [start,end] of the last-X period.
     See input parameters for more details.
 
