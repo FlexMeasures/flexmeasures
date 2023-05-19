@@ -184,6 +184,12 @@ def test_recent_clocktime_window_invalid_window():
         (datetime(2023, 5, 17, 10, 15), "DB", datetime(2023, 5, 17)),
         (datetime(2023, 5, 17, 10, 15), "2D,DB", datetime(2023, 5, 19)),
         (datetime(2023, 5, 17, 10, 15), "-2D,DB", datetime(2023, 5, 15)),
+        # The day of this moment started on May 17th in Amsterdam (but started on May 16th in UTC).
+        (
+            pytz.timezone("Europe/Amsterdam").localize(datetime(2023, 5, 17, 0, 15)),
+            "DB",
+            pytz.timezone("Europe/Amsterdam").localize(datetime(2023, 5, 17)),
+        ),
     ],
 )
 def test_apply_offset_chain(
