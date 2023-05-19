@@ -276,8 +276,8 @@ def device_scheduler(  # noqa C901
         return (
             0,
             sum(m.commitment_quantity[:, j])
-            + sum(m.commitment_downwards_deviation[:, j, :])
-            + sum(m.commitment_upwards_deviation[:, j, :])
+            + sum(m.commitment_downwards_deviation[:, :, j])
+            + sum(m.commitment_upwards_deviation[:, :, j])
             - sum(m.ems_power[:, j]),
             0,
         )
