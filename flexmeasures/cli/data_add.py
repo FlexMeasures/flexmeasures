@@ -1292,12 +1292,11 @@ def add_report(  # noqa: C901
             end = now
         end = apply_offset_chain(end, end_offset)
 
-    # the case of not getting --start, --start-offset or any --last-X flag
+    # the case of not getting --start, --start-offset or any of the --last-X flag
     if start is None:
         click.secho(
-            "Either --start, --start-offset or any of the --last-X flags should be provided."
-            " Trying to use the latest datapoint of the report sensor as the start time and "
-            "the current time as the end...",
+            "One of --start, --start-offset or any of the --last-X flags should be provided."
+            " Trying to use the latest datapoint of the report sensor as the start time...",
             **MsgStyle.WARN,
         )
         last_value_datetime = (
@@ -1316,12 +1315,11 @@ def add_report(  # noqa: C901
             )
             raise click.Abort()
 
-    # the case of not getting --start, --start-offset or any --last-X flag
+    # the case of not getting --end, --end-offset or any of the --last-X flag
     if end is None:
         click.secho(
-            "Either --end, --end-offset or any of the --last-X flags should be provided."
-            " Trying to use the latest datapoint of the report sensor as the start time and "
-            "the current time as the end...",
+            "One of --end, --end-offset or any of the --last-X flags should be provided."
+            " Trying to use the current time as the end...",
             **MsgStyle.WARN,
         )
         end = now
