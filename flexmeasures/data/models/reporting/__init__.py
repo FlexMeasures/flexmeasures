@@ -22,7 +22,7 @@ class Reporter(DataGeneratorMixin):
 
     reporter_config: Optional[dict] = None
     reporter_config_raw: Optional[dict] = None
-    schema = ReporterConfigSchema
+    schema = ReporterConfigSchema()
     data: Dict[str, Union[tb.BeliefsDataFrame, pd.DataFrame]] = None
 
     def __init__(
@@ -123,6 +123,9 @@ class Reporter(DataGeneratorMixin):
 
         # Assign sensor to BeliefDataFrame
         result.sensor = self.sensor
+
+        if result.empty:
+            return result
 
         # update data source
         result.index = result.index.set_levels(
