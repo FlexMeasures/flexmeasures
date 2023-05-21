@@ -168,7 +168,7 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
             os.path.getsize("test.csv") > 100
         )  # bytes. Check that the file is not empty
 
-    # Running the command without without timing params (last-X flags nor start/end).
+    # Running the command without without timing params (start-offset/end-offset nor start/end).
     # This makes the command default the start time to the date of the last
     # value of the reporter sensor and the end time as the current time.
 

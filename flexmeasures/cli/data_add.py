@@ -65,7 +65,6 @@ from flexmeasures.utils import flexmeasures_inflection
 from flexmeasures.utils.time_utils import server_now, get_timezone, apply_offset_chain
 from flexmeasures.utils.unit_utils import convert_units, ur
 from flexmeasures.data.utils import save_to_db
-from flexmeasures.cli.utils import get_timerange_from_flag
 from flexmeasures.data.models.reporting import Reporter
 from timely_beliefs import BeliefsDataFrame
 
@@ -1155,28 +1154,28 @@ def add_schedule_for_storage(
     "start",
     type=AwareDateTimeField(format="iso"),
     required=False,
-    help="Report start time. Either `--last-X` flag can be used instead. Follow up with a timezone-aware datetime in ISO 6801 format.",
+    help="Report start time. `--start-offset` can be used instead. Follow up with a timezone-aware datetime in ISO 6801 format.",
 )
 @click.option(
     "--start-offset",
     "start_offset",
     type=str,
     required=False,
-    help="Report start offset time from now. Use multiple Pandas offset strings separated by commas, e.g: -3D,DB,1W. Use DB or HB to offset to the begin of the day or hour, respectively. Either `--last-X` flag can be used instead.",
+    help="Report start offset time from now. Use multiple Pandas offset strings separated by commas, e.g: -3D,DB,1W. Use DB or HB to offset to the begin of the day or hour, respectively.",
 )
 @click.option(
     "--end-offset",
     "end_offset",
     type=str,
     required=False,
-    help="Report end offset time from now. Use multiple Pandas offset strings separated by commas, e.g: -3D,DB,1W. Use DB or HB to offset to the begin of the day or hour, respectively. Either `--last-X` flag can be used instead.",
+    help="Report end offset time from now. Use multiple Pandas offset strings separated by commas, e.g: -3D,DB,1W. Use DB or HB to offset to the begin of the day or hour, respectively.",
 )
 @click.option(
     "--end",
     "end",
     type=AwareDateTimeField(format="iso"),
     required=False,
-    help="Report end time. Either `--last-X` flag can be used instead. Follow up with a timezone-aware datetime in ISO 6801 format.",
+    help="Report end time. `--end-offset` can be used instead. Follow up with a timezone-aware datetime in ISO 6801 format.",
 )
 @click.option(
     "--resolution",
@@ -1201,36 +1200,6 @@ def add_schedule_for_storage(
     help="Timezone as string, e.g. 'UTC' or 'Europe/Amsterdam' (defaults to FLEXMEASURES_TIMEZONE config setting)",
 )
 @click.option(
-    "--last-hour",
-    "last_hour",
-    is_flag=True,
-    help="Use the last known 1 hour period for the scope of the report.",
-)
-@click.option(
-    "--last-day",
-    "last_day",
-    is_flag=True,
-    help="Use the last known 1 day period for the scope of the report.",
-)
-@click.option(
-    "--last-week",
-    "last_7_days",
-    is_flag=True,
-    help="Use the last known 7 days period for the scope of the report.",
-)
-@click.option(
-    "--last-month",
-    "last_month",
-    is_flag=True,
-    help="Use the last known 1 month period for the scope of the report.",
-)
-@click.option(
-    "--last-year",
-    "last_year",
-    is_flag=True,
-    help="Use the last known 1 year period for the scope of the report.",
-)
-@click.option(
     "--dry-run",
     "dry_run",
     is_flag=True,
@@ -1247,11 +1216,6 @@ def add_report(  # noqa: C901
     resolution: Optional[timedelta] = None,
     output_file: Optional[Path] = None,
     dry_run: bool = False,
-    last_hour: bool = False,
-    last_day: bool = False,
-    last_7_days: bool = False,
-    last_month: bool = False,
-    last_year: bool = False,
     timezone: str | pytz.BaseTzInfo = get_timezone(),
 ):
     """
@@ -1264,22 +1228,7 @@ def add_report(  # noqa: C901
         check_timezone(timezone)
         timezone = pytz.timezone(zone=timezone)
 
-    # check that only 1 flag is provided
-    last_x_flags = [last_hour, last_day, last_7_days, last_month, last_year]
-    last_x_flag_given = last_x_flags.count(True) == 1
-
     now = timezone.localize(datetime.now())
-
-    # if any of the last-X flag is provided, override start and end
-    if last_x_flag_given:
-        start, end = get_timerange_from_flag(
-            last_hour=last_hour,
-            last_day=last_day,
-            last_7_days=last_7_days,
-            last_month=last_month,
-            last_year=last_year,
-            timezone=timezone,
-        )
 
     # apply offsets, if provided
     if start_offset is not None:
@@ -1292,10 +1241,10 @@ def add_report(  # noqa: C901
             end = now
         end = apply_offset_chain(end, end_offset)
 
-    # the case of not getting --start, --start-offset or any of the --last-X flag
+    # the case of not getting --start or --start-offset
     if start is None:
         click.secho(
-            "One of --start, --start-offset or any of the --last-X flags should be provided."
+            "Either --start or --start-offset should be provided."
             " Trying to use the latest datapoint of the report sensor as the start time...",
             **MsgStyle.WARN,
         )
@@ -1315,10 +1264,10 @@ def add_report(  # noqa: C901
             )
             raise click.Abort()
 
-    # the case of not getting --end, --end-offset or any of the --last-X flag
+    # the case of not getting --end or --end-offset
     if end is None:
         click.secho(
-            "One of --end, --end-offset or any of the --last-X flags should be provided."
+            "Either --end or --end-offset should be provided."
             " Trying to use the current time as the end...",
             **MsgStyle.WARN,
         )
