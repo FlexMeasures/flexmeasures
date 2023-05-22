@@ -9,10 +9,9 @@ TODO: This works with the legacy data model (esp. Assets), so it is marked for d
 
 from __future__ import annotations
 from functools import cached_property, wraps
-from typing import List, Dict, Tuple, Type, TypeVar, Union, Optional
+from typing import List, Dict, Type, TypeVar, Union, Optional
 from datetime import datetime
 
-from flexmeasures.data import db
 from flexmeasures.utils.flexmeasures_inflection import parameterize, pluralize
 from itertools import groupby
 
@@ -20,7 +19,6 @@ from flask_security.core import current_user
 import inflect
 import pandas as pd
 from sqlalchemy.orm import Query
-from sqlalchemy.engine import Row
 import timely_beliefs as tb
 
 from flexmeasures.auth.policy import ADMIN_ROLE
@@ -30,10 +28,9 @@ from flexmeasures.data.models.assets import (
     Power,
     assets_share_location,
 )
-from flexmeasures.data.models.markets import Market, Price
-from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.models.weather import Weather, WeatherSensorType
-from flexmeasures.data.models.user import User
+from flexmeasures.data.models.markets import Price
+from flexmeasures.data.models.time_series import TimedBelief
+from flexmeasures.data.models.weather import Weather
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.services.time_series import aggregate_values
 from flexmeasures.utils import coding_utils, time_utils
@@ -48,101 +45,6 @@ Two views using this (analytics and portfolio) are also considered legacy.
 p = inflect.engine()
 cached_property = coding_utils.make_registering_decorator(cached_property)
 SensorType = TypeVar("SensorType", Type[Power], Type[Price], Type[Weather])
-
-
-def get_markets() -> List[Market]:
-    """Return a list of all Market objects."""
-    return Market.query.order_by(Market.name.asc()).all()
-
-
-def get_assets(
-    owner_id: Optional[int] = None,
-    order_by_asset_attribute: str = "id",
-    order_direction: str = "desc",
-) -> List[Asset]:
-    """Return a list of all Asset objects owned by current_user
-    (or all users or a specific user - for this, admins can set an owner_id).
-    """
-    return _build_asset_query(owner_id, order_by_asset_attribute, order_direction).all()
-
-
-def get_sensors(
-    owner_id: Optional[int] = None,
-    order_by_asset_attribute: str = "id",
-    order_direction: str = "desc",
-) -> List[Sensor]:
-    """Return a list of all Sensor objects owned by current_user's organisation account
-    (or all users or a specific user - for this, admins can set an owner_id).
-    """
-    # todo: switch to using authz from https://github.com/SeitaBV/flexmeasures/pull/234
-    return [
-        asset.corresponding_sensor
-        for asset in get_assets(owner_id, order_by_asset_attribute, order_direction)
-    ]
-
-
-def has_assets(owner_id: Optional[int] = None) -> bool:
-    """Return True if the current user owns any assets.
-    (or all users or a specific user - for this, admins can set an owner_id).
-    """
-    return _build_asset_query(owner_id).count() > 0
-
-
-def can_access_asset(asset_or_sensor: Union[Asset, Sensor]) -> bool:
-    """Return True if:
-    - the current user is an admin, or
-    - the current user is the owner of the asset, or
-    - the current user's organisation account owns the corresponding generic asset, or
-    - the corresponding generic asset is public
-
-    todo: refactor to `def can_access_sensor(sensor: Sensor) -> bool` once `ui.views.state.state_view` stops calling it with an Asset
-    todo: let this function use our new auth model (row-level authorization)
-    todo: deprecate this function in favor of an authz decorator on the API route
-    """
-    if current_user.is_authenticated:
-        if current_user.has_role(ADMIN_ROLE):
-            return True
-        if isinstance(asset_or_sensor, Sensor):
-            if asset_or_sensor.generic_asset.owner in (None, current_user.account):
-                return True
-        elif asset_or_sensor.owner == current_user:
-            return True
-    return False
-
-
-def _build_asset_query(
-    owner_id: Optional[int] = None,
-    order_by_asset_attribute: str = "id",
-    order_direction: str = "desc",
-) -> Query:
-    """Build an Asset query. Only authenticated users can use this.
-    Admins can query for all assets (owner_id is None) or for any user (the asset's owner).
-    Non-admins can only query for themselves (owner_id is ignored).
-
-    order_direction can be "asc" or "desc".
-    """
-    if current_user.is_authenticated:
-        if current_user.has_role(ADMIN_ROLE):
-            if owner_id is not None:
-                if not isinstance(owner_id, int):
-                    try:
-                        owner_id = int(owner_id)
-                    except TypeError:
-                        raise Exception(
-                            "Owner id %s cannot be parsed as integer, thus seems to be invalid."
-                            % owner_id
-                        )
-                query = Asset.query.filter(Asset.owner_id == owner_id)
-            else:
-                query = Asset.query
-        else:
-            query = Asset.query.filter_by(owner=current_user)
-    else:
-        query = Asset.query.filter(Asset.owner_id == -1)
-    query = query.order_by(
-        getattr(getattr(Asset, order_by_asset_attribute), order_direction)()
-    )
-    return query
 
 
 def get_asset_group_queries(
@@ -243,30 +145,6 @@ def mask_inaccessible_assets(
         else:
             asset_queries = asset_queries.filter_by(owner=current_user)
     return asset_queries
-
-
-def get_center_location(user: Optional[User]) -> Tuple[float, float]:
-    """
-    Find the center position between all assets.
-    If user is passed and not admin then we only consider assets
-    owned by the user.
-    TODO: if we introduce accounts, this logic should look for these assets.
-    """
-    query = (
-        "Select (min(latitude) + max(latitude)) / 2 as latitude,"
-        " (min(longitude) + max(longitude)) / 2 as longitude"
-        " from asset"
-    )
-    if user and not user.has_role(ADMIN_ROLE):
-        query += f" where owner_id = {user.id}"
-    locations: List[Row] = db.session.execute(query + ";").fetchall()
-    if (
-        len(locations) == 0
-        or locations[0].latitude is None
-        or locations[0].longitude is None
-    ):
-        return 52.366, 4.904  # Amsterdam, NL
-    return locations[0].latitude, locations[0].longitude
 
 
 def check_cache(attribute):
@@ -645,24 +523,6 @@ def get_supply_from_bdf(
 ) -> Union[pd.DataFrame, tb.BeliefsDataFrame]:
     """Negative values become 0."""
     return bdf.clip(lower=0)
-
-
-def get_sensor_types(resource: Resource) -> List[WeatherSensorType]:
-    """Return a list of WeatherSensorType objects applicable to the given resource."""
-    sensor_type_names = []
-    for asset_type in resource.unique_asset_types:
-        sensor_type_names.extend(asset_type.weather_correlations)
-    unique_sensor_type_names = list(set(sensor_type_names))
-
-    sensor_types = []
-    for name in unique_sensor_type_names:
-        sensor_type = WeatherSensorType.query.filter(
-            WeatherSensorType.name == name
-        ).one_or_none()
-        if sensor_type is not None:
-            sensor_types.append(sensor_type)
-
-    return sensor_types
 
 
 def group_assets_by_location(asset_list: List[Asset]) -> List[List[Asset]]:
