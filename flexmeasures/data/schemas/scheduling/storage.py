@@ -13,6 +13,20 @@ from flexmeasures.utils.unit_utils import ur
 
 
 class EfficiencyField(QuantityField):
+    """Field that deserializes to a Quantity with % units. Must be greater than 0% and less than or equal to 100%.
+
+    Examples:
+
+        >>> ef = EfficiencyField()
+        >>> ef.deserialize(0.9)
+        <Quantity(90.0, 'percent')>
+        >>> ef.deserialize("90%")
+        <Quantity(90.0, 'percent')>
+        >>> ef.deserialize("0%")
+        Traceback (most recent call last):
+        ...
+        marshmallow.exceptions.ValidationError: ['Must be greater than 0 and less than or equal to 1.']
+    """
     def __init__(self, *args, **kwargs):
         super().__init__(
             "%",
