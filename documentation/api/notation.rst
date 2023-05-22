@@ -195,6 +195,7 @@ Here are the three types of flexibility models you can expect to be built-in:
     - ``soc-max`` (defaults to max soc target)
     - ``soc-targets`` (defaults to NaN values)
     - ``roundtrip-efficiency`` (defaults to 100%)
+    - ``storage-efficiency`` (defaults to 100%)
     - ``prefer-charging-sooner`` (defaults to True, also signals a preference to discharge later)
 
   For some examples, see the `[POST] /sensors/(id)/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_ endpoint docs.
