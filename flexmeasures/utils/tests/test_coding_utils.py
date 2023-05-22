@@ -2,7 +2,7 @@ from flexmeasures.utils.coding_utils import deprecated
 
 
 def other_function():
-    pass
+    return 1
 
 
 def test_deprecated_decorator(caplog, app):
@@ -10,11 +10,11 @@ def test_deprecated_decorator(caplog, app):
     # defining a function that is deprecated
     @deprecated(other_function, "v14")
     def deprecated_function():
-        pass
+        return other_function()
 
     caplog.clear()
 
-    deprecated_function()  # calling a deprecated function
+    value = deprecated_function()  # calling a deprecated function
     print(caplog.records)
     assert len(caplog.records) == 1  # only 1 warning being printed
 
@@ -25,3 +25,7 @@ def test_deprecated_decorator(caplog, app):
     assert "v14" in str(
         caplog.records[0].message
     )  # checking that the message is correct
+
+    assert (
+        value == 1
+    )  # check that the decorator is returning the value of `other_function`

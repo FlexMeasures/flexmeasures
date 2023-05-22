@@ -25,6 +25,13 @@ Infrastructure / Support
 .. warning:: The setting `FLEXMEASURES_PLUGIN_PATHS` has been deprecated since v0.7. It has now been sunset. Please replace it with :ref:`plugin-config`.
 
 
+v0.13.1 | May 12, 2023
+=======================
+Bugfixes
+---------
+* `@deprecated` not returning the output of the decorated function [see `PR #678 <https://www.github.com/FlexMeasures/flexmeasures/pull/678>`_]
+
+
 v0.13.0 | May 1, 2023
 ============================
 

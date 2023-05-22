@@ -166,7 +166,7 @@ def deprecated(alternative, version: str | None = None):
                 f"The method or function {func.__name__} is deprecated and it is expected to be sunset in version {version}. Please, switch to using {inspect.getmodule(alternative).__name__}:{alternative.__name__} to suppress this warning."
             )
 
-            func(*args, **kwargs)
+            return func(*args, **kwargs)
 
         return wrapper
 
