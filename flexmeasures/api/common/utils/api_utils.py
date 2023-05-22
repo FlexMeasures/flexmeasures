@@ -14,13 +14,10 @@ from sqlalchemy.exc import IntegrityError
 import timely_beliefs as tb
 
 from flexmeasures.data import db
-from flexmeasures.data.models.assets import Power
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
-from flexmeasures.data.models.markets import Price
-from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.models.weather import WeatherSensor, Weather
-from flexmeasures.data.services.time_series import drop_unchanged_beliefs
-from flexmeasures.data.utils import save_to_session, save_to_db as modern_save_to_db
+from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.weather import WeatherSensor
+from flexmeasures.data.utils import save_to_db as modern_save_to_db
 from flexmeasures.api.common.responses import (
     invalid_replacement,
     unrecognized_sensor,
@@ -333,81 +330,6 @@ def save_and_enqueue(
     ):
         return already_received_and_successfully_processed()
     return invalid_replacement()
-
-
-def save_to_db(
-    timed_values: Union[BeliefsDataFrame, List[Union[Power, Price, Weather]]],
-    forecasting_jobs: List[Job] = [],
-    save_changed_beliefs_only: bool = True,
-) -> ResponseTuple:
-    """Put the timed values into the database and enqueue forecasting jobs.
-
-    Data can only be replaced on servers in play mode.
-
-    TODO: remove this legacy function in its entirety (announced v0.8.0)
-
-    :param timed_values: BeliefsDataFrame or a list of Power, Price or Weather values to be saved
-    :param forecasting_jobs: list of forecasting Jobs for redis queues.
-    :param save_changed_beliefs_only: if True, beliefs that are already stored in the database with an earlier belief time are dropped.
-    :returns: ResponseTuple
-    """
-
-    import warnings
-
-    warnings.warn(
-        "The method api.common.utils.api_utils.save_to_db is deprecated. Check out the following replacements:"
-        "- [recommended option] to store BeliefsDataFrames only, switch to data.utils.save_to_db"
-        "- to store BeliefsDataFrames and enqueue jobs, switch to api.common.utils.api_utils.save_and_enqueue"
-    )
-
-    if isinstance(timed_values, BeliefsDataFrame):
-
-        if save_changed_beliefs_only:
-            # Drop beliefs that haven't changed
-            timed_values = drop_unchanged_beliefs(timed_values)
-
-            # Work around bug in which groupby still introduces an index level, even though we asked it not to
-            if None in timed_values.index.names:
-                timed_values.index = timed_values.index.droplevel(None)
-
-        if timed_values.empty:
-            current_app.logger.debug("Nothing new to save")
-            return already_received_and_successfully_processed()
-
-    current_app.logger.info("SAVING TO DB AND QUEUEING...")
-    try:
-        if isinstance(timed_values, BeliefsDataFrame):
-            TimedBelief.add_to_session(
-                session=db.session, beliefs_data_frame=timed_values
-            )
-        else:
-            save_to_session(timed_values)
-        db.session.flush()
-        [current_app.queues["forecasting"].enqueue_job(job) for job in forecasting_jobs]
-        db.session.commit()
-        return request_processed()
-    except IntegrityError as e:
-        current_app.logger.warning(e)
-        db.session.rollback()
-
-        # Possibly allow data to be replaced depending on config setting
-        if current_app.config.get("FLEXMEASURES_ALLOW_DATA_OVERWRITE", False):
-            if isinstance(timed_values, BeliefsDataFrame):
-                TimedBelief.add_to_session(
-                    session=db.session,
-                    beliefs_data_frame=timed_values,
-                    allow_overwrite=True,
-                )
-            else:
-                save_to_session(timed_values, overwrite=True)
-            [
-                current_app.queues["forecasting"].enqueue_job(job)
-                for job in forecasting_jobs
-            ]
-            db.session.commit()
-            return request_processed()
-        else:
-            return already_received_and_successfully_processed()
 
 
 def determine_belief_timing(
