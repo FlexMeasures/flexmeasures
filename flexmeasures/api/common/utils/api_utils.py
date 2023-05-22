@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from timely_beliefs.beliefs.classes import BeliefsDataFrame
 from typing import List, Sequence, Tuple, Union
-import copy
 from datetime import datetime, timedelta
 from json import loads as parse_json, JSONDecodeError
 
@@ -15,7 +14,7 @@ from sqlalchemy.exc import IntegrityError
 import timely_beliefs as tb
 
 from flexmeasures.data import db
-from flexmeasures.data.models.assets import Asset, Power
+from flexmeasures.data.models.assets import Power
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.markets import Price
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
@@ -242,52 +241,6 @@ def unique_ever_seen(iterable: Sequence, selector: Sequence):
             us.append(selector_element)
             s[u.index(iterable_element)] = us
     return u, s
-
-
-def message_replace_name_with_ea(message_with_connections_as_asset_names: dict) -> dict:
-    """
-    For each connection in the message specified by a name, replace that name with the correct entity address.
-    TODO: Deprecated. This function is now only used in tests of deprecated API versions and should go (also asset_replace_name_with_id)
-    """
-    message_with_connections_as_eas = copy.deepcopy(
-        message_with_connections_as_asset_names
-    )
-    if "connection" in message_with_connections_as_asset_names:
-        message_with_connections_as_eas["connection"] = asset_replace_name_with_id(
-            parse_as_list(  # type:ignore
-                message_with_connections_as_eas["connection"], of_type=str
-            )
-        )
-    elif "connections" in message_with_connections_as_asset_names:
-        message_with_connections_as_eas["connections"] = asset_replace_name_with_id(
-            parse_as_list(  # type:ignore
-                message_with_connections_as_eas["connections"], of_type=str
-            )
-        )
-    elif "groups" in message_with_connections_as_asset_names:
-        for i, group in enumerate(message_with_connections_as_asset_names["groups"]):
-            if "connection" in group:
-                message_with_connections_as_eas["groups"][i][
-                    "connection"
-                ] = asset_replace_name_with_id(
-                    parse_as_list(group["connection"], of_type=str)  # type:ignore
-                )
-            elif "connections" in group:
-                message_with_connections_as_eas["groups"][i][
-                    "connections"
-                ] = asset_replace_name_with_id(
-                    parse_as_list(group["connections"], of_type=str)  # type:ignore
-                )
-    return message_with_connections_as_eas
-
-
-def asset_replace_name_with_id(connections_as_name: List[str]) -> List[str]:
-    """Look up the owner and id given the asset name and construct a type 1 USEF entity address."""
-    connections_as_ea = []
-    for asset_name in connections_as_name:
-        asset = Asset.query.filter(Asset.name == asset_name).one_or_none()
-        connections_as_ea.append(asset.entity_address)
-    return connections_as_ea
 
 
 def get_sensor_by_generic_asset_type_and_location(
