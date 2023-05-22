@@ -221,7 +221,7 @@ class Asset(db.Model, tb.SensorDBMixin):
             "assets", lazy=True, cascade="all, delete-orphan", passive_deletes=True
         ),
     )
-    market = db.relationship("Market", backref=db.backref("assets", lazy=True))
+    # market = db.relationship("Market", backref=db.backref("assets", lazy=True))
 
     def latest_state(self, event_ends_before: Optional[datetime] = None) -> "Power":
         """Search the most recent event for this sensor, optionally before some datetime."""
