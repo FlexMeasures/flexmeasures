@@ -16,10 +16,6 @@ from flexmeasures.auth.policy import user_has_admin_access
 from flexmeasures.utils import time_utils
 from flexmeasures.ui import flexmeasures_ui
 from flexmeasures.data.models.user import User, Account
-from flexmeasures.data.models.assets import Asset
-from flexmeasures.data.models.markets import Market
-from flexmeasures.data.models.weather import WeatherSensorType
-from flexmeasures.data.services.resources import Resource
 from flexmeasures.ui.utils.chart_defaults import chart_options
 
 
@@ -173,127 +169,6 @@ def set_time_range_for_session():
         and len(allowed_horizons) > 0
     ):
         session["forecast_horizon"] = allowed_horizons[0]
-
-
-def ensure_timing_vars_are_set(
-    time_window: tuple[datetime | None, datetime | None],
-    resolution: str | None,
-) -> tuple[tuple[datetime, datetime], str]:
-    """
-    Ensure that time window and resolution variables are set,
-    even if we don't have them available ― in that case,
-    get them from the session.
-    """
-    start = time_window[0]
-    end = time_window[-1]
-    if None in (start, end, resolution):
-        current_app.logger.warning("Setting time range for session.")
-        set_time_range_for_session()
-        start_out: datetime = session["start_time"]
-        end_out: datetime = session["end_time"]
-        resolution_out: str = session["resolution"]
-    else:
-        start_out = start  # type: ignore
-        end_out = end  # type: ignore
-        resolution_out = resolution  # type: ignore
-
-    return (start_out, end_out), resolution_out
-
-
-def set_session_market(resource: Resource) -> Market:
-    """Set session["market"] to something, based on the available markets or the request.
-    Returns the selected market, or None."""
-    market = resource.assets[0].market
-    if market is not None:
-        session["market"] = market.name
-    elif "market" not in session:
-        session["market"] = None
-    if (
-        "market" in request.args
-    ):  # [GET] Set by user clicking on a link somewhere (e.g. dashboard)
-        session["market"] = request.args["market"]
-    if (
-        "market" in request.form
-    ):  # [POST] Set by user in drop-down field. This overwrites GET, as the URL remains.
-        session["market"] = request.form["market"]
-    return Market.query.filter(Market.name == session["market"]).one_or_none()
-
-
-def set_session_sensor_type(
-    accepted_sensor_types: list[WeatherSensorType],
-) -> WeatherSensorType:
-    """Set session["sensor_type"] to something, based on the available sensor types or the request.
-    Returns the selected sensor type, or None."""
-
-    sensor_type_name = ""
-    if "sensor_type" in session:
-        sensor_type_name = session["sensor_type"]
-    if (
-        "sensor_type" in request.args
-    ):  # [GET] Set by user clicking on a link somewhere (e.g. dashboard)
-        sensor_type_name = request.args["sensor_type"]
-    if (
-        "sensor_type" in request.form
-    ):  # [POST] Set by user in drop-down field. This overwrites GET, as the URL remains.
-        sensor_type_name = request.form["sensor_type"]
-    requested_sensor_type = WeatherSensorType.query.filter(
-        WeatherSensorType.name == sensor_type_name
-    ).one_or_none()
-    if (
-        requested_sensor_type not in accepted_sensor_types
-        and len(accepted_sensor_types) > 0
-    ):
-        sensor_type = accepted_sensor_types[0]
-        session["sensor_type"] = sensor_type.name
-        return sensor_type
-    elif len(accepted_sensor_types) == 0:
-        session["sensor_type"] = None
-    else:
-        session["sensor_type"] = requested_sensor_type.name
-        return requested_sensor_type
-
-
-def set_session_resource(
-    assets: list[Asset], groups_with_assets: list[str]
-) -> Resource | None:
-    """
-    Set session["resource"] to something, based on the available asset groups or the request.
-
-    Returns the selected resource instance, or None.
-    """
-    if (
-        "resource" in request.args
-    ):  # [GET] Set by user clicking on a link somewhere (e.g. dashboard)
-        session["resource"] = request.args["resource"]
-    if (
-        "resource" in request.form
-    ):  # [POST] Set by user in drop-down field. This overwrites GET, as the URL remains.
-        session["resource"] = request.form["resource"]
-
-    if "resource" not in session:  # set some default, if possible
-        if len(groups_with_assets) > 0:
-            session["resource"] = groups_with_assets[0]
-        elif len(assets) > 0:
-            session["resource"] = assets[0].name
-        else:
-            return None
-
-    return Resource(session["resource"])
-
-
-def set_individual_traces_for_session():
-    """
-    Set session["showing_individual_traces_for"] to a value ("none", "power", "schedules").
-    """
-    var_name = "showing_individual_traces_for"
-    if var_name not in session:
-        session[var_name] = "none"  # default setting: we show traces aggregated
-    if var_name in request.values and request.values[var_name] in (
-        "none",
-        "power",
-        "schedules",
-    ):
-        session[var_name] = request.values[var_name]
 
 
 def get_git_description() -> tuple[str, int, str]:
