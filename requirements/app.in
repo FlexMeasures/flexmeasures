@@ -14,7 +14,8 @@ humanize
 psycopg2-binary
 bcrypt
 pytz
-numpy
+# limit the numpy version to make it compatible with numba==0.56.4
+numpy<1.24
 isodate
 click
 click-default-group
