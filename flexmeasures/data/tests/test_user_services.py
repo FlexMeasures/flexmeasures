@@ -7,7 +7,7 @@ from flexmeasures.data.services.users import (
     delete_user,
     InvalidFlexMeasuresUser,
 )
-from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
+from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import TimedBelief
 
