@@ -1,7 +1,6 @@
 from typing import Dict, Tuple
 
 import timely_beliefs as tb
-from sqlalchemy.orm import Query
 from sqlalchemy.ext.hybrid import hybrid_method
 from sqlalchemy.sql.expression import func
 from sqlalchemy.schema import UniqueConstraint
@@ -11,7 +10,7 @@ from flexmeasures.data.models.legacy_migration_utils import (
     copy_old_sensor_attributes,
     get_old_model_type,
 )
-from flexmeasures.data.models.time_series import Sensor, TimedValue, TimedBelief
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.generic_assets import (
     create_generic_asset,
     GenericAsset,
@@ -242,55 +241,3 @@ class WeatherSensor(db.Model, tb.SensorDBMixin):
 
     def to_dict(self) -> Dict[str, str]:
         return dict(name=self.name, sensor_type=self.weather_sensor_type_name)
-
-
-class Weather(TimedValue, db.Model):
-    """
-    All weather measurements are stored in one slim table.
-
-    This model is now considered legacy. See TimedBelief.
-    """
-
-    sensor_id = db.Column(
-        db.Integer(), db.ForeignKey("sensor.id"), primary_key=True, index=True
-    )
-    sensor = db.relationship("Sensor", backref=db.backref("weather", lazy=True))
-
-    @classmethod
-    def make_query(cls, **kwargs) -> Query:
-        """Construct the database query."""
-        return super().make_query(**kwargs)
-
-    def __init__(self, use_legacy_kwargs: bool = True, **kwargs):
-
-        # todo: deprecate the 'Weather' class in favor of 'TimedBelief' (announced v0.8.0)
-        if use_legacy_kwargs is False:
-
-            # Create corresponding TimedBelief
-            belief = TimedBelief(**kwargs)
-            db.session.add(belief)
-
-            # Convert key names for legacy model
-            kwargs["value"] = kwargs.pop("event_value")
-            kwargs["datetime"] = kwargs.pop("event_start")
-            kwargs["horizon"] = kwargs.pop("belief_horizon")
-            kwargs["sensor_id"] = kwargs.pop("sensor").id
-            kwargs["data_source_id"] = kwargs.pop("source").id
-        else:
-            import warnings
-
-            warnings.warn(
-                f"The {self.__class__} class is deprecated. Switch to using the TimedBelief class to suppress this warning.",
-                FutureWarning,
-            )
-
-        super(Weather, self).__init__(**kwargs)
-
-    def __repr__(self):
-        return "<Weather %.5f on Sensor %s at %s by DataSource %s, horizon %s>" % (
-            self.value,
-            self.sensor_id,
-            self.datetime,
-            self.data_source_id,
-            self.horizon,
-        )
