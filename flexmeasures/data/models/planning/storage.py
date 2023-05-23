@@ -37,11 +37,14 @@ class StorageScheduler(Scheduler):
 
         return self.compute()
 
-    def compute(
-        self,
-    ) -> pd.Series | None:
+    def compute(self, skip_validation: bool = False) -> pd.Series | None:
         """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
         For the resulting consumption schedule, consumption is defined as positive values.
+
+        Args:
+        skip_validation: bool, default=False
+                         whether to skip validation of constraints from data
+
         """
         if not self.config_deserialized:
             self.deserialize_config()
@@ -133,52 +136,18 @@ class StorageScheduler(Scheduler):
                 beliefs_before=belief_time,
                 sensor=inflexible_sensor,
             )
-        if soc_targets is not None:
-            # make an equality series with the SOC targets set in the flex model
-            # device_constraints[0] refers to the flexible device we are scheduling
-            device_constraints[0]["equals"] = build_device_soc_values(
-                soc_targets,
-                soc_at_start,
-                start,
-                end,
-                resolution,
-            )
 
-        soc_min_change = (soc_min - soc_at_start) * timedelta(hours=1) / resolution
-        soc_max_change = (soc_max - soc_at_start) * timedelta(hours=1) / resolution
-
-        if soc_minima is not None:
-            device_constraints[0]["min"] = build_device_soc_values(
-                soc_minima,
-                soc_at_start,
-                start,
-                end,
-                resolution,
-            )
-
-        device_constraints[0]["min"] = device_constraints[0]["min"].fillna(
-            soc_min_change
-        )
-
-        if soc_maxima is not None:
-            device_constraints[0]["max"] = build_device_soc_values(
-                soc_maxima,
-                soc_at_start,
-                start,
-                end,
-                resolution,
-            )
-
-        device_constraints[0]["max"] = device_constraints[0]["max"].fillna(
-            soc_max_change
-        )
-
-        # limiting max and min to be in the range [soc_min, soc_max]
-        device_constraints[0]["min"] = device_constraints[0]["min"].clip(
-            lower=soc_min_change, upper=soc_max_change
-        )
-        device_constraints[0]["max"] = device_constraints[0]["max"].clip(
-            lower=soc_min_change, upper=soc_max_change
+        device_constraints[0] = add_storage_constraints(
+            device_constraints[0],
+            start,
+            end,
+            resolution,
+            soc_at_start,
+            soc_targets,
+            soc_maxima,
+            soc_minima,
+            soc_max,
+            soc_min,
         )
 
         if sensor.get_attribute("is_strictly_non_positive"):
@@ -199,6 +168,20 @@ class StorageScheduler(Scheduler):
             roundtrip_efficiency**0.5
         )
         device_constraints[0]["derivative up efficiency"] = roundtrip_efficiency**0.5
+
+        # check that storage constraints are fullfiled
+        if not skip_validation:
+            constraint_violations = validate_storage_constraints(
+                storage_constraints=device_constraints[0],
+                soc_at_start=soc_at_start,
+                min_soc=soc_min,
+                max_soc=soc_max,
+                resolution=resolution,
+            )
+
+            if len(constraint_violations) > 0:
+                # TODO: include hints from constraint_violations into the error message
+                raise ValueError("The input data yields an unfeasible problem.")
 
         # Set up EMS constraints
         columns = ["derivative max", "derivative min"]
@@ -443,6 +426,360 @@ def build_device_soc_values(
     ) - soc_at_start * (timedelta(hours=1) / resolution)
 
     return device_values
+
+
+def add_storage_constraints(
+    storage_device_constraints: pd.DataFrame,
+    start: datetime,
+    end: datetime,
+    resolution: timedelta,
+    soc_at_start: float,
+    soc_targets: List[Dict[str, datetime | float]] | pd.Series | None,
+    soc_maxima: List[Dict[str, datetime | float]] | pd.Series | None,
+    soc_minima: List[Dict[str, datetime | float]] | pd.Series | None,
+    soc_max: float,
+    soc_min: float,
+) -> pd.DataFrame:
+    """_summary_
+
+    Args:
+        storage_device_constraints (pd.DataFrame): _description_
+        start (datetime): start of the schedule.
+        end (datetime): end of the schedule.
+        resolution (timedelta): timedelta used to resample the forecasts to the resolution of the schedule.
+        soc_at_start (float): state of charge at the start time.
+        soc_targets (List[Dict[str, datetime  |  float]] | pd.Series | None): list of (time : value) pairs
+        soc_maxima (List[Dict[str, datetime  |  float]] | pd.Series | None): _description_
+        soc_minima (List[Dict[str, datetime  |  float]] | pd.Series | None): _description_
+        soc_max (float): _description_
+        soc_min (float): _description_
+
+    Returns:
+        pd.DataFrame: _description_
+    """
+
+    if soc_targets is not None:
+        # make an equality series with the SOC targets set in the flex model
+        # storage_device_constraints refers to the flexible device we are scheduling
+        storage_device_constraints["equals"] = build_device_soc_values(
+            soc_targets, soc_at_start, start, end, resolution
+        )
+
+    soc_min_change = (soc_min - soc_at_start) * timedelta(hours=1) / resolution
+    soc_max_change = (soc_max - soc_at_start) * timedelta(hours=1) / resolution
+
+    if soc_minima is not None:
+        storage_device_constraints["min"] = build_device_soc_values(
+            soc_minima,
+            soc_at_start,
+            start,
+            end,
+            resolution,
+        )
+
+    storage_device_constraints["min"] = storage_device_constraints["min"].fillna(
+        soc_min_change
+    )
+
+    if soc_maxima is not None:
+        storage_device_constraints["max"] = build_device_soc_values(
+            soc_maxima,
+            soc_at_start,
+            start,
+            end,
+            resolution,
+        )
+
+    storage_device_constraints["max"] = storage_device_constraints["max"].fillna(
+        soc_max_change
+    )
+
+    # limiting max and min to be in the range [soc_min, soc_max]
+    storage_device_constraints["min"] = storage_device_constraints["min"].clip(
+        lower=soc_min_change, upper=soc_max_change
+    )
+    storage_device_constraints["max"] = storage_device_constraints["max"].clip(
+        lower=soc_min_change, upper=soc_max_change
+    )
+
+    return storage_device_constraints
+
+
+def validate_storage_constraints(
+    storage_constraints: pd.DataFrame,
+    soc_at_start: float,
+    min_soc: float,
+    max_soc: float,
+    resolution: timedelta,
+) -> list:
+    """Check that the storage constraints are fulfilled, e.g min <= equals <= max.
+
+    A. Global validation
+        A.1) min <= min_soc
+        A.2) max <= max_soc
+    B. Validation in the same time frame
+        B.1) min <= max
+        B.2) min <= equals
+        B.3) equals <= max
+    C. Validation in different time frames
+        C.1) equals(t) - equals(t-1) <= `derivative max`(t)
+        C.2) `derivative min`(t) <= equals(t) - equals(t-1)
+        C.3) min(t) - max(t-1) <= `derivative max`(t)
+        C.4) max(t) - min(t-1) >= `derivative min`(t)
+        C.5) condition equals(t) - max(t-1) <= `derivative max`(t)
+        C.6) `derivative min`(t) <= equals(t) - min(t-1)
+
+    Args:
+        storage_constraints: pd.DataFrame
+                             dataframe containing the constraints of a storage device
+
+    """
+
+    constraint_violations = []
+
+    ########################
+    # A. Global validation #
+    ########################
+    min_soc = (min_soc - soc_at_start) * timedelta(hours=1) / resolution
+
+    # 1) min <= min_soc
+    mask = ~(storage_constraints["min"] >= min_soc)
+    time_condition_fails = storage_constraints.index[mask]
+
+    for dt in time_condition_fails:
+        value_min = storage_constraints.loc[dt, "min"]
+
+        constraint_violations.append(
+            dict(
+                dt=dt.to_pydatetime(),
+                condition="min <= min_soc",
+                violation=f"min [{value_min}] <= min_soc [{min_soc}]",
+            )
+        )
+
+    # 2) max <= max_soc
+    max_soc = (max_soc - soc_at_start) * timedelta(hours=1) / resolution
+
+    mask = ~(storage_constraints["max"] <= max_soc)
+    time_condition_fails = storage_constraints.index[mask]
+
+    for dt in time_condition_fails:
+        value_max = storage_constraints.loc[dt, "max"]
+
+        constraint_violations.append(
+            dict(
+                dt=dt.to_pydatetime(),
+                condition="max <= max_soc",
+                violation=f"max [{value_max}] <= max_soc [{max_soc}]",
+            )
+        )
+
+    ########################################
+    # B. Validation in the same time frame #
+    ########################################
+
+    # 1) min <= max
+    mask = ~(storage_constraints["min"] <= storage_constraints["max"])
+    time_condition_fails = storage_constraints.index[mask]
+
+    for dt in time_condition_fails:
+        value_min = storage_constraints.loc[dt, "min"]
+        value_max = storage_constraints.loc[dt, "max"]
+
+        constraint_violations.append(
+            dict(
+                dt=dt.to_pydatetime(),
+                condition="min <= max",
+                violation=f"min [{value_min}] <= max [{value_max}]",
+            )
+        )
+
+    # 2) min <= equals
+    mask = ~(storage_constraints["equals"] >= storage_constraints["min"])
+    mask = mask & ~storage_constraints["equals"].isna()
+    time_condition_fails = storage_constraints.index[mask]
+
+    for dt in time_condition_fails:
+        value_equals = storage_constraints.loc[dt, "equals"]
+        value_min = storage_constraints.loc[dt, "min"]
+
+        constraint_violations.append(
+            dict(
+                dt=dt.to_pydatetime(),
+                condition="min <= equals",
+                violation=f"equal [{value_equals}] >= min [{value_min}]",
+            )
+        )
+
+    # 3) equals <= max
+    mask = ~(storage_constraints["equals"] <= storage_constraints["max"])
+    mask = mask & ~storage_constraints["equals"].isna()
+
+    time_condition_fails = storage_constraints.index[mask]
+
+    for dt in time_condition_fails:
+        value_equals = storage_constraints.loc[dt, "equals"]
+        value_max = storage_constraints.loc[dt, "max"]
+
+        constraint_violations.append(
+            dict(
+                dt=dt.to_pydatetime(),
+                condition="equals <= max",
+                violation=f"equals [{value_equals}] <= max [{value_max}]",
+            )
+        )
+
+    ##########################################
+    # C. Validation in different time frames #
+    ##########################################
+
+    factor_w_wh = resolution / timedelta(hours=1)
+
+    # 1) equals(t) - equals(t-1) <= `derivative max`(t)
+    equals_extended = storage_constraints["equals"].copy()
+    equals_extended[storage_constraints.index[0] - resolution] = soc_at_start
+    equals_extended = equals_extended.sort_index()
+    diff_equals = equals_extended.diff()[1:]
+
+    mask = (
+        ~(diff_equals <= storage_constraints["derivative max"] * factor_w_wh)
+        & ~diff_equals.isna()
+    )
+    time_condition_fails = storage_constraints.index[mask]
+
+    for dt in time_condition_fails:
+        value_equals = storage_constraints.loc[dt, "equals"]
+        value_equals_previous = storage_constraints.loc[dt - resolution, "equals"]
+        value_derivative_max = storage_constraints.loc[dt, "derivative max"]
+
+        constraint_violations.append(
+            dict(
+                dt=dt.to_pydatetime(),
+                condition="equals(t) - equals(t-1) <= `derivative max`(t)",
+                violation=f"equals(t) [{value_equals}] - equals(t-1) [{value_equals_previous}] <= max [{value_derivative_max}]",
+            )
+        )
+
+    # 2) `derivative min`(t) <= equals(t) - equals(t-1)
+    equals_extended = storage_constraints["equals"].copy()
+    equals_extended[storage_constraints.index[0] - resolution] = soc_at_start
+    equals_extended = equals_extended.sort_index()
+    diff_equals = equals_extended.diff()[1:]
+
+    mask = (
+        ~((storage_constraints["derivative min"] * factor_w_wh) <= diff_equals)
+        & ~diff_equals.isna()
+    )
+    time_condition_fails = storage_constraints.index[mask]
+
+    for dt in time_condition_fails:
+        value_equals = storage_constraints.loc[dt, "equals"]
+        value_equals_previous = storage_constraints.loc[dt - resolution, "equals"]
+        value_derivative_min = storage_constraints.loc[dt, "derivative min"]
+
+        constraint_violations.append(
+            dict(
+                dt=dt.to_pydatetime(),
+                condition="`derivative min`(t) <= equals(t) - equals(t-1)",
+                violation=f"`derivative min`(t) [{value_derivative_min}] <= equals(t) [{value_equals}] - equals(t-1) [{value_equals_previous}]",
+            )
+        )
+
+    # extend max
+    max_extended = storage_constraints["max"].copy()
+    max_extended[storage_constraints.index[0] - resolution] = max_soc
+    max_extended = max_extended.sort_index()
+
+    # extend min
+    min_extended = storage_constraints["min"].copy()
+    min_extended[storage_constraints.index[0] - resolution] = min_soc
+    min_extended = min_extended.sort_index()
+
+    delta_min_max = min_extended - max_extended.shift(1)
+    delta_min_max = delta_min_max[1:]
+
+    delta_max_min = max_extended - min_extended.shift(1)
+    delta_max_min = delta_max_min[1:]
+
+    # 3) min(t) - max(t-1) <= `derivative max`(t)
+    condition3 = delta_min_max <= storage_constraints["derivative max"] * factor_w_wh
+    mask = ~condition3
+    time_condition_fails = storage_constraints.index[mask]
+
+    for dt in time_condition_fails:
+        value_min = storage_constraints.loc[dt, "min"]
+        value_max_previous = max_extended.loc[dt - resolution]
+        value_derivative_max = storage_constraints.loc[dt, "derivative max"]
+
+        constraint_violations.append(
+            dict(
+                dt=dt.to_pydatetime(),
+                condition="min(t) - max(t-1) <= `derivative max`(t)",
+                violation=f"min(t) [{value_min}] <= max(t-1) [{value_max_previous}] + `derivative max` [{value_derivative_max}]",
+            )
+        )
+
+    # 4) max(t) - min(t-1) >= `derivative min`(t)
+    condition4 = delta_max_min >= storage_constraints["derivative min"] * factor_w_wh
+    mask = ~condition4
+    time_condition_fails = storage_constraints.index[mask]
+
+    for dt in time_condition_fails:
+        value_max = storage_constraints.loc[dt, "max"]
+        value_min_previous = min_extended.loc[dt - resolution]
+        value_derivative_min = storage_constraints.loc[dt, "derivative min"]
+
+        constraint_violations.append(
+            dict(
+                dt=dt.to_pydatetime(),
+                condition="max(t) - min(t-1) >= `derivative min`",
+                violation=f"max(t) [{value_max}] - min(t-1) [{value_min_previous}]<= `derivative min` [{value_derivative_min}]",
+            )
+        )
+
+    # 5) equals(t) - max(t-1) <= `derivative max`(t)
+    delta_equals_max = storage_constraints["equals"] - max_extended.shift(1)
+    delta_equals_max = delta_equals_max[1:]
+
+    condition5 = delta_equals_max <= storage_constraints["derivative max"] * factor_w_wh
+    mask = ~condition5 & ~storage_constraints["equals"].isna()
+    time_condition_fails = storage_constraints.index[mask]
+
+    for dt in time_condition_fails:
+        value_equals = storage_constraints.loc[dt, "equals"]
+        value_max_previous = max_extended.loc[dt - resolution]
+        value_derivative_max = storage_constraints.loc[dt, "derivative max"]
+
+        constraint_violations.append(
+            dict(
+                dt=dt.to_pydatetime(),
+                condition="equals(t) - max(t-1) <= `derivative max`(t)",
+                violation=f"equals(t) [{value_equals}] - max(t-1) [{value_max_previous}] <= `derivative max`(t) [{value_derivative_max}]",
+            )
+        )
+
+    # 6) `derivative min`(t) <= equals(t) - min(t-1)
+    delta_equals_min = storage_constraints["equals"] - min_extended.shift(1)
+    delta_equals_min = delta_equals_min[1:]
+
+    condition5 = delta_equals_min >= storage_constraints["derivative min"] * factor_w_wh
+    mask = ~condition5 & ~storage_constraints["equals"].isna()
+    time_condition_fails = storage_constraints.index[mask]
+
+    for dt in time_condition_fails:
+        value_equals = storage_constraints.loc[dt, "equals"]
+        value_min_previous = min_extended.loc[dt - resolution]
+        value_derivative_min = storage_constraints.loc[dt, "derivative min"]
+
+        constraint_violations.append(
+            dict(
+                dt=dt.to_pydatetime(),
+                condition="`derivative min`(t) <= equals(t) - min(t-1)",
+                violation=f"`derivative min`(t) [{value_derivative_min}] <= equals(t) [{value_equals}] - min(t-1) [{value_min_previous}]",
+            )
+        )
+
+    return constraint_violations
 
 
 #####################

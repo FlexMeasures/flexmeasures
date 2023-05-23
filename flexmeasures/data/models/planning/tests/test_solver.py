@@ -7,10 +7,12 @@ import pandas as pd
 
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.planning import Scheduler
-from flexmeasures.data.models.planning.storage import StorageScheduler
-from flexmeasures.data.models.planning.utils import (
-    initialize_series,
+from flexmeasures.data.models.planning.storage import (
+    StorageScheduler,
+    add_storage_constraints,
+    validate_storage_constraints,
 )
+from flexmeasures.data.models.planning.utils import initialize_series, initialize_df
 from flexmeasures.utils.calculations import integrate_time_series
 
 
@@ -265,7 +267,7 @@ def test_fallback_to_unsolvable_problem(target_soc, charging_station_name):
     scheduler.config_deserialized = (
         True  # soc targets are already a DataFrame, names get underscore
     )
-    consumption_schedule = scheduler.compute()
+    consumption_schedule = scheduler.compute(skip_validation=True)
     soc_schedule = integrate_time_series(
         consumption_schedule, soc_at_start, decimal_precision=6
     )
@@ -518,3 +520,213 @@ def test_soc_bounds_timeseries(add_battery_assets):
     # test for soc_targets
     # check that the SOC target (at 19 pm, local time) is met
     assert soc_schedule2.loc[datetime(2015, 1, 2, 18)] == 2.0
+
+
+@pytest.mark.parametrize(
+    "value_soc_min, value_soc_minima, value_soc_target, value_soc_maxima, value_soc_max, min, equals, max",
+    [
+        (-1, -0.5, 0, 0.5, 1, -0.5, 0, 0.5),
+        (-1, -2, 0, 0.5, 1, -1, 0, 0.5),
+        (-1, -0.5, 0.5, 0.5, 1, -0.5, 0.5, 0.5),
+    ],
+)
+def test_add_storage_constraints(
+    value_soc_min,
+    value_soc_minima,
+    value_soc_target,
+    value_soc_maxima,
+    value_soc_max,
+    min,
+    equals,
+    max,
+):
+    """Check that the storage constraints are generated properly"""
+
+    # from 00:00 to 04.00, both inclusive.
+    start = datetime(2023, 5, 18, tzinfo=pytz.utc)
+    end = datetime(2023, 5, 18, 5, tzinfo=pytz.utc)
+    # hourly resolution
+    resolution = timedelta(hours=1)
+
+    soc_at_start = 0.0
+
+    columns = [
+        "equals",
+        "max",
+        "min",
+        "derivative equals",
+        "derivative max",
+        "derivative min",
+        "derivative down efficiency",
+        "derivative up efficiency",
+    ]
+
+    test_date = start + timedelta(hours=1)
+
+    soc_targets = initialize_series(np.nan, start, end, resolution)
+    soc_targets[test_date] = value_soc_target
+
+    soc_maxima = initialize_series(np.nan, start, end, resolution)
+    soc_maxima[test_date] = value_soc_maxima
+
+    soc_minima = initialize_series(np.nan, start, end, resolution)
+    soc_minima[test_date] = value_soc_minima
+
+    soc_max = value_soc_max
+    soc_min = value_soc_min
+
+    storage_device_constraints = initialize_df(columns, start, end, resolution)
+
+    storage_device_constraints = add_storage_constraints(
+        storage_device_constraints,
+        start,
+        end,
+        resolution,
+        soc_at_start,
+        soc_targets,
+        soc_maxima,
+        soc_minima,
+        soc_max,
+        soc_min,
+    )
+
+    assert (storage_device_constraints["max"] <= soc_max).all()
+    assert (storage_device_constraints["min"] >= soc_min).all()
+
+    equals_not_nan = ~storage_device_constraints["equals"].isna()
+
+    assert (storage_device_constraints["min"] <= storage_device_constraints["equals"])[
+        equals_not_nan
+    ].all()
+    assert (storage_device_constraints["equals"] <= storage_device_constraints["max"])[
+        equals_not_nan
+    ].all()
+
+
+@pytest.mark.parametrize(
+    "value_min1, value_equals1, value_max1, value_min2, value_equals2, value_max2, expected_constraint_type_violations",
+    [
+        (1, np.nan, 9, 2, np.nan, 20, ["max <= max_soc"]),
+        (-1, np.nan, 9, 1, np.nan, 9, ["min <= min_soc"]),
+        (1, 10, 9, 1, np.nan, 9, ["equals <= max"]),
+        (1, 0, 9, 1, np.nan, 9, ["min <= equals"]),
+        (
+            1,
+            np.nan,
+            9,
+            9,
+            np.nan,
+            1,
+            ["min <= max"],
+        ),
+        (9, 5, 1, 1, np.nan, 9, ["min <= equals", "equals <= max", "min <= max"]),
+        (1, np.nan, 9, 1, np.nan, 9, []),  # same interval, should not fail
+        (1, np.nan, 9, 3, np.nan, 7, []),  # should not fail, containing interval
+        (1, np.nan, 3, 3, np.nan, 5, []),  # difference = 0 < 1, should not fail
+        (1, np.nan, 3, 4, np.nan, 5, []),  # difference == max, should not fails
+        (
+            1,
+            np.nan,
+            3,
+            5,
+            np.nan,
+            7,
+            ["min(t) - max(t-1) <= `derivative max`(t)"],
+        ),  # difference > max = 1, this should fail
+        (3, np.nan, 5, 2, np.nan, 3, []),  # difference = 0 < 1, should not fail
+        (3, np.nan, 5, 1, np.nan, 2, []),  # difference = -1 >= -1, should not fail
+        (
+            3,
+            np.nan,
+            5,
+            1,
+            np.nan,
+            1,
+            ["max(t) - min(t-1) >= `derivative min`"],
+        ),  # difference = -2 < -1, should fail,
+        (1, 4, 9, 1, 4, 9, []),  # same target value (4), should not fail
+        (
+            1,
+            6,
+            9,
+            1,
+            4,
+            9,
+            ["`derivative min`(t) <= equals(t) - equals(t-1)"],
+        ),  # difference = -2 < -1, should fail,
+        (
+            1,
+            4,
+            9,
+            1,
+            6,
+            9,
+            ["equals(t) - equals(t-1) <= `derivative max`(t)"],
+        ),  # difference 2 > 1, should fail,
+    ],
+)
+def test_validate_constraints(
+    value_min1,
+    value_equals1,
+    value_max1,
+    value_min2,
+    value_equals2,
+    value_max2,
+    expected_constraint_type_violations,
+):
+    """Check the validation of constraints.
+    Two consecutive SOC ranges are parametrized (min, equals, max) and the different conditions are tested.
+    """
+    # from 00:00 to 04.00, both inclusive.
+    start = datetime(2023, 5, 18, tzinfo=pytz.utc)
+    end = datetime(2023, 5, 18, 5, tzinfo=pytz.utc)
+
+    # hourly resolution
+    resolution = timedelta(hours=1)
+
+    columns = ["equals", "max", "min", "derivative max", "derivative min"]
+
+    storage_device_constraints = initialize_df(columns, start, end, resolution)
+
+    test_time = start + resolution * 2
+
+    storage_device_constraints["min"] = 0
+    storage_device_constraints["max"] = 10
+
+    storage_device_constraints["derivative max"] = 1
+    storage_device_constraints["derivative min"] = -1
+
+    storage_device_constraints.loc[
+        storage_device_constraints.index == test_time, "min"
+    ] = value_min1
+    storage_device_constraints.loc[
+        storage_device_constraints.index == test_time, "max"
+    ] = value_max1
+    storage_device_constraints.loc[
+        storage_device_constraints.index == test_time, "equals"
+    ] = value_equals1
+
+    storage_device_constraints.loc[
+        storage_device_constraints.index == test_time + resolution, "min"
+    ] = value_min2
+    storage_device_constraints.loc[
+        storage_device_constraints.index == test_time + resolution, "max"
+    ] = value_max2
+    storage_device_constraints.loc[
+        storage_device_constraints.index == test_time + resolution, "equals"
+    ] = value_equals2
+
+    constraint_violations = validate_storage_constraints(
+        storage_constraints=storage_device_constraints,
+        soc_at_start=0.0,
+        min_soc=0,
+        max_soc=10,
+        resolution=resolution,
+    )
+
+    constraint_type_violations_output = set(
+        constraint_violation["condition"]
+        for constraint_violation in constraint_violations
+    )
+
+    assert set(expected_constraint_type_violations) == constraint_type_violations_output
