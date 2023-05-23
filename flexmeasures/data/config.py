@@ -39,7 +39,6 @@ def configure_db_for(app: Flask):
         # you will have to import them first before calling configure_db().
         from flexmeasures.data.models import (  # noqa: F401
             time_series,
-            markets,
             assets,
             weather,
             data_sources,
