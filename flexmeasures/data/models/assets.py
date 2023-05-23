@@ -302,6 +302,10 @@ class Asset(db.Model, tb.SensorDBMixin):
             capacity_in_mw=self.capacity_in_mw,
         )
 
+    @property
+    def market(self) -> str:
+        return "deprecated"
+
     def __repr__(self):
         return "<Asset %s:%r (%s), res.: %s on market %s>" % (
             self.id,
