@@ -10,6 +10,7 @@ New features
 -------------
 
 * Introduction of the classes `Reporter` and `PandasReporter` [see `PR #641 <https://www.github.com/FlexMeasures/flexmeasures/pull/641>`_]
+* Add multiple maxima and minima constraints into `StorageScheduler` [see `PR #680 <https://www.github.com/FlexMeasures/flexmeasures/pull/680>`_]
 
 
 Bugfixes
