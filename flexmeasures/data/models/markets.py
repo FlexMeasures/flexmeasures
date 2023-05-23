@@ -2,8 +2,6 @@ from typing import Dict
 
 import timely_beliefs as tb
 from timely_beliefs.sensors.func_store import knowledge_horizons
-import timely_beliefs.utils as tb_utils
-from sqlalchemy.orm import Query
 
 from flexmeasures.data import db
 from flexmeasures.data.models.generic_assets import (
@@ -15,7 +13,7 @@ from flexmeasures.data.models.legacy_migration_utils import (
     copy_old_sensor_attributes,
     get_old_model_type,
 )
-from flexmeasures.data.models.time_series import Sensor, TimedValue, TimedBelief
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.utils.entity_address_utils import build_entity_address
 from flexmeasures.utils.flexmeasures_inflection import humanize
 
@@ -190,55 +188,3 @@ class Market(db.Model, tb.SensorDBMixin):
 
     def to_dict(self) -> Dict[str, str]:
         return dict(name=self.name, market_type=self.market_type.name)
-
-
-class Price(TimedValue, db.Model):
-    """
-    All prices are stored in one slim table.
-
-    This model is now considered legacy. See TimedBelief.
-    """
-
-    sensor_id = db.Column(
-        db.Integer(), db.ForeignKey("sensor.id"), primary_key=True, index=True
-    )
-    sensor = db.relationship("Sensor", backref=db.backref("prices", lazy=True))
-
-    @classmethod
-    def make_query(cls, **kwargs) -> Query:
-        """Construct the database query."""
-        return super().make_query(**kwargs)
-
-    def __init__(self, use_legacy_kwargs: bool = True, **kwargs):
-        # todo: deprecate the 'market_id' argument in favor of 'sensor_id' (announced v0.8.0)
-        if "market_id" in kwargs and "sensor_id" not in kwargs:
-            kwargs["sensor_id"] = tb_utils.replace_deprecated_argument(
-                "market_id",
-                kwargs["market_id"],
-                "sensor_id",
-                None,
-            )
-            kwargs.pop("market_id", None)
-
-        # todo: deprecate the 'Price' class in favor of 'TimedBelief' (announced v0.8.0)
-        if use_legacy_kwargs is False:
-            # Create corresponding TimedBelief
-            belief = TimedBelief(**kwargs)
-            db.session.add(belief)
-
-            # Convert key names for legacy model
-            kwargs["value"] = kwargs.pop("event_value")
-            kwargs["datetime"] = kwargs.pop("event_start")
-            kwargs["horizon"] = kwargs.pop("belief_horizon")
-            kwargs["sensor_id"] = kwargs.pop("sensor").id
-            kwargs["data_source_id"] = kwargs.pop("source").id
-
-        else:
-            import warnings
-
-            warnings.warn(
-                f"The {self.__class__} class is deprecated. Switch to using the TimedBelief class to suppress this warning.",
-                FutureWarning,
-            )
-
-        super(Price, self).__init__(**kwargs)
