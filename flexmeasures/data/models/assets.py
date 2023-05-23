@@ -1,10 +1,6 @@
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Tuple, Union
 
-import isodate
 import timely_beliefs as tb
-import timely_beliefs.utils as tb_utils
-from sqlalchemy.orm import Query
 
 from flexmeasures.data import db
 from flexmeasures.data.models.legacy_migration_utils import (
@@ -12,7 +8,7 @@ from flexmeasures.data.models.legacy_migration_utils import (
     get_old_model_type,
 )
 from flexmeasures.data.models.user import User
-from flexmeasures.data.models.time_series import Sensor, TimedValue, TimedBelief
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.generic_assets import (
     create_generic_asset,
     GenericAsset,
@@ -223,20 +219,6 @@ class Asset(db.Model, tb.SensorDBMixin):
     )
     # market = db.relationship("Market", backref=db.backref("assets", lazy=True))
 
-    def latest_state(self, event_ends_before: Optional[datetime] = None) -> "Power":
-        """Search the most recent event for this sensor, optionally before some datetime."""
-        # todo: replace with Sensor.latest_state
-        power_query = (
-            Power.query.filter(Power.sensor_id == self.id)
-            .filter(Power.horizon <= timedelta(hours=0))
-            .order_by(Power.datetime.desc())
-        )
-        if event_ends_before is not None:
-            power_query = power_query.filter(
-                Power.datetime + self.event_resolution <= event_ends_before
-            )
-        return power_query.first()
-
     @property
     def corresponding_sensor(self) -> Sensor:
         return db.session.query(Sensor).get(self.id)
@@ -324,87 +306,3 @@ def assets_share_location(assets: List[Asset]) -> bool:
     if not assets:
         return True
     return all([a.location == assets[0].location for a in assets])
-
-
-class Power(TimedValue, db.Model):
-    """
-    All measurements of power data are stored in one slim table.
-    Negative values indicate consumption.
-
-    This model is now considered legacy. See TimedBelief.
-    """
-
-    sensor_id = db.Column(
-        db.Integer(),
-        db.ForeignKey("sensor.id", ondelete="CASCADE"),
-        primary_key=True,
-        index=True,
-    )
-    sensor = db.relationship(
-        "Sensor",
-        backref=db.backref(
-            "measurements",
-            lazy=True,
-            cascade="all, delete-orphan",
-            passive_deletes=True,
-        ),
-    )
-
-    @classmethod
-    def make_query(
-        cls,
-        **kwargs,
-    ) -> Query:
-        """Construct the database query."""
-        return super().make_query(**kwargs)
-
-    def to_dict(self):
-        return {
-            "datetime": isodate.datetime_isoformat(self.datetime),
-            "sensor_id": self.sensor_id,
-            "value": self.value,
-            "horizon": self.horizon,
-        }
-
-    def __init__(self, use_legacy_kwargs: bool = True, **kwargs):
-        # todo: deprecate the 'asset_id' argument in favor of 'sensor_id' (announced v0.8.0)
-        if "asset_id" in kwargs and "sensor_id" not in kwargs:
-            kwargs["sensor_id"] = tb_utils.replace_deprecated_argument(
-                "asset_id",
-                kwargs["asset_id"],
-                "sensor_id",
-                None,
-            )
-            kwargs.pop("asset_id", None)
-
-        # todo: deprecate the 'Power' class in favor of 'TimedBelief' (announced v0.8.0)
-        if use_legacy_kwargs is False:
-            # Create corresponding TimedBelief
-            belief = TimedBelief(**kwargs)
-            db.session.add(belief)
-
-            # Convert key names for legacy model
-            kwargs["value"] = kwargs.pop("event_value")
-            kwargs["datetime"] = kwargs.pop("event_start")
-            kwargs["horizon"] = kwargs.pop("belief_horizon")
-            kwargs["sensor_id"] = kwargs.pop("sensor").id
-            kwargs["data_source_id"] = kwargs.pop("source").id
-
-        else:
-            import warnings
-
-            warnings.warn(
-                f"The {self.__class__} class is deprecated. Switch to using the TimedBelief class to suppress this warning.",
-                FutureWarning,
-            )
-
-        super(Power, self).__init__(**kwargs)
-
-    def __repr__(self):
-        return "<Power %.5f on Sensor %s at %s by DataSource %s, horizon %s>" % (
-            self.value,
-            self.sensor_id,
-            self.datetime,
-            self.data_source_id,
-            self.horizon,
-        )
