@@ -399,6 +399,31 @@ def create_test_asset_types(db) -> dict[str, AssetType]:
 def setup_assets(
     db, setup_roles_users, setup_markets, setup_sources, setup_asset_types
 ) -> dict[str, Asset]:
+    return create_assets(
+        db, setup_roles_users, setup_markets, setup_sources, setup_asset_types
+    )
+
+
+@pytest.fixture(scope="function")
+def setup_assets_fresh_db(
+    fresh_db,
+    setup_roles_users_fresh_db,
+    setup_markets_fresh_db,
+    setup_sources_fresh_db,
+    setup_asset_types_fresh_db,
+) -> dict[str, Asset]:
+    return create_assets(
+        fresh_db,
+        setup_roles_users_fresh_db,
+        setup_markets_fresh_db,
+        setup_sources_fresh_db,
+        setup_asset_types_fresh_db,
+    )
+
+
+def create_assets(
+    db, setup_roles_users, setup_markets, setup_sources, setup_asset_types
+) -> dict[str, Asset]:
     """Add assets to known test users.
     Deprecated. Remove with Asset model."""
 

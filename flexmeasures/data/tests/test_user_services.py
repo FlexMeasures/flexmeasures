@@ -7,7 +7,7 @@ from flexmeasures.data.services.users import (
     delete_user,
     InvalidFlexMeasuresUser,
 )
-from flexmeasures.data.models.assets import Asset
+from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import TimedBelief
 
@@ -79,26 +79,42 @@ def test_create_invalid_user(
     assert "without knowing the name of the account" in str(exc_info.value)
 
 
-def test_delete_user(fresh_db, setup_roles_users_fresh_db, app):
-    """Assert user has assets and power measurements. Deleting removes all of that."""
+def test_delete_user(fresh_db, setup_roles_users_fresh_db, setup_assets_fresh_db, app):
+    """Check that deleting a user does not lead to deleting their organisation's (asset/sensor/beliefs) data."""
     prosumer: User = find_user_by_email("test_prosumer_user@seita.nl")
     num_users_before = User.query.count()
-    user_assets_with_measurements_before = Asset.query.filter(
-        Asset.owner_id == prosumer.id, Asset.asset_type_name.in_(["wind", "solar"])
-    ).all()
-    asset_ids = [asset.id for asset in user_assets_with_measurements_before]
-    for asset_id in asset_ids:
-        num_power_measurements = TimedBelief.query.filter(
-            TimedBelief.sensor_id == asset_id
-        ).count()
-        assert num_power_measurements == 96
+
+    # Find assets belonging to the user's organisation
+    asset_query = GenericAsset.query.filter(
+        GenericAsset.account_id == prosumer.account_id
+    )
+    assets_before = asset_query.all()
+    assert (
+        len(assets_before) > 0
+    ), "Test assets should have been set up, otherwise we'd not be testing whether they're kept."
+
+    # Find all the organisation's sensors
+    sensors_before = []
+    for asset in assets_before:
+        sensors_before.extend(asset.sensors)
+
+    # Count all the organisation's beliefs
+    beliefs_query = TimedBelief.query.filter(
+        TimedBelief.sensor_id.in_([sensor.id for sensor in sensors_before])
+    )
+    num_beliefs_before = beliefs_query.count()
+    assert (
+        num_beliefs_before > 0
+    ), "Some beliefs should have been set up, otherwise we'd not be testing whether they're kept."
+
+    # Delete the user
     delete_user(prosumer)
     assert find_user_by_email("test_prosumer_user@seita.nl") is None
-    user_assets_after = Asset.query.filter(Asset.owner_id == prosumer.id).all()
-    assert len(user_assets_after) == 0
     assert User.query.count() == num_users_before - 1
-    for asset_id in asset_ids:
-        num_power_measurements = TimedBelief.query.filter(
-            TimedBelief.sensor_id == asset_id
-        ).count()
-        assert num_power_measurements == 0
+
+    # Check whether the organisation's assets, sensors and beliefs were kept
+    assets_after = asset_query.all()
+    assert assets_after == assets_before
+
+    num_beliefs_after = beliefs_query.count()
+    assert num_beliefs_after == num_beliefs_before
