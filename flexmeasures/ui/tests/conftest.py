@@ -1,8 +1,6 @@
 import pytest
 
 from flexmeasures.data.services.users import create_user
-from flexmeasures.data.models.assets import Asset
-from flexmeasures.data.models.weather import WeatherSensor, WeatherSensorType
 from flexmeasures.ui.tests.utils import login, logout
 
 
@@ -35,14 +33,7 @@ def setup_ui_test_data(
     setup_sources,
     setup_asset_types,
 ):
-    """
-    Create another prosumer, without data, and an admin
-    Also, a weather sensor (and sensor type).
-
-    TODO: review if any of these are really needed (might be covered now by main conftest)
-    """
-    print("Setting up data for UI tests on %s" % db.engine)
-
+    """Create an admin."""
     create_user(
         username="Site Admin",
         email="flexmeasures-admin@seita.nl",
@@ -50,38 +41,3 @@ def setup_ui_test_data(
         account_name=setup_accounts["Prosumer"].name,
         user_roles=dict(name="admin", description="A site admin."),
     )
-
-    test_user_ui = create_user(
-        username=" Test Prosumer User UI",
-        email="test_user_ui@seita.nl",
-        password="testtest",
-        account_name=setup_accounts["Prosumer"].name,
-    )
-    asset = Asset(
-        name="solar pane 1",
-        display_name="Solar Pane 1",
-        asset_type_name="solar",
-        unit="MW",
-        capacity_in_mw=10,
-        latitude=10,
-        longitude=100,
-        min_soc_in_mwh=0,
-        max_soc_in_mwh=0,
-        soc_in_mwh=0,
-    )
-    db.session.add(asset)
-    asset.owner = test_user_ui
-
-    # Create 1 weather sensor
-    test_sensor_type = WeatherSensorType(name="irradiance")
-    db.session.add(test_sensor_type)
-    sensor = WeatherSensor(
-        name="irradiance_sensor",
-        weather_sensor_type_name="irradiance",
-        latitude=33.4843866,
-        longitude=126,
-        unit="kW/m²",
-    )
-    db.session.add(sensor)
-
-    print("Done setting up data for UI tests")
