@@ -14,7 +14,7 @@ humanize
 psycopg2-binary
 bcrypt
 pytz
-numpy<1.24
+numpy
 isodate
 click
 click-default-group
