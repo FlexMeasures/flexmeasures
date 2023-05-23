@@ -12,6 +12,8 @@ import numpy as np
 from flask import request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_security import roles_accepted
+from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
+
 from werkzeug.exceptions import (
     InternalServerError,
     BadRequest,
@@ -28,7 +30,6 @@ from flexmeasures.data.models.assets import AssetType, Asset
 from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.planning.utils import initialize_index
-from flexmeasures.data.models.markets import Market, MarketType
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.user import User, Account, AccountRole
 
@@ -231,32 +232,39 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
 
 
 @pytest.fixture(scope="module")
-def setup_markets(db) -> dict[str, Market]:
+def setup_markets(db) -> dict[str, Sensor]:
     return create_test_markets(db)
 
 
 @pytest.fixture(scope="function")
-def setup_markets_fresh_db(fresh_db) -> dict[str, Market]:
+def setup_markets_fresh_db(fresh_db) -> dict[str, Sensor]:
     return create_test_markets(fresh_db)
 
 
-def create_test_markets(db) -> dict[str, Market]:
+def create_test_markets(db) -> dict[str, Sensor]:
     """Create the epex_da market."""
 
-    day_ahead = MarketType(
+    day_ahead = GenericAssetType(
         name="day_ahead",
-        daily_seasonality=True,
-        weekly_seasonality=True,
-        yearly_seasonality=True,
     )
-    db.session.add(day_ahead)
-    epex_da = Market(
+    epex = GenericAsset(
+        name="epex",
+        generic_asset_type=day_ahead,
+    )
+    epex_da = Sensor(
         name="epex_da",
-        market_type_name="day_ahead",
+        generic_asset=epex,
         event_resolution=timedelta(hours=1),
         unit="EUR/MWh",
-        knowledge_horizon_fnc="x_days_ago_at_y_oclock",
-        knowledge_horizon_par={"x": 1, "y": 12, "z": "Europe/Paris"},
+        knowledge_horizon=(
+            x_days_ago_at_y_oclock,
+            {"x": 1, "y": 12, "z": "Europe/Paris"},
+        ),
+        attributes=dict(
+            daily_seasonality=True,
+            weekly_seasonality=True,
+            yearly_seasonality=True,
+        ),
     )
     db.session.add(epex_da)
     return {"epex_da": epex_da}
@@ -552,7 +560,7 @@ def add_market_prices(
             belief_horizon=timedelta(hours=0),
             event_value=val,
             source=setup_sources["Seita"],
-            sensor=setup_markets["epex_da"].corresponding_sensor,
+            sensor=setup_markets["epex_da"],
         )
         for dt, val in zip(time_slots, values)
     ]
@@ -571,12 +579,12 @@ def add_market_prices(
             belief_horizon=timedelta(hours=0),
             event_value=val,
             source=setup_sources["Seita"],
-            sensor=setup_markets["epex_da"].corresponding_sensor,
+            sensor=setup_markets["epex_da"],
         )
         for dt, val in zip(time_slots, values)
     ]
     db.session.add_all(day2_beliefs)
-    return {"epex_da": setup_markets["epex_da"].corresponding_sensor}
+    return {"epex_da": setup_markets["epex_da"]}
 
 
 @pytest.fixture(scope="module")

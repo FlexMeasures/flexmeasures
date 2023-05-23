@@ -123,7 +123,7 @@ class Asset(db.Model, tb.SensorDBMixin):
     # owner
     owner_id = db.Column(db.Integer, db.ForeignKey("fm_user.id", ondelete="CASCADE"))
     # market
-    market_id = db.Column(db.Integer, db.ForeignKey("market.id"), nullable=True)
+    market_id = db.Column(db.Integer, db.ForeignKey("sensor.id"), nullable=True)
 
     def __init__(self, **kwargs):
 
