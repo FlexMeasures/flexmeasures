@@ -6,7 +6,7 @@ from flask_security import current_user
 from flexmeasures.data import ma
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
-from flexmeasures.data.schemas import LatitudeField, LongitudeField
+from flexmeasures.data.schemas.locations import LatitudeField, LongitudeField
 from flexmeasures.data.schemas.utils import (
     FMValidationError,
     MarshmallowClickMixin,

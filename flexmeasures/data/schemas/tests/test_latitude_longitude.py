@@ -1,6 +1,6 @@
 import pytest
 
-from flexmeasures.data.schemas.assets import LatitudeField, LongitudeField
+from flexmeasures.data.schemas.locations import LatitudeField, LongitudeField
 from flexmeasures.data.schemas.utils import ValidationError
 
 
