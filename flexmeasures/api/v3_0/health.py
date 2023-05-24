@@ -19,7 +19,6 @@ def _check_redis() -> bool:
     """Check status of the redis instance
 
     :return: True if the redis instance is active, False otherwise
-    :rtype: bool
     """
     try:
         current_app.redis_connection.ping()
