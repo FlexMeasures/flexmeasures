@@ -52,10 +52,17 @@ extensions = [
     "sphinx_fontawesome",
     "sphinxcontrib.autohttp.flask",
     "sphinxcontrib.autohttp.flaskqref",
+    "sphinx.ext.autosummary",
+    "sphinx.ext.autodoc.typehints",
 ]
+
+autodoc_default_options = {"members": True, "inherited-members": True}
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
+
+# generate autosummary even if no references
+autosummary_generate = True
 
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
@@ -224,3 +231,7 @@ def setup(sphinx_app):
         "live",
         "env",  # hard-coded, documentation is not server-specific for the time being
     )
+
+    from flexmeasures.app import create
+
+    create()  # we need to create the app for when sphinx imports modules that use current_app
