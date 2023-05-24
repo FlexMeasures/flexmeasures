@@ -17,7 +17,7 @@ build:
     python: "3.9"
   jobs:
     post_create_environment:
-      - pip install . --no-deps
+      - pip install . --no-deps  # as python install step, RTD installs deps eagerly
 
 python: 
   install:
