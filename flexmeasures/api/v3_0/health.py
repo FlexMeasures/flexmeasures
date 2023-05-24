@@ -2,6 +2,7 @@ from flask import current_app
 from flask_classful import FlaskView, route
 from flask_json import as_json
 
+from redis.exceptions import ConnectionError
 from flexmeasures.data import db
 
 
@@ -11,6 +12,19 @@ def _check_sql_database():
         return True
     except Exception:  # noqa: B902
         current_app.logger.exception("Database down or undetected")
+        return False
+
+
+def _check_redis() -> bool:
+    """Check status of the redis instance
+
+    :return: True if the redis instance is active, False otherwise
+    :rtype: bool
+    """
+    try:
+        current_app.redis_connection.ping()
+        return True
+    except ConnectionError:
         return False
 
 
@@ -32,11 +46,15 @@ class HealthAPI(FlaskView):
         .. sourcecode:: json
 
             {
-                'database_sql': True
+                'database_sql': True,
+                'database_redis': False
             }
 
         """
-        status = {"database_sql": _check_sql_database()}  # TODO: check redis
+        status = {
+            "database_sql": _check_sql_database(),
+            "database_redis": _check_redis(),
+        }
         if all(status.values()):
             return status, 200
         else:
