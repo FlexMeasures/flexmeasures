@@ -6,6 +6,8 @@
 # full list see the documentation:
 # http://www.sphinx-doc.org/en/stable/config
 
+import os
+
 from datetime import datetime
 from pkg_resources import get_distribution
 import sphinx_fontawesome
@@ -56,13 +58,15 @@ extensions = [
     "sphinx.ext.autodoc.typehints",
 ]
 
-autodoc_default_options = {"members": True, "inherited-members": True}
+autodoc_default_options = {}
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
 
 # generate autosummary even if no references
-autosummary_generate = True
+autosummary_generate = bool(
+    os.environ.get("GEN_CODE_DOCS", "False").lower() in ("t", "true", "1")
+)
 
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
@@ -83,7 +87,7 @@ language = "en"
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path .
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "_templates"]
 
 # Todo: these are not mature enough yet for release, or should be removed
 exclude_patterns.append("int/*.rst")
@@ -232,6 +236,8 @@ def setup(sphinx_app):
         "env",  # hard-coded, documentation is not server-specific for the time being
     )
 
-    from flexmeasures.app import create
+    if autosummary_generate:
 
-    create()  # we need to create the app for when sphinx imports modules that use current_app
+        from flexmeasures.app import create
+
+        create()  # we need to create the app for when sphinx imports modules that use current_app

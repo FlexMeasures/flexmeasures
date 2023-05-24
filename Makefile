@@ -18,14 +18,14 @@ update-docs:
 	@echo "Creating docs environment ..."
 	make install-docs-dependencies
 	@echo "Creating documentation ..."
-	cd documentation; make clean; make html SPHINXOPTS="-W --keep-going -n"; cd ..
+	export GEN_CODE_DOCS=${gen_code_docs}; cd documentation; make clean; make html SPHINXOPTS="-W --keep-going -n"; cd ..
 
 update-docs-pdf:
 	@echo "NOTE: PDF documentation requires packages (on Debian: latexmk texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended)"
 	@echo "NOTE: Currently, the docs require some pictures which are not in the git repo atm. Ask the devs."
 	make install-sphinx-tools
 
-	cd documentation; make clean; make latexpdf; make latexpdf; cd ..  # make latexpdf can require two passes
+	export GEN_CODE_DOCS=${gen_code_docs}; cd documentation; make clean; make latexpdf; make latexpdf; cd ..  # make latexpdf can require two passes
 
 # ---- Installation ---
 
