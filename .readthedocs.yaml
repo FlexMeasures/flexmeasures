@@ -20,8 +20,10 @@ python:
   install:
     - requirements: requirements/app.txt
     - requirements: requirements/docs.txt
-    - method: pip
-      path: .
+
+jobs:
+  post_create_environment:
+    - pip install . --no-deps
 
 sphinx:
   fail_on_warning: true
