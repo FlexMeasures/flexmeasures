@@ -179,7 +179,7 @@ Yes, that is quite a large battery :)
 .. note:: Obviously, you can use the ``flexmeasures`` command to create your own, custom account and assets. See :ref:`cli`. And to create, edit or read asset data via the API, see :ref:`v3_0`.
 
 We can also look at the battery asset in the UI of FlexMeasures (in Docker, the FlexMeasures web server already runs, on your PC you can start it with ``flexmeasures run``).
-Visit `http://localhost:5000/dashboard <http://localhost:5000/dashboard>`_ (username is "toy-user@flexmeasures.io", password is "toy-password") and select "toy-battery":
+Visit `http://localhost:5000/ <http://localhost:5000/>`_ (username is "toy-user@flexmeasures.io", password is "toy-password"):
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/asset-view-dashboard.png
     :align: center
