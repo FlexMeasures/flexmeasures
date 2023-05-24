@@ -7,7 +7,7 @@
 
 .. autosummary::
    :toctree:
-   :template: custom-module-template.rst                 
+   :template: custom-module-template.rst                
    :recursive:
 {% for item in modules %}
    {% if "test" not in item %}
@@ -23,9 +23,9 @@
    {% if attributes %}
    .. rubric:: Module Attributes
 
-   .. autosummary::
-      :toctree:                                          
+
    {% for item in attributes %}
+   .. autoattribute::
       {{ item }}
    {%- endfor %}
    {% endif %}
@@ -35,9 +35,8 @@
    {% if functions %}
    .. rubric:: {{ _('Functions') }}
 
-   .. autosummary::
-      :toctree:                                          
    {% for item in functions %}
+   .. autofunction::
       {{ item }}
    {%- endfor %}
    {% endif %}
@@ -47,11 +46,10 @@
    {% if classes %}
    .. rubric:: {{ _('Classes') }}
 
-   .. autosummary::
-      :toctree:                                         
-      :template: custom-class-template.rst               
-   {% for item in classes %}
-      {{ item }}
+   {% for item in classes %}     
+   .. autoclass:: {{ item }}
+      :members:
+      :special-members: __init__
    {%- endfor %}
    {% endif %}
    {% endblock %}
@@ -59,10 +57,9 @@
    {% block exceptions %}
    {% if exceptions %}
    .. rubric:: {{ _('Exceptions') }}
-
-   .. autosummary::
-      :toctree:                                          
+      
    {% for item in exceptions %}
+   .. autoexception::
       {{ item }}
    {%- endfor %}
    {% endif %}
