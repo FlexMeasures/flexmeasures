@@ -173,7 +173,7 @@ class StorageScheduler(Scheduler):
             constraint_violations = validate_storage_constraints(
                 constraints=device_constraints[0],
                 soc_at_start=soc_at_start,
-                min_soc=soc_min,
+                soc_min=soc_min,
                 soc_max=soc_max,
                 resolution=resolution,
             )
@@ -509,14 +509,14 @@ def add_storage_constraints(
 def validate_storage_constraints(
     constraints: pd.DataFrame,
     soc_at_start: float,
-    min_soc: float,
+    soc_min: float,
     soc_max: float,
     resolution: timedelta,
 ) -> list[dict]:
     """Check that the storage constraints are fulfilled, e.g min <= equals <= max.
 
     A. Global validation
-        A.1) min >= min_soc
+        A.1) min >= soc_min
         A.2) max <= soc_max
     B. Validation in the same time frame
         B.1) min <= max
@@ -532,7 +532,7 @@ def validate_storage_constraints(
 
     :param constraints:         dataframe containing the constraints of a storage device
     :param soc_at_start:        State of charge at the start time.
-    :param min_soc:             Minimum state of charge at all times.
+    :param soc_min:             Minimum state of charge at all times.
     :param soc_max:             Maximum state of charge at all times.
     :param resolution:          Constant duration between the start of each time step.
     :returns:                   List of constraint violations, specifying their time, constraint and violation.
@@ -544,14 +544,14 @@ def validate_storage_constraints(
     # A. Global validation #
     ########################
 
-    # 1) min >= min_soc
-    min_soc = (min_soc - soc_at_start) * timedelta(hours=1) / resolution
+    # 1) min >= soc_min
+    soc_min = (soc_min - soc_at_start) * timedelta(hours=1) / resolution
     constraint_violations += validate_constraint(
         constraints,
         "min",
         ">=",
-        "min_soc",
-        right_value=min_soc,
+        "soc_min",
+        right_value=soc_min,
     )
 
     # 2) max <= soc_max
@@ -644,7 +644,7 @@ def validate_storage_constraints(
     # extend min
     min_extended = constraints["min"].copy()
     # insert `soc_max` at time `constraints.index[0] - resolution` which creates a new entry at the end of the series
-    min_extended[constraints.index[0] - resolution] = min_soc
+    min_extended[constraints.index[0] - resolution] = soc_min
     # sort index to keep the time ordering
     min_extended = min_extended.sort_index()
 
