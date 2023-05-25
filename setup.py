@@ -2,8 +2,15 @@ from setuptools import setup, find_packages
 
 
 def load_requirements(use_case):
+    """
+    Loading range requirements.
+    Packaging should be used for installing the package into existing stacks.
+    We therefore read the .in file for the use case.
+    .txt files include the exact pins, and are useful for deployments with
+    exactly comparable environments.
+    """
     reqs = []
-    with open("requirements/%s.txt" % use_case, "r") as f:
+    with open("requirements/%s.in" % use_case, "r") as f:
         reqs = [
             req
             for req in f.read().splitlines()
@@ -26,7 +33,11 @@ setup(
     install_requires=load_requirements("app"),
     setup_requires=["setuptools_scm"],
     use_scm_version={"local_scheme": "no-local-version"},  # handled by setuptools_scm
-    packages=find_packages(),  # will include *.py files and some other types
+    packages=find_packages()
+    + [
+        "flexmeasures.ui.templates",
+        "flexmeasures.ui.static",
+    ],  # will include *.py files and some other types
     include_package_data=True,  # now setuptools_scm adds all files under source control
     entry_points={
         "console_scripts": [

@@ -1,4 +1,5 @@
-from typing import Union, Tuple, List, Optional
+from __future__ import annotations
+
 import os
 import sys
 
@@ -80,7 +81,7 @@ def set_secret_key(app, filename="secret_key"):
 
         You can add the SECRET_KEY setting to your conf file (this example works only on Unix):
 
-        echo "SECRET_KEY=\\"`head -c 24 /dev/urandom`\\"" >> your-flexmeasures.cfg
+        echo "SECRET_KEY=\"`python3 -c 'import secrets; print(secrets.token_hex(24))'`\"" >> ~/.flexmeasures.cfg
 
         OR you can add an env var:
 
@@ -121,8 +122,8 @@ def root_dispatcher():
 
 
 def find_first_applicable_config_entry(
-    configs: list, setting_name: str, app: Optional[Flask] = None
-) -> Optional[str]:
+    configs: list, setting_name: str, app: Flask | None = None
+) -> str | None:
     if app is None:
         app = current_app
     if isinstance(configs, str):
@@ -135,14 +136,14 @@ def find_first_applicable_config_entry(
 
 
 def parse_config_entry_by_account_roles(
-    config: Union[str, Tuple[str, List[str]]],
+    config: str | tuple[str, list[str]],
     setting_name: str,
-    app: Optional[Flask] = None,
-) -> Optional[str]:
+    app: Flask | None = None,
+) -> str | None:
     """
     Parse a config entry (which can be a string, e.g. "dashboard" or a tuple, e.g. ("dashboard", ["MDC"])).
     In the latter case, return the first item (a string) only if the current user's account roles match with the
-    list of roles in the second item. Otherwise return None.
+    list of roles in the second item. Otherwise, return None.
     """
     if app is None:
         app = current_app

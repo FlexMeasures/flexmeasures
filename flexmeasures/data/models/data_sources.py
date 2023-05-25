@@ -1,12 +1,29 @@
 from __future__ import annotations
-from typing import Optional, TYPE_CHECKING
+
+from typing import TYPE_CHECKING
 
 import timely_beliefs as tb
 
 from flexmeasures.data import db
+from flask import current_app
 
 if TYPE_CHECKING:
     from flexmeasures.data.models.user import User
+
+
+class DataGeneratorMixin:
+    @classmethod
+    def get_data_source_info(cls: type) -> dict:
+        """
+        Create and return the data source info, from which a data source lookup/creation is possible.
+
+        See for instance get_data_source_for_job().
+        """
+        source_info = dict(
+            name=current_app.config.get("FLEXMEASURES_DEFAULT_DATASOURCE")
+        )  # default
+
+        return source_info
 
 
 class DataSource(db.Model, tb.BeliefSourceDBMixin):
@@ -33,9 +50,9 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
     def __init__(
         self,
-        name: Optional[str] = None,
-        type: Optional[str] = None,
-        user: Optional[User] = None,
+        name: str | None = None,
+        type: str | None = None,
+        user: User | None = None,
         **kwargs,
     ):
         if user is not None:

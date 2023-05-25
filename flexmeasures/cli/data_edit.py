@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 from datetime import timedelta
-from typing import Union, List, Optional
 
 import click
 import pandas as pd
@@ -83,13 +84,13 @@ def fm_edit_data():
 )
 def edit_attribute(
     attribute_key: str,
-    assets: List[GenericAsset],
-    sensors: List[Sensor],
+    assets: list[GenericAsset],
+    sensors: list[Sensor],
     attribute_null_value: bool,
-    attribute_float_value: Optional[float] = None,
-    attribute_bool_value: Optional[bool] = None,
-    attribute_str_value: Optional[str] = None,
-    attribute_int_value: Optional[int] = None,
+    attribute_float_value: float | None = None,
+    attribute_bool_value: bool | None = None,
+    attribute_str_value: str | None = None,
+    attribute_int_value: int | None = None,
 ):
     """Edit (or add) an asset attribute or sensor attribute."""
 
@@ -152,10 +153,10 @@ def edit_attribute(
     " and resampled data will be shown for manual approval.",
 )
 def resample_sensor_data(
-    sensor_ids: List[int],
+    sensor_ids: list[int],
     event_resolution_in_minutes: int,
-    start_str: Optional[str] = None,
-    end_str: Optional[str] = None,
+    start_str: str | None = None,
+    end_str: str | None = None,
     skip_integrity_check: bool = False,
 ):
     """Assign a new event resolution to an existing sensor and resample its data accordingly."""
@@ -208,11 +209,11 @@ app.cli.add_command(fm_edit_data)
 
 def parse_attribute_value(
     attribute_null_value: bool,
-    attribute_float_value: Optional[float] = None,
-    attribute_bool_value: Optional[bool] = None,
-    attribute_str_value: Optional[str] = None,
-    attribute_int_value: Optional[int] = None,
-) -> Union[float, int, bool, str, None]:
+    attribute_float_value: float | None = None,
+    attribute_bool_value: bool | None = None,
+    attribute_str_value: str | None = None,
+    attribute_int_value: int | None = None,
+) -> float | int | bool | str | None:
     """Parse attribute value."""
     if not single_true(
         [attribute_null_value]

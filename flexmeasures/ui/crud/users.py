@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from typing import Optional, Union
 from datetime import datetime
 
 from flask import request, url_for
@@ -51,8 +50,8 @@ def render_user(user: User | None, asset_count: int = 0, msg: str | None = None)
 
 
 def process_internal_api_response(
-    user_data: dict, user_id: Optional[int] = None, make_obj=False
-) -> Union[User, dict]:
+    user_data: dict, user_id: int | None = None, make_obj=False
+) -> User | dict:
     """
     Turn data from the internal API into something we can use to further populate the UI.
     Either as a user object or a dict for form filling.

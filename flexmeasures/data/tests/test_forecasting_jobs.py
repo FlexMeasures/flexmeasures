@@ -1,5 +1,6 @@
 # flake8: noqa: E402
-from typing import Optional, List
+from __future__ import annotations
+
 from datetime import datetime, timedelta
 import os
 
@@ -130,8 +131,8 @@ def test_forecasting_two_hours_of_solar_at_edge_of_data_set(
 
 def check_failures(
     redis_queue,
-    failure_search_words: Optional[List[str]] = None,
-    model_identifiers: Optional[List[str]] = None,
+    failure_search_words: list[str] | None = None,
+    model_identifiers: list[str] | None = None,
 ):
     """Check that there was at least one failure.
     For each failure, the exception message can be checked for a search word

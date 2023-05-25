@@ -1,5 +1,4 @@
 from __future__ import annotations
-from typing import Optional, Union
 
 from flask import current_app
 
@@ -10,10 +9,10 @@ from flexmeasures.data.models.user import is_user
 
 
 def get_or_create_source(
-    source: Union[User, str],
-    source_type: Optional[str] = None,
-    model: Optional[str] = None,
-    version: Optional[str] = None,
+    source: User | str,
+    source_type: str | None = None,
+    model: str | None = None,
+    version: str | None = None,
     flush: bool = True,
 ) -> DataSource:
     if is_user(source):

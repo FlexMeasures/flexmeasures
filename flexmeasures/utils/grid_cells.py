@@ -1,4 +1,4 @@
-from typing import Tuple, List
+from __future__ import annotations
 
 
 class LatLngGrid(object):
@@ -16,15 +16,15 @@ class LatLngGrid(object):
     In those case, these locations are closer to one side of the cell.
     """
 
-    top_left: Tuple[float, float]
-    bottom_right: Tuple[float, float]
+    top_left: tuple[float, float]
+    bottom_right: tuple[float, float]
     num_cells_lat: int
     num_cells_lng: int
 
     def __init__(
         self,
-        top_left: Tuple[float, float],
-        bottom_right: Tuple[float, float],
+        top_left: tuple[float, float],
+        bottom_right: tuple[float, float],
         num_cells_lat: int,
         num_cells_lng: int,
     ):
@@ -61,7 +61,7 @@ class LatLngGrid(object):
             + f"num_lat:{self.num_cells_lat}, num_lng:{self.num_cells_lng}>"
         )
 
-    def get_locations(self, method: str) -> List[Tuple[float, float]]:
+    def get_locations(self, method: str) -> list[tuple[float, float]]:
         """Get locations by method ("square" or "hex")"""
 
         if method == "hex":
@@ -97,7 +97,7 @@ class LatLngGrid(object):
         else:
             return (self.bottom_right[1] - self.top_left[1]) * 2
 
-    def locations_square(self) -> List[Tuple[float, float]]:
+    def locations_square(self) -> list[tuple[float, float]]:
         """square pattern"""
         locations = []
 
@@ -145,7 +145,7 @@ class LatLngGrid(object):
 
         return locations
 
-    def locations_hex(self) -> List[Tuple[float, float]]:
+    def locations_hex(self) -> list[tuple[float, float]]:
         """The hexagonal pattern - actually leaves out one cell for every even row."""
         locations = []
 
@@ -206,8 +206,8 @@ class LatLngGrid(object):
 
 
 def get_cell_nums(
-    tl: Tuple[float, float], br: Tuple[float, float], num_cells: int = 9
-) -> Tuple[int, int]:
+    tl: tuple[float, float], br: tuple[float, float], num_cells: int = 9
+) -> tuple[int, int]:
     """
     Compute the number of cells in both directions, latitude and longitude.
     By default, a square grid with N=9 cells is computed, so 3 by 3.

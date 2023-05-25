@@ -1,4 +1,5 @@
-from typing import List, Optional
+from __future__ import annotations
+
 import random
 import string
 
@@ -32,7 +33,7 @@ def fm_jobs():
     required=False,
     help="Give your worker a recognizable name. Defaults to random string. Defaults to fm-worker-<randomstring>",
 )
-def run_worker(queue: str, name: Optional[str]):
+def run_worker(queue: str, name: str | None):
     """
     Start a worker process for forecasting and/or scheduling jobs.
 
@@ -160,7 +161,7 @@ def handle_worker_exception(job, exc_type, exc_value, traceback):
     job.save_meta()
 
 
-def parse_queue_list(queue_names_str: str) -> List[Queue]:
+def parse_queue_list(queue_names_str: str) -> list[Queue]:
     """Parse a | separated string of queue names against the app.queues dict.
 
     The app.queues dict is expected to have queue names as keys, and rq.Queue objects as values.

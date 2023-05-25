@@ -1,4 +1,7 @@
-from typing import Any, List, Dict, Optional, Tuple, Union, Callable
+from __future__ import annotations
+
+# Use | instead of Union, list instead of List and tuple instead of Tuple when FM stops supporting Python 3.9 (because of https://github.com/python/cpython/issues/86399)
+from typing import Any, Callable, List, Optional, Tuple, Union
 from datetime import datetime, timedelta
 
 import inflect
@@ -33,21 +36,21 @@ QueryCallType = Callable[
 
 
 def collect_time_series_data(
-    old_sensor_names: Union[str, List[str]],
+    old_sensor_names: str | list[str],
     make_query: QueryCallType,
-    query_window: Tuple[Optional[datetime], Optional[datetime]] = (None, None),
-    belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (
+    query_window: tuple[datetime | None, datetime | None] = (None, None),
+    belief_horizon_window: tuple[timedelta | None, timedelta | None] = (
         None,
         None,
     ),
-    belief_time_window: Tuple[Optional[datetime], Optional[datetime]] = (None, None),
-    belief_time: Optional[datetime] = None,
-    user_source_ids: Union[int, List[int]] = None,  # None is interpreted as all sources
-    source_types: Optional[List[str]] = None,
-    exclude_source_types: Optional[List[str]] = None,
-    resolution: Union[str, timedelta] = None,
+    belief_time_window: tuple[datetime | None, datetime | None] = (None, None),
+    belief_time: datetime | None = None,
+    user_source_ids: int | list[int] = None,  # None is interpreted as all sources
+    source_types: list[str] | None = None,
+    exclude_source_types: list[str] | None = None,
+    resolution: str | timedelta | None = None,
     sum_multiple: bool = True,
-) -> Union[tb.BeliefsDataFrame, Dict[str, tb.BeliefsDataFrame]]:
+) -> tb.BeliefsDataFrame | dict[str, tb.BeliefsDataFrame]:
     """Get time series data from one or more old sensor models and rescale and re-package it to order.
 
     We can (lazily) look up by pickle, or load from the database.
@@ -89,20 +92,20 @@ def collect_time_series_data(
 
 
 def query_time_series_data(
-    old_sensor_names: Tuple[str],
+    old_sensor_names: tuple[str],
     make_query: QueryCallType,
-    query_window: Tuple[Optional[datetime], Optional[datetime]] = (None, None),
-    belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (
+    query_window: tuple[datetime | None, datetime | None] = (None, None),
+    belief_horizon_window: tuple[timedelta | None, timedelta | None] = (
         None,
         None,
     ),
-    belief_time_window: Tuple[Optional[datetime], Optional[datetime]] = (None, None),
-    belief_time: Optional[datetime] = None,
-    user_source_ids: Optional[Union[int, List[int]]] = None,
-    source_types: Optional[List[str]] = None,
-    exclude_source_types: Optional[List[str]] = None,
-    resolution: Union[str, timedelta] = None,
-) -> Dict[str, tb.BeliefsDataFrame]:
+    belief_time_window: tuple[datetime | None, datetime | None] = (None, None),
+    belief_time: datetime | None = None,
+    user_source_ids: int | list[int] | None = None,
+    source_types: list[str] | None = None,
+    exclude_source_types: list[str] | None = None,
+    resolution: str | timedelta | None = None,
+) -> dict[str, tb.BeliefsDataFrame]:
     """
     Run a query for time series data on the database for a tuple of assets.
     Here, we need to know that postgres only stores naive datetimes and we keep them as UTC.
@@ -132,7 +135,7 @@ def query_time_series_data(
     df_all_assets = pd.DataFrame(
         query.all(), columns=[col["name"] for col in query.column_descriptions]
     )
-    bdf_dict: Dict[str, tb.BeliefsDataFrame] = {}
+    bdf_dict: dict[str, tb.BeliefsDataFrame] = {}
     for old_sensor_model_name in old_sensor_names:
 
         # Select data for the given asset
@@ -222,9 +225,7 @@ def find_sensor_by_name(name: str):
     return sensor
 
 
-def drop_non_unique_ids(
-    a: Union[int, List[int]], b: Union[int, List[int]]
-) -> List[int]:
+def drop_non_unique_ids(a: int | list[int], b: int | list[int]) -> list[int]:
     """Removes all elements from B that are already in A."""
     a_l = a if type(a) == list else [a]
     b_l = b if type(b) == list else [b]
@@ -232,8 +233,8 @@ def drop_non_unique_ids(
 
 
 def convert_query_window_for_demo(
-    query_window: Tuple[datetime, datetime]
-) -> Tuple[datetime, datetime]:
+    query_window: tuple[datetime, datetime]
+) -> tuple[datetime, datetime]:
     demo_year = current_app.config.get("FLEXMEASURES_DEMO_YEAR", None)
     if demo_year is None:
         return query_window
@@ -259,7 +260,7 @@ def convert_query_window_for_demo(
     return start, end
 
 
-def aggregate_values(bdf_dict: Dict[Any, tb.BeliefsDataFrame]) -> tb.BeliefsDataFrame:
+def aggregate_values(bdf_dict: dict[Any, tb.BeliefsDataFrame]) -> tb.BeliefsDataFrame:
 
     # todo: test this function rigorously, e.g. with empty bdfs in bdf_dict
     # todo: consider 1 bdf with beliefs from source A, plus 1 bdf with beliefs from source B -> 1 bdf with sources A+B
@@ -271,7 +272,7 @@ def aggregate_values(bdf_dict: Dict[Any, tb.BeliefsDataFrame]) -> tb.BeliefsData
     if len(bdf_dict) == 1:
         return list(bdf_dict.values())[0]
 
-    unique_source_ids: List[int] = []
+    unique_source_ids: list[int] = []
     for bdf in bdf_dict.values():
         unique_source_ids.extend(bdf.lineage.sources)
         if not bdf.lineage.unique_beliefs_per_event_per_source:

@@ -2,7 +2,7 @@ from flask_security.core import current_user
 from flask_security import login_required
 
 from flexmeasures.ui.views import flexmeasures_ui
-from flexmeasures.data.services.account import (
+from flexmeasures.data.services.accounts import (
     get_number_of_assets_in_account,
     get_account_roles,
 )

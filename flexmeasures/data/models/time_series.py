@@ -1,4 +1,6 @@
-from typing import Any, List, Dict, Optional, Union, Type, Tuple
+from __future__ import annotations
+
+from typing import Any, Type
 from datetime import datetime as datetime_type, timedelta
 import json
 from flask import current_app
@@ -70,9 +72,9 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
     def __init__(
         self,
         name: str,
-        generic_asset: Optional[GenericAsset] = None,
-        generic_asset_id: Optional[int] = None,
-        attributes: Optional[dict] = None,
+        generic_asset: GenericAsset | None = None,
+        generic_asset_id: int | None = None,
+        attributes: dict | None = None,
         **kwargs,
     ):
         assert (generic_asset is None) ^ (
@@ -125,7 +127,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             return "no entity address available"
 
     @property
-    def location(self) -> Optional[Tuple[float, float]]:
+    def location(self) -> tuple[float, float] | None:
         location = (self.get_attribute("latitude"), self.get_attribute("longitude"))
         if None not in location:
             return location
@@ -180,7 +182,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
 
     def check_required_attributes(
         self,
-        attributes: List[Union[str, Tuple[str, Union[Type, Tuple[Type, ...]]]]],
+        attributes: list[str | tuple[str, Type | tuple[Type, ...]]],
     ):
         """Raises if any attribute in the list of attributes is missing, or has the wrong type.
 
@@ -191,9 +193,13 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
 
     def latest_state(
         self,
-        source: Optional[
-            Union[DataSource, List[DataSource], int, List[int], str, List[str]]
-        ] = None,
+        source: DataSource
+        | list[DataSource]
+        | int
+        | list[int]
+        | str
+        | list[str]
+        | None = None,
     ) -> tb.BeliefsDataFrame:
         """Search the most recent event for this sensor, and return the most recent ex-post belief.
 
@@ -209,17 +215,21 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
 
     def search_annotations(
         self,
-        annotation_starts_after: Optional[datetime_type] = None,  # deprecated
-        annotations_after: Optional[datetime_type] = None,
-        annotation_ends_before: Optional[datetime_type] = None,  # deprecated
-        annotations_before: Optional[datetime_type] = None,
-        source: Optional[
-            Union[DataSource, List[DataSource], int, List[int], str, List[str]]
-        ] = None,
+        annotation_starts_after: datetime_type | None = None,  # deprecated
+        annotations_after: datetime_type | None = None,
+        annotation_ends_before: datetime_type | None = None,  # deprecated
+        annotations_before: datetime_type | None = None,
+        source: DataSource
+        | list[DataSource]
+        | int
+        | list[int]
+        | str
+        | list[str]
+        | None = None,
         include_asset_annotations: bool = False,
         include_account_annotations: bool = False,
         as_frame: bool = False,
-    ) -> Union[List[Annotation], pd.DataFrame]:
+    ) -> list[Annotation] | pd.DataFrame:
         """Return annotations assigned to this sensor, and optionally, also those assigned to the sensor's asset and the asset's account.
 
         :param annotations_after: only return annotations that end after this datetime (exclusive)
@@ -279,23 +289,27 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
 
     def search_beliefs(
         self,
-        event_starts_after: Optional[datetime_type] = None,
-        event_ends_before: Optional[datetime_type] = None,
-        beliefs_after: Optional[datetime_type] = None,
-        beliefs_before: Optional[datetime_type] = None,
-        horizons_at_least: Optional[timedelta] = None,
-        horizons_at_most: Optional[timedelta] = None,
-        source: Optional[
-            Union[DataSource, List[DataSource], int, List[int], str, List[str]]
-        ] = None,
+        event_starts_after: datetime_type | None = None,
+        event_ends_before: datetime_type | None = None,
+        beliefs_after: datetime_type | None = None,
+        beliefs_before: datetime_type | None = None,
+        horizons_at_least: timedelta | None = None,
+        horizons_at_most: timedelta | None = None,
+        source: DataSource
+        | list[DataSource]
+        | int
+        | list[int]
+        | str
+        | list[str]
+        | None = None,
         most_recent_beliefs_only: bool = True,
         most_recent_events_only: bool = False,
         most_recent_only: bool = None,  # deprecated
         one_deterministic_belief_per_event: bool = False,
         one_deterministic_belief_per_event_per_source: bool = False,
-        resolution: Union[str, timedelta] = None,
+        resolution: str | timedelta = None,
         as_json: bool = False,
-    ) -> Union[tb.BeliefsDataFrame, str]:
+    ) -> tb.BeliefsDataFrame | str:
         """Search all beliefs about events for this sensor.
 
         If you don't set any filters, you get the most recent beliefs about all events.
@@ -348,19 +362,23 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
     def chart(
         self,
         chart_type: str = "bar_chart",
-        event_starts_after: Optional[datetime_type] = None,
-        event_ends_before: Optional[datetime_type] = None,
-        beliefs_after: Optional[datetime_type] = None,
-        beliefs_before: Optional[datetime_type] = None,
-        source: Optional[
-            Union[DataSource, List[DataSource], int, List[int], str, List[str]]
-        ] = None,
+        event_starts_after: datetime_type | None = None,
+        event_ends_before: datetime_type | None = None,
+        beliefs_after: datetime_type | None = None,
+        beliefs_before: datetime_type | None = None,
+        source: DataSource
+        | list[DataSource]
+        | int
+        | list[int]
+        | str
+        | list[str]
+        | None = None,
         most_recent_beliefs_only: bool = True,
         include_data: bool = False,
         include_sensor_annotations: bool = False,
         include_asset_annotations: bool = False,
         include_account_annotations: bool = False,
-        dataset_name: Optional[str] = None,
+        dataset_name: str | None = None,
         **kwargs,
     ) -> dict:
         """Create a vega-lite chart showing sensor data.
@@ -452,7 +470,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         return chart_specs
 
     @property
-    def timerange(self) -> Dict[str, datetime_type]:
+    def timerange(self) -> dict[str, datetime_type]:
         """Time range for which sensor data exists.
 
         :returns: dictionary with start and end, for example:
@@ -495,7 +513,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
     @classmethod
     def find_closest(
         cls, generic_asset_type_name: str, sensor_name: str, n: int = 1, **kwargs
-    ) -> Union["Sensor", List["Sensor"], None]:
+    ) -> "Sensor" | list["Sensor"] | None:
         """Returns the closest n sensors within a given asset type (as a list if n > 1).
         Parses latitude and longitude values stated in kwargs.
 
@@ -573,28 +591,32 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
     @classmethod
     def search(
         cls,
-        sensors: Union[Sensor, int, str, List[Union[Sensor, int, str]]],
+        sensors: Sensor | int | str | list[Sensor | int | str],
         sensor: Sensor = None,  # deprecated
-        event_starts_after: Optional[datetime_type] = None,
-        event_ends_before: Optional[datetime_type] = None,
-        beliefs_after: Optional[datetime_type] = None,
-        beliefs_before: Optional[datetime_type] = None,
-        horizons_at_least: Optional[timedelta] = None,
-        horizons_at_most: Optional[timedelta] = None,
-        source: Optional[
-            Union[DataSource, List[DataSource], int, List[int], str, List[str]]
-        ] = None,
-        user_source_ids: Optional[Union[int, List[int]]] = None,
-        source_types: Optional[List[str]] = None,
-        exclude_source_types: Optional[List[str]] = None,
+        event_starts_after: datetime_type | None = None,
+        event_ends_before: datetime_type | None = None,
+        beliefs_after: datetime_type | None = None,
+        beliefs_before: datetime_type | None = None,
+        horizons_at_least: timedelta | None = None,
+        horizons_at_most: timedelta | None = None,
+        source: DataSource
+        | list[DataSource]
+        | int
+        | list[int]
+        | str
+        | list[str]
+        | None = None,
+        user_source_ids: int | list[int] | None = None,
+        source_types: list[str] | None = None,
+        exclude_source_types: list[str] | None = None,
         most_recent_beliefs_only: bool = True,
         most_recent_events_only: bool = False,
         most_recent_only: bool = None,  # deprecated
         one_deterministic_belief_per_event: bool = False,
         one_deterministic_belief_per_event_per_source: bool = False,
-        resolution: Union[str, timedelta] = None,
+        resolution: str | timedelta = None,
         sum_multiple: bool = True,
-    ) -> Union[tb.BeliefsDataFrame, Dict[str, tb.BeliefsDataFrame]]:
+    ) -> tb.BeliefsDataFrame | dict[str, tb.BeliefsDataFrame]:
         """Search all beliefs about events for the given sensors.
 
         If you don't set any filters, you get the most recent beliefs about all events.
@@ -798,20 +820,20 @@ class TimedValue(object):
     @classmethod
     def make_query(
         cls,
-        old_sensor_names: Tuple[str],
-        query_window: Tuple[Optional[datetime_type], Optional[datetime_type]],
-        belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (
+        old_sensor_names: tuple[str],
+        query_window: tuple[datetime_type | None, datetime_type | None],
+        belief_horizon_window: tuple[timedelta | None, timedelta | None] = (
             None,
             None,
         ),
-        belief_time_window: Tuple[Optional[datetime_type], Optional[datetime_type]] = (
+        belief_time_window: tuple[datetime_type | None, datetime_type | None] = (
             None,
             None,
         ),
-        belief_time: Optional[datetime_type] = None,
-        user_source_ids: Optional[Union[int, List[int]]] = None,
-        source_types: Optional[List[str]] = None,
-        exclude_source_types: Optional[List[str]] = None,
+        belief_time: datetime_type | None = None,
+        user_source_ids: int | list[int] | None = None,
+        source_types: list[str] | None = None,
+        exclude_source_types: list[str] | None = None,
         session: Session = None,
     ) -> Query:
         """
@@ -847,21 +869,21 @@ class TimedValue(object):
     @classmethod
     def search(
         cls,
-        old_sensor_names: Union[str, List[str]],
-        event_starts_after: Optional[datetime_type] = None,
-        event_ends_before: Optional[datetime_type] = None,
-        horizons_at_least: Optional[timedelta] = None,
-        horizons_at_most: Optional[timedelta] = None,
-        beliefs_after: Optional[datetime_type] = None,
-        beliefs_before: Optional[datetime_type] = None,
-        user_source_ids: Union[
-            int, List[int]
-        ] = None,  # None is interpreted as all sources
-        source_types: Optional[List[str]] = None,
-        exclude_source_types: Optional[List[str]] = None,
-        resolution: Union[str, timedelta] = None,
+        old_sensor_names: str | list[str],
+        event_starts_after: datetime_type | None = None,
+        event_ends_before: datetime_type | None = None,
+        horizons_at_least: timedelta | None = None,
+        horizons_at_most: timedelta | None = None,
+        beliefs_after: datetime_type | None = None,
+        beliefs_before: datetime_type | None = None,
+        user_source_ids: int
+        | list[int]
+        | None = None,  # None is interpreted as all sources
+        source_types: list[str] | None = None,
+        exclude_source_types: list[str] | None = None,
+        resolution: str | timedelta = None,
         sum_multiple: bool = True,
-    ) -> Union[tb.BeliefsDataFrame, Dict[str, tb.BeliefsDataFrame]]:
+    ) -> tb.BeliefsDataFrame | dict[str, tb.BeliefsDataFrame]:
         """Basically a convenience wrapper for services.collect_time_series_data,
         where time series data collection is implemented.
         """

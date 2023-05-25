@@ -1,4 +1,4 @@
-from typing import Optional
+from __future__ import annotations
 
 from marshmallow import fields, validate, ValidationError
 
@@ -9,7 +9,7 @@ from flexmeasures.utils.unit_utils import is_valid_unit, ur
 class QuantityValidator(validate.Validator):
     """Validator which succeeds if the value passed to it is a valid quantity."""
 
-    def __init__(self, *, error: Optional[str] = None):
+    def __init__(self, *, error: str | None = None):
         self.error = error
 
     def __call__(self, value):
