@@ -512,7 +512,7 @@ def validate_storage_constraints(
     """Check that the storage constraints are fulfilled, e.g min <= equals <= max.
 
     A. Global validation
-        A.1) min <= min_soc
+        A.1) min >= min_soc
         A.2) max <= max_soc
     B. Validation in the same time frame
         B.1) min <= max
@@ -541,7 +541,7 @@ def validate_storage_constraints(
     ########################
     min_soc = (min_soc - soc_at_start) * timedelta(hours=1) / resolution
 
-    # 1) min <= min_soc
+    # 1) min >= min_soc
     mask = ~(storage_constraints["min"] >= min_soc)
     time_condition_fails = storage_constraints.index[mask]
 
@@ -551,8 +551,8 @@ def validate_storage_constraints(
         constraint_violations.append(
             dict(
                 dt=dt.to_pydatetime(),
-                condition="min <= min_soc",
-                violation=f"min [{value_min}] <= min_soc [{min_soc}]",
+                condition="min >= min_soc",
+                violation=f"min [{value_min}] >= min_soc [{min_soc}]",
             )
         )
 
