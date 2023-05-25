@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+import copy
 from datetime import datetime, timedelta
 from typing import List, Dict
 
@@ -52,7 +54,7 @@ class StorageScheduler(Scheduler):
         """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
         For the resulting consumption schedule, consumption is defined as positive values.
 
-        :param skip_validation: If True, skip validation of constraints specified in the data.
+        :param skip_validation: If True, skip validation of _constraints specified in the data.
         :returns:               The computed schedule.
         """
         if not self.config_deserialized:
@@ -124,7 +126,7 @@ class StorageScheduler(Scheduler):
             down_deviation_prices.loc[start : end - resolution]["event_value"]
         ]
 
-        # Set up device constraints: only one scheduled flexible device for this EMS (at index 0), plus the forecasted inflexible devices (at indices 1 to n).
+        # Set up device _constraints: only one scheduled flexible device for this EMS (at index 0), plus the forecasted inflexible devices (at indices 1 to n).
         device_constraints = [
             initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
             for i in range(1 + len(inflexible_device_sensors))
@@ -450,7 +452,7 @@ def add_storage_constraints(
     :param soc_minima:                  Minimum state of charge at each time.
     :param soc_max:                     Maximum state of charge at all times.
     :param soc_min:                     Minimum state of charge at all times.
-    :returns:                           Constraints (StorageScheduler.COLUMNS) for a storage device, at each time step (index).
+    :returns:                           constraints (StorageScheduler.COLUMNS) for a storage device, at each time step (index).
                                         See device_scheduler for possible column names.
     """
 
@@ -523,12 +525,12 @@ def validate_storage_constraints(
         B.2) min <= equals
         B.3) equals <= max
     C. Validation in different time frames
-        C.1) equals(t) - equals(t-1) <= `derivative max`(t)
-        C.2) `derivative min`(t) <= equals(t) - equals(t-1)
-        C.3) min(t) - max(t-1) <= `derivative max`(t)
-        C.4) max(t) - min(t-1) >= `derivative min`(t)
-        C.5) condition equals(t) - max(t-1) <= `derivative max`(t)
-        C.6) `derivative min`(t) <= equals(t) - min(t-1)
+        C.1) equals(t) - equals(t-1) <= derivative_max(t)
+        C.2) derivative_min(t) <= equals(t) - equals(t-1)
+        C.3) min(t) - max(t-1) <= derivative_max(t)
+        C.4) max(t) - min(t-1) >= derivative_min(t)
+        C.5) condition equals(t) - max(t-1) <= derivative_max(t)
+        C.6) derivative_min(t) <= equals(t) - min(t-1)
 
     :param constraints:         dataframe containing the constraints of a storage device
     :param soc_at_start:        State of charge at the start time.
@@ -538,7 +540,22 @@ def validate_storage_constraints(
     :returns:                   List of constraint violations, specifying their time, constraint and violation.
     """
 
+    # get a copy of the constraints to make sure the dataframe doesn't get updated
+    _constraints = constraints.copy()
+
+    _constraints = _constraints.rename(
+        columns={
+            columns_name: columns_name.replace(" ", "_")
+            + "(t)"  # replace spaces with underscore and add time index
+            for columns_name in _constraints.columns
+        }
+    )
+
     constraint_violations = []
+
+    violations = validate_constraint(_constraints, "max(t) >= min(t)")
+
+    print(violations)
 
     ########################
     # A. Global validation #
@@ -546,233 +563,152 @@ def validate_storage_constraints(
 
     # 1) min >= soc_min
     soc_min = (soc_min - soc_at_start) * timedelta(hours=1) / resolution
-    constraint_violations += validate_constraint(
-        constraints,
-        "min",
-        ">=",
-        "soc_min",
-        right_value=soc_min,
-    )
+    _constraints["soc_min(t)"] = soc_min
+    constraint_violations += validate_constraint(_constraints, "soc_min(t) <= min(t)")
 
     # 2) max <= soc_max
     soc_max = (soc_max - soc_at_start) * timedelta(hours=1) / resolution
-    constraint_violations += validate_constraint(
-        constraints,
-        "max",
-        "<=",
-        "soc_max",
-        right_value=soc_max,
-    )
+    _constraints["soc_max(t)"] = soc_max
+    constraint_violations += validate_constraint(_constraints, "max(t) <= soc_max(t)")
 
     ########################################
     # B. Validation in the same time frame #
     ########################################
 
     # 1) min <= max
-    constraint_violations += validate_constraint(constraints, "min", "<=", "max")
+    constraint_violations += validate_constraint(_constraints, "min(t) <= max(t)")
 
     # 2) min <= equals
-    constraint_violations += validate_constraint(constraints, "min", "<=", "equals")
+    constraint_violations += validate_constraint(_constraints, "min(t) <= equals(t)")
 
     # 3) equals <= max
-    constraint_violations += validate_constraint(constraints, "equals", "<=", "max")
+    constraint_violations += validate_constraint(_constraints, "equals(t) <= max(t)")
 
     ##########################################
     # C. Validation in different time frames #
     ##########################################
 
-    factor_w_wh = resolution / timedelta(hours=1)
+    _constraints["factor_w_wh(t)"] = resolution / timedelta(hours=1)
+    _constraints["min(t-1)"] = prepend_serie(_constraints["min(t)"], soc_min)
+    _constraints["equals(t-1)"] = prepend_serie(_constraints["equals(t)"], soc_at_start)
+    _constraints["max(t-1)"] = prepend_serie(_constraints["max(t)"], soc_max)
 
-    # compute diff_equals(t) =  equals(t) - equals(t-1)
-    equals_extended = constraints["equals"].copy()
-    # insert `soc_at_start` at time `constraints.index[0] - resolution` which creates a new entry at the end of the series
-    equals_extended[constraints.index[0] - resolution] = soc_at_start
-    # sort index to keep the time ordering
-    equals_extended = equals_extended.sort_index()
-
-    diff_equals = equals_extended.diff()[1:]
-
-    # 1) equals(t) - equals(t-1) <= `derivative max`(t)
-
-    mask = (
-        ~(diff_equals <= constraints["derivative max"] * factor_w_wh)
-        & ~diff_equals.isna()
+    # 1) equals(t) - equals(t-1) <= derivative_max(t)
+    constraint_violations += validate_constraint(
+        _constraints, "equals(t) - equals(t-1) <= derivative_max(t) * factor_w_wh(t)"
     )
-    time_condition_fails = constraints.index[mask]
 
-    for dt in time_condition_fails:
-        value_equals = constraints.loc[dt, "equals"]
-        value_equals_previous = constraints.loc[dt - resolution, "equals"]
-        value_derivative_max = constraints.loc[dt, "derivative max"]
-
-        constraint_violations.append(
-            dict(
-                dt=dt.to_pydatetime(),
-                condition="equals(t) - equals(t-1) <= `derivative max`(t)",
-                violation=f"equals(t) [{value_equals}] - equals(t-1) [{value_equals_previous}] <= `derivative max`(t) [{value_derivative_max}]",
-            )
-        )
-
-    # 2) `derivative min`(t) <= equals(t) - equals(t-1)
-
-    mask = (
-        ~((constraints["derivative min"] * factor_w_wh) <= diff_equals)
-        & ~diff_equals.isna()
+    # 2) derivative_min(t) <= equals(t) - equals(t-1)
+    constraint_violations += validate_constraint(
+        _constraints, "derivative_min(t) * factor_w_wh(t) <= equals(t) - equals(t-1)"
     )
-    time_condition_fails = constraints.index[mask]
 
-    for dt in time_condition_fails:
-        value_equals = constraints.loc[dt, "equals"]
-        value_equals_previous = constraints.loc[dt - resolution, "equals"]
-        value_derivative_min = constraints.loc[dt, "derivative min"]
+    # 3) min(t) - max(t-1) <= derivative_max(t)
+    constraint_violations += validate_constraint(
+        _constraints, "min(t) - max(t-1) <= derivative_max(t) * factor_w_wh(t)"
+    )
 
-        constraint_violations.append(
-            dict(
-                dt=dt.to_pydatetime(),
-                condition="`derivative min`(t) <= equals(t) - equals(t-1)",
-                violation=f"`derivative min`(t) [{value_derivative_min}] <= equals(t) [{value_equals}] - equals(t-1) [{value_equals_previous}]",
-            )
-        )
+    # 4) max(t) - min(t-1) >= derivative_min(t)
+    constraint_violations += validate_constraint(
+        _constraints, "derivative_min(t) * factor_w_wh(t) <= max(t) - min(t-1)"
+    )
 
-    # extend max
-    max_extended = constraints["max"].copy()
-    # insert `soc_max` at time `constraints.index[0] - resolution` which creates a new entry at the end of the series
-    max_extended[constraints.index[0] - resolution] = soc_max
-    # sort index to keep the time ordering
-    max_extended = max_extended.sort_index()
+    # 5) equals(t) - max(t-1) <= derivative_max(t)
+    constraint_violations += validate_constraint(
+        _constraints, "equals(t) - max(t-1) <= derivative_max(t) * factor_w_wh(t)"
+    )
 
-    # extend min
-    min_extended = constraints["min"].copy()
-    # insert `soc_max` at time `constraints.index[0] - resolution` which creates a new entry at the end of the series
-    min_extended[constraints.index[0] - resolution] = soc_min
-    # sort index to keep the time ordering
-    min_extended = min_extended.sort_index()
-
-    # 3) min(t) - max(t-1) <= `derivative max`(t)
-    delta_min_max = min_extended - max_extended.shift(1)
-    delta_min_max = delta_min_max[1:]
-
-    condition3 = delta_min_max <= constraints["derivative max"] * factor_w_wh
-    mask = ~condition3
-    time_condition_fails = constraints.index[mask]
-
-    for dt in time_condition_fails:
-        value_min = constraints.loc[dt, "min"]
-        value_max_previous = max_extended.loc[dt - resolution]
-        value_derivative_max = constraints.loc[dt, "derivative max"]
-
-        constraint_violations.append(
-            dict(
-                dt=dt.to_pydatetime(),
-                condition="min(t) - max(t-1) <= `derivative max`(t)",
-                violation=f"min(t) [{value_min}] - max(t-1) [{value_max_previous}] <= `derivative max`(t) [{value_derivative_max}]",
-            )
-        )
-
-    # 4) max(t) - min(t-1) >= `derivative min`(t)
-    delta_max_min = max_extended - min_extended.shift(1)
-    delta_max_min = delta_max_min[1:]
-
-    condition4 = delta_max_min >= constraints["derivative min"] * factor_w_wh
-    mask = ~condition4
-    time_condition_fails = constraints.index[mask]
-
-    for dt in time_condition_fails:
-        value_max = constraints.loc[dt, "max"]
-        value_min_previous = min_extended.loc[dt - resolution]
-        value_derivative_min = constraints.loc[dt, "derivative min"]
-
-        constraint_violations.append(
-            dict(
-                dt=dt.to_pydatetime(),
-                condition="max(t) - min(t-1) >= `derivative min`",
-                violation=f"max(t) [{value_max}] - min(t-1) [{value_min_previous}] >= `derivative min`(t) [{value_derivative_min}]",
-            )
-        )
-
-    # 5) equals(t) - max(t-1) <= `derivative max`(t)
-    delta_equals_max = constraints["equals"] - max_extended.shift(1)
-    delta_equals_max = delta_equals_max[1:]
-
-    condition5 = delta_equals_max <= constraints["derivative max"] * factor_w_wh
-    mask = ~condition5 & ~constraints["equals"].isna()
-    time_condition_fails = constraints.index[mask]
-
-    for dt in time_condition_fails:
-        value_equals = constraints.loc[dt, "equals"]
-        value_max_previous = max_extended.loc[dt - resolution]
-        value_derivative_max = constraints.loc[dt, "derivative max"]
-
-        constraint_violations.append(
-            dict(
-                dt=dt.to_pydatetime(),
-                condition="equals(t) - max(t-1) <= `derivative max`(t)",
-                violation=f"equals(t) [{value_equals}] - max(t-1) [{value_max_previous}] <= `derivative max`(t) [{value_derivative_max}]",
-            )
-        )
-
-    # 6) `derivative min`(t) <= equals(t) - min(t-1)
-    delta_equals_min = constraints["equals"] - min_extended.shift(1)
-    delta_equals_min = delta_equals_min[1:]
-
-    condition5 = delta_equals_min >= constraints["derivative min"] * factor_w_wh
-    mask = ~condition5 & ~constraints["equals"].isna()
-    time_condition_fails = constraints.index[mask]
-
-    for dt in time_condition_fails:
-        value_equals = constraints.loc[dt, "equals"]
-        value_min_previous = min_extended.loc[dt - resolution]
-        value_derivative_min = constraints.loc[dt, "derivative min"]
-
-        constraint_violations.append(
-            dict(
-                dt=dt.to_pydatetime(),
-                condition="`derivative min`(t) <= equals(t) - min(t-1)",
-                violation=f"`derivative min`(t) [{value_derivative_min}] <= equals(t) [{value_equals}] - min(t-1) [{value_min_previous}]",
-            )
-        )
+    # 6) derivative_min(t) <= equals(t) - min(t-1)
+    constraint_violations += validate_constraint(
+        _constraints, "derivative_min(t) * factor_w_wh(t) <= equals(t) - min(t-1)"
+    )
 
     return constraint_violations
+
+
+def get_pattern_match_word(word: str) -> str:
+    """Get a regex pattern to match a word
+
+    The conditions to delimit a word are:
+      - start of line
+      - whitespace
+      - end of line
+      - word boundary
+      - arithmetic operations
+
+    :return: regex expression
+    """
+
+    regex = r"(^|\s|$|\b|\+|\-|\*|/\|\\)"
+
+    return regex + re.escape(word) + regex
 
 
 def validate_constraint(
-    constraints,
-    left_constraint_name,
-    inequality,
-    right_constraint_name,
-    left_value: float | None = None,
-    right_value: float | None = None,
+    constraints_df: pd.DataFrame, constraint_expression: str
 ) -> list[dict]:
     """Validate the feasibility of a given set of constraints.
 
-    :returns:                       List of constraint violations, specifying their time, constraint and violation.
+    :param constraints_df: DataFrame with the constraints
+    :param constraint_expression: inequality expression following pd.eval format.
+                                  No need to use the syntax `column` to reference
+                                  column, just use the column name.
+    :return: List of constraint violations, specifying their time, constraint and violation.
     """
-    mask = True
-    if left_value is None:
-        left_value = constraints[left_constraint_name]
-        mask = mask & ~constraints[left_constraint_name].isna()
-    if right_value is None:
-        right_value = constraints[right_constraint_name]
-        mask = mask & ~constraints[right_constraint_name].isna()
-    if inequality == "<=":
-        mask = mask & ~(left_value <= right_value)
-    elif inequality == ">=":
-        mask = mask & ~(left_value >= right_value)
-    else:
-        raise NotImplementedError(f"Inequality '{inequality}' not supported.")
-    time_condition_fails = constraints.index[mask]
+
+    columns_involved = []
+
+    eval_expression = copy.copy(constraint_expression)
+
+    for column in constraints_df.columns:
+        if re.search(get_pattern_match_word(column), eval_expression):
+            columns_involved.append(column)
+
+        eval_expression = re.sub(
+            get_pattern_match_word(column), f"`{column}`", eval_expression
+        )
+
+    time_condition_fails = constraints_df.index[
+        ~constraints_df.fillna(0).eval(eval_expression)
+        & ~constraints_df[columns_involved].isna().any(axis=1)
+    ]
+
     constraint_violations = []
+
     for dt in time_condition_fails:
-        lv = left_value[dt] if isinstance(left_value, pd.Series) else left_value
-        rv = right_value[dt] if isinstance(right_value, pd.Series) else right_value
+        value_replaced = copy.copy(constraint_expression)
+
+        for column in constraints_df.columns:
+            value_replaced = re.sub(
+                get_pattern_match_word(column),
+                f"{column} [{constraints_df.loc[dt, column]}]",
+                value_replaced,
+            )
+
         constraint_violations.append(
             dict(
                 dt=dt.to_pydatetime(),
-                condition=f"{left_constraint_name} {inequality} {right_constraint_name}",
-                violation=f"{left_constraint_name} [{lv}] {inequality} {right_constraint_name} [{rv}]",
+                condition=constraint_expression,
+                violation=value_replaced,
             )
         )
+
     return constraint_violations
+
+
+def prepend_serie(serie: pd.Series, value) -> pd.Series:
+    """Prepend a value to a time series series
+
+    :param serie: serie containing the timed values
+    :param value: value to place in the first position
+    """
+    # extend max
+    serie = serie.copy()
+    # insert `value` at time `serie.index[0] - resolution` which creates a new entry at the end of the series
+    serie[serie.index[0] - serie.index.freq] = value
+    # sort index to keep the time ordering
+    serie = serie.sort_index()
+    return serie.shift(1)
 
 
 #####################

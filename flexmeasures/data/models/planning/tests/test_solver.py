@@ -585,10 +585,10 @@ def test_add_storage_constraints(
 @pytest.mark.parametrize(
     "value_min1, value_equals1, value_max1, value_min2, value_equals2, value_max2, expected_constraint_type_violations",
     [
-        (1, np.nan, 9, 2, np.nan, 20, ["max <= soc_max"]),
-        (-1, np.nan, 9, 1, np.nan, 9, ["min >= soc_min"]),
-        (1, 10, 9, 1, np.nan, 9, ["equals <= max"]),
-        (1, 0, 9, 1, np.nan, 9, ["min <= equals"]),
+        (1, np.nan, 9, 2, np.nan, 20, ["max(t) <= soc_max(t)"]),
+        (-1, np.nan, 9, 1, np.nan, 9, ["soc_min(t) <= min(t)"]),
+        (1, 10, 9, 1, np.nan, 9, ["equals(t) <= max(t)"]),
+        (1, 0, 9, 1, np.nan, 9, ["min(t) <= equals(t)"]),
         (
             1,
             np.nan,
@@ -596,9 +596,17 @@ def test_add_storage_constraints(
             9,
             np.nan,
             1,
-            ["min <= max"],
+            ["min(t) <= max(t)"],
         ),
-        (9, 5, 1, 1, np.nan, 9, ["min <= equals", "equals <= max", "min <= max"]),
+        (
+            9,
+            5,
+            1,
+            1,
+            np.nan,
+            9,
+            ["min(t) <= equals(t)", "equals(t) <= max(t)", "min(t) <= max(t)"],
+        ),
         (1, np.nan, 9, 1, np.nan, 9, []),  # same interval, should not fail
         (1, np.nan, 9, 3, np.nan, 7, []),  # should not fail, containing interval
         (1, np.nan, 3, 3, np.nan, 5, []),  # difference = 0 < 1, should not fail
@@ -610,7 +618,7 @@ def test_add_storage_constraints(
             5,
             np.nan,
             7,
-            ["min(t) - max(t-1) <= `derivative max`(t)"],
+            ["min(t) - max(t-1) <= derivative_max(t) * factor_w_wh(t)"],
         ),  # difference > max = 1, this should fail
         (3, np.nan, 5, 2, np.nan, 3, []),  # difference = 0 < 1, should not fail
         (3, np.nan, 5, 1, np.nan, 2, []),  # difference = -1 >= -1, should not fail
@@ -621,7 +629,7 @@ def test_add_storage_constraints(
             1,
             np.nan,
             1,
-            ["max(t) - min(t-1) >= `derivative min`"],
+            ["derivative_min(t) * factor_w_wh(t) <= max(t) - min(t-1)"],
         ),  # difference = -2 < -1, should fail,
         (1, 4, 9, 1, 4, 9, []),  # same target value (4), should not fail
         (
@@ -631,7 +639,7 @@ def test_add_storage_constraints(
             1,
             4,
             9,
-            ["`derivative min`(t) <= equals(t) - equals(t-1)"],
+            ["derivative_min(t) * factor_w_wh(t) <= equals(t) - equals(t-1)"],
         ),  # difference = -2 < -1, should fail,
         (
             1,
@@ -640,7 +648,7 @@ def test_add_storage_constraints(
             1,
             6,
             9,
-            ["equals(t) - equals(t-1) <= `derivative max`(t)"],
+            ["equals(t) - equals(t-1) <= derivative_max(t) * factor_w_wh(t)"],
         ),  # difference 2 > 1, should fail,
     ],
 )
