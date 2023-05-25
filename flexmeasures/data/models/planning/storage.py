@@ -508,7 +508,7 @@ def validate_storage_constraints(
     min_soc: float,
     max_soc: float,
     resolution: timedelta,
-) -> list:
+) -> list[dict]:
     """Check that the storage constraints are fulfilled, e.g min <= equals <= max.
 
     A. Global validation
