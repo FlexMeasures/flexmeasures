@@ -609,7 +609,7 @@ def test_add_storage_constraints(
         (1, np.nan, 9, 2, np.nan, 20, ["max <= max_soc"]),
         (-1, np.nan, 9, 1, np.nan, 9, ["min >= min_soc"]),
         (1, 10, 9, 1, np.nan, 9, ["equals <= max"]),
-        (1, 0, 9, 1, np.nan, 9, ["equals >= min"]),
+        (1, 0, 9, 1, np.nan, 9, ["min <= equals"]),
         (
             1,
             np.nan,
@@ -619,7 +619,7 @@ def test_add_storage_constraints(
             1,
             ["min <= max"],
         ),
-        (9, 5, 1, 1, np.nan, 9, ["equals >= min", "equals <= max", "min <= max"]),
+        (9, 5, 1, 1, np.nan, 9, ["min <= equals", "equals <= max", "min <= max"]),
         (1, np.nan, 9, 1, np.nan, 9, []),  # same interval, should not fail
         (1, np.nan, 9, 3, np.nan, 7, []),  # should not fail, containing interval
         (1, np.nan, 3, 3, np.nan, 5, []),  # difference = 0 < 1, should not fail
