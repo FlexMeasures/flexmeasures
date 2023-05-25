@@ -439,7 +439,7 @@ def test_soc_bounds_timeseries(add_battery_assets):
     battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
     assert battery.get_attribute("market_id") == epex_da.id
 
-    # time paramaters
+    # time parameters
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 2))
     end = tz.localize(datetime(2015, 1, 3))
@@ -623,7 +623,7 @@ def test_add_storage_constraints(
         (1, np.nan, 9, 1, np.nan, 9, []),  # same interval, should not fail
         (1, np.nan, 9, 3, np.nan, 7, []),  # should not fail, containing interval
         (1, np.nan, 3, 3, np.nan, 5, []),  # difference = 0 < 1, should not fail
-        (1, np.nan, 3, 4, np.nan, 5, []),  # difference == max, should not fails
+        (1, np.nan, 3, 4, np.nan, 5, []),  # difference == max, should not fail
         (
             1,
             np.nan,
