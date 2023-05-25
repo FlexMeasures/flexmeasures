@@ -326,7 +326,7 @@ class StorageScheduler(Scheduler):
 
     def get_min_max_soc_on_sensor(
         self, adjust_unit: bool = False, deserialized_names: bool = True
-    ) -> tuple[float | None]:
+    ) -> tuple[float | None, float | None]:
         soc_min_sensor = self.sensor.get_attribute("min_soc_in_mwh", None)
         soc_max_sensor = self.sensor.get_attribute("max_soc_in_mwh", None)
         soc_unit_label = "soc_unit" if deserialized_names else "soc-unit"
