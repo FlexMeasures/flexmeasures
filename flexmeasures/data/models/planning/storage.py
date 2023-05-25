@@ -179,7 +179,7 @@ class StorageScheduler(Scheduler):
 
             if len(constraint_violations) > 0:
                 # TODO: include hints from constraint_violations into the error message
-                raise ValueError("The input data yields an unfeasible problem.")
+                raise ValueError("The input data yields an infeasible problem.")
 
         # Set up EMS constraints
         columns = ["derivative max", "derivative min"]
