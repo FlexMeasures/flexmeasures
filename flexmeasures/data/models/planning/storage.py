@@ -694,13 +694,10 @@ def validate_storage_constraints(
     min_extended[storage_constraints.index[0] - resolution] = min_soc
     min_extended = min_extended.sort_index()
 
+    # 3) min(t) - max(t-1) <= `derivative max`(t)
     delta_min_max = min_extended - max_extended.shift(1)
     delta_min_max = delta_min_max[1:]
 
-    delta_max_min = max_extended - min_extended.shift(1)
-    delta_max_min = delta_max_min[1:]
-
-    # 3) min(t) - max(t-1) <= `derivative max`(t)
     condition3 = delta_min_max <= storage_constraints["derivative max"] * factor_w_wh
     mask = ~condition3
     time_condition_fails = storage_constraints.index[mask]
@@ -719,6 +716,9 @@ def validate_storage_constraints(
         )
 
     # 4) max(t) - min(t-1) >= `derivative min`(t)
+    delta_max_min = max_extended - min_extended.shift(1)
+    delta_max_min = delta_max_min[1:]
+
     condition4 = delta_max_min >= storage_constraints["derivative min"] * factor_w_wh
     mask = ~condition4
     time_condition_fails = storage_constraints.index[mask]
