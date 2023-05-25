@@ -28,6 +28,17 @@ class StorageScheduler(Scheduler):
     __version__ = "1"
     __author__ = "Seita"
 
+    COLUMNS = [
+        "equals",
+        "max",
+        "min",
+        "derivative equals",
+        "derivative max",
+        "derivative min",
+        "derivative down efficiency",
+        "derivative up efficiency",
+    ]
+
     def compute_schedule(self) -> pd.Series | None:
         """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
         For the resulting consumption schedule, consumption is defined as positive values.
@@ -52,12 +63,13 @@ class StorageScheduler(Scheduler):
         resolution = self.resolution
         belief_time = self.belief_time
         sensor = self.sensor
+
         soc_at_start = self.flex_model.get("soc_at_start")
         soc_targets = self.flex_model.get("soc_targets")
         soc_min = self.flex_model.get("soc_min")
         soc_max = self.flex_model.get("soc_max")
-        soc_maxima = self.flex_model.get("soc_maxima")
         soc_minima = self.flex_model.get("soc_minima")
+        soc_maxima = self.flex_model.get("soc_maxima")
         roundtrip_efficiency = self.flex_model.get("roundtrip_efficiency")
         prefer_charging_sooner = self.flex_model.get("prefer_charging_sooner", True)
 
@@ -113,18 +125,8 @@ class StorageScheduler(Scheduler):
         ]
 
         # Set up device constraints: only one scheduled flexible device for this EMS (at index 0), plus the forecasted inflexible devices (at indices 1 to n).
-        columns = [
-            "equals",
-            "max",
-            "min",
-            "derivative equals",
-            "derivative max",
-            "derivative min",
-            "derivative down efficiency",
-            "derivative up efficiency",
-        ]
         device_constraints = [
-            initialize_df(columns, start, end, resolution)
+            initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
             for i in range(1 + len(inflexible_device_sensors))
         ]
         for i, inflexible_sensor in enumerate(inflexible_device_sensors):
@@ -136,7 +138,6 @@ class StorageScheduler(Scheduler):
             )
 
         device_constraints[0] = add_storage_constraints(
-            device_constraints[0],
             start,
             end,
             resolution,
@@ -182,8 +183,9 @@ class StorageScheduler(Scheduler):
                 raise ValueError("The input data yields an infeasible problem.")
 
         # Set up EMS constraints
-        columns = ["derivative max", "derivative min"]
-        ems_constraints = initialize_df(columns, start, end, resolution)
+        ems_constraints = initialize_df(
+            StorageScheduler.COLUMNS, start, end, resolution
+        )
         ems_capacity = sensor.generic_asset.get_attribute("capacity_in_mw")
         if ems_capacity is not None:
             ems_constraints["derivative min"] = ems_capacity * -1
@@ -427,7 +429,6 @@ def build_device_soc_values(
 
 
 def add_storage_constraints(
-    storage_device_constraints: pd.DataFrame,
     start: datetime,
     end: datetime,
     resolution: timedelta,
@@ -440,8 +441,6 @@ def add_storage_constraints(
 ) -> pd.DataFrame:
     """Collect all constraints for a given storage device in a DataFrame that the device_scheduler can interpret.
 
-    :param storage_device_constraints:  Empty frame without constraints (columns) for a storage device,
-                                        but already defining each time step (index).
     :param start:                       Start of the schedule.
     :param end:                         End of the schedule.
     :param resolution:                  Timedelta used to resample the forecasts to the resolution of the schedule.
@@ -451,9 +450,14 @@ def add_storage_constraints(
     :param soc_minima:                  Minimum state of charge at each time.
     :param soc_max:                     Maximum state of charge at all times.
     :param soc_min:                     Minimum state of charge at all times.
-    :returns:                           Constraints (columns) for a storage device, at each time step (index).
+    :returns:                           Constraints (StorageScheduler.COLUMNS) for a storage device, at each time step (index).
                                         See device_scheduler for possible column names.
     """
+
+    # create empty storage device constraints dataframe
+    storage_device_constraints = initialize_df(
+        StorageScheduler.COLUMNS, start, end, resolution
+    )
 
     if soc_targets is not None:
         # make an equality series with the SOC targets set in the flex model

@@ -523,22 +523,15 @@ def test_soc_bounds_timeseries(add_battery_assets):
 
 
 @pytest.mark.parametrize(
-    "value_soc_min, value_soc_minima, value_soc_target, value_soc_maxima, value_soc_max, min, equals, max",
+    "value_soc_min, value_soc_minima, value_soc_target, value_soc_maxima, value_soc_max",
     [
-        (-1, -0.5, 0, 0.5, 1, -0.5, 0, 0.5),
-        (-1, -2, 0, 0.5, 1, -1, 0, 0.5),
-        (-1, -0.5, 0.5, 0.5, 1, -0.5, 0.5, 0.5),
+        (-1, -0.5, 0, 0.5, 1.0),
+        (-1, -2, 0, 0.5, 1.0),
+        (-1, -0.5, 0.5, 0.5, 1.0),
     ],
 )
 def test_add_storage_constraints(
-    value_soc_min,
-    value_soc_minima,
-    value_soc_target,
-    value_soc_maxima,
-    value_soc_max,
-    min,
-    equals,
-    max,
+    value_soc_min, value_soc_minima, value_soc_target, value_soc_maxima, value_soc_max
 ):
     """Check that the storage constraints are generated properly"""
 
@@ -549,17 +542,6 @@ def test_add_storage_constraints(
     resolution = timedelta(hours=1)
 
     soc_at_start = 0.0
-
-    columns = [
-        "equals",
-        "max",
-        "min",
-        "derivative equals",
-        "derivative max",
-        "derivative min",
-        "derivative down efficiency",
-        "derivative up efficiency",
-    ]
 
     test_date = start + timedelta(hours=1)
 
@@ -575,10 +557,7 @@ def test_add_storage_constraints(
     soc_max = value_soc_max
     soc_min = value_soc_min
 
-    storage_device_constraints = initialize_df(columns, start, end, resolution)
-
     storage_device_constraints = add_storage_constraints(
-        storage_device_constraints,
         start,
         end,
         resolution,
