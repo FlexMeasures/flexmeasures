@@ -732,7 +732,7 @@ def validate_storage_constraints(
             dict(
                 dt=dt.to_pydatetime(),
                 condition="max(t) - min(t-1) >= `derivative min`",
-                violation=f"max(t) [{value_max}] - min(t-1) [{value_min_previous}]<= `derivative min` [{value_derivative_min}]",
+                violation=f"max(t) [{value_max}] - min(t-1) [{value_min_previous}] >= `derivative min`(t) [{value_derivative_min}]",
             )
         )
 
