@@ -579,11 +579,16 @@ def validate_storage_constraints(
 
     factor_w_wh = resolution / timedelta(hours=1)
 
-    # 1) equals(t) - equals(t-1) <= `derivative max`(t)
+    # compute diff_equals(t) =  equals(t) - equals(t-1)
     equals_extended = constraints["equals"].copy()
+    # insert `soc_at_start` at time `constraints.index[0] - resolution` which creates a new entry at the end of the series
     equals_extended[constraints.index[0] - resolution] = soc_at_start
+    # sort index to keep the time ordering
     equals_extended = equals_extended.sort_index()
+
     diff_equals = equals_extended.diff()[1:]
+
+    # 1) equals(t) - equals(t-1) <= `derivative max`(t)
 
     mask = (
         ~(diff_equals <= constraints["derivative max"] * factor_w_wh)
@@ -605,10 +610,6 @@ def validate_storage_constraints(
         )
 
     # 2) `derivative min`(t) <= equals(t) - equals(t-1)
-    equals_extended = constraints["equals"].copy()
-    equals_extended[constraints.index[0] - resolution] = soc_at_start
-    equals_extended = equals_extended.sort_index()
-    diff_equals = equals_extended.diff()[1:]
 
     mask = (
         ~((constraints["derivative min"] * factor_w_wh) <= diff_equals)
@@ -631,12 +632,16 @@ def validate_storage_constraints(
 
     # extend max
     max_extended = constraints["max"].copy()
+    # insert `max_soc` at time `constraints.index[0] - resolution` which creates a new entry at the end of the series
     max_extended[constraints.index[0] - resolution] = max_soc
+    # sort index to keep the time ordering
     max_extended = max_extended.sort_index()
 
     # extend min
     min_extended = constraints["min"].copy()
+    # insert `max_soc` at time `constraints.index[0] - resolution` which creates a new entry at the end of the series
     min_extended[constraints.index[0] - resolution] = min_soc
+    # sort index to keep the time ordering
     min_extended = min_extended.sort_index()
 
     # 3) min(t) - max(t-1) <= `derivative max`(t)
