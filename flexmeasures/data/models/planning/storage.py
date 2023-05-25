@@ -41,8 +41,8 @@ class StorageScheduler(Scheduler):
         """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
         For the resulting consumption schedule, consumption is defined as positive values.
 
-        :param skip_validation: if True, skip validation of constraints specified in the data
-        :returns:               the computed schedule
+        :param skip_validation: If True, skip validation of constraints specified in the data.
+        :returns:               The computed schedule.
         """
         if not self.config_deserialized:
             self.deserialize_config()
