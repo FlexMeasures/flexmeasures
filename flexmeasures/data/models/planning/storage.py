@@ -41,10 +41,8 @@ class StorageScheduler(Scheduler):
         """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
         For the resulting consumption schedule, consumption is defined as positive values.
 
-        Args:
-        skip_validation: bool, default=False
-                         whether to skip validation of constraints from data
-
+        :param skip_validation: if True, skip validation of constraints specified in the data
+        :returns:               the computed schedule
         """
         if not self.config_deserialized:
             self.deserialize_config()
@@ -440,22 +438,21 @@ def add_storage_constraints(
     soc_max: float,
     soc_min: float,
 ) -> pd.DataFrame:
-    """_summary_
+    """Collect all constraints for a given storage device in a DataFrame that the device_scheduler can interpret.
 
-    Args:
-        storage_device_constraints (pd.DataFrame): _description_
-        start (datetime): start of the schedule.
-        end (datetime): end of the schedule.
-        resolution (timedelta): timedelta used to resample the forecasts to the resolution of the schedule.
-        soc_at_start (float): state of charge at the start time.
-        soc_targets (List[Dict[str, datetime  |  float]] | pd.Series | None): list of (time : value) pairs
-        soc_maxima (List[Dict[str, datetime  |  float]] | pd.Series | None): _description_
-        soc_minima (List[Dict[str, datetime  |  float]] | pd.Series | None): _description_
-        soc_max (float): _description_
-        soc_min (float): _description_
-
-    Returns:
-        pd.DataFrame: _description_
+    :param storage_device_constraints:  Empty frame without constraints (columns) for a storage device,
+                                        but already defining each time step (index).
+    :param start:                       Start of the schedule.
+    :param end:                         End of the schedule.
+    :param resolution:                  Timedelta used to resample the forecasts to the resolution of the schedule.
+    :param soc_at_start:                State of charge at the start time.
+    :param soc_targets:                 Exact targets for the state of charge at each time.
+    :param soc_maxima:                  Maximum state of charge at each time.
+    :param soc_minima:                  Minimum state of charge at each time.
+    :param soc_max:                     Maximum state of charge at all times.
+    :param soc_min:                     Minimum state of charge at all times.
+    :returns:                           Constraints (columns) for a storage device, at each time step (index).
+                                        See device_scheduler for possible column names.
     """
 
     if soc_targets is not None:
@@ -529,10 +526,12 @@ def validate_storage_constraints(
         C.5) condition equals(t) - max(t-1) <= `derivative max`(t)
         C.6) `derivative min`(t) <= equals(t) - min(t-1)
 
-    Args:
-        storage_constraints: pd.DataFrame
-                             dataframe containing the constraints of a storage device
-
+    :param storage_constraints: dataframe containing the constraints of a storage device
+    :param soc_at_start:        State of charge at the start time.
+    :param min_soc:             Minimum state of charge at all times.
+    :param max_soc:             Maximum state of charge at all times.
+    :param resolution:          Constant duration between the start of each time step.
+    :returns:                   List of constraint violations, specifying their time, constraint and violation.
     """
 
     constraint_violations = []
