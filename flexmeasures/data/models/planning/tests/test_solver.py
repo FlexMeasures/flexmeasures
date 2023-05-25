@@ -717,7 +717,7 @@ def test_validate_constraints(
     ] = value_equals2
 
     constraint_violations = validate_storage_constraints(
-        storage_constraints=storage_device_constraints,
+        constraints=storage_device_constraints,
         soc_at_start=0.0,
         min_soc=0,
         max_soc=10,

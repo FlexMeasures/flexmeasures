@@ -167,10 +167,10 @@ class StorageScheduler(Scheduler):
         )
         device_constraints[0]["derivative up efficiency"] = roundtrip_efficiency**0.5
 
-        # check that storage constraints are fullfiled
+        # check that storage constraints are fulfilled
         if not skip_validation:
             constraint_violations = validate_storage_constraints(
-                storage_constraints=device_constraints[0],
+                constraints=device_constraints[0],
                 soc_at_start=soc_at_start,
                 min_soc=soc_min,
                 max_soc=soc_max,
@@ -503,7 +503,7 @@ def add_storage_constraints(
 
 
 def validate_storage_constraints(
-    storage_constraints: pd.DataFrame,
+    constraints: pd.DataFrame,
     soc_at_start: float,
     min_soc: float,
     max_soc: float,
@@ -526,7 +526,7 @@ def validate_storage_constraints(
         C.5) condition equals(t) - max(t-1) <= `derivative max`(t)
         C.6) `derivative min`(t) <= equals(t) - min(t-1)
 
-    :param storage_constraints: dataframe containing the constraints of a storage device
+    :param constraints:         dataframe containing the constraints of a storage device
     :param soc_at_start:        State of charge at the start time.
     :param min_soc:             Minimum state of charge at all times.
     :param max_soc:             Maximum state of charge at all times.
@@ -539,94 +539,39 @@ def validate_storage_constraints(
     ########################
     # A. Global validation #
     ########################
-    min_soc = (min_soc - soc_at_start) * timedelta(hours=1) / resolution
 
     # 1) min >= min_soc
-    mask = ~(storage_constraints["min"] >= min_soc)
-    time_condition_fails = storage_constraints.index[mask]
-
-    for dt in time_condition_fails:
-        value_min = storage_constraints.loc[dt, "min"]
-
-        constraint_violations.append(
-            dict(
-                dt=dt.to_pydatetime(),
-                condition="min >= min_soc",
-                violation=f"min [{value_min}] >= min_soc [{min_soc}]",
-            )
-        )
+    min_soc = (min_soc - soc_at_start) * timedelta(hours=1) / resolution
+    constraint_violations += validate_constraint(
+        constraints,
+        "min",
+        ">=",
+        "min_soc",
+        right_value=min_soc,
+    )
 
     # 2) max <= max_soc
     max_soc = (max_soc - soc_at_start) * timedelta(hours=1) / resolution
-
-    mask = ~(storage_constraints["max"] <= max_soc)
-    time_condition_fails = storage_constraints.index[mask]
-
-    for dt in time_condition_fails:
-        value_max = storage_constraints.loc[dt, "max"]
-
-        constraint_violations.append(
-            dict(
-                dt=dt.to_pydatetime(),
-                condition="max <= max_soc",
-                violation=f"max [{value_max}] <= max_soc [{max_soc}]",
-            )
-        )
+    constraint_violations += validate_constraint(
+        constraints,
+        "max",
+        "<=",
+        "max_soc",
+        right_value=max_soc,
+    )
 
     ########################################
     # B. Validation in the same time frame #
     ########################################
 
     # 1) min <= max
-    mask = ~(storage_constraints["min"] <= storage_constraints["max"])
-    time_condition_fails = storage_constraints.index[mask]
-
-    for dt in time_condition_fails:
-        value_min = storage_constraints.loc[dt, "min"]
-        value_max = storage_constraints.loc[dt, "max"]
-
-        constraint_violations.append(
-            dict(
-                dt=dt.to_pydatetime(),
-                condition="min <= max",
-                violation=f"min [{value_min}] <= max [{value_max}]",
-            )
-        )
+    constraint_violations += validate_constraint(constraints, "min", "<=", "max")
 
     # 2) min <= equals
-    mask = ~(storage_constraints["min"] <= storage_constraints["equals"])
-    mask = mask & ~storage_constraints["equals"].isna()
-    time_condition_fails = storage_constraints.index[mask]
-
-    for dt in time_condition_fails:
-        value_equals = storage_constraints.loc[dt, "equals"]
-        value_min = storage_constraints.loc[dt, "min"]
-
-        constraint_violations.append(
-            dict(
-                dt=dt.to_pydatetime(),
-                condition="min <= equals",
-                violation=f"min [{value_min}] <= equal [{value_equals}]",
-            )
-        )
+    constraint_violations += validate_constraint(constraints, "min", "<=", "equals")
 
     # 3) equals <= max
-    mask = ~(storage_constraints["equals"] <= storage_constraints["max"])
-    mask = mask & ~storage_constraints["equals"].isna()
-
-    time_condition_fails = storage_constraints.index[mask]
-
-    for dt in time_condition_fails:
-        value_equals = storage_constraints.loc[dt, "equals"]
-        value_max = storage_constraints.loc[dt, "max"]
-
-        constraint_violations.append(
-            dict(
-                dt=dt.to_pydatetime(),
-                condition="equals <= max",
-                violation=f"equals [{value_equals}] <= max [{value_max}]",
-            )
-        )
+    constraint_violations += validate_constraint(constraints, "equals", "<=", "max")
 
     ##########################################
     # C. Validation in different time frames #
@@ -635,21 +580,21 @@ def validate_storage_constraints(
     factor_w_wh = resolution / timedelta(hours=1)
 
     # 1) equals(t) - equals(t-1) <= `derivative max`(t)
-    equals_extended = storage_constraints["equals"].copy()
-    equals_extended[storage_constraints.index[0] - resolution] = soc_at_start
+    equals_extended = constraints["equals"].copy()
+    equals_extended[constraints.index[0] - resolution] = soc_at_start
     equals_extended = equals_extended.sort_index()
     diff_equals = equals_extended.diff()[1:]
 
     mask = (
-        ~(diff_equals <= storage_constraints["derivative max"] * factor_w_wh)
+        ~(diff_equals <= constraints["derivative max"] * factor_w_wh)
         & ~diff_equals.isna()
     )
-    time_condition_fails = storage_constraints.index[mask]
+    time_condition_fails = constraints.index[mask]
 
     for dt in time_condition_fails:
-        value_equals = storage_constraints.loc[dt, "equals"]
-        value_equals_previous = storage_constraints.loc[dt - resolution, "equals"]
-        value_derivative_max = storage_constraints.loc[dt, "derivative max"]
+        value_equals = constraints.loc[dt, "equals"]
+        value_equals_previous = constraints.loc[dt - resolution, "equals"]
+        value_derivative_max = constraints.loc[dt, "derivative max"]
 
         constraint_violations.append(
             dict(
@@ -660,21 +605,21 @@ def validate_storage_constraints(
         )
 
     # 2) `derivative min`(t) <= equals(t) - equals(t-1)
-    equals_extended = storage_constraints["equals"].copy()
-    equals_extended[storage_constraints.index[0] - resolution] = soc_at_start
+    equals_extended = constraints["equals"].copy()
+    equals_extended[constraints.index[0] - resolution] = soc_at_start
     equals_extended = equals_extended.sort_index()
     diff_equals = equals_extended.diff()[1:]
 
     mask = (
-        ~((storage_constraints["derivative min"] * factor_w_wh) <= diff_equals)
+        ~((constraints["derivative min"] * factor_w_wh) <= diff_equals)
         & ~diff_equals.isna()
     )
-    time_condition_fails = storage_constraints.index[mask]
+    time_condition_fails = constraints.index[mask]
 
     for dt in time_condition_fails:
-        value_equals = storage_constraints.loc[dt, "equals"]
-        value_equals_previous = storage_constraints.loc[dt - resolution, "equals"]
-        value_derivative_min = storage_constraints.loc[dt, "derivative min"]
+        value_equals = constraints.loc[dt, "equals"]
+        value_equals_previous = constraints.loc[dt - resolution, "equals"]
+        value_derivative_min = constraints.loc[dt, "derivative min"]
 
         constraint_violations.append(
             dict(
@@ -685,27 +630,27 @@ def validate_storage_constraints(
         )
 
     # extend max
-    max_extended = storage_constraints["max"].copy()
-    max_extended[storage_constraints.index[0] - resolution] = max_soc
+    max_extended = constraints["max"].copy()
+    max_extended[constraints.index[0] - resolution] = max_soc
     max_extended = max_extended.sort_index()
 
     # extend min
-    min_extended = storage_constraints["min"].copy()
-    min_extended[storage_constraints.index[0] - resolution] = min_soc
+    min_extended = constraints["min"].copy()
+    min_extended[constraints.index[0] - resolution] = min_soc
     min_extended = min_extended.sort_index()
 
     # 3) min(t) - max(t-1) <= `derivative max`(t)
     delta_min_max = min_extended - max_extended.shift(1)
     delta_min_max = delta_min_max[1:]
 
-    condition3 = delta_min_max <= storage_constraints["derivative max"] * factor_w_wh
+    condition3 = delta_min_max <= constraints["derivative max"] * factor_w_wh
     mask = ~condition3
-    time_condition_fails = storage_constraints.index[mask]
+    time_condition_fails = constraints.index[mask]
 
     for dt in time_condition_fails:
-        value_min = storage_constraints.loc[dt, "min"]
+        value_min = constraints.loc[dt, "min"]
         value_max_previous = max_extended.loc[dt - resolution]
-        value_derivative_max = storage_constraints.loc[dt, "derivative max"]
+        value_derivative_max = constraints.loc[dt, "derivative max"]
 
         constraint_violations.append(
             dict(
@@ -719,14 +664,14 @@ def validate_storage_constraints(
     delta_max_min = max_extended - min_extended.shift(1)
     delta_max_min = delta_max_min[1:]
 
-    condition4 = delta_max_min >= storage_constraints["derivative min"] * factor_w_wh
+    condition4 = delta_max_min >= constraints["derivative min"] * factor_w_wh
     mask = ~condition4
-    time_condition_fails = storage_constraints.index[mask]
+    time_condition_fails = constraints.index[mask]
 
     for dt in time_condition_fails:
-        value_max = storage_constraints.loc[dt, "max"]
+        value_max = constraints.loc[dt, "max"]
         value_min_previous = min_extended.loc[dt - resolution]
-        value_derivative_min = storage_constraints.loc[dt, "derivative min"]
+        value_derivative_min = constraints.loc[dt, "derivative min"]
 
         constraint_violations.append(
             dict(
@@ -737,17 +682,17 @@ def validate_storage_constraints(
         )
 
     # 5) equals(t) - max(t-1) <= `derivative max`(t)
-    delta_equals_max = storage_constraints["equals"] - max_extended.shift(1)
+    delta_equals_max = constraints["equals"] - max_extended.shift(1)
     delta_equals_max = delta_equals_max[1:]
 
-    condition5 = delta_equals_max <= storage_constraints["derivative max"] * factor_w_wh
-    mask = ~condition5 & ~storage_constraints["equals"].isna()
-    time_condition_fails = storage_constraints.index[mask]
+    condition5 = delta_equals_max <= constraints["derivative max"] * factor_w_wh
+    mask = ~condition5 & ~constraints["equals"].isna()
+    time_condition_fails = constraints.index[mask]
 
     for dt in time_condition_fails:
-        value_equals = storage_constraints.loc[dt, "equals"]
+        value_equals = constraints.loc[dt, "equals"]
         value_max_previous = max_extended.loc[dt - resolution]
-        value_derivative_max = storage_constraints.loc[dt, "derivative max"]
+        value_derivative_max = constraints.loc[dt, "derivative max"]
 
         constraint_violations.append(
             dict(
@@ -758,17 +703,17 @@ def validate_storage_constraints(
         )
 
     # 6) `derivative min`(t) <= equals(t) - min(t-1)
-    delta_equals_min = storage_constraints["equals"] - min_extended.shift(1)
+    delta_equals_min = constraints["equals"] - min_extended.shift(1)
     delta_equals_min = delta_equals_min[1:]
 
-    condition5 = delta_equals_min >= storage_constraints["derivative min"] * factor_w_wh
-    mask = ~condition5 & ~storage_constraints["equals"].isna()
-    time_condition_fails = storage_constraints.index[mask]
+    condition5 = delta_equals_min >= constraints["derivative min"] * factor_w_wh
+    mask = ~condition5 & ~constraints["equals"].isna()
+    time_condition_fails = constraints.index[mask]
 
     for dt in time_condition_fails:
-        value_equals = storage_constraints.loc[dt, "equals"]
+        value_equals = constraints.loc[dt, "equals"]
         value_min_previous = min_extended.loc[dt - resolution]
-        value_derivative_min = storage_constraints.loc[dt, "derivative min"]
+        value_derivative_min = constraints.loc[dt, "derivative min"]
 
         constraint_violations.append(
             dict(
@@ -778,6 +723,46 @@ def validate_storage_constraints(
             )
         )
 
+    return constraint_violations
+
+
+def validate_constraint(
+    constraints,
+    left_constraint_name,
+    inequality,
+    right_constraint_name,
+    left_value: float | None = None,
+    right_value: float | None = None,
+) -> list[dict]:
+    """Validate the feasibility of a given set of constraints.
+
+    :returns:                       List of constraint violations, specifying their time, constraint and violation.
+    """
+    mask = True
+    if left_value is None:
+        left_value = constraints[left_constraint_name]
+        mask = mask & ~constraints[left_constraint_name].isna()
+    if right_value is None:
+        right_value = constraints[right_constraint_name]
+        mask = mask & ~constraints[right_constraint_name].isna()
+    if inequality == "<=":
+        mask = mask & ~(left_value <= right_value)
+    elif inequality == ">=":
+        mask = mask & ~(left_value >= right_value)
+    else:
+        raise NotImplementedError(f"Inequality '{inequality}' not supported.")
+    time_condition_fails = constraints.index[mask]
+    constraint_violations = []
+    for dt in time_condition_fails:
+        lv = left_value[dt] if isinstance(left_value, pd.Series) else left_value
+        rv = right_value[dt] if isinstance(right_value, pd.Series) else right_value
+        constraint_violations.append(
+            dict(
+                dt=dt.to_pydatetime(),
+                condition=f"{left_constraint_name} {inequality} {right_constraint_name}",
+                violation=f"{left_constraint_name} [{lv}] {inequality} {right_constraint_name} [{rv}]",
+            )
+        )
     return constraint_violations
 
 
