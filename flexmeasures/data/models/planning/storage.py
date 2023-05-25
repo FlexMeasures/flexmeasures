@@ -593,7 +593,7 @@ def validate_storage_constraints(
             )
         )
 
-    # 2) min <= equals
+    # 2) equals >= min
     mask = ~(storage_constraints["equals"] >= storage_constraints["min"])
     mask = mask & ~storage_constraints["equals"].isna()
     time_condition_fails = storage_constraints.index[mask]
@@ -605,7 +605,7 @@ def validate_storage_constraints(
         constraint_violations.append(
             dict(
                 dt=dt.to_pydatetime(),
-                condition="min <= equals",
+                condition="equals >= min",
                 violation=f"equal [{value_equals}] >= min [{value_min}]",
             )
         )
