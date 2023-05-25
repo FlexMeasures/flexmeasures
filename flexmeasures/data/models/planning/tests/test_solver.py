@@ -585,7 +585,7 @@ def test_add_storage_constraints(
 @pytest.mark.parametrize(
     "value_min1, value_equals1, value_max1, value_min2, value_equals2, value_max2, expected_constraint_type_violations",
     [
-        (1, np.nan, 9, 2, np.nan, 20, ["max <= max_soc"]),
+        (1, np.nan, 9, 2, np.nan, 20, ["max <= soc_max"]),
         (-1, np.nan, 9, 1, np.nan, 9, ["min >= min_soc"]),
         (1, 10, 9, 1, np.nan, 9, ["equals <= max"]),
         (1, 0, 9, 1, np.nan, 9, ["min <= equals"]),
@@ -699,7 +699,7 @@ def test_validate_constraints(
         constraints=storage_device_constraints,
         soc_at_start=0.0,
         min_soc=0,
-        max_soc=10,
+        soc_max=10,
         resolution=resolution,
     )
 
