@@ -54,7 +54,7 @@ class StorageScheduler(Scheduler):
         """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
         For the resulting consumption schedule, consumption is defined as positive values.
 
-        :param skip_validation: If True, skip validation of _constraints specified in the data.
+        :param skip_validation: If True, skip validation of constraints specified in the data.
         :returns:               The computed schedule.
         """
         if not self.config_deserialized:
@@ -452,7 +452,7 @@ def add_storage_constraints(
     :param soc_minima:                  Minimum state of charge at each time.
     :param soc_max:                     Maximum state of charge at all times.
     :param soc_min:                     Minimum state of charge at all times.
-    :returns:                           constraints (StorageScheduler.COLUMNS) for a storage device, at each time step (index).
+    :returns:                           Constraints (StorageScheduler.COLUMNS) for a storage device, at each time step (index).
                                         See device_scheduler for possible column names.
     """
 
@@ -529,7 +529,7 @@ def validate_storage_constraints(
         C.2) derivative_min(t) <= equals(t) - equals(t-1)
         C.3) min(t) - max(t-1) <= derivative_max(t)
         C.4) max(t) - min(t-1) >= derivative_min(t)
-        C.5) condition equals(t) - max(t-1) <= derivative_max(t)
+        C.5) equals(t) - max(t-1) <= derivative_max(t)
         C.6) derivative_min(t) <= equals(t) - min(t-1)
 
     :param constraints:         dataframe containing the constraints of a storage device
