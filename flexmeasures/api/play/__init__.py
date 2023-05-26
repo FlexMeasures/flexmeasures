@@ -1,3 +1,7 @@
+"""
+Endpoints to support "play" mode, e.g. with data restorable.
+"""
+
 from flask import Flask, Blueprint
 
 # The api blueprint. It is registered with the Flask app (see app.py)
