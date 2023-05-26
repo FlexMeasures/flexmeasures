@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+import copy
 from datetime import datetime, timedelta
 from typing import List, Dict
 
@@ -28,6 +30,17 @@ class StorageScheduler(Scheduler):
     __version__ = "1"
     __author__ = "Seita"
 
+    COLUMNS = [
+        "equals",
+        "max",
+        "min",
+        "derivative equals",
+        "derivative max",
+        "derivative min",
+        "derivative down efficiency",
+        "derivative up efficiency",
+    ]
+
     def compute_schedule(self) -> pd.Series | None:
         """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
         For the resulting consumption schedule, consumption is defined as positive values.
@@ -52,12 +65,13 @@ class StorageScheduler(Scheduler):
         resolution = self.resolution
         belief_time = self.belief_time
         sensor = self.sensor
+
         soc_at_start = self.flex_model.get("soc_at_start")
         soc_targets = self.flex_model.get("soc_targets")
         soc_min = self.flex_model.get("soc_min")
         soc_max = self.flex_model.get("soc_max")
-        soc_maxima = self.flex_model.get("soc_maxima")
         soc_minima = self.flex_model.get("soc_minima")
+        soc_maxima = self.flex_model.get("soc_maxima")
         roundtrip_efficiency = self.flex_model.get("roundtrip_efficiency")
         prefer_charging_sooner = self.flex_model.get("prefer_charging_sooner", True)
 
@@ -112,19 +126,9 @@ class StorageScheduler(Scheduler):
             down_deviation_prices.loc[start : end - resolution]["event_value"]
         ]
 
-        # Set up device constraints: only one scheduled flexible device for this EMS (at index 0), plus the forecasted inflexible devices (at indices 1 to n).
-        columns = [
-            "equals",
-            "max",
-            "min",
-            "derivative equals",
-            "derivative max",
-            "derivative min",
-            "derivative down efficiency",
-            "derivative up efficiency",
-        ]
+        # Set up device _constraints: only one scheduled flexible device for this EMS (at index 0), plus the forecasted inflexible devices (at indices 1 to n).
         device_constraints = [
-            initialize_df(columns, start, end, resolution)
+            initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
             for i in range(1 + len(inflexible_device_sensors))
         ]
         for i, inflexible_sensor in enumerate(inflexible_device_sensors):
@@ -136,7 +140,6 @@ class StorageScheduler(Scheduler):
             )
 
         device_constraints[0] = add_storage_constraints(
-            device_constraints[0],
             start,
             end,
             resolution,
@@ -167,13 +170,13 @@ class StorageScheduler(Scheduler):
         )
         device_constraints[0]["derivative up efficiency"] = roundtrip_efficiency**0.5
 
-        # check that storage constraints are fullfiled
+        # check that storage constraints are fulfilled
         if not skip_validation:
             constraint_violations = validate_storage_constraints(
-                storage_constraints=device_constraints[0],
+                constraints=device_constraints[0],
                 soc_at_start=soc_at_start,
-                min_soc=soc_min,
-                max_soc=soc_max,
+                soc_min=soc_min,
+                soc_max=soc_max,
                 resolution=resolution,
             )
 
@@ -182,8 +185,9 @@ class StorageScheduler(Scheduler):
                 raise ValueError("The input data yields an infeasible problem.")
 
         # Set up EMS constraints
-        columns = ["derivative max", "derivative min"]
-        ems_constraints = initialize_df(columns, start, end, resolution)
+        ems_constraints = initialize_df(
+            StorageScheduler.COLUMNS, start, end, resolution
+        )
         ems_capacity = sensor.generic_asset.get_attribute("capacity_in_mw")
         if ems_capacity is not None:
             ems_constraints["derivative min"] = ems_capacity * -1
@@ -427,7 +431,6 @@ def build_device_soc_values(
 
 
 def add_storage_constraints(
-    storage_device_constraints: pd.DataFrame,
     start: datetime,
     end: datetime,
     resolution: timedelta,
@@ -440,8 +443,6 @@ def add_storage_constraints(
 ) -> pd.DataFrame:
     """Collect all constraints for a given storage device in a DataFrame that the device_scheduler can interpret.
 
-    :param storage_device_constraints:  Empty frame without constraints (columns) for a storage device,
-                                        but already defining each time step (index).
     :param start:                       Start of the schedule.
     :param end:                         End of the schedule.
     :param resolution:                  Timedelta used to resample the forecasts to the resolution of the schedule.
@@ -451,9 +452,14 @@ def add_storage_constraints(
     :param soc_minima:                  Minimum state of charge at each time.
     :param soc_max:                     Maximum state of charge at all times.
     :param soc_min:                     Minimum state of charge at all times.
-    :returns:                           Constraints (columns) for a storage device, at each time step (index).
+    :returns:                           Constraints (StorageScheduler.COLUMNS) for a storage device, at each time step (index).
                                         See device_scheduler for possible column names.
     """
+
+    # create empty storage device constraints dataframe
+    storage_device_constraints = initialize_df(
+        StorageScheduler.COLUMNS, start, end, resolution
+    )
 
     if soc_targets is not None:
         # make an equality series with the SOC targets set in the flex model
@@ -503,282 +509,206 @@ def add_storage_constraints(
 
 
 def validate_storage_constraints(
-    storage_constraints: pd.DataFrame,
+    constraints: pd.DataFrame,
     soc_at_start: float,
-    min_soc: float,
-    max_soc: float,
+    soc_min: float,
+    soc_max: float,
     resolution: timedelta,
 ) -> list[dict]:
     """Check that the storage constraints are fulfilled, e.g min <= equals <= max.
 
     A. Global validation
-        A.1) min >= min_soc
-        A.2) max <= max_soc
+        A.1) min >= soc_min
+        A.2) max <= soc_max
     B. Validation in the same time frame
         B.1) min <= max
         B.2) min <= equals
         B.3) equals <= max
     C. Validation in different time frames
-        C.1) equals(t) - equals(t-1) <= `derivative max`(t)
-        C.2) `derivative min`(t) <= equals(t) - equals(t-1)
-        C.3) min(t) - max(t-1) <= `derivative max`(t)
-        C.4) max(t) - min(t-1) >= `derivative min`(t)
-        C.5) condition equals(t) - max(t-1) <= `derivative max`(t)
-        C.6) `derivative min`(t) <= equals(t) - min(t-1)
+        C.1) equals(t) - equals(t-1) <= derivative_max(t)
+        C.2) derivative_min(t) <= equals(t) - equals(t-1)
+        C.3) min(t) - max(t-1) <= derivative_max(t)
+        C.4) max(t) - min(t-1) >= derivative_min(t)
+        C.5) equals(t) - max(t-1) <= derivative_max(t)
+        C.6) derivative_min(t) <= equals(t) - min(t-1)
 
-    :param storage_constraints: dataframe containing the constraints of a storage device
+    :param constraints:         dataframe containing the constraints of a storage device
     :param soc_at_start:        State of charge at the start time.
-    :param min_soc:             Minimum state of charge at all times.
-    :param max_soc:             Maximum state of charge at all times.
+    :param soc_min:             Minimum state of charge at all times.
+    :param soc_max:             Maximum state of charge at all times.
     :param resolution:          Constant duration between the start of each time step.
     :returns:                   List of constraint violations, specifying their time, constraint and violation.
     """
 
+    # get a copy of the constraints to make sure the dataframe doesn't get updated
+    _constraints = constraints.copy()
+
+    _constraints = _constraints.rename(
+        columns={
+            columns_name: columns_name.replace(" ", "_")
+            + "(t)"  # replace spaces with underscore and add time index
+            for columns_name in _constraints.columns
+        }
+    )
+
     constraint_violations = []
+
+    violations = validate_constraint(_constraints, "max(t) >= min(t)")
+
+    print(violations)
 
     ########################
     # A. Global validation #
     ########################
-    min_soc = (min_soc - soc_at_start) * timedelta(hours=1) / resolution
 
-    # 1) min >= min_soc
-    mask = ~(storage_constraints["min"] >= min_soc)
-    time_condition_fails = storage_constraints.index[mask]
+    # 1) min >= soc_min
+    soc_min = (soc_min - soc_at_start) * timedelta(hours=1) / resolution
+    _constraints["soc_min(t)"] = soc_min
+    constraint_violations += validate_constraint(_constraints, "soc_min(t) <= min(t)")
 
-    for dt in time_condition_fails:
-        value_min = storage_constraints.loc[dt, "min"]
-
-        constraint_violations.append(
-            dict(
-                dt=dt.to_pydatetime(),
-                condition="min >= min_soc",
-                violation=f"min [{value_min}] >= min_soc [{min_soc}]",
-            )
-        )
-
-    # 2) max <= max_soc
-    max_soc = (max_soc - soc_at_start) * timedelta(hours=1) / resolution
-
-    mask = ~(storage_constraints["max"] <= max_soc)
-    time_condition_fails = storage_constraints.index[mask]
-
-    for dt in time_condition_fails:
-        value_max = storage_constraints.loc[dt, "max"]
-
-        constraint_violations.append(
-            dict(
-                dt=dt.to_pydatetime(),
-                condition="max <= max_soc",
-                violation=f"max [{value_max}] <= max_soc [{max_soc}]",
-            )
-        )
+    # 2) max <= soc_max
+    soc_max = (soc_max - soc_at_start) * timedelta(hours=1) / resolution
+    _constraints["soc_max(t)"] = soc_max
+    constraint_violations += validate_constraint(_constraints, "max(t) <= soc_max(t)")
 
     ########################################
     # B. Validation in the same time frame #
     ########################################
 
     # 1) min <= max
-    mask = ~(storage_constraints["min"] <= storage_constraints["max"])
-    time_condition_fails = storage_constraints.index[mask]
-
-    for dt in time_condition_fails:
-        value_min = storage_constraints.loc[dt, "min"]
-        value_max = storage_constraints.loc[dt, "max"]
-
-        constraint_violations.append(
-            dict(
-                dt=dt.to_pydatetime(),
-                condition="min <= max",
-                violation=f"min [{value_min}] <= max [{value_max}]",
-            )
-        )
+    constraint_violations += validate_constraint(_constraints, "min(t) <= max(t)")
 
     # 2) min <= equals
-    mask = ~(storage_constraints["min"] <= storage_constraints["equals"])
-    mask = mask & ~storage_constraints["equals"].isna()
-    time_condition_fails = storage_constraints.index[mask]
-
-    for dt in time_condition_fails:
-        value_equals = storage_constraints.loc[dt, "equals"]
-        value_min = storage_constraints.loc[dt, "min"]
-
-        constraint_violations.append(
-            dict(
-                dt=dt.to_pydatetime(),
-                condition="min <= equals",
-                violation=f"min [{value_min}] <= equal [{value_equals}]",
-            )
-        )
+    constraint_violations += validate_constraint(_constraints, "min(t) <= equals(t)")
 
     # 3) equals <= max
-    mask = ~(storage_constraints["equals"] <= storage_constraints["max"])
-    mask = mask & ~storage_constraints["equals"].isna()
-
-    time_condition_fails = storage_constraints.index[mask]
-
-    for dt in time_condition_fails:
-        value_equals = storage_constraints.loc[dt, "equals"]
-        value_max = storage_constraints.loc[dt, "max"]
-
-        constraint_violations.append(
-            dict(
-                dt=dt.to_pydatetime(),
-                condition="equals <= max",
-                violation=f"equals [{value_equals}] <= max [{value_max}]",
-            )
-        )
+    constraint_violations += validate_constraint(_constraints, "equals(t) <= max(t)")
 
     ##########################################
     # C. Validation in different time frames #
     ##########################################
 
-    factor_w_wh = resolution / timedelta(hours=1)
+    _constraints["factor_w_wh(t)"] = resolution / timedelta(hours=1)
+    _constraints["min(t-1)"] = prepend_serie(_constraints["min(t)"], soc_min)
+    _constraints["equals(t-1)"] = prepend_serie(_constraints["equals(t)"], soc_at_start)
+    _constraints["max(t-1)"] = prepend_serie(_constraints["max(t)"], soc_max)
 
-    # 1) equals(t) - equals(t-1) <= `derivative max`(t)
-    equals_extended = storage_constraints["equals"].copy()
-    equals_extended[storage_constraints.index[0] - resolution] = soc_at_start
-    equals_extended = equals_extended.sort_index()
-    diff_equals = equals_extended.diff()[1:]
-
-    mask = (
-        ~(diff_equals <= storage_constraints["derivative max"] * factor_w_wh)
-        & ~diff_equals.isna()
+    # 1) equals(t) - equals(t-1) <= derivative_max(t)
+    constraint_violations += validate_constraint(
+        _constraints, "equals(t) - equals(t-1) <= derivative_max(t) * factor_w_wh(t)"
     )
-    time_condition_fails = storage_constraints.index[mask]
 
-    for dt in time_condition_fails:
-        value_equals = storage_constraints.loc[dt, "equals"]
-        value_equals_previous = storage_constraints.loc[dt - resolution, "equals"]
-        value_derivative_max = storage_constraints.loc[dt, "derivative max"]
-
-        constraint_violations.append(
-            dict(
-                dt=dt.to_pydatetime(),
-                condition="equals(t) - equals(t-1) <= `derivative max`(t)",
-                violation=f"equals(t) [{value_equals}] - equals(t-1) [{value_equals_previous}] <= `derivative max`(t) [{value_derivative_max}]",
-            )
-        )
-
-    # 2) `derivative min`(t) <= equals(t) - equals(t-1)
-    equals_extended = storage_constraints["equals"].copy()
-    equals_extended[storage_constraints.index[0] - resolution] = soc_at_start
-    equals_extended = equals_extended.sort_index()
-    diff_equals = equals_extended.diff()[1:]
-
-    mask = (
-        ~((storage_constraints["derivative min"] * factor_w_wh) <= diff_equals)
-        & ~diff_equals.isna()
+    # 2) derivative_min(t) <= equals(t) - equals(t-1)
+    constraint_violations += validate_constraint(
+        _constraints, "derivative_min(t) * factor_w_wh(t) <= equals(t) - equals(t-1)"
     )
-    time_condition_fails = storage_constraints.index[mask]
 
-    for dt in time_condition_fails:
-        value_equals = storage_constraints.loc[dt, "equals"]
-        value_equals_previous = storage_constraints.loc[dt - resolution, "equals"]
-        value_derivative_min = storage_constraints.loc[dt, "derivative min"]
+    # 3) min(t) - max(t-1) <= derivative_max(t)
+    constraint_violations += validate_constraint(
+        _constraints, "min(t) - max(t-1) <= derivative_max(t) * factor_w_wh(t)"
+    )
 
-        constraint_violations.append(
-            dict(
-                dt=dt.to_pydatetime(),
-                condition="`derivative min`(t) <= equals(t) - equals(t-1)",
-                violation=f"`derivative min`(t) [{value_derivative_min}] <= equals(t) [{value_equals}] - equals(t-1) [{value_equals_previous}]",
-            )
+    # 4) max(t) - min(t-1) >= derivative_min(t)
+    constraint_violations += validate_constraint(
+        _constraints, "derivative_min(t) * factor_w_wh(t) <= max(t) - min(t-1)"
+    )
+
+    # 5) equals(t) - max(t-1) <= derivative_max(t)
+    constraint_violations += validate_constraint(
+        _constraints, "equals(t) - max(t-1) <= derivative_max(t) * factor_w_wh(t)"
+    )
+
+    # 6) derivative_min(t) <= equals(t) - min(t-1)
+    constraint_violations += validate_constraint(
+        _constraints, "derivative_min(t) * factor_w_wh(t) <= equals(t) - min(t-1)"
+    )
+
+    return constraint_violations
+
+
+def get_pattern_match_word(word: str) -> str:
+    """Get a regex pattern to match a word
+
+    The conditions to delimit a word are:
+      - start of line
+      - whitespace
+      - end of line
+      - word boundary
+      - arithmetic operations
+
+    :return: regex expression
+    """
+
+    regex = r"(^|\s|$|\b|\+|\-|\*|/\|\\)"
+
+    return regex + re.escape(word) + regex
+
+
+def validate_constraint(
+    constraints_df: pd.DataFrame, constraint_expression: str
+) -> list[dict]:
+    """Validate the feasibility of a given set of constraints.
+
+    :param constraints_df: DataFrame with the constraints
+    :param constraint_expression: inequality expression following pd.eval format.
+                                  No need to use the syntax `column` to reference
+                                  column, just use the column name.
+    :return: List of constraint violations, specifying their time, constraint and violation.
+    """
+
+    columns_involved = []
+
+    eval_expression = copy.copy(constraint_expression)
+
+    for column in constraints_df.columns:
+        if re.search(get_pattern_match_word(column), eval_expression):
+            columns_involved.append(column)
+
+        eval_expression = re.sub(
+            get_pattern_match_word(column), f"`{column}`", eval_expression
         )
 
-    # extend max
-    max_extended = storage_constraints["max"].copy()
-    max_extended[storage_constraints.index[0] - resolution] = max_soc
-    max_extended = max_extended.sort_index()
+    time_condition_fails = constraints_df.index[
+        ~constraints_df.fillna(0).eval(eval_expression)
+        & ~constraints_df[columns_involved].isna().any(axis=1)
+    ]
 
-    # extend min
-    min_extended = storage_constraints["min"].copy()
-    min_extended[storage_constraints.index[0] - resolution] = min_soc
-    min_extended = min_extended.sort_index()
-
-    # 3) min(t) - max(t-1) <= `derivative max`(t)
-    delta_min_max = min_extended - max_extended.shift(1)
-    delta_min_max = delta_min_max[1:]
-
-    condition3 = delta_min_max <= storage_constraints["derivative max"] * factor_w_wh
-    mask = ~condition3
-    time_condition_fails = storage_constraints.index[mask]
+    constraint_violations = []
 
     for dt in time_condition_fails:
-        value_min = storage_constraints.loc[dt, "min"]
-        value_max_previous = max_extended.loc[dt - resolution]
-        value_derivative_max = storage_constraints.loc[dt, "derivative max"]
+        value_replaced = copy.copy(constraint_expression)
 
-        constraint_violations.append(
-            dict(
-                dt=dt.to_pydatetime(),
-                condition="min(t) - max(t-1) <= `derivative max`(t)",
-                violation=f"min(t) [{value_min}] - max(t-1) [{value_max_previous}] <= `derivative max`(t) [{value_derivative_max}]",
+        for column in constraints_df.columns:
+            value_replaced = re.sub(
+                get_pattern_match_word(column),
+                f"{column} [{constraints_df.loc[dt, column]}]",
+                value_replaced,
             )
-        )
-
-    # 4) max(t) - min(t-1) >= `derivative min`(t)
-    delta_max_min = max_extended - min_extended.shift(1)
-    delta_max_min = delta_max_min[1:]
-
-    condition4 = delta_max_min >= storage_constraints["derivative min"] * factor_w_wh
-    mask = ~condition4
-    time_condition_fails = storage_constraints.index[mask]
-
-    for dt in time_condition_fails:
-        value_max = storage_constraints.loc[dt, "max"]
-        value_min_previous = min_extended.loc[dt - resolution]
-        value_derivative_min = storage_constraints.loc[dt, "derivative min"]
 
         constraint_violations.append(
             dict(
                 dt=dt.to_pydatetime(),
-                condition="max(t) - min(t-1) >= `derivative min`",
-                violation=f"max(t) [{value_max}] - min(t-1) [{value_min_previous}] >= `derivative min`(t) [{value_derivative_min}]",
-            )
-        )
-
-    # 5) equals(t) - max(t-1) <= `derivative max`(t)
-    delta_equals_max = storage_constraints["equals"] - max_extended.shift(1)
-    delta_equals_max = delta_equals_max[1:]
-
-    condition5 = delta_equals_max <= storage_constraints["derivative max"] * factor_w_wh
-    mask = ~condition5 & ~storage_constraints["equals"].isna()
-    time_condition_fails = storage_constraints.index[mask]
-
-    for dt in time_condition_fails:
-        value_equals = storage_constraints.loc[dt, "equals"]
-        value_max_previous = max_extended.loc[dt - resolution]
-        value_derivative_max = storage_constraints.loc[dt, "derivative max"]
-
-        constraint_violations.append(
-            dict(
-                dt=dt.to_pydatetime(),
-                condition="equals(t) - max(t-1) <= `derivative max`(t)",
-                violation=f"equals(t) [{value_equals}] - max(t-1) [{value_max_previous}] <= `derivative max`(t) [{value_derivative_max}]",
-            )
-        )
-
-    # 6) `derivative min`(t) <= equals(t) - min(t-1)
-    delta_equals_min = storage_constraints["equals"] - min_extended.shift(1)
-    delta_equals_min = delta_equals_min[1:]
-
-    condition5 = delta_equals_min >= storage_constraints["derivative min"] * factor_w_wh
-    mask = ~condition5 & ~storage_constraints["equals"].isna()
-    time_condition_fails = storage_constraints.index[mask]
-
-    for dt in time_condition_fails:
-        value_equals = storage_constraints.loc[dt, "equals"]
-        value_min_previous = min_extended.loc[dt - resolution]
-        value_derivative_min = storage_constraints.loc[dt, "derivative min"]
-
-        constraint_violations.append(
-            dict(
-                dt=dt.to_pydatetime(),
-                condition="`derivative min`(t) <= equals(t) - min(t-1)",
-                violation=f"`derivative min`(t) [{value_derivative_min}] <= equals(t) [{value_equals}] - min(t-1) [{value_min_previous}]",
+                condition=constraint_expression,
+                violation=value_replaced,
             )
         )
 
     return constraint_violations
+
+
+def prepend_serie(serie: pd.Series, value) -> pd.Series:
+    """Prepend a value to a time series series
+
+    :param serie: serie containing the timed values
+    :param value: value to place in the first position
+    """
+    # extend max
+    serie = serie.copy()
+    # insert `value` at time `serie.index[0] - resolution` which creates a new entry at the end of the series
+    serie[serie.index[0] - serie.index.freq] = value
+    # sort index to keep the time ordering
+    serie = serie.sort_index()
+    return serie.shift(1)
 
 
 #####################
