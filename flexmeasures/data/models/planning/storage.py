@@ -126,7 +126,7 @@ class StorageScheduler(Scheduler):
             down_deviation_prices.loc[start : end - resolution]["event_value"]
         ]
 
-        # Set up device _constraints: only one scheduled flexible device for this EMS (at index 0), plus the forecasted inflexible devices (at indices 1 to n).
+        # Set up device constraints: only one scheduled flexible device for this EMS (at index 0), plus the forecasted inflexible devices (at indices 1 to n).
         device_constraints = [
             initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
             for i in range(1 + len(inflexible_device_sensors))
@@ -589,9 +589,15 @@ def validate_storage_constraints(
     ##########################################
 
     _constraints["factor_w_wh(t)"] = resolution / timedelta(hours=1)
-    _constraints["min(t-1)"] = prepend_serie(_constraints["min(t)"], soc_min)
-    _constraints["equals(t-1)"] = prepend_serie(_constraints["equals(t)"], soc_at_start)
-    _constraints["max(t-1)"] = prepend_serie(_constraints["max(t)"], soc_max)
+    _constraints["min(t-1)"] = prepend_value_to_series(
+        _constraints["min(t)"], soc_min, resolution
+    )
+    _constraints["equals(t-1)"] = prepend_value_to_series(
+        _constraints["equals(t)"], soc_at_start, resolution
+    )
+    _constraints["max(t-1)"] = prepend_value_to_series(
+        _constraints["max(t)"], soc_max, resolution
+    )
 
     # 1) equals(t) - equals(t-1) <= derivative_max(t)
     constraint_violations += validate_constraint(
@@ -696,19 +702,21 @@ def validate_constraint(
     return constraint_violations
 
 
-def prepend_serie(serie: pd.Series, value) -> pd.Series:
-    """Prepend a value to a time series series
+def prepend_value_to_series(
+    series: pd.Series, value, resolution: timedelta
+) -> pd.Series:
+    """Prepend a value to a time series
 
-    :param serie: serie containing the timed values
+    :param series: series containing the timed values
     :param value: value to place in the first position
     """
     # extend max
-    serie = serie.copy()
-    # insert `value` at time `serie.index[0] - resolution` which creates a new entry at the end of the series
-    serie[serie.index[0] - serie.index.freq] = value
+    series = series.copy()
+    # insert `value` at time `series.index[0] - resolution` which creates a new entry at the start of the series
+    series[series.index[0] - resolution] = value
     # sort index to keep the time ordering
-    serie = serie.sort_index()
-    return serie.shift(1)
+    series = series.sort_index()
+    return series.shift(1)
 
 
 #####################
