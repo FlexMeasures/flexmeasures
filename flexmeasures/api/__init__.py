@@ -1,3 +1,7 @@
+"""
+FlexMeasures API routes and implementations.
+"""
+
 from flask import Flask, Blueprint, request
 from flask_security.utils import verify_password
 from flask_json import as_json

@@ -1,14 +1,13 @@
+"""
+Authentication and authorization policies and helpers.
+"""
+
 from flask import Flask
 from flask_security import Security, SQLAlchemySessionUserDatastore
 from flask_login import user_logged_in, current_user
 from werkzeug.exceptions import Forbidden, Unauthorized
 
 from flexmeasures.data import db
-
-
-"""
-Configure authentication and authorization.
-"""
 
 
 def register_at(app: Flask):

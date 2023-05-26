@@ -1,3 +1,7 @@
+"""
+Starting point of the Flask application.
+"""
+
 from __future__ import annotations
 
 import time

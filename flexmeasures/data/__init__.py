@@ -1,3 +1,7 @@
+"""
+Models & schemata, as well as business logic (queries & services).
+"""
+
 import os
 
 from flask import Flask

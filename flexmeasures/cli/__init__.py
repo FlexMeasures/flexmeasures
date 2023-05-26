@@ -1,3 +1,7 @@
+"""
+CLI functions for FlexMeasures hosts.
+"""
+
 import sys
 
 from flask import Flask, current_app
