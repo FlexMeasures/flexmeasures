@@ -89,4 +89,4 @@ show-data-model:
 	./flexmeasures/data/scripts/visualize_data_model.py --uml
 
 clean-db:
-	./flexmeasures/data/scripts/clean_database.sh ${db_name}
+	./flexmeasures/data/scripts/clean_database.sh ${db_name} ${db_user}

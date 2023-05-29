@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-# Use | instead of Union when FM stops supporting Python 3.9 (because of https://github.com/python/cpython/issues/86399)
-from typing import Union
+# Use | instead of Union, list instead of List and tuple instead of Tuple when FM stops supporting Python 3.9 (because of https://github.com/python/cpython/issues/86399)
+from typing import List, Tuple, Union
 
 from flask import current_app
 from flask_security import current_user
@@ -16,7 +16,7 @@ ADMIN_READER_ROLE = "admin-reader"
 # constants to allow access to certain groups
 EVERY_LOGGED_IN_USER = "every-logged-in-user"
 
-PRINCIPALS_TYPE = Union[str, tuple[str], list[Union[str, tuple[str]]]]
+PRINCIPALS_TYPE = Union[str, Tuple[str], List[Union[str, Tuple[str]]]]
 
 
 class AuthModelMixin(object):
