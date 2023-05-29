@@ -553,10 +553,6 @@ def validate_storage_constraints(
 
     constraint_violations = []
 
-    violations = validate_constraint(_constraints, "max(t) >= min(t)")
-
-    print(violations)
-
     ########################
     # A. Global validation #
     ########################
