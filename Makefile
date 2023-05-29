@@ -14,6 +14,8 @@ test:
 
 # ---- Documentation ---
 
+gen_code_docs := False # by default code documentation is not generated
+
 update-docs:
 	@echo "Creating docs environment ..."
 	make install-docs-dependencies

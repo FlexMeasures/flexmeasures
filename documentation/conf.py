@@ -60,12 +60,16 @@ autodoc_default_options = {}
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
 
-# generate autosummary even if no references
-autosummary_generate = bool(
-    os.environ.get("GEN_CODE_DOCS", "False").lower() in ("t", "true", "1")
+# if GEN_CODE_DOCS is not found, the default is gen_code_docs=True
+gen_code_docs = not bool(
+    os.environ.get("GEN_CODE_DOCS", "True").lower() in ("f", "false", "0")
 )
 
-if autosummary_generate:
+
+# Generate code docs
+if gen_code_docs:
+
+    # Add dependencies
     extensions.extend(
         [
             "sphinx.ext.autosummary",
@@ -243,7 +247,7 @@ def setup(sphinx_app):
         "env",  # hard-coded, documentation is not server-specific for the time being
     )
 
-    if autosummary_generate:
+    if gen_code_docs:
 
         from flexmeasures.app import create
 
