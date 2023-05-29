@@ -7,11 +7,14 @@ import timely_beliefs as tb
 from flexmeasures.data import db
 from flask import current_app
 
+
 if TYPE_CHECKING:
     from flexmeasures.data.models.user import User
 
 
 class DataGeneratorMixin:
+    _data_source: DataSource | None = None
+
     @classmethod
     def get_data_source_info(cls: type) -> dict:
         """
@@ -23,7 +26,31 @@ class DataGeneratorMixin:
             name=current_app.config.get("FLEXMEASURES_DEFAULT_DATASOURCE")
         )  # default
 
+        from flexmeasures.data.models.planning import Scheduler
+        from flexmeasures.data.models.reporting import Reporter
+
+        if issubclass(cls, Reporter):
+            source_info["type"] = "reporter"
+        elif issubclass(cls, Scheduler):
+            source_info["type"] = "scheduler"
+        else:
+            source_info["type"] = "undefined"
+
         return source_info
+
+    @property
+    def data_source(self):
+        from flexmeasures.data.services.data_sources import get_or_create_source
+
+        if self._data_source is None:
+            data_source_info = self.get_data_source_info()
+
+            self._data_source = get_or_create_source(
+                source=data_source_info.get("name"),
+                source_type=data_source_info.get("type"),
+            )
+
+        return self._data_source
 
 
 class DataSource(db.Model, tb.BeliefSourceDBMixin):
@@ -74,6 +101,8 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
             return f"forecast by {self.name}"  # todo: give DataSource an optional db column to persist versioned models separately to the name of the data source?
         elif self.type == "scheduler":
             return f"schedule by {self.name}"
+        elif self.type == "reporter":
+            return f"report by {self.name}"
         elif self.type == "crawling script":
             return f"data retrieved from {self.name}"
         elif self.type in ("demo script", "CLI script"):
