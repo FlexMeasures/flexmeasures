@@ -43,7 +43,6 @@ rst_prolog = sphinx_fontawesome.prolog
 # ones.
 extensions = [
     "sphinx_rtd_theme",
-    "sphinx.ext.autodoc",
     "sphinx.ext.intersphinx",
     "sphinx.ext.coverage",
     "sphinx.ext.imgmath",
@@ -54,8 +53,6 @@ extensions = [
     "sphinx_fontawesome",
     "sphinxcontrib.autohttp.flask",
     "sphinxcontrib.autohttp.flaskqref",
-    "sphinx.ext.autosummary",
-    "sphinx.ext.autodoc.typehints",
 ]
 
 autodoc_default_options = {}
@@ -67,6 +64,16 @@ templates_path = ["_templates"]
 autosummary_generate = bool(
     os.environ.get("GEN_CODE_DOCS", "False").lower() in ("t", "true", "1")
 )
+
+if autosummary_generate:
+    extensions.extend(
+        [
+            "sphinx.ext.autosummary",
+            "sphinx.ext.autodoc.typehints",
+            "sphinx.ext.autodoc",
+        ]
+    )
+
 
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
