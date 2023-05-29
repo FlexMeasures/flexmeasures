@@ -261,6 +261,8 @@ def test_tibber_reporter(tibber_test_data):
         * 10  # convert cents/kWh to EUR/MWh
     )
 
+    result = result.droplevel(["source", "belief_time", "cumulative_probability"])
+
     error = abs(result - tibber_app_price_df)
 
     # check that (EPEX + EnergyTax + Tibber Tariff)*(1 + VAT) = Tibber App Price

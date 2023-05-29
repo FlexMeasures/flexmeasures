@@ -376,4 +376,28 @@ def plot_beliefs(
         click.secho("Data saved to file.", **MsgStyle.SUCCESS)
 
 
+@fm_show_data.command("reporters")
+@with_appcontext
+def list_reporters():
+    """
+    Show available reporters.
+    """
+
+    click.echo("Reporters:\n")
+    click.echo(
+        tabulate(
+            [
+                (
+                    reporter_name,
+                    reporter_class.__version__,
+                    reporter_class.__author__,
+                    reporter_class.__module__,
+                )
+                for reporter_name, reporter_class in app.reporters.items()
+            ],
+            headers=["name", "version", "author", "module"],
+        )
+    )
+
+
 app.cli.add_command(fm_show_data)
