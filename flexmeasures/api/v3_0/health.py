@@ -1,6 +1,9 @@
 from flask import current_app
 from flask_classful import FlaskView, route
 from flask_json import as_json
+from webargs.flaskparser import use_kwargs
+from marshmallow import fields
+
 
 from redis.exceptions import ConnectionError
 from flexmeasures.data import db
@@ -33,12 +36,21 @@ class HealthAPI(FlaskView):
     trailing_slash = False
 
     @route("/ready", methods=["GET"])
+    @use_kwargs(
+        {
+            "expect_redis": fields.Boolean(required=False, default=False),
+        },
+        location="query",
+    )
     @as_json
-    def is_ready(self):
+    def is_ready(self, **kwargs):
         """
         Get readiness status
 
         .. :quickref: Health; Get readiness status
+
+        **Optional fields**
+        - "expect_redis": flag to check for a redis connection or not.
 
         **Example response:**
 
@@ -50,10 +62,14 @@ class HealthAPI(FlaskView):
             }
 
         """
+
         status = {
             "database_sql": _check_sql_database(),
-            "database_redis": _check_redis(),
         }
+
+        if kwargs.get("expect_redis", False):
+            status["database_redis"] = _check_redis()
+
         if all(status.values()):
             return status, 200
         else:
