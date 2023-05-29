@@ -3,7 +3,14 @@ from __future__ import annotations
 from datetime import datetime
 
 from flask import current_app
-from marshmallow import Schema, post_load, validate, validates_schema, fields
+from marshmallow import (
+    Schema,
+    post_load,
+    validate,
+    validates_schema,
+    fields,
+    validates,
+)
 from marshmallow.validate import OneOf
 
 from flexmeasures.data.models.time_series import Sensor
@@ -12,13 +19,23 @@ from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.utils.unit_utils import ur
 
 
-class SOCTargetSchema(Schema):
+class SOCValueSchema(Schema):
     """
     A point in time with a target value.
     """
 
     value = fields.Float(required=True)
     datetime = AwareDateTimeField(required=True)
+
+    def __init__(self, *args, **kwargs):
+        self.value_validator = kwargs.pop("value_validator", None)
+        super().__init__(*args, **kwargs)
+
+    @validates("value")
+    def validate_value(self, _value):
+
+        if self.value_validator is not None:
+            self.value_validator(_value)
 
 
 class StorageFlexModelSchema(Schema):
@@ -29,8 +46,16 @@ class StorageFlexModelSchema(Schema):
     """
 
     soc_at_start = fields.Float(required=True, data_key="soc-at-start")
+
     soc_min = fields.Float(validate=validate.Range(min=0), data_key="soc-min")
     soc_max = fields.Float(data_key="soc-max")
+
+    soc_maxima = fields.List(fields.Nested(SOCValueSchema()), data_key="soc-maxima")
+    soc_minima = fields.List(
+        fields.Nested(SOCValueSchema(value_validator=validate.Range(min=0))),
+        data_key="soc-minima",
+    )
+
     soc_unit = fields.Str(
         validate=OneOf(
             [
@@ -40,7 +65,7 @@ class StorageFlexModelSchema(Schema):
         ),
         data_key="soc-unit",
     )  # todo: allow unit to be set per field, using QuantityField("%", validate=validate.Range(min=0, max=1))
-    soc_targets = fields.List(fields.Nested(SOCTargetSchema()), data_key="soc-targets")
+    soc_targets = fields.List(fields.Nested(SOCValueSchema()), data_key="soc-targets")
     roundtrip_efficiency = QuantityField(
         "%",
         validate=validate.Range(min=0, max=1, min_inclusive=False, max_inclusive=True),

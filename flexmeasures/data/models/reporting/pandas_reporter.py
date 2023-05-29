@@ -10,6 +10,8 @@ from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.schemas.reporting.pandas_reporter import (
     PandasReporterConfigSchema,
 )
+from flexmeasures.data.models.time_series import TimedBelief
+from flexmeasures.utils.time_utils import server_now
 
 
 class PandasReporter(Reporter):
@@ -45,6 +47,42 @@ class PandasReporter(Reporter):
         self._apply_transformations()
 
         final_output = self.data[self.final_df_output]
+
+        if isinstance(final_output, tb.BeliefsDataFrame):
+
+            # filing the missing indexes with default values:
+            # belief_time=server_now(), cummulative_probability=0.5, source=data_source
+            if "belief_time" not in final_output.index.names:
+                final_output["belief_time"] = [server_now()] * len(final_output)
+                final_output = final_output.set_index("belief_time", append=True)
+
+            if "cumulative_probability" not in final_output.index.names:
+                final_output["cumulative_probability"] = [0.5] * len(final_output)
+                final_output = final_output.set_index(
+                    "cumulative_probability", append=True
+                )
+
+            if "source" not in final_output.index.names:
+                final_output["source"] = [self.data_source] * len(final_output)
+                final_output = final_output.set_index("source", append=True)
+
+            final_output = final_output.reorder_levels(
+                tb.BeliefsDataFrame().index.names
+            )
+
+        elif isinstance(final_output, tb.BeliefsSeries):
+
+            timed_beliefs = [
+                TimedBelief(
+                    sensor=final_output.sensor,
+                    source=self.data_source,
+                    belief_time=server_now(),
+                    event_start=event_start,
+                    event_value=event_value,
+                )
+                for event_start, event_value in final_output.iteritems()
+            ]
+            final_output = tb.BeliefsDataFrame(timed_beliefs)
 
         return final_output
 
