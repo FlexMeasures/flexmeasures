@@ -635,7 +635,7 @@ def get_pattern_match_word(word: str) -> str:
     :return: regex expression
     """
 
-    regex = r"(^|\s|$|\b|\+|\-|\*|/\|\\)"
+    regex = r"(^|\s|$|\b|\+|\-|\*|\/\|\\)"
 
     return regex + re.escape(word) + regex
 
