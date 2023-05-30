@@ -30,6 +30,9 @@ class PandasReporter(Reporter):
         # extract PandasReporter specific fields
         self.transformations = self.reporter_config.get("transformations")
         self.final_df_output = self.reporter_config.get("final_df_output")
+        self.output_event_resolution = self.reporter_config.get(
+            "output_event_resolution"
+        )
 
     def _compute(
         self,
@@ -83,6 +86,9 @@ class PandasReporter(Reporter):
                 for event_start, event_value in final_output.iteritems()
             ]
             final_output = tb.BeliefsDataFrame(timed_beliefs)
+
+        if self.output_event_resolution:
+            final_output.event_resolution = self.output_event_resolution
 
         return final_output
 

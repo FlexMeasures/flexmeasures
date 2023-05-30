@@ -5,6 +5,8 @@ from flexmeasures.data.schemas.reporting import ReporterConfigSchema
 
 from timely_beliefs import BeliefsDataFrame
 
+from flexmeasures.data.schemas import DurationField
+
 
 class PandasMethodCall(Schema):
 
@@ -74,6 +76,7 @@ class PandasReporterConfigSchema(ReporterConfigSchema):
 
     transformations = fields.List(fields.Nested(PandasMethodCall()), required=True)
     final_df_output = fields.Str(required=True)
+    output_event_resolution = DurationField(required=False)
 
     @validates_schema
     def validate_chaining(self, data, **kwargs):
