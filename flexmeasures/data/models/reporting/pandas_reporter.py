@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 
 from flask import current_app
 import timely_beliefs as tb
+import pandas as pd
 
 from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.schemas.reporting.pandas_reporter import (
@@ -30,9 +31,6 @@ class PandasReporter(Reporter):
         # extract PandasReporter specific fields
         self.transformations = self.reporter_config.get("transformations")
         self.final_df_output = self.reporter_config.get("final_df_output")
-        self.output_event_resolution = self.reporter_config.get(
-            "output_event_resolution"
-        )
 
     def _compute(
         self,
@@ -87,8 +85,17 @@ class PandasReporter(Reporter):
             ]
             final_output = tb.BeliefsDataFrame(timed_beliefs)
 
-        if self.output_event_resolution:
-            final_output.event_resolution = self.output_event_resolution
+        # use event_starts frequency when final_output event resolution
+        # does not correspond with the event resolution of the output sensor
+        event_frequency = final_output.event_starts.inferred_freq
+
+        if event_frequency:
+            event_frequency = pd.to_timedelta(
+                pd.tseries.frequencies.to_offset(event_frequency)
+            ).to_pytimedelta()
+
+            if final_output.event_resolution != final_output.sensor.event_resolution:
+                final_output.event_resolution = event_frequency
 
         return final_output
 
