@@ -108,6 +108,9 @@ class Reporter(DataGeneratorMixin):
         if self.reporter_config is None:
             self.deserialize_config()
 
+        if input_resolution is None:
+            input_resolution = self.sensor.event_resolution
+
         # fetch data
         self.fetch_data(start, end, input_resolution, belief_time)
 
