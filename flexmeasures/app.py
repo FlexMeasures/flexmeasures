@@ -105,6 +105,11 @@ def create(  # noqa C901
 
     app.reporters = get_classes_module("flexmeasures.data.models.reporting", Reporter)
 
+    # Register Schedulers
+    from flexmeasures.data.models.planning import Scheduler
+
+    app.schedulers = get_classes_module("flexmeasures.data.models.planning", Scheduler)
+
     # add auth policy
 
     from flexmeasures.auth import register_at as register_auth_at

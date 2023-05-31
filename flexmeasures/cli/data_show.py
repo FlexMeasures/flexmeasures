@@ -400,4 +400,28 @@ def list_reporters():
     )
 
 
+@fm_show_data.command("schedulers")
+@with_appcontext
+def list_schedulers():
+    """
+    Show available schedulers.
+    """
+
+    click.echo("Schedulers:\n")
+    click.echo(
+        tabulate(
+            [
+                (
+                    scheduler_name,
+                    scheduler_class.__version__,
+                    scheduler_class.__author__,
+                    scheduler_class.__module__,
+                )
+                for scheduler_name, scheduler_class in app.schedulers.items()
+            ],
+            headers=["name", "version", "author", "module"],
+        )
+    )
+
+
 app.cli.add_command(fm_show_data)
