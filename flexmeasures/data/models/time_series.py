@@ -10,6 +10,7 @@ from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import Query, Session
 from sqlalchemy.schema import UniqueConstraint
+from sqlalchemy import inspect
 import timely_beliefs as tb
 from timely_beliefs.beliefs.probabilistic_utils import get_median_belief
 import timely_beliefs.utils as tb_utils
@@ -586,9 +587,11 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
     ):
         # get a Sensor instance attached to the database session (input sensor is detached)
         # check out Issue #683 for more details
-        _sensor = Sensor.query.get(sensor.id)
-        if _sensor:
-            sensor = _sensor
+        inspection_obj = inspect(sensor, raiseerr=False)
+        if inspection_obj:
+            # fetch Sensor only when it is detached
+            if inspection_obj.detached:
+                sensor = Sensor.query.get(sensor.id)
 
         tb.TimedBeliefDBMixin.__init__(self, sensor, source, **kwargs)
         tb_utils.remove_class_init_kwargs(tb.TimedBeliefDBMixin, kwargs)
