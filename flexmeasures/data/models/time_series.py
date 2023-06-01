@@ -584,6 +584,9 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         source: tb.DBBeliefSource,
         **kwargs,
     ):
+        # get a Sensor instance attached to the database session (input sensor is detached)
+        # check out Issue #683 for more details
+        sensor = Sensor.query.get(sensor.id)
         tb.TimedBeliefDBMixin.__init__(self, sensor, source, **kwargs)
         tb_utils.remove_class_init_kwargs(tb.TimedBeliefDBMixin, kwargs)
         db.Model.__init__(self, **kwargs)
