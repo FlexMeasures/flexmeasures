@@ -1,6 +1,7 @@
 .. _developing:
 
 
+
 Developing for FlexMeasures
 ===========================
 
@@ -35,8 +36,6 @@ Clone the `FlexMeasures repository <https://github.com/FlexMeasures/flexmeasures
 .. code-block:: bash
 
    $ git clone https://github.com/FlexMeasures/flexmeasures.git
-
-.. note:: Are you using Visual Studio Code? Then the code you just cloned also contains the editor configuration (part of) our team is using!
 
 
 Dependencies
@@ -149,25 +148,40 @@ You can run automated tests with:
 
 .. code-block:: bash
 
-   $ make test
+    $ make test
 
 
-which behind the curtains installs dependencies and calls pytest.
+which behind the curtains installs dependencies and calls ``pytest``.
 
-A coverage report can be created like this:
+However, a test database (postgres) is needed to run these tests. If you have postgres, here is the short version on how to add the test database:
+
+.. code-block:: bash
+
+    $ make clean-db db_name=flexmeasures_test db_user=flexmeasures_test
+    $ # the password for the db user is "flexmeasures_test"
+
+.. note:: The section :ref:`host-data` has more details on using postgres for FlexMeasures.
+
+Alternatively, if you don't feel like installing postgres for the time being, here is a docker command to provide a test database:
+
+.. code-block:: bash
+
+    $ docker run --rm --name flexmeasures-test-db -e POSTGRES_PASSWORD=flexmeasures_test -e POSTGRES_DB=flexmeasures_test -e POSTGRES_USER=flexmeasures_test -p 5432:5432 -v ./ci/load-psql-extensions.sql:/docker-entrypoint-initdb.d/load-psql-extensions.sql -d postgres:latest
+
+.. warning:: This assumes that the port 5432 is not being used on your machine (for instance by an existing postgres database service).
+
+If you want the tests to create a coverage report (printed on the terminal), you can run the ``pytest`` command like this:
 
 .. code-block:: bash
 
    $ pytest --cov=flexmeasures --cov-config .coveragerc
 
-
-You can add --cov-report=html after which a htmlcov/index.html is generated.
-
-It's also possible to use:
+You can add `--cov-report=html`, after which a file called `htmlcov/index.html` is generated.
+Or, after a test run with coverage turned on as shown above, you can still generate it in another form:
 
 .. code-block:: bash
 
-   $ python setup.py test
+    $ python3 -m coverage [html|lcov|json]
 
 
 
@@ -209,6 +223,23 @@ This is also what happens automatically server-side when code is committed to a 
 
 If ``flake8``, ``black`` or ``mypy`` propose changes to any file, the commit is aborted (saying that it "failed"). 
 The changes proposed by ``black`` are implemented automatically (you can review them with `git diff`). Some of them might even resolve the ``flake8`` warnings :)
+
+
+Using Visual Studio, including spell checking
+----------------------------------------------
+
+Are you using Visual Studio Code? Then the code you just cloned also contains the editor configuration (part of) our team is using (see `.vscode`)!
+
+We recommend installing the flake8 and spellright extensions.
+
+For spellright, the FlexMeasures repository contains the project dictionary. Here are steps to link main dictionaries, which usually work on a Linux system:
+
+.. code-block:: bash
+
+   $ mkdir $HOME/.config/Code/Dictionaries
+   $ ln -s /usr/share/hunspell/* ~/.config/Code/Dictionaries
+
+Consult the extension's Readme for other systems.
 
 
 

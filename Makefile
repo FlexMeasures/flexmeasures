@@ -46,7 +46,7 @@ install-deps:
 	pip-sync requirements/app.txt
 
 install-flexmeasures:
-	pip install -e
+	pip install -e .
 
 install-pip-tools:
 	pip3 install -q "pip-tools>=6.4"
@@ -89,4 +89,4 @@ show-data-model:
 	./flexmeasures/data/scripts/visualize_data_model.py --uml
 
 clean-db:
-	./flexmeasures/data/scripts/clean_database.sh ${db_name}
+	./flexmeasures/data/scripts/clean_database.sh ${db_name} ${db_user}

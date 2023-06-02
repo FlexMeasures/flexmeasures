@@ -1,14 +1,12 @@
 from __future__ import annotations
 from typing import Optional, Union, Dict
+from datetime import datetime, timedelta
 
 import pandas as pd
 
 from flexmeasures.data.schemas.reporting import ReporterConfigSchema
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.data_sources import DataGeneratorMixin
-
-
-from datetime import datetime, timedelta
 
 import timely_beliefs as tb
 
@@ -24,7 +22,7 @@ class Reporter(DataGeneratorMixin):
 
     reporter_config: Optional[dict] = None
     reporter_config_raw: Optional[dict] = None
-    schema = ReporterConfigSchema
+    schema = ReporterConfigSchema()
     data: Dict[str, Union[tb.BeliefsDataFrame, pd.DataFrame]] = None
 
     def __init__(
@@ -110,17 +108,32 @@ class Reporter(DataGeneratorMixin):
         if self.reporter_config is None:
             self.deserialize_config()
 
+        if input_resolution is None:
+            input_resolution = self.sensor.event_resolution
+
         # fetch data
         self.fetch_data(start, end, input_resolution, belief_time)
 
         # Result
-        result = self._compute(start, end, input_resolution, belief_time)
+        result: tb.BeliefsDataFrame = self._compute(
+            start, end, input_resolution, belief_time
+        )
 
         # checking that the event_resolution of the output BeliefDataFrame is equal to the one of the output sensor
-        assert self.sensor.event_resolution == result.event_resolution
+        assert (
+            self.sensor.event_resolution == result.event_resolution
+        ), f"The resolution of the results ({result.event_resolution}) should match that of the output sensor ({self.sensor.event_resolution}, ID {self.sensor.id})."
 
         # Assign sensor to BeliefDataFrame
         result.sensor = self.sensor
+
+        if result.empty:
+            return result
+
+        # update data source
+        result.index = result.index.set_levels(
+            [self.data_source] * len(result), level="source", verify_integrity=False
+        )
 
         return result
 

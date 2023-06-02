@@ -2,13 +2,15 @@ import os
 
 import click
 
-if os.name == "nt":
-    from rq_win import WindowsWorker as SimpleWorker
-else:
-    from rq import SimpleWorker
-
 
 def work_on_rq(redis_queue, exc_handler=None):
+
+    #  we only want this import distinction to matter when we actually are testing
+    if os.name == "nt":
+        from rq_win import WindowsWorker as SimpleWorker
+    else:
+        from rq import SimpleWorker
+
     exc_handlers = []
     if exc_handler is not None:
         exc_handlers.append(exc_handler)
