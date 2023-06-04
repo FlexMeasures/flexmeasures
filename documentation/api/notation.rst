@@ -380,21 +380,16 @@ For example, to obtain data originating from data source 42, include the followi
 
 Data source IDs can be found by hovering over data in charts.
 
-.. note:: Older API version (< 3) accepted user IDs (integers), account roles (strings) and lists thereof, instead of data source IDs (integers).
-
-
 .. _units:
 
 Units
 ^^^^^
 
-From API version 3 onwards, we are much more flexible with sent units.
+The FlexMeasures API is quite flexible with sent units.
 A valid unit for timeseries data is any unit that is convertible to the configured sensor unit registered in FlexMeasures.
 So, for example, you can send timeseries data with "W" unit to a "kW" sensor.
 And if you wish to do so, you can even send a timeseries with "kWh" unit to a "kW" sensor.
 In this case, FlexMeasures will convert the data using the resolution of the timeseries.
-
-For API versions 1 and 2, the unit sent needs to be an exact match with the sensor unit, and only "MW" is allowed for power sensors.
 
 .. _signs:
 
