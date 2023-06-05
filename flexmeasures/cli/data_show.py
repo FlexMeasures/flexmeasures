@@ -376,6 +376,28 @@ def plot_beliefs(
         click.secho("Data saved to file.", **MsgStyle.SUCCESS)
 
 
+def list_items(item_type):
+    """
+    Show available items of a specific type.
+    """
+
+    click.echo(f"{item_type.capitalize()}:\n")
+    click.echo(
+        tabulate(
+            [
+                (
+                    item_name,
+                    item_class.__version__,
+                    item_class.__author__,
+                    item_class.__module__,
+                )
+                for item_name, item_class in getattr(app, item_type).items()
+            ],
+            headers=["name", "version", "author", "module"],
+        )
+    )
+
+
 @fm_show_data.command("reporters")
 @with_appcontext
 def list_reporters():
@@ -383,21 +405,8 @@ def list_reporters():
     Show available reporters.
     """
 
-    click.echo("Reporters:\n")
-    click.echo(
-        tabulate(
-            [
-                (
-                    reporter_name,
-                    reporter_class.__version__,
-                    reporter_class.__author__,
-                    reporter_class.__module__,
-                )
-                for reporter_name, reporter_class in app.reporters.items()
-            ],
-            headers=["name", "version", "author", "module"],
-        )
-    )
+    with app.app_context():
+        list_items("reporters")
 
 
 @fm_show_data.command("schedulers")
@@ -407,21 +416,8 @@ def list_schedulers():
     Show available schedulers.
     """
 
-    click.echo("Schedulers:\n")
-    click.echo(
-        tabulate(
-            [
-                (
-                    scheduler_name,
-                    scheduler_class.__version__,
-                    scheduler_class.__author__,
-                    scheduler_class.__module__,
-                )
-                for scheduler_name, scheduler_class in app.schedulers.items()
-            ],
-            headers=["name", "version", "author", "module"],
-        )
-    )
+    with app.app_context():
+        list_items("schedulers")
 
 
 app.cli.add_command(fm_show_data)
