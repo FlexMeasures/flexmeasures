@@ -1,8 +1,11 @@
+
+from __future__ import annotations
 import pytest
 from datetime import datetime, timedelta
 from random import random
-
+from timely_beliefs.sensors.func_store.knowledge_horizons import at_date
 from isodate import parse_duration
+from flexmeasures.data.models.planning.utils import initialize_index
 import pandas as pd
 import numpy as np
 from flask_sqlalchemy import SQLAlchemy
@@ -18,7 +21,6 @@ from flexmeasures.data.models.forecasting.model_spec_factory import (
     create_initial_model_specs,
 )
 from flexmeasures.utils.time_utils import as_server_time
-
 
 @pytest.fixture(scope="module")
 def setup_test_data(
@@ -83,7 +85,7 @@ def setup_fresh_test_data(
                 belief_horizon=parse_duration("PT0M"),
                 event_value=val,
                 sensor=asset.corresponding_sensor,
-                source=data_source,
+                source=DataSource("source1"),
             )
             for dt, val in zip(time_slots, values)
         ]
@@ -112,9 +114,6 @@ def fresh_remove_seasonality_for_power_forecasts(db, setup_asset_types_fresh_db)
 
 def add_test_weather_sensor_and_forecasts(db: SQLAlchemy, setup_generic_asset_types):
     """one day of test data (one complete sine curve) for two sensors"""
-    data_source = DataSource.query.filter_by(
-        name="Seita", type="demo script"
-    ).one_or_none()
     weather_station = GenericAsset(
         name="Test weather station farther away",
         generic_asset_type=setup_generic_asset_types["weather_station"],
@@ -141,7 +140,7 @@ def add_test_weather_sensor_and_forecasts(db: SQLAlchemy, setup_generic_asset_ty
                     event_start=as_server_time(dt),
                     event_value=val,
                     belief_horizon=timedelta(hours=6),
-                    source=data_source,
+                    source=DataSource("source1"),
                 )
             )
 
@@ -232,3 +231,291 @@ def setup_annotations(
         asset=asset,
         sensor=sensor,
     )
+
+@pytest.fixture(scope="module")
+def create_solar_plants(db, setup_accounts, setup_sources)-> dict[str, Sensor]:
+    """Create Solar Plants and their Power and Price sensor along with their beliefs."""
+    asset_type = GenericAssetType(
+        name="Solar",
+    )
+    db.session.add(asset_type)
+    Solar1 = GenericAsset(
+        name="solar-1",
+        generic_asset_type=asset_type,
+    )
+    db.session.add(Solar1)
+    testing_sensor1 = Sensor(
+        name="solar1-production-price-sensor",
+        generic_asset=Solar1,
+        event_resolution=timedelta(hours=1),
+        unit="EUR/MWh",
+        knowledge_horizon=(at_date, {"knowledge_time": "2014-11-01T00:00+01:00"}),
+    )
+    db.session.add(testing_sensor1)
+    production_price = TimedBelief(
+        event_start="2015-01-01T00:00+01:00",
+        belief_time="2014-11-01T00:00+01:00",  # publication date
+        event_value=2,
+        source=DataSource("source1"),
+        sensor=testing_sensor1,
+    )
+    db.session.add(production_price)
+    testing_sensor2 = Sensor(
+        name="solar-power-1",
+        generic_asset=Solar1,
+        event_resolution=timedelta(hours=1),
+        unit="MW",
+        attributes={"capacity_in_mw": 2000},
+    )
+    db.session.add(testing_sensor2)
+    time_slots = initialize_index(
+        start=pd.Timestamp("2015-01-01").tz_localize("Europe/Amsterdam"),
+        end=pd.Timestamp("2015-01-02").tz_localize("Europe/Amsterdam"),
+        resolution="1H",
+    )
+    values = [0] * 5 + list(range(7, 51, 7)) + list(range(50, 0, -7)) + [0] * 5
+    add_as_beliefs(db, testing_sensor2, values, time_slots)
+    Solar2 = GenericAsset(
+        name="solar-2",
+        generic_asset_type=asset_type,
+    )
+    db.session.add(Solar2)
+    testing_sensor3 = Sensor(
+        name="solar2-production-price-sensor",
+        generic_asset=Solar2,
+        event_resolution=timedelta(hours=1),
+        unit="EUR/MWh",
+        knowledge_horizon=(at_date, {"knowledge_time": "2014-11-01T00:00+01:00"}),
+    )
+    db.session.add(testing_sensor3)
+    production_price = TimedBelief(
+        event_start="2015-01-01T00:00+01:00",
+        belief_time="2014-11-01T00:00+01:00",  # publication date
+        event_value=2.5,
+        source=DataSource("source1"),
+        sensor=testing_sensor3,
+    )
+    db.session.add(production_price)
+    testing_sensor4 = Sensor(
+        name="solar-power-2",
+        generic_asset=Solar2,
+        event_resolution=timedelta(hours=1),
+        unit="MW",
+        attributes={"capacity_in_mw": 2000},
+    )
+    db.session.add(testing_sensor4)
+    time_slots = initialize_index(
+        start=pd.Timestamp("2015-01-01").tz_localize("Europe/Amsterdam"),
+        end=pd.Timestamp("2015-01-02").tz_localize("Europe/Amsterdam"),
+        resolution="1H",
+    )
+    values = [0] * 5 + list(range(7, 51, 7)) + list(range(50, 0, -7)) + [0] * 5
+    add_as_beliefs(db, testing_sensor4, values, time_slots)
+    Solar3 = GenericAsset(
+        name="solar-3",
+        generic_asset_type=asset_type,
+    )
+    db.session.add(Solar3)
+    testing_sensor5 = Sensor(
+        name="solar3-production-price-sensor",
+        generic_asset=Solar3,
+        event_resolution=timedelta(hours=1),
+        unit="EUR/MWh",
+        knowledge_horizon=(at_date, {"knowledge_time": "2014-11-01T00:00+01:00"}),
+    )
+    db.session.add(testing_sensor5)
+    production_price = TimedBelief(
+        event_start="2015-01-01T00:00+01:00",
+        belief_time="2014-11-01T00:00+01:00",  # publication date
+        event_value=3,
+        source=DataSource("source1"),
+        sensor=testing_sensor5,
+    )
+    db.session.add(production_price)
+    testing_sensor6 = Sensor(
+        name="solar-power-3",
+        generic_asset=Solar3,
+        event_resolution=timedelta(hours=1),
+        unit="MW",
+        attributes={"capacity_in_mw": 2000},
+    )
+    db.session.add(testing_sensor6)
+    time_slots = initialize_index(
+        start=pd.Timestamp("2015-01-01").tz_localize("Europe/Amsterdam"),
+        end=pd.Timestamp("2015-01-02").tz_localize("Europe/Amsterdam"),
+        resolution="1H",
+    )
+    values = [0] * 5 + list(range(7, 51, 7)) + list(range(50, 0, -7)) + [0] * 5
+    add_as_beliefs(db, testing_sensor6, values, time_slots) # make sure that prices are assigned to price sensors
+    db.session.flush()
+    return {
+        testing_sensor1.name: testing_sensor1,
+        testing_sensor2.name: testing_sensor2,
+        testing_sensor3.name: testing_sensor3,
+        testing_sensor4.name: testing_sensor4,
+        testing_sensor5.name: testing_sensor5,
+        testing_sensor6.name: testing_sensor6,
+
+    }
+
+
+@pytest.fixture(scope="module")
+def create_building(db, setup_accounts, setup_markets)-> dict[str, Sensor]:
+    """
+    Set up a building.
+    """
+    asset_type = GenericAssetType(
+        name="Building",
+    )
+    db.session.add(asset_type)
+    Building = GenericAsset(
+        name="building",
+        generic_asset_type=asset_type,
+    )
+    db.session.add(Building)
+    testing_sensor7 = Sensor(
+        name="building-consumption-price-sensor",
+        generic_asset=Building,
+        event_resolution=timedelta(hours=1),
+        unit="EUR/MWh",
+        knowledge_horizon=(at_date, {"knowledge_time": "2014-11-01T00:00+01:00"}),
+    )
+    db.session.add(testing_sensor7)
+    testing_sensor8 = Sensor(
+        name="building-power",
+        generic_asset=Building,
+        event_resolution=timedelta(hours=1),
+        unit="MW",
+        attributes={"capacity_in_mw": 2000},
+    )
+    db.session.add(testing_sensor8)
+    time_slots = initialize_index(
+        start=pd.Timestamp("2015-01-01").tz_localize("Europe/Amsterdam"),
+        end=pd.Timestamp("2015-01-02").tz_localize("Europe/Amsterdam"),
+        resolution="1H",
+    )
+    values = [-30] * 1 + list(range(-50, -210, -30)) + list(range(-197, -40, 30))+ list(range(-50, -210, -30)) + list(range(-197, -70, 30)) 
+    add_as_beliefs(db,testing_sensor8, values, time_slots)
+    db.session.flush()
+    return {
+        testing_sensor7.name: testing_sensor7,
+        testing_sensor8.name: testing_sensor8,
+    }
+
+
+@pytest.fixture(scope="module")
+def flexible_devices(db)-> dict[str, Sensor]:
+    """
+    Set up sensors for flexible devices:
+    - Battery
+    - Transmission Grid
+    """
+    asset_type = GenericAssetType(
+        name="test-Battery",
+    )
+    db.session.add(asset_type)
+    Battery= GenericAsset(
+        name="battery",
+        generic_asset_type=asset_type,
+        attributes=dict(
+            capacity_in_mw=800,
+            max_soc_in_mwh=795,
+            min_soc_in_mwh=0.5,
+        ),
+    )
+    db.session.add(Battery)
+    testing_sensor9 = Sensor(
+        name="battery-consumption-price-sensor",
+        generic_asset=Battery,
+        event_resolution=timedelta(hours=1),
+        unit="EUR/MWh",
+        knowledge_horizon=(at_date, {"knowledge_time": "2014-11-01T00:00+01:00"}),
+    )
+    db.session.add(testing_sensor9)
+    testing_sensor10 = Sensor(
+        name="battery-production-price-sensor",
+        generic_asset=Battery,
+        event_resolution=timedelta(hours=1),
+        unit="EUR/MWh",
+        knowledge_horizon=(at_date, {"knowledge_time": "2014-11-01T00:00+01:00"}),
+    )
+    db.session.add(testing_sensor10)
+    testing_sensor11 = Sensor(
+        name="battery-power",
+        generic_asset=Battery,
+        event_resolution=timedelta(hours=1),
+        unit="MW",
+        attributes={"capacity_in_mw": 2000},
+    )
+    db.session.add(testing_sensor11)    
+    asset_type = GenericAssetType(
+        name="Transmission-Grid",
+    )
+    db.session.add(asset_type)
+    Grid = GenericAsset(
+        name="grid",
+        generic_asset_type=asset_type,
+    )
+    db.session.add(Grid)
+    testing_sensor12 = Sensor(
+        name="grid-consumption-price-sensor",
+        generic_asset=Grid,
+        event_resolution=timedelta(hours=1),
+        unit="EUR/MWh",
+        knowledge_horizon=(at_date, {"knowledge_time": "2014-11-01T00:00+01:00"}),
+    )
+    db.session.add(testing_sensor12)
+    time_slots = initialize_index(
+        start=pd.Timestamp("2015-01-01").tz_localize("Europe/Amsterdam"),
+        end=pd.Timestamp("2015-01-02").tz_localize("Europe/Amsterdam"),
+        resolution="1H",
+    )
+    values = [9.63, 8.66, 8.387, 8.387, 9.6, 9.722, 9.907, 11.777, 10.237, 7.999, 7.08, 6.5, 5.999, 5.233, 5, 5, 4.5, 5.03, 5.8, 7.105, 10.012, 12.494, 11.825, 10.396]
+    add_as_beliefs(db,testing_sensor12, values, time_slots)
+    testing_sensor13 = Sensor(
+        name="grid-production-price-sensor",
+        generic_asset=Grid,
+        event_resolution=timedelta(hours=1),
+        unit="EUR/MWh",
+        knowledge_horizon=(at_date, {"knowledge_time": "2014-11-01T00:00+01:00"}),
+    )
+    db.session.add(testing_sensor13)
+    time_slots = initialize_index(
+        start=pd.Timestamp("2015-01-01").tz_localize("Europe/Amsterdam"),
+        end=pd.Timestamp("2015-01-02").tz_localize("Europe/Amsterdam"),
+        resolution="1H",
+    )
+    values = [9.63, 8.66, 8.387, 8.387, 9.6, 9.722, 9.907, 11.777, 10.237, 7.999, 7.08, 6.5, 5.999, 5.233, 5, 5, 4.5, 5.03, 5.8, 7.105, 10.012, 12.494, 11.825, 10.396]
+    add_as_beliefs(db,testing_sensor13, values, time_slots)
+    testing_sensor14 = Sensor(
+        name="Grid-power",
+        generic_asset=Grid,
+        event_resolution=timedelta(hours=1),
+        unit="MW",
+        attributes={"capacity_in_mw": 20000},
+    )
+    db.session.add(testing_sensor14)
+    db.session.flush()
+    return {
+        testing_sensor9.name: testing_sensor9,
+        testing_sensor10.name: testing_sensor10,
+        testing_sensor11.name: testing_sensor11,
+        testing_sensor12.name: testing_sensor12,
+        testing_sensor13.name: testing_sensor13,
+        testing_sensor14.name: testing_sensor14,
+    }
+
+def add_as_beliefs(db, sensor, values, time_slots):
+    source=DataSource("source1")
+    beliefs = [
+        TimedBelief(
+            event_start=dt,
+            belief_time=time_slots[0],
+            event_value=val,
+            source=source,
+            sensor=sensor,
+        )
+        for dt, val in zip(time_slots, values)
+    ]
+    db.session.add_all(beliefs)
+    db.session.commit()
