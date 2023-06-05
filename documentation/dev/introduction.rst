@@ -54,6 +54,11 @@ Go into the ``flexmeasures`` folder and install all dependencies including the o
 
    $ apt-get install coinor-cbc
 
+.. note::
+
+    If you are on Windows, then running & developing FlexMeasures will not work 100%. For instance, the queueing only works if you install rq-win (https://github.com/michaelbrooks/rq-win) manually and the make tooling is difficult to get to work as well.
+    We recommend to use the Windows Sub-system for Linux (https://learn.microsoft.com/en-us/windows/wsl/install) or work via Docker-compose (https://flexmeasures.readthedocs.io/en/latest/dev/docker-compose.html).
+
 
 Configuration
 ^^^^^^^^^^^^^^^^^^^^
