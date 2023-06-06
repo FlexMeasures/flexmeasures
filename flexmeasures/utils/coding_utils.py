@@ -173,33 +173,47 @@ def deprecated(alternative, version: str | None = None):
     return decorator
 
 
-def find_classes_module(module, superclass, skiptest=True):
+def find_classes_module(module, superclass):
     classes = []
-    reporting_module = importlib.import_module(module)
 
-    for submodule in pkgutil.iter_modules(reporting_module.__path__):
+    module_object = importlib.import_module(f"{module}")
+    module_classes = inspect.getmembers(module_object, inspect.isclass)
+
+    classes.extend(
+        [
+            (class_name, klass)
+            for class_name, klass in module_classes
+            if issubclass(klass, superclass) and klass != superclass
+        ]
+    )
+
+    return classes
+
+
+def find_classes_modules(module, superclass, skiptest=True):
+    classes = []
+
+    base_module = importlib.import_module(module)
+
+    # root (__init__.py) of the base module
+    classes += find_classes_module(module, superclass)
+
+    for submodule in pkgutil.iter_modules(base_module.__path__):
 
         if skiptest and ("test" in f"{module}.{submodule.name}"):
             continue
 
-        module_object = importlib.import_module(f"{module}.{submodule.name}")
-        module_classes = inspect.getmembers(module_object, inspect.isclass)
-        classes.extend(
-            [
-                (class_name, klass)
-                for class_name, klass in module_classes
-                if issubclass(klass, superclass) and klass != superclass
-            ]
-        )
         if submodule.ispkg:
             classes.extend(
-                find_classes_module(
+                find_classes_modules(
                     f"{module}.{submodule.name}", superclass, skiptest=skiptest
                 )
             )
+        else:
+            classes += find_classes_module(f"{module}.{submodule.name}", superclass)
 
     return classes
 
 
 def get_classes_module(module, superclass, skiptest=True) -> dict:
-    return dict(find_classes_module(module, superclass, skiptest=skiptest))
+    return dict(find_classes_modules(module, superclass, skiptest=skiptest))
