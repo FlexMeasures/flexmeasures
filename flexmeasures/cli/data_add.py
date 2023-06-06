@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from typing import Optional, Type
 import json
+from pathlib import Path
+from io import TextIOBase
 
 from marshmallow import validate
 import pandas as pd
@@ -12,6 +15,7 @@ from flask.cli import with_appcontext
 import click
 import getpass
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import func
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
 import timely_beliefs as tb
 import timely_beliefs.utils as tb_utils
@@ -59,8 +63,11 @@ from flexmeasures.data.services.data_sources import (
 )
 from flexmeasures.data.services.utils import get_or_create_model
 from flexmeasures.utils import flexmeasures_inflection
-from flexmeasures.utils.time_utils import server_now
+from flexmeasures.utils.time_utils import server_now, get_timezone, apply_offset_chain
 from flexmeasures.utils.unit_utils import convert_units, ur
+from flexmeasures.data.utils import save_to_db
+from flexmeasures.data.models.reporting import Reporter
+from timely_beliefs import BeliefsDataFrame
 
 
 @click.group("add")
@@ -128,7 +135,7 @@ def new_account(name: str, roles: str):
 @click.option(
     "--timezone",
     "timezone_optional",
-    help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam' (defaults to FLEXMEASURES_TIMEZONE config setting)",
+    help="Timezone as string, e.g. 'UTC' or 'Europe/Amsterdam' (defaults to FLEXMEASURES_TIMEZONE config setting)",
 )
 def new_user(
     username: str,
@@ -191,7 +198,7 @@ def new_user(
 @click.option(
     "--timezone",
     required=True,
-    help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'",
+    help="Timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'",
 )
 @click.option(
     "--asset-id",
@@ -440,7 +447,7 @@ def add_source(name: str, model: str, version: str, source_type: str):
     "--timezone",
     required=False,
     default=None,
-    help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'",
+    help="Timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'",
 )
 @click.option(
     "--filter-column",
@@ -459,21 +466,21 @@ def add_source(name: str, model: str, version: str, source_type: str):
     required=True,
     type=str,
     default=",",
-    help="[For csv files] Character to delimit columns per row, defaults to comma",
+    help="[For CSV files] Character to delimit columns per row, defaults to comma",
 )
 @click.option(
     "--decimal",
     required=False,
     default=".",
     type=str,
-    help="[For csv files] decimal character, e.g. '.' for 10.5",
+    help="[For CSV files] decimal character, e.g. '.' for 10.5",
 )
 @click.option(
     "--thousands",
     required=False,
     default=None,
     type=str,
-    help="[For csv files] thousands separator, e.g. '.' for 10.035,2",
+    help="[For CSV files] thousands separator, e.g. '.' for 10.035,2",
 )
 @click.option(
     "--sheet_number",
@@ -506,9 +513,9 @@ def add_beliefs(
     sheet_number: int | None = None,
     **kwargs,  # in-code calls to this CLI command can set additional kwargs for use in pandas.read_csv or pandas.read_excel
 ):
-    """Add sensor data from a csv file (also accepts xls or xlsx).
+    """Add sensor data from a CSV or Excel file.
 
-    To use default settings, structure your csv file as follows:
+    To use default settings, structure your CSV file as follows:
 
         - One header line (will be ignored!)
         - UTC datetimes in 1st column
@@ -1131,6 +1138,240 @@ def add_schedule_for_storage(
         success = make_schedule(sensor_id=power_sensor.id, **scheduling_kwargs)
         if success:
             click.secho("New schedule is stored.", **MsgStyle.SUCCESS)
+
+
+@fm_add_data.command("report")
+@with_appcontext
+@click.option(
+    "--sensor-id",
+    "sensor",
+    type=SensorIdField(),
+    required=True,
+    help="ID of the sensor used to save the report."
+    " If needed, use `flexmeasures add sensor` to create a new sensor first.",
+)
+@click.option(
+    "--reporter-config",
+    "reporter_config",
+    required=True,
+    type=click.File("r"),
+    help="Path to the JSON file with the reporter configuration.",
+)
+@click.option(
+    "--reporter",
+    "reporter_class",
+    default="PandasReporter",
+    type=click.STRING,
+    help="Reporter class registered in flexmeasures.data.models.reporting or in an available flexmeasures plugin."
+    " Use the command `flexmeasures show reporters` to list all the available reporters.",
+)
+@click.option(
+    "--start",
+    "start",
+    type=AwareDateTimeField(format="iso"),
+    required=False,
+    help="Report start time. `--start-offset` can be used instead. Follow up with a timezone-aware datetime in ISO 6801 format.",
+)
+@click.option(
+    "--start-offset",
+    "start_offset",
+    type=str,
+    required=False,
+    help="Report start offset time from now. Use multiple Pandas offset strings separated by commas, e.g: -3D,DB,1W. Use DB or HB to offset to the begin of the day or hour, respectively.",
+)
+@click.option(
+    "--end-offset",
+    "end_offset",
+    type=str,
+    required=False,
+    help="Report end offset time from now. Use multiple Pandas offset strings separated by commas, e.g: -3D,DB,1W. Use DB or HB to offset to the begin of the day or hour, respectively.",
+)
+@click.option(
+    "--end",
+    "end",
+    type=AwareDateTimeField(format="iso"),
+    required=False,
+    help="Report end time. `--end-offset` can be used instead. Follow up with a timezone-aware datetime in ISO 6801 format.",
+)
+@click.option(
+    "--resolution",
+    "resolution",
+    type=DurationField(format="iso"),
+    required=False,
+    help="Time resolution of the input time series to employ for the calculations. Follow up with a ISO 8601 duration string",
+)
+@click.option(
+    "--output-file",
+    "output_file",
+    required=False,
+    type=click.Path(),
+    help="Path to save the report to file. Will override any previous file contents."
+    " Use the `.csv` suffix to save the results as Comma Separated Values and `.xlsx` to export them as Excel sheets.",
+)
+@click.option(
+    "--timezone",
+    "timezone",
+    required=False,
+    default="UTC",
+    help="Timezone as string, e.g. 'UTC' or 'Europe/Amsterdam' (defaults to FLEXMEASURES_TIMEZONE config setting)",
+)
+@click.option(
+    "--dry-run",
+    "dry_run",
+    is_flag=True,
+    help="Add this flag to avoid saving the results to the database.",
+)
+def add_report(  # noqa: C901
+    reporter_class: str,
+    sensor: Sensor,
+    reporter_config: TextIOBase,
+    start: Optional[datetime] = None,
+    end: Optional[datetime] = None,
+    start_offset: Optional[str] = None,
+    end_offset: Optional[str] = None,
+    resolution: Optional[timedelta] = None,
+    output_file: Optional[Path] = None,
+    dry_run: bool = False,
+    timezone: str | pytz.BaseTzInfo = get_timezone(),
+):
+    """
+    Create a new report using the Reporter class and save the results
+    to the database or export them as CSV or Excel file.
+    """
+
+    # parse timezone into a BaseTzInfo object
+    if isinstance(timezone, str):
+        check_timezone(timezone)
+        timezone = pytz.timezone(zone=timezone)
+
+    now = timezone.localize(datetime.now())
+
+    # apply offsets, if provided
+    if start_offset is not None:
+        if start is None:
+            start = now
+        start = apply_offset_chain(start, start_offset)
+
+    if end_offset is not None:
+        if end is None:
+            end = now
+        end = apply_offset_chain(end, end_offset)
+
+    # the case of not getting --start or --start-offset
+    if start is None:
+        click.secho(
+            "Either --start or --start-offset should be provided."
+            " Trying to use the latest datapoint of the report sensor as the start time...",
+            **MsgStyle.WARN,
+        )
+        last_value_datetime = (
+            db.session.query(func.max(TimedBelief.event_start))
+            .filter(TimedBelief.sensor_id == sensor.id)
+            .one_or_none()
+        )
+
+        # If there's data saved to the reporter sensors
+        if last_value_datetime[0] is not None:
+            start = last_value_datetime[0]
+        else:
+            click.secho(
+                f"Could not find any data for the report sensor {sensor}.",
+                **MsgStyle.ERROR,
+            )
+            raise click.Abort()
+
+    # the case of not getting --end or --end-offset
+    if end is None:
+        click.secho(
+            "Either --end or --end-offset should be provided."
+            " Trying to use the current time as the end...",
+            **MsgStyle.WARN,
+        )
+        end = now
+
+    click.echo(f"Report scope:\n\tstart: {start}\n\tend:   {end}")
+
+    click.echo(
+        f"Looking for the Reporter {reporter_class} among all the registered reporters...",
+    )
+
+    # get reporter class
+    ReporterClass: Type[Reporter] = app.reporters.get(reporter_class)
+
+    # check if it exists
+    if ReporterClass is None:
+        click.secho(
+            f"Reporter class `{reporter_class}` not available.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+
+    click.secho(f"Reporter {reporter_class} found.", **MsgStyle.SUCCESS)
+
+    reporter_config_raw = json.load(reporter_config)
+
+    # initialize reporter class with the reporter sensor and reporter config
+    reporter: Reporter = ReporterClass(
+        sensor=sensor, reporter_config_raw=reporter_config_raw
+    )
+
+    click.echo("Report computation is running...")
+
+    # compute the report
+    result: BeliefsDataFrame = reporter.compute(
+        start=start, end=end, input_resolution=resolution
+    )
+
+    if not result.empty:
+        click.secho("Report computation done.", **MsgStyle.SUCCESS)
+    else:
+        click.secho(
+            "Report computation done, but the report is empty.", **MsgStyle.WARN
+        )
+
+    # save the report it's not running in dry mode
+    if not dry_run:
+        click.echo("Saving report to the database...")
+        save_to_db(result)
+        db.session.commit()
+        click.secho(
+            "Success. The report has been saved to the database.",
+            **MsgStyle.SUCCESS,
+        )
+    else:
+        click.echo(
+            f"Not saving report to the database (because of --dry-run), but this is what I computed:\n{result}"
+        )
+
+    # if an output file path is provided, save the results
+    if output_file:
+        suffix = str(output_file).split(".")[-1] if "." in str(output_file) else ""
+
+        if suffix == "xlsx":  # save to EXCEL
+            result.to_excel(output_file)
+            click.secho(
+                f"Success. The report has been exported as EXCEL to the file `{output_file}`",
+                **MsgStyle.SUCCESS,
+            )
+
+        elif suffix == "csv":  # save to CSV
+            result.to_csv(output_file)
+            click.secho(
+                f"Success. The report has been exported as CSV to the file `{output_file}`",
+                **MsgStyle.SUCCESS,
+            )
+
+        else:  # default output format: CSV.
+            click.secho(
+                f"File suffix not provided. Exporting results as CSV to file {output_file}",
+                **MsgStyle.WARN,
+            )
+            result.to_csv(output_file)
+    else:
+        click.secho(
+            "Success.",
+            **MsgStyle.SUCCESS,
+        )
 
 
 @fm_add_data.command("toy-account")

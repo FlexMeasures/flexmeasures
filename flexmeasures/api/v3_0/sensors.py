@@ -269,7 +269,9 @@ class SensorAPI(FlaskView):
 
         This message triggers a 24-hour schedule for a storage asset, starting at 10.00am,
         at which the state of charge (soc) is 12.1 kWh, with a target state of charge of 25 kWh at 4.00pm.
-        The minimum and maximum soc are set to 10 and 25 kWh, respectively.
+        The global minimum and maximum soc are set to 10 and 25 kWh, respectively.
+        To guarantee a minimum SOC in the period prior to 4.00pm, local minima constraints are imposed (via soc-minima)
+        at 2.00pm and 3.00pm, for 15kWh and 20kWh, respectively.
         Roundtrip efficiency for use in scheduling is set to 98%.
         Storage efficiency is set to 99.99%, denoting the state of charge left after each time step equal to the sensor's resolution.
         Aggregate consumption (of all devices within this EMS) should be priced by sensor 9,
@@ -290,6 +292,16 @@ class SensorAPI(FlaskView):
                         {
                             "value": 25,
                             "datetime": "2015-06-02T16:00:00+00:00"
+                        },
+                    ],
+                    "soc-minima" : [
+                        {
+                            "value": 15,
+                            "datetime" : "2015-06-02T14:00:00+00:00"
+                        },
+                        {
+                            "value": 20,
+                            "datetime" : "2015-06-02T15:00:00+00:00"
                         }
                     ],
                     "soc-min": 10,

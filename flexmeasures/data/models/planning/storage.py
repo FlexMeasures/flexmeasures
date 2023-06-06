@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+import copy
 from datetime import datetime, timedelta
 from typing import List, Dict
 
@@ -28,6 +30,18 @@ class StorageScheduler(Scheduler):
     __version__ = "1"
     __author__ = "Seita"
 
+    COLUMNS = [
+        "equals",
+        "max",
+        "min",
+        "efficiency",
+        "derivative equals",
+        "derivative max",
+        "derivative min",
+        "derivative down efficiency",
+        "derivative up efficiency",
+    ]
+
     def compute_schedule(self) -> pd.Series | None:
         """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
         For the resulting consumption schedule, consumption is defined as positive values.
@@ -37,11 +51,12 @@ class StorageScheduler(Scheduler):
 
         return self.compute()
 
-    def compute(
-        self,
-    ) -> pd.Series | None:
+    def compute(self, skip_validation: bool = False) -> pd.Series | None:
         """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
         For the resulting consumption schedule, consumption is defined as positive values.
+
+        :param skip_validation: If True, skip validation of constraints specified in the data.
+        :returns:               The computed schedule.
         """
         if not self.config_deserialized:
             self.deserialize_config()
@@ -51,10 +66,13 @@ class StorageScheduler(Scheduler):
         resolution = self.resolution
         belief_time = self.belief_time
         sensor = self.sensor
+
         soc_at_start = self.flex_model.get("soc_at_start")
         soc_targets = self.flex_model.get("soc_targets")
         soc_min = self.flex_model.get("soc_min")
         soc_max = self.flex_model.get("soc_max")
+        soc_minima = self.flex_model.get("soc_minima")
+        soc_maxima = self.flex_model.get("soc_maxima")
         roundtrip_efficiency = self.flex_model.get("roundtrip_efficiency")
         storage_efficiency = self.flex_model.get("storage_efficiency")
         prefer_charging_sooner = self.flex_model.get("prefer_charging_sooner", True)
@@ -111,19 +129,8 @@ class StorageScheduler(Scheduler):
         ]
 
         # Set up device constraints: only one scheduled flexible device for this EMS (at index 0), plus the forecasted inflexible devices (at indices 1 to n).
-        columns = [
-            "equals",
-            "max",
-            "min",
-            "efficiency",
-            "derivative equals",
-            "derivative max",
-            "derivative min",
-            "derivative down efficiency",
-            "derivative up efficiency",
-        ]
         device_constraints = [
-            initialize_df(columns, start, end, resolution)
+            initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
             for i in range(1 + len(inflexible_device_sensors))
         ]
         for i, inflexible_sensor in enumerate(inflexible_device_sensors):
@@ -133,23 +140,19 @@ class StorageScheduler(Scheduler):
                 beliefs_before=belief_time,
                 sensor=inflexible_sensor,
             )
-        if soc_targets is not None:
-            # make an equality series with the SOC targets set in the flex model
-            # device_constraints[0] refers to the flexible device we are scheduling
-            device_constraints[0]["equals"] = build_device_soc_targets(
-                soc_targets,
-                soc_at_start,
-                start,
-                end,
-                resolution,
-            )
 
-        device_constraints[0]["min"] = (soc_min - soc_at_start) * (
-            timedelta(hours=1) / resolution
+        device_constraints[0] = add_storage_constraints(
+            start,
+            end,
+            resolution,
+            soc_at_start,
+            soc_targets,
+            soc_maxima,
+            soc_minima,
+            soc_max,
+            soc_min,
         )
-        device_constraints[0]["max"] = (soc_max - soc_at_start) * (
-            timedelta(hours=1) / resolution
-        )
+
         if sensor.get_attribute("is_strictly_non_positive"):
             device_constraints[0]["derivative min"] = 0
         else:
@@ -172,9 +175,24 @@ class StorageScheduler(Scheduler):
         # Apply storage efficiency (accounts for losses over time)
         device_constraints[0]["efficiency"] = storage_efficiency
 
+        # check that storage constraints are fulfilled
+        if not skip_validation:
+            constraint_violations = validate_storage_constraints(
+                constraints=device_constraints[0],
+                soc_at_start=soc_at_start,
+                soc_min=soc_min,
+                soc_max=soc_max,
+                resolution=resolution,
+            )
+
+            if len(constraint_violations) > 0:
+                # TODO: include hints from constraint_violations into the error message
+                raise ValueError("The input data yields an infeasible problem.")
+
         # Set up EMS constraints
-        columns = ["derivative max", "derivative min"]
-        ems_constraints = initialize_df(columns, start, end, resolution)
+        ems_constraints = initialize_df(
+            StorageScheduler.COLUMNS, start, end, resolution
+        )
         ems_capacity = sensor.generic_asset.get_attribute("capacity_in_mw")
         if ems_capacity is not None:
             ems_constraints["derivative min"] = ems_capacity * -1
@@ -330,7 +348,7 @@ class StorageScheduler(Scheduler):
 
     def get_min_max_soc_on_sensor(
         self, adjust_unit: bool = False, deserialized_names: bool = True
-    ) -> tuple[float | None]:
+    ) -> tuple[float | None, float | None]:
         soc_min_sensor = self.sensor.get_attribute("min_soc_in_mwh", None)
         soc_max_sensor = self.sensor.get_attribute("max_soc_in_mwh", None)
         soc_unit_label = "soc_unit" if deserialized_names else "soc-unit"
@@ -365,19 +383,19 @@ class StorageScheduler(Scheduler):
                     )
 
 
-def build_device_soc_targets(
-    targets: List[Dict[str, datetime | float]] | pd.Series,
+def build_device_soc_values(
+    soc_values: List[Dict[str, datetime | float]] | pd.Series,
     soc_at_start: float,
     start_of_schedule: datetime,
     end_of_schedule: datetime,
     resolution: timedelta,
 ) -> pd.Series:
     """
-    Utility function to create a Pandas series from SOC targets we got from the flex-model.
+    Utility function to create a Pandas series from SOC values we got from the flex-model.
 
     Should set NaN anywhere where there is no target.
 
-    Target SOC values should be indexed by their due date. For example, for quarter-hourly targets between 5 and 6 AM:
+    SOC values should be indexed by their due date. For example, for quarter-hourly targets between 5 and 6 AM:
     >>> df = pd.Series(data=[1, 2, 2.5, 3], index=pd.date_range(datetime(2010,1,1,5), datetime(2010,1,1,6), freq=timedelta(minutes=15), inclusive="right"))
     >>> print(df)
         2010-01-01 05:15:00    1.0
@@ -386,13 +404,13 @@ def build_device_soc_targets(
         2010-01-01 06:00:00    3.0
         Freq: 15T, dtype: float64
 
-    TODO: this function could become the deserialization method of a new SOCTargetsSchema (targets, plural), which wraps SOCTargetSchema.
+    TODO: this function could become the deserialization method of a new SOCValueSchema (targets, plural), which wraps SOCValueSchema.
 
     """
-    if isinstance(targets, pd.Series):  # some tests prepare it this way
-        device_targets = targets
+    if isinstance(soc_values, pd.Series):  # some tests prepare it this way
+        device_values = soc_values
     else:
-        device_targets = initialize_series(
+        device_values = initialize_series(
             np.nan,
             start=start_of_schedule,
             end=end_of_schedule,
@@ -400,36 +418,327 @@ def build_device_soc_targets(
             inclusive="right",  # note that target values are indexed by their due date (i.e. inclusive="right")
         )
 
-        for target in targets:
-            target_value = target["value"]
-            target_datetime = target["datetime"].astimezone(
-                device_targets.index.tzinfo
+        for soc_value in soc_values:
+            soc = soc_value["value"]
+            soc_datetime = soc_value["datetime"].astimezone(
+                device_values.index.tzinfo
             )  # otherwise DST would be problematic
-            if target_datetime > end_of_schedule:
+            if soc_datetime > end_of_schedule:
                 # Skip too-far-into-the-future target
                 max_server_horizon = get_max_planning_horizon(resolution)
                 current_app.logger.warning(
-                    f"Disregarding target datetime {target_datetime}, because it exceeds {end_of_schedule}. Maximum scheduling horizon is {max_server_horizon}."
+                    f"Disregarding target datetime {soc_datetime}, because it exceeds {end_of_schedule}. Maximum scheduling horizon is {max_server_horizon}."
                 )
                 continue
 
-            device_targets.loc[target_datetime] = target_value
+            device_values.loc[soc_datetime] = soc
 
-        # soc targets are at the end of each time slot, while prices are indexed by the start of each time slot
-        device_targets = device_targets[
-            start_of_schedule + resolution : end_of_schedule
-        ]
+        # soc_values are at the end of each time slot, while prices are indexed by the start of each time slot
+        device_values = device_values[start_of_schedule + resolution : end_of_schedule]
 
-    device_targets = device_targets.tz_convert("UTC")
+    device_values = device_values.tz_convert("UTC")
 
     # shift "equals" constraint for target SOC by one resolution (the target defines a state at a certain time,
     # while the "equals" constraint defines what the total stock should be at the end of a time slot,
     # where the time slot is indexed by its starting time)
-    device_targets = device_targets.shift(-1, freq=resolution).values * (
+    device_values = device_values.shift(-1, freq=resolution).values * (
         timedelta(hours=1) / resolution
     ) - soc_at_start * (timedelta(hours=1) / resolution)
 
-    return device_targets
+    return device_values
+
+
+def add_storage_constraints(
+    start: datetime,
+    end: datetime,
+    resolution: timedelta,
+    soc_at_start: float,
+    soc_targets: List[Dict[str, datetime | float]] | pd.Series | None,
+    soc_maxima: List[Dict[str, datetime | float]] | pd.Series | None,
+    soc_minima: List[Dict[str, datetime | float]] | pd.Series | None,
+    soc_max: float,
+    soc_min: float,
+) -> pd.DataFrame:
+    """Collect all constraints for a given storage device in a DataFrame that the device_scheduler can interpret.
+
+    :param start:                       Start of the schedule.
+    :param end:                         End of the schedule.
+    :param resolution:                  Timedelta used to resample the forecasts to the resolution of the schedule.
+    :param soc_at_start:                State of charge at the start time.
+    :param soc_targets:                 Exact targets for the state of charge at each time.
+    :param soc_maxima:                  Maximum state of charge at each time.
+    :param soc_minima:                  Minimum state of charge at each time.
+    :param soc_max:                     Maximum state of charge at all times.
+    :param soc_min:                     Minimum state of charge at all times.
+    :returns:                           Constraints (StorageScheduler.COLUMNS) for a storage device, at each time step (index).
+                                        See device_scheduler for possible column names.
+    """
+
+    # create empty storage device constraints dataframe
+    storage_device_constraints = initialize_df(
+        StorageScheduler.COLUMNS, start, end, resolution
+    )
+
+    if soc_targets is not None:
+        # make an equality series with the SOC targets set in the flex model
+        # storage_device_constraints refers to the flexible device we are scheduling
+        storage_device_constraints["equals"] = build_device_soc_values(
+            soc_targets, soc_at_start, start, end, resolution
+        )
+
+    soc_min_change = (soc_min - soc_at_start) * timedelta(hours=1) / resolution
+    soc_max_change = (soc_max - soc_at_start) * timedelta(hours=1) / resolution
+
+    if soc_minima is not None:
+        storage_device_constraints["min"] = build_device_soc_values(
+            soc_minima,
+            soc_at_start,
+            start,
+            end,
+            resolution,
+        )
+
+    storage_device_constraints["min"] = storage_device_constraints["min"].fillna(
+        soc_min_change
+    )
+
+    if soc_maxima is not None:
+        storage_device_constraints["max"] = build_device_soc_values(
+            soc_maxima,
+            soc_at_start,
+            start,
+            end,
+            resolution,
+        )
+
+    storage_device_constraints["max"] = storage_device_constraints["max"].fillna(
+        soc_max_change
+    )
+
+    # limiting max and min to be in the range [soc_min, soc_max]
+    storage_device_constraints["min"] = storage_device_constraints["min"].clip(
+        lower=soc_min_change, upper=soc_max_change
+    )
+    storage_device_constraints["max"] = storage_device_constraints["max"].clip(
+        lower=soc_min_change, upper=soc_max_change
+    )
+
+    return storage_device_constraints
+
+
+def validate_storage_constraints(
+    constraints: pd.DataFrame,
+    soc_at_start: float,
+    soc_min: float,
+    soc_max: float,
+    resolution: timedelta,
+) -> list[dict]:
+    """Check that the storage constraints are fulfilled, e.g min <= equals <= max.
+
+    A. Global validation
+        A.1) min >= soc_min
+        A.2) max <= soc_max
+    B. Validation in the same time frame
+        B.1) min <= max
+        B.2) min <= equals
+        B.3) equals <= max
+    C. Validation in different time frames
+        C.1) equals(t) - equals(t-1) <= derivative_max(t)
+        C.2) derivative_min(t) <= equals(t) - equals(t-1)
+        C.3) min(t) - max(t-1) <= derivative_max(t)
+        C.4) max(t) - min(t-1) >= derivative_min(t)
+        C.5) equals(t) - max(t-1) <= derivative_max(t)
+        C.6) derivative_min(t) <= equals(t) - min(t-1)
+
+    :param constraints:         dataframe containing the constraints of a storage device
+    :param soc_at_start:        State of charge at the start time.
+    :param soc_min:             Minimum state of charge at all times.
+    :param soc_max:             Maximum state of charge at all times.
+    :param resolution:          Constant duration between the start of each time step.
+    :returns:                   List of constraint violations, specifying their time, constraint and violation.
+    """
+
+    # get a copy of the constraints to make sure the dataframe doesn't get updated
+    _constraints = constraints.copy()
+
+    _constraints = _constraints.rename(
+        columns={
+            columns_name: columns_name.replace(" ", "_")
+            + "(t)"  # replace spaces with underscore and add time index
+            for columns_name in _constraints.columns
+        }
+    )
+
+    constraint_violations = []
+
+    ########################
+    # A. Global validation #
+    ########################
+
+    # 1) min >= soc_min
+    soc_min = (soc_min - soc_at_start) * timedelta(hours=1) / resolution
+    _constraints["soc_min(t)"] = soc_min
+    constraint_violations += validate_constraint(_constraints, "soc_min(t) <= min(t)")
+
+    # 2) max <= soc_max
+    soc_max = (soc_max - soc_at_start) * timedelta(hours=1) / resolution
+    _constraints["soc_max(t)"] = soc_max
+    constraint_violations += validate_constraint(_constraints, "max(t) <= soc_max(t)")
+
+    ########################################
+    # B. Validation in the same time frame #
+    ########################################
+
+    # 1) min <= max
+    constraint_violations += validate_constraint(_constraints, "min(t) <= max(t)")
+
+    # 2) min <= equals
+    constraint_violations += validate_constraint(_constraints, "min(t) <= equals(t)")
+
+    # 3) equals <= max
+    constraint_violations += validate_constraint(_constraints, "equals(t) <= max(t)")
+
+    ##########################################
+    # C. Validation in different time frames #
+    ##########################################
+
+    _constraints["factor_w_wh(t)"] = resolution / timedelta(hours=1)
+    _constraints["min(t-1)"] = prepend_serie(_constraints["min(t)"], soc_min)
+    _constraints["equals(t-1)"] = prepend_serie(_constraints["equals(t)"], soc_at_start)
+    _constraints["max(t-1)"] = prepend_serie(_constraints["max(t)"], soc_max)
+
+    # 1) equals(t) - equals(t-1) <= derivative_max(t)
+    constraint_violations += validate_constraint(
+        _constraints, "equals(t) - equals(t-1) <= derivative_max(t) * factor_w_wh(t)"
+    )
+
+    # 2) derivative_min(t) <= equals(t) - equals(t-1)
+    constraint_violations += validate_constraint(
+        _constraints, "derivative_min(t) * factor_w_wh(t) <= equals(t) - equals(t-1)"
+    )
+
+    # 3) min(t) - max(t-1) <= derivative_max(t)
+    constraint_violations += validate_constraint(
+        _constraints, "min(t) - max(t-1) <= derivative_max(t) * factor_w_wh(t)"
+    )
+
+    # 4) max(t) - min(t-1) >= derivative_min(t)
+    constraint_violations += validate_constraint(
+        _constraints, "derivative_min(t) * factor_w_wh(t) <= max(t) - min(t-1)"
+    )
+
+    # 5) equals(t) - max(t-1) <= derivative_max(t)
+    constraint_violations += validate_constraint(
+        _constraints, "equals(t) - max(t-1) <= derivative_max(t) * factor_w_wh(t)"
+    )
+
+    # 6) derivative_min(t) <= equals(t) - min(t-1)
+    constraint_violations += validate_constraint(
+        _constraints, "derivative_min(t) * factor_w_wh(t) <= equals(t) - min(t-1)"
+    )
+
+    return constraint_violations
+
+
+def get_pattern_match_word(word: str) -> str:
+    """Get a regex pattern to match a word
+
+    The conditions to delimit a word are:
+      - start of line
+      - whitespace
+      - end of line
+      - word boundary
+      - arithmetic operations
+
+    :return: regex expression
+    """
+
+    regex = r"(^|\s|$|\b|\+|\-|\*|\/\|\\)"
+
+    return regex + re.escape(word) + regex
+
+
+def validate_constraint(
+    constraints_df: pd.DataFrame, constraint_expression: str
+) -> list[dict]:
+    """Validate the feasibility of a given set of constraints.
+
+    :param constraints_df: DataFrame with the constraints
+    :param constraint_expression: inequality expression following pd.eval format.
+                                  No need to use the syntax `column` to reference
+                                  column, just use the column name.
+    :return: List of constraint violations, specifying their time, constraint and violation.
+    """
+
+    columns_involved = []
+
+    eval_expression = copy.copy(constraint_expression)
+
+    for column in constraints_df.columns:
+        if re.search(get_pattern_match_word(column), eval_expression):
+            columns_involved.append(column)
+
+        eval_expression = re.sub(
+            get_pattern_match_word(column), f"`{column}`", eval_expression
+        )
+
+    time_condition_fails = constraints_df.index[
+        ~constraints_df.fillna(0).eval(eval_expression)
+        & ~constraints_df[columns_involved].isna().any(axis=1)
+    ]
+
+    constraint_violations = []
+
+    for dt in time_condition_fails:
+        value_replaced = copy.copy(constraint_expression)
+
+        for column in constraints_df.columns:
+            value_replaced = re.sub(
+                get_pattern_match_word(column),
+                f"{column} [{constraints_df.loc[dt, column]}]",
+                value_replaced,
+            )
+
+        constraint_violations.append(
+            dict(
+                dt=dt.to_pydatetime(),
+                condition=constraint_expression,
+                violation=value_replaced,
+            )
+        )
+
+    return constraint_violations
+
+
+def prepend_serie(serie: pd.Series, value) -> pd.Series:
+    """Prepend a value to a time series series
+
+    :param serie: serie containing the timed values
+    :param value: value to place in the first position
+    """
+    # extend max
+    serie = serie.copy()
+    # insert `value` at time `serie.index[0] - resolution` which creates a new entry at the end of the series
+    serie[serie.index[0] - serie.index.freq] = value
+    # sort index to keep the time ordering
+    serie = serie.sort_index()
+    return serie.shift(1)
+
+
+#####################
+# TO BE DEPRECATED #
+####################
+@deprecated(build_device_soc_values, "0.14")
+def build_device_soc_targets(
+    targets: List[Dict[str, datetime | float]] | pd.Series,
+    soc_at_start: float,
+    start_of_schedule: datetime,
+    end_of_schedule: datetime,
+    resolution: timedelta,
+) -> pd.Series:
+    return build_device_soc_values(
+        targets, soc_at_start, start_of_schedule, end_of_schedule, resolution
+    )
 
 
 StorageScheduler.compute_schedule = deprecated(StorageScheduler.compute, "0.14")(
