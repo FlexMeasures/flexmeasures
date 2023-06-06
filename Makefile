@@ -1,6 +1,6 @@
 # Note: use tabs
 # actions which are virtual, i.e. not a script
-.PHONY: install install-for-dev install-deps install-flexmeasures run-local test freeze-deps upgrade-deps update-docs update-docs-pdf show-file-space show-data-model clean-db
+.PHONY: install install-for-dev install-deps install-flexmeasures run-local test freeze-deps upgrade-deps update-docs update-docs-pdf show-file-space show-data-model clean-db cli-autocomplete
 
 
 # ---- Development ---
@@ -90,3 +90,7 @@ show-data-model:
 
 clean-db:
 	./flexmeasures/data/scripts/clean_database.sh ${db_name} ${db_user}
+
+
+cli-autocomplete:
+	./flexmeasures/data/scripts/add_scripts_path.sh ${extension}
