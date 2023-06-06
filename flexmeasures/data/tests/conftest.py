@@ -256,7 +256,7 @@ def create_solar_plants(db, setup_accounts, setup_sources)-> dict[str, Sensor]:
         event_start="2015-01-01T00:00+01:00",
         belief_time="2014-11-01T00:00+01:00",  # publication date
         event_value=2,
-        source=DataSource("source1"),
+        source=setup_sources["Seita"],
         sensor=testing_sensor1,
     )
     db.session.add(production_price)
@@ -274,7 +274,7 @@ def create_solar_plants(db, setup_accounts, setup_sources)-> dict[str, Sensor]:
         resolution="1H",
     )
     values = [0] * 5 + list(range(7, 51, 7)) + list(range(50, 0, -7)) + [0] * 5
-    add_as_beliefs(db, testing_sensor2, values, time_slots)
+    add_as_beliefs(db, testing_sensor2, values, time_slots,setup_sources["Seita"])
     Solar2 = GenericAsset(
         name="solar-2",
         generic_asset_type=asset_type,
@@ -292,7 +292,7 @@ def create_solar_plants(db, setup_accounts, setup_sources)-> dict[str, Sensor]:
         event_start="2015-01-01T00:00+01:00",
         belief_time="2014-11-01T00:00+01:00",  # publication date
         event_value=2.5,
-        source=DataSource("source1"),
+        source=setup_sources["Seita"],
         sensor=testing_sensor3,
     )
     db.session.add(production_price)
@@ -310,7 +310,7 @@ def create_solar_plants(db, setup_accounts, setup_sources)-> dict[str, Sensor]:
         resolution="1H",
     )
     values = [0] * 5 + list(range(7, 51, 7)) + list(range(50, 0, -7)) + [0] * 5
-    add_as_beliefs(db, testing_sensor4, values, time_slots)
+    add_as_beliefs(db, testing_sensor4, values, time_slots,setup_sources["Seita"])
     Solar3 = GenericAsset(
         name="solar-3",
         generic_asset_type=asset_type,
@@ -328,7 +328,7 @@ def create_solar_plants(db, setup_accounts, setup_sources)-> dict[str, Sensor]:
         event_start="2015-01-01T00:00+01:00",
         belief_time="2014-11-01T00:00+01:00",  # publication date
         event_value=3,
-        source=DataSource("source1"),
+        source=setup_sources["Seita"],
         sensor=testing_sensor5,
     )
     db.session.add(production_price)
@@ -346,7 +346,7 @@ def create_solar_plants(db, setup_accounts, setup_sources)-> dict[str, Sensor]:
         resolution="1H",
     )
     values = [0] * 5 + list(range(7, 51, 7)) + list(range(50, 0, -7)) + [0] * 5
-    add_as_beliefs(db, testing_sensor6, values, time_slots) # make sure that prices are assigned to price sensors
+    add_as_beliefs(db, testing_sensor6, values, time_slots,setup_sources["Seita"]) # make sure that prices are assigned to price sensors
     db.session.flush()
     return {
         testing_sensor1.name: testing_sensor1,
@@ -360,7 +360,7 @@ def create_solar_plants(db, setup_accounts, setup_sources)-> dict[str, Sensor]:
 
 
 @pytest.fixture(scope="module")
-def create_building(db, setup_accounts, setup_markets)-> dict[str, Sensor]:
+def create_building(db, setup_accounts, setup_markets,setup_sources)-> dict[str, Sensor]:
     """
     Set up a building.
     """
@@ -395,7 +395,7 @@ def create_building(db, setup_accounts, setup_markets)-> dict[str, Sensor]:
         resolution="1H",
     )
     values = [-30] * 1 + list(range(-50, -210, -30)) + list(range(-197, -40, 30))+ list(range(-50, -210, -30)) + list(range(-197, -70, 30)) 
-    add_as_beliefs(db,testing_sensor8, values, time_slots)
+    add_as_beliefs(db,testing_sensor8, values, time_slots,setup_sources["Seita"])
     db.session.flush()
     return {
         testing_sensor7.name: testing_sensor7,
@@ -404,7 +404,7 @@ def create_building(db, setup_accounts, setup_markets)-> dict[str, Sensor]:
 
 
 @pytest.fixture(scope="module")
-def flexible_devices(db)-> dict[str, Sensor]:
+def flexible_devices(db,setup_sources)-> dict[str, Sensor]:
     """
     Set up sensors for flexible devices:
     - Battery
@@ -471,7 +471,7 @@ def flexible_devices(db)-> dict[str, Sensor]:
         resolution="1H",
     )
     values = [9.63, 8.66, 8.387, 8.387, 9.6, 9.722, 9.907, 11.777, 10.237, 7.999, 7.08, 6.5, 5.999, 5.233, 5, 5, 4.5, 5.03, 5.8, 7.105, 10.012, 12.494, 11.825, 10.396]
-    add_as_beliefs(db,testing_sensor12, values, time_slots)
+    add_as_beliefs(db,testing_sensor12, values, time_slots,setup_sources["Seita"])
     testing_sensor13 = Sensor(
         name="grid-production-price-sensor",
         generic_asset=Grid,
@@ -486,7 +486,7 @@ def flexible_devices(db)-> dict[str, Sensor]:
         resolution="1H",
     )
     values = [9.63, 8.66, 8.387, 8.387, 9.6, 9.722, 9.907, 11.777, 10.237, 7.999, 7.08, 6.5, 5.999, 5.233, 5, 5, 4.5, 5.03, 5.8, 7.105, 10.012, 12.494, 11.825, 10.396]
-    add_as_beliefs(db,testing_sensor13, values, time_slots)
+    add_as_beliefs(db,testing_sensor13, values, time_slots,setup_sources["Seita"])
     testing_sensor14 = Sensor(
         name="Grid-power",
         generic_asset=Grid,
@@ -505,8 +505,7 @@ def flexible_devices(db)-> dict[str, Sensor]:
         testing_sensor14.name: testing_sensor14,
     }
 
-def add_as_beliefs(db, sensor, values, time_slots):
-    source=DataSource("source1")
+def add_as_beliefs(db, sensor, values, time_slots,source):
     beliefs = [
         TimedBelief(
             event_start=dt,

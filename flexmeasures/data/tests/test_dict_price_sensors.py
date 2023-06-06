@@ -34,7 +34,7 @@ def test_schedule(create_solar_plants,create_building,flexible_devices, roundtri
     battery = flexible_devices["battery-power"]
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 1))
-    end = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 2))
     resolution = timedelta(minutes=60)
     duration="PT24H"
     soc_at_start = 545
@@ -50,9 +50,6 @@ def test_schedule(create_solar_plants,create_building,flexible_devices, roundtri
         SensorIdField()._serialize(create_solar_plants["solar-power-3"],None,None):SensorIdField()._serialize(create_solar_plants["solar3-production-price-sensor"],None,None),
         SensorIdField()._serialize(flexible_devices["Grid-power"],None,None):SensorIdField()._serialize(flexible_devices["grid-production-price-sensor"],None,None)
     }
-    print(inflexible_devices)
-    print(consumption_price_sensor_per_device)
-    print(production_price_sensor_per_device)
     scheduler = StorageScheduler(
         battery,
         start, 
@@ -77,7 +74,7 @@ def test_schedule(create_solar_plants,create_building,flexible_devices, roundtri
         soc_at_start,
         up_efficiency=roundtrip_efficiency**0.5,
         down_efficiency=roundtrip_efficiency**0.5,
-        decimal_precision=6,
+        decimal_precision=5,
     )
 
     with pd.option_context("display.max_rows", None, "display.max_columns", 3):
