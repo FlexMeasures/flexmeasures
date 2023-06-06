@@ -1,16 +1,17 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Union, Dict
 from datetime import datetime, timedelta
 
 from flask import current_app
 import timely_beliefs as tb
-
+import pandas as pd
 from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.schemas.reporting.pandas_reporter import (
-    PandasReporterConfigSchema,
+    PandasReporterReporterConfigSchema,
+    PandasReporterReportConfigSchema,
 )
-from flexmeasures.data.models.time_series import TimedBelief
+from flexmeasures.data.models.time_series import TimedBelief, Sensor
 from flexmeasures.utils.time_utils import server_now
 
 
@@ -19,29 +20,103 @@ class PandasReporter(Reporter):
 
     __version__ = "1"
     __author__ = None
-    schema = PandasReporterConfigSchema()
+
+    reporter_config_schema = PandasReporterReporterConfigSchema()
+    report_config_schema = PandasReporterReportConfigSchema()
+
+    input_variables: list[str] = None
     transformations: list[dict[str, Any]] = None
     final_df_output: str = None
 
-    def deserialize_config(self):
+    data: Dict[str, Union[tb.BeliefsDataFrame, pd.DataFrame]] = None
+
+    def deserialize_reporter_config(self, reporter_config):
         # call super class deserialize_config
-        super().deserialize_config()
+        self.reporter_config = self.reporter_config_schema.load(reporter_config)
 
         # extract PandasReporter specific fields
         self.transformations = self.reporter_config.get("transformations")
+        self.input_variables = self.reporter_config.get("input_variables")
         self.final_df_output = self.reporter_config.get("final_df_output")
 
-    def _compute(
+    def deserialize_report_config(
+        self, report_config: dict
+    ):  # TODO: move to Reporter class
+        self.report_config = self.report_config_schema.load(
+            report_config
+        )  # validate reporter configs
+
+        input_sensors = report_config.get("input_sensors")
+
+        # check that all input_variables are provided
+        for variable in self.input_variables:
+            assert (
+                variable in input_sensors
+            ), f"Required sensor with alias `{variable}` not provided."
+
+    def fetch_data(
         self,
         start: datetime,
         end: datetime,
-        input_resolution: timedelta | None = None,
+        input_sensors: dict,
+        resolution: timedelta | None = None,
         belief_time: datetime | None = None,
-    ) -> tb.BeliefsDataFrame:
+    ):
+        """
+        Fetches the time_beliefs from the database
+        """
+
+        self.data = {}
+        for alias, tb_query in input_sensors.items():
+            _tb_query = tb_query.copy()
+
+            # using start / end instead of event_starts_after/event_ends_before when not defined
+            event_starts_after = _tb_query.pop("event_starts_after", start)
+            event_ends_before = _tb_query.pop("event_ends_before", end)
+            resolution = _tb_query.pop("resolution", resolution)
+            belief_time = _tb_query.pop("belief_time", belief_time)
+
+            sensor: Sensor = _tb_query.pop("sensor", None)
+
+            bdf = sensor.search_beliefs(
+                event_starts_after=event_starts_after,
+                event_ends_before=event_ends_before,
+                resolution=resolution,
+                beliefs_before=belief_time,
+                **_tb_query,
+            )
+
+            # store data source as local variable
+            for source in bdf.sources.unique():
+                self.data[f"source_{source.id}"] = source
+
+            # store BeliefsDataFrame as local variable
+            self.data[alias] = bdf
+
+    def _compute(self, **kwargs) -> tb.BeliefsDataFrame:
         """
         This method applies the transformations and outputs the dataframe
         defined in `final_df_output` field of the report_config.
         """
+
+        self.report_config = kwargs
+
+        if "report_config" in kwargs:
+            self.deserialize_report_config(kwargs.get("report_config"))
+
+        # report configuration
+        start: datetime = self.report_config.get("start")
+        end: datetime = self.report_config.get("end")
+        input_sensors: dict = self.report_config.get("input_sensors")
+
+        resolution: timedelta | None = self.report_config.get("resolution", None)
+        belief_time: datetime | None = self.report_config.get("belief_time", None)
+
+        if resolution is None:
+            resolution = self.sensor.event_resolution
+
+        # fetch sensor data
+        self.fetch_data(start, end, input_sensors, resolution, belief_time)
 
         # apply pandas transformations to the dataframes in `self.data`
         self._apply_transformations()
