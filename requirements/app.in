@@ -1,7 +1,5 @@
 # see ui/utils/plotting_utils: separate_legend() and create_hover_tool()
 pyyaml
-# required for mypy
-types-PyYAML
 altair
 colour
 pscript
