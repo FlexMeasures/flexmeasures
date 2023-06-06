@@ -185,28 +185,32 @@ This means that API and CLI users don't have to send the whole flex model every 
 
 Here are the three types of flexibility models you can expect to be built-in:
 
-1) For storage devices (e.g. batteries, charge points, electric vehicle batteries connected to charge points), the schedule deals with the state of charge (SOC).
+1) For **storage devices** (e.g. batteries, and :abbr:`EV (electric vehicle)` batteries connected to charge points), the schedule deals with the state of charge (SOC).
     
-    The possible flexibility parameters are:
+   The possible flexibility parameters are:
 
-    - ``soc-at-start`` (defaults to 0)
-    - ``soc-unit`` (kWh or MWh)
-    - ``soc-min`` (defaults to 0)
-    - ``soc-max`` (defaults to max soc target)
-    - ``soc-targets`` (defaults to NaN values)
-    - ``roundtrip-efficiency`` (defaults to 100%)
-    - ``storage-efficiency`` (defaults to 100%)
-    - ``prefer-charging-sooner`` (defaults to True, also signals a preference to discharge later)
+   - ``soc-at-start`` (defaults to 0)
+   - ``soc-unit`` (kWh or MWh)
+   - ``soc-min`` (defaults to 0)
+   - ``soc-max`` (defaults to max soc target)
+   - ``soc-minima`` (defaults to NaN values)
+   - ``soc-maxima`` (defaults to NaN values)
+   - ``soc-targets`` (defaults to NaN values)
+   - ``roundtrip-efficiency`` (defaults to 100%)
+   - ``storage-efficiency`` (defaults to 100%)
+   - ``prefer-charging-sooner`` (defaults to True, also signals a preference to discharge later)
 
-  For some examples, see the `[POST] /sensors/(id)/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_ endpoint docs.
+   For some examples, see the `[POST] /sensors/(id)/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_ endpoint docs.
 
-2) Shiftable process
+2) For **shiftable processes**
    
    .. todo:: A simple algorithm exists, needs integration into FlexMeasures and asset type clarified.
 
-3) Heat pumps
-   
-   .. todo:: Also work in progress, needs model for heat loss compensation.
+3) For **buffer devices** (e.g. thermal energy storage systems connected to heat pumps), use the same flexibility parameters described above for storage devices. Here are some tips to model a buffer with these parameters:
+
+   - Describe the thermal energy content in kWh or MWh.
+   - Set ``soc-minima`` to the accumulative usage forecast.
+   - Set ``roundtrip-efficiency`` to the square of the conversion efficiency.
 
 In addition, folks who write their own custom scheduler (see :ref:`plugin_customization`) might also require their custom flexibility model.
 That's no problem, FlexMeasures will let the scheduler decide which flexibility model is relevant and how it should be validated. 
