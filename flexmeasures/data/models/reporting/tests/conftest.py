@@ -67,14 +67,3 @@ def setup_dummy_data(db, app):
     db.session.commit()
 
     yield sensor1, sensor2, report_sensor
-
-    db.session.delete(sensor1)
-    db.session.delete(sensor2)
-
-    for b in beliefs:
-        db.session.delete(b)
-
-    db.session.delete(dummy_asset)
-    db.session.delete(dummy_asset_type)
-
-    db.session.commit()
