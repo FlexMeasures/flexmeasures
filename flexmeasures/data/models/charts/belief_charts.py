@@ -83,6 +83,104 @@ def bar_chart(
     return chart_specs
 
 
+def matrix_chart(
+    sensor: "Sensor",  # noqa F821
+    event_starts_after: datetime | None = None,
+    event_ends_before: datetime | None = None,
+    **override_chart_specs: dict,
+):
+    unit = sensor.unit if sensor.unit else "a.u."
+    event_value_field_definition = dict(
+        title=f"{capitalize(sensor.sensor_type)} ({unit})",
+        format=[".3~r", unit],
+        formatType="quantityWithUnitFormat",
+        stack=None,
+        **FIELD_DEFINITIONS["event_value"],
+        scale={"scheme": "purplegreen", "domainMid": 0},
+    )
+    event_start_field_definition = dict(
+        field="event_start",
+        type="temporal",
+        title=None,
+        axis={
+            "labelExpr": "timeFormat(datum.value, '%H:%M')",
+            "labelOverlap": True,
+            "labelSeparation": 1,
+        },
+    )
+    event_start_date_field_definition = event_start_field_definition.copy()
+    event_start_field_definition["timeUnit"] = {
+        "unit": "hoursminutesseconds",
+        "step": sensor.event_resolution.total_seconds(),
+    }
+    event_start_date_field_definition["timeUnit"] = {
+        "unit": "yearmonthdate",
+    }
+    if event_starts_after and event_ends_before:
+        event_start_date_field_definition["scale"] = {
+            "domain": [
+                event_starts_after.timestamp() * 10**3,
+                event_ends_before.timestamp() * 10**3
+                - 1,  # prevent showing next date outside selected daterange
+            ],
+        }
+    event_start_date_field_definition["axis"] = {
+        "tickCount": "day",
+        # it's not trivial to center align the labels (vega-lite is missing timeband functionality)
+        "labelBaseline": "line-bottom",
+    }
+    event_start_field_definition["scale"] = {
+        "domain": [
+            {"hours": 0},
+            {"hours": 24},
+        ]
+    }
+    chart_specs = {
+        "description": "A simple heatmap chart showing sensor data.",
+        # the sensor type is already shown as the y-axis title (avoid redundant info)
+        "title": capitalize(sensor.name) if sensor.name != sensor.sensor_type else None,
+        "layer": [
+            {
+                "mark": {
+                    "type": "rect",
+                    "clip": True,
+                },
+                "encoding": {
+                    "x": event_start_field_definition,
+                    "y": event_start_date_field_definition,
+                    # "color": FIELD_DEFINITIONS["source_name"],
+                    "color": event_value_field_definition,
+                    "detail": FIELD_DEFINITIONS["source"],
+                    "opacity": {"value": 0.7},
+                    "tooltip": [
+                        FIELD_DEFINITIONS["full_date"],
+                        {
+                            **event_value_field_definition,
+                            **dict(title=f"{capitalize(sensor.sensor_type)}"),
+                        },
+                        FIELD_DEFINITIONS["source_name_and_id"],
+                        FIELD_DEFINITIONS["source_model"],
+                    ],
+                },
+                "transform": [
+                    {
+                        "calculate": "datum.source.name + ' (ID: ' + datum.source.id + ')'",
+                        "as": "source_name_and_id",
+                    },
+                ],
+            },
+            REPLAY_RULER,
+        ],
+    }
+    for k, v in override_chart_specs.items():
+        chart_specs[k] = v
+    chart_specs["config"] = {
+        "legend": {"orient": "right"},
+        # "legend": {"direction": "horizontal"},
+    }
+    return chart_specs
+
+
 def chart_for_multiple_sensors(
     sensors_to_show: list["Sensor", list["Sensor"]],  # noqa F821
     event_starts_after: datetime | None = None,

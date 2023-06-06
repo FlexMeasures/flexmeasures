@@ -45,6 +45,7 @@ class SensorAPI(FlaskView):
             "include_asset_annotations": fields.Boolean(required=False),
             "include_account_annotations": fields.Boolean(required=False),
             "dataset_name": fields.Str(required=False),
+            "chart_type": fields.Str(required=False),
             "height": fields.Str(required=False),
             "width": fields.Str(required=False),
         },
