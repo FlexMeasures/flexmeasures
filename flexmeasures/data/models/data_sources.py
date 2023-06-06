@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from sqlalchemy.ext.mutable import MutableDict
 
 import timely_beliefs as tb
 
@@ -67,6 +68,8 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         db.Integer, db.ForeignKey("fm_user.id"), nullable=True, unique=True
     )
     user = db.relationship("User", backref=db.backref("data_source", lazy=True))
+
+    attributes = db.Column(MutableDict.as_mutable(db.JSON), nullable=False, default={})
 
     # The model and version of a script source
     model = db.Column(db.String(80), nullable=True)
