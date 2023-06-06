@@ -70,49 +70,31 @@ tibber_app_price = [
 class TibberReporter(PandasReporter):
     def __init__(self, sensor) -> None:
         """This class calculates the price of energy of a tariff indexed to the Day Ahead prices.
-        Energy Price = (1 + VAT) x ( EnergyTax + Tiber + DA Prices)
+        Energy Price = (1 + VAT) x ( energy_tax + Tiber + DA Prices)
         """
-
-        # search the sensors
-        EnergyTax = Sensor.query.filter(Sensor.name == "EnergyTax").one_or_none()
-        VAT = Sensor.query.filter(Sensor.name == "VAT").one_or_none()
-        tibber_tariff = Sensor.query.filter(
-            Sensor.name == "Tibber Tariff"
-        ).one_or_none()
-
-        da_prices = Sensor.query.filter(Sensor.name == "DA prices").one_or_none()
 
         # create the PandasReporter reporter config
         reporter_config = dict(
-            beliefs_search_configs=[
-                dict(sensor=EnergyTax.id, alias="energy_tax_df"),
-                dict(sensor=VAT.id),
-                dict(sensor=tibber_tariff.id),
-                dict(sensor=da_prices.id),
-            ],
+            input_variables=["vat", "energy_tax", "tibber_tariff", "da_price"],
             transformations=[
                 dict(
-                    df_input="sensor_1",
-                    df_output="VAT",
+                    df_input="vat",
                     method="droplevel",
                     args=[[1, 2, 3]],
                 ),
                 dict(method="add", args=[1]),  # this is to get 1 + VAT
                 dict(
-                    df_input="energy_tax_df",
-                    df_output="EnergyTax",
+                    df_input="energy_tax",
                     method="droplevel",
                     args=[[1, 2, 3]],
                 ),
                 dict(
-                    df_input="sensor_3",
-                    df_output="tibber_tariff",
+                    df_input="tibber_tariff",
                     method="droplevel",
                     args=[[1, 2, 3]],
                 ),
                 dict(
-                    df_input="sensor_4",
-                    df_output="da_prices",
+                    df_input="da_price",
                     method="droplevel",
                     args=[[1, 2, 3]],
                 ),
@@ -120,14 +102,14 @@ class TibberReporter(PandasReporter):
                     method="add", args=["@tibber_tariff"]
                 ),  # da_prices = da_prices + tibber_tariff
                 dict(
-                    method="add", args=["@EnergyTax"]
-                ),  # da_prices = da_prices + EnergyTax
+                    method="add", args=["@energy_tax"]
+                ),  # da_prices = da_prices + energy_tax
                 dict(
-                    method="multiply", args=["@VAT"]
+                    method="multiply", args=["@vat"]
                 ),  # da_prices = da_price * VAT, VAT
                 dict(method="round"),
             ],
-            final_df_output="da_prices",
+            final_df_output="da_price",
         )
 
         super().__init__(sensor, reporter_config)
@@ -160,7 +142,6 @@ def tibber_test_data(fresh_db, app):
     db.session.add_all([tax, price])
 
     # Taxes
-
     electricity_price = GenericAsset(name="Electricity Price", generic_asset_type=price)
 
     VAT_asset = GenericAsset(name="VAT", generic_asset_type=tax)
@@ -178,8 +159,8 @@ def tibber_test_data(fresh_db, app):
         event_resolution=timedelta(days=365),
         unit="",
     )
-    EnergyTax = Sensor(
-        "EnergyTax",
+    energy_tax = Sensor(
+        "energy_tax",
         generic_asset=electricity_tax,
         event_resolution=timedelta(days=365),
         unit="EUR/MWh",
@@ -193,16 +174,16 @@ def tibber_test_data(fresh_db, app):
         unit="EUR/MWh",
     )
 
-    db.session.add_all([VAT, EnergyTax, tibber_tariff])
+    db.session.add_all([VAT, energy_tax, tibber_tariff])
 
     """
         Saving TimeBeliefs to the DB
     """
 
-    # Add EnergyTax, VAT and Tibber Tariff beliefs to the DB
+    # Add energy_tax, VAT and Tibber Tariff beliefs to the DB
     for sensor, source_name, value in [
         (VAT, "Tax Authority", 0.21),
-        (EnergyTax, "Tax Authority", 125.99),  # EUR / MWh
+        (energy_tax, "Tax Authority", 125.99),  # EUR / MWh
         (tibber_tariff, "Tibber", 18.0),  # EUR /MWh
     ]:
         belief = TimedBelief(
@@ -234,7 +215,9 @@ def tibber_test_data(fresh_db, app):
     )
     db.session.add(tibber_report_sensor)
 
-    return tibber_report_sensor
+    db.session.commit()
+
+    return tibber_report_sensor, energy_tax, VAT, tibber_tariff, da_prices
 
 
 def test_tibber_reporter(tibber_test_data):
@@ -243,14 +226,30 @@ def test_tibber_reporter(tibber_test_data):
     displayed in Tibber's App.
     """
 
-    tibber_report_sensor = tibber_test_data
+    tibber_report_sensor, energy_tax, VAT, tibber_tariff, da_prices = tibber_test_data
+    #     # search the sensors
+    # energy_tax = Sensor.query.filter(Sensor.name == "energy_tax").one_or_none()
+    # VAT = Sensor.query.filter(Sensor.name == "VAT").one_or_none()
+    # tibber_tariff = Sensor.query.filter(
+    #     Sensor.name == "Tibber Tariff"
+    # ).one_or_none()
+
+    # da_prices = Sensor.query.filter(Sensor.name == "DA prices").one_or_none()
+
+    report_config = dict(
+        input_sensors=dict(
+            vat=dict(sensor=VAT.id),
+            energy_tax=dict(sensor=energy_tax.id),
+            tibber_tariff=dict(sensor=tibber_tariff.id),
+            da_price=dict(sensor=da_prices.id),
+        ),
+        start="2023-04-13T00:00:00+02:00",
+        end="2023-04-14T00:00:00+02:00",
+    )
 
     tibber_reporter = TibberReporter(tibber_report_sensor)
 
-    result = tibber_reporter.compute(
-        start=datetime(2023, 4, 13, tzinfo=utc),
-        end=datetime(2023, 4, 14, tzinfo=utc),
-    )
+    result = tibber_reporter.compute(report_config=report_config)
 
     # check that we got a result for 24 hours
     assert len(result) == 24
@@ -264,5 +263,5 @@ def test_tibber_reporter(tibber_test_data):
 
     error = abs(result - tibber_app_price_df)
 
-    # check that (EPEX + EnergyTax + Tibber Tariff)*(1 + VAT) = Tibber App Price
+    # check that (EPEX + energy_tax + Tibber Tariff)*(1 + VAT) = Tibber App Price
     assert error.sum(min_count=1).event_value == 0
