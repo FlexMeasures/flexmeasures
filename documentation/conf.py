@@ -44,7 +44,7 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.intersphinx",
     "sphinx.ext.coverage",
-    "sphinx.ext.imgmath",
+    "sphinx.ext.mathjax",
     "sphinx.ext.ifconfig",
     "sphinx.ext.todo",
     "sphinx_copybutton",

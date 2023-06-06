@@ -197,8 +197,10 @@ Here are the three types of flexibility models you can expect to be built-in:
    - ``soc-maxima`` (defaults to NaN values)
    - ``soc-targets`` (defaults to NaN values)
    - ``roundtrip-efficiency`` (defaults to 100%)
-   - ``storage-efficiency`` (defaults to 100%)
+   - ``storage-efficiency`` (defaults to 100%) [#]_
    - ``prefer-charging-sooner`` (defaults to True, also signals a preference to discharge later)
+
+    .. [#] The storage efficiency (e.g. 95% or 0.95) to use for the schedule is applied over each time step equal to the sensor resolution. For example, a storage efficiency of 95 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of :math:`0.95^{1/24} = 0.997865`.
 
    For some examples, see the `[POST] /sensors/(id)/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_ endpoint docs.
 
@@ -210,7 +212,9 @@ Here are the three types of flexibility models you can expect to be built-in:
 
    - Describe the thermal energy content in kWh or MWh.
    - Set ``soc-minima`` to the accumulative usage forecast.
-   - Set ``roundtrip-efficiency`` to the square of the conversion efficiency.
+   - Set ``roundtrip-efficiency`` to the square of the conversion efficiency. [#]_
+
+    .. [#] Setting a roundtrip efficiency of higher than 1 is not supported. We plan to implement a separate field for :abbr:`COP (coefficient of performance)` values.
 
 In addition, folks who write their own custom scheduler (see :ref:`plugin_customization`) might also require their custom flexibility model.
 That's no problem, FlexMeasures will let the scheduler decide which flexibility model is relevant and how it should be validated. 
