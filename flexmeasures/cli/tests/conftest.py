@@ -72,7 +72,7 @@ def setup_dummy_data(db, app):
 
 @pytest.fixture(scope="module")
 @pytest.mark.skip_github
-def reporter_config_raw(app, db, setup_dummy_data):
+def reporter_config(app, db, setup_dummy_data):
     """
     This reporter_config defines the operations to add up the
     values of the sensors 1 and 2 and resamples the result to a
@@ -81,8 +81,8 @@ def reporter_config_raw(app, db, setup_dummy_data):
 
     sensor1, sensor2, report_sensor = setup_dummy_data
 
-    reporter_config_raw = dict(
-        beliefs_search_configs=[dict(sensor=sensor1.id), dict(sensor=sensor2.id)],
+    reporter_config = dict(
+        input_variables=["sensor_1", "sensor_2"],
         transformations=[
             dict(
                 df_input="sensor_1",
@@ -95,4 +95,4 @@ def reporter_config_raw(app, db, setup_dummy_data):
         final_df_output="df_agg",
     )
 
-    return reporter_config_raw
+    return reporter_config
