@@ -34,6 +34,7 @@ class EfficiencyField(QuantityField):
         ...
         marshmallow.exceptions.ValidationError: ['Must be greater than 0 and less than or equal to 1.']
     """
+
     def __init__(self, *args, **kwargs):
         super().__init__(
             "%",
