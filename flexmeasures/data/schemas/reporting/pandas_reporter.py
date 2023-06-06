@@ -1,7 +1,11 @@
-from marshmallow import Schema, fields, ValidationError, validates_schema
+from marshmallow import Schema, fields, ValidationError, validates_schema, validate
 from inspect import signature
 
-from flexmeasures.data.schemas.reporting import ReporterConfigSchema
+from flexmeasures.data.schemas.sensors import SensorIdField
+from flexmeasures.data.schemas.sources import DataSourceIdField
+
+from flexmeasures.data.schemas import AwareDateTimeField, DurationField
+
 
 from timely_beliefs import BeliefsDataFrame
 
@@ -43,16 +47,43 @@ class PandasMethodCall(Schema):
             )
 
 
-class PandasReporterConfigSchema(ReporterConfigSchema):
+class BeliefsSearchConfigSchema(Schema):
+    """
+    This schema implements the required fields to perform a TimedBeliefs search
+    using the method flexmeasures.data.models.time_series:Sensor.search_beliefs
+    """
+
+    sensor = SensorIdField(required=True)
+
+    event_starts_after = AwareDateTimeField()
+    event_ends_before = AwareDateTimeField()
+
+    belief_time = AwareDateTimeField()
+
+    horizons_at_least = DurationField()
+    horizons_at_most = DurationField()
+
+    source = DataSourceIdField()
+
+    source_types = fields.List(fields.Str())
+    exclude_source_types = fields.List(fields.Str())
+    most_recent_beliefs_only = fields.Boolean()
+    most_recent_events_only = fields.Boolean()
+
+    one_deterministic_belief_per_event = fields.Boolean()
+    one_deterministic_belief_per_event_per_source = fields.Boolean()
+    resolution = DurationField()
+    sum_multiple = fields.Boolean()
+
+
+class PandasReporterReporterConfigSchema(Schema):
     """
     This schema lists fields that can be used to describe sensors in the optimised portfolio
 
     Example:
 
     {
-        "input_sensors" : [
-            {"sensor" : 1, "alias" : "df1"}
-        ],
+        "input_variables" : ["df1"],
         "transformations" : [
             {
                 "df_input" : "df1",
@@ -72,6 +103,7 @@ class PandasReporterConfigSchema(ReporterConfigSchema):
         "final_df_output" : "df2"
     """
 
+    input_variables = fields.List(fields.Str(), required=True)
     transformations = fields.List(fields.Nested(PandasMethodCall()), required=True)
     final_df_output = fields.Str(required=True)
 
@@ -85,8 +117,7 @@ class PandasReporterConfigSchema(ReporterConfigSchema):
         # create dictionary data with objects of the types that is supposed to be generated
         # loading the initial data, the sensors' data
         fake_data = dict(
-            (f"sensor_{s['sensor'].id}", BeliefsDataFrame)
-            for s in data.get("beliefs_search_configs")
+            (variable, BeliefsDataFrame) for variable in data.get("input_variables")
         )
         final_df_output = data.get("final_df_output")
 
@@ -101,7 +132,7 @@ class PandasReporterConfigSchema(ReporterConfigSchema):
             if df_output == final_df_output:
                 final_df_output_method = transformation.get("method")
 
-            if not previous_df and not df_input:
+            if df_input not in fake_data:
                 raise ValidationError("Cannot find the input DataFrame.")
 
             previous_df = df_output  # keeping last BeliefsDataFrame calculation
@@ -117,3 +148,39 @@ class PandasReporterConfigSchema(ReporterConfigSchema):
             raise ValidationError(
                 "Final output type cannot by of type `Resampler` or `DataFrameGroupBy`"
             )
+
+
+class PandasReporterReportConfigSchema(Schema):
+    input_sensors = fields.Dict(
+        keys=fields.Str(),
+        values=fields.Nested(BeliefsSearchConfigSchema()),
+        required=True,
+        validator=validate.Length(min=1),
+    )
+
+    start = AwareDateTimeField(required=False)
+    end = AwareDateTimeField(required=False)
+
+    resolution = DurationField(required=False)
+    belief_time = AwareDateTimeField(required=False)
+
+    @validates_schema
+    def validate_time_parameters(self, data, **kwargs):
+        """This method validates that all input sensors have start
+        and end parameters available.
+        """
+
+        # it's enough to provide a common start and end
+        if ("start" in data) and ("end" in data):
+            return
+
+        for alias, input_sensor in data.get("input_sensors").items():
+            if ("event_starts_after" not in input_sensor) and ("start" not in data):
+                raise ValidationError(
+                    f"Start parameter not provided for sensor `{alias}` ({input_sensor})."
+                )
+
+            if ("event_ends_before" not in input_sensor) and ("end" not in data):
+                raise ValidationError(
+                    f"End parameter not provided for sensor `{alias}` ({input_sensor})."
+                )

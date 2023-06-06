@@ -2,7 +2,8 @@ from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 
 from flexmeasures.data.schemas.reporting.pandas_reporter import (
-    PandasReporterConfigSchema,
+    PandasReporterReporterConfigSchema,
+    PandasReporterReportConfigSchema,
 )
 from marshmallow.exceptions import ValidationError
 
@@ -40,13 +41,7 @@ def setup_dummy_sensors(db, app):
     [
         (
             {  # this checks that the final_df_output dataframe is actually generated at some point of the processing pipeline
-                "beliefs_search_configs": [
-                    {
-                        "sensor": 1,
-                        "event_starts_after": "2022-01-01T00:00:00 00:00",
-                        "event_ends_before": "2022-01-01T23:00:00 00:00",
-                    },
-                ],
+                "input_variables": ["sensor_1"],
                 "transformations": [
                     {
                         "df_output": "final_output",
@@ -60,13 +55,7 @@ def setup_dummy_sensors(db, app):
         ),
         (
             {  # this checks that chaining works, applying the method copy on the previous dataframe
-                "beliefs_search_configs": [
-                    {
-                        "sensor": 1,
-                        "event_starts_after": "2022-01-01T00:00:00 00:00",
-                        "event_ends_before": "2022-01-01T23:00:00 00:00",
-                    },
-                ],
+                "input_variables": ["sensor_1"],
                 "transformations": [
                     {"df_output": "output1", "df_input": "sensor_1", "method": "copy"},
                     {"method": "copy"},
@@ -78,18 +67,7 @@ def setup_dummy_sensors(db, app):
         ),
         (
             {  # this checks that resample cannot be the last method being applied
-                "beliefs_search_configs": [
-                    {
-                        "sensor": 1,
-                        "event_starts_after": "2022-01-01T00:00:00 00:00",
-                        "event_ends_before": "2022-01-01T23:00:00 00:00",
-                    },
-                    {
-                        "sensor": 2,
-                        "event_starts_after": "2022-01-01T00:00:00 00:00",
-                        "event_ends_before": "2022-01-01T23:00:00 00:00",
-                    },
-                ],
+                "input_variables": ["sensor_1", "sensor_2"],
                 "transformations": [
                     {"df_output": "output1", "df_input": "sensor_1", "method": "copy"},
                     {"method": "copy"},
@@ -101,18 +79,7 @@ def setup_dummy_sensors(db, app):
         ),
         (
             {  # this checks that resample cannot be the last method being applied
-                "beliefs_search_configs": [
-                    {
-                        "sensor": 1,
-                        "event_starts_after": "2022-01-01T00:00:00 00:00",
-                        "event_ends_before": "2022-01-01T23:00:00 00:00",
-                    },
-                    {
-                        "sensor": 2,
-                        "event_starts_after": "2022-01-01T00:00:00 00:00",
-                        "event_ends_before": "2022-01-01T23:00:00 00:00",
-                    },
-                ],
+                "input_variables": ["sensor_1", "sensor_2"],
                 "transformations": [
                     {"df_output": "output1", "df_input": "sensor_1", "method": "copy"},
                     {"method": "copy"},
@@ -129,10 +96,52 @@ def test_pandas_reporter_schema(
     reporter_config, is_valid, db, app, setup_dummy_sensors
 ):
 
-    schema = PandasReporterConfigSchema()
+    schema = PandasReporterReporterConfigSchema()
 
     if is_valid:
         schema.load(reporter_config)
     else:
         with pytest.raises(ValidationError):
             schema.load(reporter_config)
+
+
+@pytest.mark.parametrize(
+    "report_config, is_valid",
+    [
+        (
+            {
+                "input_sensors": {"sensor_1": {"sensor": 1}},
+                "start": "2023-06-06T00:00:00+02:00",
+                "end": "2023-06-06T00:00:00+02:00",
+            },
+            True,
+        ),
+        (
+            {
+                "input_sensors": {"sensor_1": {"sensor": 1}},
+            },
+            False,
+        ),
+        (
+            {
+                "input_sensors": {
+                    "sensor_1": {
+                        "sensor": 1,
+                        "event_starts_after": "2023-06-07T00:00:00+02:00",
+                        "event_ends_before": "2023-06-07T00:00:00+02:00",
+                    }
+                },
+            },
+            True,
+        ),
+    ],
+)
+def test_pandas_report_schema(report_config, is_valid, db, app, setup_dummy_sensors):
+
+    schema = PandasReporterReportConfigSchema()
+
+    if is_valid:
+        schema.load(report_config)
+    else:
+        with pytest.raises(ValidationError):
+            schema.load(report_config)
