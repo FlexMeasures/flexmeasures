@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Optional, Type
 import json
+import yaml
 from pathlib import Path
 from io import TextIOBase
 
@@ -1136,10 +1137,17 @@ def add_schedule_for_storage(
 )
 @click.option(
     "--reporter-config",
-    "reporter_config",
-    required=True,
+    "reporter_config_file",
+    required=False,
     type=click.File("r"),
-    help="Path to the JSON file with the reporter configuration.",
+    help="Path to the JSON or YAML file with the reporter configuration.",
+)
+@click.option(
+    "--report-config",
+    "report_config_file",
+    required=False,
+    type=click.File("r"),
+    help="Path to the JSON or YAML file with the report configuration.",
 )
 @click.option(
     "--reporter",
@@ -1208,7 +1216,8 @@ def add_schedule_for_storage(
 def add_report(  # noqa: C901
     reporter_class: str,
     sensor: Sensor,
-    reporter_config: TextIOBase,
+    reporter_config_file: TextIOBase,
+    report_config_file: Optional[TextIOBase],
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
     start_offset: Optional[str] = None,
@@ -1292,19 +1301,28 @@ def add_report(  # noqa: C901
 
     click.secho(f"Reporter {reporter_class} found.", **MsgStyle.SUCCESS)
 
-    reporter_config_raw = json.load(reporter_config)
+    reporter_config = dict()
+    if reporter_config_file:
+        reporter_config = yaml.safe_load(reporter_config_file)
 
     # initialize reporter class with the reporter sensor and reporter config
-    reporter: Reporter = ReporterClass(
-        sensor=sensor, reporter_config_raw=reporter_config_raw
-    )
+    reporter: Reporter = ReporterClass(sensor=sensor, reporter_config=reporter_config)
 
     click.echo("Report computation is running...")
 
+    report_config = dict()
+    if report_config_file:
+        report_config = yaml.safe_load(report_config_file)
+
+    if ("start" not in report_config) and (start is not None):
+        report_config["start"] = start.isoformat()
+    if ("end" not in report_config) and (end is not None):
+        report_config["end"] = end.isoformat()
+    if ("resolution" not in report_config) and (resolution is not None):
+        report_config["resolution"] = pd.Timedelta.isoformat(resolution)
+
     # compute the report
-    result: BeliefsDataFrame = reporter.compute(
-        start=start, end=end, input_resolution=resolution
-    )
+    result: BeliefsDataFrame = reporter.compute(report_config=report_config)
 
     if not result.empty:
         click.secho("Report computation done.", **MsgStyle.SUCCESS)

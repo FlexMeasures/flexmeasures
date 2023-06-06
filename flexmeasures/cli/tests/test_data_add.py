@@ -1,5 +1,6 @@
 import pytest
 import json
+import yaml
 import os
 
 
@@ -96,7 +97,7 @@ def test_cli_help(app):
 
 
 @pytest.mark.skip_github
-def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
+def test_add_reporter(app, db, setup_dummy_data, reporter_config):
     """
     The reporter aggregates input data from two sensors (both have 200 data points)
     to a two-hour resolution.
@@ -122,12 +123,19 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
 
     cli_input_params = {
         "sensor-id": report_sensor_id,
-        "reporter-config": "reporter_config.json",
+        "reporter-config": "reporter_config.yaml",
+        "report-config": "report_config.json",
         "reporter": "PandasReporter",
         "start": "2023-04-10T00:00:00 00:00",
         "end": "2023-04-10T10:00:00 00:00",
         "output-file": "test.csv",
     }
+
+    report_config = dict(
+        input_sensors=dict(
+            sensor_1=dict(sensor=sensor1.id), sensor_2=dict(sensor=sensor2.id)
+        )
+    )
 
     cli_input = to_flags(cli_input_params)
 
@@ -135,8 +143,11 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
     with runner.isolated_filesystem():
 
         # save reporter_config to a json file
-        with open("reporter_config.json", "w") as f:
-            json.dump(reporter_config_raw, f)
+        with open("reporter_config.yaml", "w") as f:
+            yaml.dump(reporter_config, f)
+
+        with open("report_config.json", "w") as f:
+            json.dump(report_config, f)
 
         # call command
         result = runner.invoke(add_report, cli_input)
@@ -177,6 +188,7 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
     cli_input_params = {
         "sensor-id": report_sensor_id,
         "reporter-config": "reporter_config.json",
+        "report-config": "report_config.json",
         "reporter": "PandasReporter",
         "output-file": "test.csv",
         "timezone": "UTC",
@@ -188,7 +200,10 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
 
         # save reporter_config to a json file
         with open("reporter_config.json", "w") as f:
-            json.dump(reporter_config_raw, f)
+            json.dump(reporter_config, f)
+
+        with open("report_config.json", "w") as f:
+            json.dump(report_config, f)
 
         # call command
         result = runner.invoke(add_report, cli_input)
