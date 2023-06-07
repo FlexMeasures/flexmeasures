@@ -117,7 +117,7 @@ def matrix_chart(
                 {"hours": 0},
                 {"hours": 24},
             ]
-        }
+        },
     )
     event_start_date_field_definition = dict(
         field="event_start",
