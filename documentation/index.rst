@@ -255,7 +255,13 @@ The platform operator of FlexMeasures can be an Aggregator.
    :template: custom-module-template.rst
    :recursive:
 
-   flexmeasures
+   flexmeasures.api
+   flexmeasures.app
+   flexmeasures.auth
+   flexmeasures.cli
+   flexmeasures.data
+   flexmeasures.ui
+   flexmeasures.utils
 
 
 .. Code documentation
