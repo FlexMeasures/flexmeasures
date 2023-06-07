@@ -176,7 +176,19 @@ def matrix_chart(
                     },
                 ],
             },
-            REPLAY_RULER,
+            {
+                "data": {"name": "replay"},
+                "mark": {
+                    "type": "rule",
+                },
+                "encoding": {
+                    "x": {
+                        "field": "belief_time",
+                        "type": "temporal",
+                        "timeUnit": "hoursminutesseconds",
+                    },
+                },
+            },
         ],
     }
     for k, v in override_chart_specs.items():
