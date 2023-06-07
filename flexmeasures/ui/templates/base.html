@@ -244,10 +244,42 @@
         storeEndDate = new Date('{{ event_ends_before }}');
     {% endif %}
     let replaySpeed = 100
+    let chartType = 'bar_chart';  // initial chart type // todo: get from session?
+
+    // Update chart type
+    document.addEventListener('DOMContentLoaded', function() {
+        var dropdownItems = document.querySelectorAll('.dropdown-item');
+        for (var i = 0; i < dropdownItems.length; i++) {
+
+            // Set initial chart type
+            if (dropdownItems[i].getAttribute('data-chart-type') === chartType) {
+                dropdownItems[i].classList.add('active');
+            }
+
+            // Add event listener
+            dropdownItems[i].addEventListener('click', function(e) {
+                e.preventDefault();
+                chartType = this.getAttribute('data-chart-type');
+
+                // Update the active state of the dropdown items
+                var dropdownItems = document.querySelectorAll('.dropdown-item');
+                dropdownItems.forEach(item => {
+                    if (item === this) {
+                        item.classList.add('active');
+                    } else {
+                        item.classList.remove('active');
+                    }
+                });
+
+                // Reload daterange
+                picker.setDateRange(picker.getStartDate(), picker.getEndDate());
+            });
+        }
+    });
 
     async function embedAndLoad(chartSpecsPath, elementId, datasetName, previousResult, startDate, endDate) {
 
-        await vegaEmbed('#'+elementId, chartSpecsPath + 'dataset_name=' + datasetName + '&width=container&include_sensor_annotations=false&include_asset_annotations=false&chart_type=matrix_chart', {{ chart_options | safe }})
+        await vegaEmbed('#'+elementId, chartSpecsPath + 'dataset_name=' + datasetName + '&width=container&include_sensor_annotations=false&include_asset_annotations=false&chart_type=' + chartType, {{ chart_options | safe }})
         .then(function (result) {
             // result.view is the Vega View, chartSpecsPath is the original Vega-Lite specification
             vegaView = result.view;
