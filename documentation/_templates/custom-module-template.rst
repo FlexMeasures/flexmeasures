@@ -50,6 +50,7 @@
    .. autoclass:: {{ item }}
       :members:
       :special-members: __init__
+      :private-members:
    {%- endfor %}
    {% endif %}
    {% endblock %}
