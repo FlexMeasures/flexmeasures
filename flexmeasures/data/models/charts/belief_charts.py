@@ -126,8 +126,10 @@ def matrix_chart(
         }
     event_start_date_field_definition["axis"] = {
         "tickCount": "day",
-        # it's not trivial to center align the labels (vega-lite is missing timeband functionality)
-        "labelBaseline": "line-bottom",
+        # Center align the date labels
+        "labelOffset": {
+            "expr": "(scale('y', 24 * 60 * 60 * 1000) - scale('y', 0)) / 2"
+        },
     }
     event_start_field_definition["scale"] = {
         "domain": [
