@@ -102,21 +102,40 @@ def matrix_chart(
         field="event_start",
         type="temporal",
         title=None,
+        timeUnit={
+            "unit": "hoursminutesseconds",
+            "step": sensor.event_resolution.total_seconds(),
+        },
         axis={
             "labelExpr": "timeFormat(datum.value, '%H:%M')",
             "labelFlush": False,
             "labelOverlap": True,
             "labelSeparation": 1,
         },
+        scale={
+            "domain": [
+                {"hours": 0},
+                {"hours": 24},
+            ]
+        }
     )
-    event_start_date_field_definition = event_start_field_definition.copy()
-    event_start_field_definition["timeUnit"] = {
-        "unit": "hoursminutesseconds",
-        "step": sensor.event_resolution.total_seconds(),
-    }
-    event_start_date_field_definition["timeUnit"] = {
-        "unit": "yearmonthdate",
-    }
+    event_start_date_field_definition = dict(
+        field="event_start",
+        type="temporal",
+        title=None,
+        timeUnit={
+            "unit": "yearmonthdate",
+        },
+        axis={
+            "tickCount": "day",
+            # Center align the date labels
+            "labelOffset": {
+                "expr": "(scale('y', 24 * 60 * 60 * 1000) - scale('y', 0)) / 2"
+            },
+            "labelFlush": False,
+            "labelBound": True,
+        },
+    )
     if event_starts_after and event_ends_before:
         event_start_date_field_definition["scale"] = {
             "domain": [
@@ -124,21 +143,6 @@ def matrix_chart(
                 event_ends_before.timestamp() * 10**3,
             ],
         }
-    event_start_date_field_definition["axis"] = {
-        "tickCount": "day",
-        # Center align the date labels
-        "labelOffset": {
-            "expr": "(scale('y', 24 * 60 * 60 * 1000) - scale('y', 0)) / 2"
-        },
-        "labelFlush": False,
-        "labelBound": True,
-    }
-    event_start_field_definition["scale"] = {
-        "domain": [
-            {"hours": 0},
-            {"hours": 24},
-        ]
-    }
     chart_specs = {
         "description": "A simple heatmap chart showing sensor data.",
         # the sensor type is already shown as the y-axis title (avoid redundant info)
