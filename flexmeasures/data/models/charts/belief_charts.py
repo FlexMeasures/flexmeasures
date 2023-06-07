@@ -104,6 +104,7 @@ def matrix_chart(
         title=None,
         axis={
             "labelExpr": "timeFormat(datum.value, '%H:%M')",
+            "labelFlush": False,
             "labelOverlap": True,
             "labelSeparation": 1,
         },
