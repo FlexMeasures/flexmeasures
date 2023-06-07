@@ -251,6 +251,7 @@ def setup(sphinx_app):
     )
 
     if gen_code_docs:
+        os.environ["SQLALCHEMY_DATABASE_URI"] = "not a uri"
 
         from flexmeasures.app import create
 
