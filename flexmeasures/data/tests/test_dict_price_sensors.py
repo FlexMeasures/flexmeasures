@@ -40,15 +40,13 @@ def test_schedule(create_solar_plants,create_building,flexible_devices, roundtri
     soc_at_start = 545
     soc_min = 0.5
     soc_max = 795
-    inflexible_devices=[SensorIdField()._serialize(create_solar_plants["solar-power-1"],None,None),SensorIdField()._serialize(create_solar_plants["solar-power-2"],None,None),SensorIdField()._serialize(create_solar_plants["solar-power-3"],None,None),SensorIdField()._serialize(create_building["building-power"],None,None)]
+    inflexible_devices=[create_solar_plants["solar-power-1"].id,create_building["building-power"].id]
     consumption_price_sensor_per_device = {
-        SensorIdField()._serialize(flexible_devices["Grid-power"],None,None):SensorIdField()._serialize(flexible_devices["grid-consumption-price-sensor"],None,None)
+        flexible_devices["Grid-power"].id: flexible_devices["grid-consumption-price-sensor"].id
     }
     production_price_sensor_per_device = {
-        SensorIdField()._serialize(create_solar_plants["solar-power-1"],None,None):SensorIdField()._serialize(create_solar_plants["solar1-production-price-sensor"],None,None),
-        SensorIdField()._serialize(create_solar_plants["solar-power-2"],None,None):SensorIdField()._serialize(create_solar_plants["solar2-production-price-sensor"],None,None),
-        SensorIdField()._serialize(create_solar_plants["solar-power-3"],None,None):SensorIdField()._serialize(create_solar_plants["solar3-production-price-sensor"],None,None),
-        SensorIdField()._serialize(flexible_devices["Grid-power"],None,None):SensorIdField()._serialize(flexible_devices["grid-production-price-sensor"],None,None)
+        create_solar_plants["solar-power-1"].id: create_solar_plants["solar1-production-price-sensor"].id,
+        flexible_devices["Grid-power"].id: flexible_devices["grid-production-price-sensor"].id
     }
     scheduler = StorageScheduler(
         battery,
@@ -76,10 +74,6 @@ def test_schedule(create_solar_plants,create_building,flexible_devices, roundtri
         down_efficiency=roundtrip_efficiency**0.5,
         decimal_precision=5,
     )
-
-    with pd.option_context("display.max_rows", None, "display.max_columns", 3):
-        print(soc_schedule)
-
     # Check if constraints were met
     assert (
         min(schedule.values) >= battery.get_attribute("capacity_in_mw") * -1 - TOLERANCE
