@@ -15,13 +15,15 @@ build:
   os: ubuntu-20.04
   tools:
     python: "3.9"
+  jobs:
+    post_create_environment:
+      - pip install . --no-deps  # as python install step, RTD installs deps eagerly
 
 python: 
   install:
     - requirements: requirements/app.txt
     - requirements: requirements/docs.txt
-    - method: pip
-      path: .
+
 
 sphinx:
   fail_on_warning: true

@@ -364,3 +364,47 @@ def get_max_planning_horizon(resolution: timedelta) -> timedelta | None:
         # Config setting specifies maximum number of planning steps
         max_planning_horizon *= resolution
     return max_planning_horizon
+
+
+def apply_offset_chain(
+    dt: pd.Timestamp | datetime, offset_chain: str
+) -> pd.Timestamp | datetime:
+    """Apply an offset chain to a date.
+
+    An offset chain consist of multiple (pandas) offset strings separated by commas. Moreover,
+    this function implements the offset string "DB", which stands for Day Begin, to
+    get a date from a datetime, i.e. removing time details finer than a day.
+
+    Args:
+        dt (pd.Timestamp | datetime)
+        offset_chain (str)
+
+    Returns:
+        pd.Timestamp | datetime (same type as given dt)
+    """
+
+    if len(offset_chain) == 0:
+        return dt
+
+    # We need a Pandas structure to apply the offsets
+    if isinstance(dt, datetime):
+        _dt = pd.Timestamp(dt)
+    elif isinstance(dt, pd.Timestamp):
+        _dt = dt
+    else:
+        raise TypeError()
+
+    # Apply the offsets
+    for offset in offset_chain.split(","):
+        try:
+            _dt += to_offset(offset.strip())
+        except ValueError:
+            if offset.strip().lower() == "db":  # db = day begin
+                _dt = _dt.floor("D")
+            elif offset.strip().lower() == "hb":  # hb = hour begin
+                _dt = _dt.floor("H")
+
+    # Return output in the same type as the input
+    if isinstance(dt, datetime):
+        return _dt.to_pydatetime()
+    return _dt
