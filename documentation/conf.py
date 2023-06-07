@@ -7,6 +7,7 @@
 # http://www.sphinx-doc.org/en/stable/config
 
 import os
+import shutil
 
 from datetime import datetime
 from pkg_resources import get_distribution
@@ -77,7 +78,9 @@ if gen_code_docs:
             "sphinx.ext.autodoc",
         ]
     )
-
+else:
+    if os.path.exists("_autosummary"):
+        shutil.rmtree("_autosummary")
 
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
