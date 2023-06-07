@@ -251,7 +251,7 @@ The platform operator of FlexMeasures can be an Aggregator.
 
 .. autosummary::
    :caption: Code Documentation
-   :toctree: _autosummary
+   :toctree: _autosummary/
    :template: custom-module-template.rst
    :recursive:
 
