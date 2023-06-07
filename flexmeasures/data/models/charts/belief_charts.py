@@ -121,8 +121,7 @@ def matrix_chart(
         event_start_date_field_definition["scale"] = {
             "domain": [
                 event_starts_after.timestamp() * 10**3,
-                event_ends_before.timestamp() * 10**3
-                - 1,  # prevent showing next date outside selected daterange
+                event_ends_before.timestamp() * 10**3,
             ],
         }
     event_start_date_field_definition["axis"] = {
@@ -131,6 +130,8 @@ def matrix_chart(
         "labelOffset": {
             "expr": "(scale('y', 24 * 60 * 60 * 1000) - scale('y', 0)) / 2"
         },
+        "labelFlush": False,
+        "labelBound": True,
     }
     event_start_field_definition["scale"] = {
         "domain": [
