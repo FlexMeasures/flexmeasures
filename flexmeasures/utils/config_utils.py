@@ -81,8 +81,8 @@ def read_config(app: Flask, custom_path_to_config: str | None):
     path_to_config_home = str(Path.home().joinpath(".flexmeasures.cfg"))
     path_to_config_instance = os.path.join(app.instance_path, "flexmeasures.cfg")
 
-    # Custom config: not when testing (that should run completely on defaults)
-    if not app.testing:
+    # Custom config: not when testing (that should run completely on defaults) and documentation
+    if not app.testing and app.env != "documentation":
         used_path_to_config = read_custom_config(
             app, custom_path_to_config, path_to_config_home, path_to_config_instance
         )
