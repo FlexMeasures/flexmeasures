@@ -19,6 +19,7 @@ build:
     post_create_environment:
       - pip install . --no-deps  # as python install step, RTD installs deps eagerly
       - export FLASK_ENV=documentation
+      - export SECRET_KEY=xxxxxxxxxxxxxxx 
 
 python: 
   install:
