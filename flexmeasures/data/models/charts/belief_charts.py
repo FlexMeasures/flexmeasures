@@ -156,7 +156,6 @@ def matrix_chart(
                 "encoding": {
                     "x": event_start_field_definition,
                     "y": event_start_date_field_definition,
-                    # "color": FIELD_DEFINITIONS["source_name"],
                     "color": event_value_field_definition,
                     "detail": FIELD_DEFINITIONS["source"],
                     "opacity": {"value": 0.7},
