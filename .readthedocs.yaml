@@ -18,6 +18,7 @@ build:
   jobs:
     post_create_environment:
       - pip install . --no-deps  # as python install step, RTD installs deps eagerly
+      - export FLASK_ENV=documentation
 
 python: 
   install:
