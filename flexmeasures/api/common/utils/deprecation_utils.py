@@ -9,6 +9,20 @@ import pandas as pd
 from flexmeasures.utils.time_utils import to_http_time
 
 
+def abort_with_sunset_info(
+    api_version_sunset: str,
+    sunset_link: str,
+    api_version_upgrade_to: str = "3.0",
+):
+    # Override with custom info link, if set by host
+    _sunset_link = override_from_config(sunset_link, "FLEXMEASURES_API_SUNSET_LINK")
+
+    abort(
+        410,
+        f"API version {api_version_sunset} has been sunset. Please upgrade to API version {api_version_upgrade_to}. See {_sunset_link} for more information.",
+    )
+
+
 def sunset_blueprint(
     blueprint,
     api_version_sunset: str,
@@ -26,12 +40,8 @@ def sunset_blueprint(
     def let_host_switch_to_returning_410():
 
         if current_app.config["FLEXMEASURES_API_SUNSET_ACTIVE"]:
-            # Override with custom info link, if set by host
-            _sunset_link = override_from_config(sunset_link, "FLEXMEASURES_API_SUNSET_LINK")
-
-            abort(
-                410,
-                f"API version {api_version_sunset} has been sunset. Please upgrade to API version {api_version_upgrade_to}. See {_sunset_link} for more information.",
+            abort_with_sunset_info(
+                api_version_sunset, sunset_link, api_version_upgrade_to
             )
         else:
             # Sunset is inactive and blueprint contents should still be there,
