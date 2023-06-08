@@ -14,32 +14,27 @@ def sunset_blueprint(
     api_version_sunset: str,
     sunset_link: str,
     api_version_upgrade_to: str = "3.0",
-    blueprint_contents_removed: bool = True,
 ):
     """Sunsets every route on a blueprint by returning 410 (Gone) responses, if sunset is active.
 
     Whether the sunset is active can be toggled using the config setting "FLEXMEASURES_API_SUNSET_ACTIVE".
-    If inactive, either:
-    - return 404 (Not Found) if the blueprint contents have been removed, or
-    - pass the request to be handled by the endpoint implementation.
+    If inactive, pass the request to be handled by the endpoint implementation.
 
     Errors will be logged by utils.error_utils.error_handling_router.
     """
 
     def let_host_switch_to_returning_410():
 
-        # Override with custom info link, if set by host
-        _sunset_link = override_from_config(sunset_link, "FLEXMEASURES_API_SUNSET_LINK")
-
         if current_app.config["FLEXMEASURES_API_SUNSET_ACTIVE"]:
+            # Override with custom info link, if set by host
+            _sunset_link = override_from_config(sunset_link, "FLEXMEASURES_API_SUNSET_LINK")
+
             abort(
                 410,
                 f"API version {api_version_sunset} has been sunset. Please upgrade to API version {api_version_upgrade_to}. See {_sunset_link} for more information.",
             )
-        elif blueprint_contents_removed:
-            abort(404)
         else:
-            # Sunset is inactive and blueprint contents are still there,
+            # Sunset is inactive and blueprint contents should still be there,
             # so we let the request pass to the endpoint implementation
             pass
 
