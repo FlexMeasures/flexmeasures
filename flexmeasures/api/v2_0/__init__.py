@@ -17,6 +17,7 @@ sunset_blueprint(
     flexmeasures_api,
     "2.0",
     "https://flexmeasures.readthedocs.io/en/v0.13.0/api/v2_0.html",
+    rollback_possible=False,
 )
 
 

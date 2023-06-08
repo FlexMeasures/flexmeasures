@@ -28,18 +28,20 @@ def sunset_blueprint(
     api_version_sunset: str,
     sunset_link: str,
     api_version_upgrade_to: str = "3.0",
+    rollback_possible: bool = True,
 ):
     """Sunsets every route on a blueprint by returning 410 (Gone) responses, if sunset is active.
 
     Whether the sunset is active can be toggled using the config setting "FLEXMEASURES_API_SUNSET_ACTIVE".
     If inactive, pass the request to be handled by the endpoint implementation.
+    If the endpoint implementations have been removed, set rollback_possible=False.
 
     Errors will be logged by utils.error_utils.error_handling_router.
     """
 
     def let_host_switch_to_returning_410():
 
-        if current_app.config["FLEXMEASURES_API_SUNSET_ACTIVE"]:
+        if not rollback_possible or current_app.config["FLEXMEASURES_API_SUNSET_ACTIVE"]:
             abort_with_sunset_info(
                 api_version_sunset, sunset_link, api_version_upgrade_to
             )
