@@ -60,11 +60,7 @@ for info in SUNSET_INFO:
 def register_at(app: Flask):
     """This can be used to register this blueprint together with other api-related things"""
 
-    import flexmeasures.api.v1.routes  # noqa: F401 this is necessary to load the endpoints
-    import flexmeasures.api.v1_1.routes  # noqa: F401 this is necessary to load the endpoints
-    import flexmeasures.api.v1_2.routes  # noqa: F401 this is necessary to load the endpoints
-    import flexmeasures.api.v1_3.routes  # noqa: F401 this is necessary to load the endpoints
-    import flexmeasures.api.v2_0.routes  # noqa: F401 this is necessary to load the endpoints
+    import flexmeasures.api.sunset.routes  # noqa: F401 this is necessary to load the endpoints
 
     app.register_blueprint(flexmeasures_api_v1, url_prefix="/api/v1")
     app.register_blueprint(flexmeasures_api_v1_1, url_prefix="/api/v1_1")
