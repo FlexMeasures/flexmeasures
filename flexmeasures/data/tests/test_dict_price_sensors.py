@@ -1,24 +1,14 @@
 from datetime import datetime, timedelta
 import pytest
 import pytz
-
-import numpy as np
-import pandas as pd
-
-from flexmeasures.data.schemas.sensors import SensorIdField
-from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
-from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.models.planning import Scheduler
 from flexmeasures.data.models.planning.storage import (
     StorageScheduler,
-    add_storage_constraints,
-    validate_storage_constraints,
 )
-from flexmeasures.data.models.planning.utils import initialize_series, initialize_df
 from flexmeasures.utils.calculations import integrate_time_series
 
 
 TOLERANCE = 0.00001
+
 
 @pytest.mark.parametrize(
     "roundtrip_efficiency",
@@ -27,7 +17,7 @@ TOLERANCE = 0.00001
         0.95,
     ],
 )
-def test_schedule(create_solar_plants,create_building,flexible_devices, roundtrip_efficiency: float):
+def test_schedule(create_solar_plants, create_building, flexible_devices, roundtrip_efficiency: float):
     """
     Check battery scheduling results for tomorrow
     """
@@ -36,11 +26,10 @@ def test_schedule(create_solar_plants,create_building,flexible_devices, roundtri
     start = tz.localize(datetime(2015, 1, 1))
     end = tz.localize(datetime(2015, 1, 2))
     resolution = timedelta(minutes=60)
-    duration="PT24H"
     soc_at_start = 545
     soc_min = 0.5
     soc_max = 795
-    inflexible_devices=[create_solar_plants["solar-power-1"].id,create_building["building-power"].id]
+    inflexible_devices = [create_solar_plants["solar-power-1"].id, create_building["building-power"].id]
     consumption_price_sensor_per_device = {
         flexible_devices["Grid-power"].id: flexible_devices["grid-consumption-price-sensor"].id
     }
@@ -50,7 +39,7 @@ def test_schedule(create_solar_plants,create_building,flexible_devices, roundtri
     }
     scheduler = StorageScheduler(
         battery,
-        start, 
+        start,
         end,
         resolution,
         flex_model={
