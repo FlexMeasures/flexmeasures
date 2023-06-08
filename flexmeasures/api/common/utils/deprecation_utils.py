@@ -41,7 +41,10 @@ def sunset_blueprint(
 
     def let_host_switch_to_returning_410():
 
-        if not rollback_possible or current_app.config["FLEXMEASURES_API_SUNSET_ACTIVE"]:
+        if (
+            not rollback_possible
+            or current_app.config["FLEXMEASURES_API_SUNSET_ACTIVE"]
+        ):
             abort_with_sunset_info(
                 api_version_sunset, sunset_link, api_version_upgrade_to
             )
