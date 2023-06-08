@@ -111,6 +111,8 @@ When an API feature becomes obsolete, we deprecate it.
 Deprecation of major features doesn't happen a lot, but when it does, it happens in multiple stages, during which we support clients and hosts in adapting.
 For more information on our multi-stage deprecation approach and available options for FlexMeasures hosts, see :ref:`Deprecation and sunset for hosts<api_deprecation_hosts>`.
 
+.. _api_deprecation_clients:
+
 Clients
 ^^^^^^^
 
@@ -154,7 +156,7 @@ Hosts
 
 FlexMeasures versions go through the following stages for deprecating major features (such as API versions):
 
-- :ref:`api_deprecation_stage_1`: status 200 (OK) with relevant headers, plus a toggle to 410 (Gone) for blackout tests
+- :ref:`api_deprecation_stage_1`: status 200 (OK) with :ref:`relevant headers<api_deprecation_clients>`, plus a toggle to 410 (Gone) for blackout tests
 - :ref:`api_deprecation_stage_2`: status 410 (Gone), plus a toggle to 200 (OK) for sunset rollbacks
 - :ref:`api_deprecation_stage_3`: status 404 (Not Found), plus a toggle to 410 (Gone) for removal rollbacks
 - :ref:`api_deprecation_stage_4`: status 404 (Not Found), and removal of relevant endpoints
