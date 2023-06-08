@@ -17,7 +17,9 @@ TOLERANCE = 0.00001
         0.95,
     ],
 )
-def test_schedule(create_solar_plants, create_building, flexible_devices, roundtrip_efficiency: float):
+def test_schedule(
+    create_solar_plants, create_building, flexible_devices, roundtrip_efficiency: float
+):
     """
     Check battery scheduling results for tomorrow
     """
@@ -29,13 +31,22 @@ def test_schedule(create_solar_plants, create_building, flexible_devices, roundt
     soc_at_start = 545
     soc_min = 0.5
     soc_max = 795
-    inflexible_devices = [create_solar_plants["solar-power-1"].id, create_building["building-power"].id]
+    inflexible_devices = [
+        create_solar_plants["solar-power-1"].id,
+        create_building["building-power"].id,
+    ]
     consumption_price_sensor_per_device = {
-        flexible_devices["Grid-power"].id: flexible_devices["grid-consumption-price-sensor"].id
+        flexible_devices["Grid-power"]
+        .id: flexible_devices["grid-consumption-price-sensor"]
+        .id
     }
     production_price_sensor_per_device = {
-        create_solar_plants["solar-power-1"].id: create_solar_plants["solar1-production-price-sensor"].id,
-        flexible_devices["Grid-power"].id: flexible_devices["grid-production-price-sensor"].id
+        create_solar_plants["solar-power-1"]
+        .id: create_solar_plants["solar1-production-price-sensor"]
+        .id,
+        flexible_devices["Grid-power"]
+        .id: flexible_devices["grid-production-price-sensor"]
+        .id,
     }
     scheduler = StorageScheduler(
         battery,

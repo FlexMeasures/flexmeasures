@@ -32,8 +32,10 @@ def device_scheduler(  # noqa C901
     commitment_quantities: List[pd.Series],
     consumption_price_sensor_per_device: Dict[int, int],
     production_price_sensor_per_device: Dict[int, int],
-    commitment_downwards_deviation_price_array: List[Union[List[pd.Series], List[float]]],
-    commitment_upwards_deviation_price_array: List[Union[List[pd.Series], List[float]]]
+    commitment_downwards_deviation_price_array: List[
+        Union[List[pd.Series], List[float]]
+    ],
+    commitment_upwards_deviation_price_array: List[Union[List[pd.Series], List[float]]],
 ) -> Tuple[List[pd.Series], float, SolverResults]:
     """This generic device scheduler is able to handle an EMS with multiple devices,
     with various types of constraints on the EMS level and on the device level,
@@ -95,16 +97,18 @@ def device_scheduler(  # noqa C901
     for i in range(0, len(commitment_downwards_deviation_price_array)):
         if len(commitment_downwards_deviation_price_array[i]) != 0:
             if all(
-                isinstance(price, float) for price in commitment_downwards_deviation_price_array[i]
+                isinstance(price, float)
+                for price in commitment_downwards_deviation_price_array[i]
             ):
                 commitment_downwards_deviation_price_array[i] = [
                     initialize_series(price, start, end, resolution)
                     for price in commitment_downwards_deviation_price_array[i]
                 ]
-    for i in range(0, len(commitment_upwards_deviation_price_array)):            
+    for i in range(0, len(commitment_upwards_deviation_price_array)):
         if len(commitment_upwards_deviation_price_array[i]) != 0:
             if all(
-                isinstance(price, float) for price in commitment_upwards_deviation_price_array[i]
+                isinstance(price, float)
+                for price in commitment_upwards_deviation_price_array[i]
             ):
                 commitment_upwards_deviation_price_array[i] = [
                     initialize_series(price, start, end, resolution)
@@ -119,9 +123,18 @@ def device_scheduler(  # noqa C901
         0, len(device_constraints[0].index.to_pydatetime()) - 1, doc="Set of datetimes"
     )
     model.c = RangeSet(0, len(commitment_quantities) - 1, doc="Set of commitments")
-    model.p = RangeSet(0,len(commitment_downwards_deviation_price_array)-1,doc="Set of Production price sensors")
-    model.u = RangeSet(0,len(commitment_upwards_deviation_price_array)-1,doc="Set of Consumption price sensors")
+    model.p = RangeSet(
+        0,
+        len(commitment_downwards_deviation_price_array) - 1,
+        doc="Set of Production price sensors",
+    )
+    model.u = RangeSet(
+        0,
+        len(commitment_upwards_deviation_price_array) - 1,
+        doc="Set of Consumption price sensors",
+    )
     # Add parameters
+
     def price_down_select(m, p, c, j):
         return commitment_downwards_deviation_price_array[p][c].iloc[j]
 
@@ -198,7 +211,7 @@ def device_scheduler(  # noqa C901
         return eff
 
     model.up_price = Param(model.u, model.c, model.j, initialize=price_up_select)
-    model.down_price = Param(model.p, model.c, model.j,  initialize=price_down_select)
+    model.down_price = Param(model.p, model.c, model.j, initialize=price_down_select)
     model.commitment_quantity = Param(
         model.c, model.j, initialize=commitment_quantity_select
     )
@@ -315,8 +328,14 @@ def device_scheduler(  # noqa C901
             for j in m.j:
                 for p in m.p:
                     for u in m.u:
-                        costs += m.commitment_downwards_deviation[p, c, j] * m.down_price[p, c, j]
-                        costs += m.commitment_upwards_deviation[u, c, j] * m.up_price[u, c, j]
+                        costs += (
+                            m.commitment_downwards_deviation[p, c, j]
+                            * m.down_price[p, c, j]
+                        )
+                        costs += (
+                            m.commitment_upwards_deviation[u, c, j]
+                            * m.up_price[u, c, j]
+                        )
         return costs
 
     model.costs = Objective(rule=cost_function, sense=minimize)

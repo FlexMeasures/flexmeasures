@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 import pytest
 from datetime import datetime, timedelta
@@ -348,7 +347,9 @@ def create_solar_plants(db, setup_accounts, setup_sources) -> dict[str, Sensor]:
         resolution="1H",
     )
     values = [0] * 5 + list(range(7, 51, 7)) + list(range(50, 0, -7)) + [0] * 5
-    add_as_beliefs(db, testing_sensor6, values, time_slots, setup_sources["Seita"])  # make sure that prices are assigned to price sensors
+    add_as_beliefs(
+        db, testing_sensor6, values, time_slots, setup_sources["Seita"]
+    )  # make sure that prices are assigned to price sensors
     db.session.flush()
     return {
         testing_sensor1.name: testing_sensor1,
@@ -357,7 +358,6 @@ def create_solar_plants(db, setup_accounts, setup_sources) -> dict[str, Sensor]:
         testing_sensor4.name: testing_sensor4,
         testing_sensor5.name: testing_sensor5,
         testing_sensor6.name: testing_sensor6,
-
     }
 
 
@@ -396,7 +396,13 @@ def create_building(db, setup_sources) -> dict[str, Sensor]:
         end=pd.Timestamp("2015-01-02").tz_localize("Europe/Amsterdam"),
         resolution="1H",
     )
-    values = [-30] * 1 + list(range(-50, -210, -30)) + list(range(-197, -40, 30)) + list(range(-50, -210, -30)) + list(range(-197, -70, 30))
+    values = (
+        [-30] * 1
+        + list(range(-50, -210, -30))
+        + list(range(-197, -40, 30))
+        + list(range(-50, -210, -30))
+        + list(range(-197, -70, 30))
+    )
     add_as_beliefs(db, testing_sensor8, values, time_slots, setup_sources["Seita"])
     db.session.flush()
     return {
@@ -472,7 +478,32 @@ def flexible_devices(db, setup_sources) -> dict[str, Sensor]:
         end=pd.Timestamp("2015-01-02").tz_localize("Europe/Amsterdam"),
         resolution="1H",
     )
-    values = [9.63, 8.66, 8.387, 8.387, 9.6, 9.722, 9.907, 11.777, 10.237, 7.999, 7.08, 6.5, 5.999, 5.233, 5, 5, 4.5, 5.03, 5.8, 7.105, 10.012, 12.494, 11.825, 10.396]
+    values = [
+        9.63,
+        8.66,
+        8.387,
+        8.387,
+        9.6,
+        9.722,
+        9.907,
+        11.777,
+        10.237,
+        7.999,
+        7.08,
+        6.5,
+        5.999,
+        5.233,
+        5,
+        5,
+        4.5,
+        5.03,
+        5.8,
+        7.105,
+        10.012,
+        12.494,
+        11.825,
+        10.396,
+    ]
     add_as_beliefs(db, testing_sensor12, values, time_slots, setup_sources["Seita"])
     testing_sensor13 = Sensor(
         name="grid-production-price-sensor",
@@ -487,7 +518,32 @@ def flexible_devices(db, setup_sources) -> dict[str, Sensor]:
         end=pd.Timestamp("2015-01-02").tz_localize("Europe/Amsterdam"),
         resolution="1H",
     )
-    values = [9.63, 8.66, 8.387, 8.387, 9.6, 9.722, 9.907, 11.777, 10.237, 7.999, 7.08, 6.5, 5.999, 5.233, 5, 5, 4.5, 5.03, 5.8, 7.105, 10.012, 12.494, 11.825, 10.396]
+    values = [
+        9.63,
+        8.66,
+        8.387,
+        8.387,
+        9.6,
+        9.722,
+        9.907,
+        11.777,
+        10.237,
+        7.999,
+        7.08,
+        6.5,
+        5.999,
+        5.233,
+        5,
+        5,
+        4.5,
+        5.03,
+        5.8,
+        7.105,
+        10.012,
+        12.494,
+        11.825,
+        10.396,
+    ]
     add_as_beliefs(db, testing_sensor13, values, time_slots, setup_sources["Seita"])
     testing_sensor14 = Sensor(
         name="Grid-power",

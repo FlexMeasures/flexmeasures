@@ -75,8 +75,12 @@ class StorageScheduler(Scheduler):
         roundtrip_efficiency = self.flex_model.get("roundtrip_efficiency")
         prefer_charging_sooner = self.flex_model.get("prefer_charging_sooner", True)
 
-        consumption_price_sensor_per_device = self.flex_context.get("consumption_price_sensor_per_device", {})
-        production_price_sensor_per_device = self.flex_context.get("production_price_sensor_per_device", {})
+        consumption_price_sensor_per_device = self.flex_context.get(
+            "consumption_price_sensor_per_device", {}
+        )
+        production_price_sensor_per_device = self.flex_context.get(
+            "production_price_sensor_per_device", {}
+        )
         inflexible_device_sensors = self.flex_context.get(
             "inflexible_device_sensors", []
         )
@@ -97,7 +101,7 @@ class StorageScheduler(Scheduler):
             )
             up_deviation_prices_array.append(up_deviation_prices)
         down_deviation_prices_array = []
-        for power_sensor, price_sensor in production_price_sensor_per_device.items():    
+        for power_sensor, price_sensor in production_price_sensor_per_device.items():
             down_deviation_prices, (start, end) = get_prices(
                 (start, end),
                 resolution,
@@ -132,13 +136,17 @@ class StorageScheduler(Scheduler):
             commitment_upwards_deviation_price = [
                 up_deviation_price.loc[start : end - resolution]["event_value"]
             ]
-            commitment_upwards_deviation_price_array.append(commitment_upwards_deviation_price)
+            commitment_upwards_deviation_price_array.append(
+                commitment_upwards_deviation_price
+            )
         commitment_downwards_deviation_price_array = []
-        for down_deviation_price in down_deviation_prices_array:    
+        for down_deviation_price in down_deviation_prices_array:
             commitment_downwards_deviation_price = [
                 down_deviation_price.loc[start : end - resolution]["event_value"]
             ]
-            commitment_downwards_deviation_price_array.append(commitment_downwards_deviation_price)
+            commitment_downwards_deviation_price_array.append(
+                commitment_downwards_deviation_price
+            )
 
         # Set up device _constraints: only one scheduled flexible device for this EMS (at index 0), plus the forecasted inflexible devices (at indices 1 to n).
         device_constraints = [
