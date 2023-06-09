@@ -61,5 +61,5 @@ class AggregatorSchema(ReporterConfigSchema):
         for alias in data.get("weights").keys():
             if alias not in aliases:
                 raise ValidationError(
-                    f"alias `{alias}` not defined in `beliefs_search_config`"
+                    f"alias `{alias}` in `weights` is not defined in `beliefs_search_config`"
                 )
