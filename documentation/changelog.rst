@@ -17,7 +17,6 @@ New features
 
 Bugfixes
 -----------
-* Fix failing to save results of scheduling and reporting on subsequent calls for the same time period [see `PR #709 <https://github.com/FlexMeasures/flexmeasures/pull/709>`_]
 
 Infrastructure / Support
 ----------------------
@@ -27,6 +26,12 @@ Infrastructure / Support
 * Remove API versions 1.0, 1.1, 1.2, 1.3 and 2.0, while allowing hosts to switch between ``HTTP status 410 (Gone)`` and ``HTTP status 404 (Not Found)`` responses [see `PR #667 <https://www.github.com/FlexMeasures/flexmeasures/pull/667>`_]
 
 .. warning:: The setting `FLEXMEASURES_PLUGIN_PATHS` has been deprecated since v0.7. It has now been sunset. Please replace it with :ref:`plugin-config`.
+
+v0.13.2 | Jun XX, 2023
+=======================
+Bugfixes
+---------
+* Fix failing to save results of scheduling and reporting on subsequent calls for the same time period [see `PR #709 <https://github.com/FlexMeasures/flexmeasures/pull/709>`_]
 
 
 v0.13.1 | May 12, 2023
