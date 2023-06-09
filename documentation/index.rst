@@ -249,11 +249,25 @@ The platform operator of FlexMeasures can be an Aggregator.
     dev/docker-compose
 
 
+.. autosummary::
+   :caption: Code Documentation
+   :toctree: _autosummary/
+   :template: custom-module-template.rst
+   :recursive:
 
-Code documentation
-------------------
+   flexmeasures.api
+   flexmeasures.app
+   flexmeasures.auth
+   flexmeasures.cli
+   flexmeasures.data
+   flexmeasures.ui
+   flexmeasures.utils
 
-Go To :ref:`source`.
+
+.. Code documentation
+.. ------------------
+
+.. Go To :ref:`source`.
 
 
 
