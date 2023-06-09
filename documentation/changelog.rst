@@ -3,6 +3,13 @@
 FlexMeasures Changelog
 **********************
 
+v0.13.2 | Jun XX, 2023
+=======================
+Bugfixes
+---------
+* Fix failing to save results of scheduling and reporting on subsequent calls for the same time period [see `PR #709 <https://github.com/FlexMeasures/flexmeasures/pull/709>`_]
+
+
 v0.13.1 | May 12, 2023
 =======================
 Bugfixes
