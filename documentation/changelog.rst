@@ -17,6 +17,7 @@ New features
 
 Bugfixes
 -----------
+* Fix charts not always loading over https in secured scenarios [see `PR #716 <https://www.github.com/FlexMeasures/flexmeasures/pull/716>`_]
 
 Infrastructure / Support
 ----------------------
