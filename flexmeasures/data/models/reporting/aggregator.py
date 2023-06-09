@@ -19,7 +19,7 @@ class AggregatorReporter(Reporter):
     """This reporter applies an aggregation function to multiple sensors"""
 
     __version__ = "1"
-    __author__ = None
+    __author__ = "Seita"
     schema = AggregatorSchema()
     transformations: list[dict[str, Any]] = None
     final_df_output: str = None
