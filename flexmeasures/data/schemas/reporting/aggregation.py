@@ -6,8 +6,8 @@ from enum import Enum
 
 
 class AggregationMethod(Enum):
-    SUM = "SUM"
-    MEAN = "MEAN"
+    SUM = "sum"
+    MEAN = "mean"
 
 
 class AggregatorSchema(ReporterConfigSchema):
