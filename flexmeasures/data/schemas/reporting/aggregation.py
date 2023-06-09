@@ -36,8 +36,10 @@ class AggregatorSchema(ReporterConfigSchema):
         }
     """
 
-    method = fields.Enum(AggregationMethod, required=True)
-    weights = fields.Dict(fields.Str(), fields.Float())
+    method = fields.Enum(
+        AggregationMethod, required=False, dump_default=AggregationMethod.MEAN
+    )
+    weights = fields.Dict(fields.Str(), fields.Float(), required=False)
 
     @validates_schema
     def validate_source(self, data, **kwargs):
