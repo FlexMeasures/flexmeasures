@@ -1,6 +1,6 @@
 import pytest
 
-from flexmeasures.data.models.reporting.aggregatator import AggregatorReporter
+from flexmeasures.data.models.reporting.aggregator import AggregatorReporter
 
 from datetime import datetime
 from pytz import utc
