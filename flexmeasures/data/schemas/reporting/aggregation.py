@@ -37,7 +37,7 @@ class AggregatorSchema(ReporterConfigSchema):
     """
 
     method = fields.Enum(
-        AggregationMethod, required=False, dump_default=AggregationMethod.MEAN
+        AggregationMethod, required=False, dump_default=AggregationMethod.SUM
     )
     weights = fields.Dict(fields.Str(), fields.Float(), required=False)
 
