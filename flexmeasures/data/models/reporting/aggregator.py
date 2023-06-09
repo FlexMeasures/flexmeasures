@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
 from datetime import datetime, timedelta
 
 import timely_beliefs as tb
@@ -21,8 +20,6 @@ class AggregatorReporter(Reporter):
     __version__ = "1"
     __author__ = "Seita"
     schema = AggregatorSchema()
-    transformations: list[dict[str, Any]] = None
-    final_df_output: str = None
 
     def deserialize_config(self):
         # call Reporter deserialize_config
