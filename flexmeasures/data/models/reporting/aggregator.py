@@ -60,7 +60,7 @@ class AggregatorReporter(Reporter):
         output_df = pd.concat(dataframes, axis=1)
 
         # apply aggregation method
-        output_df = getattr(output_df, self.method.value)(axis=1)
+        output_df = output_df.aggregate(self.method, axis=1)
 
         # convert BeliefsSeries into a BeliefsDataFrame
         output_df = output_df.to_frame("event_value")
