@@ -1,3 +1,7 @@
+"""
+This API version is sunset.
+"""
+
 from flask import Flask, Blueprint
 
 from flexmeasures.api.common.utils.deprecation_utils import (
