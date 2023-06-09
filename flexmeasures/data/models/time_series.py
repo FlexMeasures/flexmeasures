@@ -588,10 +588,10 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         # get a Sensor instance attached to the database session (input sensor is detached)
         # check out Issue #683 for more details
         inspection_obj = inspect(sensor, raiseerr=False)
-        if inspection_obj:
-            # fetch Sensor only when it is detached
-            if inspection_obj.detached:
-                sensor = Sensor.query.get(sensor.id)
+        if (
+            inspection_obj and inspection_obj.detached
+        ):  # fetch Sensor only when it is detached
+            sensor = Sensor.query.get(sensor.id)
 
         tb.TimedBeliefDBMixin.__init__(self, sensor, source, **kwargs)
         tb_utils.remove_class_init_kwargs(tb.TimedBeliefDBMixin, kwargs)
