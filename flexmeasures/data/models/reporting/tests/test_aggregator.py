@@ -7,17 +7,27 @@ from pytz import utc
 
 
 @pytest.mark.parametrize(
-    "aggregation_method, expected_value", [("SUM", 2), ("MEAN", 1)]
+    "aggregation_method, expected_value",
+    [
+        ("SUM", 2),  # for every time period, 1 (s1) + 1 (s2) = 2 (reporter_sensor)
+        (
+            "MEAN",
+            1,
+        ),  # for every time period, mean[1 (s1), 1 (s2)] = 1 (reporter_sensor)
+    ],
 )
 def test_aggregator(setup_dummy_data, aggregation_method, expected_value):
-    """ """
+    """
+    This test computes the aggreagation of two sensors containing 24 entries
+    with value 1.0.
+    """
     s1, s2, reporter_sensor = setup_dummy_data
 
     reporter_config_raw = dict(
         beliefs_search_configs=[
             dict(sensor=s1.id, source=1),
             dict(sensor=s2.id, source=2),
-        ],  # TODO: make source compulsory
+        ],
         method=aggregation_method,
     )
 
