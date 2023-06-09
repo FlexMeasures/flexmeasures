@@ -17,6 +17,8 @@ class AggregatorReporter(Reporter):
     __version__ = "1"
     __author__ = "Seita"
     schema = AggregatorSchema()
+    weights: dict
+    method: str
 
     def deserialize_config(self):
         # call Reporter deserialize_config
