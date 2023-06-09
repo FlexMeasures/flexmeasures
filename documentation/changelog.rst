@@ -17,6 +17,7 @@ New features
 
 Bugfixes
 -----------
+* Fix failing to save results of scheduling and reporting on subsequent calls for the same time period [see `PR #709 <https://github.com/FlexMeasures/flexmeasures/pull/709>`_]
 
 Infrastructure / Support
 ----------------------
