@@ -18,7 +18,7 @@ from pytz import utc
 )
 def test_aggregator(setup_dummy_data, aggregation_method, expected_value):
     """
-    This test computes the aggreagation of two sensors containing 24 entries
+    This test computes the aggregation of two sensors containing 24 entries
     with value 1.0.
     """
     s1, s2, reporter_sensor = setup_dummy_data
