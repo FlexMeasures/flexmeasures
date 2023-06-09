@@ -64,9 +64,9 @@ class AggregatorReporter(Reporter):
 
         # convert BeliefsSeries into a BeliefsDataFrame
         output_df = output_df.to_frame("event_value")
-        output_df["belief_time"] = [belief_time] * len(output_df)
-        output_df["cumulative_probability"] = [0.5] * len(output_df)
-        output_df["source"] = [self.data_source] * len(output_df)
+        output_df["belief_time"] = belief_time
+        output_df["cumulative_probability"] = 0.5
+        output_df["source"] = self.data_source
 
         output_df = output_df.set_index(
             ["belief_time", "source", "cumulative_probability"], append=True
