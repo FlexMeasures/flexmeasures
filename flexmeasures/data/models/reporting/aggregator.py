@@ -6,11 +6,8 @@ import timely_beliefs as tb
 import pandas as pd
 
 from flexmeasures.data.models.reporting import Reporter
-from flexmeasures.data.schemas.reporting.aggregation import (
-    AggregatorSchema,
-    AggregationMethod,
-)
-from flexmeasures.data.models.time_series import TimedBelief
+from flexmeasures.data.schemas.reporting.aggregation import AggregatorSchema
+
 from flexmeasures.utils.time_utils import server_now
 
 
@@ -44,6 +41,9 @@ class AggregatorReporter(Reporter):
 
         dataframes = []
 
+        if belief_time is None:
+            belief_time = server_now()
+
         for belief_search_config in self.beliefs_search_configs:
             # if alias is not in belief_search_config, using the Sensor id instead
             column_name = belief_search_config.get(
@@ -60,21 +60,16 @@ class AggregatorReporter(Reporter):
         output_df = pd.concat(dataframes, axis=1)
 
         # apply aggregation method
-        if self.method == AggregationMethod.SUM:
-            output_df = output_df.sum(axis=1)
-        elif self.method == AggregationMethod.MEAN:
-            output_df = output_df.mean(axis=1)
+        output_df = getattr(output_df, self.method.value)(axis=1)
 
-        # convert BeliefSeries to BeliefDataFrame
-        timed_beliefs = [
-            TimedBelief(
-                sensor=output_df.sensor,
-                source=self.data_source,
-                belief_time=server_now(),
-                event_start=event_start,
-                event_value=event_value,
-            )
-            for event_start, event_value in output_df.items()
-        ]
+        # convert BeliefsSeries into a BeliefsDataFrame
+        output_df = output_df.to_frame("event_value")
+        output_df["belief_time"] = [belief_time] * len(output_df)
+        output_df["cumulative_probability"] = [0.5] * len(output_df)
+        output_df["source"] = [self.data_source] * len(output_df)
 
-        return tb.BeliefsDataFrame(timed_beliefs)
+        output_df = output_df.set_index(
+            ["belief_time", "source", "cumulative_probability"], append=True
+        )
+
+        return output_df
