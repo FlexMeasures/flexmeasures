@@ -102,10 +102,12 @@ def register_plugins(app: Flask):
             app.logger.debug(f"Registering {plugin_blueprint} ...")
             app.register_blueprint(plugin_blueprint)
 
-        # Loading reporters
+        # Load reporters and schedulers
         from flexmeasures.data.models.reporting import Reporter
+        from flexmeasures.data.models.planning import Scheduler
 
         app.reporters.update(get_classes_module(module.__name__, Reporter))
+        app.schedulers.update(get_classes_module(module.__name__, Scheduler))
 
         app.config["LOADED_PLUGINS"][plugin_name] = plugin_version
     app.logger.info(f"Loaded plugins: {app.config['LOADED_PLUGINS']}")
