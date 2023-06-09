@@ -2,13 +2,6 @@ from marshmallow import fields, ValidationError, validates_schema
 
 from flexmeasures.data.schemas.reporting import ReporterConfigSchema
 
-from enum import Enum
-
-
-class AggregationMethod(Enum):
-    SUM = "sum"
-    MEAN = "mean"
-
 
 class AggregatorSchema(ReporterConfigSchema):
     """Schema for the reporter_config of the AggregatorReporter
@@ -20,25 +13,23 @@ class AggregatorSchema(ReporterConfigSchema):
                 {
                     "sensor": 1,
                     "source" : 1,
-                    "alias" : "PV"
+                    "alias" : "pv"
                 },
                 {
                     "sensor": 1,
                     "source" : 2,
-                    "alias" : "CONSUMPTION"
+                    "alias" : "consumption"
                 }
             ],
-            "method" : "SUM",
+            "method" : "sum",
             "weights" : {
-                "PV" : 1.0,
-                "CONSUMPTION" : -1.0
+                "pv" : 1.0,
+                "consumption" : -1.0
             }
         }
     """
 
-    method = fields.Enum(
-        AggregationMethod, required=False, dump_default=AggregationMethod.SUM
-    )
+    method = fields.Str(required=False, dump_default="sum")
     weights = fields.Dict(fields.Str(), fields.Float(), required=False)
 
     @validates_schema
