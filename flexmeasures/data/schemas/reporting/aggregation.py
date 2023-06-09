@@ -59,7 +59,7 @@ class AggregatorSchema(ReporterConfigSchema):
             if "alias" in beliefs_search_config:
                 aliases.append(beliefs_search_config.get("alias"))
 
-        # check the the aliases in weights are defined
+        # check that the aliases in weights are defined
         for alias in data.get("weights").keys():
             if alias not in aliases:
                 raise ValidationError(
