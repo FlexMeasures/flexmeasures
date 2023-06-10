@@ -10,7 +10,6 @@ New features
 -------------
 
 * Add multiple maxima and minima constraints into `StorageScheduler` [see `PR #680 <https://www.github.com/FlexMeasures/flexmeasures/pull/680>`_]
-* Introduction of the classes `Reporter` and `PandasReporter` [see `PR #641 <https://www.github.com/FlexMeasures/flexmeasures/pull/641>`_]
 * Add CLI command ``flexmeasures add report`` [see `PR #659 <https://www.github.com/FlexMeasures/flexmeasures/pull/659>`_]
 * Add CLI command ``flexmeasures show reporters`` [see `PR #686 <https://www.github.com/FlexMeasures/flexmeasures/pull/686>`_]
 * Add CLI command ``flexmeasures show schedulers`` [see `PR #708 <https://github.com/FlexMeasures/flexmeasures/pull/708>`_]
@@ -22,6 +21,7 @@ Bugfixes
 Infrastructure / Support
 ----------------------
 
+* Introduction of the classes `Reporter`, `PandasReporter` and `AggregatorReporter` to help customize your own reporter functions (experimental) [see `PR #641 <https://www.github.com/FlexMeasures/flexmeasures/pull/641>`_ and `PR #712 <https://www.github.com/FlexMeasures/flexmeasures/pull/712>`_]
 * The setting FLEXMEASURES_PLUGINS can be set as environment variable now (as a comma-separated list) [see `PR #660 <https://www.github.com/FlexMeasures/flexmeasures/pull/660>`_]
 * Packaging was modernized to stop calling setup.py directly [see `PR #671 <https://www.github.com/FlexMeasures/flexmeasures/pull/671>`_]
 * Remove API versions 1.0, 1.1, 1.2, 1.3 and 2.0, while allowing hosts to switch between ``HTTP status 410 (Gone)`` and ``HTTP status 404 (Not Found)`` responses [see `PR #667 <https://www.github.com/FlexMeasures/flexmeasures/pull/667>`_]
