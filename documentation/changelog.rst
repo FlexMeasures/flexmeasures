@@ -29,6 +29,14 @@ Infrastructure / Support
 .. warning:: The setting `FLEXMEASURES_PLUGIN_PATHS` has been deprecated since v0.7. It has now been sunset. Please replace it with :ref:`plugin-config`.
 
 
+v0.13.3 | June 10, 2023
+=======================
+
+Bugfixes
+---------
+* Fix forwarding arguments in deprecated util function [see `PR #719 <https://github.com/FlexMeasures/flexmeasures/pull/719>`_]
+
+
 v0.13.2 | June 9, 2023
 =======================
 
