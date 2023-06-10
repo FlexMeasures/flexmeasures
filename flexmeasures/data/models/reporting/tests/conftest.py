@@ -65,9 +65,7 @@ def setup_dummy_data(db, app):
 
     # add simple data for testing the AggregatorReporter:
     # 24 hourly events with value 1 for sensor1 and value -1 for sensor2
-    for sensor, source, value in zip(
-        [sensor1, sensor2], [source1, source2], [1, -1]
-    ):
+    for sensor, source, value in zip([sensor1, sensor2], [source1, source2], [1, -1]):
         for t in range(24):
             beliefs.append(
                 TimedBelief(
