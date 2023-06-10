@@ -20,7 +20,7 @@ def get_or_create_source(
     model: Optional[str] = None,
     flush: bool = True,
 ) -> DataSource:
-    return get_or_create_source_new(source, source_type, model, flush)
+    return get_or_create_source_new(source, source_type, model, flush=flush)
 
 
 @deprecated(get_source_or_none_new, "0.14")
