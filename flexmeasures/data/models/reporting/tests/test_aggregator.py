@@ -22,7 +22,7 @@ from pytz import utc
 def test_aggregator(setup_dummy_data, aggregation_method, expected_value):
     """
     This test computes the aggregation of two sensors containing 24 entries
-    with value 1.0 and -1, respectively, for sensors 1 and 2.
+    with value 1 and -1, respectively, for sensors 1 and 2.
 
     Test cases:
         1) sum: 0 = 1 + (-1)
