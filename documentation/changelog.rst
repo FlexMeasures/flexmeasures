@@ -10,25 +10,45 @@ New features
 -------------
 
 * Add multiple maxima and minima constraints into `StorageScheduler` [see `PR #680 <https://www.github.com/FlexMeasures/flexmeasures/pull/680>`_]
-* Introduction of the classes `Reporter` and `PandasReporter` [see `PR #641 <https://www.github.com/FlexMeasures/flexmeasures/pull/641>`_]
 * Add CLI command ``flexmeasures add report`` [see `PR #659 <https://www.github.com/FlexMeasures/flexmeasures/pull/659>`_]
 * Add CLI command ``flexmeasures show reporters`` [see `PR #686 <https://www.github.com/FlexMeasures/flexmeasures/pull/686>`_]
+* Add CLI command ``flexmeasures show schedulers`` [see `PR #708 <https://github.com/FlexMeasures/flexmeasures/pull/708>`_]
 
 Bugfixes
 -----------
+* Fix charts not always loading over https in secured scenarios [see `PR #716 <https://www.github.com/FlexMeasures/flexmeasures/pull/716>`_]
 
 Infrastructure / Support
 ----------------------
 
+* Introduction of the classes `Reporter`, `PandasReporter` and `AggregatorReporter` to help customize your own reporter functions (experimental) [see `PR #641 <https://www.github.com/FlexMeasures/flexmeasures/pull/641>`_ and `PR #712 <https://www.github.com/FlexMeasures/flexmeasures/pull/712>`_]
 * The setting FLEXMEASURES_PLUGINS can be set as environment variable now (as a comma-separated list) [see `PR #660 <https://www.github.com/FlexMeasures/flexmeasures/pull/660>`_]
 * Packaging was modernized to stop calling setup.py directly [see `PR #671 <https://www.github.com/FlexMeasures/flexmeasures/pull/671>`_]
 * Remove API versions 1.0, 1.1, 1.2, 1.3 and 2.0, while allowing hosts to switch between ``HTTP status 410 (Gone)`` and ``HTTP status 404 (Not Found)`` responses [see `PR #667 <https://www.github.com/FlexMeasures/flexmeasures/pull/667>`_]
+* Add code documentation from package structure and docstrings to official docs [see `PR #698 <https://www.github.com/FlexMeasures/flexmeasures/pull/698>`_]
 
 .. warning:: The setting `FLEXMEASURES_PLUGIN_PATHS` has been deprecated since v0.7. It has now been sunset. Please replace it with :ref:`plugin-config`.
 
 
+v0.13.3 | June 10, 2023
+=======================
+
+Bugfixes
+---------
+* Fix forwarding arguments in deprecated util function [see `PR #719 <https://github.com/FlexMeasures/flexmeasures/pull/719>`_]
+
+
+v0.13.2 | June 9, 2023
+=======================
+
+Bugfixes
+---------
+* Fix failing to save results of scheduling and reporting on subsequent calls for the same time period [see `PR #709 <https://github.com/FlexMeasures/flexmeasures/pull/709>`_]
+
+
 v0.13.1 | May 12, 2023
 =======================
+
 Bugfixes
 ---------
 * `@deprecated` not returning the output of the decorated function [see `PR #678 <https://www.github.com/FlexMeasures/flexmeasures/pull/678>`_]
@@ -69,6 +89,7 @@ Infrastructure / Support
 * Sunset several API fields for `/sensors/<id>/schedules/trigger` (POST) that have moved into the ``flex-model`` or ``flex-context`` fields [see `PR #580 <https://www.github.com/FlexMeasures/flexmeasures/pull/580>`_]
 * Fix broken `make show-data-model` command [see `PR #638 <https://www.github.com/FlexMeasures/flexmeasures/pull/638>`_]
 * Bash script for a clean database to run toy-tutorial by using `make clean-db db_name=database_name` command [see `PR #640 <https://github.com/FlexMeasures/flexmeasures/pull/640>`_]
+
 
 v0.12.3 | February 28, 2023
 ============================
@@ -151,7 +172,6 @@ Infrastructure / Support
 .. warning:: The CLI command  ``flexmeasures add schedule`` has been renamed to ``flexmeasures add schedule for-storage``. The old name will be sunset in version 0.13.
 
 
-
 v0.11.3 | November 2, 2022
 ============================
 
@@ -222,6 +242,7 @@ v0.10.1 | August 12, 2022
 Bugfixes
 -----------
 * Fix some UI styling regressions in e.g. color contrast and hover effects [see `PR #441 <https://www.github.com/FlexMeasures/flexmeasures/pull/441>`_]
+
 
 v0.10.0 | May 8, 2022
 ===========================
@@ -477,7 +498,6 @@ Infrastructure / Support
 * add time_utils.get_recent_clock_time_window() function [see `PR #135 <https://www.github.com/FlexMeasures/flexmeasures/pull/135>`_]
 
 
-
 v0.4.1 | May 7, 2021
 ===========================
 
@@ -487,6 +507,7 @@ Bugfixes
 * Fixed a regression that stopped asset, market and sensor selection from working [see `PR #117 <https://www.github.com/FlexMeasures/flexmeasures/pull/117>`_]
 * Prevent logging out user when clearing the session [see `PR #112 <https://www.github.com/FlexMeasures/flexmeasures/pull/112>`_]
 * Prevent user type data source to be created without setting a user [see `PR #111 <https://github.com/FlexMeasures/flexmeasures/pull/111>`_]
+
 
 v0.4.0 | April 29, 2021
 ===========================
