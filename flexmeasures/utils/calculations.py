@@ -47,6 +47,31 @@ def apply_stock_changes_and_losses(
 ) -> list[float]:
     """Assign stock changes and determine losses from storage efficiency.
 
+    The initial stock is exponentially decayed, as with each consecutive (constant-resolution) time step,
+    some constant percentage of the previous stock remains. For example:
+
+    .. math::
+
+       100 \\rightarrow 90 \\rightarrow 81 \\rightarrow 72.9 \\rightarrow ...
+
+    For computing the decay of the changes, we make an assumption on how a delta :math:`d` is distributed within a given time step.
+    In case it happens at a constant rate, this leads to a linear stock change from one time step to the next.
+
+    An :math:`e` is introduced when we apply exponential decay to that.
+    To see that, imagine we cut one time step in :math:`n` pieces (each with a stock change :math:`\\frac{d}{n}` ),
+    apply the efficiency to each piece :math:`k` (for the corresponding fraction of the time step :math:`k/n`),
+    and then take the limit :math:`n \\rightarrow \infty`:
+
+    .. math::
+
+       \lim_{n \\rightarrow \infty} \sum_{k=0}^{n}{\\frac{d}{n} \eta^{k/n}}
+
+    `which is <https://www.wolframalpha.com/input?i=Limit%5BSum%5B%5Ceta%5E%28k%2Fn%29%2Fn%2C+%7Bk%2C+0%2C+n%7D%5D%2C+n+-%3E+Infinity%5D&assumption=%22LimitHead%22+-%3E+%7B%22Discrete%22%7D>`_:
+
+    .. math::
+
+       d \cdot \\frac{\eta - 1}{e^{\eta}}
+
     :param initial:             initial stock
     :param changes:             stock change for each step
     :param storage_efficiency:  ratio of stock left after a step (constant ratio or one per step)
