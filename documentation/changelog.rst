@@ -11,7 +11,7 @@ New features
 
 * Allow setting a storage efficiency using the new ``storage-efficiency`` field when calling `/sensors/<id>/schedules/trigger` (POST) through the API (within the ``flex-model`` field), or when calling ``flexmeasures add schedule for-storage`` through the CLI [see `PR #679 <https://www.github.com/FlexMeasures/flexmeasures/pull/679>`_]
 * Allow setting multiple :abbr:`SoC (state of charge)` maxima and minima constraints for the `StorageScheduler`, using the new ``soc-minima`` and ``soc-maxima`` fields when calling `/sensors/<id>/schedules/trigger` (POST) through the API (within the ``flex-model`` field) [see `PR #680 <https://www.github.com/FlexMeasures/flexmeasures/pull/680>`_]
-* Add CLI command ``flexmeasures add report`` [see `PR #659 <https://www.github.com/FlexMeasures/flexmeasures/pull/659>`_]
+* New CLI command ``flexmeasures add report`` to calculate a custom report from sensor data and save the results to the database, with the option to export them to a CSV or Excel file [see `PR #659 <https://www.github.com/FlexMeasures/flexmeasures/pull/659>`_]
 * Add CLI command ``flexmeasures show reporters`` [see `PR #686 <https://www.github.com/FlexMeasures/flexmeasures/pull/686>`_]
 * Add CLI command ``flexmeasures show schedulers`` [see `PR #708 <https://github.com/FlexMeasures/flexmeasures/pull/708>`_]
 
