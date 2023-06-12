@@ -62,12 +62,7 @@ SUNSET_INFO = [
 
 for info in SUNSET_INFO:
     deprecate_blueprint(**info)
-    sunset_blueprint(
-        blueprint=info["blueprint"],
-        api_version_being_sunset=info["api_version_being_sunset"],
-        sunset_link=info["sunset_link"],
-        rollback_possible=False,
-    )
+    sunset_blueprint(**info, rollback_possible=False)
 
 
 def register_at(app: Flask):

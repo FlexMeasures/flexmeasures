@@ -15,6 +15,7 @@ def sunset_blueprint(
     sunset_link: str,
     api_version_upgrade_to: str = "3.0",
     rollback_possible: bool = True,
+    **kwargs,
 ):
     """Sunsets every route on a blueprint by returning 410 (Gone) responses, if sunset is active.
 
@@ -128,6 +129,7 @@ def deprecate_blueprint(
     deprecation_link: str | None = None,
     sunset_date: pd.Timestamp | str | None = None,
     sunset_link: str | None = None,
+    **kwargs,
 ):
     """Deprecates every route on a blueprint by adding the "Deprecation" header with a deprecation date.
 
