@@ -28,9 +28,13 @@ def sunset_blueprint(
     def return_410_unless_host_rolls_back_sunrise():
 
         if (
-            not rollback_possible
-            or current_app.config["FLEXMEASURES_API_SUNSET_ACTIVE"]
+            rollback_possible
+            and not current_app.config["FLEXMEASURES_API_SUNSET_ACTIVE"]
         ):
+            # Sunset is inactive and blueprint contents should still be there,
+            # so we let the request pass to the endpoint implementation
+            pass
+        else:
             # Override with custom info link, if set by host
             link = override_from_config(sunset_link, "FLEXMEASURES_API_SUNSET_LINK")
 
@@ -38,10 +42,6 @@ def sunset_blueprint(
                 410,
                 f"API version {api_version_being_sunset} has been sunset. Please upgrade to API version {api_version_upgrade_to}. See {link} for more information.",
             )
-        else:
-            # Sunset is inactive and blueprint contents should still be there,
-            # so we let the request pass to the endpoint implementation
-            pass
 
     blueprint.before_request(return_410_unless_host_rolls_back_sunrise)
 
