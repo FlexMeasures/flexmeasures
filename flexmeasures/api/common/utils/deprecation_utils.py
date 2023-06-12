@@ -11,7 +11,7 @@ from flexmeasures.utils.time_utils import to_http_time
 
 def sunset_blueprint(
     blueprint,
-    api_version_sunset: str,
+    api_version_being_sunset: str,
     sunset_link: str,
     api_version_upgrade_to: str = "3.0",
     rollback_possible: bool = True,
@@ -36,7 +36,7 @@ def sunset_blueprint(
 
             abort(
                 410,
-                f"API version {api_version_sunset} has been sunset. Please upgrade to API version {api_version_upgrade_to}. See {link} for more information.",
+                f"API version {api_version_being_sunset} has been sunset. Please upgrade to API version {api_version_upgrade_to}. See {link} for more information.",
             )
         else:
             # Sunset is inactive and blueprint contents should still be there,
