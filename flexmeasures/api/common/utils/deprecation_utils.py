@@ -19,7 +19,7 @@ def sunset_blueprint(
     """Sunsets every route on a blueprint by returning 410 (Gone) responses, if sunset is active.
 
     Whether the sunset is active can be toggled using the config setting "FLEXMEASURES_API_SUNSET_ACTIVE".
-    If inactive, pass the request to be handled by the endpoint implementation.
+    If the sunset is inactive, this function will not affect any requests in this blueprint.
     If the endpoint implementations have been removed, set rollback_possible=False.
 
     Errors will be logged by utils.error_utils.error_handling_router.
