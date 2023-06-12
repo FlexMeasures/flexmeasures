@@ -25,7 +25,7 @@ def sunset_blueprint(
     Errors will be logged by utils.error_utils.error_handling_router.
     """
 
-    def let_host_switch_to_returning_410():
+    def return_410_unless_host_rolls_back_sunrise():
 
         if (
             not rollback_possible
@@ -43,7 +43,7 @@ def sunset_blueprint(
             # so we let the request pass to the endpoint implementation
             pass
 
-    blueprint.before_request(let_host_switch_to_returning_410)
+    blueprint.before_request(return_410_unless_host_rolls_back_sunrise)
 
 
 def deprecate_fields(
