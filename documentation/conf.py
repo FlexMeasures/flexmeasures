@@ -6,6 +6,9 @@
 # full list see the documentation:
 # http://www.sphinx-doc.org/en/stable/config
 
+import os
+import shutil
+
 from datetime import datetime
 from pkg_resources import get_distribution
 import sphinx_fontawesome
@@ -41,7 +44,6 @@ rst_prolog = sphinx_fontawesome.prolog
 # ones.
 extensions = [
     "sphinx_rtd_theme",
-    "sphinx.ext.autodoc",
     "sphinx.ext.intersphinx",
     "sphinx.ext.coverage",
     "sphinx.ext.mathjax",
@@ -54,8 +56,31 @@ extensions = [
     "sphinxcontrib.autohttp.flaskqref",
 ]
 
+autodoc_default_options = {}
+
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
+
+# if GEN_CODE_DOCS is not found, the default is gen_code_docs=True
+gen_code_docs = not bool(
+    os.environ.get("GEN_CODE_DOCS", "True").lower() in ("f", "false", "0")
+)
+
+
+# Generate code docs
+if gen_code_docs:
+
+    # Add dependencies
+    extensions.extend(
+        [
+            "sphinx.ext.autosummary",
+            "sphinx.ext.autodoc.typehints",
+            "sphinx.ext.autodoc",
+        ]
+    )
+else:
+    if os.path.exists("_autosummary"):
+        shutil.rmtree("_autosummary")
 
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
@@ -76,7 +101,7 @@ language = "en"
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path .
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "_templates"]
 
 # Todo: these are not mature enough yet for release, or should be removed
 exclude_patterns.append("int/*.rst")
@@ -224,3 +249,10 @@ def setup(sphinx_app):
         "live",
         "env",  # hard-coded, documentation is not server-specific for the time being
     )
+
+    if gen_code_docs:
+        from flexmeasures.app import create
+
+        create(
+            env="documentation"
+        )  # we need to create the app for when sphinx imports modules that use current_app
