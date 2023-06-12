@@ -3,6 +3,7 @@ from typing import List, Tuple, Union
 from flask import current_app
 import pandas as pd
 import numpy as np
+from typing import Dict
 from pandas.tseries.frequencies import to_offset
 from pyomo.core import (
     ConcreteModel,
@@ -29,8 +30,12 @@ def device_scheduler(  # noqa C901
     device_constraints: List[pd.DataFrame],
     ems_constraints: pd.DataFrame,
     commitment_quantities: List[pd.Series],
-    commitment_downwards_deviation_price: Union[List[pd.Series], List[float]],
-    commitment_upwards_deviation_price: Union[List[pd.Series], List[float]],
+    consumption_price_sensor_per_device: Dict[int, int],
+    production_price_sensor_per_device: Dict[int, int],
+    commitment_downwards_deviation_price_array: List[
+        Union[List[pd.Series], List[float]]
+    ],
+    commitment_upwards_deviation_price_array: List[Union[List[pd.Series], List[float]]],
 ) -> Tuple[List[pd.Series], float, SolverResults]:
     """This generic device scheduler is able to handle an EMS with multiple devices,
     with various types of constraints on the EMS level and on the device level,
@@ -89,22 +94,26 @@ def device_scheduler(  # noqa C901
             )
 
     # Turn prices per commitment into prices per commitment flow
-    if len(commitment_downwards_deviation_price) != 0:
-        if all(
-            isinstance(price, float) for price in commitment_downwards_deviation_price
-        ):
-            commitment_downwards_deviation_price = [
-                initialize_series(price, start, end, resolution)
-                for price in commitment_downwards_deviation_price
-            ]
-    if len(commitment_upwards_deviation_price) != 0:
-        if all(
-            isinstance(price, float) for price in commitment_upwards_deviation_price
-        ):
-            commitment_upwards_deviation_price = [
-                initialize_series(price, start, end, resolution)
-                for price in commitment_upwards_deviation_price
-            ]
+    for i in range(0, len(commitment_downwards_deviation_price_array)):
+        if len(commitment_downwards_deviation_price_array[i]) != 0:
+            if all(
+                isinstance(price, float)
+                for price in commitment_downwards_deviation_price_array[i]
+            ):
+                commitment_downwards_deviation_price_array[i] = [
+                    initialize_series(price, start, end, resolution)
+                    for price in commitment_downwards_deviation_price_array[i]
+                ]
+    for i in range(0, len(commitment_upwards_deviation_price_array)):
+        if len(commitment_upwards_deviation_price_array[i]) != 0:
+            if all(
+                isinstance(price, float)
+                for price in commitment_upwards_deviation_price_array[i]
+            ):
+                commitment_upwards_deviation_price_array[i] = [
+                    initialize_series(price, start, end, resolution)
+                    for price in commitment_upwards_deviation_price_array[i]
+                ]
 
     model = ConcreteModel()
 
@@ -114,13 +123,23 @@ def device_scheduler(  # noqa C901
         0, len(device_constraints[0].index.to_pydatetime()) - 1, doc="Set of datetimes"
     )
     model.c = RangeSet(0, len(commitment_quantities) - 1, doc="Set of commitments")
-
+    model.p = RangeSet(
+        0,
+        len(commitment_downwards_deviation_price_array) - 1,
+        doc="Set of Production price sensors",
+    )
+    model.u = RangeSet(
+        0,
+        len(commitment_upwards_deviation_price_array) - 1,
+        doc="Set of Consumption price sensors",
+    )
     # Add parameters
-    def price_down_select(m, c, j):
-        return commitment_downwards_deviation_price[c].iloc[j]
 
-    def price_up_select(m, c, j):
-        return commitment_upwards_deviation_price[c].iloc[j]
+    def price_down_select(m, p, c, j):
+        return commitment_downwards_deviation_price_array[p][c].iloc[j]
+
+    def price_up_select(m, u, c, j):
+        return commitment_upwards_deviation_price_array[u][c].iloc[j]
 
     def commitment_quantity_select(m, c, j):
         return commitment_quantities[c].iloc[j]
@@ -191,8 +210,8 @@ def device_scheduler(  # noqa C901
             return 1
         return eff
 
-    model.up_price = Param(model.c, model.j, initialize=price_up_select)
-    model.down_price = Param(model.c, model.j, initialize=price_down_select)
+    model.up_price = Param(model.u, model.c, model.j, initialize=price_up_select)
+    model.down_price = Param(model.p, model.c, model.j, initialize=price_down_select)
     model.commitment_quantity = Param(
         model.c, model.j, initialize=commitment_quantity_select
     )
@@ -220,10 +239,10 @@ def device_scheduler(  # noqa C901
     )
     model.device_power_up = Var(model.d, model.j, domain=NonNegativeReals, initialize=0)
     model.commitment_downwards_deviation = Var(
-        model.c, model.j, domain=NonPositiveReals, initialize=0
+        model.p, model.c, model.j, domain=NonPositiveReals, initialize=0
     )
     model.commitment_upwards_deviation = Var(
-        model.c, model.j, domain=NonNegativeReals, initialize=0
+        model.u, model.c, model.j, domain=NonNegativeReals, initialize=0
     )
 
     # Add constraints as a tuple of (lower bound, value, upper bound)
@@ -270,8 +289,8 @@ def device_scheduler(  # noqa C901
         return (
             0,
             sum(m.commitment_quantity[:, j])
-            + sum(m.commitment_downwards_deviation[:, j])
-            + sum(m.commitment_upwards_deviation[:, j])
+            + sum(m.commitment_downwards_deviation[:, :, j])
+            + sum(m.commitment_upwards_deviation[:, :, j])
             - sum(m.ems_power[:, j]),
             0,
         )
@@ -307,8 +326,16 @@ def device_scheduler(  # noqa C901
         costs = 0
         for c in m.c:
             for j in m.j:
-                costs += m.commitment_downwards_deviation[c, j] * m.down_price[c, j]
-                costs += m.commitment_upwards_deviation[c, j] * m.up_price[c, j]
+                for p in m.p:
+                    for u in m.u:
+                        costs += (
+                            m.commitment_downwards_deviation[p, c, j]
+                            * m.down_price[p, c, j]
+                        )
+                        costs += (
+                            m.commitment_upwards_deviation[u, c, j]
+                            * m.up_price[u, c, j]
+                        )
         return costs
 
     model.costs = Objective(rule=cost_function, sense=minimize)
