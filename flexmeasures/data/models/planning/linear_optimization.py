@@ -21,6 +21,7 @@ from pyomo.environ import value
 from pyomo.opt import SolverFactory, SolverResults
 
 from flexmeasures.data.models.planning.utils import initialize_series
+from flexmeasures.utils.calculations import apply_stock_changes_and_losses
 
 infinity = float("inf")
 
@@ -31,6 +32,7 @@ def device_scheduler(  # noqa C901
     commitment_quantities: List[pd.Series],
     commitment_downwards_deviation_price: Union[List[pd.Series], List[float]],
     commitment_upwards_deviation_price: Union[List[pd.Series], List[float]],
+    initial_stock: float = 0,
 ) -> Tuple[List[pd.Series], float, SolverResults]:
     """This generic device scheduler is able to handle an EMS with multiple devices,
     with various types of constraints on the EMS level and on the device level,
@@ -43,6 +45,7 @@ def device_scheduler(  # noqa C901
         max: maximum stock assuming an initial stock of zero (e.g. in MWh or boxes)
         min: minimum stock assuming an initial stock of zero
         equal: exact amount of stock (we do this by clamping min and max)
+        efficiency: amount of stock left at the next datetime (the rest is lost)
         derivative max: maximum flow (e.g. in MW or boxes/h)
         derivative min: minimum flow
         derivative equals: exact amount of flow (we do this by clamping derivative min and derivative max)
@@ -171,6 +174,16 @@ def device_scheduler(  # noqa C901
         else:
             return v
 
+    def device_efficiency(m, d, j):
+        """Assume perfect efficiency if no efficiency information is available."""
+        try:
+            eff = device_constraints[d]["efficiency"].iloc[j]
+        except KeyError:
+            return 1
+        if np.isnan(eff):
+            return 1
+        return eff
+
     def device_derivative_down_efficiency(m, d, j):
         """Assume perfect efficiency if no efficiency information is available."""
         try:
@@ -206,6 +219,7 @@ def device_scheduler(  # noqa C901
     )
     model.ems_derivative_max = Param(model.j, initialize=ems_derivative_max_select)
     model.ems_derivative_min = Param(model.j, initialize=ems_derivative_min_select)
+    model.device_efficiency = Param(model.d, model.j, initialize=device_efficiency)
     model.device_derivative_down_efficiency = Param(
         model.d, model.j, initialize=device_derivative_down_efficiency
     )
@@ -228,14 +242,24 @@ def device_scheduler(  # noqa C901
 
     # Add constraints as a tuple of (lower bound, value, upper bound)
     def device_bounds(m, d, j):
-        """Apply efficiencies to conversion from flow to stock change and vice versa."""
-        return (
-            m.device_min[d, j],
-            sum(
+        """Apply conversion efficiencies to conversion from flow to stock change and vice versa,
+        and apply storage efficiencies to stock levels from one datetime to the next."""
+        stock_changes = [
+            (
                 m.device_power_down[d, k] / m.device_derivative_down_efficiency[d, k]
                 + m.device_power_up[d, k] * m.device_derivative_up_efficiency[d, k]
-                for k in range(0, j + 1)
-            ),
+            )
+            for k in range(0, j + 1)
+        ]
+        efficiencies = [m.device_efficiency[d, k] for k in range(0, j + 1)]
+        return (
+            m.device_min[d, j],
+            [
+                stock - initial_stock
+                for stock in apply_stock_changes_and_losses(
+                    initial_stock, stock_changes, efficiencies
+                )
+            ][-1],
             m.device_max[d, j],
         )
 

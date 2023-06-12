@@ -18,7 +18,7 @@ class PandasReporter(Reporter):
     """This reporter applies a series of pandas methods on"""
 
     __version__ = "1"
-    __author__ = None
+    __author__ = "Seita"
     schema = PandasReporterConfigSchema()
     transformations: list[dict[str, Any]] = None
     final_df_output: str = None

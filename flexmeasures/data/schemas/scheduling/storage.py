@@ -19,6 +19,33 @@ from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.utils.unit_utils import ur
 
 
+class EfficiencyField(QuantityField):
+    """Field that deserializes to a Quantity with % units. Must be greater than 0% and less than or equal to 100%.
+
+    Examples:
+
+        >>> ef = EfficiencyField()
+        >>> ef.deserialize(0.9)
+        <Quantity(90.0, 'percent')>
+        >>> ef.deserialize("90%")
+        <Quantity(90.0, 'percent')>
+        >>> ef.deserialize("0%")
+        Traceback (most recent call last):
+        ...
+        marshmallow.exceptions.ValidationError: ['Must be greater than 0 and less than or equal to 1.']
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(
+            "%",
+            validate=validate.Range(
+                min=0, max=1, min_inclusive=False, max_inclusive=True
+            ),
+            *args,
+            **kwargs,
+        )
+
+
 class SOCValueSchema(Schema):
     """
     A point in time with a target value.
@@ -66,11 +93,8 @@ class StorageFlexModelSchema(Schema):
         data_key="soc-unit",
     )  # todo: allow unit to be set per field, using QuantityField("%", validate=validate.Range(min=0, max=1))
     soc_targets = fields.List(fields.Nested(SOCValueSchema()), data_key="soc-targets")
-    roundtrip_efficiency = QuantityField(
-        "%",
-        validate=validate.Range(min=0, max=1, min_inclusive=False, max_inclusive=True),
-        data_key="roundtrip-efficiency",
-    )
+    roundtrip_efficiency = EfficiencyField(data_key="roundtrip-efficiency")
+    storage_efficiency = EfficiencyField(data_key="storage-efficiency")
     prefer_charging_sooner = fields.Bool(data_key="prefer-charging-sooner")
 
     def __init__(self, start: datetime, sensor: Sensor, *args, **kwargs):
@@ -110,10 +134,10 @@ class StorageFlexModelSchema(Schema):
                     target["value"] /= 1000.0
             data["soc_unit"] = "MWh"
 
-        # Convert round-trip efficiency to dimensionless (to the (0,1] range)
-        if data.get("roundtrip_efficiency") is not None:
-            data["roundtrip_efficiency"] = (
-                data["roundtrip_efficiency"].to(ur.Quantity("dimensionless")).magnitude
-            )
+        # Convert efficiencies to dimensionless (to the (0,1] range)
+        efficiency_fields = ("storage_efficiency", "roundtrip_efficiency")
+        for field in efficiency_fields:
+            if data.get(field) is not None:
+                data[field] = data[field].to(ur.Quantity("dimensionless")).magnitude
 
         return data

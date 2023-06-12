@@ -34,6 +34,7 @@ class StorageScheduler(Scheduler):
         "equals",
         "max",
         "min",
+        "efficiency",
         "derivative equals",
         "derivative max",
         "derivative min",
@@ -73,6 +74,7 @@ class StorageScheduler(Scheduler):
         soc_minima = self.flex_model.get("soc_minima")
         soc_maxima = self.flex_model.get("soc_maxima")
         roundtrip_efficiency = self.flex_model.get("roundtrip_efficiency")
+        storage_efficiency = self.flex_model.get("storage_efficiency")
         prefer_charging_sooner = self.flex_model.get("prefer_charging_sooner", True)
 
         consumption_price_sensor = self.flex_context.get("consumption_price_sensor")
@@ -126,7 +128,7 @@ class StorageScheduler(Scheduler):
             down_deviation_prices.loc[start : end - resolution]["event_value"]
         ]
 
-        # Set up device _constraints: only one scheduled flexible device for this EMS (at index 0), plus the forecasted inflexible devices (at indices 1 to n).
+        # Set up device constraints: only one scheduled flexible device for this EMS (at index 0), plus the forecasted inflexible devices (at indices 1 to n).
         device_constraints = [
             initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
             for i in range(1 + len(inflexible_device_sensors))
@@ -170,6 +172,9 @@ class StorageScheduler(Scheduler):
         )
         device_constraints[0]["derivative up efficiency"] = roundtrip_efficiency**0.5
 
+        # Apply storage efficiency (accounts for losses over time)
+        device_constraints[0]["efficiency"] = storage_efficiency
+
         # check that storage constraints are fulfilled
         if not skip_validation:
             constraint_violations = validate_storage_constraints(
@@ -199,6 +204,7 @@ class StorageScheduler(Scheduler):
             commitment_quantities,
             commitment_downwards_deviation_price,
             commitment_upwards_deviation_price,
+            initial_stock=soc_at_start * (timedelta(hours=1) / resolution),
         )
         if scheduler_results.solver.termination_condition == "infeasible":
             # Fallback policy if the problem was unsolvable
@@ -268,7 +274,19 @@ class StorageScheduler(Scheduler):
             elif self.sensor.unit in ("MW", "kW"):
                 self.flex_model["soc-unit"] = self.sensor.unit + "h"
 
+        # Check for storage efficiency
+        # todo: simplify to: `if self.flex_model.get("storage-efficiency") is None:`
+        if (
+            "storage-efficiency" not in self.flex_model
+            or self.flex_model["storage-efficiency"] is None
+        ):
+            # Get default from sensor, or use 100% otherwise
+            self.flex_model["storage-efficiency"] = self.sensor.get_attribute(
+                "storage_efficiency", 1
+            )
+
         # Check for round-trip efficiency
+        # todo: simplify to: `if self.flex_model.get("roundtrip-efficiency") is None:`
         if (
             "roundtrip-efficiency" not in self.flex_model
             or self.flex_model["roundtrip-efficiency"] is None
