@@ -14,7 +14,7 @@ test:
 
 # ---- Documentation ---
 
-gen_code_docs := True # by default code documentation is not generated
+gen_code_docs := False # by default code documentation is not generated
 
 update-docs:
 	@echo "Creating docs environment ..."
