@@ -9,10 +9,10 @@ v0.14.0 | June XX, 2023
 New features
 -------------
 
-* Add multiple maxima and minima constraints into `StorageScheduler` [see `PR #680 <https://www.github.com/FlexMeasures/flexmeasures/pull/680>`_]
-* Add CLI command ``flexmeasures add report`` [see `PR #659 <https://www.github.com/FlexMeasures/flexmeasures/pull/659>`_]
-* Add CLI command ``flexmeasures show reporters`` [see `PR #686 <https://www.github.com/FlexMeasures/flexmeasures/pull/686>`_]
-* Add CLI command ``flexmeasures show schedulers`` [see `PR #708 <https://github.com/FlexMeasures/flexmeasures/pull/708>`_]
+* Allow setting a storage efficiency using the new ``storage-efficiency`` field when calling `/sensors/<id>/schedules/trigger` (POST) through the API (within the ``flex-model`` field), or when calling ``flexmeasures add schedule for-storage`` through the CLI [see `PR #679 <https://www.github.com/FlexMeasures/flexmeasures/pull/679>`_]
+* Allow setting multiple :abbr:`SoC (state of charge)` maxima and minima constraints for the `StorageScheduler`, using the new ``soc-minima`` and ``soc-maxima`` fields when calling `/sensors/<id>/schedules/trigger` (POST) through the API (within the ``flex-model`` field) [see `PR #680 <https://www.github.com/FlexMeasures/flexmeasures/pull/680>`_]
+* New CLI command ``flexmeasures add report`` to calculate a custom report from sensor data and save the results to the database, with the option to export them to a CSV or Excel file [see `PR #659 <https://www.github.com/FlexMeasures/flexmeasures/pull/659>`_]
+* New CLI commands ``flexmeasures show reporters`` and ``flexmeasures show schedulers`` to list available reporters and schedulers, respectively, including any defined in registered plugins [see `PR #686 <https://www.github.com/FlexMeasures/flexmeasures/pull/686>`_ and `PR #708 <https://github.com/FlexMeasures/flexmeasures/pull/708>`_]
 
 Bugfixes
 -----------
@@ -146,7 +146,7 @@ Bugfixes
 * The CLI command ``flexmeasures show beliefs`` now supports plotting time series data that includes NaN values, and provides better support for plotting multiple sensors that do not share the same unit [see `PR #516 <https://www.github.com/FlexMeasures/flexmeasures/pull/516>`_ and `PR #539 <https://www.github.com/FlexMeasures/flexmeasures/pull/539>`_]
 * Fixed JSON wrapping of return message for `/sensors/data` (GET) [see `PR #543 <https://www.github.com/FlexMeasures/flexmeasures/pull/543>`_]
 * Consistent CLI/UI support for asset lat/lng positions up to 7 decimal places (previously the UI rounded to 4 decimal places, whereas the CLI allowed more than 4) [see `PR #522 <https://www.github.com/FlexMeasures/flexmeasures/pull/522>`_]
-* Stop trimming the planning window in response to price availability, which is a problem when SoC targets occur outside of the available price window, by making a simplistic assumption about future prices [see `PR #538 <https://www.github.com/FlexMeasures/flexmeasures/pull/538>`_]
+* Stop trimming the planning window in response to price availability, which is a problem when :abbr:`SoC (state of charge)` targets occur outside of the available price window, by making a simplistic assumption about future prices [see `PR #538 <https://www.github.com/FlexMeasures/flexmeasures/pull/538>`_]
 * Faster loading of initial charts and calendar date selection [see `PR #533 <https://www.github.com/FlexMeasures/flexmeasures/pull/533>`_]
 
 Infrastructure / Support
@@ -177,7 +177,7 @@ v0.11.3 | November 2, 2022
 
 Bugfixes
 -----------
-* Fix scheduling with imperfect efficiencies, which resulted in exceeding the device's lower SoC limit. [see `PR #520 <https://www.github.com/FlexMeasures/flexmeasures/pull/520>`_]
+* Fix scheduling with imperfect efficiencies, which resulted in exceeding the device's lower :abbr:`SoC (state of charge)` limit. [see `PR #520 <https://www.github.com/FlexMeasures/flexmeasures/pull/520>`_]
 * Fix scheduler for Charge Points when taking into account inflexible devices [see `PR #517 <https://www.github.com/FlexMeasures/flexmeasures/pull/517>`_]
 * Prevent rounding asset lat/long positions to 4 decimal places when editing an asset in the UI [see `PR #522 <https://www.github.com/FlexMeasures/flexmeasures/pull/522>`_]
 

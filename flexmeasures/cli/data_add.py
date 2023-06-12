@@ -49,6 +49,7 @@ from flexmeasures.data.schemas import (
     LongitudeField,
     SensorIdField,
 )
+from flexmeasures.data.schemas.scheduling.storage import EfficiencyField
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.generic_assets import (
@@ -1012,10 +1013,21 @@ def create_schedule(ctx):
 @click.option(
     "--roundtrip-efficiency",
     "roundtrip_efficiency",
-    type=QuantityField("%", validate=validate.Range(min=0, max=1)),
+    type=EfficiencyField(),
     required=False,
     default=1,
     help="Round-trip efficiency (e.g. 85% or 0.85) to use for the schedule. Defaults to 100% (no losses).",
+)
+@click.option(
+    "--storage-efficiency",
+    "storage_efficiency",
+    type=EfficiencyField(),
+    required=False,
+    default=1,
+    help="Storage efficiency (e.g. 95% or 0.95) to use for the schedule,"
+    " applied over each time step equal to the sensor resolution."
+    " For example, a storage efficiency of 99 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of 0.99**(1/24)."
+    " Defaults to 100% (no losses).",
 )
 @click.option(
     "--as-job",
@@ -1036,6 +1048,7 @@ def add_schedule_for_storage(
     soc_min: ur.Quantity | None = None,
     soc_max: ur.Quantity | None = None,
     roundtrip_efficiency: ur.Quantity | None = None,
+    storage_efficiency: ur.Quantity | None = None,
     as_job: bool = False,
 ):
     """Create a new schedule for a storage asset.
@@ -1091,6 +1104,8 @@ def add_schedule_for_storage(
         soc_max = convert_units(soc_max.magnitude, str(soc_max.units), "MWh", capacity=capacity_str)  # type: ignore
     if roundtrip_efficiency is not None:
         roundtrip_efficiency = roundtrip_efficiency.magnitude / 100.0
+    if storage_efficiency is not None:
+        storage_efficiency = storage_efficiency.magnitude / 100.0
 
     scheduling_kwargs = dict(
         start=start,
@@ -1104,6 +1119,7 @@ def add_schedule_for_storage(
             "soc-max": soc_max,
             "soc-unit": "MWh",
             "roundtrip-efficiency": roundtrip_efficiency,
+            "storage-efficiency": storage_efficiency,
         },
         flex_context={
             "consumption-price-sensor": consumption_price_sensor.id,
