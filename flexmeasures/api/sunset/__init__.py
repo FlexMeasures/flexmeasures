@@ -1,3 +1,7 @@
+"""
+A place to keep all routes to endpoints that previously existed and are now sunset.
+"""
+
 from flask import Flask, Blueprint
 
 from flexmeasures.api.common.utils.deprecation_utils import (
