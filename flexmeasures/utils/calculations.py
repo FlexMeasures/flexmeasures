@@ -67,7 +67,7 @@ def apply_stock_changes_and_losses(
             # First apply the losses, then apply the stock change (i.e. the stock changes on the right side of the time interval in which the losses apply)
             next_stock = s * e + d
         elif how == "linear":
-            # Assume the change happens at a constant rate, leading to a linear stock change, and exponential decay
+            # Assume the change happens at a constant rate, leading to a linear stock change, and exponential decay, within the current interval
             next_stock = s * e + d * (e - 1) / math.log(e)
         else:
             raise NotImplementedError(f"Missing implementation for how='{how}'.")
