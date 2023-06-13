@@ -236,7 +236,7 @@ def create_fall_dst_transition_layer(
                 "as": "dst_transition_event_start",
             },
             {
-                "calculate": "datum.event_start + ' (ID: ' + datum.source.id + ')'",
+                "calculate": "datum.source.name + ' (ID: ' + datum.source.id + ')'",
                 "as": "source_name_and_id",
             },
         ],
