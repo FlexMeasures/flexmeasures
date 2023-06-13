@@ -171,6 +171,10 @@ def matrix_chart(
                 },
                 "transform": [
                     {
+                        # Mask overlapping data during the fall DST transition, which we show later with a special layer
+                        "filter": "timezoneoffset(datum.event_start) >= timezoneoffset(datum.event_start + 60 * 60 * 1000) && timezoneoffset(datum.event_start) <= timezoneoffset(datum.event_start - 60 * 60 * 1000)"
+                    },
+                    {
                         "calculate": "datum.source.name + ' (ID: ' + datum.source.id + ')'",
                         "as": "source_name_and_id",
                     },
@@ -189,6 +193,7 @@ def matrix_chart(
                     },
                 },
             },
+            create_fall_dst_transition_layer(sensor, event_value_field_definition),
         ],
     }
     for k, v in override_chart_specs.items():
@@ -198,6 +203,56 @@ def matrix_chart(
         # "legend": {"direction": "horizontal"},
     }
     return chart_specs
+
+
+def create_fall_dst_transition_layer(sensor, event_value_field_definition) -> dict:
+    """Special layer for showing data during the daylight savings time transition in fall."""
+    return {
+        "mark": {"type": "rect", "clip": True},
+        "encoding": {
+            "x": {
+                "field": "event_start",
+                "type": "temporal",
+                "title": None,
+                "timeUnit": {
+                    "unit": "hoursminutesseconds",
+                    "step": sensor.event_resolution.total_seconds(),
+                },
+            },
+            "y": {
+                "field": "dst_transition_event_start",
+                "type": "temporal",
+                "title": None,
+                "timeUnit": {"unit": "yearmonthdatehours", "step": 12},
+            },
+            "color": event_value_field_definition,
+            "detail": FIELD_DEFINITIONS["source"],
+            "opacity": {"value": 0.7},
+            "tooltip": [
+                FIELD_DEFINITIONS["full_date"],
+                {
+                    **event_value_field_definition,
+                    **dict(title=f"{capitalize(sensor.sensor_type)}"),
+                },
+                FIELD_DEFINITIONS["source_name_and_id"],
+                FIELD_DEFINITIONS["source_model"],
+            ],
+        },
+        "transform": [
+            {
+                "filter": "timezoneoffset(datum.event_start) < timezoneoffset(datum.event_start + 60 * 60 * 1000) || timezoneoffset(datum.event_start) > timezoneoffset(datum.event_start - 60 * 60 * 1000)"
+            },
+            {
+                # Push the more recent hour into the second 12-hour bin
+                "calculate": "timezoneoffset(datum.event_start + 60 * 60 * 1000) > timezoneoffset(datum.event_start) ? datum.event_start : datum.event_start + 12 * 60 * 60 * 1000",
+                "as": "dst_transition_event_start",
+            },
+            {
+                "calculate": "datum.event_start + ' (ID: ' + datum.source.id + ')'",
+                "as": "source_name_and_id",
+            },
+        ],
+    }
 
 
 def chart_for_multiple_sensors(
