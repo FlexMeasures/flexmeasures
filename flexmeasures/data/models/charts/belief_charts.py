@@ -143,31 +143,29 @@ def matrix_chart(
                 event_ends_before.timestamp() * 10**3,
             ],
         }
+    mark = {"type": "rect", "clip": True, "opacity": 0.7}
+    tooltip = [
+        FIELD_DEFINITIONS["full_date"],
+        {
+            **event_value_field_definition,
+            **dict(title=f"{capitalize(sensor.sensor_type)}"),
+        },
+        FIELD_DEFINITIONS["source_name_and_id"],
+        FIELD_DEFINITIONS["source_model"],
+    ]
     chart_specs = {
         "description": "A simple heatmap chart showing sensor data.",
         # the sensor type is already shown as the y-axis title (avoid redundant info)
         "title": capitalize(sensor.name) if sensor.name != sensor.sensor_type else None,
         "layer": [
             {
-                "mark": {
-                    "type": "rect",
-                    "clip": True,
-                },
+                "mark": mark,
                 "encoding": {
                     "x": event_start_field_definition,
                     "y": event_start_date_field_definition,
                     "color": event_value_field_definition,
                     "detail": FIELD_DEFINITIONS["source"],
-                    "opacity": {"value": 0.7},
-                    "tooltip": [
-                        FIELD_DEFINITIONS["full_date"],
-                        {
-                            **event_value_field_definition,
-                            **dict(title=f"{capitalize(sensor.sensor_type)}"),
-                        },
-                        FIELD_DEFINITIONS["source_name_and_id"],
-                        FIELD_DEFINITIONS["source_model"],
-                    ],
+                    "tooltip": tooltip,
                 },
                 "transform": [
                     {
@@ -193,7 +191,12 @@ def matrix_chart(
                     },
                 },
             },
-            create_fall_dst_transition_layer(sensor, event_value_field_definition),
+            create_fall_dst_transition_layer(
+                mark,
+                event_value_field_definition,
+                event_start_field_definition,
+                tooltip,
+            ),
         ],
     }
     for k, v in override_chart_specs.items():
@@ -205,20 +208,14 @@ def matrix_chart(
     return chart_specs
 
 
-def create_fall_dst_transition_layer(sensor, event_value_field_definition) -> dict:
+def create_fall_dst_transition_layer(
+    mark, event_value_field_definition, event_start_field_definition, tooltip
+) -> dict:
     """Special layer for showing data during the daylight savings time transition in fall."""
     return {
-        "mark": {"type": "rect", "clip": True},
+        "mark": mark,
         "encoding": {
-            "x": {
-                "field": "event_start",
-                "type": "temporal",
-                "title": None,
-                "timeUnit": {
-                    "unit": "hoursminutesseconds",
-                    "step": sensor.event_resolution.total_seconds(),
-                },
-            },
+            "x": event_start_field_definition,
             "y": {
                 "field": "dst_transition_event_start",
                 "type": "temporal",
@@ -227,16 +224,7 @@ def create_fall_dst_transition_layer(sensor, event_value_field_definition) -> di
             },
             "color": event_value_field_definition,
             "detail": FIELD_DEFINITIONS["source"],
-            "opacity": {"value": 0.7},
-            "tooltip": [
-                FIELD_DEFINITIONS["full_date"],
-                {
-                    **event_value_field_definition,
-                    **dict(title=f"{capitalize(sensor.sensor_type)}"),
-                },
-                FIELD_DEFINITIONS["source_name_and_id"],
-                FIELD_DEFINITIONS["source_model"],
-            ],
+            "tooltip": tooltip,
         },
         "transform": [
             {
