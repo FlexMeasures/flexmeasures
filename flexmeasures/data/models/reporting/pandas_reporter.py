@@ -10,7 +10,6 @@ from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.schemas.reporting.pandas_reporter import (
     PandasReporterConfigSchema,
 )
-from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.utils.time_utils import server_now
 
 
