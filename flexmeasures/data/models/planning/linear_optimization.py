@@ -71,7 +71,8 @@ def device_scheduler(  # noqa C901
 
     # Check if commitments have the same time window and resolution as the constraints
     start = device_constraints[0].index.to_pydatetime()[0]
-    resolution = pd.to_timedelta(device_constraints[0].index.freq)
+    # Workaround for https://github.com/pandas-dev/pandas/issues/53643. Was: resolution = pd.to_timedelta(device_constraints[0].index.freq)
+    resolution = pd.to_timedelta(device_constraints[0].index.freq).to_pytimedelta()
     end = device_constraints[0].index.to_pydatetime()[-1] + resolution
     if len(commitment_quantities) != 0:
         start_c = commitment_quantities[0].index.to_pydatetime()[0]
@@ -328,7 +329,6 @@ def device_scheduler(  # noqa C901
                 start=start,
                 end=end,
                 resolution=to_offset(resolution),
-                inclusive="both",
             )
         )
 
