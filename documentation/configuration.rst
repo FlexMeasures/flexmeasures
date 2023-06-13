@@ -102,6 +102,15 @@ Whether to turn on a feature which times requests made through FlexMeasures. Int
 
 Default: ``False``
 
+FLEXMEASURES_PROFILE_PYINSTRUMENT
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Whether to turn on a feature which profiles the Flask API endpoints using `pyinstrument`. Interesting for developers.
+
+The profiling results are stored in the ``profile_reports`` folder in the instance directory.
+
+Default: ``False``
+
 
 UI
 --
