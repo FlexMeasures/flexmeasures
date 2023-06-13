@@ -30,7 +30,7 @@ tldextract
 pyomo>=5.6
 tabulate
 timetomodel>=0.7.3
-timely-beliefs[forecast]>=1.18
+timely-beliefs[forecast]>=1.20.1
 python-dotenv
 # a backport, not needed in Python3.8
 importlib_metadata
