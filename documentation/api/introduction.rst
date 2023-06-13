@@ -111,6 +111,8 @@ When an API feature becomes obsolete, we deprecate it.
 Deprecation of major features doesn't happen a lot, but when it does, it happens in multiple stages, during which we support clients and hosts in adapting.
 For more information on our multi-stage deprecation approach and available options for FlexMeasures hosts, see :ref:`Deprecation and sunset for hosts<api_deprecation_hosts>`.
 
+.. _api_deprecation_clients:
+
 Clients
 ^^^^^^^
 
@@ -154,10 +156,9 @@ Hosts
 
 FlexMeasures versions go through the following stages for deprecating major features (such as API versions):
 
-- :ref:`api_deprecation_stage_1`: status 200 (OK) with relevant headers, plus a toggle to 410 (Gone) for blackout tests
+- :ref:`api_deprecation_stage_1`: status 200 (OK) with :ref:`relevant headers<api_deprecation_clients>`, plus a toggle to 410 (Gone) for blackout tests
 - :ref:`api_deprecation_stage_2`: status 410 (Gone), plus a toggle to 200 (OK) for sunset rollbacks
-- :ref:`api_deprecation_stage_3`: status 404 (Not Found), plus a toggle to 410 (Gone) for removal rollbacks
-- :ref:`api_deprecation_stage_4`: status 404 (Not Found), and removal of relevant endpoints
+- :ref:`api_deprecation_stage_3`: status 410 (Gone)
 
 Let's go over these stages in more detail.
 
@@ -202,15 +203,4 @@ To enable this, just set the config setting ``FLEXMEASURES_API_SUNSET_ACTIVE = F
 Stage 3: Definitive sunset
 """"""""""""""""""""""""""
 
-After upgrading to one of the next FlexMeasures versions (e.g. ``flexmeasures==0.14``), clients that call sunset endpoints will receive ``HTTP status 404 (Not Found)`` responses.
-In case you need clients to receive the slightly more informative ``HTTP status 410 (Gone)``  for a little while longer, we will continue to support a "removal rollback".
-To enable this, just set the config setting ``FLEXMEASURES_API_SUNSET_ACTIVE = True``.
-This, just like in deprecation stages 1 and 2, leads to status 410 (Gone) responses.
-Note that ``FLEXMEASURES_API_SUNSET_ACTIVE = False`` now leads to status 404 (Not Found) responses, unlike in deprecation stages 1 and 2, where this would have lead to status 200 (OK) responses.
-
-.. _api_deprecation_stage_4:
-
-Stage 4: Removal
-""""""""""""""""
-
-After upgrading to one of the next FlexMeasures versions (e.g. ``flexmeasures==0.15``), clients that call sunset endpoints will receive ``HTTP status 404 (Not Found)`` responses.
+After upgrading to one of the next FlexMeasures versions (e.g. ``flexmeasures==0.14``), clients that call sunset endpoints will receive ``HTTP status 410 (Gone)`` responses.
