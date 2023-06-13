@@ -222,6 +222,10 @@ def create_fall_dst_transition_layer(
                 "title": None,
                 "timeUnit": {"unit": "yearmonthdatehours", "step": 12},
             },
+            "y2": {
+                "field": "dst_transition_event_start_next",
+                "timeUnit": {"unit": "yearmonthdatehours", "step": 12},
+            },
             "color": event_value_field_definition,
             "detail": FIELD_DEFINITIONS["source"],
             "tooltip": tooltip,
@@ -234,6 +238,11 @@ def create_fall_dst_transition_layer(
                 # Push the more recent hour into the second 12-hour bin
                 "calculate": "timezoneoffset(datum.event_start + 60 * 60 * 1000) > timezoneoffset(datum.event_start) ? datum.event_start : datum.event_start + 12 * 60 * 60 * 1000",
                 "as": "dst_transition_event_start",
+            },
+            {
+                # Calculate a time point in the next 12-hour bin
+                "calculate": "datum.dst_transition_event_start + 12 * 60 * 60 * 1000 - 60 * 60 * 1000",
+                "as": "dst_transition_event_start_next",
             },
             {
                 "calculate": "datum.source.name + ' (ID: ' + datum.source.id + ')'",
