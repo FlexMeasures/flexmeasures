@@ -42,7 +42,7 @@ The following minimal example gives you an idea of some meta information you can
             """
             return pd.Series(
                 self.sensor.get_attribute("capacity_in_mw"),
-                index=pd.date_range(self.start, self.end, freq=self.resolution, closed="left"),
+                index=pd.date_range(self.start, self.end, freq=self.resolution, inclusive="left"),
             )
     
         def deserialize_config(self):

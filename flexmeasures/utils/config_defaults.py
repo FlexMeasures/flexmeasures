@@ -1,13 +1,15 @@
+"""
+Our configuration requirements and defaults
+
+This can be adjusted per environment here.
+Anything confidential should be handled outside of source control (e.g. a SECRET KEY file is generated on first install,
+and confidential settings can be set via the <app-env>-conf.py file.
+"""
+
 from __future__ import annotations
 
 from datetime import timedelta
 import logging
-
-"""
-This lays out our configuration requirements and allows to set trivial defaults, per environment adjustable.
-Anything confidential should be handled outside of source control (e.g. a SECRET KEY file is generated on first install,
-and confidential settings can be set via the <app-env>-conf.py file.
-"""
 
 
 class Config(object):

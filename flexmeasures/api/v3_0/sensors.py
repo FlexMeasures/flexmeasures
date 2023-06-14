@@ -273,6 +273,7 @@ class SensorAPI(FlaskView):
         To guarantee a minimum SOC in the period prior to 4.00pm, local minima constraints are imposed (via soc-minima)
         at 2.00pm and 3.00pm, for 15kWh and 20kWh, respectively.
         Roundtrip efficiency for use in scheduling is set to 98%.
+        Storage efficiency is set to 99.99%, denoting the state of charge left after each time step equal to the sensor's resolution.
         Aggregate consumption (of all devices within this EMS) should be priced by sensor 9,
         and aggregate production should be priced by sensor 10,
         where the aggregate power flow in the EMS is described by the sum over sensors 13, 14 and 15
@@ -306,6 +307,7 @@ class SensorAPI(FlaskView):
                     "soc-min": 10,
                     "soc-max": 25,
                     "roundtrip-efficiency": 0.98,
+                    "storage-efficiency": 0.9999,
                 },
                 "flex-context": {
                     "consumption-price-sensor": 9,

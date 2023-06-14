@@ -109,18 +109,10 @@ def register_at(app: Flask):
         play_register_at(app)
 
     # Load all versions of the API functionality
-    from flexmeasures.api.v1 import register_at as v1_register_at
-    from flexmeasures.api.v1_1 import register_at as v1_1_register_at
-    from flexmeasures.api.v1_2 import register_at as v1_2_register_at
-    from flexmeasures.api.v1_3 import register_at as v1_3_register_at
-    from flexmeasures.api.v2_0 import register_at as v2_0_register_at
     from flexmeasures.api.v3_0 import register_at as v3_0_register_at
     from flexmeasures.api.dev import register_at as dev_register_at
+    from flexmeasures.api.sunset import register_at as sunset_register_at
 
-    v1_register_at(app)
-    v1_1_register_at(app)
-    v1_2_register_at(app)
-    v1_3_register_at(app)
-    v2_0_register_at(app)
     v3_0_register_at(app)
     dev_register_at(app)
+    sunset_register_at(app)

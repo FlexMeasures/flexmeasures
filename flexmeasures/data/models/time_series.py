@@ -10,6 +10,7 @@ from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import Query, Session
 from sqlalchemy.schema import UniqueConstraint
+from sqlalchemy import inspect
 import timely_beliefs as tb
 from timely_beliefs.beliefs.probabilistic_utils import get_median_belief
 import timely_beliefs.utils as tb_utils
@@ -584,6 +585,14 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         source: tb.DBBeliefSource,
         **kwargs,
     ):
+        # get a Sensor instance attached to the database session (input sensor is detached)
+        # check out Issue #683 for more details
+        inspection_obj = inspect(sensor, raiseerr=False)
+        if (
+            inspection_obj and inspection_obj.detached
+        ):  # fetch Sensor only when it is detached
+            sensor = Sensor.query.get(sensor.id)
+
         tb.TimedBeliefDBMixin.__init__(self, sensor, source, **kwargs)
         tb_utils.remove_class_init_kwargs(tb.TimedBeliefDBMixin, kwargs)
         db.Model.__init__(self, **kwargs)
@@ -702,7 +711,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 # todo: compute median of collective belief instead of median of first belief (update expected test results accordingly)
                 # todo: move to timely-beliefs: select mean/median belief
                 if (
-                    bdf.lineage.number_of_sources == 1
+                    bdf.lineage.number_of_sources <= 1
                     and bdf.lineage.probabilistic_depth == 1
                 ):
                     # Fast track, no need to loop over beliefs

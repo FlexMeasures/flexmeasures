@@ -11,39 +11,40 @@ from flexmeasures.utils.time_utils import to_http_time
 
 def sunset_blueprint(
     blueprint,
-    api_version_sunset: str,
+    api_version_being_sunset: str,
     sunset_link: str,
     api_version_upgrade_to: str = "3.0",
-    blueprint_contents_removed: bool = True,
+    rollback_possible: bool = True,
+    **kwargs,
 ):
     """Sunsets every route on a blueprint by returning 410 (Gone) responses, if sunset is active.
 
     Whether the sunset is active can be toggled using the config setting "FLEXMEASURES_API_SUNSET_ACTIVE".
-    If inactive, either:
-    - return 404 (Not Found) if the blueprint contents have been removed, or
-    - pass the request to be handled by the endpoint implementation.
+    If the sunset is inactive, this function will not affect any requests in this blueprint.
+    If the endpoint implementations have been removed, set rollback_possible=False.
 
     Errors will be logged by utils.error_utils.error_handling_router.
     """
 
-    def let_host_switch_to_returning_410():
+    def return_410_unless_host_rolls_back_sunrise():
 
-        # Override with custom info link, if set by host
-        _sunset_link = override_from_config(sunset_link, "FLEXMEASURES_API_SUNSET_LINK")
-
-        if current_app.config["FLEXMEASURES_API_SUNSET_ACTIVE"]:
-            abort(
-                410,
-                f"API version {api_version_sunset} has been sunset. Please upgrade to API version {api_version_upgrade_to}. See {_sunset_link} for more information.",
-            )
-        elif blueprint_contents_removed:
-            abort(404)
-        else:
-            # Sunset is inactive and blueprint contents are still there,
+        if (
+            rollback_possible
+            and not current_app.config["FLEXMEASURES_API_SUNSET_ACTIVE"]
+        ):
+            # Sunset is inactive and blueprint contents should still be there,
             # so we let the request pass to the endpoint implementation
             pass
+        else:
+            # Override with custom info link, if set by host
+            link = override_from_config(sunset_link, "FLEXMEASURES_API_SUNSET_LINK")
 
-    blueprint.before_request(let_host_switch_to_returning_410)
+            abort(
+                410,
+                f"API version {api_version_being_sunset} has been sunset. Please upgrade to API version {api_version_upgrade_to}. See {link} for more information.",
+            )
+
+    blueprint.before_request(return_410_unless_host_rolls_back_sunrise)
 
 
 def deprecate_fields(
@@ -128,6 +129,7 @@ def deprecate_blueprint(
     deprecation_link: str | None = None,
     sunset_date: pd.Timestamp | str | None = None,
     sunset_link: str | None = None,
+    **kwargs,
 ):
     """Deprecates every route on a blueprint by adding the "Deprecation" header with a deprecation date.
 
