@@ -1,5 +1,5 @@
 """
-CLI commands for listing database contents.
+CLI commands for listing database contents and classes
 """
 
 from __future__ import annotations
