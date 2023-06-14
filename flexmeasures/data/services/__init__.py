@@ -1,3 +1,3 @@
 """
-Business logic.
+Business logic
 """

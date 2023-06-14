@@ -1,5 +1,5 @@
 """
-CLI commands for removing data.
+CLI commands for removing data
 """
 
 from __future__ import annotations

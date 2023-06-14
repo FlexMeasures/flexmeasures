@@ -1,5 +1,5 @@
 """
-CLI commands for editing data.
+CLI commands for editing data
 """
 
 from __future__ import annotations

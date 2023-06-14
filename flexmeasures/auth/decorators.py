@@ -1,5 +1,5 @@
 """
-Auth decorators for endpoints.
+Auth decorators for endpoints
 """
 
 

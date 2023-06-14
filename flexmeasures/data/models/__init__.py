@@ -1,5 +1,5 @@
 """
-Data models for FlexMeasures.
+Data models for FlexMeasures
 """
 
 # Time resolutions

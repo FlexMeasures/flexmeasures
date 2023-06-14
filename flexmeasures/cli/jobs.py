@@ -1,5 +1,5 @@
 """
-CLI commands for controlling jobs.
+CLI commands for controlling jobs
 """
 
 from __future__ import annotations

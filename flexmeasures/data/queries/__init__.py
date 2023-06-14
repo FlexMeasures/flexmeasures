@@ -1,3 +1,3 @@
 """
-Data query functions.
+Data query functions
 """

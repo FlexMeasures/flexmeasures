@@ -1,5 +1,5 @@
 """
-CLI commands for populating the database.
+CLI commands for populating the database
 """
 
 from __future__ import annotations

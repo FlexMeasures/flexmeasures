@@ -1,5 +1,5 @@
 """
-Database configuration utils.
+Database configuration utils
 """
 
 from sqlalchemy.ext.declarative import declarative_base

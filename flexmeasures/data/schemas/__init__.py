@@ -1,5 +1,5 @@
 """
-Data schemas (Marshmallow).
+Data schemas (Marshmallow)
 """
 
 from .assets import LatitudeField, LongitudeField  # noqa F401

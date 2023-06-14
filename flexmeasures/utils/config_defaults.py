@@ -1,5 +1,5 @@
 """
-Our configuration requirements and defaults.
+Our configuration requirements and defaults
 
 This can be adjusted per environment here.
 Anything confidential should be handled outside of source control (e.g. a SECRET KEY file is generated on first install,
