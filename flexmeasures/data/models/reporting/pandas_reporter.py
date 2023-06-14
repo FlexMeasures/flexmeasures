@@ -10,7 +10,6 @@ from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.schemas.reporting.pandas_reporter import (
     PandasReporterConfigSchema,
 )
-from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.utils.time_utils import server_now
 
 
@@ -43,6 +42,9 @@ class PandasReporter(Reporter):
         defined in `final_df_output` field of the report_config.
         """
 
+        if belief_time is None:
+            belief_time = server_now()
+
         # apply pandas transformations to the dataframes in `self.data`
         self._apply_transformations()
 
@@ -51,9 +53,9 @@ class PandasReporter(Reporter):
         if isinstance(final_output, tb.BeliefsDataFrame):
 
             # filing the missing indexes with default values:
-            # belief_time=server_now(), cummulative_probability=0.5, source=data_source
+            # belief_time=belief_time, cummulative_probability=0.5, source=data_source
             if "belief_time" not in final_output.index.names:
-                final_output["belief_time"] = [server_now()] * len(final_output)
+                final_output["belief_time"] = [belief_time] * len(final_output)
                 final_output = final_output.set_index("belief_time", append=True)
 
             if "cumulative_probability" not in final_output.index.names:
@@ -71,18 +73,13 @@ class PandasReporter(Reporter):
             )
 
         elif isinstance(final_output, tb.BeliefsSeries):
-
-            timed_beliefs = [
-                TimedBelief(
-                    sensor=final_output.sensor,
-                    source=self.data_source,
-                    belief_time=server_now(),
-                    event_start=event_start,
-                    event_value=event_value,
-                )
-                for event_start, event_value in final_output.iteritems()
-            ]
-            final_output = tb.BeliefsDataFrame(timed_beliefs)
+            final_output = final_output.to_frame("event_value")
+            final_output["belief_time"] = belief_time
+            final_output["cumulative_probability"] = 0.5
+            final_output["source"] = self.data_source
+            final_output = final_output.set_index(
+                ["belief_time", "source", "cumulative_probability"], append=True
+            )
 
         return final_output
 
