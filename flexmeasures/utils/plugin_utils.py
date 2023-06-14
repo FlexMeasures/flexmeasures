@@ -1,3 +1,7 @@
+"""
+Utils for registering FlexMeasures plugins
+"""
+
 from __future__ import annotations
 
 import importlib.util

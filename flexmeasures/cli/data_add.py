@@ -1,4 +1,7 @@
-"""CLI Tasks for populating the database - most useful in development"""
+"""
+CLI commands for populating the database.
+"""
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta

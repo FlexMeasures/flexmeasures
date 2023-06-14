@@ -1,5 +1,5 @@
 """
-Endpoints to support "play" mode, e.g. with data restorable.
+Endpoints to support "play" mode, data restoration.
 """
 
 from flask import Flask, Blueprint

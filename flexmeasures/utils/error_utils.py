@@ -1,3 +1,7 @@
+"""
+Utils for handling of errors
+"""
+
 import re
 import sys
 import traceback
