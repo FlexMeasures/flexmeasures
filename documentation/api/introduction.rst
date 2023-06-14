@@ -45,7 +45,7 @@ Let's see what the ``/api`` endpoint returns:
     {'flexmeasures_version': '0.9.0',
      'message': 'For these API versions endpoints are available. An authentication token can be requested at: /api/requestAuthToken. For a list of services, see https://flexmeasures.readthedocs.io',
      'status': 200,
-     'versions': ['v1', 'v1_1', 'v1_2', 'v1_3', 'v2_0', 'v3_0']
+     'versions': ['v3_0']
     }
 
 So this tells us which API versions exist. For instance, we know that the latest API version is available at:
@@ -56,6 +56,9 @@ So this tells us which API versions exist. For instance, we know that the latest
 
 
 Also, we can see that a list of endpoints is available on https://flexmeasures.readthedocs.io for each of these versions.
+
+.. note:: Sunset API versions are still documented there, simply select an older version.
+
 
 .. _api_auth:
 
