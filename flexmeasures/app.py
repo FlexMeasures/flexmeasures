@@ -99,8 +99,14 @@ def create(  # noqa C901
         app.config["SECURITY_PASSWORD_SALT"] = app.config["SECRET_KEY"]
     if app.env not in ("documentation", "development"):
         SSLify(app)
-    if app.config.get("FLEXMEASURES_PROFILE_PYINSTRUMENT", False):
+    if app.config.get("FLEXMEASURES_PROFILE_REQUESTS", False):
         Path("profile_reports").mkdir(parents=True, exist_ok=True)
+        try:
+            import pyinstrument  # noqa F401
+        except ImportError:
+            app.logger.warning(
+                "[PROFILE] pyinstrument not installed, cannot profile requests."
+            )
 
     # Register database and models, including user auth security handlers
 
@@ -155,27 +161,13 @@ def create(  # noqa C901
     def before_request():
         if app.config.get("FLEXMEASURES_PROFILE_REQUESTS", False):
             g.start = time.time()
-        if app.config.get("FLEXMEASURES_PROFILE_PYINSTRUMENT", False):
-            import pyinstrument
+            try:
+                import pyinstrument  # noqa F401
 
-            g.profiler = pyinstrument.Profiler()
-            g.profiler.start()
-
-    @app.after_request
-    def after_request(response):
-        if app.config.get("FLEXMEASURES_PROFILE_PYINSTRUMENT", False):
-            g.profiler.stop()
-            output_html = g.profiler.output_html(timeline=True)
-            endpoint = request.endpoint
-            if endpoint is None:
-                endpoint = "unknown"
-            today = date.today()
-            profile_filename = f"pyinstrument_{endpoint}.html"
-            profile_output_path = Path("profile_reports", today.strftime("%Y-%m-%d"))
-            profile_output_path.mkdir(parents=True, exist_ok=True)
-            with open(os.path.join(profile_output_path, profile_filename), "w+") as f:
-                f.write(output_html)
-        return response
+                g.profiler = pyinstrument.Profiler()
+                g.profiler.start()
+            except ImportError:
+                pass
 
     @app.teardown_request
     def teardown_request(exception=None):
@@ -185,5 +177,22 @@ def create(  # noqa C901
                 app.logger.info(
                     f"[PROFILE] {str(round(diff, 2)).rjust(6)} seconds to serve {request.url}."
                 )
+                if not hasattr(g, "profiler"):
+                    return app
+                g.profiler.stop()
+                output_html = g.profiler.output_html(timeline=True)
+                endpoint = request.endpoint
+                if endpoint is None:
+                    endpoint = "unknown"
+                today = date.today()
+                profile_filename = f"pyinstrument_{endpoint}.html"
+                profile_output_path = Path(
+                    "profile_reports", today.strftime("%Y-%m-%d")
+                )
+                profile_output_path.mkdir(parents=True, exist_ok=True)
+                with open(
+                    os.path.join(profile_output_path, profile_filename), "w+"
+                ) as f:
+                    f.write(output_html)
 
     return app

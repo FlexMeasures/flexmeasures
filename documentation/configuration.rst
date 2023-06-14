@@ -98,16 +98,13 @@ Default: ``"migrations/dumps"``
 FLEXMEASURES_PROFILE_REQUESTS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Whether to turn on a feature which times requests made through FlexMeasures. Interesting for developers.
-
-Default: ``False``
-
-FLEXMEASURES_PROFILE_PYINSTRUMENT
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Whether to turn on a feature which profiles the Flask API endpoints using `pyinstrument`. Interesting for developers.
+Whether to turn on a feature which times requests made through FlexMeasures. If `pyinstrument` is installed, the Flask API endpoints are profiled.
 
 The profiling results are stored in the ``profile_reports`` folder in the instance directory.
+
+Note: Profile reports for API endpoints are overwritten on repetition of the same request.
+
+Interesting for developers.
 
 Default: ``False``
 
