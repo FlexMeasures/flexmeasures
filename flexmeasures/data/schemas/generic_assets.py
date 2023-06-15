@@ -49,7 +49,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
     @validates_schema(skip_on_field_errors=False)
     def validate_name_is_unique_in_account(self, data, **kwargs):
         if "name" in data:
-            if "account_id" not in data or data["account_id"] is None:
+            if data.get("account_id") is None:
                 asset = GenericAsset.query.filter(
                     GenericAsset.name == data["name"], GenericAsset.account_id.is_(None)
                 ).first()
