@@ -308,6 +308,11 @@ def add_asset(**args):
     """Add an asset."""
     check_errors(GenericAssetSchema().validate(args))
     generic_asset = GenericAsset(**args)
+    if generic_asset.account_id is None:
+        click.secho(
+            "Creating a PUBLIC asset, as the account_id is not given ...",
+            **MsgStyle.WARN,
+        )
     db.session.add(generic_asset)
     db.session.commit()
     click.secho(
@@ -329,7 +334,7 @@ def add_initial_structure():
     "--name",
     required=True,
     type=str,
-    help="Name of the source (usually an organisation)",
+    help="Name of the source (usually an organization)",
 )
 @click.option(
     "--model",
