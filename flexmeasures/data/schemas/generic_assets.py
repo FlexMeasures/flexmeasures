@@ -52,7 +52,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
             if "account_id" not in data or data["account_id"] is None:
                 asset = GenericAsset.query.filter(
                     GenericAsset.name == data["name"], GenericAsset.account_id.is_(None)
-                ).one_or_none()
+                ).first()
                 if asset:
                     raise ValidationError(
                         f"A public asset with the name {data['name']} already exists.",
@@ -62,7 +62,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
                 asset = GenericAsset.query.filter(
                     GenericAsset.name == data["name"],
                     GenericAsset.account_id == data["account_id"],
-                ).one_or_none()
+                ).first()
                 if asset:
                     raise ValidationError(
                         f"An asset with the name {data['name']} already exists in this account.",
