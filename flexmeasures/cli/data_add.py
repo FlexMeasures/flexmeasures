@@ -310,7 +310,7 @@ def add_asset(**args):
     generic_asset = GenericAsset(**args)
     if generic_asset.account_id is None:
         click.secho(
-            "Creating a PUBLIC asset, as the account_id is not given ...",
+            "Creating a PUBLIC asset, as no --account-id is given ...",
             **MsgStyle.WARN,
         )
     db.session.add(generic_asset)
