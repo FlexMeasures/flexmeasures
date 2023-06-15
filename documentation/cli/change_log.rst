@@ -4,7 +4,7 @@
 FlexMeasures CLI Changelog
 **********************
 
-since v0.14.0 | June XX, 2023
+since v0.14.0 | June 15, 2023
 =================================
 
 * Allow setting a storage efficiency using the new ``--storage-efficiency`` option to the ``flexmeasures add schedule for-storage`` CLI command.
