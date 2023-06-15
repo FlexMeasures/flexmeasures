@@ -48,16 +48,26 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
 
     @validates_schema(skip_on_field_errors=False)
     def validate_name_is_unique_in_account(self, data, **kwargs):
-        if "name" in data and "account_id" in data:
-            asset = GenericAsset.query.filter(
-                GenericAsset.name == data["name"]
-                and GenericAsset.account_id == data["account_id"]
-            ).one_or_none()
-            if asset:
-                raise ValidationError(
-                    f"An asset with the name {data['name']} already exists in this account.",
-                    "name",
-                )
+        if "name" in data:
+            if "account_id" not in data or data["account_id"] is None:
+                asset = GenericAsset.query.filter(
+                    GenericAsset.name == data["name"], GenericAsset.account_id.is_(None)
+                ).one_or_none()
+                if asset:
+                    raise ValidationError(
+                        f"A public asset with the name {data['name']} already exists.",
+                        "name",
+                    )
+            else:
+                asset = GenericAsset.query.filter(
+                    GenericAsset.name == data["name"],
+                    GenericAsset.account_id == data["account_id"],
+                ).one_or_none()
+                if asset:
+                    raise ValidationError(
+                        f"An asset with the name {data['name']} already exists in this account.",
+                        "name",
+                    )
 
     @validates("generic_asset_type_id")
     def validate_generic_asset_type(self, generic_asset_type_id: int):
