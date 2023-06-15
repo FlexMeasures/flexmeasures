@@ -74,7 +74,8 @@ class StorageScheduler(Scheduler):
         soc_maxima = self.flex_model.get("soc_maxima")
         roundtrip_efficiency = self.flex_model.get("roundtrip_efficiency")
         prefer_charging_sooner = self.flex_model.get("prefer_charging_sooner", True)
-
+        consumption_price_sensor = self.flex_context.get("consumption_price_sensor")
+        production_price_sensor = self.flex_context.get("production_price_sensor")
         consumption_price_sensor_per_device = self.flex_context.get(
             "consumption_price_sensor_per_device", {}
         )
@@ -84,6 +85,12 @@ class StorageScheduler(Scheduler):
         inflexible_device_sensors = self.flex_context.get(
             "inflexible_device_sensors", []
         )
+        # Convert single price sensors to Multiple Price Sensors Dict
+        if consumption_price_sensor is not None:
+            consumption_price_sensor_per_device[sensor] = consumption_price_sensor
+
+        if production_price_sensor is not None:
+            production_price_sensor_per_device[sensor] = production_price_sensor
 
         # Check for required Sensor attributes
         self.sensor.check_required_attributes([("capacity_in_mw", (float, int))])

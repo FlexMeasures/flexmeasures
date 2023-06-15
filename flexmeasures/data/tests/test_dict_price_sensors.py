@@ -17,13 +17,29 @@ TOLERANCE = 0.00001
         0.95,
     ],
 )
-def test_schedule(
+def test_schedule_multiple_price_sensors(
     create_solar_plants, create_building, flexible_devices, roundtrip_efficiency: float
 ):
     """
-    Check battery scheduling results for tomorrow
+    Using a dictionary of price sensors mapped to different devices to schedule the battery and check it's scheduling results for tomorrow.
     """
-    battery = flexible_devices["battery-power"]
+    (
+        solar1_production_price_sensor,
+        solar1_power_sensor,
+        solar2_production_price_sensor,
+        solar2_power_sensor,
+        solar3_production_price_sensor,
+        solar3_power_sensor,
+    ) = create_solar_plants
+    building_consumption_price_sensor, building_power = create_building
+    (
+        battery_consumption_price_sensor,
+        battery_production_price_sensor,
+        battery,
+        grid_consumption_price_sensor,
+        grid_production_price_sensor,
+        grid_power,
+    ) = flexible_devices
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 1))
     end = tz.localize(datetime(2015, 1, 2))
@@ -32,21 +48,15 @@ def test_schedule(
     soc_min = 0.5
     soc_max = 795
     inflexible_devices = [
-        create_solar_plants["solar-power-1"].id,
-        create_building["building-power"].id,
+        solar1_power_sensor.id,
+        building_power.id,
     ]
     consumption_price_sensor_per_device = {
-        flexible_devices["Grid-power"]
-        .id: flexible_devices["grid-consumption-price-sensor"]
-        .id
+        grid_power.id: grid_consumption_price_sensor.id
     }
     production_price_sensor_per_device = {
-        create_solar_plants["solar-power-1"]
-        .id: create_solar_plants["solar1-production-price-sensor"]
-        .id,
-        flexible_devices["Grid-power"]
-        .id: flexible_devices["grid-production-price-sensor"]
-        .id,
+        solar1_power_sensor.id: solar1_production_price_sensor.id,
+        grid_power.id: grid_production_price_sensor.id,
     }
     scheduler = StorageScheduler(
         battery,

@@ -950,14 +950,14 @@ def create_schedule(ctx):
 @click.option(
     "--consumption-price-sensor-per-device",
     "consumption_price_sensor_per_device",
-    type=dict,
+    type=str,
     required=False,
     help="Optimize consumption against this dictionary of sensors. The sensors typically record electricity prices (e.g. in EUR/kWh), but this field can also be used to optimize against some emission intensity factors (e.g. in kg CO₂ eq./kWh).",
 )
 @click.option(
     "--production-price-sensor-per-device",
     "production_price_sensor_per_device",
-    type=dict,
+    type=str,
     required=False,
     help="Optimize production against this dictionary of sensors. Defaults to the consumption price sensor. The sensors typically record electricity prices (e.g. in EUR/kWh), but this field can also be used to optimize against some emission intensity factors (e.g. in kg CO₂ eq./kWh).",
 )
@@ -1043,8 +1043,8 @@ def add_schedule_for_storage(
     production_price_sensor: Sensor,
     optimization_context_sensor: Sensor,
     inflexible_device_sensors: list[Sensor],
-    consumption_price_sensor_per_device: dict[Sensor, Sensor],
-    production_price_sensor_per_device: dict[Sensor, Sensor],
+    consumption_price_sensor_per_device: str,
+    production_price_sensor_per_device: str,
     start: datetime,
     duration: timedelta,
     soc_at_start: ur.Quantity,
@@ -1061,13 +1061,54 @@ def add_schedule_for_storage(
     - Limited to power sensors (probably possible to generalize to non-electric assets)
     - Only supports datetimes on the hour or a multiple of the sensor resolution thereafter
     """
+    # Convert the 'consumption_price_sensor_per_device' & 'production_price_sensor_per_device' into dictionary
+    try:
+        if consumption_price_sensor_per_device is not None:
+            consumption_price_sensor_per_device = json.loads(
+                consumption_price_sensor_per_device
+            )
+            converted_dict = {}
+            for sensor_id, value in consumption_price_sensor_per_device.items():
+                try:
+                    sensor_id = int(sensor_id)
+                    value = int(value)
+                    sensor_obj = SensorIdField()
+                    value = sensor_obj._deserialize(value=value, attr=None, obj=None)
+                    sensor_id = sensor_obj._deserialize(
+                        value=sensor_id, attr=None, obj=None
+                    )
+                    converted_dict[sensor_id] = value
+                except ValueError:
+                    click.secho(f"Invalid sensor ID: {sensor_id}", fg="red")
+            consumption_price_sensor_per_device = converted_dict
+        if production_price_sensor_per_device is not None:
+            production_price_sensor_per_device = json.loads(
+                production_price_sensor_per_device
+            )
+            converted_dict = {}
+            for sensor_id, value in production_price_sensor_per_device.items():
+                try:
+                    sensor_id = int(sensor_id)
+                    value = int(value)
+                    sensor_obj = SensorIdField()
+                    value = sensor_obj._deserialize(value=value, attr=None, obj=None)
+                    sensor_id = sensor_obj._deserialize(
+                        value=sensor_id, attr=None, obj=None
+                    )
+                    converted_dict[sensor_id] = value
+                except ValueError:
+                    click.secho(f"Invalid sensor ID: {sensor_id}", fg="red")
+            production_price_sensor_per_device = converted_dict
+    except json.JSONDecodeError:
+        click.secho("Invalid dictionary format.", fg="red")
+
     # todo: deprecate the 'optimization-context-id' argument in favor of 'consumption-price-sensor' (announced v0.11.0)
-    tb_utils.replace_deprecated_argument(
-        "optimization-context-id",
-        optimization_context_sensor,
-        "consumption-price-sensor",
-        consumption_price_sensor,
-    )
+    # tb_utils.replace_deprecated_argument(
+    #     "optimization-context-id",
+    #     optimization_context_sensor,
+    #     # "consumption-price-sensor",
+    #     # consumption_price_sensor,
+    # )
 
     # Parse input and required sensor attributes
     if not power_sensor.measures_power:
@@ -1122,19 +1163,29 @@ def add_schedule_for_storage(
             "roundtrip-efficiency": roundtrip_efficiency,
         },
         flex_context={
-            "consumption-price-sensor": consumption_price_sensor.id,
-            "production-price-sensor": production_price_sensor.id,
             "inflexible-device-sensors": [s.id for s in inflexible_device_sensors],
-            "consumption-price-sensor-per-device": {
-                power.id: price.id
-                for power, price in consumption_price_sensor_per_device.items()
-            },
-            "production-price-sensor-per-device": {
-                power.id: price.id
-                for power, price in production_price_sensor_per_device.items()
-            },
         },
     )
+
+    if consumption_price_sensor is not None:
+        scheduling_kwargs["flex_context"][
+            "consumption-price-sensor"
+        ] = consumption_price_sensor.id
+    if production_price_sensor is not None:
+        scheduling_kwargs["flex_context"][
+            "production-price-sensor"
+        ] = production_price_sensor.id
+    if production_price_sensor_per_device is not None:
+        scheduling_kwargs["flex_context"]["production-price-sensor-per-device"] = {
+            power.id: price.id
+            for power, price in production_price_sensor_per_device.items()
+        }
+    if consumption_price_sensor_per_device is not None:
+        scheduling_kwargs["flex_context"]["consumption-price-sensor-per-device"] = {
+            power.id: price.id
+            for power, price in consumption_price_sensor_per_device.items()
+        }
+
     if as_job:
         job = create_scheduling_job(sensor=power_sensor, **scheduling_kwargs)
         if job:

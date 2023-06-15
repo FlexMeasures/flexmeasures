@@ -59,10 +59,10 @@ def device_scheduler(  # noqa C901
     Commitments are on an EMS level. Parameter explanations:
         commitment_quantities: amounts of flow specified in commitments (both previously ordered and newly requested)
             - e.g. in MW or boxes/h
-        commitment_downwards_deviation_price: penalty for downwards deviations of the flow
+        commitment_downwards_deviation_price_array: penalty for downwards deviations of the flows
             - e.g. in EUR/MW or EUR/(boxes/h)
             - either a single value (same value for each flow value) or a Series (different value for each flow value)
-        commitment_upwards_deviation_price: penalty for upwards deviations of the flow
+        commitment_upwards_deviation_price_array: penalty for upwards deviations of the flows
 
     All Series and DataFrames should have the same resolution.
 
