@@ -1143,6 +1143,155 @@ def add_schedule_for_storage(
             click.secho("New schedule is stored.", **MsgStyle.SUCCESS)
 
 
+@create_schedule.command("generic")
+@with_appcontext
+@click.option(
+    "--sensor-id",
+    "sensor",
+    type=SensorIdField(),
+    required=True,
+    help="Create schedule for this sensor. Follow up with the sensor's ID.",
+)
+@click.option(
+    "--scheduler",
+    "scheduler_class",
+    default="",
+    type=click.STRING,
+    help="Scheduler class registered in flexmeasures.data.models.planning or in an available flexmeasures plugin."
+    " Use the command `flexmeasures show schedulers` to list all the available schedulers.",
+)
+@click.option(
+    "--edit-flex-model",
+    "edit_flex_model",
+    is_flag=True,
+    help="Whether to open your default editor to create/update the flex-model"
+    "The resulting flex-model is stored in /tmp/flex-model.json",
+)
+@click.option(
+    "--edit-flex-context",
+    "edit_flex_context",
+    is_flag=True,
+    help="Whether to open your default editor to create/update the flex-context"
+    "The resulting flex-context is stored in /tmp/flex-context.json",
+)
+@click.option(
+    "--start",
+    "start",
+    type=AwareDateTimeField(format="iso"),
+    required=True,
+    help="Schedule starts at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
+)
+@click.option(
+    "--duration",
+    "duration",
+    type=DurationField(),
+    required=True,
+    help="Duration of schedule, after --start. Follow up with a duration in ISO 6801 format, e.g. PT1H (1 hour) or PT45M (45 minutes).",
+)
+@click.option(
+    "--as-job",
+    "as_job",
+    is_flag=True,
+    help="Whether to queue a scheduling job instead of computing directly. "
+    "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'scheduling' queue. Defaults to False.",
+)
+def add_schedule_general(
+    scheduler_class,
+    sensor: Sensor,
+    start: datetime,
+    duration: timedelta,
+    as_job: bool = False,
+    edit_flex_model: bool = False,
+    edit_flex_context: bool = False,
+):
+    """Create a new schedule with a generic Scheduler class.
+
+    Example usage:
+
+        1. Run the command to add a new schedule:
+
+            flexmeasures add schedule generic --sensor-id 1 --scheduler ShiftableLoadScheduler  --start 2023-01-01T00:00:00+01:00 --duration PT12H --edit-flex-model
+
+        2. Input the following flex-model:
+
+            {"cost-sensor": 2, "duration": "PT5H", "load-type": "INFLEXIBLE","power": 2.0}
+
+        3. Show the resulting schedule:
+
+            flexmeasures show beliefs --sensor-id 1 --start 2023-01-01T00:00:00+01:00 --duration PT12H
+
+
+    Add the following lines to your shell startup file (e.g. .bashrc) you change your default editor:
+
+        export EDITOR="code"
+        export VISOR="code"
+
+    Then, activate your startup file, for example:
+
+        source ~/.bashrc
+
+    """
+
+    flex_model: dict | None = {}
+    if edit_flex_model:
+        flex_model = launch_editor_json("/tmp/flex_model.json")
+
+        if flex_model is None:
+            click.secho("Error decoding flex-model.", **MsgStyle.ERROR)
+            raise click.Abort()
+
+    flex_context: dict | None = {}
+    if edit_flex_context:
+        flex_context = launch_editor_json("/tmp/flex_context.json")
+
+        if flex_context is None:
+            click.secho("Error decoding flex-context.", **MsgStyle.ERROR)
+            raise click.Abort()
+
+    click.echo(f"flex_context={flex_context}")
+    click.echo(f"flex_model={flex_model}")
+
+    scheduling_kwargs = dict(
+        start=start,
+        end=start + duration,
+        belief_time=server_now(),
+        resolution=sensor.event_resolution,
+        flex_model=flex_model,
+        flex_context=flex_context,
+    )
+
+    if as_job:
+        job = create_scheduling_job(
+            sensor=sensor, scheduler_class_str=scheduler_class, **scheduling_kwargs
+        )
+        if job:
+            click.secho(
+                f"New scheduling job {job.id} has been added to the queue.",
+                **MsgStyle.SUCCESS,
+            )
+    else:
+        success = make_schedule(
+            sensor_id=sensor.id,
+            scheduler_class_str=scheduler_class,
+            **scheduling_kwargs,
+        )
+        if success:
+            click.secho("New schedule is stored.", **MsgStyle.SUCCESS)
+
+
+def launch_editor_json(filename: str) -> dict | None:
+    """Launch editor to create/edit a json object"""
+    click.edit("{\n}", filename=filename)
+
+    try:
+        with open(filename, "r") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+    return data
+
+
 @fm_add_data.command("report")
 @with_appcontext
 @click.option(
