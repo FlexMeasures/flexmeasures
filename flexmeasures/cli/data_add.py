@@ -133,7 +133,12 @@ def new_account(name: str, roles: str):
 @with_appcontext
 @click.option("--username", required=True)
 @click.option("--email", required=True)
-@click.option("--account-id", type=int, required=True)
+@click.option(
+    "--account-id",
+    type=int,
+    required=True,
+    help="Add user to this account. Follow up with the account's ID.",
+)
 @click.option("--roles", help="e.g. anonymous,Prosumer,CPO")
 @click.option(
     "--timezone",
@@ -286,7 +291,12 @@ def add_asset_type(**args):
     type=LongitudeField(),
     help="Longitude of the asset's location",
 )
-@click.option("--account-id", type=int, required=True)
+@click.option(
+    "--account-id",
+    type=int,
+    required=False,
+    help="Add asset to this account. Follow up with the account's ID. If not set, the asset will become public (which makes it accessible to all users).",
+)
 @click.option(
     "--asset-type-id",
     "generic_asset_type_id",
@@ -298,6 +308,11 @@ def add_asset(**args):
     """Add an asset."""
     check_errors(GenericAssetSchema().validate(args))
     generic_asset = GenericAsset(**args)
+    if generic_asset.account_id is None:
+        click.secho(
+            "Creating a PUBLIC asset, as no --account-id is given ...",
+            **MsgStyle.WARN,
+        )
     db.session.add(generic_asset)
     db.session.commit()
     click.secho(
@@ -319,7 +334,7 @@ def add_initial_structure():
     "--name",
     required=True,
     type=str,
-    help="Name of the source (usually an organisation)",
+    help="Name of the source (usually an organization)",
 )
 @click.option(
     "--model",
