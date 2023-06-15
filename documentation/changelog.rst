@@ -6,6 +6,8 @@ FlexMeasures Changelog
 v0.14.0 | June 15, 2023
 ============================
 
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/014-reporting-power/>`__.
+
 New features
 -------------
 
