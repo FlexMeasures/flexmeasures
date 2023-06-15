@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 
 from marshmallow import validates, validates_schema, ValidationError, fields
@@ -66,7 +68,11 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
             )
 
     @validates("account_id")
-    def validate_account(self, account_id: int):
+    def validate_account(self, account_id: int | None):
+        if account_id is None and (
+            running_as_cli() or user_has_admin_access(current_user, "update")
+        ):
+            return
         account = Account.query.get(account_id)
         if not account:
             raise ValidationError(f"Account with Id {account_id} doesn't exist.")

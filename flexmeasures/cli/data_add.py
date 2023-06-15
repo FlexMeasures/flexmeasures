@@ -133,7 +133,12 @@ def new_account(name: str, roles: str):
 @with_appcontext
 @click.option("--username", required=True)
 @click.option("--email", required=True)
-@click.option("--account-id", type=int, required=True)
+@click.option(
+    "--account-id",
+    type=int,
+    required=True,
+    help="Add user to this account. Follow up with the account's ID.",
+)
 @click.option("--roles", help="e.g. anonymous,Prosumer,CPO")
 @click.option(
     "--timezone",
@@ -286,7 +291,12 @@ def add_asset_type(**args):
     type=LongitudeField(),
     help="Longitude of the asset's location",
 )
-@click.option("--account-id", type=int, required=True)
+@click.option(
+    "--account-id",
+    type=int,
+    required=False,
+    help="Add asset to this account. Follow up with the account's ID. If not set, the asset will become public!",
+)
 @click.option(
     "--asset-type-id",
     "generic_asset_type_id",
