@@ -56,7 +56,9 @@ class ShiftableLoadFlexModelSchema(Schema):
     )
 
     def __init__(self, sensor: Sensor, start: datetime, end: datetime, *args, **kwargs):
-        """Pass the schedule's start, so we can use it to validate soc-target datetimes."""
+        """Pass start and end to convert time_restrictions into a time series and sensor
+        as a fallback mechanism for the load_type
+        """
         self.start = start.astimezone(pytz.utc)
         self.end = end.astimezone(pytz.utc)
         self.sensor = sensor

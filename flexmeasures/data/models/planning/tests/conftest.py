@@ -190,13 +190,13 @@ def add_inflexible_device_forecasts(
 @pytest.fixture(scope="module")
 def shiftable_load(db, building, setup_sources) -> dict[str, Sensor]:
     """
-    Set up a shiftable load sensor where the output of the optimization will live
+    Set up a shiftable load sensor where the output of the optimization is stored.
     """
     _shiftable_load = Sensor(
         name="Shiftable Load",
         generic_asset=building,
         event_resolution=timedelta(hours=1),
-        unit="kW",
+        unit="kWh",
     )
     db.session.add(_shiftable_load)
 

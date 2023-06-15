@@ -19,7 +19,10 @@ resolution = timedelta(hours=1)
 def test_shiftable_scheduler(
     add_battery_assets, shiftable_load, load_type, optimal_start
 ):
-    """ """
+    """
+    Test scheduling a load of 4kW of power that last 4h using the ShiftableLoadScheduler
+    without time restrictions.
+    """
 
     # get the sensors from the database
     epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
@@ -57,7 +60,9 @@ def test_shiftable_scheduler(
 def test_duration_exceeds_planning_window(
     add_battery_assets, shiftable_load, load_type, optimal_start
 ):
-    """ """
+    """
+    Test scheduling a load that last longer than the planning window.
+    """
 
     # get the sensors from the database
     epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
@@ -84,7 +89,10 @@ def test_duration_exceeds_planning_window(
 
 
 def test_shiftable_scheduler_time_restrictions(add_battery_assets, shiftable_load):
-    """ """
+    """
+    Test ShiftableLoadScheduler with a time restrictions consisting of a block of 2h starting
+    at 8am. The resulting schedules avoid the 8am-10am period and schedules for a valid period.
+    """
 
     # get the sensors from the database
     epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
@@ -127,7 +135,11 @@ def test_shiftable_scheduler_time_restrictions(add_battery_assets, shiftable_loa
 
 
 def test_breakable_scheduler_time_restrictions(add_battery_assets, shiftable_load):
-    """ """
+    """
+    Test breakable load_type of ShiftableLoadScheduler by introducing four 1-hour restrictions
+    interspaced by 1 hour. The equivalent mask would be the following: [0,...,0,1,0,1,0,1,0,1,0, ...,0].
+    This makes the schedule choose time periods between.
+    """
 
     # get the sensors from the database
     epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
@@ -178,12 +190,13 @@ def test_breakable_scheduler_time_restrictions(add_battery_assets, shiftable_loa
 def test_impossible_schedules(
     add_battery_assets, shiftable_load, load_type, time_restrictions
 ):
-    """ """
+    """
+    Test schedules with time restrictions that make a 4h block not fit anytime during the
+    planned window.
+    """
 
     # get the sensors from the database
     epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
-
-    # time parameters
 
     flex_model = {
         "cost-sensor": epex_da.id,
