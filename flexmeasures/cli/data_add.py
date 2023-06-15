@@ -295,7 +295,7 @@ def add_asset_type(**args):
     "--account-id",
     type=int,
     required=False,
-    help="Add asset to this account. Follow up with the account's ID. If not set, the asset will become public!",
+    help="Add asset to this account. Follow up with the account's ID. If not set, the asset will become public (which makes it accessible to all users).",
 )
 @click.option(
     "--asset-type-id",
