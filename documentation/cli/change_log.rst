@@ -4,6 +4,11 @@
 FlexMeasures CLI Changelog
 **********************
 
+since v0.14.0 | June XX, 2023
+=================================
+
+* Make ``--account-id`` optional in ``flexmeasures add asset`` to support creating public assets, which are available to all users.
+
 since v0.13.0 | May 1, 2023
 =================================
 
