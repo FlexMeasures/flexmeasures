@@ -1195,7 +1195,7 @@ def add_schedule_for_storage(
     help="Whether to queue a scheduling job instead of computing directly. "
     "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'scheduling' queue. Defaults to False.",
 )
-def add_schedule_general(
+def add_schedule_generic(
     scheduler_class,
     sensor: Sensor,
     start: datetime,
