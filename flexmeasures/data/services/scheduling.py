@@ -22,6 +22,8 @@ from flexmeasures.data.models.planning.storage import StorageScheduler
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.utils import get_data_source, save_to_db
+
+# from flexmeasures.cli.utils import MsgStyle
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.data.services.utils import job_cache
 
@@ -29,6 +31,7 @@ from flexmeasures.data.services.utils import job_cache
 @job_cache("scheduling")
 def create_scheduling_job(
     sensor: Sensor,
+    scheduler_class_str: str | None = None,
     job_id: str | None = None,
     enqueue: bool = True,
     requeue: bool = False,
@@ -62,7 +65,17 @@ def create_scheduling_job(
     # We first create a scheduler and check if deserializing works, so the flex config is checked
     # and errors are raised before the job is enqueued (so users get a meaningful response right away).
     # Note: We are putting still serialized scheduler_kwargs into the job!
-    scheduler = find_scheduler_class(sensor)(sensor=sensor, **scheduler_kwargs)
+
+    if scheduler_class_str is None:
+        scheduler_class: Scheduler = find_scheduler_class(sensor)
+    else:
+        scheduler_class: Scheduler = current_app.schedulers.get(scheduler_class_str)
+
+        if scheduler_class is None:
+            raise ValueError(f"Scheduler class `{scheduler_class}` not found.")
+
+    scheduler = scheduler_class(sensor=sensor, **scheduler_kwargs)
+
     scheduler.deserialize_config()
 
     job = Job.create(
@@ -97,6 +110,7 @@ def make_schedule(
     start: datetime,
     end: datetime,
     resolution: timedelta,
+    scheduler_class_str: str | None = None,
     belief_time: datetime | None = None,
     flex_model: dict | None = None,
     flex_context: dict | None = None,
@@ -126,7 +140,17 @@ def make_schedule(
             % (rq_job.id, sensor, start, end)
         )
 
-    scheduler_class = find_scheduler_class(sensor)
+    if scheduler_class_str is None:
+        scheduler_class: Scheduler = find_scheduler_class(sensor)
+    else:
+        scheduler_class: Scheduler = current_app.schedulers.get(scheduler_class_str)
+        if scheduler_class is None:
+            pass
+            # click.secho(
+            #     f"Cannot find Scheduler with class name `{scheduler_class_str}`.",
+            #     **MsgStyle.ERROR
+            # )
+
     data_source_info = scheduler_class.get_data_source_info()
 
     if belief_time is None:
