@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 import copy
 from datetime import datetime, timedelta
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 import pandas as pd
 import numpy as np
@@ -187,7 +187,11 @@ class StorageScheduler(Scheduler):
 
             if len(constraint_violations) > 0:
                 # TODO: include hints from constraint_violations into the error message
-                raise ValueError("The input data yields an infeasible problem.")
+                message = create_constraint_violations_message(constraint_violations)
+                raise ValueError(
+                    "The input data yields an infeasible problem. Constraint validation has found the following issues:\n"
+                    + message
+                )
 
         # Set up EMS constraints
         ems_constraints = initialize_df(
@@ -381,6 +385,23 @@ class StorageScheduler(Scheduler):
                     raise ValueError(
                         "Need maximal permitted state of charge, please specify soc-max or some soc-targets."
                     )
+
+
+def create_constraint_violations_message(constraint_violations: list) -> str:
+    """Create a human-readable message with the constraint_violations.
+
+    :param constraint_violations: list with the constraint violations
+    :return: human-readable message
+    """
+    message = ""
+
+    for c in constraint_violations:
+        message += f"t={c['dt']} | {c['violation']}\n"
+
+    if len(message) > 1:
+        message = message[:-1]
+
+    return message
 
 
 def build_device_soc_values(
@@ -578,25 +599,33 @@ def validate_storage_constraints(
     # 1) min >= soc_min
     soc_min = (soc_min - soc_at_start) * timedelta(hours=1) / resolution
     _constraints["soc_min(t)"] = soc_min
-    constraint_violations += validate_constraint(_constraints, "soc_min(t) <= min(t)")
+    constraint_violations += validate_constraint(
+        _constraints, "soc_min(t)", "<=", "min(t)"
+    )
 
     # 2) max <= soc_max
     soc_max = (soc_max - soc_at_start) * timedelta(hours=1) / resolution
     _constraints["soc_max(t)"] = soc_max
-    constraint_violations += validate_constraint(_constraints, "max(t) <= soc_max(t)")
+    constraint_violations += validate_constraint(
+        _constraints, "max(t)", "<=", "soc_max(t)"
+    )
 
     ########################################
     # B. Validation in the same time frame #
     ########################################
 
     # 1) min <= max
-    constraint_violations += validate_constraint(_constraints, "min(t) <= max(t)")
+    constraint_violations += validate_constraint(_constraints, "min(t)", "<=", "max(t)")
 
     # 2) min <= equals
-    constraint_violations += validate_constraint(_constraints, "min(t) <= equals(t)")
+    constraint_violations += validate_constraint(
+        _constraints, "min(t)", "<=", "equals(t)"
+    )
 
     # 3) equals <= max
-    constraint_violations += validate_constraint(_constraints, "equals(t) <= max(t)")
+    constraint_violations += validate_constraint(
+        _constraints, "equals(t)", "<=", "max(t)"
+    )
 
     ##########################################
     # C. Validation in different time frames #
@@ -609,32 +638,38 @@ def validate_storage_constraints(
 
     # 1) equals(t) - equals(t-1) <= derivative_max(t)
     constraint_violations += validate_constraint(
-        _constraints, "equals(t) - equals(t-1) <= derivative_max(t) * factor_w_wh(t)"
+        _constraints,
+        "equals(t) - equals(t-1)",
+        "<=",
+        "derivative_max(t) * factor_w_wh(t)",
     )
 
     # 2) derivative_min(t) <= equals(t) - equals(t-1)
     constraint_violations += validate_constraint(
-        _constraints, "derivative_min(t) * factor_w_wh(t) <= equals(t) - equals(t-1)"
+        _constraints,
+        "derivative_min(t) * factor_w_wh(t)",
+        "<=",
+        "equals(t) - equals(t-1)",
     )
 
     # 3) min(t) - max(t-1) <= derivative_max(t)
     constraint_violations += validate_constraint(
-        _constraints, "min(t) - max(t-1) <= derivative_max(t) * factor_w_wh(t)"
+        _constraints, "min(t) - max(t-1)", "<=", "derivative_max(t) * factor_w_wh(t)"
     )
 
     # 4) max(t) - min(t-1) >= derivative_min(t)
     constraint_violations += validate_constraint(
-        _constraints, "derivative_min(t) * factor_w_wh(t) <= max(t) - min(t-1)"
+        _constraints, "derivative_min(t) * factor_w_wh(t)", "<=", "max(t) - min(t-1)"
     )
 
     # 5) equals(t) - max(t-1) <= derivative_max(t)
     constraint_violations += validate_constraint(
-        _constraints, "equals(t) - max(t-1) <= derivative_max(t) * factor_w_wh(t)"
+        _constraints, "equals(t) - max(t-1)", "<=", "derivative_max(t) * factor_w_wh(t)"
     )
 
     # 6) derivative_min(t) <= equals(t) - min(t-1)
     constraint_violations += validate_constraint(
-        _constraints, "derivative_min(t) * factor_w_wh(t) <= equals(t) - min(t-1)"
+        _constraints, "derivative_min(t) * factor_w_wh(t)", "<=", "equals(t) - min(t-1)"
     )
 
     return constraint_violations
@@ -658,8 +693,33 @@ def get_pattern_match_word(word: str) -> str:
     return regex + re.escape(word) + regex
 
 
+def sanitize_expression(expression: str, columns: list) -> tuple(str, list):
+    """Wrap column in commas to accept arbitrary column names (e.g. with spaces).
+
+    :param expression: expression to sanitize
+    :param columns: list with the name of the columns of the input data for the expression.
+    :return: sanitized expression and columns (variables) used in the expression
+    """
+
+    _expression = copy.copy(expression)
+    columns_involved = []
+
+    for column in columns:
+
+        if re.search(get_pattern_match_word(column), _expression):
+            columns_involved.append(column)
+
+        _expression = re.sub(get_pattern_match_word(column), f"`{column}`", _expression)
+
+    return _expression, columns_involved
+
+
 def validate_constraint(
-    constraints_df: pd.DataFrame, constraint_expression: str
+    constraints_df: pd.DataFrame,
+    lhs_expression: str,
+    inequality: str,
+    rhs_expression: str,
+    round_to_decimals: Optional[int] = 6,
 ) -> list[dict]:
     """Validate the feasibility of a given set of constraints.
 
@@ -670,21 +730,43 @@ def validate_constraint(
     :return: List of constraint violations, specifying their time, constraint and violation.
     """
 
-    columns_involved = []
+    constraint_expression = f"{lhs_expression} {inequality} {rhs_expression}"
 
-    eval_expression = copy.copy(constraint_expression)
+    constraints_df_columns = list(constraints_df.columns)
 
-    for column in constraints_df.columns:
-        if re.search(get_pattern_match_word(column), eval_expression):
-            columns_involved.append(column)
+    lhs_expression, columns_lhs = sanitize_expression(
+        lhs_expression, constraints_df_columns
+    )
+    rhs_expression, columns_rhs = sanitize_expression(
+        rhs_expression, constraints_df_columns
+    )
 
-        eval_expression = re.sub(
-            get_pattern_match_word(column), f"`{column}`", eval_expression
-        )
+    columns_involved = columns_lhs + columns_rhs
+
+    lhs = constraints_df.fillna(0).eval(lhs_expression).round(round_to_decimals)
+    rhs = constraints_df.fillna(0).eval(rhs_expression).round(round_to_decimals)
+
+    condition = None
+
+    inequality = inequality.strip()
+
+    if inequality == "<=":
+        condition = lhs <= rhs
+    elif inequality == "<":
+        condition = lhs < rhs
+    elif inequality == ">=":
+        condition = lhs >= rhs
+    elif inequality == ">":
+        condition = lhs > rhs
+    elif inequality == "==":
+        condition = lhs == rhs
+    elif inequality == "!=":
+        condition = lhs != rhs
+    else:
+        raise ValueError(f"Inequality `{inequality} not supported.")
 
     time_condition_fails = constraints_df.index[
-        ~constraints_df.fillna(0).eval(eval_expression)
-        & ~constraints_df[columns_involved].isna().any(axis=1)
+        ~condition & ~constraints_df[columns_involved].isna().any(axis=1)
     ]
 
     constraint_violations = []
@@ -695,7 +777,7 @@ def validate_constraint(
         for column in constraints_df.columns:
             value_replaced = re.sub(
                 get_pattern_match_word(column),
-                f"{column} [{constraints_df.loc[dt, column]}]",
+                f"{column} [{constraints_df.loc[dt, column]}] ",
                 value_replaced,
             )
 
