@@ -187,7 +187,9 @@ class StorageScheduler(Scheduler):
 
             if len(constraint_violations) > 0:
                 # TODO: include hints from constraint_violations into the error message
-                message = create_constraint_violations_message(constraint_violations)
+                message = create_constraint_violations_message(
+                    constraint_violations, self.round_to_decimals
+                )
                 raise ValueError(
                     "The input data yields an infeasible problem. Constraint validation has found the following issues:\n"
                     + message
