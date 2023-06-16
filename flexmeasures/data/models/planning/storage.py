@@ -724,11 +724,16 @@ def validate_constraint(
 ) -> list[dict]:
     """Validate the feasibility of a given set of constraints.
 
-    :param constraints_df: DataFrame with the constraints
-    :param constraint_expression: inequality expression following pd.eval format.
-                                  No need to use the syntax `column` to reference
-                                  column, just use the column name.
-    :return: List of constraint violations, specifying their time, constraint and violation.
+    :param constraints_df:      DataFrame with the constraints
+    :param lhs_expression:      left-hand side of the inequality expression following pd.eval format.
+                                No need to use the syntax `column` to reference
+                                column, just use the column name.
+    :param inequality:          inequality operator, one of ('<=', '<', '>=', '>', '==', '!=').
+    :param rhs_expression:      right-hand side of the inequality expression following pd.eval format.
+                                No need to use the syntax `column` to reference
+                                column, just use the column name.
+    :param round_to_decimals:   Number of decimals to round off to before validating constraints.
+    :return:                    List of constraint violations, specifying their time, constraint and violation.
     """
 
     constraint_expression = f"{lhs_expression} {inequality} {rhs_expression}"
