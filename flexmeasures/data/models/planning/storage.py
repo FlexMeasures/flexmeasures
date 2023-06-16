@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 import copy
 from datetime import datetime, timedelta
-from typing import List, Dict, Optional
 
 import pandas as pd
 import numpy as np
@@ -407,7 +406,7 @@ def create_constraint_violations_message(constraint_violations: list) -> str:
 
 
 def build_device_soc_values(
-    soc_values: List[Dict[str, datetime | float]] | pd.Series,
+    soc_values: list[dict[str, datetime | float]] | pd.Series,
     soc_at_start: float,
     start_of_schedule: datetime,
     end_of_schedule: datetime,
@@ -476,9 +475,9 @@ def add_storage_constraints(
     end: datetime,
     resolution: timedelta,
     soc_at_start: float,
-    soc_targets: List[Dict[str, datetime | float]] | pd.Series | None,
-    soc_maxima: List[Dict[str, datetime | float]] | pd.Series | None,
-    soc_minima: List[Dict[str, datetime | float]] | pd.Series | None,
+    soc_targets: list[dict[str, datetime | float]] | pd.Series | None,
+    soc_maxima: list[dict[str, datetime | float]] | pd.Series | None,
+    soc_minima: list[dict[str, datetime | float]] | pd.Series | None,
     soc_max: float,
     soc_min: float,
 ) -> pd.DataFrame:
@@ -695,7 +694,7 @@ def get_pattern_match_word(word: str) -> str:
     return regex + re.escape(word) + regex
 
 
-def sanitize_expression(expression: str, columns: list) -> tuple(str, list):
+def sanitize_expression(expression: str, columns: list) -> tuple[str, list]:
     """Wrap column in commas to accept arbitrary column names (e.g. with spaces).
 
     :param expression: expression to sanitize
@@ -721,7 +720,7 @@ def validate_constraint(
     lhs_expression: str,
     inequality: str,
     rhs_expression: str,
-    round_to_decimals: Optional[int] = 6,
+    round_to_decimals: int | None = 6,
 ) -> list[dict]:
     """Validate the feasibility of a given set of constraints.
 
@@ -814,7 +813,7 @@ def prepend_serie(serie: pd.Series, value) -> pd.Series:
 ####################
 @deprecated(build_device_soc_values, "0.14")
 def build_device_soc_targets(
-    targets: List[Dict[str, datetime | float]] | pd.Series,
+    targets: list[dict[str, datetime | float]] | pd.Series,
     soc_at_start: float,
     start_of_schedule: datetime,
     end_of_schedule: datetime,
