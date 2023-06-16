@@ -539,11 +539,21 @@ class GenericAsset(db.Model, AuthModelMixin):
             .limit(1)
         )
         results = least_recent_query.union_all(most_recent_query).all()
-        if not results:
-            # return now in case there is no data for any of the sensors
-            now = server_now()
-            return dict(start=now, end=now)
-        least_recent, most_recent = results
+        try:
+            # try the most common case first (sensor has more than 1 data point)
+            least_recent, most_recent = results
+        except ValueError as e:
+            if not results:
+                # return now in case there is no data for any of the sensors
+                now = server_now()
+                return dict(start=now, end=now)
+            elif len(results) == 1:
+                # return the start and end of the only data point found
+                least_recent = most_recent = results[0]
+            else:
+                # reraise this unlikely error
+                raise e
+
         return dict(start=least_recent.event_start, end=most_recent.event_end)
 
 
