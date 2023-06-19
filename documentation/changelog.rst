@@ -3,6 +3,15 @@
 FlexMeasures Changelog
 **********************
 
+v0.14.1 | June XX, 2023
+============================
+
+Bugfixes
+-----------
+
+* Relax constraint validation of `StorageScheduler` to accommodate violations caused by floating point precision [see `PR #731 <https://www.github.com/FlexMeasures/flexmeasures/pull/731>`_]
+
+
 v0.14.0 | June 15, 2023
 ============================
 

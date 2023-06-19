@@ -640,6 +640,26 @@ def test_add_storage_constraints(
 @pytest.mark.parametrize(
     "value_min1, value_equals1, value_max1, value_min2, value_equals2, value_max2, expected_constraint_type_violations",
     [
+        (1, np.nan, 9, 1, np.nan, 9, []),  # base case
+        (1, np.nan, 10, 1, np.nan, 10, []),  # exact equality
+        (
+            1,
+            np.nan,
+            10 + 0.5e-6,
+            1,
+            np.nan,
+            10,
+            [],
+        ),  # equality considering the precision (6 decimal figures)
+        (
+            1,
+            np.nan,
+            10 + 1e-5,
+            1,
+            np.nan,
+            10,
+            ["max(t) <= soc_max(t)"],
+        ),  # difference of 0.5e-5 > 1e-6
         (1, np.nan, 9, 2, np.nan, 20, ["max(t) <= soc_max(t)"]),
         (-1, np.nan, 9, 1, np.nan, 9, ["soc_min(t) <= min(t)"]),
         (1, 10, 9, 1, np.nan, 9, ["equals(t) <= max(t)"]),
