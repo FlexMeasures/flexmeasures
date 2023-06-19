@@ -23,6 +23,7 @@ Bugfixes
 -----------
 
 * Relax constraint validation of `StorageScheduler` to accommodate violations caused by floating point precision [see `PR #731 <https://www.github.com/FlexMeasures/flexmeasures/pull/731>`_]
+* Avoid saving any NaN values to the database, when calling ``flexmeasures add report`` [see `PR #735 <https://www.github.com/FlexMeasures/flexmeasures/pull/735>`_]
 
 
 v0.14.0 | June 15, 2023
