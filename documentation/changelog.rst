@@ -3,8 +3,36 @@
 FlexMeasures Changelog
 **********************
 
-v0.14.0 | June XX, 2023
+v0.15.0 | July XX, 2023
 ============================
+
+New features
+-------------
+
+* Allow deleting multiple sensors with a single call to ``flexmeasures delete sensor`` by passing the ``--id`` option multiple times [see `PR #734 <https://www.github.com/FlexMeasures/flexmeasures/pull/734>`_]
+
+Bugfixes
+-----------
+
+Infrastructure / Support
+----------------------
+
+
+v0.14.1 | June XX, 2023
+============================
+
+Bugfixes
+-----------
+
+* Relax constraint validation of `StorageScheduler` to accommodate violations caused by floating point precision [see `PR #731 <https://www.github.com/FlexMeasures/flexmeasures/pull/731>`_]
+* Avoid saving any :abbr:`NaN (not a number)` values to the database, when calling ``flexmeasures add report`` [see `PR #735 <https://www.github.com/FlexMeasures/flexmeasures/pull/735>`_]
+* Fix browser console error when loading asset or sensor page with only a single data point [see `PR #732 <https://www.github.com/FlexMeasures/flexmeasures/pull/732>`_]
+
+
+v0.14.0 | June 15, 2023
+============================
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/014-reporting-power/>`__.
 
 New features
 -------------
@@ -13,6 +41,7 @@ New features
 * Allow setting multiple :abbr:`SoC (state of charge)` maxima and minima constraints for the `StorageScheduler`, using the new ``soc-minima`` and ``soc-maxima`` fields when calling `/sensors/<id>/schedules/trigger` (POST) through the API (within the ``flex-model`` field) [see `PR #680 <https://www.github.com/FlexMeasures/flexmeasures/pull/680>`_]
 * New CLI command ``flexmeasures add report`` to calculate a custom report from sensor data and save the results to the database, with the option to export them to a CSV or Excel file [see `PR #659 <https://www.github.com/FlexMeasures/flexmeasures/pull/659>`_]
 * New CLI commands ``flexmeasures show reporters`` and ``flexmeasures show schedulers`` to list available reporters and schedulers, respectively, including any defined in registered plugins [see `PR #686 <https://www.github.com/FlexMeasures/flexmeasures/pull/686>`_ and `PR #708 <https://github.com/FlexMeasures/flexmeasures/pull/708>`_]
+* Allow creating public assets through the CLI, which are available to all users [see `PR #727 <https://github.com/FlexMeasures/flexmeasures/pull/727>`_]
 
 Bugfixes
 -----------
@@ -25,6 +54,7 @@ Infrastructure / Support
 * The setting FLEXMEASURES_PLUGINS can be set as environment variable now (as a comma-separated list) [see `PR #660 <https://www.github.com/FlexMeasures/flexmeasures/pull/660>`_]
 * Packaging was modernized to stop calling setup.py directly [see `PR #671 <https://www.github.com/FlexMeasures/flexmeasures/pull/671>`_]
 * Remove API versions 1.0, 1.1, 1.2, 1.3 and 2.0, while making sure that sunset endpoints keep returning ``HTTP status 410 (Gone)`` responses [see `PR #667 <https://www.github.com/FlexMeasures/flexmeasures/pull/667>`_ and `PR #717 <https://www.github.com/FlexMeasures/flexmeasures/pull/717>`_]
+* Support Pandas 2 [see `PR #673 <https://www.github.com/FlexMeasures/flexmeasures/pull/673>`_]
 * Add code documentation from package structure and docstrings to official docs [see `PR #698 <https://www.github.com/FlexMeasures/flexmeasures/pull/698>`_]
 
 .. warning:: The setting `FLEXMEASURES_PLUGIN_PATHS` has been deprecated since v0.7. It has now been sunset. Please replace it with :ref:`plugin-config`.

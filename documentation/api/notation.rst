@@ -145,10 +145,8 @@ Technically, this is equal to:
 
 This intuitive convention allows us to reduce communication by sending univariate timeseries as arrays.
 
-Notation for v1, v2 and v3
-""""""""""""""""""""""""""
 
-For version 1, 2 and 3 of the API, only equidistant timeseries data is expected to be communicated. Therefore:
+In all current versions of the FlexMeasures API, only equidistant timeseries data is expected to be communicated. Therefore:
 
 - only the array notation should be used (first notation from above),
 - "start" should be a timestamp on the hour or a multiple of the sensor resolution thereafter (e.g. "16:10" works if the resolution is 5 minutes), and

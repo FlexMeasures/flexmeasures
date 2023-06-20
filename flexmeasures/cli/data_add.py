@@ -1,4 +1,7 @@
-"""CLI Tasks for populating the database - most useful in development"""
+"""
+CLI commands for populating the database
+"""
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta
@@ -130,7 +133,12 @@ def new_account(name: str, roles: str):
 @with_appcontext
 @click.option("--username", required=True)
 @click.option("--email", required=True)
-@click.option("--account-id", type=int, required=True)
+@click.option(
+    "--account-id",
+    type=int,
+    required=True,
+    help="Add user to this account. Follow up with the account's ID.",
+)
 @click.option("--roles", help="e.g. anonymous,Prosumer,CPO")
 @click.option(
     "--timezone",
@@ -283,7 +291,12 @@ def add_asset_type(**args):
     type=LongitudeField(),
     help="Longitude of the asset's location",
 )
-@click.option("--account-id", type=int, required=True)
+@click.option(
+    "--account-id",
+    type=int,
+    required=False,
+    help="Add asset to this account. Follow up with the account's ID. If not set, the asset will become public (which makes it accessible to all users).",
+)
 @click.option(
     "--asset-type-id",
     "generic_asset_type_id",
@@ -295,6 +308,11 @@ def add_asset(**args):
     """Add an asset."""
     check_errors(GenericAssetSchema().validate(args))
     generic_asset = GenericAsset(**args)
+    if generic_asset.account_id is None:
+        click.secho(
+            "Creating a PUBLIC asset, as no --account-id is given ...",
+            **MsgStyle.WARN,
+        )
     db.session.add(generic_asset)
     db.session.commit()
     click.secho(
@@ -316,7 +334,7 @@ def add_initial_structure():
     "--name",
     required=True,
     type=str,
-    help="Name of the source (usually an organisation)",
+    help="Name of the source (usually an organization)",
 )
 @click.option(
     "--model",
@@ -356,7 +374,7 @@ def add_source(name: str, model: str, version: str, source_type: str):
     "sensor",
     required=True,
     type=SensorIdField(),
-    help="Sensor to which the beliefs pertain.",
+    help="Record the beliefs under this sensor. Follow up with the sensor's ID. ",
 )
 @click.option(
     "--source",
@@ -1147,7 +1165,7 @@ def add_schedule_for_storage(
     "sensor",
     type=SensorIdField(),
     required=True,
-    help="ID of the sensor used to save the report."
+    help="Sensor used to save the report. Follow up with the sensor's ID. "
     " If needed, use `flexmeasures add sensor` to create a new sensor first.",
 )
 @click.option(
@@ -1329,10 +1347,10 @@ def add_report(  # noqa: C901
             "Report computation done, but the report is empty.", **MsgStyle.WARN
         )
 
-    # save the report it's not running in dry mode
+    # save the report if it's not running in dry mode
     if not dry_run:
         click.echo("Saving report to the database...")
-        save_to_db(result)
+        save_to_db(result.dropna())
         db.session.commit()
         click.secho(
             "Success. The report has been saved to the database.",

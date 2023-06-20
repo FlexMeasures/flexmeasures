@@ -566,15 +566,15 @@ def test_soc_bounds_timeseries(add_battery_assets):
 
     # test for soc_minima
     # check that the local minimum constraint is respected
-    assert soc_schedule2.loc[datetime(2015, 1, 2, 7)] >= 3.5
+    assert soc_schedule2.loc["2015-01-02T08:00:00+01:00"] >= 3.5
 
     # test for soc_maxima
     # check that the local maximum constraint is respected
-    assert soc_schedule2.loc[datetime(2015, 1, 2, 14)] <= 1.0
+    assert soc_schedule2.loc["2015-01-02T15:00:00+01:00"] <= 1.0
 
     # test for soc_targets
     # check that the SOC target (at 19 pm, local time) is met
-    assert soc_schedule2.loc[datetime(2015, 1, 2, 18)] == 2.0
+    assert soc_schedule2.loc["2015-01-02T19:00:00+01:00"] == 2.0
 
 
 @pytest.mark.parametrize(
@@ -640,6 +640,26 @@ def test_add_storage_constraints(
 @pytest.mark.parametrize(
     "value_min1, value_equals1, value_max1, value_min2, value_equals2, value_max2, expected_constraint_type_violations",
     [
+        (1, np.nan, 9, 1, np.nan, 9, []),  # base case
+        (1, np.nan, 10, 1, np.nan, 10, []),  # exact equality
+        (
+            1,
+            np.nan,
+            10 + 0.5e-6,
+            1,
+            np.nan,
+            10,
+            [],
+        ),  # equality considering the precision (6 decimal figures)
+        (
+            1,
+            np.nan,
+            10 + 1e-5,
+            1,
+            np.nan,
+            10,
+            ["max(t) <= soc_max(t)"],
+        ),  # difference of 0.5e-5 > 1e-6
         (1, np.nan, 9, 2, np.nan, 20, ["max(t) <= soc_max(t)"]),
         (-1, np.nan, 9, 1, np.nan, 9, ["soc_min(t) <= min(t)"]),
         (1, 10, 9, 1, np.nan, 9, ["equals(t) <= max(t)"]),

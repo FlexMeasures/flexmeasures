@@ -4,6 +4,25 @@
 FlexMeasures CLI Changelog
 **********************
 
+since v0.15.0 | July XX, 2023
+=================================
+
+* Allow deleting multiple sensors with a single call to ``flexmeasures delete sensor`` by passing the ``--id`` option multiple times.
+
+since v0.14.1 | June XX, 2023
+=================================
+
+* Avoid saving any :abbr:`NaN (not a number)` values to the database, when calling ``flexmeasures add report``.
+
+since v0.14.0 | June 15, 2023
+=================================
+
+* Allow setting a storage efficiency using the new ``--storage-efficiency`` option to the ``flexmeasures add schedule for-storage`` CLI command.
+* Add CLI command ``flexmeasures add report`` to calculate a custom report from sensor data and save the results to the database, with the option to export them to a CSV or Excel file.
+* Add CLI command ``flexmeasures show reporters`` to list available reporters, including any defined in registered plugins.
+* Add CLI command ``flexmeasures show schedulers`` to list available schedulers, including any defined in registered plugins.
+* Make ``--account-id`` optional in ``flexmeasures add asset`` to support creating public assets, which are available to all users.
+
 since v0.13.0 | May 1, 2023
 =================================
 
