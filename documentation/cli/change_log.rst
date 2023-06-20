@@ -9,6 +9,11 @@ since v0.15.0 | July XX, 2023
 
 * Allow deleting multiple sensors with a single call to ``flexmeasures delete sensor`` by passing the ``--id`` option multiple times.
 
+since v0.14.1 | June XX, 2023
+=================================
+
+* Avoid saving any :abbr:`NaN (not a number)` values to the database, when calling ``flexmeasures add report``.
+
 since v0.14.0 | June 15, 2023
 =================================
 

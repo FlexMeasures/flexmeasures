@@ -1347,10 +1347,10 @@ def add_report(  # noqa: C901
             "Report computation done, but the report is empty.", **MsgStyle.WARN
         )
 
-    # save the report it's not running in dry mode
+    # save the report if it's not running in dry mode
     if not dry_run:
         click.echo("Saving report to the database...")
-        save_to_db(result)
+        save_to_db(result.dropna())
         db.session.commit()
         click.secho(
             "Success. The report has been saved to the database.",
