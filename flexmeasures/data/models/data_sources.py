@@ -82,6 +82,7 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         "Sensor",
         secondary="timed_belief",
         backref=db.backref("data_sources", lazy="dynamic"),
+        viewonly=True,
     )
 
     def __init__(
