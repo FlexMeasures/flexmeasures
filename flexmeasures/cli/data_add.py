@@ -374,7 +374,7 @@ def add_source(name: str, model: str, version: str, source_type: str):
     "sensor",
     required=True,
     type=SensorIdField(),
-    help="Sensor to which the beliefs pertain.",
+    help="Record the beliefs under this sensor. Follow up with the sensor's ID. ",
 )
 @click.option(
     "--source",
@@ -1165,7 +1165,7 @@ def add_schedule_for_storage(
     "sensor",
     type=SensorIdField(),
     required=True,
-    help="ID of the sensor used to save the report."
+    help="Sensor used to save the report. Follow up with the sensor's ID. "
     " If needed, use `flexmeasures add sensor` to create a new sensor first.",
 )
 @click.option(
