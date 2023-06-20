@@ -99,13 +99,16 @@ def create(  # noqa C901
         app.config["SECURITY_PASSWORD_SALT"] = app.config["SECRET_KEY"]
     if app.env not in ("documentation", "development"):
         SSLify(app)
+
+    # Prepare profiling, if needed
+
     if app.config.get("FLEXMEASURES_PROFILE_REQUESTS", False):
         Path("profile_reports").mkdir(parents=True, exist_ok=True)
         try:
             import pyinstrument  # noqa F401
         except ImportError:
             app.logger.warning(
-                "[PROFILE] pyinstrument not installed, cannot profile requests."
+                "FLEXMEASURES_PROFILE_REQUESTS is True, but pyinstrument not installed ― I cannot produce profiling reports for requests."
             )
 
     # Register database and models, including user auth security handlers

@@ -98,7 +98,9 @@ Default: ``"migrations/dumps"``
 FLEXMEASURES_PROFILE_REQUESTS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Whether to turn on a feature which times requests made through FlexMeasures. If `pyinstrument` is installed, the Flask API endpoints are profiled.
+If True, the processing time of requests are profiled.
+
+The overall time used by requests are logged to the console. In addiition, if `pyinstrument` is installed, then a profiling report is made (of time being spent in different function calls) for all Flask API endpoints.
 
 The profiling results are stored in the ``profile_reports`` folder in the instance directory.
 
