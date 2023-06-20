@@ -9,6 +9,8 @@ v0.15.0 | July XX, 2023
 New features
 -------------
 
+* Allow deleting multiple sensors with a single call to ``flexmeasures delete sensor`` by passing the ``--id`` option multiple times [see `PR #734 <https://www.github.com/FlexMeasures/flexmeasures/pull/734>`_]
+
 Bugfixes
 -----------
 
