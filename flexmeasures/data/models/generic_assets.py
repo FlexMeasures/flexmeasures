@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from functools import cached_property
 from typing import Any, Dict, Optional, Tuple, List, Union
 import json
 
@@ -297,8 +298,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         :param dataset_name: optionally name the dataset used in the chart (the default name is sensor_<id>)
         :returns: JSON string defining vega-lite chart specs
         """
-        sensors_to_show = self.sensors_to_show
-        sensors = flatten_unique(sensors_to_show)
+        sensors = flatten_unique(self.sensors_to_show)
         for sensor in sensors:
             sensor.sensor_type = sensor.get_attribute("sensor_type", sensor.name)
 
@@ -311,7 +311,7 @@ class GenericAsset(db.Model, AuthModelMixin):
             kwargs["event_ends_before"] = event_ends_before
         chart_specs = chart_type_to_chart_specs(
             chart_type,
-            sensors_to_show=sensors_to_show,
+            sensors_to_show=self.sensors_to_show,
             dataset_name=dataset_name,
             **kwargs,
         )
@@ -428,7 +428,7 @@ class GenericAsset(db.Model, AuthModelMixin):
             return df.to_json(orient="records")
         return bdf_dict
 
-    @property
+    @cached_property
     def sensors_to_show(self) -> list["Sensor" | list["Sensor"]]:  # noqa F821
         """Sensors to show, as defined by the sensors_to_show attribute.
 
