@@ -1230,7 +1230,6 @@ def add_schedule_for_storage(
     "--timezone",
     "timezone",
     required=False,
-    default="UTC",
     help="Timezone as string, e.g. 'UTC' or 'Europe/Amsterdam' (defaults to FLEXMEASURES_TIMEZONE config setting)",
 )
 @click.option(
@@ -1250,7 +1249,7 @@ def add_report(  # noqa: C901
     resolution: Optional[timedelta] = None,
     output_file: Optional[Path] = None,
     dry_run: bool = False,
-    timezone: str | pytz.BaseTzInfo = get_timezone(),
+    timezone: str | None = None,
 ):
     """
     Create a new report using the Reporter class and save the results
@@ -1258,6 +1257,8 @@ def add_report(  # noqa: C901
     """
 
     # parse timezone into a BaseTzInfo object
+    if timezone is None:
+        timezone = get_timezone()
     if isinstance(timezone, str):
         check_timezone(timezone)
         timezone = pytz.timezone(zone=timezone)
