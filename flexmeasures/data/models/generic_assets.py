@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, Optional, Tuple, List, Union
 import json
 
+from flask import current_app
 from flask_security import current_user
 import pandas as pd
 from sqlalchemy.engine import Row
@@ -453,13 +454,22 @@ class GenericAsset(db.Model, AuthModelMixin):
         if not self.has_attribute("sensors_to_show"):
             return self.sensors[:2]
 
+        # Only allow showing sensors from assets owned by the user's organization,
+        # except in play mode, where any sensor may be shown
+        if current_app.get("FLEXMEASURES_MODE") != "play":
+            account = self.owner
+        else:
+            from flexmeasures.data.models.user import Account
+
+            account = Account.query.all()
+
         from flexmeasures.data.services.sensors import get_sensors
 
         sensor_ids_to_show = self.get_attribute("sensors_to_show")
         sensor_map = {
             sensor.id: sensor
             for sensor in get_sensors(
-                account=self.owner,
+                account=account,
                 include_public_assets=True,
                 sensor_id_allowlist=flatten_unique(sensor_ids_to_show),
             )
