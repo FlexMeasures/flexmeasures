@@ -271,9 +271,9 @@ def create_line_layer(
     event_value_field_definition: dict,
 ):
     event_resolutions = list(set([sensor.event_resolution for sensor in sensors]))
-    assert (
-        len(event_resolutions) == 1
-    ), "Sensors shown within one row must share the same event resolution."
+    assert all(res == timedelta(0) for res in event_resolutions) or all(
+        res != timedelta(0) for res in event_resolutions
+    ), "Sensors shown within one row must all be instantaneous (zero event resolution) or all be non-instantatneous (non-zero event resolution)."
     event_resolution = event_resolutions[0]
     line_layer = {
         "mark": {
