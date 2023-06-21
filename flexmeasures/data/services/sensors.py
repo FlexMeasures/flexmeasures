@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from functools import lru_cache
+
 import sqlalchemy as sa
 
 from flexmeasures import Sensor, Account
@@ -19,13 +21,40 @@ def get_sensors(
     :param sensor_id_allowlist:     optionally, allow only sensors whose id is in this list
     :param sensor_name_allowlist:   optionally, allow only sensors whose name is in this list
     """
-    sensor_query = Sensor.query
+    # Just convert arguments to hashable types; the real implementation has been moved to _get_sensors (which is cached)
     if account is None:
-        account_ids = []
+        account_ids = tuple()
     elif isinstance(account, list):
-        account_ids = [account.id for account in account]
+        account_ids = tuple(account.id for account in account)
     else:
-        account_ids = [account.id]
+        account_ids = tuple([account.id])
+    if sensor_id_allowlist is not None:
+        sensor_id_allowlist = tuple(sensor_id_allowlist)
+    if sensor_name_allowlist is not None:
+        sensor_name_allowlist = tuple(sensor_name_allowlist)
+    return _get_sensors(
+        account_ids=account_ids,
+        include_public_assets=include_public_assets,
+        sensor_id_allowlist=sensor_id_allowlist,
+        sensor_name_allowlist=sensor_name_allowlist,
+    )
+
+
+@lru_cache
+def _get_sensors(
+    account_ids: tuple[int],
+    include_public_assets: bool = False,
+    sensor_id_allowlist: tuple[int] | None = None,
+    sensor_name_allowlist: tuple[str] | None = None,
+) -> list[Sensor]:
+    """Return a list of Sensor objects that belong to the given account, and/or public sensors.
+
+    :param account_ids:             select only sensors from assets with these account ids
+    :param include_public_assets:   if True, include sensors that belong to a public asset
+    :param sensor_id_allowlist:     optionally, allow only sensors whose id is in this list
+    :param sensor_name_allowlist:   optionally, allow only sensors whose name is in this list
+    """
+    sensor_query = Sensor.query
     sensor_query = sensor_query.join(GenericAsset).filter(
         Sensor.generic_asset_id == GenericAsset.id
     )
