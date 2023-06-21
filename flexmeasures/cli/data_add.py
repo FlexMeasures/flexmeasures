@@ -5,7 +5,7 @@ CLI commands for populating the database
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Optional, Type
+from typing import Type
 import json
 from pathlib import Path
 from io import TextIOBase
@@ -1242,12 +1242,12 @@ def add_report(  # noqa: C901
     reporter_class: str,
     sensor: Sensor,
     reporter_config: TextIOBase,
-    start: Optional[datetime] = None,
-    end: Optional[datetime] = None,
-    start_offset: Optional[str] = None,
-    end_offset: Optional[str] = None,
-    resolution: Optional[timedelta] = None,
-    output_file: Optional[Path] = None,
+    start: datetime | None = None,
+    end: datetime | None = None,
+    start_offset: str | None = None,
+    end_offset: str | None = None,
+    resolution: timedelta | None = None,
+    output_file: Path | None = None,
     dry_run: bool = False,
     timezone: str | None = None,
 ):
