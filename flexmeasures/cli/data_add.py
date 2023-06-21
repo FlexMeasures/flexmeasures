@@ -1256,14 +1256,12 @@ def add_report(  # noqa: C901
     to the database or export them as CSV or Excel file.
     """
 
-    # parse timezone into a BaseTzInfo object
-    if timezone is None:
-        timezone = sensor.timezone
-    if isinstance(timezone, str):
+    # compute now in the timezone local to the output sensor
+    if timezone is not None:
         check_timezone(timezone)
-        timezone = pytz.timezone(zone=timezone)
-
-    now = timezone.localize(datetime.now())
+    now = pytz.timezone(
+        zone=timezone if timezone is not None else sensor.timezone
+    ).localize(datetime.now())
 
     # apply offsets, if provided
     if start_offset is not None:
