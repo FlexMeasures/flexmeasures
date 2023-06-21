@@ -66,7 +66,7 @@ from flexmeasures.data.services.data_sources import (
 )
 from flexmeasures.data.services.utils import get_or_create_model
 from flexmeasures.utils import flexmeasures_inflection
-from flexmeasures.utils.time_utils import server_now, get_timezone, apply_offset_chain
+from flexmeasures.utils.time_utils import server_now, apply_offset_chain
 from flexmeasures.utils.unit_utils import convert_units, ur
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.data.models.reporting import Reporter
@@ -1230,7 +1230,7 @@ def add_schedule_for_storage(
     "--timezone",
     "timezone",
     required=False,
-    help="Timezone as string, e.g. 'UTC' or 'Europe/Amsterdam' (defaults to FLEXMEASURES_TIMEZONE config setting)",
+    help="Timezone as string, e.g. 'UTC' or 'Europe/Amsterdam' (defaults to the timezone of the sensor used to save the report).",
 )
 @click.option(
     "--dry-run",
@@ -1258,7 +1258,7 @@ def add_report(  # noqa: C901
 
     # parse timezone into a BaseTzInfo object
     if timezone is None:
-        timezone = get_timezone()
+        timezone = sensor.timezone
     if isinstance(timezone, str):
         check_timezone(timezone)
         timezone = pytz.timezone(zone=timezone)
