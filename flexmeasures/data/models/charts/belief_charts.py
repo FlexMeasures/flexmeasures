@@ -132,6 +132,8 @@ def chart_for_multiple_sensors(
             stack=None,
             **FIELD_DEFINITIONS["event_value"],
         )
+        if unit == "%":
+            event_value_field_definition["scale"] = dict(domain={"unionWith": [0, 100]})
 
         # Set up shared tooltip
         shared_tooltip = [
