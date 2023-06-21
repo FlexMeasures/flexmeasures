@@ -37,3 +37,5 @@ db_schema.png
 
 .coverage
 htmlcov
+test/*
+profile_reports/*
