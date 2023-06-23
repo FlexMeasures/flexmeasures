@@ -204,7 +204,7 @@ Here are the three types of flexibility models you can expect to be built-in:
 
 2) For **shiftable processes**
    
-   .. todo:: A simple algorithm exists, needs integration into FlexMeasures and asset type clarified.
+   .. todo:: A simple and proven algorithm exists, but is awaiting proper integration into FlexMeasures, see `PR 729 <https://github.com/FlexMeasures/flexmeasures/pull/729>`_.
 
 3) For **buffer devices** (e.g. thermal energy storage systems connected to heat pumps), use the same flexibility parameters described above for storage devices. Here are some tips to model a buffer with these parameters:
 
