@@ -30,7 +30,9 @@ def bar_chart(
         **FIELD_DEFINITIONS["event_value"],
     )
     if unit == "%":
-        event_value_field_definition["scale"] = dict(domain={"unionWith": [0, 100]})
+        event_value_field_definition["scale"] = dict(
+            domain={"unionWith": [0, 105]}, nice=False
+        )
     event_start_field_definition = FIELD_DEFINITIONS["event_start"]
     event_start_field_definition["timeUnit"] = {
         "unit": "yearmonthdatehoursminutesseconds",
@@ -142,7 +144,9 @@ def chart_for_multiple_sensors(
             **FIELD_DEFINITIONS["event_value"],
         )
         if unit == "%":
-            event_value_field_definition["scale"] = dict(domain={"unionWith": [0, 100]})
+            event_value_field_definition["scale"] = dict(
+                domain={"unionWith": [0, 105]}, nice=False
+            )
 
         # Set up shared tooltip
         shared_tooltip = [
