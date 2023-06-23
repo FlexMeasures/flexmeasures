@@ -13,6 +13,7 @@ since v0.14.1 | June XX, 2023
 =================================
 
 * Avoid saving any :abbr:`NaN (not a number)` values to the database, when calling ``flexmeasures add report``.
+* Fix defaults for the ``--start-offset`` and ``--end-offset` options to ``flexmeasures add report``, which weren't being interpreted in the local timezone of the reporting sensor.
 
 since v0.14.0 | June 15, 2023
 =================================
