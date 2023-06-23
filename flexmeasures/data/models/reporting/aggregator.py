@@ -17,16 +17,23 @@ class AggregatorReporter(Reporter):
     __version__ = "1"
     __author__ = "Seita"
     schema = AggregatorSchema()
+
+    reporter_config_schema = AggregatorSchema()
+    report_config_schema = None
+
     weights: dict
     method: str
 
-    def deserialize_config(self):
-        # call Reporter deserialize_config
-        super().deserialize_config()
+    def deserialize_reporter_config(self, reporter_config):
+        self.reporter_config = self.reporter_config_schema.load(reporter_config)
 
         # extract AggregatorReporter specific fields
         self.method = self.reporter_config.get("method")
         self.weights = self.reporter_config.get("weights", dict())
+        self.beliefs_search_configs = self.reporter_config.get("beliefs_search_configs")
+
+    def deserialize_report_config(self, report_config: dict):
+        pass
 
     def _compute(
         self,
@@ -43,15 +50,22 @@ class AggregatorReporter(Reporter):
 
         dataframes = []
 
-        if belief_time is None:
-            belief_time = server_now()
-
         for belief_search_config in self.beliefs_search_configs:
             # if alias is not in belief_search_config, using the Sensor id instead
             column_name = belief_search_config.get(
                 "alias", f"sensor_{belief_search_config['sensor'].id}"
             )
-            data = self.data[column_name].droplevel([1, 2, 3])
+
+            data = (
+                belief_search_config["sensor"]
+                .search_beliefs(
+                    event_starts_after=start,
+                    event_ends_before=end,
+                    resolution=input_resolution,
+                    beliefs_before=belief_time,
+                )
+                .droplevel([1, 2, 3])
+            )
 
             # apply weight
             if column_name in self.weights:
@@ -60,6 +74,9 @@ class AggregatorReporter(Reporter):
             dataframes.append(data)
 
         output_df = pd.concat(dataframes, axis=1)
+
+        if belief_time is None:
+            belief_time = server_now()
 
         # apply aggregation method
         output_df = output_df.aggregate(self.method, axis=1)

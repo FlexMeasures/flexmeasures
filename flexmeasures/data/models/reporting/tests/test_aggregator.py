@@ -45,7 +45,7 @@ def test_aggregator(setup_dummy_data, aggregation_method, expected_value):
     )
 
     agg_reporter = AggregatorReporter(
-        reporter_sensor, reporter_config_raw=reporter_config_raw
+        reporter_sensor, reporter_config=reporter_config_raw
     )
 
     result = agg_reporter.compute(
