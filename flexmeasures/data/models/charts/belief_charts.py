@@ -114,7 +114,7 @@ def chart_for_multiple_sensors(
         }
 
     # Set up field definition for sensor descriptions
-    sensor_field_definition = FIELD_DEFINITIONS["sensor_description"]
+    sensor_field_definition = FIELD_DEFINITIONS["sensor_description"].copy()
     sensor_field_definition["scale"] = dict(
         domain=[sensor.to_dict()["description"] for sensor in all_shown_sensors]
     )
