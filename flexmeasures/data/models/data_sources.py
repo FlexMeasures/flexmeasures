@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from sqlalchemy.ext.mutable import MutableDict
 
 import timely_beliefs as tb
@@ -90,6 +90,7 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         name: str | None = None,
         type: str | None = None,
         user: User | None = None,
+        attributes: dict | None = None,
         **kwargs,
     ):
         if user is not None:
@@ -99,6 +100,10 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         elif user is None and type == "user":
             raise TypeError("A data source cannot have type 'user' but no user set.")
         self.type = type
+
+        if attributes is not None:
+            kwargs["attributes"] = attributes
+
         tb.BeliefSourceDBMixin.__init__(self, name=name)
         db.Model.__init__(self, **kwargs)
 
@@ -154,3 +159,21 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
             type=self.type if self.type in ("forecaster", "scheduler") else "other",
             description=self.description,
         )
+
+    def get_attribute(self, attribute: str, default: Any = None) -> Any:
+        """Looks for the attribute on the DataSource.
+        If not found, returns the default.
+        """
+        if hasattr(self, attribute):
+            return getattr(self, attribute)
+        if attribute in self.attributes:
+            return self.attributes[attribute]
+
+        return default
+
+    def has_attribute(self, attribute: str) -> bool:
+        return attribute in self.attributes
+
+    def set_attribute(self, attribute: str, value):
+        if self.has_attribute(attribute):
+            self.attributes[attribute] = value
