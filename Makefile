@@ -42,7 +42,7 @@ install-for-test:
 	make install-pip-tools
 # Pass pinned=no if you want to test against latest stable packages, default is our pinned dependency set
 ifneq ($(pinned), no)
-	pip-sync requirements/app.txt requirements/dev.txt requirements/test.txt
+	pip-sync requirements/app.txt requirements/test.txt
 else
 	# cutting off the -c inter-layer dependency (that's pip-tools specific)
 	tail -n +3 requirements/test.in >> temp-test.in
