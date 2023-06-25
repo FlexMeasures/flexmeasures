@@ -52,7 +52,7 @@ jobs:
           ci/setup-postgres.sh
           sudo apt-get -y install coinor-cbc
       - name: Install FlexMeasures & exact dependencies for tests
-        if: github.event.review.state != 'approved' and steps.cache.outputs.cache-hit != 'true'
+        if: github.event.review.state != 'approved' && steps.cache.outputs.cache-hit != 'true'
         run: make install-for-test
       - name: Install FlexMeasures & latest dependencies for tests
         if: github.event.review.state == 'approved'
