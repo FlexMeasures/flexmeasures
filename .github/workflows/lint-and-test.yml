@@ -2,8 +2,10 @@ name: lint-and-test
 
 on:
   push:
-  pull_request_review:
-    types: [submitted]
+  pull_request:
+    types:
+      - opened
+
 
 
 jobs:
@@ -52,11 +54,11 @@ jobs:
           ci/setup-postgres.sh
           sudo apt-get -y install coinor-cbc
       - name: Install FlexMeasures & exact dependencies for tests
-        if: github.event.review.state != 'approved' && steps.cache.outputs.cache-hit != 'true'
         run: make install-for-test
+        if: github.event_name == 'push' && steps.cache.outputs.cache-hit != 'true'
       - name: Install FlexMeasures & latest dependencies for tests
-        if: github.event.review.state == 'approved'
         run: make install-for-test pinned=no
+        if: github.event_name == 'pull_request'
       - name: Run all tests except those marked to be skipped by GitHub
         run: |
           pip install coveralls
