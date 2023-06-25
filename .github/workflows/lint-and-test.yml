@@ -49,7 +49,6 @@ jobs:
       - name: Install FlexMeasures & dependencies for tests
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
-          make install-pip-tools
           make install-for-test
           pip install coveralls
       - name: Run all tests except those marked to be skipped by GitHub
