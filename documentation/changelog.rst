@@ -22,7 +22,7 @@ Infrastructure / Support
 * Add support for profiling Flask API calls using ``pyinstrument`` (if installed). Can be enabled by setting the environment variable ``FLEXMEASURES_PROFILE_REQUESTS`` to ``True`` [see `PR #722 <https://www.github.com/FlexMeasures/flexmeasures/pull/722>`_]
 
 
-v0.14.1 | June XX, 2023
+v0.14.1 | June 26, 2023
 ============================
 
 Bugfixes
