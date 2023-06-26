@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from flask import current_app
 
+import json
+import hashlib
+
 from flexmeasures import User
 from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataSource
@@ -13,6 +16,7 @@ def get_or_create_source(
     source_type: str | None = None,
     model: str | None = None,
     version: str | None = None,
+    attributes: dict | None = None,
     flush: bool = True,
 ) -> DataSource:
     if is_user(source):
@@ -22,6 +26,11 @@ def get_or_create_source(
         query = query.filter(DataSource.model == model)
     if version is not None:
         query = query.filter(DataSource.version == version)
+    if attributes is not None:
+        attributes_hash = hashlib.sha256(
+            json.dumps(attributes).encode("utf-8")
+        ).digest()
+        query = query.filter(DataSource.attributes_hash == attributes_hash)
     if is_user(source):
         query = query.filter(DataSource.user == source)
     elif isinstance(source, str):
