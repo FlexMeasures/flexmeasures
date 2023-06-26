@@ -33,7 +33,7 @@ def bar_chart(
         event_value_field_definition["scale"] = dict(
             domain={"unionWith": [0, 105]}, nice=False
         )
-    event_start_field_definition = FIELD_DEFINITIONS["event_start"]
+    event_start_field_definition = FIELD_DEFINITIONS["event_start"].copy()
     event_start_field_definition["timeUnit"] = {
         "unit": "yearmonthdatehoursminutesseconds",
         "step": sensor.event_resolution.total_seconds(),
@@ -103,7 +103,7 @@ def chart_for_multiple_sensors(
     minimum_non_zero_resolution = min(condition) if any(condition) else timedelta(0)
 
     # Set up field definition for event starts
-    event_start_field_definition = FIELD_DEFINITIONS["event_start"]
+    event_start_field_definition = FIELD_DEFINITIONS["event_start"].copy()
     event_start_field_definition["timeUnit"] = {
         "unit": "yearmonthdatehoursminutesseconds",
         "step": minimum_non_zero_resolution.total_seconds(),
