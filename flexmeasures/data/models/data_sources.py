@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import TYPE_CHECKING, Any
 from sqlalchemy.ext.mutable import MutableDict
 
@@ -7,6 +8,7 @@ import timely_beliefs as tb
 
 from flexmeasures.data import db
 from flask import current_app
+import hashlib
 
 
 if TYPE_CHECKING:
@@ -71,6 +73,8 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
     attributes = db.Column(MutableDict.as_mutable(db.JSON), nullable=False, default={})
 
+    attributes_hash = db.Column(db.LargeBinary(length=256))
+
     # The model and version of a script source
     model = db.Column(db.String(80), nullable=True)
     version = db.Column(
@@ -102,7 +106,10 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         self.type = type
 
         if attributes is not None:
-            kwargs["attributes"] = attributes
+            self.attributes = attributes
+            self.attributes_hash = hashlib.sha256(
+                json.dumps(attributes).encode("utf-8")
+            ).digest()
 
         tb.BeliefSourceDBMixin.__init__(self, name=name)
         db.Model.__init__(self, **kwargs)
