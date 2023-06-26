@@ -110,8 +110,16 @@ def register_plugins(app: Flask):
         from flexmeasures.data.models.reporting import Reporter
         from flexmeasures.data.models.planning import Scheduler
 
-        app.reporters.update(get_classes_module(module.__name__, Reporter))
-        app.schedulers.update(get_classes_module(module.__name__, Scheduler))
+        plugin_reporters = get_classes_module(module.__name__, Reporter)
+        plugin_schedulers = get_classes_module(module.__name__, Scheduler)
+
+        # for legacy, we keep reporters and schedulers
+        app.reporters.update(plugin_reporters)
+        app.schedulers.update(plugin_schedulers)
+
+        # add DataGenerators
+        app.data_generators.update(plugin_schedulers)
+        app.data_generators.update(plugin_reporters)
 
         app.config["LOADED_PLUGINS"][plugin_name] = plugin_version
     app.logger.info(f"Loaded plugins: {app.config['LOADED_PLUGINS']}")

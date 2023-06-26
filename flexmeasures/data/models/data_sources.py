@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Type
 from sqlalchemy.ext.mutable import MutableDict
 
 import timely_beliefs as tb
@@ -10,13 +10,50 @@ from flexmeasures.data import db
 from flask import current_app
 import hashlib
 
+from marshmallow import Schema
+
 
 if TYPE_CHECKING:
     from flexmeasures.data.models.user import User
 
 
-class DataGeneratorMixin:
+class DataGenerator:
     _data_source: DataSource | None = None
+
+    _config: dict = None
+
+    _inputs_schema: Type[Schema] | None = None
+    _config_schema: Type[Schema] | None = None
+
+    def __init__(self, config: dict | None = None, **kwargs) -> None:
+        if config is None:
+            _config = kwargs
+        else:
+            if self._config_schema:
+                _config = self._config_schema.load(config)
+            else:
+                _config = config
+
+        self._config = _config
+
+    def _compute(self, **kwargs):
+        raise NotImplementedError()
+
+    def compute(self, inputs: dict = None, **kwargs):
+        if inputs is None:
+            _inputs = kwargs
+            self.validate_deserialized_inputs(_inputs)
+        else:
+            if self._inputs_schema:
+                _inputs = self._inputs_schema.load(inputs)
+
+            else:  # skip validation
+                _inputs = inputs
+
+        return self._compute(**_inputs)
+
+    def validate_deserialized_inputs(self, inputs: dict):
+        self._inputs_schema.load(self._inputs_schema.dump(inputs))
 
     @classmethod
     def get_data_source_info(cls: type) -> dict:
@@ -26,32 +63,34 @@ class DataGeneratorMixin:
         See for instance get_data_source_for_job().
         """
         source_info = dict(
-            name=current_app.config.get("FLEXMEASURES_DEFAULT_DATASOURCE")
+            source=current_app.config.get("FLEXMEASURES_DEFAULT_DATASOURCE")
         )  # default
 
         from flexmeasures.data.models.planning import Scheduler
         from flexmeasures.data.models.reporting import Reporter
 
         if issubclass(cls, Reporter):
-            source_info["type"] = "reporter"
+            source_info["source_type"] = "reporter"
         elif issubclass(cls, Scheduler):
-            source_info["type"] = "scheduler"
+            source_info["source_type"] = "scheduler"
         else:
-            source_info["type"] = "undefined"
+            source_info["source_type"] = "undefined"
+
+        source_info["model"] = cls.__name__
 
         return source_info
 
     @property
-    def data_source(self):
+    def data_source(self) -> "DataSource | None":
         from flexmeasures.data.services.data_sources import get_or_create_source
 
         if self._data_source is None:
             data_source_info = self.get_data_source_info()
-
-            self._data_source = get_or_create_source(
-                source=data_source_info.get("name"),
-                source_type=data_source_info.get("type"),
+            data_source_info["attributes"] = dict(
+                config=self._config_schema.dump(self._config)
             )
+
+            self._data_source = get_or_create_source(**data_source_info)
 
         return self._data_source
 
@@ -89,6 +128,8 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         viewonly=True,
     )
 
+    _data_generator: DataGenerator | None = None
+
     def __init__(
         self,
         name: str | None = None,
@@ -113,6 +154,43 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
         tb.BeliefSourceDBMixin.__init__(self, name=name)
         db.Model.__init__(self, **kwargs)
+
+    @property
+    def data_generator(self):
+        if self._data_generator:
+            return self._data_generator
+
+        data_generator = None
+
+        if self.type not in ["scheduler", "forecaster", "reporter"]:
+            current_app.logger.warning(
+                "Only the classes Scheduler, Forecaster and Reporters are DataGenerator's."
+            )
+            return None
+
+        if not self.model:
+            current_app.logger.warning(
+                "There's no DataGenerator class defined in this DataSource."
+            )
+            return None
+
+        if self.model not in current_app.data_generators:
+            current_app.logger.warning(
+                "DataGenerator `{self.model}` not registered in this FlexMeasures instance."
+            )
+            return None
+
+        # fetch DataGenerator details
+        data_generator_details = self.attributes.get("data_generator", {})
+        config = data_generator_details.get("config", {})
+
+        # create DataGenerator class and assign the current DataSource (self) as its source
+        data_generator = current_app.data_generators[self.model](config=config)
+        data_generator._data_source = self
+
+        self._data_generator = data_generator
+
+        return self._data_generator
 
     @property
     def label(self):

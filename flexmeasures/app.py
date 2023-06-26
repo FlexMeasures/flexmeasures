@@ -5,6 +5,7 @@ Starting point of the Flask application.
 from __future__ import annotations
 
 import time
+from copy import copy
 
 from flask import Flask, g, request
 from flask.cli import load_dotenv
@@ -107,8 +108,14 @@ def create(  # noqa C901
     from flexmeasures.utils.coding_utils import get_classes_module
     from flexmeasures.data.models import reporting, planning
 
-    app.reporters = get_classes_module("flexmeasures.data.models", reporting.Reporter)
-    app.schedulers = get_classes_module("flexmeasures.data.models", planning.Scheduler)
+    reporters = get_classes_module("flexmeasures.data.models", reporting.Reporter)
+    schedulers = get_classes_module("flexmeasures.data.models", planning.Scheduler)
+
+    app.reporters = reporters
+    app.schedulers = schedulers
+
+    app.data_generators = copy(reporters)  # use copy to avoid mutating app.reporters
+    app.data_generators.update(schedulers)
 
     # add auth policy
 
