@@ -14,6 +14,7 @@ Bugfixes
 * Fix browser console error when loading asset or sensor page with only a single data point [see `PR #732 <https://www.github.com/FlexMeasures/flexmeasures/pull/732>`_]
 * Fix defaults for the ``--start-offset`` and ``--end-offset` options to ``flexmeasures add report``, which weren't being interpreted in the local timezone of the reporting sensor [see `PR #744 <https://www.github.com/FlexMeasures/flexmeasures/pull/744>`_]
 * Relax constraint for overlaying plot traces for sensors with various resolutions, making it possible to show e.g. two price sensors in one chart, where one of them records hourly prices and the other records quarter-hourly prices [see `PR #743 <https://www.github.com/FlexMeasures/flexmeasures/pull/743>`_]
+* Resolve bug where different page loads would potentially influence the time axis of each other's charts, by avoiding mutation of shared field definitions [see `PR #746 <https://www.github.com/FlexMeasures/flexmeasures/pull/746>`_]
 
 
 v0.14.0 | June 15, 2023
