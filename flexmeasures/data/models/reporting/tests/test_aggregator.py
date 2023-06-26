@@ -36,17 +36,16 @@ def test_aggregator(setup_dummy_data, aggregation_method, expected_value):
     """
     s1, s2, reporter_sensor = setup_dummy_data
 
-    reporter_config_raw = dict(
-        beliefs_search_configs=[
+    reporter_config = dict(
+        sensor=reporter_sensor.id,
+        data=[
             dict(sensor=s1.id, source=1),
             dict(sensor=s2.id, source=2),
         ],
         method=aggregation_method,
     )
 
-    agg_reporter = AggregatorReporter(
-        reporter_sensor, reporter_config=reporter_config_raw
-    )
+    agg_reporter = AggregatorReporter(config=reporter_config)
 
     result = agg_reporter.compute(
         start=datetime(2023, 5, 10, tzinfo=utc),

@@ -1,5 +1,7 @@
+from __future__ import annotations
 import pytest
 
+from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.models.reporting.pandas_reporter import PandasReporter
 from flexmeasures.data.models.time_series import Sensor, DataSource, TimedBelief
 from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
@@ -67,11 +69,17 @@ tibber_app_price = [
 ]  # cents/kWh
 
 
-class TibberReporter(PandasReporter):
-    def __init__(self, sensor) -> None:
+class TibberReporter(Reporter):
+
+    _inner_reporter: PandasReporter | None = None
+
+    def __init__(self, config: dict | None = None, **kwargs) -> None:
+
         """This class calculates the price of energy of a tariff indexed to the Day Ahead prices.
         Energy Price = (1 + VAT) x ( EnergyTax + Tiber + DA Prices)
         """
+
+        super().__init__(config=config, **kwargs)
 
         # search the sensors
         EnergyTax = Sensor.query.filter(Sensor.name == "EnergyTax").one_or_none()
@@ -82,46 +90,46 @@ class TibberReporter(PandasReporter):
 
         da_prices = Sensor.query.filter(Sensor.name == "DA prices").one_or_none()
 
+        self.input_sensors = {
+            "energy_tax": {"sensor": EnergyTax},
+            "VAT": {"sensor": VAT},
+            "tariff": {"sensor": tibber_tariff},
+            "da_prices": {"sensor": da_prices},
+        }
+
         # create the PandasReporter reporter config
-        reporter_config = dict(
-            beliefs_search_configs=[
-                dict(sensor=EnergyTax.id, alias="energy_tax_df"),
-                dict(sensor=VAT.id),
-                dict(sensor=tibber_tariff.id),
-                dict(sensor=da_prices.id),
-            ],
+        pandas_reporter_config = dict(
+            sensor=self.sensor.id,
+            input_variables=["energy_tax", "VAT", "tariff", "da_prices"],
             transformations=[
                 dict(
-                    df_input="sensor_1",
-                    df_output="VAT",
+                    df_input="VAT",
                     method="droplevel",
                     args=[[1, 2, 3]],
                 ),
                 dict(method="add", args=[1]),  # this is to get 1 + VAT
                 dict(
-                    df_input="energy_tax_df",
-                    df_output="EnergyTax",
+                    df_input="energy_tax",
                     method="droplevel",
                     args=[[1, 2, 3]],
                 ),
                 dict(
-                    df_input="sensor_3",
-                    df_output="tibber_tariff",
+                    df_input="tariff",
+                    df_output="tariff",
                     method="droplevel",
                     args=[[1, 2, 3]],
                 ),
                 dict(
-                    df_input="sensor_4",
-                    df_output="da_prices",
+                    df_input="da_prices",
                     method="droplevel",
                     args=[[1, 2, 3]],
                 ),
                 dict(
-                    method="add", args=["@tibber_tariff"]
+                    method="add", args=["@tariff"]
                 ),  # da_prices = da_prices + tibber_tariff
                 dict(
-                    method="add", args=["@EnergyTax"]
-                ),  # da_prices = da_prices + EnergyTax
+                    method="add", args=["@energy_tax"]
+                ),  # da_prices = da_prices + energy_tax
                 dict(
                     method="multiply", args=["@VAT"]
                 ),  # da_prices = da_price * VAT, VAT
@@ -130,7 +138,11 @@ class TibberReporter(PandasReporter):
             final_df_output="da_prices",
         )
 
-        super().__init__(sensor, reporter_config)
+        self._inner_reporter = PandasReporter(config=pandas_reporter_config)
+
+    def _compute_report(self, **kwargs):
+        kwargs["input_sensors"] = self.input_sensors
+        return self._inner_reporter.compute(**kwargs)
 
 
 def beliefs_from_timeseries(index, values, sensor, source):
@@ -245,7 +257,7 @@ def test_tibber_reporter(tibber_test_data):
 
     tibber_report_sensor = tibber_test_data
 
-    tibber_reporter = TibberReporter(tibber_report_sensor)
+    tibber_reporter = TibberReporter(sensor=tibber_report_sensor)
 
     result = tibber_reporter.compute(
         start=datetime(2023, 4, 13, tzinfo=utc),

@@ -6,7 +6,7 @@ import timely_beliefs as tb
 import pandas as pd
 
 from flexmeasures.data.models.reporting import Reporter
-from flexmeasures.data.schemas.reporting.aggregation import AggregatorSchema
+from flexmeasures.data.schemas.reporting.aggregation import AggregatorConfigSchema
 
 from flexmeasures.utils.time_utils import server_now
 
@@ -16,26 +16,13 @@ class AggregatorReporter(Reporter):
 
     __version__ = "1"
     __author__ = "Seita"
-    schema = AggregatorSchema()
 
-    reporter_config_schema = AggregatorSchema()
-    report_config_schema = None
+    _config_schema = AggregatorConfigSchema()
 
     weights: dict
     method: str
 
-    def deserialize_reporter_config(self, reporter_config):
-        self.reporter_config = self.reporter_config_schema.load(reporter_config)
-
-        # extract AggregatorReporter specific fields
-        self.method = self.reporter_config.get("method")
-        self.weights = self.reporter_config.get("weights", dict())
-        self.beliefs_search_configs = self.reporter_config.get("beliefs_search_configs")
-
-    def deserialize_report_config(self, report_config: dict):
-        pass
-
-    def _compute(
+    def _compute_report(
         self,
         start: datetime,
         end: datetime,
@@ -48,16 +35,18 @@ class AggregatorReporter(Reporter):
         columns.
         """
 
+        method: str = self._config.get("method")
+        weights: list = self._config.get("weights", {})
+        data: list = self._config.get("data")
+
         dataframes = []
 
-        for belief_search_config in self.beliefs_search_configs:
+        for d in data:
             # if alias is not in belief_search_config, using the Sensor id instead
-            column_name = belief_search_config.get(
-                "alias", f"sensor_{belief_search_config['sensor'].id}"
-            )
+            column_name = d.get("alias", f"sensor_{d['sensor'].id}")
 
-            data = (
-                belief_search_config["sensor"]
+            df = (
+                d["sensor"]
                 .search_beliefs(
                     event_starts_after=start,
                     event_ends_before=end,
@@ -68,10 +57,10 @@ class AggregatorReporter(Reporter):
             )
 
             # apply weight
-            if column_name in self.weights:
-                data *= self.weights[column_name]
+            if column_name in weights:
+                df *= weights[column_name]
 
-            dataframes.append(data)
+            dataframes.append(df)
 
         output_df = pd.concat(dataframes, axis=1)
 
@@ -79,7 +68,7 @@ class AggregatorReporter(Reporter):
             belief_time = server_now()
 
         # apply aggregation method
-        output_df = output_df.aggregate(self.method, axis=1)
+        output_df = output_df.aggregate(method, axis=1)
 
         # convert BeliefsSeries into a BeliefsDataFrame
         output_df = output_df.to_frame("event_value")

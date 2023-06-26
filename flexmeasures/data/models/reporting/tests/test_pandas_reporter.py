@@ -8,7 +8,8 @@ from flexmeasures.data.models.reporting.pandas_reporter import PandasReporter
 def test_reporter(app, setup_dummy_data):
     s1, s2, reporter_sensor = setup_dummy_data
 
-    reporter_config = dict(
+    config = dict(
+        sensor=reporter_sensor.id,
         input_variables=["sensor_1", "sensor_2"],
         transformations=[
             dict(
@@ -39,7 +40,7 @@ def test_reporter(app, setup_dummy_data):
         final_df_output="df_merge",
     )
 
-    reporter = PandasReporter(reporter_sensor, reporter_config=reporter_config)
+    reporter = PandasReporter(config=config)
 
     start = datetime(2023, 4, 10, tzinfo=utc)
     end = datetime(2023, 4, 10, 10, tzinfo=utc)
@@ -75,6 +76,7 @@ def test_reporter_repeated(setup_dummy_data):
     s1, s2, reporter_sensor = setup_dummy_data
 
     reporter_config = dict(
+        sensor=reporter_sensor.id,
         input_variables=["sensor_1", "sensor_2"],
         transformations=[
             dict(
@@ -105,7 +107,7 @@ def test_reporter_repeated(setup_dummy_data):
         final_df_output="df_merge",
     )
 
-    report_config = dict(
+    inputs = dict(
         start="2023-04-10T00:00:00 00:00",
         end="2023-04-10T10:00:00 00:00",
         input_sensors=dict(
@@ -114,10 +116,10 @@ def test_reporter_repeated(setup_dummy_data):
         ),
     )
 
-    reporter = PandasReporter(reporter_sensor, reporter_config=reporter_config)
+    reporter = PandasReporter(config=reporter_config)
 
-    report1 = reporter.compute(report_config=report_config)
-    report2 = reporter.compute(report_config=report_config)
+    report1 = reporter.compute(inputs=inputs)
+    report2 = reporter.compute(inputs=inputs)
 
     assert all(report2.values == report1.values)
 
@@ -126,13 +128,14 @@ def test_reporter_empty(setup_dummy_data):
     """check that calling compute with missing data returns an empty report"""
     s1, s2, reporter_sensor = setup_dummy_data
 
-    reporter_config = dict(
+    config = dict(
+        sensor=reporter_sensor.id,
         input_variables=["sensor_1"],
         transformations=[],
         final_df_output="sensor_1",
     )
 
-    reporter = PandasReporter(reporter_sensor, reporter_config=reporter_config)
+    reporter = PandasReporter(config=config)
 
     # compute report on available data
     report = reporter.compute(
