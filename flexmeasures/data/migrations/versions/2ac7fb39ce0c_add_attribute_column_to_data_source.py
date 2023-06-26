@@ -17,10 +17,16 @@ depends_on = None
 
 
 def upgrade():
-    # add the column `attributes`to the table `data_source`
+    # add the column `attributes` to the table `data_source`
     op.add_column(
         "data_source",
         sa.Column("attributes", sa.JSON(), nullable=True, default={}),
+    )
+
+    # add the column `attributes_hash` to the table `data_source`
+    op.add_column(
+        "data_source",
+        sa.Column("attributes_hash", sa.LargeBinary(length=256), nullable=True),
     )
 
 

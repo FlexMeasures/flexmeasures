@@ -2,14 +2,15 @@ from __future__ import annotations
 
 from typing import Any, Union, Dict
 from datetime import datetime, timedelta
+from copy import deepcopy
 
 from flask import current_app
 import timely_beliefs as tb
 import pandas as pd
 from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.schemas.reporting.pandas_reporter import (
-    PandasReporterReporterConfigSchema,
-    PandasReporterReportConfigSchema,
+    PandasReporterConfigSchema,
+    PandasReporterInputConfigSchema,
 )
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.utils.time_utils import server_now
@@ -21,38 +22,14 @@ class PandasReporter(Reporter):
     __version__ = "1"
     __author__ = "Seita"
 
-    reporter_config_schema = PandasReporterReporterConfigSchema()
-    report_config_schema = PandasReporterReportConfigSchema()
+    _config_schema = PandasReporterConfigSchema()
+    _inputs_schema = PandasReporterInputConfigSchema()
 
     input_variables: list[str] = None
     transformations: list[dict[str, Any]] = None
     final_df_output: str = None
 
     data: Dict[str, Union[tb.BeliefsDataFrame, pd.DataFrame]] = None
-
-    def deserialize_reporter_config(self, reporter_config):
-        # call super class deserialize_config
-        self.reporter_config = self.reporter_config_schema.load(reporter_config)
-
-        # extract PandasReporter specific fields
-        self.transformations = self.reporter_config.get("transformations")
-        self.input_variables = self.reporter_config.get("input_variables")
-        self.final_df_output = self.reporter_config.get("final_df_output")
-
-    def deserialize_report_config(
-        self, report_config: dict
-    ):  # TODO: move to Reporter class
-        self.report_config = self.report_config_schema.load(
-            report_config
-        )  # validate reporter configs
-
-        input_sensors = report_config.get("input_sensors")
-
-        # check that all input_variables are provided
-        for variable in self.input_variables:
-            assert (
-                variable in input_sensors
-            ), f"Required sensor with alias `{variable}` not provided."
 
     def fetch_data(
         self,
@@ -93,24 +70,19 @@ class PandasReporter(Reporter):
             # store BeliefsDataFrame as local variable
             self.data[alias] = bdf
 
-    def _compute(self, **kwargs) -> tb.BeliefsDataFrame:
+    def _compute_report(self, **kwargs) -> tb.BeliefsDataFrame:
         """
         This method applies the transformations and outputs the dataframe
         defined in `final_df_output` field of the report_config.
         """
 
-        self.report_config = kwargs
-
-        if "report_config" in kwargs:
-            self.deserialize_report_config(kwargs.get("report_config"))
-
         # report configuration
-        start: datetime = self.report_config.get("start")
-        end: datetime = self.report_config.get("end")
-        input_sensors: dict = self.report_config.get("input_sensors")
+        start: datetime = kwargs.get("start")
+        end: datetime = kwargs.get("end")
+        input_sensors: dict = kwargs.get("input_sensors")
 
-        resolution: timedelta | None = self.report_config.get("resolution", None)
-        belief_time: datetime | None = self.report_config.get("belief_time", None)
+        resolution: timedelta | None = kwargs.get("resolution", None)
+        belief_time: datetime | None = kwargs.get("belief_time", None)
 
         if resolution is None:
             resolution = self.sensor.event_resolution
@@ -124,7 +96,7 @@ class PandasReporter(Reporter):
         # apply pandas transformations to the dataframes in `self.data`
         self._apply_transformations()
 
-        final_output = self.data[self.final_df_output]
+        final_output = self.data[self._config.get("final_df_output")]
 
         if isinstance(final_output, tb.BeliefsDataFrame):
 
@@ -230,7 +202,8 @@ class PandasReporter(Reporter):
 
         previous_df = None
 
-        for transformation in self.transformations:
+        for _transformation in self._config.get("transformations"):
+            transformation = deepcopy(_transformation)
             df_input = transformation.get(
                 "df_input", previous_df
             )  # default is using the previous transformation output

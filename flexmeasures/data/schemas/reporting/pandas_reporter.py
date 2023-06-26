@@ -76,13 +76,14 @@ class BeliefsSearchConfigSchema(Schema):
     sum_multiple = fields.Boolean()
 
 
-class PandasReporterReporterConfigSchema(Schema):
+class PandasReporterConfigSchema(Schema):
     """
     This schema lists fields that can be used to describe sensors in the optimised portfolio
 
     Example:
 
     {
+        "sensor" : 1,
         "input_variables" : ["df1"],
         "transformations" : [
             {
@@ -103,6 +104,7 @@ class PandasReporterReporterConfigSchema(Schema):
         "final_df_output" : "df2"
     """
 
+    sensor = SensorIdField(required=True)
     input_variables = fields.List(fields.Str(), required=True)
     transformations = fields.List(fields.Nested(PandasMethodCall()), required=True)
     final_df_output = fields.Str(required=True)
@@ -150,7 +152,7 @@ class PandasReporterReporterConfigSchema(Schema):
             )
 
 
-class PandasReporterReportConfigSchema(Schema):
+class PandasReporterInputConfigSchema(Schema):
     input_sensors = fields.Dict(
         keys=fields.Str(),
         values=fields.Nested(BeliefsSearchConfigSchema()),

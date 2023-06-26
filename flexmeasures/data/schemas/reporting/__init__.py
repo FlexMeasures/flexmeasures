@@ -1,9 +1,20 @@
-from marshmallow import Schema, fields, validate
+from marshmallow import Schema, fields
 
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.schemas.sources import DataSourceIdField
 
 from flexmeasures.data.schemas import AwareDateTimeField, DurationField
+
+
+class ReporterConfigSchema(Schema):
+    sensor = SensorIdField(required=True)
+
+
+class ReporterInputsSchema(Schema):
+    start = AwareDateTimeField(required=True)
+    end = AwareDateTimeField(required=True)
+    input_resolution = DurationField()
+    belief_time = AwareDateTimeField()
 
 
 class BeliefsSearchConfigSchema(Schema):
@@ -36,14 +47,14 @@ class BeliefsSearchConfigSchema(Schema):
     sum_multiple = fields.Boolean()
 
 
-class ReporterConfigSchema(Schema):
-    """
-    This schema is used to validate Reporter class configurations (reporter_config).
-    Inherit from this to extend this schema with your own parameters.
-    """
+# class ReporterConfigSchema(Schema):
+#     """
+#     This schema is used to validate Reporter class configurations (reporter_config).
+#     Inherit from this to extend this schema with your own parameters.
+#     """
 
-    beliefs_search_configs = fields.List(
-        fields.Nested(BeliefsSearchConfigSchema()),
-        required=True,
-        validator=validate.Length(min=1),
-    )
+#     beliefs_search_configs = fields.List(
+#         fields.Nested(BeliefsSearchConfigSchema()),
+#         required=True,
+#         validator=validate.Length(min=1),
+#     )

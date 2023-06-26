@@ -7,7 +7,9 @@ import pandas as pd
 import numpy as np
 from flask_sqlalchemy import SQLAlchemy
 from statsmodels.api import OLS
+import timely_beliefs as tb
 
+from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.models.annotations import Annotation
 from flexmeasures.data.models.assets import Asset
 from flexmeasures.data.models.data_sources import DataSource
@@ -232,3 +234,42 @@ def setup_annotations(
         asset=asset,
         sensor=sensor,
     )
+
+
+@pytest.fixture(scope="module")
+def aggregator_reporter_data_source(app, db, add_nearby_weather_sensors):
+
+    sensor = add_nearby_weather_sensors.get("temperature")
+
+    class TestReporter(Reporter):
+        def _compute_report(self, **kwargs) -> tb.BeliefsDataFrame:
+            start = kwargs.get("start")
+            end = kwargs.get("end")
+            resolution = self.sensor.event_resolution
+
+            index = pd.date_range(start=start, end=end, freq=resolution)
+
+            r = pd.DataFrame()
+            r["event_start"] = index
+            r["belief_time"] = index
+            r["source"] = self.data_source
+            r["cumulative_probability"] = 0.5
+            r["event_value"] = 0
+
+            return tb.BeliefsDataFrame(r, sensor=self.sensor)
+
+    app.data_generators.update({"TestReporter": TestReporter})
+
+    config = dict(sensor=sensor.id)
+
+    ds = DataSource(
+        name="Test",
+        model="TestReporter",
+        type="reporter",
+        attributes=dict(data_generator=dict(config=config)),
+    )
+
+    db.session.add(ds)
+    db.session.commit()
+
+    return ds

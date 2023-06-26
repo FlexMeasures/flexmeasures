@@ -6,7 +6,7 @@ import timely_beliefs as tb
 import pandas as pd
 
 from flexmeasures.data.models.reporting import Reporter
-from flexmeasures.data.schemas.reporting.aggregation import AggregatorSchema
+from flexmeasures.data.schemas.reporting.aggregation import AggregatorConfigSchema
 
 from flexmeasures.utils.time_utils import server_now
 
@@ -16,19 +16,13 @@ class AggregatorReporter(Reporter):
 
     __version__ = "1"
     __author__ = "Seita"
-    schema = AggregatorSchema()
+
+    _config_schema = AggregatorConfigSchema()
+
     weights: dict
     method: str
 
-    def deserialize_config(self):
-        # call Reporter deserialize_config
-        super().deserialize_config()
-
-        # extract AggregatorReporter specific fields
-        self.method = self.reporter_config.get("method")
-        self.weights = self.reporter_config.get("weights", dict())
-
-    def _compute(
+    def _compute_report(
         self,
         start: datetime,
         end: datetime,
@@ -41,28 +35,40 @@ class AggregatorReporter(Reporter):
         columns.
         """
 
+        method: str = self._config.get("method")
+        weights: list = self._config.get("weights", {})
+        data: list = self._config.get("data")
+
         dataframes = []
+
+        for d in data:
+            # if alias is not in belief_search_config, using the Sensor id instead
+            column_name = d.get("alias", f"sensor_{d['sensor'].id}")
+
+            df = (
+                d["sensor"]
+                .search_beliefs(
+                    event_starts_after=start,
+                    event_ends_before=end,
+                    resolution=input_resolution,
+                    beliefs_before=belief_time,
+                )
+                .droplevel([1, 2, 3])
+            )
+
+            # apply weight
+            if column_name in weights:
+                df *= weights[column_name]
+
+            dataframes.append(df)
+
+        output_df = pd.concat(dataframes, axis=1)
 
         if belief_time is None:
             belief_time = server_now()
 
-        for belief_search_config in self.beliefs_search_configs:
-            # if alias is not in belief_search_config, using the Sensor id instead
-            column_name = belief_search_config.get(
-                "alias", f"sensor_{belief_search_config['sensor'].id}"
-            )
-            data = self.data[column_name].droplevel([1, 2, 3])
-
-            # apply weight
-            if column_name in self.weights:
-                data *= self.weights[column_name]
-
-            dataframes.append(data)
-
-        output_df = pd.concat(dataframes, axis=1)
-
         # apply aggregation method
-        output_df = output_df.aggregate(self.method, axis=1)
+        output_df = output_df.aggregate(method, axis=1)
 
         # convert BeliefsSeries into a BeliefsDataFrame
         output_df = output_df.to_frame("event_value")
