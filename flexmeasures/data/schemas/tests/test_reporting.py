@@ -2,8 +2,8 @@ from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 
 from flexmeasures.data.schemas.reporting.pandas_reporter import (
-    PandasReporterReporterConfigSchema,
-    PandasReporterReportConfigSchema,
+    PandasReporterConfigSchema,
+    PandasReporterInputConfigSchema,
 )
 from marshmallow.exceptions import ValidationError
 
@@ -37,10 +37,11 @@ def setup_dummy_sensors(db, app):
 
 
 @pytest.mark.parametrize(
-    "reporter_config, is_valid",
+    "config, is_valid",
     [
         (
             {  # this checks that the final_df_output dataframe is actually generated at some point of the processing pipeline
+                "sensor": 1,
                 "input_variables": ["sensor_1"],
                 "transformations": [
                     {
@@ -55,6 +56,7 @@ def setup_dummy_sensors(db, app):
         ),
         (
             {  # this checks that chaining works, applying the method copy on the previous dataframe
+                "sensor": 1,
                 "input_variables": ["sensor_1"],
                 "transformations": [
                     {"df_output": "output1", "df_input": "sensor_1", "method": "copy"},
@@ -67,6 +69,7 @@ def setup_dummy_sensors(db, app):
         ),
         (
             {  # this checks that resample cannot be the last method being applied
+                "sensor": 1,
                 "input_variables": ["sensor_1", "sensor_2"],
                 "transformations": [
                     {"df_output": "output1", "df_input": "sensor_1", "method": "copy"},
@@ -79,6 +82,7 @@ def setup_dummy_sensors(db, app):
         ),
         (
             {  # this checks that resample cannot be the last method being applied
+                "sensor": 1,
                 "input_variables": ["sensor_1", "sensor_2"],
                 "transformations": [
                     {"df_output": "output1", "df_input": "sensor_1", "method": "copy"},
@@ -92,21 +96,19 @@ def setup_dummy_sensors(db, app):
         ),
     ],
 )
-def test_pandas_reporter_schema(
-    reporter_config, is_valid, db, app, setup_dummy_sensors
-):
+def test_pandas_reporter_config_schema(config, is_valid, db, app, setup_dummy_sensors):
 
-    schema = PandasReporterReporterConfigSchema()
+    schema = PandasReporterConfigSchema()
 
     if is_valid:
-        schema.load(reporter_config)
+        schema.load(config)
     else:
         with pytest.raises(ValidationError):
-            schema.load(reporter_config)
+            schema.load(config)
 
 
 @pytest.mark.parametrize(
-    "report_config, is_valid",
+    "inputs, is_valid",
     [
         (
             {
@@ -136,12 +138,12 @@ def test_pandas_reporter_schema(
         ),
     ],
 )
-def test_pandas_report_schema(report_config, is_valid, db, app, setup_dummy_sensors):
+def test_pandas_reporter_inputs_schema(inputs, is_valid, db, app, setup_dummy_sensors):
 
-    schema = PandasReporterReportConfigSchema()
+    schema = PandasReporterInputConfigSchema()
 
     if is_valid:
-        schema.load(report_config)
+        schema.load(inputs)
     else:
         with pytest.raises(ValidationError):
-            schema.load(report_config)
+            schema.load(inputs)
