@@ -14,8 +14,6 @@ def test_get_reporter_from_source(
     assert isinstance(reporter, Reporter)
     assert reporter.__class__.__name__ == "TestReporter"
 
-    print(aggregator_reporter_data_source.data_generator)
-
     res = reporter.compute(
         start=datetime(2023, 1, 1, tzinfo=UTC), end=datetime(2023, 1, 2, tzinfo=UTC)
     )
