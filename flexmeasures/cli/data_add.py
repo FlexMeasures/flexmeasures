@@ -1170,18 +1170,18 @@ def add_schedule_for_storage(
     " If needed, use `flexmeasures add sensor` to create a new sensor first.",
 )
 @click.option(
-    "--reporter-config",
-    "reporter_config_file",
+    "--config",
+    "config_file",
     required=False,
     type=click.File("r"),
-    help="Path to the JSON or YAML file with the reporter configuration.",
+    help="Path to the JSON or YAML file with the configuration of the reporter.",
 )
 @click.option(
-    "--report-config",
-    "report_config_file",
+    "--inputs",
+    "inputs_file",
     required=False,
     type=click.File("r"),
-    help="Path to the JSON or YAML file with the report configuration.",
+    help="Path to the JSON or YAML file with the report inputs.",
 )
 @click.option(
     "--reporter",
@@ -1247,11 +1247,23 @@ def add_schedule_for_storage(
     is_flag=True,
     help="Add this flag to avoid saving the results to the database.",
 )
+@click.option(
+    "--edit-config",
+    "edit_config",
+    is_flag=True,
+    help="Add this flag to edit the configuration of the Reporter in your default text editor (e.g. nano).",
+)
+@click.option(
+    "--edit-inputs",
+    "edit_inputs",
+    is_flag=True,
+    help="Add this flag to edit the inputs to the Reporter in your default text editor (e.g. nano).",
+)
 def add_report(  # noqa: C901
     reporter_class: str,
     sensor: Sensor,
-    reporter_config_file: TextIOBase,
-    report_config_file: Optional[TextIOBase],
+    config_file: Optional[TextIOBase],
+    inputs_file: Optional[TextIOBase],
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
     start_offset: Optional[str] = None,
@@ -1259,6 +1271,8 @@ def add_report(  # noqa: C901
     resolution: Optional[timedelta] = None,
     output_file: Optional[Path] = None,
     dry_run: bool = False,
+    edit_config: bool = False,
+    edit_inputs: bool = False,
     timezone: str | pytz.BaseTzInfo = get_timezone(),
 ):
     """
@@ -1335,28 +1349,44 @@ def add_report(  # noqa: C901
 
     click.secho(f"Reporter {reporter_class} found.", **MsgStyle.SUCCESS)
 
-    reporter_config = dict()
-    if reporter_config_file:
-        reporter_config = yaml.safe_load(reporter_config_file)
+    config = None  # dict()
+
+    if config_file:
+        config = yaml.safe_load(config_file)
+
+    if edit_config:
+        config = launch_editor("/tmp/config.yml")
+
+    if config is None:
+        config = dict()
+
+    config["sensor"] = sensor.id
 
     # initialize reporter class with the reporter sensor and reporter config
-    reporter: Reporter = ReporterClass(sensor=sensor, reporter_config=reporter_config)
+    reporter: Reporter = ReporterClass(config=config)
 
     click.echo("Report computation is running...")
 
-    report_config = dict()
-    if report_config_file:
-        report_config = yaml.safe_load(report_config_file)
+    inputs = None
 
-    if ("start" not in report_config) and (start is not None):
-        report_config["start"] = start.isoformat()
-    if ("end" not in report_config) and (end is not None):
-        report_config["end"] = end.isoformat()
-    if ("resolution" not in report_config) and (resolution is not None):
-        report_config["resolution"] = pd.Timedelta.isoformat(resolution)
+    if inputs_file:
+        inputs = yaml.safe_load(inputs_file)
+
+    if edit_inputs:
+        inputs = launch_editor("/tmp/inputs.yml")
+
+    if inputs is None:
+        inputs = dict()
+
+    if ("start" not in inputs) and (start is not None):
+        inputs["start"] = start.isoformat()
+    if ("end" not in inputs) and (end is not None):
+        inputs["end"] = end.isoformat()
+    if ("resolution" not in inputs) and (resolution is not None):
+        inputs["resolution"] = pd.Timedelta.isoformat(resolution)
 
     # compute the report
-    result: BeliefsDataFrame = reporter.compute(report_config=report_config)
+    result: BeliefsDataFrame = reporter.compute(inputs=inputs)
 
     if not result.empty:
         click.secho("Report computation done.", **MsgStyle.SUCCESS)
@@ -1408,6 +1438,14 @@ def add_report(  # noqa: C901
             "Success.",
             **MsgStyle.SUCCESS,
         )
+
+
+def launch_editor(filename: str) -> dict | None:
+    """Launch editor to create/edit a json object"""
+    click.edit("{\n}", filename=filename)
+
+    with open(filename, "r") as f:
+        return yaml.safe_load(f)
 
 
 @fm_add_data.command("toy-account")

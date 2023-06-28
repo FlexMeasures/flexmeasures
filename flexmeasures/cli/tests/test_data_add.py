@@ -123,15 +123,15 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config):
 
     cli_input_params = {
         "sensor-id": report_sensor_id,
-        "reporter-config": "reporter_config.yaml",
-        "report-config": "report_config.json",
+        "config": "reporter_config.yaml",
+        "inputs": "inputs.json",
         "reporter": "PandasReporter",
         "start": "2023-04-10T00:00:00 00:00",
         "end": "2023-04-10T10:00:00 00:00",
         "output-file": "test.csv",
     }
 
-    report_config = dict(
+    inputs = dict(
         input_sensors=dict(
             sensor_1=dict(sensor=sensor1.id), sensor_2=dict(sensor=sensor2.id)
         )
@@ -146,8 +146,8 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config):
         with open("reporter_config.yaml", "w") as f:
             yaml.dump(reporter_config, f)
 
-        with open("report_config.json", "w") as f:
-            json.dump(report_config, f)
+        with open("inputs.json", "w") as f:
+            json.dump(inputs, f)
 
         # call command
         result = runner.invoke(add_report, cli_input)
@@ -187,8 +187,8 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config):
 
     cli_input_params = {
         "sensor-id": report_sensor_id,
-        "reporter-config": "reporter_config.json",
-        "report-config": "report_config.json",
+        "config": "reporter_config.json",
+        "inputs": "inputs.json",
         "reporter": "PandasReporter",
         "output-file": "test.csv",
         "timezone": "UTC",
@@ -202,8 +202,8 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config):
         with open("reporter_config.json", "w") as f:
             json.dump(reporter_config, f)
 
-        with open("report_config.json", "w") as f:
-            json.dump(report_config, f)
+        with open("inputs.json", "w") as f:
+            json.dump(inputs, f)
 
         # call command
         result = runner.invoke(add_report, cli_input)
