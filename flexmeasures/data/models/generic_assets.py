@@ -20,13 +20,11 @@ from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.data.models.user import User
 from flexmeasures.data.queries.annotations import query_asset_annotations
+from flexmeasures.data.services.timerange import get_timerange
 from flexmeasures.auth.policy import AuthModelMixin, EVERY_LOGGED_IN_USER
 from flexmeasures.utils import geo_utils
 from flexmeasures.utils.coding_utils import flatten_unique
-from flexmeasures.utils.time_utils import (
-    determine_minimum_resampling_resolution,
-    server_now,
-)
+from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
 
 
 class GenericAssetType(db.Model):
@@ -525,26 +523,9 @@ class GenericAsset(db.Model, AuthModelMixin):
                       'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
                   }
         """
-        from flexmeasures.data.models.time_series import TimedBelief
-
         sensor_ids = [s.id for s in flatten_unique(sensors)]
-        least_recent_query = (
-            TimedBelief.query.filter(TimedBelief.sensor_id.in_(sensor_ids))
-            .order_by(TimedBelief.event_start.asc())
-            .limit(1)
-        )
-        most_recent_query = (
-            TimedBelief.query.filter(TimedBelief.sensor_id.in_(sensor_ids))
-            .order_by(TimedBelief.event_start.desc())
-            .limit(1)
-        )
-        results = least_recent_query.union_all(most_recent_query).all()
-        if not results:
-            # return now in case there is no data for any of the sensors
-            now = server_now()
-            return dict(start=now, end=now)
-        least_recent, most_recent = results
-        return dict(start=least_recent.event_start, end=most_recent.event_end)
+        start, end = get_timerange(sensor_ids)
+        return dict(start=start, end=end)
 
 
 def create_generic_asset(generic_asset_type: str, **kwargs) -> GenericAsset:

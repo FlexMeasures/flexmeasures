@@ -6,6 +6,9 @@ from __future__ import annotations
 
 import time
 from copy import copy
+import os
+from pathlib import Path
+from datetime import date
 
 from flask import Flask, g, request
 from flask.cli import load_dotenv
@@ -98,6 +101,17 @@ def create(  # noqa C901
     if app.env not in ("documentation", "development"):
         SSLify(app)
 
+    # Prepare profiling, if needed
+
+    if app.config.get("FLEXMEASURES_PROFILE_REQUESTS", False):
+        Path("profile_reports").mkdir(parents=True, exist_ok=True)
+        try:
+            import pyinstrument  # noqa F401
+        except ImportError:
+            app.logger.warning(
+                "FLEXMEASURES_PROFILE_REQUESTS is True, but pyinstrument not installed ― I cannot produce profiling reports for requests."
+            )
+
     # Register database and models, including user auth security handlers
 
     from flexmeasures.data import register_at as register_db_at
@@ -157,6 +171,13 @@ def create(  # noqa C901
     def before_request():
         if app.config.get("FLEXMEASURES_PROFILE_REQUESTS", False):
             g.start = time.time()
+            try:
+                import pyinstrument  # noqa F401
+
+                g.profiler = pyinstrument.Profiler()
+                g.profiler.start()
+            except ImportError:
+                pass
 
     @app.teardown_request
     def teardown_request(exception=None):
@@ -166,5 +187,22 @@ def create(  # noqa C901
                 app.logger.info(
                     f"[PROFILE] {str(round(diff, 2)).rjust(6)} seconds to serve {request.url}."
                 )
+                if not hasattr(g, "profiler"):
+                    return app
+                g.profiler.stop()
+                output_html = g.profiler.output_html(timeline=True)
+                endpoint = request.endpoint
+                if endpoint is None:
+                    endpoint = "unknown"
+                today = date.today()
+                profile_filename = f"pyinstrument_{endpoint}.html"
+                profile_output_path = Path(
+                    "profile_reports", today.strftime("%Y-%m-%d")
+                )
+                profile_output_path.mkdir(parents=True, exist_ok=True)
+                with open(
+                    os.path.join(profile_output_path, profile_filename), "w+"
+                ) as f:
+                    f.write(output_html)
 
     return app

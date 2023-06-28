@@ -307,18 +307,26 @@ def delete_nan_beliefs(sensor_id: int | None = None):
 @with_appcontext
 @click.option(
     "--id",
-    "sensor",
+    "sensors",
     type=SensorIdField(),
     required=True,
-    help="Delete a single sensor and its (time series) data. Follow up with the sensor's ID.",
+    multiple=True,
+    help="Delete a sensor and its (time series) data. Follow up with the sensor's ID. "
+    "This argument can be given multiple times",
 )
 def delete_sensor(
-    sensor: Sensor,
+    sensors: list[Sensor],
 ):
-    """Delete a sensor and all beliefs about it."""
-    n = TimedBelief.query.filter(TimedBelief.sensor_id == sensor.id).delete()
-    db.session.delete(sensor)
-    click.confirm(f"Delete {sensor.__repr__()}, along with {n} beliefs?", abort=True)
+    """Delete sensors and their (time series) data."""
+    n = TimedBelief.query.filter(
+        TimedBelief.sensor_id.in_(sensor.id for sensor in sensors)
+    ).delete()
+    for sensor in sensors:
+        db.session.delete(sensor)
+    click.confirm(
+        f"Delete {', '.join(sensor.__repr__() for sensor in sensors)}, along with {n} beliefs?",
+        abort=True,
+    )
     db.session.commit()
 
 
