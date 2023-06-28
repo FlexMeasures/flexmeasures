@@ -11,7 +11,7 @@ This section can contain example pictures for UI, Input/Output for CLI, Request 
 Steps to test it or name of the tests functions.
 
 The library [flexmeasures-client](https://github.com/FlexMeasures/flexmeasures-client/) can be useful to showcase new features. For example,
-it can be used to set some example data to be used in a UI new feature.
+it can be used to set some example data to be used in a new UI feature.
 
 ## Further Improvements
 
