@@ -32,7 +32,7 @@ class AggregatorConfigSchema(ReporterConfigSchema):
         }
     """
 
-    method = fields.Str(required=False, dump_default="sum")
+    method = fields.Str(required=False, dump_default="sum", load_default="sum")
     weights = fields.Dict(fields.Str(), fields.Float(), required=False)
     data = fields.List(
         fields.Nested(BeliefsSearchConfigSchema()),
@@ -54,12 +54,12 @@ class AggregatorConfigSchema(ReporterConfigSchema):
 
         # get aliases
         aliases = []
-        for data in data["data"]:
-            if "alias" in data:
-                aliases.append(data.get("alias"))
+        for d in data["data"]:
+            if "alias" in d:
+                aliases.append(d.get("alias"))
 
         # check that the aliases in weights are defined
-        for alias in data.get("weights").keys():
+        for alias in data.get("weights", {}).keys():
             if alias not in aliases:
                 raise ValidationError(
                     f"alias `{alias}` in `weights` is not defined in `data`"
