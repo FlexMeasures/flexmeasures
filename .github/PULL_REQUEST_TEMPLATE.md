@@ -1,6 +1,6 @@
 ## Description
 
-Summary of the changes introduced in this PR.
+Summary of the changes introduced in this PR. Try to use bullet points as much as possible.
 
 ## Look & Feel
 
@@ -16,6 +16,10 @@ it can be used to set some example data to be used in a UI new feature.
 ## Further Improvements
 
 Potential improvements to be done in the same PR or follow up Issues/Discussions/PRs.
+
+## Related Items
+
+Mention if this PR closes an Issue or Project.
 
 ---
 
