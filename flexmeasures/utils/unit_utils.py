@@ -200,6 +200,7 @@ def is_energy_price_unit(unit: str) -> bool:
     """
     if (
         unit[:3] in [str(c) for c in list_all_currencies()]
+        and len(unit) > 3
         and unit[3] == "/"
         and is_energy_unit(unit[4:])
     ):

@@ -5,7 +5,7 @@ CLI commands for populating the database
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Optional, Type
+from typing import Type
 import json
 from pathlib import Path
 from io import TextIOBase
@@ -66,7 +66,7 @@ from flexmeasures.data.services.data_sources import (
 )
 from flexmeasures.data.services.utils import get_or_create_model
 from flexmeasures.utils import flexmeasures_inflection
-from flexmeasures.utils.time_utils import server_now, get_timezone, apply_offset_chain
+from flexmeasures.utils.time_utils import server_now, apply_offset_chain
 from flexmeasures.utils.unit_utils import convert_units, ur
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.data.models.reporting import Reporter
@@ -374,7 +374,7 @@ def add_source(name: str, model: str, version: str, source_type: str):
     "sensor",
     required=True,
     type=SensorIdField(),
-    help="Sensor to which the beliefs pertain.",
+    help="Record the beliefs under this sensor. Follow up with the sensor's ID. ",
 )
 @click.option(
     "--source",
@@ -1165,7 +1165,7 @@ def add_schedule_for_storage(
     "sensor",
     type=SensorIdField(),
     required=True,
-    help="ID of the sensor used to save the report."
+    help="Sensor used to save the report. Follow up with the sensor's ID. "
     " If needed, use `flexmeasures add sensor` to create a new sensor first.",
 )
 @click.option(
@@ -1230,8 +1230,7 @@ def add_schedule_for_storage(
     "--timezone",
     "timezone",
     required=False,
-    default="UTC",
-    help="Timezone as string, e.g. 'UTC' or 'Europe/Amsterdam' (defaults to FLEXMEASURES_TIMEZONE config setting)",
+    help="Timezone as string, e.g. 'UTC' or 'Europe/Amsterdam' (defaults to the timezone of the sensor used to save the report).",
 )
 @click.option(
     "--dry-run",
@@ -1243,26 +1242,26 @@ def add_report(  # noqa: C901
     reporter_class: str,
     sensor: Sensor,
     reporter_config: TextIOBase,
-    start: Optional[datetime] = None,
-    end: Optional[datetime] = None,
-    start_offset: Optional[str] = None,
-    end_offset: Optional[str] = None,
-    resolution: Optional[timedelta] = None,
-    output_file: Optional[Path] = None,
+    start: datetime | None = None,
+    end: datetime | None = None,
+    start_offset: str | None = None,
+    end_offset: str | None = None,
+    resolution: timedelta | None = None,
+    output_file: Path | None = None,
     dry_run: bool = False,
-    timezone: str | pytz.BaseTzInfo = get_timezone(),
+    timezone: str | None = None,
 ):
     """
     Create a new report using the Reporter class and save the results
     to the database or export them as CSV or Excel file.
     """
 
-    # parse timezone into a BaseTzInfo object
-    if isinstance(timezone, str):
+    # compute now in the timezone local to the output sensor
+    if timezone is not None:
         check_timezone(timezone)
-        timezone = pytz.timezone(zone=timezone)
-
-    now = timezone.localize(datetime.now())
+    now = pytz.timezone(
+        zone=timezone if timezone is not None else sensor.timezone
+    ).localize(datetime.now())
 
     # apply offsets, if provided
     if start_offset is not None:
@@ -1347,10 +1346,10 @@ def add_report(  # noqa: C901
             "Report computation done, but the report is empty.", **MsgStyle.WARN
         )
 
-    # save the report it's not running in dry mode
+    # save the report if it's not running in dry mode
     if not dry_run:
         click.echo("Saving report to the database...")
-        save_to_db(result)
+        save_to_db(result.dropna())
         db.session.commit()
         click.secho(
             "Success. The report has been saved to the database.",
