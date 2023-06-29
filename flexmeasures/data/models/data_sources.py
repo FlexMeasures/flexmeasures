@@ -167,6 +167,10 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
             description=self.description,
         )
 
+    @staticmethod
+    def hash_attributes(attributes: dict) -> str:
+        return hashlib.sha256(json.dumps(attributes).encode("utf-8")).digest()
+
     def get_attribute(self, attribute: str, default: Any = None) -> Any:
         """Looks for the attribute on the DataSource.
         If not found, returns the default.
