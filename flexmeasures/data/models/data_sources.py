@@ -99,7 +99,9 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
     """Each data source is a data-providing entity."""
 
     __tablename__ = "data_source"
-    __table_args__ = (db.UniqueConstraint("name", "user_id", "model", "version"),)
+    __table_args__ = (
+        db.UniqueConstraint("name", "user_id", "model", "version", "attributes_hash"),
+    )
 
     # The type of data source (e.g. user, forecaster or scheduler)
     type = db.Column(db.String(80), default="")
@@ -124,7 +126,7 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
     sensors = db.relationship(
         "Sensor",
         secondary="timed_belief",
-        backref=db.backref("data_sources", lazy="dynamic"),
+        backref=db.backref("data_sources", lazy="select"),
         viewonly=True,
     )
 
@@ -245,16 +247,13 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
             description=self.description,
         )
 
-    def get_attribute(self, attribute: str, default: Any = None) -> Any:
-        """Looks for the attribute on the DataSource.
-        If not found, returns the default.
-        """
-        if hasattr(self, attribute):
-            return getattr(self, attribute)
-        if attribute in self.attributes:
-            return self.attributes[attribute]
+    @staticmethod
+    def hash_attributes(attributes: dict) -> str:
+        return hashlib.sha256(json.dumps(attributes).encode("utf-8")).digest()
 
-        return default
+    def get_attribute(self, attribute: str, default: Any = None) -> Any:
+        """Looks for the attribute on the DataSource."""
+        return self.attributes.get(attribute)
 
     def has_attribute(self, attribute: str) -> bool:
         return attribute in self.attributes
