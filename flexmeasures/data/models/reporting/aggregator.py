@@ -41,6 +41,9 @@ class AggregatorReporter(Reporter):
 
         dataframes = []
 
+        if belief_time is None:
+            belief_time = server_now()
+
         for d in data:
             # if alias is not in belief_search_config, using the Sensor id instead
             column_name = d.get("alias", f"sensor_{d['sensor'].id}")
@@ -63,9 +66,6 @@ class AggregatorReporter(Reporter):
             dataframes.append(df)
 
         output_df = pd.concat(dataframes, axis=1)
-
-        if belief_time is None:
-            belief_time = server_now()
 
         # apply aggregation method
         output_df = output_df.aggregate(method, axis=1)
