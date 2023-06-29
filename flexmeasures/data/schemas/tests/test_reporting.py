@@ -3,7 +3,7 @@ from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetTy
 
 from flexmeasures.data.schemas.reporting.pandas_reporter import (
     PandasReporterConfigSchema,
-    PandasReporterInputConfigSchema,
+    PandasReporterInputSchema,
 )
 from marshmallow.exceptions import ValidationError
 
@@ -140,7 +140,7 @@ def test_pandas_reporter_config_schema(config, is_valid, db, app, setup_dummy_se
 )
 def test_pandas_reporter_input_schema(inputs, is_valid, db, app, setup_dummy_sensors):
 
-    schema = PandasReporterInputConfigSchema()
+    schema = PandasReporterInputSchema()
 
     if is_valid:
         schema.load(inputs)

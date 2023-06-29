@@ -152,7 +152,7 @@ class PandasReporterConfigSchema(Schema):
             )
 
 
-class PandasReporterInputConfigSchema(Schema):
+class PandasReporterInputSchema(Schema):
     input_sensors = fields.Dict(
         keys=fields.Str(),
         values=fields.Nested(BeliefsSearchConfigSchema()),
