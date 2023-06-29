@@ -85,7 +85,7 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
     sensors = db.relationship(
         "Sensor",
         secondary="timed_belief",
-        backref=db.backref("data_sources", lazy="dynamic"),
+        backref=db.backref("data_sources", lazy="select"),
         viewonly=True,
     )
 
