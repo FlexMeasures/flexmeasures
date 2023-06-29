@@ -22,7 +22,7 @@ class DataGenerator:
 
     _config: dict = None
 
-    _inputs_schema: Type[Schema] | None = None
+    _input_schema: Type[Schema] | None = None
     _config_schema: Type[Schema] | None = None
 
     def __init__(self, config: dict | None = None, **kwargs) -> None:
@@ -44,8 +44,8 @@ class DataGenerator:
             _inputs = kwargs
             self.validate_deserialized_inputs(_inputs)
         else:
-            if self._inputs_schema:
-                _inputs = self._inputs_schema.load(inputs)
+            if self._input_schema:
+                _inputs = self._input_schema.load(inputs)
 
             else:  # skip validation
                 _inputs = inputs
@@ -53,7 +53,7 @@ class DataGenerator:
         return self._compute(**_inputs)
 
     def validate_deserialized_inputs(self, inputs: dict):
-        self._inputs_schema.load(self._inputs_schema.dump(inputs))
+        self._input_schema.load(self._input_schema.dump(inputs))
 
     @classmethod
     def get_data_source_info(cls: type) -> dict:

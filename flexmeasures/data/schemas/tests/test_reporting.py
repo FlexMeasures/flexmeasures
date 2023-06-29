@@ -138,7 +138,7 @@ def test_pandas_reporter_config_schema(config, is_valid, db, app, setup_dummy_se
         ),
     ],
 )
-def test_pandas_reporter_inputs_schema(inputs, is_valid, db, app, setup_dummy_sensors):
+def test_pandas_reporter_input_schema(inputs, is_valid, db, app, setup_dummy_sensors):
 
     schema = PandasReporterInputConfigSchema()
 

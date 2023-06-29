@@ -23,7 +23,7 @@ class PandasReporter(Reporter):
     __author__ = "Seita"
 
     _config_schema = PandasReporterConfigSchema()
-    _inputs_schema = PandasReporterInputConfigSchema()
+    _input_schema = PandasReporterInputConfigSchema()
 
     input_variables: list[str] = None
     transformations: list[dict[str, Any]] = None

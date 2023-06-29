@@ -20,7 +20,7 @@ class Reporter(DataGenerator):
 
     sensor: Sensor = None
 
-    _inputs_schema = ReporterInputsSchema()
+    _input_schema = ReporterInputsSchema()
     _config_schema = ReporterConfigSchema()
 
     def __init__(self, config: dict | None = None, **kwargs) -> None:
