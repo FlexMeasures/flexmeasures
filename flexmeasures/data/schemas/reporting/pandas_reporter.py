@@ -116,8 +116,8 @@ class PandasReporterConfigSchema(Schema):
         final_df_output is computed.
         """
 
-        # create dictionary data with objects of the types that is supposed to be generated
-        # loading the initial data, the sensors' data
+        # fake_data mocks the PandasReporter class attribute data. It contains empty BeliefsDataFrame
+        # to simulate the process of applying the transformations.
         fake_data = dict(
             (variable, BeliefsDataFrame) for variable in data.get("input_variables")
         )
