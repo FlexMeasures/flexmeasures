@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Any, Type
+from typing import TYPE_CHECKING, Any
 from sqlalchemy.ext.mutable import MutableDict
 
 import timely_beliefs as tb
@@ -22,8 +22,8 @@ class DataGenerator:
 
     _config: dict = None
 
-    _input_schema: Type[Schema] | None = None
-    _config_schema: Type[Schema] | None = None
+    _input_schema: Schema | None = None
+    _config_schema: Schema | None = None
 
     def __init__(self, config: dict | None = None, **kwargs) -> None:
         if config is None:
