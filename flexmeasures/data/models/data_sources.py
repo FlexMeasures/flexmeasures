@@ -253,7 +253,7 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
     def get_attribute(self, attribute: str, default: Any = None) -> Any:
         """Looks for the attribute in the DataSource's attributes column."""
-        return self.attributes.get(attribute)
+        return self.attributes.get(attribute, default)
 
     def has_attribute(self, attribute: str) -> bool:
         return attribute in self.attributes
