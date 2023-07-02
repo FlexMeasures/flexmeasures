@@ -252,7 +252,7 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         return hashlib.sha256(json.dumps(attributes).encode("utf-8")).digest()
 
     def get_attribute(self, attribute: str, default: Any = None) -> Any:
-        """Looks for the attribute on the DataSource."""
+        """Looks for the attribute in the DataSource's attributes column."""
         return self.attributes.get(attribute)
 
     def has_attribute(self, attribute: str) -> bool:
