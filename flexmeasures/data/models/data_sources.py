@@ -259,5 +259,4 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         return attribute in self.attributes
 
     def set_attribute(self, attribute: str, value):
-        if self.has_attribute(attribute):
-            self.attributes[attribute] = value
+        self.attributes[attribute] = value
