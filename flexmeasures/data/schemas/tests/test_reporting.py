@@ -104,7 +104,7 @@ def test_pandas_reporter_config_schema(config, is_valid, db, app, setup_dummy_se
 
 
 @pytest.mark.parametrize(
-    "inputs, is_valid",
+    "input, is_valid",
     [
         (
             {
@@ -136,12 +136,12 @@ def test_pandas_reporter_config_schema(config, is_valid, db, app, setup_dummy_se
         ),
     ],
 )
-def test_pandas_reporter_input_schema(inputs, is_valid, db, app, setup_dummy_sensors):
+def test_pandas_reporter_input_schema(input, is_valid, db, app, setup_dummy_sensors):
 
     schema = PandasReporterInputSchema()
 
     if is_valid:
-        schema.load(inputs)
+        schema.load(input)
     else:
         with pytest.raises(ValidationError):
-            schema.load(inputs)
+            schema.load(input)

@@ -7,7 +7,7 @@ from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.schemas import AwareDateTimeField, DurationField
 from flexmeasures.data.schemas.reporting import (
     ReporterConfigSchema,
-    ReporterInputsSchema,
+    ReporterInputSchema,
 )
 
 from timely_beliefs import BeliefsDataFrame
@@ -153,7 +153,7 @@ class PandasReporterConfigSchema(ReporterConfigSchema):
             )
 
 
-class PandasReporterInputSchema(ReporterInputsSchema):
+class PandasReporterInputSchema(ReporterInputSchema):
     # make start and end optional, conditional on providing the time parameters
     # for the single sensors in `input_sensors`
     start = AwareDateTimeField(required=False)

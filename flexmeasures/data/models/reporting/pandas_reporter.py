@@ -204,6 +204,7 @@ class PandasReporter(Reporter):
 
         for _transformation in self._config.get("transformations"):
             transformation = deepcopy(_transformation)
+
             df_input = transformation.get(
                 "df_input", previous_df
             )  # default is using the previous transformation output

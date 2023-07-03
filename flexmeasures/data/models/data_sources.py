@@ -31,7 +31,7 @@ class DataGenerator:
 
         The configuration `config` stores static parameters, parameters that, if
         changed, trigger the creation of a new DataSource.  Dynamic parameters, such as
-        the start date, can go into the `inputs`. See docstring of the method `DataGenerator.compute` for
+        the start date, can go into the `input`. See docstring of the method `DataGenerator.compute` for
         more details.
 
 
