@@ -75,9 +75,9 @@ class DataGenerator:
 
         if self._data_source is None:
             data_source_info = self.get_data_source_info()
-            data_source_info["attributes"] = dict(
-                config=self._config_schema.dump(self._config)
-            )
+            data_source_info["attributes"] = {
+                "data_generator": {"config": self._config_schema.dump(self._config)}
+            }
 
             self._data_source = get_or_create_source(**data_source_info)
 

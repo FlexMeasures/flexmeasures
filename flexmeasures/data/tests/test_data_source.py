@@ -44,13 +44,17 @@ def test_data_source(db, app, aggregator_reporter_data_source):
     ds2 = TestTeporter(config={"a": "1"})
 
     assert ds1.data_source == ds2.data_source
-    assert ds1.data_source.attributes.get("config") == ds2.data_source.attributes.get(
+    assert ds1.data_source.attributes.get("data_generator").get(
         "config"
-    )
+    ) == ds2.data_source.attributes.get("data_generator").get("config")
 
     ds3 = TestTeporter(config={"a": "2"})
 
     assert ds3.data_source != ds2.data_source
-    assert ds3.data_source.attributes.get("config") != ds2.data_source.attributes.get(
+    assert ds3.data_source.attributes.get("data_generator").get(
         "config"
-    )
+    ) != ds2.data_source.attributes.get("data_generator").get("config")
+
+    ds4 = ds3.data_source.data_generator
+
+    assert ds4._config == ds3._config
