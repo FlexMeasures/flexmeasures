@@ -114,7 +114,6 @@ class TibberReporter(Reporter):
                 ),
                 dict(
                     df_input="tariff",
-                    df_output="tariff",
                     method="droplevel",
                     args=[[1, 2, 3]],
                 ),
