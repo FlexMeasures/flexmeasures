@@ -41,21 +41,24 @@ class DataGenerator:
             1.  Serialized through the keyword argument `config`.
             2.  Deserialized, passing each parameter as keyword arguments.
 
-        The configuration is validated using the schema `_config_schema`, to be defined.
+        The configuration is validated using the schema `_config_schema`, to be defined by the subclass.
 
         Example:
 
-            The configuration requires the parameters start and end, two datetimes.
+            The configuration requires two parameters for the PV and consumption sensors.
 
             Option 1:
-            dg = DataGenerator(config = {
-                "start" : "2023-01-01T00:00:00+00:00",
-                "end" : "2023-01-02T00:00:00+00:00"
-            })
+                dg = DataGenerator(config = {
+                    "sensor_pv" : 1,
+                    "sensor_consumption" : 2
+                })
 
             Option 2:
-            df = DataGenerator(start = datetime(2023, 1, 1, tzinfo = UTC),
-                               end = datetime(2023, 1, 2, tzinfo = UTC))
+                sensor_pv = Sensor.query.get(1)
+                sensor_consumption = Sensor.query.get(2)
+
+                dg = DataGenerator(sensor_pv = sensor_pv,
+                                sensor_consumption = sensor_consumption)
 
 
         :param config: serialized `config` parameters, defaults to None
