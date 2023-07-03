@@ -28,7 +28,7 @@ class AggregatorReporter(Reporter):
         sensor: Sensor,
         start: datetime,
         end: datetime,
-        input_resolution: timedelta | None = None,
+        resolution: timedelta | None = None,
         belief_time: datetime | None = None,
     ) -> tb.BeliefsDataFrame:
         """
@@ -55,7 +55,7 @@ class AggregatorReporter(Reporter):
                 .search_beliefs(
                     event_starts_after=start,
                     event_ends_before=end,
-                    resolution=input_resolution,
+                    resolution=resolution,
                     beliefs_before=belief_time,
                 )
                 .droplevel([1, 2, 3])
