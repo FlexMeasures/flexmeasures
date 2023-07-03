@@ -23,9 +23,6 @@ class Reporter(DataGenerator):
     _input_schema = ReporterInputSchema()
     _config_schema = ReporterConfigSchema()
 
-    def __init__(self, config: dict | None = None, **kwargs) -> None:
-        super().__init__(config, **kwargs)
-
     def _compute(self, **kwargs) -> tb.BeliefsDataFrame:
         """This method triggers the creation of a new report.
 
