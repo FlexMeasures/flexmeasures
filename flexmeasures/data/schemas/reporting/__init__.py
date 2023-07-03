@@ -48,16 +48,3 @@ class BeliefsSearchConfigSchema(Schema):
     one_deterministic_belief_per_event_per_source = fields.Boolean()
     resolution = DurationField()
     sum_multiple = fields.Boolean()
-
-
-# class ReporterConfigSchema(Schema):
-#     """
-#     This schema is used to validate Reporter class configurations (reporter_config).
-#     Inherit from this to extend this schema with your own parameters.
-#     """
-
-#     beliefs_search_configs = fields.List(
-#         fields.Nested(BeliefsSearchConfigSchema()),
-#         required=True,
-#         validator=validate.Length(min=1),
-#     )
