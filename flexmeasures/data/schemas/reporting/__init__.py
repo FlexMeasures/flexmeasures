@@ -7,10 +7,21 @@ from flexmeasures.data.schemas import AwareDateTimeField, DurationField
 
 
 class ReporterConfigSchema(Schema):
+    """
+    This schema is used to validate Reporter class configurations (config).
+    Inherit from this class to extend this schema with your own parameters.
+    """
+
     pass
 
 
 class ReporterInputsSchema(Schema):
+    """
+    This schema is used to validate the inputs to the method `compute` of
+     the Reporter class.
+    Inherit from this class to extend this schema with your own parameters.
+    """
+
     sensor = SensorIdField(required=True)
 
     start = AwareDateTimeField(required=True)
