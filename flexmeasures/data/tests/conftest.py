@@ -21,6 +21,9 @@ from flexmeasures.data.models.forecasting.model_spec_factory import (
 )
 from flexmeasures.utils.time_utils import as_server_time
 
+from marshmallow import fields
+from marshmallow import Schema
+
 
 @pytest.fixture(scope="module")
 def setup_test_data(
@@ -239,9 +242,14 @@ def setup_annotations(
 @pytest.fixture(scope="module")
 def aggregator_reporter_data_source(app, db, add_nearby_weather_sensors):
 
-    sensor = add_nearby_weather_sensors.get("temperature")
+    # sensor = add_nearby_weather_sensors.get("temperature")
+
+    class TestReporterConfigSchema(Schema):
+        a = fields.Str()
 
     class TestReporter(Reporter):
+        _config_schema = TestReporterConfigSchema()
+
         def _compute_report(self, **kwargs) -> tb.BeliefsDataFrame:
             start = kwargs.get("start")
             end = kwargs.get("end")
@@ -258,9 +266,9 @@ def aggregator_reporter_data_source(app, db, add_nearby_weather_sensors):
 
             return tb.BeliefsDataFrame(r, sensor=self.sensor)
 
-    app.data_generators.update({"TestReporter": TestReporter})
+    app.data_generators["reporter"].update({"TestReporter": TestReporter})
 
-    config = dict(sensor=sensor.id)
+    config = dict(a="b")
 
     ds = DataSource(
         name="Test",

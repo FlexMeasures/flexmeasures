@@ -16,7 +16,7 @@ class Reporter(DataGenerator):
 
     __version__ = None
     __author__ = None
-    __data_generator_base__ = "Reporter"
+    __data_generator_base__ = "reporter"
 
     sensor: Sensor = None
 
@@ -26,16 +26,14 @@ class Reporter(DataGenerator):
     def __init__(self, config: dict | None = None, **kwargs) -> None:
         super().__init__(config, **kwargs)
 
-        self.sensor = self._config["sensor"]
-
     def _compute(self, **kwargs) -> tb.BeliefsDataFrame:
         """This method triggers the creation of a new report.
 
         The same object can generate multiple reports with different start, end, resolution
         and belief_time values.
-
-        In the future, this function will parse arbitrary input arguments defined in a schema.
         """
+
+        self.sensor = kwargs["sensor"]
 
         # Result
         result: tb.BeliefsDataFrame = self._compute_report(**kwargs)

@@ -7,14 +7,17 @@ from flexmeasures.data.schemas import AwareDateTimeField, DurationField
 
 
 class ReporterConfigSchema(Schema):
-    sensor = SensorIdField(required=True)
+    pass
 
 
 class ReporterInputsSchema(Schema):
+    sensor = SensorIdField(required=True)
+
     start = AwareDateTimeField(required=True)
     end = AwareDateTimeField(required=True)
-    input_resolution = DurationField()
-    belief_time = AwareDateTimeField()
+
+    resolution = DurationField(required=False)
+    belief_time = AwareDateTimeField(required=False)
 
 
 class BeliefsSearchConfigSchema(Schema):

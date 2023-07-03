@@ -99,7 +99,6 @@ class TibberReporter(Reporter):
 
         # create the PandasReporter reporter config
         pandas_reporter_config = dict(
-            sensor=self.sensor.id,
             input_variables=["energy_tax", "VAT", "tariff", "da_prices"],
             transformations=[
                 dict(
@@ -257,9 +256,10 @@ def test_tibber_reporter(tibber_test_data):
 
     tibber_report_sensor = tibber_test_data
 
-    tibber_reporter = TibberReporter(sensor=tibber_report_sensor)
+    tibber_reporter = TibberReporter()
 
     result = tibber_reporter.compute(
+        sensor=tibber_report_sensor,
         start=datetime(2023, 4, 13, tzinfo=utc),
         end=datetime(2023, 4, 14, tzinfo=utc),
     )

@@ -37,7 +37,6 @@ def test_aggregator(setup_dummy_data, aggregation_method, expected_value):
     s1, s2, reporter_sensor = setup_dummy_data
 
     reporter_config = dict(
-        sensor=reporter_sensor.id,
         data=[
             dict(sensor=s1.id, source=1),
             dict(sensor=s2.id, source=2),
@@ -48,6 +47,7 @@ def test_aggregator(setup_dummy_data, aggregation_method, expected_value):
     agg_reporter = AggregatorReporter(config=reporter_config)
 
     result = agg_reporter.compute(
+        sensor=reporter_sensor,
         start=datetime(2023, 5, 10, tzinfo=utc),
         end=datetime(2023, 5, 11, tzinfo=utc),
     )

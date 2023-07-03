@@ -7,6 +7,7 @@ import pandas as pd
 
 from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.schemas.reporting.aggregation import AggregatorConfigSchema
+from flexmeasures.data.models.time_series import Sensor
 
 from flexmeasures.utils.time_utils import server_now
 
@@ -24,6 +25,7 @@ class AggregatorReporter(Reporter):
 
     def _compute_report(
         self,
+        sensor: Sensor,
         start: datetime,
         end: datetime,
         input_resolution: timedelta | None = None,

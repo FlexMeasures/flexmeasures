@@ -9,7 +9,6 @@ def test_reporter(app, setup_dummy_data):
     s1, s2, reporter_sensor = setup_dummy_data
 
     config = dict(
-        sensor=reporter_sensor.id,
         input_variables=["sensor_1", "sensor_2"],
         transformations=[
             dict(
@@ -46,7 +45,9 @@ def test_reporter(app, setup_dummy_data):
     end = datetime(2023, 4, 10, 10, tzinfo=utc)
     input_sensors = dict(sensor_1=dict(sensor=s1), sensor_2=dict(sensor=s2))
 
-    report1 = reporter.compute(start=start, end=end, input_sensors=input_sensors)
+    report1 = reporter.compute(
+        sensor=reporter_sensor, start=start, end=end, input_sensors=input_sensors
+    )
 
     assert len(report1) == 5
     assert str(report1.event_starts[0]) == "2023-04-10 00:00:00+00:00"
@@ -64,7 +65,10 @@ def test_reporter(app, setup_dummy_data):
 
     # check that calling compute with different parameters changes the result
     report2 = reporter.compute(
-        start=datetime(2023, 4, 10, 3, tzinfo=utc), end=end, input_sensors=input_sensors
+        sensor=reporter_sensor,
+        start=datetime(2023, 4, 10, 3, tzinfo=utc),
+        end=end,
+        input_sensors=input_sensors,
     )
     assert len(report2) == 4
     assert str(report2.event_starts[0]) == "2023-04-10 02:00:00+00:00"
@@ -76,7 +80,6 @@ def test_reporter_repeated(setup_dummy_data):
     s1, s2, reporter_sensor = setup_dummy_data
 
     reporter_config = dict(
-        sensor=reporter_sensor.id,
         input_variables=["sensor_1", "sensor_2"],
         transformations=[
             dict(
@@ -107,7 +110,8 @@ def test_reporter_repeated(setup_dummy_data):
         final_df_output="df_merge",
     )
 
-    inputs = dict(
+    input = dict(
+        sensor=reporter_sensor.id,
         start="2023-04-10T00:00:00 00:00",
         end="2023-04-10T10:00:00 00:00",
         input_sensors=dict(
@@ -118,8 +122,8 @@ def test_reporter_repeated(setup_dummy_data):
 
     reporter = PandasReporter(config=reporter_config)
 
-    report1 = reporter.compute(inputs=inputs)
-    report2 = reporter.compute(inputs=inputs)
+    report1 = reporter.compute(input=input)
+    report2 = reporter.compute(input=input)
 
     assert all(report2.values == report1.values)
 
@@ -129,7 +133,6 @@ def test_reporter_empty(setup_dummy_data):
     s1, s2, reporter_sensor = setup_dummy_data
 
     config = dict(
-        sensor=reporter_sensor.id,
         input_variables=["sensor_1"],
         transformations=[],
         final_df_output="sensor_1",
@@ -139,6 +142,7 @@ def test_reporter_empty(setup_dummy_data):
 
     # compute report on available data
     report = reporter.compute(
+        sensor=reporter_sensor,
         start=datetime(2023, 4, 10, tzinfo=utc),
         end=datetime(2023, 4, 10, 10, tzinfo=utc),
         input_sensors=dict(sensor_1=dict(sensor=s1)),
@@ -148,6 +152,7 @@ def test_reporter_empty(setup_dummy_data):
 
     # compute report on dates with no data available
     report = reporter.compute(
+        sensor=reporter_sensor,
         start=datetime(2021, 4, 10, tzinfo=utc),
         end=datetime(2021, 4, 10, 10, tzinfo=utc),
         input_sensors=dict(sensor_1=dict(sensor=s1)),
