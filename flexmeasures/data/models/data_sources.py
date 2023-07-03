@@ -27,6 +27,40 @@ class DataGenerator:
     _config_schema: Schema | None = None
 
     def __init__(self, config: dict | None = None, **kwargs) -> None:
+        """Base class for the Schedulers, Reporters and Forecasters.
+
+        The configuration `config` stores static parameters, parameters that, if
+        changed, trigger the creation of a new DataSource.  Dynamic parameters, such as
+        the start date, can go into the `inputs`. See docstring of the method `DataGenerator.compute` for
+        more details.
+
+
+        Create a new DataGenerator with a certain configuration. There are two alternatives
+        to define the parameters:
+
+            1.  Serialized through the keyword argument `config`.
+            2.  Deserialized, passing each parameter as keyword arguments.
+
+        The configuration is validated using the schema `_config_schema`, to be defined.
+
+        Example:
+
+            The configuration requires the parameters start and end, two datetimes.
+
+            Option 1:
+            dg = DataGenerator(config = {
+                "start" : "2023-01-01T00:00:00+00:00",
+                "end" : "2023-01-02T00:00:00+00:00"
+            })
+
+            Option 2:
+            df = DataGenerator(start = datetime(2023, 1, 1, tzinfo = UTC),
+                               end = datetime(2023, 1, 2, tzinfo = UTC))
+
+
+        :param config: serialized `config` parameters, defaults to None
+        """
+
         if config is None:
             self._config = kwargs
             DataGenerator.validate_deserialized(self._config, self._config_schema)
@@ -39,6 +73,12 @@ class DataGenerator:
         raise NotImplementedError()
 
     def compute(self, input: dict | None = None, **kwargs):
+        """The configuration `input` stores dynamic parameters, parameters that, if
+        changed, DO NOT trigger the creation of a new DataSource. Static parameters, such as
+        the topology of an energy system, can go into `config`.
+
+        :param input: serialized `input` parameters, defaults to None
+        """
         if input is None:
             _input = kwargs
             DataGenerator.validate_deserialized(_input, self._input_schema)
