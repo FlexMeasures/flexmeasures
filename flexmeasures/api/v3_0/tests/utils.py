@@ -61,6 +61,7 @@ def message_for_trigger_schedule(
         "soc-max": 40,  # in kWh, according to soc-unit
         "soc-unit": "kWh",
         "roundtrip-efficiency": "98%",
+        "storage-efficiency": "99.99%",
     }
     if with_targets:
         if realistic_targets:

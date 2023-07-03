@@ -1,3 +1,4 @@
+""" Various coding utils (e.g. around function decoration) """
 from __future__ import annotations
 
 import functools
@@ -126,9 +127,11 @@ def sort_dict(unsorted_dict: dict) -> dict:
 def flatten_unique(nested_list_of_objects: list) -> list:
     """Returns unique objects in a possibly nested (one level) list of objects.
 
+    Preserves the original order in which unique objects first occurred.
+
     For example:
-    >>> flatten_unique([1, [2, 3, 4], 3, 5])
-    <<< [1, 2, 3, 4, 5]
+    >>> flatten_unique([1, [2, 20, 6], 10, [6, 2]])
+    <<< [1, 2, 20, 6, 10]
     """
     all_objects = []
     for s in nested_list_of_objects:
@@ -136,7 +139,7 @@ def flatten_unique(nested_list_of_objects: list) -> list:
             all_objects.extend(s)
         else:
             all_objects.append(s)
-    return list(set(all_objects))
+    return list(dict.fromkeys(all_objects).keys())
 
 
 def timeit(func):
