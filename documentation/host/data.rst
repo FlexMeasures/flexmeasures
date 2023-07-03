@@ -74,6 +74,8 @@ Alternatively, you can use Docker Compose to run a postgres database. Use can us
          - ./postgres-data:/var/lib/postgresql/data
        network_mode: host
 
+To run this, simply type ``docker-compose up`` in the directory where you saved the ``docker-compose.yml`` file. Pass the ``-d`` flag to run it in the background.
+
 This will create a postgres database in a directory ``postgres-data`` in your current working directory. You can change the password and database name to your liking. You can also change the port mapping to e.g. ``5433:5432`` if you already have a postgres database running on your host machine.
 
 
@@ -97,6 +99,8 @@ Then restart the postgres server.
 .. code-block:: bash
 
     $ sudo service postgresql restart
+
+.. note:: If you are using Docker to run postgres, the ``timezone`` setting is already set to ``UTC`` by default.
 
 
 Create "flexmeasures" and "flexmeasures_test" databases and users
