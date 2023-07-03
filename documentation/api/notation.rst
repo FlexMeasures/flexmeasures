@@ -211,6 +211,7 @@ Here are the three types of flexibility models you can expect to be built-in:
    - Describe the thermal energy content in kWh or MWh.
    - Set ``soc-minima`` to the accumulative usage forecast.
    - Set ``roundtrip-efficiency`` to the square of the conversion efficiency. [#]_
+   - Set ``storage-efficiency`` to a value below 100% to model (heat) loss.
 
     .. [#] Setting a roundtrip efficiency of higher than 1 is not supported. We plan to implement a separate field for :abbr:`COP (coefficient of performance)` values.
 
