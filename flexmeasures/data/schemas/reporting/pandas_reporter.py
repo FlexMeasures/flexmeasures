@@ -160,7 +160,7 @@ class PandasReporterInputSchema(ReporterInputsSchema):
     end = AwareDateTimeField(required=False)
 
     input_sensors = fields.Dict(
-        keys=fields.Str(),
+        keys=fields.Str(),  # alias
         values=fields.Nested(BeliefsSearchConfigSchema()),
         required=True,
         validator=validate.Length(min=1),
