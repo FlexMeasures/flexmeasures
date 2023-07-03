@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
 
 class DataGenerator:
+    __data_generator_base__: str | None = None
     _data_source: DataSource | None = None
 
     _config: dict = None
@@ -27,33 +28,30 @@ class DataGenerator:
 
     def __init__(self, config: dict | None = None, **kwargs) -> None:
         if config is None:
-            _config = kwargs
+            self._config = kwargs
+            DataGenerator.validate_deserialized(self._config, self._config_schema)
+        elif self._config_schema:
+            self._config = self._config_schema.load(config)
         else:
-            if self._config_schema:
-                _config = self._config_schema.load(config)
-            else:
-                _config = config
-
-        self._config = _config
+            self._config = config
 
     def _compute(self, **kwargs):
         raise NotImplementedError()
 
-    def compute(self, inputs: dict = None, **kwargs):
-        if inputs is None:
-            _inputs = kwargs
-            self.validate_deserialized_inputs(_inputs)
-        else:
-            if self._input_schema:
-                _inputs = self._input_schema.load(inputs)
+    def compute(self, input: dict | None = None, **kwargs):
+        if input is None:
+            _input = kwargs
+            DataGenerator.validate_deserialized(_input, self._input_schema)
+        elif self._input_schema:
+            _input = self._input_schema.load(input)
+        else:  # skip validation
+            _input = input
 
-            else:  # skip validation
-                _inputs = inputs
+        return self._compute(**_input)
 
-        return self._compute(**_inputs)
-
-    def validate_deserialized_inputs(self, inputs: dict):
-        self._input_schema.load(self._input_schema.dump(inputs))
+    @staticmethod
+    def validate_deserialized(values: dict, schema: Schema) -> bool:
+        schema.load(schema.dump(values))
 
     @classmethod
     def get_data_source_info(cls: type) -> dict:
@@ -66,22 +64,13 @@ class DataGenerator:
             source=current_app.config.get("FLEXMEASURES_DEFAULT_DATASOURCE")
         )  # default
 
-        from flexmeasures.data.models.planning import Scheduler
-        from flexmeasures.data.models.reporting import Reporter
-
-        if issubclass(cls, Reporter):
-            source_info["source_type"] = "reporter"
-        elif issubclass(cls, Scheduler):
-            source_info["source_type"] = "scheduler"
-        else:
-            source_info["source_type"] = "undefined"
-
+        source_info["source_type"] = cls.__data_generator_base__
         source_info["model"] = cls.__name__
 
         return source_info
 
     @property
-    def data_source(self) -> "DataSource | None":
+    def data_source(self) -> "DataSource" | None:
         from flexmeasures.data.services.data_sources import get_or_create_source
 
         if self._data_source is None:
@@ -176,7 +165,11 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
             )
             return None
 
-        if self.model not in current_app.data_generators:
+        types = current_app.data_generators
+
+        if all(
+            [self.model not in current_app.data_generators[_type] for _type in types]
+        ):
             current_app.logger.warning(
                 "DataGenerator `{self.model}` not registered in this FlexMeasures instance."
             )
@@ -187,7 +180,9 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         config = data_generator_details.get("config", {})
 
         # create DataGenerator class and assign the current DataSource (self) as its source
-        data_generator = current_app.data_generators[self.model](config=config)
+        data_generator = current_app.data_generators[self.type][self.model](
+            config=config
+        )
         data_generator._data_source = self
 
         self._data_generator = data_generator

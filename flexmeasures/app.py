@@ -128,8 +128,11 @@ def create(  # noqa C901
     app.reporters = reporters
     app.schedulers = schedulers
 
-    app.data_generators = copy(reporters)  # use copy to avoid mutating app.reporters
-    app.data_generators.update(schedulers)
+    app.data_generators = dict()
+    app.data_generators["reporter"] = copy(
+        reporters
+    )  # use copy to avoid mutating app.reporters
+    app.data_generators["scheduler"] = schedulers
 
     # add auth policy
 

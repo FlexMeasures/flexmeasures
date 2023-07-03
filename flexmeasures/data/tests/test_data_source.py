@@ -24,7 +24,7 @@ def test_get_reporter_from_source(db, app, aggregator_reporter_data_source):
 
 
 def test_data_source(db, app, aggregator_reporter_data_source):
-    TestTeporter = app.data_generators.get("TestReporter")
+    TestTeporter = app.data_generators["reporter"].get("TestReporter")
 
     ds1 = TestTeporter(config={"sensor": 1})
 
