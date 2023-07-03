@@ -154,26 +154,23 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         data_generator = None
 
         if self.type not in ["scheduler", "forecaster", "reporter"]:
-            current_app.logger.warning(
+            raise NotImplementedError(
                 "Only the classes Scheduler, Forecaster and Reporters are DataGenerator's."
             )
-            return None
 
         if not self.model:
-            current_app.logger.warning(
+            raise NotImplementedError(
                 "There's no DataGenerator class defined in this DataSource."
             )
-            return None
 
         types = current_app.data_generators
 
         if all(
             [self.model not in current_app.data_generators[_type] for _type in types]
         ):
-            current_app.logger.warning(
+            raise NotImplementedError(
                 "DataGenerator `{self.model}` not registered in this FlexMeasures instance."
             )
-            return None
 
         # fetch DataGenerator details
         data_generator_details = self.attributes.get("data_generator", {})
