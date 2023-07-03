@@ -5,7 +5,7 @@ CLI commands for populating the database
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Type, Optional
+from typing import Type
 import json
 import yaml
 from pathlib import Path
@@ -1165,8 +1165,8 @@ def add_schedule_for_storage(
     "--sensor-id",
     "sensor",
     type=SensorIdField(),
-    required=True,
-    help="Sensor used to save the report. Follow up with the sensor's ID. "
+    required=False,
+    help="Sensor used to save the report. Follow up with the sensor's ID. Can be defined in the input file, as well"
     " If needed, use `flexmeasures add sensor` to create a new sensor first.",
 )
 @click.option(
@@ -1177,8 +1177,8 @@ def add_schedule_for_storage(
     help="Path to the JSON or YAML file with the configuration of the reporter.",
 )
 @click.option(
-    "--inputs",
-    "inputs_file",
+    "--input",
+    "input_file",
     required=False,
     type=click.File("r"),
     help="Path to the JSON or YAML file with the report inputs.",
@@ -1260,18 +1260,18 @@ def add_schedule_for_storage(
 )
 def add_report(  # noqa: C901
     reporter_class: str,
-    sensor: Sensor,
-    config_file: Optional[TextIOBase],
-    inputs_file: Optional[TextIOBase],
-    start: Optional[datetime] = None,
-    end: Optional[datetime] = None,
-    start_offset: Optional[str] = None,
-    end_offset: Optional[str] = None,
-    resolution: Optional[timedelta] = None,
-    output_file: Optional[Path] = None,
+    sensor: Sensor | None = None,
+    config_file: TextIOBase | None = None,
+    input_file: TextIOBase | None = None,
+    start: datetime | None = None,
+    end: datetime | None = None,
+    start_offset: str | None = None,
+    end_offset: str | None = None,
+    resolution: timedelta | None = None,
+    output_file: Path | None = None,
     dry_run: bool = False,
     edit_config: bool = False,
-    edit_inputs: bool = False,
+    edit_input: bool = False,
     timezone: str | None = None,
 ):
     """
@@ -1279,9 +1279,38 @@ def add_report(  # noqa: C901
     to the database or export them as CSV or Excel file.
     """
 
+    config = dict()
+
+    if config_file:
+        config = yaml.safe_load(config_file)
+
+    if edit_config:
+        config = launch_editor("/tmp/config.yml")
+
+    input = dict()
+
+    if input_file:
+        input = yaml.safe_load(input_file)
+
+    if edit_input:
+        input = launch_editor("/tmp/input.yml")
+
+    if sensor is not None:
+        input["sensor"] = sensor.id
+
+    sensor = Sensor.query.get(input.get("sensor"))
+
+    if input.get("sensor") is None:
+        click.secho(
+            "Report sensor needs to be defined, either on the `input` file or trough the --sensor CLI parameter...",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+
     # compute now in the timezone local to the output sensor
     if timezone is not None:
         check_timezone(timezone)
+
     now = pytz.timezone(
         zone=timezone if timezone is not None else sensor.timezone
     ).localize(datetime.now())
@@ -1336,7 +1365,9 @@ def add_report(  # noqa: C901
     )
 
     # get reporter class
-    ReporterClass: Type[Reporter] = app.reporters.get(reporter_class)
+    ReporterClass: Type[Reporter] = app.data_generators.get("reporter").get(
+        reporter_class
+    )
 
     # check if it exists
     if ReporterClass is None:
@@ -1348,44 +1379,20 @@ def add_report(  # noqa: C901
 
     click.secho(f"Reporter {reporter_class} found.", **MsgStyle.SUCCESS)
 
-    config = None  # dict()
-
-    if config_file:
-        config = yaml.safe_load(config_file)
-
-    if edit_config:
-        config = launch_editor("/tmp/config.yml")
-
-    if config is None:
-        config = dict()
-
-    config["sensor"] = sensor.id
-
     # initialize reporter class with the reporter sensor and reporter config
     reporter: Reporter = ReporterClass(config=config)
 
     click.echo("Report computation is running...")
 
-    inputs = None
-
-    if inputs_file:
-        inputs = yaml.safe_load(inputs_file)
-
-    if edit_inputs:
-        inputs = launch_editor("/tmp/inputs.yml")
-
-    if inputs is None:
-        inputs = dict()
-
-    if ("start" not in inputs) and (start is not None):
-        inputs["start"] = start.isoformat()
-    if ("end" not in inputs) and (end is not None):
-        inputs["end"] = end.isoformat()
-    if ("resolution" not in inputs) and (resolution is not None):
-        inputs["resolution"] = pd.Timedelta.isoformat(resolution)
+    if ("start" not in input) and (start is not None):
+        input["start"] = start.isoformat()
+    if ("end" not in input) and (end is not None):
+        input["end"] = end.isoformat()
+    if ("resolution" not in input) and (resolution is not None):
+        input["resolution"] = pd.Timedelta.isoformat(resolution)
 
     # compute the report
-    result: BeliefsDataFrame = reporter.compute(inputs=inputs)
+    result: BeliefsDataFrame = reporter.compute(input=input)
 
     if not result.empty:
         click.secho("Report computation done.", **MsgStyle.SUCCESS)
@@ -1439,12 +1446,16 @@ def add_report(  # noqa: C901
         )
 
 
-def launch_editor(filename: str) -> dict | None:
+def launch_editor(filename: str) -> dict:
     """Launch editor to create/edit a json object"""
     click.edit("{\n}", filename=filename)
 
     with open(filename, "r") as f:
-        return yaml.safe_load(f)
+        content = yaml.safe_load(f)
+        if content is None:
+            return dict()
+
+        return content
 
 
 @fm_add_data.command("toy-account")
