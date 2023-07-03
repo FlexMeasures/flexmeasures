@@ -10,7 +10,7 @@ import pandas as pd
 from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.schemas.reporting.pandas_reporter import (
     PandasReporterConfigSchema,
-    PandasReporterInputConfigSchema,
+    PandasReporterInputSchema,
 )
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.utils.time_utils import server_now
@@ -23,7 +23,7 @@ class PandasReporter(Reporter):
     __author__ = "Seita"
 
     _config_schema = PandasReporterConfigSchema()
-    _inputs_schema = PandasReporterInputConfigSchema()
+    _input_schema = PandasReporterInputSchema()
 
     input_variables: list[str] = None
     transformations: list[dict[str, Any]] = None
@@ -204,6 +204,7 @@ class PandasReporter(Reporter):
 
         for _transformation in self._config.get("transformations"):
             transformation = deepcopy(_transformation)
+
             df_input = transformation.get(
                 "df_input", previous_df
             )  # default is using the previous transformation output

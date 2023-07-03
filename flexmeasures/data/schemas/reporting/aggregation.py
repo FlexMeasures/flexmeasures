@@ -43,8 +43,8 @@ class AggregatorConfigSchema(ReporterConfigSchema):
     @validates_schema
     def validate_source(self, data, **kwargs):
 
-        for data in data["data"]:
-            if "source" not in data:
+        for d in data["data"]:
+            if "source" not in d:
                 raise ValidationError("`source` is a required field.")
 
     @validates_schema

@@ -11,44 +11,49 @@ def test_get_reporter_from_source(
 ):
     reporter = aggregator_reporter_data_source.data_generator
 
+    reporter_sensor = add_nearby_weather_sensors.get("farther_temperature")
+
     assert isinstance(reporter, Reporter)
     assert reporter.__class__.__name__ == "TestReporter"
 
-    print(aggregator_reporter_data_source.data_generator)
-
     res = reporter.compute(
-        start=datetime(2023, 1, 1, tzinfo=UTC), end=datetime(2023, 1, 2, tzinfo=UTC)
+        sensor=reporter_sensor,
+        start=datetime(2023, 1, 1, tzinfo=UTC),
+        end=datetime(2023, 1, 2, tzinfo=UTC),
     )
 
     assert res.lineage.sources[0] == reporter.data_source
 
     with pytest.raises(AttributeError):
-        reporter.compute(start=datetime(2023, 1, 1, tzinfo=UTC), end="not a date")
+        reporter.compute(
+            sensor=reporter_sensor,
+            start=datetime(2023, 1, 1, tzinfo=UTC),
+            end="not a date",
+        )
 
 
-def test_creation_of_new_data_source(
-    db, app, aggregator_reporter_data_source, add_nearby_weather_sensors
-):
-    sensor1 = add_nearby_weather_sensors.get("temperature")
-    sensor2 = add_nearby_weather_sensors.get("farther_temperature")
+def test_data_source(db, app, aggregator_reporter_data_source):
+    TestTeporter = app.data_generators["reporter"].get("TestReporter")
 
-    TestReporter = app.data_generators["TestReporter"]
-
-    ds1 = TestReporter(config={"sensor": sensor1.id})
+    ds1 = TestTeporter(config={"a": "1"})
 
     db.session.add(ds1.data_source)
     db.session.commit()
 
-    ds2 = TestReporter(sensor=sensor1)
+    ds2 = TestTeporter(config={"a": "1"})
 
     assert ds1.data_source == ds2.data_source
-    assert ds1.data_source.attributes.get("config") == ds2.data_source.attributes.get(
+    assert ds1.data_source.attributes.get("data_generator").get(
         "config"
-    )
+    ) == ds2.data_source.attributes.get("data_generator").get("config")
 
-    ds3 = TestReporter(config={"sensor": sensor2.id})
+    ds3 = TestTeporter(config={"a": "2"})
 
     assert ds3.data_source != ds2.data_source
-    assert ds3.data_source.attributes.get("config") != ds2.data_source.attributes.get(
+    assert ds3.data_source.attributes.get("data_generator").get(
         "config"
-    )
+    ) != ds2.data_source.attributes.get("data_generator").get("config")
+
+    ds4 = ds3.data_source.data_generator
+
+    assert ds4._config == ds3._config

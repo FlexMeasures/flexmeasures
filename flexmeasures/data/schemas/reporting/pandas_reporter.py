@@ -5,7 +5,10 @@ from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.schemas.sources import DataSourceIdField
 
 from flexmeasures.data.schemas import AwareDateTimeField, DurationField
-
+from flexmeasures.data.schemas.reporting import (
+    ReporterConfigSchema,
+    ReporterInputSchema,
+)
 
 from timely_beliefs import BeliefsDataFrame
 
@@ -76,14 +79,13 @@ class BeliefsSearchConfigSchema(Schema):
     sum_multiple = fields.Boolean()
 
 
-class PandasReporterConfigSchema(Schema):
+class PandasReporterConfigSchema(ReporterConfigSchema):
     """
     This schema lists fields that can be used to describe sensors in the optimised portfolio
 
     Example:
 
     {
-        "sensor" : 1,
         "input_variables" : ["df1"],
         "transformations" : [
             {
@@ -104,8 +106,7 @@ class PandasReporterConfigSchema(Schema):
         "final_df_output" : "df2"
     """
 
-    sensor = SensorIdField(required=True)
-    input_variables = fields.List(fields.Str(), required=True)
+    input_variables = fields.List(fields.Str(), required=True)  # expected input aliases
     transformations = fields.List(fields.Nested(PandasMethodCall()), required=True)
     final_df_output = fields.Str(required=True)
 
@@ -116,8 +117,8 @@ class PandasReporterConfigSchema(Schema):
         final_df_output is computed.
         """
 
-        # create dictionary data with objects of the types that is supposed to be generated
-        # loading the initial data, the sensors' data
+        # fake_data mocks the PandasReporter class attribute data. It contains empty BeliefsDataFrame
+        # to simulate the process of applying the transformations.
         fake_data = dict(
             (variable, BeliefsDataFrame) for variable in data.get("input_variables")
         )
@@ -152,19 +153,18 @@ class PandasReporterConfigSchema(Schema):
             )
 
 
-class PandasReporterInputConfigSchema(Schema):
+class PandasReporterInputSchema(ReporterInputSchema):
+    # make start and end optional, conditional on providing the time parameters
+    # for the single sensors in `input_sensors`
+    start = AwareDateTimeField(required=False)
+    end = AwareDateTimeField(required=False)
+
     input_sensors = fields.Dict(
-        keys=fields.Str(),
+        keys=fields.Str(),  # alias
         values=fields.Nested(BeliefsSearchConfigSchema()),
         required=True,
         validator=validate.Length(min=1),
     )
-
-    start = AwareDateTimeField(required=False)
-    end = AwareDateTimeField(required=False)
-
-    resolution = DurationField(required=False)
-    belief_time = AwareDateTimeField(required=False)
 
     @validates_schema
     def validate_time_parameters(self, data, **kwargs):

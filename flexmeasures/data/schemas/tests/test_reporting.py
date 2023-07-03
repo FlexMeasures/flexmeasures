@@ -3,7 +3,7 @@ from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetTy
 
 from flexmeasures.data.schemas.reporting.pandas_reporter import (
     PandasReporterConfigSchema,
-    PandasReporterInputConfigSchema,
+    PandasReporterInputSchema,
 )
 from marshmallow.exceptions import ValidationError
 
@@ -108,10 +108,11 @@ def test_pandas_reporter_config_schema(config, is_valid, db, app, setup_dummy_se
 
 
 @pytest.mark.parametrize(
-    "inputs, is_valid",
+    "input, is_valid",
     [
         (
             {
+                "sensor": 1,
                 "input_sensors": {"sensor_1": {"sensor": 1}},
                 "start": "2023-06-06T00:00:00+02:00",
                 "end": "2023-06-06T00:00:00+02:00",
@@ -126,6 +127,7 @@ def test_pandas_reporter_config_schema(config, is_valid, db, app, setup_dummy_se
         ),
         (
             {
+                "sensor": 1,
                 "input_sensors": {
                     "sensor_1": {
                         "sensor": 1,
@@ -138,12 +140,12 @@ def test_pandas_reporter_config_schema(config, is_valid, db, app, setup_dummy_se
         ),
     ],
 )
-def test_pandas_reporter_inputs_schema(inputs, is_valid, db, app, setup_dummy_sensors):
+def test_pandas_reporter_input_schema(input, is_valid, db, app, setup_dummy_sensors):
 
-    schema = PandasReporterInputConfigSchema()
+    schema = PandasReporterInputSchema()
 
     if is_valid:
-        schema.load(inputs)
+        schema.load(input)
     else:
         with pytest.raises(ValidationError):
-            schema.load(inputs)
+            schema.load(input)

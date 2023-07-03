@@ -7,6 +7,7 @@ import pandas as pd
 
 from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.schemas.reporting.aggregation import AggregatorConfigSchema
+from flexmeasures.data.models.time_series import Sensor
 
 from flexmeasures.utils.time_utils import server_now
 
@@ -24,9 +25,10 @@ class AggregatorReporter(Reporter):
 
     def _compute_report(
         self,
+        sensor: Sensor,
         start: datetime,
         end: datetime,
-        input_resolution: timedelta | None = None,
+        resolution: timedelta | None = None,
         belief_time: datetime | None = None,
     ) -> tb.BeliefsDataFrame:
         """
@@ -41,6 +43,9 @@ class AggregatorReporter(Reporter):
 
         dataframes = []
 
+        if belief_time is None:
+            belief_time = server_now()
+
         for d in data:
             # if alias is not in belief_search_config, using the Sensor id instead
             column_name = d.get("alias", f"sensor_{d['sensor'].id}")
@@ -50,7 +55,7 @@ class AggregatorReporter(Reporter):
                 .search_beliefs(
                     event_starts_after=start,
                     event_ends_before=end,
-                    resolution=input_resolution,
+                    resolution=resolution,
                     beliefs_before=belief_time,
                 )
                 .droplevel([1, 2, 3])
@@ -63,9 +68,6 @@ class AggregatorReporter(Reporter):
             dataframes.append(df)
 
         output_df = pd.concat(dataframes, axis=1)
-
-        if belief_time is None:
-            belief_time = server_now()
 
         # apply aggregation method
         output_df = output_df.aggregate(method, axis=1)

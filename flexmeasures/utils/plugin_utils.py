@@ -118,8 +118,8 @@ def register_plugins(app: Flask):
         app.schedulers.update(plugin_schedulers)
 
         # add DataGenerators
-        app.data_generators.update(plugin_schedulers)
-        app.data_generators.update(plugin_reporters)
+        app.data_generators["scheduler"].update(plugin_schedulers)
+        app.data_generators["reporter"].update(plugin_reporters)
 
         app.config["LOADED_PLUGINS"][plugin_name] = plugin_version
     app.logger.info(f"Loaded plugins: {app.config['LOADED_PLUGINS']}")

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Any, Type
+from typing import TYPE_CHECKING, Any
 from sqlalchemy.ext.mutable import MutableDict
 
 import timely_beliefs as tb
@@ -18,42 +18,83 @@ if TYPE_CHECKING:
 
 
 class DataGenerator:
+    __data_generator_base__: str | None = None
     _data_source: DataSource | None = None
 
     _config: dict = None
 
-    _inputs_schema: Type[Schema] | None = None
-    _config_schema: Type[Schema] | None = None
+    _input_schema: Schema | None = None
+    _config_schema: Schema | None = None
 
     def __init__(self, config: dict | None = None, **kwargs) -> None:
-        if config is None:
-            _config = kwargs
-        else:
-            if self._config_schema:
-                _config = self._config_schema.load(config)
-            else:
-                _config = config
+        """Base class for the Schedulers, Reporters and Forecasters.
 
-        self._config = _config
+        The configuration `config` stores static parameters, parameters that, if
+        changed, trigger the creation of a new DataSource.  Dynamic parameters, such as
+        the start date, can go into the `input`. See docstring of the method `DataGenerator.compute` for
+        more details.
+
+
+        Create a new DataGenerator with a certain configuration. There are two alternatives
+        to define the parameters:
+
+            1.  Serialized through the keyword argument `config`.
+            2.  Deserialized, passing each parameter as keyword arguments.
+
+        The configuration is validated using the schema `_config_schema`, to be defined by the subclass.
+
+        Example:
+
+            The configuration requires two parameters for the PV and consumption sensors.
+
+            Option 1:
+                dg = DataGenerator(config = {
+                    "sensor_pv" : 1,
+                    "sensor_consumption" : 2
+                })
+
+            Option 2:
+                sensor_pv = Sensor.query.get(1)
+                sensor_consumption = Sensor.query.get(2)
+
+                dg = DataGenerator(sensor_pv = sensor_pv,
+                                sensor_consumption = sensor_consumption)
+
+
+        :param config: serialized `config` parameters, defaults to None
+        """
+
+        if config is None:
+            self._config = kwargs
+            DataGenerator.validate_deserialized(self._config, self._config_schema)
+        elif self._config_schema:
+            self._config = self._config_schema.load(config)
+        else:
+            self._config = config
 
     def _compute(self, **kwargs):
         raise NotImplementedError()
 
-    def compute(self, inputs: dict = None, **kwargs):
-        if inputs is None:
-            _inputs = kwargs
-            self.validate_deserialized_inputs(_inputs)
-        else:
-            if self._inputs_schema:
-                _inputs = self._inputs_schema.load(inputs)
+    def compute(self, input: dict | None = None, **kwargs):
+        """The configuration `input` stores dynamic parameters, parameters that, if
+        changed, DO NOT trigger the creation of a new DataSource. Static parameters, such as
+        the topology of an energy system, can go into `config`.
 
-            else:  # skip validation
-                _inputs = inputs
+        :param input: serialized `input` parameters, defaults to None
+        """
+        if input is None:
+            _input = kwargs
+            DataGenerator.validate_deserialized(_input, self._input_schema)
+        elif self._input_schema:
+            _input = self._input_schema.load(input)
+        else:  # skip validation
+            _input = input
 
-        return self._compute(**_inputs)
+        return self._compute(**_input)
 
-    def validate_deserialized_inputs(self, inputs: dict):
-        self._inputs_schema.load(self._inputs_schema.dump(inputs))
+    @staticmethod
+    def validate_deserialized(values: dict, schema: Schema) -> bool:
+        schema.load(schema.dump(values))
 
     @classmethod
     def get_data_source_info(cls: type) -> dict:
@@ -66,29 +107,20 @@ class DataGenerator:
             source=current_app.config.get("FLEXMEASURES_DEFAULT_DATASOURCE")
         )  # default
 
-        from flexmeasures.data.models.planning import Scheduler
-        from flexmeasures.data.models.reporting import Reporter
-
-        if issubclass(cls, Reporter):
-            source_info["source_type"] = "reporter"
-        elif issubclass(cls, Scheduler):
-            source_info["source_type"] = "scheduler"
-        else:
-            source_info["source_type"] = "undefined"
-
+        source_info["source_type"] = cls.__data_generator_base__
         source_info["model"] = cls.__name__
 
         return source_info
 
     @property
-    def data_source(self) -> "DataSource | None":
+    def data_source(self) -> "DataSource" | None:
         from flexmeasures.data.services.data_sources import get_or_create_source
 
         if self._data_source is None:
             data_source_info = self.get_data_source_info()
-            data_source_info["attributes"] = dict(
-                config=self._config_schema.dump(self._config)
-            )
+            data_source_info["attributes"] = {
+                "data_generator": {"config": self._config_schema.dump(self._config)}
+            }
 
             self._data_source = get_or_create_source(**data_source_info)
 
@@ -99,7 +131,9 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
     """Each data source is a data-providing entity."""
 
     __tablename__ = "data_source"
-    __table_args__ = (db.UniqueConstraint("name", "user_id", "model", "version"),)
+    __table_args__ = (
+        db.UniqueConstraint("name", "user_id", "model", "version", "attributes_hash"),
+    )
 
     # The type of data source (e.g. user, forecaster or scheduler)
     type = db.Column(db.String(80), default="")
@@ -124,7 +158,7 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
     sensors = db.relationship(
         "Sensor",
         secondary="timed_belief",
-        backref=db.backref("data_sources", lazy="dynamic"),
+        backref=db.backref("data_sources", lazy="select"),
         viewonly=True,
     )
 
@@ -163,29 +197,32 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         data_generator = None
 
         if self.type not in ["scheduler", "forecaster", "reporter"]:
-            current_app.logger.warning(
+            raise NotImplementedError(
                 "Only the classes Scheduler, Forecaster and Reporters are DataGenerator's."
             )
-            return None
 
         if not self.model:
-            current_app.logger.warning(
+            raise NotImplementedError(
                 "There's no DataGenerator class defined in this DataSource."
             )
-            return None
 
-        if self.model not in current_app.data_generators:
-            current_app.logger.warning(
+        types = current_app.data_generators
+
+        if all(
+            [self.model not in current_app.data_generators[_type] for _type in types]
+        ):
+            raise NotImplementedError(
                 "DataGenerator `{self.model}` not registered in this FlexMeasures instance."
             )
-            return None
 
         # fetch DataGenerator details
         data_generator_details = self.attributes.get("data_generator", {})
         config = data_generator_details.get("config", {})
 
         # create DataGenerator class and assign the current DataSource (self) as its source
-        data_generator = current_app.data_generators[self.model](config=config)
+        data_generator = current_app.data_generators[self.type][self.model](
+            config=config
+        )
         data_generator._data_source = self
 
         self._data_generator = data_generator
@@ -245,20 +282,16 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
             description=self.description,
         )
 
-    def get_attribute(self, attribute: str, default: Any = None) -> Any:
-        """Looks for the attribute on the DataSource.
-        If not found, returns the default.
-        """
-        if hasattr(self, attribute):
-            return getattr(self, attribute)
-        if attribute in self.attributes:
-            return self.attributes[attribute]
+    @staticmethod
+    def hash_attributes(attributes: dict) -> str:
+        return hashlib.sha256(json.dumps(attributes).encode("utf-8")).digest()
 
-        return default
+    def get_attribute(self, attribute: str, default: Any = None) -> Any:
+        """Looks for the attribute in the DataSource's attributes column."""
+        return self.attributes.get(attribute, default)
 
     def has_attribute(self, attribute: str) -> bool:
         return attribute in self.attributes
 
     def set_attribute(self, attribute: str, value):
-        if self.has_attribute(attribute):
-            self.attributes[attribute] = value
+        self.attributes[attribute] = value

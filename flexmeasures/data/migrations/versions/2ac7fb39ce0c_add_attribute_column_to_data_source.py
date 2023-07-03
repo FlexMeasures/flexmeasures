@@ -29,6 +29,23 @@ def upgrade():
         sa.Column("attributes_hash", sa.LargeBinary(length=256), nullable=True),
     )
 
+    # remove previous uniqueness constraint and add a new that takes attributes_hash into account
+    op.drop_constraint(op.f("data_source_name_key"), "data_source", type_="unique")
+    op.create_unique_constraint(
+        "data_source_name_key",
+        "data_source",
+        ["name", "user_id", "model", "version", "attributes_hash"],
+    )
+
 
 def downgrade():
-    pass
+
+    op.drop_constraint("data_source_name_key", "data_source", type_="unique")
+    op.create_unique_constraint(
+        "data_source_name_key",
+        "data_source",
+        ["name", "user_id", "model", "version"],
+    )
+
+    op.drop_column("data_source", "attributes")
+    op.drop_column("data_source", "attributes_hash")

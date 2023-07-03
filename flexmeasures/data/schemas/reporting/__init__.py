@@ -7,14 +7,28 @@ from flexmeasures.data.schemas import AwareDateTimeField, DurationField
 
 
 class ReporterConfigSchema(Schema):
+    """
+    This schema is used to validate Reporter class configurations (config).
+    Inherit from this class to extend this schema with your own parameters.
+    """
+
+    pass
+
+
+class ReporterInputSchema(Schema):
+    """
+    This schema is used to validate the inputs to the method `compute` of
+     the Reporter class.
+    Inherit from this class to extend this schema with your own parameters.
+    """
+
     sensor = SensorIdField(required=True)
 
-
-class ReporterInputsSchema(Schema):
     start = AwareDateTimeField(required=True)
     end = AwareDateTimeField(required=True)
-    input_resolution = DurationField()
-    belief_time = AwareDateTimeField()
+
+    resolution = DurationField(required=False)
+    belief_time = AwareDateTimeField(required=False)
 
 
 class BeliefsSearchConfigSchema(Schema):
@@ -45,16 +59,3 @@ class BeliefsSearchConfigSchema(Schema):
     one_deterministic_belief_per_event_per_source = fields.Boolean()
     resolution = DurationField()
     sum_multiple = fields.Boolean()
-
-
-# class ReporterConfigSchema(Schema):
-#     """
-#     This schema is used to validate Reporter class configurations (reporter_config).
-#     Inherit from this to extend this schema with your own parameters.
-#     """
-
-#     beliefs_search_configs = fields.List(
-#         fields.Nested(BeliefsSearchConfigSchema()),
-#         required=True,
-#         validator=validate.Length(min=1),
-#     )
