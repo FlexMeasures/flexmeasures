@@ -41,7 +41,6 @@ def setup_dummy_sensors(db, app):
     [
         (
             {  # this checks that the final_df_output dataframe is actually generated at some point of the processing pipeline
-                "sensor": 1,
                 "input_variables": ["sensor_1"],
                 "transformations": [
                     {
@@ -56,7 +55,6 @@ def setup_dummy_sensors(db, app):
         ),
         (
             {  # this checks that chaining works, applying the method copy on the previous dataframe
-                "sensor": 1,
                 "input_variables": ["sensor_1"],
                 "transformations": [
                     {"df_output": "output1", "df_input": "sensor_1", "method": "copy"},
@@ -69,7 +67,6 @@ def setup_dummy_sensors(db, app):
         ),
         (
             {  # this checks that resample cannot be the last method being applied
-                "sensor": 1,
                 "input_variables": ["sensor_1", "sensor_2"],
                 "transformations": [
                     {"df_output": "output1", "df_input": "sensor_1", "method": "copy"},
@@ -82,7 +79,6 @@ def setup_dummy_sensors(db, app):
         ),
         (
             {  # this checks that resample cannot be the last method being applied
-                "sensor": 1,
                 "input_variables": ["sensor_1", "sensor_2"],
                 "transformations": [
                     {"df_output": "output1", "df_input": "sensor_1", "method": "copy"},

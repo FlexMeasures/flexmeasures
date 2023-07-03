@@ -8,7 +8,7 @@ from flexmeasures.data.models.reporting.pandas_reporter import PandasReporter
 def test_reporter(app, setup_dummy_data):
     s1, s2, reporter_sensor = setup_dummy_data
 
-    config = dict(
+    reporter_config = dict(
         input_variables=["sensor_1", "sensor_2"],
         transformations=[
             dict(
@@ -39,7 +39,7 @@ def test_reporter(app, setup_dummy_data):
         final_df_output="df_merge",
     )
 
-    reporter = PandasReporter(config=config)
+    reporter = PandasReporter(config=reporter_config)
 
     start = datetime(2023, 4, 10, tzinfo=utc)
     end = datetime(2023, 4, 10, 10, tzinfo=utc)
