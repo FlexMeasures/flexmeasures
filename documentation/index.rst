@@ -179,8 +179,8 @@ The platform operator of FlexMeasures can be an Aggregator.
     :caption: Tutorials
     :maxdepth: 1
     
-    tut/toy-example-from-scratch
     tut/installation
+    tut/toy-example-from-scratch
     tut/posting_data
     tut/forecasting_scheduling
     tut/building_uis

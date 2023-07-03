@@ -28,12 +28,17 @@ Install
 
 We believe FlexMeasures works with Postgres above version 9 and we ourselves have run it with versions up to 14.
 
-On Unix:
+On Linux:
 
 .. code-block:: bash
 
+   $ # On Ubuntu and Debian, you can install postgres like this:
    $ sudo apt-get install postgresql-12  # replace 12 with the version available in your packages
    $ pip install psycopg2-binary
+
+   $ # On Fedora, you can install postgres like this:
+   $ sudo dnf install postgresql postgresql-server
+   $ sudo postgresql-setup --initdb --unit postgresql
 
 
 On Windows:
@@ -43,6 +48,33 @@ On Windows:
 * Install and remember your ``postgres`` user password
 * Add the lib and bin directories to your Windows path: http://bobbyong.com/blog/installing-postgresql-on-windoes/
 * ``conda install psycopg2``
+
+
+Using Docker Compose:
+
+
+Alternatively, you can use Docker Compose to run a postgres database. Use can use the following ``docker-compose.yml`` as a starting point:
+
+
+.. code-block:: yaml
+
+   version: '3.7'
+
+   services:
+     postgres:
+       image: postgres:latest
+       restart: always
+       environment:
+         POSTGRES_USER: flexmeasures
+         POSTGRES_PASSWORD: this-is-your-secret-choice
+         POSTGRES_DB: flexmeasures
+       ports:
+         - 5432:5432
+       volumes:
+         - ./postgres-data:/var/lib/postgresql/data
+       network_mode: host
+
+This will create a postgres database in a directory ``postgres-data`` in your current working directory. You can change the password and database name to your liking. You can also change the port mapping to e.g. ``5433:5432`` if you already have a postgres database running on your host machine.
 
 
 Make sure postgres represents datetimes in UTC timezone
