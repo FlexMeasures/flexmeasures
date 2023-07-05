@@ -46,6 +46,7 @@ from flexmeasures.utils.time_utils import duration_isoformat
 get_sensor_schema = GetSensorDataSchema()
 post_sensor_schema = PostSensorDataSchema()
 sensors_schema = SensorSchema(many=True)
+sensor_schema = SensorSchema()
 
 
 class SensorAPI(FlaskView):
@@ -494,3 +495,39 @@ class SensorAPI(FlaskView):
 
         d, s = request_processed()
         return dict(**response, **d), s
+
+    @route("/<id>", methods=["GET"])
+    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    @permission_required_for_context("read", arg_name="sensor")
+    @as_json
+    def fetch_one(self, id, sensor):
+        """Fetch a given sensor.
+
+        .. :quickref: Sensor; Get a sensor
+
+        This endpoint gets a sensor.
+
+        **Example response**
+
+        .. sourcecode:: json
+
+            {
+                "name": "some gas sensor",
+                "unit": "m³/h",
+                "entity_address": "ea1.2023-08.localhost:fm1.1",
+                "event_resolution": 10,
+                "generic_asset_id": 4,
+                "timezone": "UTC",
+            }
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 200: PROCESSED
+        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+        sensor = Sensor.query.filter(Sensor.id == 1).one_or_none()
+        return sensor_schema.dump(sensor), 200
