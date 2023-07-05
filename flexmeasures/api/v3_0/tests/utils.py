@@ -40,6 +40,16 @@ def get_asset_post_data(account_id: int = 1, asset_type_id: int = 1) -> dict:
     return post_data
 
 
+def get_sensor_post_data(generic_asset_id: int = 1) -> dict:
+    post_data = {
+        "name": "power",
+        "event_resolution": 10,
+        "unit": "kWh",
+        "generic_asset_id": generic_asset_id,
+    }
+    return post_data
+
+
 def message_for_trigger_schedule(
     unknown_prices: bool = False,
     with_targets: bool = False,

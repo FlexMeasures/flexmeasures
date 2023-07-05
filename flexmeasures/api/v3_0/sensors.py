@@ -531,3 +531,59 @@ class SensorAPI(FlaskView):
         """
         sensor = Sensor.query.filter(Sensor.id == 1).one_or_none()
         return sensor_schema.dump(sensor), 200
+
+    @route("", methods=["POST"])
+    @permission_required_for_context(
+        "create-children", arg_loader=AccountIdField.load_current
+    )
+    @use_args(sensor_schema)
+    def post(self, sensor_data: dict):
+        """Create new asset.
+
+        .. :quickref: Asset; Create a new asset
+
+        This endpoint creates a new asset.
+
+        **Example request**
+
+        .. sourcecode:: json
+
+            {
+                "name": "Test battery",
+                "generic_asset_type_id": 2,
+                "account_id": 2,
+                "latitude": 40,
+                "longitude": 170.3,
+            }
+
+
+        The newly posted asset is returned in the response.
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 201: CREATED
+        :status 400: INVALID_REQUEST
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+        print(sensor_data)
+        sensor = Sensor(**sensor_data)
+        db.session.add(sensor)
+        db.session.commit()
+        return sensor_schema.dump(sensor), 201
+
+
+"""
+- fetch one
+- patch name, attributes
+- post one
+- html left collapsing panel with these options.
+asset_id = post_asset(args)
+sensor_id = post_sensor(asset_id)
+post_asset()
+get_asset()
+post_sensor()
+get_sensor()
+"""
