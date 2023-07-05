@@ -57,13 +57,13 @@ def test_storage_loss_function(
 def test_battery_solver_day_1(
     add_battery_assets, add_inflexible_device_forecasts, use_inflexible_device
 ):
-    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
-    battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
-    assert battery.get_attribute("market_id") == epex_da.id
-    tz = pytz.timezone("Europe/Amsterdam")
-    start = tz.localize(datetime(2015, 1, 1))
-    end = tz.localize(datetime(2015, 1, 2))
-    resolution = timedelta(minutes=15)
+    _epex_da, battery = get_sensors_from_db()
+
+    # time parameters
+    _tz, start, end, resolution = get_time_parameters(
+        [2015, 1, 1], [2015, 1, 2], {"minutes": 15}
+    )
+
     soc_at_start = battery.get_attribute("soc_in_mwh")
     scheduler: Scheduler = StorageScheduler(
         battery,
@@ -118,13 +118,14 @@ def test_battery_solver_day_2(
     and so we expect the scheduler to only:
     - completely discharge within the last 8 hours
     """
-    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
-    battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
-    assert battery.get_attribute("market_id") == epex_da.id
-    tz = pytz.timezone("Europe/Amsterdam")
-    start = tz.localize(datetime(2015, 1, 2))
-    end = tz.localize(datetime(2015, 1, 3))
-    resolution = timedelta(minutes=15)
+
+    epex_da, battery = get_sensors_from_db()
+
+    # time parameters
+    _tz, start, end, resolution = get_time_parameters(
+        [2015, 1, 2], [2015, 1, 3], {"minutes": 15}
+    )
+
     soc_at_start = battery.get_attribute("soc_in_mwh")
     soc_min = 0.5
     soc_max = 4.5
@@ -215,10 +216,11 @@ def test_charging_station_solver_day_2(target_soc, charging_station_name):
     ).one_or_none()
     assert charging_station.get_attribute("capacity_in_mw") == 2
     assert charging_station.get_attribute("market_id") == epex_da.id
-    tz = pytz.timezone("Europe/Amsterdam")
-    start = tz.localize(datetime(2015, 1, 2))
-    end = tz.localize(datetime(2015, 1, 3))
-    resolution = timedelta(minutes=15)
+
+    # time parameters
+    _tz, start, end, resolution = get_time_parameters(
+        [2015, 1, 2], [2015, 1, 3], {"minutes": 15}
+    )
     target_soc_datetime = start + duration_until_target
     soc_targets = initialize_series(np.nan, start, end, resolution, inclusive="right")
     soc_targets.loc[target_soc_datetime] = target_soc
@@ -291,10 +293,11 @@ def test_fallback_to_unsolvable_problem(target_soc, charging_station_name):
     ).one_or_none()
     assert charging_station.get_attribute("capacity_in_mw") == 2
     assert charging_station.get_attribute("market_id") == epex_da.id
-    tz = pytz.timezone("Europe/Amsterdam")
-    start = tz.localize(datetime(2015, 1, 2))
-    end = tz.localize(datetime(2015, 1, 3))
-    resolution = timedelta(minutes=15)
+
+    # time parameters
+    _tz, start, end, resolution = get_time_parameters(
+        [2015, 1, 2], [2015, 1, 3], {"minutes": 15}
+    )
     target_soc_datetime = start + duration_until_target
     soc_targets = initialize_series(np.nan, start, end, resolution, inclusive="right")
     soc_targets.loc[target_soc_datetime] = target_soc
@@ -388,10 +391,10 @@ def test_building_solver_day_2(
         raise NotImplementedError(
             f"Missing test case for market conditions '{market_scenario}'"
         )
-    tz = pytz.timezone("Europe/Amsterdam")
-    start = tz.localize(datetime(2015, 1, 2))
-    end = tz.localize(datetime(2015, 1, 3))
-    resolution = timedelta(minutes=15)
+    # time parameters
+    tz, start, end, resolution = get_time_parameters(
+        [2015, 1, 2], [2015, 1, 3], {"minutes": 15}
+    )
     soc_at_start = 2.5
     soc_min = 0.5
     soc_max = 4.5
@@ -490,15 +493,12 @@ def test_soc_bounds_timeseries(add_battery_assets):
     """
 
     # get the sensors from the database
-    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
-    battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
-    assert battery.get_attribute("market_id") == epex_da.id
+    epex_da, battery = get_sensors_from_db()
 
     # time parameters
-    tz = pytz.timezone("Europe/Amsterdam")
-    start = tz.localize(datetime(2015, 1, 2))
-    end = tz.localize(datetime(2015, 1, 3))
-    resolution = timedelta(hours=1)
+    tz, start, end, resolution = get_time_parameters(
+        [2015, 1, 2], [2015, 1, 3], {"hours": 1}
+    )
 
     # soc parameters
     soc_at_start = battery.get_attribute("soc_in_mwh")
@@ -792,3 +792,75 @@ def test_validate_constraints(
     )
 
     assert set(expected_constraint_type_violations) == constraint_type_violations_output
+
+
+def test_infeasible_problem_error(add_battery_assets):
+    """Try to create a schedule with infeasible constraints. soc-max is 4.5 and soc-target is 8.0"""
+
+    # get the sensors from the database
+    _epex_da, battery = get_sensors_from_db()
+
+    # time parameters
+    _tz, start, end, resolution = get_time_parameters(
+        [2015, 1, 2], [2015, 1, 3], {"hours": 1}
+    )
+
+    def compute_schedule(flex_model):
+        scheduler = StorageScheduler(
+            battery,
+            start,
+            end,
+            resolution,
+            flex_model=flex_model,
+        )
+        schedule = scheduler.compute()
+
+        soc_schedule = integrate_time_series(
+            schedule,
+            soc_at_start,
+            decimal_precision=1,
+        )
+
+        return soc_schedule
+
+    # soc parameters
+    soc_at_start = battery.get_attribute("soc_in_mwh")
+    soc_min = 0.5
+    soc_max = 4.5
+    soc_maxima = [{"datetime": "2015-01-02T15:00:00+01:00", "value": 1.0}]
+    soc_minima = [{"datetime": "2015-01-02T08:00:00+01:00", "value": 3.5}]
+
+    soc_targets = [{"datetime": "2015-01-02T16:00:00+01:00", "value": 8.0}]
+
+    flex_model = {
+        "soc-at-start": soc_at_start,
+        "soc-min": soc_min,
+        "soc-max": soc_max,
+        "soc-maxima": soc_maxima,
+        "soc-minima": soc_minima,
+        "soc-targets": soc_targets,
+    }
+
+    with pytest.raises(
+        ValueError, match="The input data yields an infeasible problem."
+    ):
+        compute_schedule(flex_model)
+
+
+def get_sensors_from_db():
+    # get the sensors from the database
+    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
+    assert battery.get_attribute("market_id") == epex_da.id
+
+    return epex_da, battery
+
+
+def get_time_parameters(start_date: list, end_date: list, resolution: dict):
+    # setup time parameters
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(*start_date))
+    end = tz.localize(datetime(*end_date))
+    resolution = timedelta(**resolution)
+
+    return tz, start, end, resolution
