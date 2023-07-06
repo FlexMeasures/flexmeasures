@@ -6,6 +6,8 @@ FlexMeasures Changelog
 v0.15.0 | July XX, 2023
 ============================
 
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+
 New features
 -------------
 
