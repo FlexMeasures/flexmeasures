@@ -281,7 +281,7 @@ Make a schedule
 
 Finally, we can create the schedule, which is the main benefit of FlexMeasures (smart real-time control).
 
-We'll ask FlexMeasures for a schedule for our discharging sensor (ID 1). We also need to specify what to optimise against. Here we pass the Id of our market price sensor (3).
+We'll ask FlexMeasures for a schedule for our discharging sensor (ID 1). We also need to specify what to optimize against. Here we pass the Id of our market price sensor (3).
 To keep it short, we'll only ask for a 12-hour window starting at 7am. Finally, the scheduler should know what the state of charge of the battery is when the schedule starts (50%) and what its roundtrip efficiency is (90%).
 
 .. code-block:: bash
@@ -330,7 +330,7 @@ We can also look at the charging schedule in the `FlexMeasures UI <http://localh
     :align: center
 |
 
-Recall that we only asked for a 12 hour schedule here. We started our schedule *after* the high price peak (at 4am) and it also had to end *before* the second price peak fully realised (at 8pm). Our scheduler didn't have many opportunities to optimize, but it found some. For instance, it does buy at the lowest price (at 2pm) and sells it off at the highest price within the given 12 hours (at 6pm).
+Recall that we only asked for a 12 hour schedule here. We started our schedule *after* the high price peak (at 4am) and it also had to end *before* the second price peak fully realized (at 8pm). Our scheduler didn't have many opportunities to optimize, but it found some. For instance, it does buy at the lowest price (at 2pm) and sells it off at the highest price within the given 12 hours (at 6pm).
 
 The `asset page for the battery <http://localhost:5000/assets/1/>`_ shows both prices and the schedule.
 
@@ -341,10 +341,16 @@ The `asset page for the battery <http://localhost:5000/assets/1/>`_ shows both p
 .. note:: The ``flexmeasures add schedule for-storage`` command also accepts state-of-charge targets, so the schedule can be more sophisticated. But that is not the point of this tutorial. See ``flexmeasures add schedule for-storage --help``.
 
 
-Take into account solar production
----------------------------------------
+Take into account solar production and limited grid connection
+---------------------------------------------------------------
 
-So far we haven't taken into account any other devices that consume or produce electricity. We'll now add solar production forecasts and reschedule, to see the effect of solar on the available headroom for the battery.
+So far we haven't taken into account any other devices that consume or produce electricity. The battery was free to use all available capacity towards the grid. 
+
+What if other devices will be using some of that capacity? Our schedules need to reflect that, so we stay within given limits.
+
+.. note:: The capacity is given by ``capacity_in_mw``, an attribute we placed on the battery asset earlier in this tutorial. We will tell FlexMeasures to take the solar production into account (using ``--inflexible-device-sensor``) for this capacity limit.
+
+We'll now add solar production forecast data and then ask for a new schedule, to see the effect of solar on the available headroom for the battery.
 
 First, we'll create a new csv file with solar forecasts (MW, see the setup for sensor 3 above) for tomorrow.
 
@@ -399,7 +405,7 @@ The one-hour CSV data is automatically resampled to the 15-minute resolution of 
 
 .. note:: The ``flexmeasures add beliefs`` command has many options to make sure the read-in data is correctly interpreted (unit, timezone, delimiter, etc). But that is not the point of this tutorial. See ``flexmeasures add beliefs --help``.
 
-Now, we'll reschedule the battery while taking into account the solar production. This will have an effect on the available headroom for the battery.
+Now, we'll reschedule the battery while taking into account the solar production. This will have an effect on the available headroom for the battery, given the ``capacity_in_mw`` limit discussed earlier.
 
 .. code-block:: bash
 
@@ -415,8 +421,16 @@ We can see the updated scheduling in the `FlexMeasures UI <http://localhost:5000
     :align: center
 |
 
-The `asset page for the battery <http://localhost:5000/assets/1/>`_ now shows the solar data, too.
+The `asset page for the battery <http://localhost:5000/assets/1/>`_ now shows the solar data, too:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/asset-view-with-solar.png
     :align: center
-|
+
+
+Though this schedule is quite similar, we can see that it has changed from `the one we computed earlier <https://raw.githubusercontent.com/FlexMeasures/screenshots/main/tut/toy-schedule/asset-view-without-solar.png>`_ (when we did not take solar into account).
+
+First, during the sunny hours of the day, when solar power is being send to the grid, the battery's output (at around 9am and 11am) is now lower, as the battery shares ``capacity_in_mw`` with the solar production. In the evening (around 7pm), when solar power is basically not present anymore, battery discharging to the grid is still at its previous levels.
+
+Second, charging of the battery is also changed a bit (around 10am), as less can be discharged later.
+
+We hope this part of the tutorial shows how to incorporate a limited grid connection rather easily with FlexMeasures. There are more ways to model such settings, but this is a straightforward one.
