@@ -1298,14 +1298,16 @@ def add_report(  # noqa: C901
     if sensor is not None:
         input["sensor"] = sensor.id
 
-    sensor = Sensor.query.get(input.get("sensor"))
-
+    # check if sensor is not provided either in the input or the CLI
+    # click parameter
     if input.get("sensor") is None:
         click.secho(
             "Report sensor needs to be defined, either on the `input` file or trough the --sensor CLI parameter...",
             **MsgStyle.ERROR,
         )
         raise click.Abort()
+
+    sensor = Sensor.query.get(input.get("sensor"))
 
     # compute now in the timezone local to the output sensor
     if timezone is not None:
