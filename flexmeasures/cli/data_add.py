@@ -1389,7 +1389,7 @@ def add_report(  # noqa: C901
     if ("end" not in input) and (end is not None):
         input["end"] = end.isoformat()
     if ("resolution" not in input) and (resolution is not None):
-        input["resolution"] = pd.Timedelta.isoformat(resolution)
+        input["resolution"] = pd.Timedelta(resolution).isoformat()
 
     # compute the report
     result: BeliefsDataFrame = reporter.compute(input=input)
