@@ -3,7 +3,7 @@ import pytest
 from flexmeasures.data.models.reporting.aggregator import AggregatorReporter
 
 from datetime import datetime
-from pytz import utc
+from pytz import utc, timezone
 
 
 @pytest.mark.parametrize(
@@ -57,3 +57,37 @@ def test_aggregator(setup_dummy_data, aggregation_method, expected_value):
 
     # check that the value is equal to expected_value
     assert (result == expected_value).all().event_value
+
+
+def test_dst_transition(setup_dummy_data):
+    s1, _, reporter_sensor = setup_dummy_data
+
+    reporter_config = dict(
+        data=[
+            dict(sensor=s1.id, source=1),
+        ],
+    )
+
+    agg_reporter = AggregatorReporter(config=reporter_config)
+
+    tz = timezone("Europe/Amsterdam")
+
+    # transition from winter (CET) to summer (CEST)
+    result = agg_reporter.compute(
+        sensor=reporter_sensor,
+        start=tz.localize(datetime(2023, 3, 26)),
+        end=tz.localize(datetime(2023, 3, 27)),
+        belief_time=tz.localize(datetime(2023, 12, 1)),
+    )
+
+    assert len(result) == 23
+
+    # transition from summer (CEST) to winter (CET)
+    result = agg_reporter.compute(
+        sensor=reporter_sensor,
+        start=tz.localize(datetime(2023, 10, 29)),
+        end=tz.localize(datetime(2023, 10, 30)),
+        belief_time=tz.localize(datetime(2023, 12, 1)),
+    )
+
+    assert len(result) == 25
