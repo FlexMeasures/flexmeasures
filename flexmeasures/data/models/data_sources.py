@@ -113,7 +113,7 @@ class DataGenerator:
         return source_info
 
     @property
-    def data_source(self) -> "DataSource" | None:
+    def data_source(self) -> "DataSource":
         from flexmeasures.data.services.data_sources import get_or_create_source
 
         if self._data_source is None:
