@@ -13,6 +13,7 @@ def get_or_create_source(
     source_type: str | None = None,
     model: str | None = None,
     version: str | None = None,
+    attributes: dict | None = None,
     flush: bool = True,
 ) -> DataSource:
     if is_user(source):
@@ -22,6 +23,10 @@ def get_or_create_source(
         query = query.filter(DataSource.model == model)
     if version is not None:
         query = query.filter(DataSource.version == version)
+    if attributes is not None:
+        query = query.filter(
+            DataSource.attributes_hash == DataSource.hash_attributes(attributes)
+        )
     if is_user(source):
         query = query.filter(DataSource.user == source)
     elif isinstance(source, str):
@@ -36,7 +41,11 @@ def get_or_create_source(
             if source_type is None:
                 raise TypeError("Please specify a source type")
             _source = DataSource(
-                name=source, model=model, version=version, type=source_type
+                name=source,
+                model=model,
+                version=version,
+                type=source_type,
+                attributes=attributes,
             )
         current_app.logger.info(f"Setting up {_source} as new data source...")
         db.session.add(_source)
