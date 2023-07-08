@@ -15,10 +15,10 @@ What if other devices will be using some of that capacity? Our schedules need to
 We'll now add solar production forecast data and then ask for a new schedule, to see the effect of solar on the available headroom for the battery.
 
 
-Adding solar forecasts
------------------------
+Adding PV production forecasts
+------------------------------
 
-First, we'll create a new csv file with solar forecasts (MW, see the setup for sensor 3 in part I of this tutorial) for tomorrow.
+First, we'll create a new CSV file with solar forecasts (MW, see the setup for sensor 3 in part I of this tutorial) for tomorrow.
 
 .. code-block:: bash
 
@@ -52,7 +52,7 @@ First, we'll create a new csv file with solar forecasts (MW, see the setup for s
 Then, we read in the created CSV file as beliefs data.
 This time, different to above, we want to use a new data source (not the user) ― it represents whoever is making these solar production forecasts.
 We create that data source first, so we can tell `flexmeasures add beliefs` to use it.
-Setting the data source type to "forecaster" helps FlexMeasures to visualize distinguish its data from e.g. schedules and measurements.
+Setting the data source type to "forecaster" helps FlexMeasures to visually distinguish its data from e.g. schedules and measurements.
 
 .. note:: The ``flexmeasures add source`` command also allows to set a model and version, so sources can be distinguished in more detail. But that is not the point of this tutorial. See ``flexmeasures add source --help``.
 
