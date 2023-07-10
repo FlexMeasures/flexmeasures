@@ -180,6 +180,7 @@ The platform operator of FlexMeasures can be an Aggregator.
     :maxdepth: 1
     
     tut/toy-example-from-scratch
+    tut/toy-example-expanded
     tut/installation
     tut/posting_data
     tut/forecasting_scheduling
