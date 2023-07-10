@@ -108,7 +108,7 @@ def test_pandas_reporter_config_schema(config, is_valid, db, app, setup_dummy_se
     [
         (
             {
-                "sensor": 1,
+                "sensor": 2,
                 "input_sensors": {"sensor_1": {"sensor": 1}},
                 "start": "2023-06-06T00:00:00+02:00",
                 "end": "2023-06-06T00:00:00+02:00",
@@ -123,7 +123,7 @@ def test_pandas_reporter_config_schema(config, is_valid, db, app, setup_dummy_se
         ),
         (
             {
-                "sensor": 1,
+                "sensor": 2,
                 "input_sensors": {
                     "sensor_1": {
                         "sensor": 1,
