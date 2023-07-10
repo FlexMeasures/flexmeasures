@@ -108,8 +108,12 @@ def test_pandas_reporter_config_schema(config, is_valid, db, app, setup_dummy_se
     [
         (
             {
-                "sensor": 2,
-                "input_sensors": {"sensor_1": {"sensor": 1}},
+                "sensor": 2,  # sensor to save the output to
+                "input_variables": {  # we're describing how the named variables should be constructed, by defining search filters on the sensor data, rather than on the sensor
+                    "sensor_1_df": {
+                        "sensor": 1
+                    },  # alias, i.e. variable name of the DataFrame containing the input data
+                },
                 "start": "2023-06-06T00:00:00+02:00",
                 "end": "2023-06-06T00:00:00+02:00",
             },
@@ -117,15 +121,19 @@ def test_pandas_reporter_config_schema(config, is_valid, db, app, setup_dummy_se
         ),
         (
             {
-                "input_sensors": {"sensor_1": {"sensor": 1}},
+                "input_variables": {
+                    "sensor_1_df": {
+                        "sensor": 1
+                    }  # alias, i.e. variable name of the DataFrame containing the input data
+                },
             },
             False,
         ),
         (
             {
-                "sensor": 2,
-                "input_sensors": {
-                    "sensor_1": {
+                "sensor": 2,  # sensor to save the output to
+                "input_variables": {
+                    "sensor_1_df": {  # alias, i.e. variable name of the DataFrame containing the input data
                         "sensor": 1,
                         "event_starts_after": "2023-06-07T00:00:00+02:00",
                         "event_ends_before": "2023-06-07T00:00:00+02:00",

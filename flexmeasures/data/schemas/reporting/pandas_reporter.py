@@ -155,11 +155,11 @@ class PandasReporterConfigSchema(ReporterConfigSchema):
 
 class PandasReporterInputSchema(ReporterInputSchema):
     # make start and end optional, conditional on providing the time parameters
-    # for the single sensors in `input_sensors`
+    # for the single sensors in `input_variables`
     start = AwareDateTimeField(required=False)
     end = AwareDateTimeField(required=False)
 
-    input_sensors = fields.Dict(
+    input_variables = fields.Dict(
         keys=fields.Str(),  # alias
         values=fields.Nested(BeliefsSearchConfigSchema()),
         required=True,
@@ -176,7 +176,7 @@ class PandasReporterInputSchema(ReporterInputSchema):
         if ("start" in data) and ("end" in data):
             return
 
-        for alias, input_sensor in data.get("input_sensors").items():
+        for alias, input_sensor in data.get("input_variables").items():
             if ("event_starts_after" not in input_sensor) and ("start" not in data):
                 raise ValidationError(
                     f"Start parameter not provided for sensor `{alias}` ({input_sensor})."

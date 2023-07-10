@@ -43,10 +43,10 @@ def test_reporter(app, setup_dummy_data):
 
     start = datetime(2023, 4, 10, tzinfo=utc)
     end = datetime(2023, 4, 10, 10, tzinfo=utc)
-    input_sensors = dict(sensor_1=dict(sensor=s1), sensor_2=dict(sensor=s2))
+    input_variables = dict(sensor_1=dict(sensor=s1), sensor_2=dict(sensor=s2))
 
     report1 = reporter.compute(
-        sensor=report_sensor, start=start, end=end, input_sensors=input_sensors
+        sensor=report_sensor, start=start, end=end, input_variables=input_variables
     )
 
     assert len(report1) == 5
@@ -68,7 +68,7 @@ def test_reporter(app, setup_dummy_data):
         sensor=report_sensor,
         start=datetime(2023, 4, 10, 3, tzinfo=utc),
         end=end,
-        input_sensors=input_sensors,
+        input_variables=input_variables,
     )
     assert len(report2) == 4
     assert str(report2.event_starts[0]) == "2023-04-10 02:00:00+00:00"
@@ -114,7 +114,7 @@ def test_reporter_repeated(setup_dummy_data):
         sensor=report_sensor.id,
         start="2023-04-10T00:00:00 00:00",
         end="2023-04-10T10:00:00 00:00",
-        input_sensors=dict(
+        input_variables=dict(
             sensor_1=dict(sensor=s1.id),
             sensor_2=dict(sensor=s2.id),
         ),
@@ -145,7 +145,7 @@ def test_reporter_empty(setup_dummy_data):
         sensor=report_sensor,
         start=datetime(2023, 4, 10, tzinfo=utc),
         end=datetime(2023, 4, 10, 10, tzinfo=utc),
-        input_sensors=dict(sensor_1=dict(sensor=s1)),
+        input_variables=dict(sensor_1=dict(sensor=s1)),
     )
 
     assert not report.empty
@@ -155,7 +155,7 @@ def test_reporter_empty(setup_dummy_data):
         sensor=report_sensor,
         start=datetime(2021, 4, 10, tzinfo=utc),
         end=datetime(2021, 4, 10, 10, tzinfo=utc),
-        input_sensors=dict(sensor_1=dict(sensor=s1)),
+        input_variables=dict(sensor_1=dict(sensor=s1)),
     )
 
     assert report.empty

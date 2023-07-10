@@ -90,7 +90,7 @@ class TibberReporter(Reporter):
 
         da_prices = Sensor.query.filter(Sensor.name == "DA prices").one_or_none()
 
-        self.input_sensors = {
+        self.input_variables = {
             "energy_tax": {"sensor": EnergyTax},
             "VAT": {"sensor": VAT},
             "tariff": {"sensor": tibber_tariff},
@@ -139,7 +139,7 @@ class TibberReporter(Reporter):
         self._inner_reporter = PandasReporter(config=pandas_reporter_config)
 
     def _compute_report(self, **kwargs):
-        kwargs["input_sensors"] = self.input_sensors
+        kwargs["input_variables"] = self.input_variables
         return self._inner_reporter.compute(**kwargs)
 
 
