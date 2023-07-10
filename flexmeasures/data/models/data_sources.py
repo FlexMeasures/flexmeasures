@@ -114,6 +114,13 @@ class DataGenerator:
 
     @property
     def data_source(self) -> "DataSource":
+        """DataSource property derived from the `source_type` (scheduler, forecaster or reporter), `model` (e.g AggregatorReporter)
+        and `attributes`. This property creates a new data source in case of not finding one in the database that matches
+        the source_info.
+
+        This property is created once and cached for the rest of the lifetime of the DataGenerator object.
+        """
+
         from flexmeasures.data.services.data_sources import get_or_create_source
 
         if self._data_source is None:
