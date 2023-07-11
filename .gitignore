@@ -29,6 +29,7 @@ notebooks/.ipynb_checkpoints/
 
 flexmeasures/ui/static/documentation
 documentation/img/screenshot_*
+documentation/_autosummary/
 generic_asset_fm_user_ownership.sql
 
 uml_diagram.png
@@ -36,3 +37,5 @@ db_schema.png
 
 .coverage
 htmlcov
+test/*
+profile_reports/*

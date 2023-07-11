@@ -250,7 +250,6 @@ def test_tibber_reporter(tibber_test_data):
     result = tibber_reporter.compute(
         start=datetime(2023, 4, 13, tzinfo=utc),
         end=datetime(2023, 4, 14, tzinfo=utc),
-        input_resolution=timedelta(hours=1),
     )
 
     # check that we got a result for 24 hours
@@ -260,6 +259,8 @@ def test_tibber_reporter(tibber_test_data):
         pd.DataFrame(tibber_app_price, index=index, columns=["event_value"])
         * 10  # convert cents/kWh to EUR/MWh
     )
+
+    result = result.droplevel(["source", "belief_time", "cumulative_probability"])
 
     error = abs(result - tibber_app_price_df)
 

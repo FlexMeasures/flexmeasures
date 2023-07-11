@@ -1,3 +1,7 @@
+"""
+Utils for serving the FlexMeasures app
+"""
+
 from __future__ import annotations
 
 import os
