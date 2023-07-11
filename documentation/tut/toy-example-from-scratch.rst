@@ -179,10 +179,11 @@ Yes, that is quite a large battery :)
 .. note:: Obviously, you can use the ``flexmeasures`` command to create your own, custom account and assets. See :ref:`cli`. And to create, edit or read asset data via the API, see :ref:`v3_0`.
 
 We can also look at the battery asset in the UI of FlexMeasures (in Docker, the FlexMeasures web server already runs, on your PC you can start it with ``flexmeasures run``).
-Visit `http://localhost:5000/assets <http://localhost:5000/assets>`_ (username is "toy-user@flexmeasures.io", password is "toy-password") and select "toy-battery":
+Visit `http://localhost:5000/ <http://localhost:5000/>`_ (username is "toy-user@flexmeasures.io", password is "toy-password"):
 
-.. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/asset-view.png
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/asset-view-dashboard.png
     :align: center
+|
 
 .. note:: You won't see the map tiles, as we have not configured the :ref:`MAPBOX_ACCESS_TOKEN`. If you have one, you can configure it via ``flexmeasures.cfg`` (for Docker, see :ref:`docker_configuration`).
 
@@ -270,6 +271,7 @@ Again, we can also view these prices in the `FlexMeasures UI <http://localhost:5
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-prices.png
     :align: center
+|
 
 .. note:: Technically, these prices for tomorrow may be forecasts (depending on whether you are running through this tutorial before or after the day-ahead market's gate closure). You can also use FlexMeasures to compute forecasts yourself. See :ref:`tut_forecasting_scheduling`.
 
@@ -279,7 +281,7 @@ Make a schedule
 
 Finally, we can create the schedule, which is the main benefit of FlexMeasures (smart real-time control).
 
-We'll ask FlexMeasures for a schedule for our discharging sensor (ID 1). We also need to specify what to optimise against. Here we pass the Id of our market price sensor (3).
+We'll ask FlexMeasures for a schedule for our discharging sensor (ID 1). We also need to specify what to optimize against. Here we pass the Id of our market price sensor (3).
 To keep it short, we'll only ask for a 12-hour window starting at 7am. Finally, the scheduler should know what the state of charge of the battery is when the schedule starts (50%) and what its roundtrip efficiency is (90%).
 
 .. code-block:: bash
@@ -326,74 +328,16 @@ We can also look at the charging schedule in the `FlexMeasures UI <http://localh
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-charging.png
     :align: center
+|
 
-Recall that we only asked for a 12 hour schedule here. We started our schedule *after* the high price peak (at 4am) and it also had to end *before* the second price peak fully realised (at 8pm). Our scheduler didn't have many opportunities to optimize, but it found some. For instance, it does buy at the lowest price (at 2pm) and sells it off at the highest price within the given 12 hours (at 6pm).
+Recall that we only asked for a 12 hour schedule here. We started our schedule *after* the high price peak (at 4am) and it also had to end *before* the second price peak fully realized (at 8pm). Our scheduler didn't have many opportunities to optimize, but it found some. For instance, it does buy at the lowest price (at 2pm) and sells it off at the highest price within the given 12 hours (at 6pm).
 
+The `asset page for the battery <http://localhost:5000/assets/1/>`_ shows both prices and the schedule.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/asset-view-without-solar.png
+    :align: center
+|
 
 .. note:: The ``flexmeasures add schedule for-storage`` command also accepts state-of-charge targets, so the schedule can be more sophisticated. But that is not the point of this tutorial. See ``flexmeasures add schedule for-storage --help``.
 
-
-Take into account solar production
----------------------------------------
-
-So far we haven't taken into account any other devices that consume or produce electricity. We'll now add solar production forecasts and reschedule, to see the effect of solar on the available headroom for the battery.
-
-First, we'll create a new csv file with solar forecasts (MW, see the setup for sensor 3 above) for tomorrow.
-
-.. code-block:: bash
-
-    $ TOMORROW=$(date --date="next day" '+%Y-%m-%d')
-    $ echo "Hour,Price
-    $ ${TOMORROW}T00:00:00,0.0
-    $ ${TOMORROW}T01:00:00,0.0
-    $ ${TOMORROW}T02:00:00,0.0
-    $ ${TOMORROW}T03:00:00,0.0
-    $ ${TOMORROW}T04:00:00,0.01
-    $ ${TOMORROW}T05:00:00,0.03
-    $ ${TOMORROW}T06:00:00,0.06
-    $ ${TOMORROW}T07:00:00,0.1
-    $ ${TOMORROW}T08:00:00,0.14
-    $ ${TOMORROW}T09:00:00,0.17
-    $ ${TOMORROW}T10:00:00,0.19
-    $ ${TOMORROW}T11:00:00,0.21
-    $ ${TOMORROW}T12:00:00,0.22
-    $ ${TOMORROW}T13:00:00,0.21
-    $ ${TOMORROW}T14:00:00,0.19
-    $ ${TOMORROW}T15:00:00,0.17
-    $ ${TOMORROW}T16:00:00,0.14
-    $ ${TOMORROW}T17:00:00,0.1
-    $ ${TOMORROW}T18:00:00,0.06
-    $ ${TOMORROW}T19:00:00,0.03
-    $ ${TOMORROW}T20:00:00,0.01
-    $ ${TOMORROW}T21:00:00,0.0
-    $ ${TOMORROW}T22:00:00,0.0
-    $ ${TOMORROW}T23:00:00,0.0" > solar-tomorrow.csv
-
-Then, we read in the created CSV file as beliefs data.
-This time, different to above, we want to use a new data source (not the user) ― it represents whoever is making these solar production forecasts.
-We create that data source first, so we can tell `flexmeasures add beliefs` to use it.
-Setting the data source type to "forecaster" helps FlexMeasures to visualize distinguish its data from e.g. schedules and measurements.
-
-.. note:: The ``flexmeasures add source`` command also allows to set a model and version, so sources can be distinguished in more detail. But that is not the point of this tutorial. See ``flexmeasures add source --help``.
-
-.. code-block:: bash
-
-    $ flexmeasures add source --name "toy-forecaster" --type forecaster
-    Added source <Data source 4 (toy-forecaster)>
-    $ flexmeasures add beliefs --sensor-id 3 --source 4 solar-tomorrow.csv --timezone Europe/Amsterdam
-    Successfully created beliefs
-
-The one-hour CSV data is automatically resampled to the 15-minute resolution of the sensor that is recording solar production.
-
-.. note:: The ``flexmeasures add beliefs`` command has many options to make sure the read-in data is correctly interpreted (unit, timezone, delimiter, etc). But that is not the point of this tutorial. See ``flexmeasures add beliefs --help``.
-
-Now, we'll reschedule the battery while taking into account the solar production. This will have an effect on the available headroom for the battery.
-
-.. code-block:: bash
-
-    $ flexmeasures add schedule for-storage --sensor-id 1 --consumption-price-sensor 2 \
-        --inflexible-device-sensor 3 \
-        --start ${TOMORROW}T07:00+01:00 --duration PT12H \
-        --soc-at-start 50% --roundtrip-efficiency 90%
-    New schedule is stored.
-
+This tutorial showed the fastest way to a schedule. In :ref:`tut_toy_schedule_expanded`, we'll go further into settings with more realistic ingredients: solar panels and a limited grid connection.

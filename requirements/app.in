@@ -9,17 +9,21 @@ iso8601
 xlrd
 workalendar
 inflection
-inflect
+# <6.0.2 and pydantic due to https://github.com/jaraco/inflect/issues/187
+inflect<=6.0.2
+pydantic<2
 humanize
 psycopg2-binary
 bcrypt
 pytz
-numpy
+# limit the numpy version to make it compatible with numba==0.56.4, which timely-beliefs >=1.18 depends on (library sktime).
+numpy<1.24
 isodate
 click
 click-default-group
 email_validator
 rq
+# rq-dashboard-compatible # use this if compatibility with Flask 2.3 is not done
 rq-dashboard
 # the following uses environment markers (see PEP 496)
 rq-win; os_name == 'nt' or os_name == 'win'
@@ -28,23 +32,28 @@ redis >4.5, <5
 tldextract
 pyomo>=5.6
 tabulate
-timetomodel>=0.7.1
-timely-beliefs[forecast]>=1.18
+timetomodel>=0.7.3
+timely-beliefs[forecast]>=1.20.1
 python-dotenv
 # a backport, not needed in Python3.8
 importlib_metadata
 # see GH#607 for issue on this pin
 sqlalchemy>=1.4.0, <2
 Flask-SSLify
+# use <0.4 if not compatible with Flask2.2 yet
 Flask_JSON
 Flask-Migrate
 Flask-WTF
 Flask-Mail
-Flask-Security-Too>=5.0
-# This pin is tough to debug, but logging in (in API) stops working at 0.6.2. Maybe Flask 2.2 will help resolve this.
-Flask-Login <= 0.6.1
-Flask-Classful
-Flask-Marshmallow
+# <5.2: https://github.com/Parallels/rq-dashboard/issues/417 as 5.2 requires Flask 2.3
+Flask-Security-Too>=5.0, <5.2
+# This pin is tough to debug, but logging in (in API) stops working at 0.6.2.
+# On repeated call to API with auth token, user is anonymous.
+# See test_get_one_user or test_api_task_run_post_unauthorized_wrong_role for a good example
+Flask-Login<0.6.2
+Flask-Classful @ git+https://github.com/superseed/flask-classful@werkzeug-2.2
+# <0.15: https://github.com/marshmallow-code/flask-marshmallow/issues/262
+Flask-Marshmallow<0.15
 Flask-Cors
 sentry-sdk[flask]
 marshmallow>=3
@@ -56,5 +65,6 @@ uniplot>=0.7.0
 # Maximum constraints here due to Flask-Classful not supporting Werkzeug 2.2.0 yet, see GH#595 and https://github.com/teracyhq/flask-classful/pull/145
 Flask-SQLAlchemy>=2.4.3,<3
 # flask should be after all the flask plugins, because setup might find they ARE flask
-flask>=1.0,<=2.1.2
-werkzeug <2.1
+# <2.3: https://github.com/Parallels/rq-dashboard/issues/417 and https://github.com/FlexMeasures/flexmeasures/issues/754 and flask-login 0.6.1 not compatible
+flask>=1.0, <=2.1.2
+werkzeug<=2.1

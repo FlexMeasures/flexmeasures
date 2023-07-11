@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-# Use | instead of Union when FM stops supporting Python 3.9 (because of https://github.com/python/cpython/issues/86399)
-from typing import Any, Callable, Optional, Union
+# Use | instead of Union, list instead of List and tuple instead of Tuple when FM stops supporting Python 3.9 (because of https://github.com/python/cpython/issues/86399)
+from typing import Any, Callable, List, Optional, Tuple, Union
 from datetime import datetime, timedelta
 
 import inflect
@@ -22,14 +22,14 @@ p = inflect.engine()
 # Signature of a callable that build queries
 QueryCallType = Callable[
     [
-        tuple[str],
-        tuple[datetime, datetime],
-        tuple[Optional[timedelta], Optional[timedelta]],
-        tuple[Optional[datetime], Optional[datetime]],
+        Tuple[str],
+        Tuple[datetime, datetime],
+        Tuple[Optional[timedelta], Optional[timedelta]],
+        Tuple[Optional[datetime], Optional[datetime]],
         Optional[datetime],
-        Optional[Union[int, list[int]]],
-        Optional[list[str]],
-        Optional[list[str]],
+        Optional[Union[int, List[int]]],
+        Optional[List[str]],
+        Optional[List[str]],
     ],
     Query,
 ]

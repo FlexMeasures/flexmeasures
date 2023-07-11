@@ -10,6 +10,7 @@ from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import Query, Session
 from sqlalchemy.schema import UniqueConstraint
+from sqlalchemy import inspect
 import timely_beliefs as tb
 from timely_beliefs.beliefs.probabilistic_utils import get_median_belief
 import timely_beliefs.utils as tb_utils
@@ -18,6 +19,7 @@ from flexmeasures.auth.policy import AuthModelMixin, EVERY_LOGGED_IN_USER
 from flexmeasures.data import db
 from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.data.services.annotations import prepare_annotations_for_chart
+from flexmeasures.data.services.timerange import get_timerange
 from flexmeasures.data.queries.utils import (
     create_beliefs_query,
     get_belief_timing_criteria,
@@ -42,7 +44,6 @@ from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.validation_utils import check_required_attributes
 from flexmeasures.data.queries.sensors import query_sensors_by_proximity
-from flexmeasures.utils.time_utils import server_now
 from flexmeasures.utils.geo_utils import parse_lat_lng
 
 
@@ -479,23 +480,8 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
                       'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
                   }
         """
-        least_recent_query = (
-            TimedBelief.query.filter(TimedBelief.sensor == self)
-            .order_by(TimedBelief.event_start.asc())
-            .limit(1)
-        )
-        most_recent_query = (
-            TimedBelief.query.filter(TimedBelief.sensor == self)
-            .order_by(TimedBelief.event_start.desc())
-            .limit(1)
-        )
-        results = least_recent_query.union_all(most_recent_query).all()
-        if not results:
-            # return now in case there is no data for the sensor
-            now = server_now()
-            return dict(start=now, end=now)
-        least_recent, most_recent = results
-        return dict(start=least_recent.event_start, end=most_recent.event_end)
+        start, end = get_timerange([self.id])
+        return dict(start=start, end=end)
 
     def __repr__(self) -> str:
         return f"<Sensor {self.id}: {self.name}, unit: {self.unit} res.: {self.event_resolution}>"
@@ -584,6 +570,14 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         source: tb.DBBeliefSource,
         **kwargs,
     ):
+        # get a Sensor instance attached to the database session (input sensor is detached)
+        # check out Issue #683 for more details
+        inspection_obj = inspect(sensor, raiseerr=False)
+        if (
+            inspection_obj and inspection_obj.detached
+        ):  # fetch Sensor only when it is detached
+            sensor = Sensor.query.get(sensor.id)
+
         tb.TimedBeliefDBMixin.__init__(self, sensor, source, **kwargs)
         tb_utils.remove_class_init_kwargs(tb.TimedBeliefDBMixin, kwargs)
         db.Model.__init__(self, **kwargs)
@@ -702,7 +696,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 # todo: compute median of collective belief instead of median of first belief (update expected test results accordingly)
                 # todo: move to timely-beliefs: select mean/median belief
                 if (
-                    bdf.lineage.number_of_sources == 1
+                    bdf.lineage.number_of_sources <= 1
                     and bdf.lineage.probabilistic_depth == 1
                 ):
                     # Fast track, no need to loop over beliefs

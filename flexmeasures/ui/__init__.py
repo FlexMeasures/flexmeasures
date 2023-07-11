@@ -1,3 +1,7 @@
+"""
+Backoffice user interface & charting support.
+"""
+
 import os
 
 from flask import current_app, Flask, Blueprint
