@@ -1,7 +1,10 @@
 name: lint-and-test
 
-on: ["push", "pull_request"]
-
+on:
+  push:
+  pull_request:
+    types:
+      - opened
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -35,7 +38,8 @@ jobs:
         run: |
           git fetch --prune --unshallow
           git fetch --depth=1 origin +refs/tags/*:refs/tags/*
-      - uses: actions/cache@v2
+      - name: "Caching dependencies (txt)"
+        uses: actions/cache@v2
         id: cache
         with:
           path: ${{ env.pythonLocation }}
@@ -46,14 +50,16 @@ jobs:
       - run: |
           ci/setup-postgres.sh
           sudo apt-get -y install coinor-cbc
-      - name: Install FlexMeasures & dependencies for tests
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: |
-          make install-pip-tools
-          make install-for-test
-          pip install coveralls
+      - name: Install FlexMeasures & exact dependencies for tests
+        run: make install-for-test
+        if: github.event_name == 'push' && steps.cache.outputs.cache-hit != 'true'
+      - name: Install FlexMeasures & latest dependencies for tests
+        run: make install-for-test pinned=no
+        if: github.event_name == 'pull_request'
       - name: Run all tests except those marked to be skipped by GitHub
-        run: pytest -m "not skip_github"
+        run: |
+          pip install coveralls
+          pytest -m "not skip_github"
         if: ${{ matrix.coverage != 'yes' }}
       - name: Run all tests except those marked to be skipped by GitHub AND record coverage
         run: pytest -v -m "not skip_github" --cov=flexmeasures --cov-branch
