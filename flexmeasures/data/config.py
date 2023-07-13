@@ -44,7 +44,6 @@ def configure_db_for(app: Flask):
         from flexmeasures.data.models import (  # noqa: F401
             time_series,
             assets,
-            weather,
             data_sources,
             user,
             task_runs,

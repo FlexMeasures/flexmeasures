@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 from datetime import datetime, timedelta, tzinfo
 from pprint import pformat
 import logging
@@ -20,7 +20,6 @@ from timetomodel.transforming import (
 import pandas as pd
 
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.models.weather import WeatherSensor
 from flexmeasures.data.models.forecasting.utils import (
     create_lags,
     set_training_and_testing_dates,
@@ -229,7 +228,7 @@ def _parameterise_forecasting_by_asset_and_asset_type(
 
 
 def get_normalization_transformation_from_sensor_attributes(
-    sensor: Union[Sensor, WeatherSensor],
+    sensor: Sensor,
 ) -> Optional[Transformation]:
     """
     Transform data to be normal, using the BoxCox transformation. Lambda parameter is chosen

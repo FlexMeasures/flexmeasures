@@ -14,13 +14,9 @@ from sqlalchemy.exc import IntegrityError
 import timely_beliefs as tb
 
 from flexmeasures.data import db
-from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
-from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.models.weather import WeatherSensor
 from flexmeasures.data.utils import save_to_db as modern_save_to_db
 from flexmeasures.api.common.responses import (
     invalid_replacement,
-    unrecognized_sensor,
     ResponseTuple,
     request_processed,
     already_received_and_successfully_processed,
@@ -238,60 +234,6 @@ def unique_ever_seen(iterable: Sequence, selector: Sequence):
             us.append(selector_element)
             s[u.index(iterable_element)] = us
     return u, s
-
-
-def get_sensor_by_generic_asset_type_and_location(
-    generic_asset_type_name: str, latitude: float = 0, longitude: float = 0
-) -> Union[Sensor, ResponseTuple]:
-    """
-    Search a sensor by generic asset type and location.
-    Can create a sensor if needed (depends on API mode)
-    and then inform the requesting user which one to use.
-    """
-    # Look for the Sensor object
-    sensor = (
-        Sensor.query.join(GenericAsset)
-        .join(GenericAssetType)
-        .filter(GenericAssetType.name == generic_asset_type_name)
-        .filter(GenericAsset.generic_asset_type_id == GenericAssetType.id)
-        .filter(GenericAsset.latitude == latitude)
-        .filter(GenericAsset.longitude == longitude)
-        .filter(Sensor.generic_asset_id == GenericAsset.id)
-        .one_or_none()
-    )
-    if sensor is None:
-        create_sensor_if_unknown = False
-        if current_app.config.get("FLEXMEASURES_MODE", "") == "play":
-            create_sensor_if_unknown = True
-
-        # either create a new weather sensor and post to that
-        if create_sensor_if_unknown:
-            current_app.logger.info("CREATING NEW WEATHER SENSOR...")
-            weather_sensor = WeatherSensor(
-                name="Weather sensor for %s at latitude %s and longitude %s"
-                % (generic_asset_type_name, latitude, longitude),
-                weather_sensor_type_name=generic_asset_type_name,
-                latitude=latitude,
-                longitude=longitude,
-            )
-            db.session.add(weather_sensor)
-            db.session.flush()  # flush so that we can reference the new object in the current db session
-            sensor = weather_sensor.corresponding_sensor
-
-        # or query and return the nearest sensor and let the requesting user post to that one
-        else:
-            nearest_weather_sensor = WeatherSensor.query.order_by(
-                WeatherSensor.great_circle_distance(
-                    latitude=latitude, longitude=longitude
-                ).asc()
-            ).first()
-            if nearest_weather_sensor is not None:
-                return unrecognized_sensor(
-                    *nearest_weather_sensor.location,
-                )
-            else:
-                return unrecognized_sensor()
-    return sensor
 
 
 def enqueue_forecasting_jobs(
