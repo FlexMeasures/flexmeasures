@@ -94,7 +94,7 @@ It uses the fact that all FlexMeasures sensors have unique IDs.
 
 The ``fm0`` scheme is the original scheme.
 It identified different types of sensors (such as grid connections, weather sensors and markets) in different ways.
-The ``fm0`` scheme has been deprecated and is no longer supported officially.
+The ``fm0`` scheme has been sunset.
 
 
 Timeseries
