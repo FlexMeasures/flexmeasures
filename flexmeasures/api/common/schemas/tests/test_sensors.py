@@ -16,22 +16,6 @@ from flexmeasures.utils.entity_address_utils import build_entity_address
             "fm1",
             "height",
         ),
-        (
-            build_entity_address(
-                dict(market_name="epex_da"), "market", fm_scheme="fm0"
-            ),
-            "market",
-            "fm0",
-            "epex_da",
-        ),
-        (
-            build_entity_address(
-                dict(owner_id=1, asset_id=4), "connection", fm_scheme="fm0"
-            ),
-            "connection",
-            "fm0",
-            "Test battery with no known prices",
-        ),
     ],
 )
 def test_sensor_field_straightforward(
@@ -47,9 +31,6 @@ def test_sensor_field_straightforward(
     sf = SensorField(entity_type, fm_scheme)
     deser = sf.deserialize(entity_address, None, None)
     assert deser.name == exp_deserialization_name
-    if fm_scheme == "fm0" and entity_type in ("connection", "market", "weather_sensor"):
-        # These entity types are deserialized to Sensors, which have no entity address under the fm0 scheme
-        return
     assert sf.serialize(entity_type, {entity_type: deser}) == entity_address
 
 
@@ -57,10 +38,12 @@ def test_sensor_field_straightforward(
     "entity_address, entity_type, fm_scheme, error_msg",
     [
         (
-            "ea1.2021-01.io.flexmeasures:some.weird:identifier%that^is*not)used",
+            build_entity_address(
+                dict(market_name="epex_da"), "market", fm_scheme="fm0"
+            ),
             "market",
             "fm0",
-            "Could not parse",
+            "fm0 scheme is no longer supported",
         ),
         (
             "ea1.2021-01.io.flexmeasures:fm1.some.weird:identifier%that^is*not)used",
@@ -70,15 +53,15 @@ def test_sensor_field_straightforward(
         ),
         (
             build_entity_address(
-                dict(market_name="non_existing_market"), "market", fm_scheme="fm0"
+                dict(sensor_id=99999999999999), "sensor", fm_scheme="fm1"
             ),
-            "market",
-            "fm0",
+            "sensor",
+            "fm1",
             "doesn't exist",
         ),
         (
             build_entity_address(dict(sensor_id=-1), "sensor", fm_scheme="fm1"),
-            "market",
+            "sensor",
             "fm1",
             "Could not parse",
         ),
