@@ -39,12 +39,12 @@ class SensorField(fields.Str):
     def __init__(
         self,
         entity_type: str,
-        fm_scheme: str,
+        fm_scheme: str = "fm1",
         *args,
         **kwargs,
     ):
         """
-        :param entity_type: "sensor", "connection", "market" or "weather_sensor"
+        :param entity_type: "sensor" (in the future, possibly also another type of resource that is assigned an entity address)
         :param fm_scheme:   "fm0" or "fm1"
         """
         self.entity_type = entity_type

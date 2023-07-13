@@ -47,7 +47,7 @@ def test_sensor_field_straightforward(
         ),
         (
             "ea1.2021-01.io.flexmeasures:fm1.some.weird:identifier%that^is*not)used",
-            "market",
+            "sensor",
             "fm1",
             "Could not parse",
         ),
