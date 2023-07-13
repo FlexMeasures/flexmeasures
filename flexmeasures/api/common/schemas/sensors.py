@@ -30,7 +30,7 @@ class SensorIdField(fields.Integer):
 
 class SensorField(fields.Str):
     """Field that de-serializes to a Sensor,
-    and serializes a Sensor, Asset, Market or WeatherSensor into an entity address (string).
+    and serializes a Sensor into an entity address (string).
     """
 
     # todo: when Actuators also get an entity address, refactor this class to EntityField,
