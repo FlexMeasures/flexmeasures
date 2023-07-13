@@ -1,3 +1,7 @@
+"""
+Data models for FlexMeasures
+"""
+
 # Time resolutions
 resolutions = ["15T", "1h", "1d", "1w"]
 

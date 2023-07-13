@@ -3,8 +3,8 @@
 Installation & First steps
 =================================
 
-Getting FlexMeasures to run
------------------------------
+Preparing FlexMeasures for running
+------------------------------------
 
 This section walks you through installing FlexMeasures on your own PC and running it continuously.
 We'll cover getting started by making a secret key, connecting a database and creating one user & one asset.
@@ -194,12 +194,8 @@ Finally, you can tell FlexMeasures to create forecasts for your meter data with 
 .. note:: You can also use the API to send forecast data.
 
 
-Run FlexMeasures
-------------------
-
-
-Running the web service
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+Running FlexMeasures as a web service
+--------------------------------------
 
 It's finally time to start running FlexMeasures:
 

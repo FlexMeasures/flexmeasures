@@ -1,3 +1,7 @@
+"""
+Utils around the data models and db sessions
+"""
+
 from __future__ import annotations
 
 from flask import current_app
