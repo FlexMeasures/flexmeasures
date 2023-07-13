@@ -5,10 +5,6 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL, allowing developers to upgrade at their own pace.
 
-v3.0-11 | 2023-07-13
-
-- Removed undocumented compatibility of API v3 with the fm0 scheme for entity addresses.
-
 v3.0-10 | 2023-06-12
 """"""""""""""""""""
 
