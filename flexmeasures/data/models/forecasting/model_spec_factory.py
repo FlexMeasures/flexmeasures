@@ -269,9 +269,9 @@ def configure_regressors_for_nearest_weather_sensor(
         )
         for sensor_name in correlated_sensor_names:
 
-            # Find nearest weather sensor
+            # Find the nearest weather sensor
             closest_sensor = Sensor.find_closest(
-                generic_asset_type_name=sensor.generic_asset.generic_asset_type.name,
+                generic_asset_type_name="weather station",
                 sensor_name=sensor_name,
                 object=sensor,
             )
