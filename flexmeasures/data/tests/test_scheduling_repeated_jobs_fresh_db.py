@@ -41,9 +41,7 @@ def test_requeue_failing_job(
     end = tz.localize(datetime(2016, 1, 3))
     resolution = timedelta(minutes=15)
 
-    charging_station = Sensor.query.filter(
-        Sensor.name == "Test charging station"
-    ).one_or_none()
+    charging_station = add_charging_station_assets_fresh_db["Test charging station"].sensors[0]
 
     custom_scheduler = {
         "module": "flexmeasures.data.tests.test_scheduling_repeated_jobs_fresh_db",

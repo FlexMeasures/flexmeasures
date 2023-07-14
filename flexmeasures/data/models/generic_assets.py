@@ -37,6 +37,9 @@ class GenericAssetType(db.Model):
     name = db.Column(db.String(80), default="", unique=True)
     description = db.Column(db.String(80), nullable=True, unique=False)
 
+    def __repr__(self):
+        return "<GenericAssetType %s: %r>" % (self.id, self.name)
+
 
 class GenericAsset(db.Model, AuthModelMixin):
     """An asset is something that has economic value.

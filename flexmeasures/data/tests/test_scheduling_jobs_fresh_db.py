@@ -22,9 +22,7 @@ def test_scheduling_a_charging_station(
     target_soc = 5
     duration_until_target = timedelta(hours=2)
 
-    charging_station = Sensor.query.filter(
-        Sensor.name == "Test charging station"
-    ).one_or_none()
+    charging_station = add_charging_station_assets["Test charging station"].sensors[0]
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 2))
     end = tz.localize(datetime(2015, 1, 3))

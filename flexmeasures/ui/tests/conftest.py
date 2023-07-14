@@ -31,7 +31,7 @@ def setup_ui_test_data(
     setup_roles_users,
     setup_markets,
     setup_sources,
-    setup_asset_types,
+    setup_generic_asset_types,
 ):
     """Create an admin."""
     create_user(

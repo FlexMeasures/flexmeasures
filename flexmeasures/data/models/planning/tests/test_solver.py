@@ -58,7 +58,7 @@ def test_battery_solver_day_1(
     add_battery_assets, add_inflexible_device_forecasts, use_inflexible_device
 ):
     epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
-    battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
+    battery = add_battery_assets["Test battery"].sensors[0]
     assert battery.get_attribute("market_id") == epex_da.id
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 1))
@@ -119,7 +119,7 @@ def test_battery_solver_day_2(
     - completely discharge within the last 8 hours
     """
     epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
-    battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
+    battery = add_battery_assets["Test battery"].sensors[0]
     assert battery.get_attribute("market_id") == epex_da.id
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 2))
@@ -201,7 +201,7 @@ def test_battery_solver_day_2(
         (5, "Test charging station (bidirectional)"),
     ],
 )
-def test_charging_station_solver_day_2(target_soc, charging_station_name):
+def test_charging_station_solver_day_2(target_soc, charging_station_name, setup_planning_test_data):
     """Starting with a state of charge 1 kWh, within 2 hours we should be able to reach
     any state of charge in the range [1, 5] kWh for a unidirectional station,
     or [0, 5] for a bidirectional station, given a charging capacity of 2 kW.
@@ -210,9 +210,7 @@ def test_charging_station_solver_day_2(target_soc, charging_station_name):
     duration_until_target = timedelta(hours=2)
 
     epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
-    charging_station = Sensor.query.filter(
-        Sensor.name == charging_station_name
-    ).one_or_none()
+    charging_station = setup_planning_test_data[charging_station_name].sensors[0]
     assert charging_station.get_attribute("capacity_in_mw") == 2
     assert charging_station.get_attribute("market_id") == epex_da.id
     tz = pytz.timezone("Europe/Amsterdam")
@@ -273,7 +271,7 @@ def test_charging_station_solver_day_2(target_soc, charging_station_name):
         (15, "Test charging station (bidirectional)"),
     ],
 )
-def test_fallback_to_unsolvable_problem(target_soc, charging_station_name):
+def test_fallback_to_unsolvable_problem(target_soc, charging_station_name, setup_planning_test_data):
     """Starting with a state of charge 10 kWh, within 2 hours we should be able to reach
     any state of charge in the range [10, 14] kWh for a unidirectional station,
     or [6, 14] for a bidirectional station, given a charging capacity of 2 kW.
@@ -286,9 +284,7 @@ def test_fallback_to_unsolvable_problem(target_soc, charging_station_name):
     expected_gap = 1
 
     epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
-    charging_station = Sensor.query.filter(
-        Sensor.name == charging_station_name
-    ).one_or_none()
+    charging_station = setup_planning_test_data[charging_station_name].sensors[0]
     assert charging_station.get_attribute("capacity_in_mw") == 2
     assert charging_station.get_attribute("market_id") == epex_da.id
     tz = pytz.timezone("Europe/Amsterdam")
@@ -491,7 +487,7 @@ def test_soc_bounds_timeseries(add_battery_assets):
 
     # get the sensors from the database
     epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
-    battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
+    battery = add_battery_assets["Test battery"].sensors[0]
     assert battery.get_attribute("market_id") == epex_da.id
 
     # time parameters
