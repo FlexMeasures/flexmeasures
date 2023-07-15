@@ -8,7 +8,6 @@ from flask import current_app
 import pandas as pd
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
-from sqlalchemy.orm import Query, Session
 from sqlalchemy.schema import UniqueConstraint
 from sqlalchemy import inspect
 import timely_beliefs as tb
@@ -20,15 +19,8 @@ from flexmeasures.data import db
 from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.data.services.annotations import prepare_annotations_for_chart
 from flexmeasures.data.services.timerange import get_timerange
-from flexmeasures.data.queries.utils import (
-    create_beliefs_query,
-    get_belief_timing_criteria,
-    get_source_criteria,
-)
-from flexmeasures.data.services.time_series import (
-    collect_time_series_data,
-    aggregate_values,
-)
+from flexmeasures.data.queries.utils import get_source_criteria
+from flexmeasures.data.services.time_series import aggregate_values
 from flexmeasures.utils.entity_address_utils import (
     EntityAddressException,
     build_entity_address,

@@ -1,17 +1,14 @@
 from __future__ import annotations
 
 from timely_beliefs.beliefs.classes import BeliefsDataFrame
-from typing import List, Sequence, Tuple, Union
-from datetime import datetime, timedelta
-from json import loads as parse_json, JSONDecodeError
+from typing import List, Sequence, Union
+from datetime import timedelta
 
 from flask import current_app
-from inflection import pluralize
 from numpy import array
 from psycopg2.errors import UniqueViolation
 from rq.job import Job
 from sqlalchemy.exc import IntegrityError
-import timely_beliefs as tb
 
 from flexmeasures.data import db
 from flexmeasures.data.utils import save_to_db as modern_save_to_db
@@ -83,7 +80,6 @@ def save_and_enqueue(
     forecasting_jobs: list[Job] | None = None,
     save_changed_beliefs_only: bool = True,
 ) -> ResponseTuple:
-
     # Attempt to save
     status = modern_save_to_db(
         data, save_changed_beliefs_only=save_changed_beliefs_only
