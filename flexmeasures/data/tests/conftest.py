@@ -4,7 +4,6 @@ import pytest
 from datetime import datetime, timedelta
 from random import random
 
-from isodate import parse_duration
 import pandas as pd
 import numpy as np
 from flask_sqlalchemy import SQLAlchemy
@@ -48,7 +47,7 @@ def setup_fresh_test_data(
     setup_assets_fresh_db,
     setup_generic_asset_types_fresh_db,
     app,
-) -> dict[name, GenericAsset]:
+) -> dict[str, GenericAsset]:
     add_test_weather_sensor_and_forecasts(fresh_db, setup_generic_asset_types_fresh_db)
     return setup_assets_fresh_db
 

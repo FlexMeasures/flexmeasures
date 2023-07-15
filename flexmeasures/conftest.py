@@ -4,7 +4,6 @@ from contextlib import contextmanager
 import pytest
 from random import random, seed
 from datetime import datetime, timedelta
-import pytz
 
 from isodate import parse_duration
 import pandas as pd
@@ -573,17 +572,30 @@ def add_market_prices(
 
 @pytest.fixture(scope="module")
 def add_battery_assets(
-    db: SQLAlchemy, setup_roles_users, setup_accounts, setup_markets, setup_generic_asset_types
+    db: SQLAlchemy,
+    setup_roles_users,
+    setup_accounts,
+    setup_markets,
+    setup_generic_asset_types,
 ) -> dict[str, GenericAsset]:
-    return create_test_battery_assets(db, setup_accounts, setup_markets, setup_generic_asset_types)
+    return create_test_battery_assets(
+        db, setup_accounts, setup_markets, setup_generic_asset_types
+    )
 
 
 @pytest.fixture(scope="function")
 def add_battery_assets_fresh_db(
-    fresh_db, setup_roles_users_fresh_db, setup_accounts_fresh_db, setup_markets_fresh_db, setup_generic_asset_types_fresh_db
+    fresh_db,
+    setup_roles_users_fresh_db,
+    setup_accounts_fresh_db,
+    setup_markets_fresh_db,
+    setup_generic_asset_types_fresh_db,
 ) -> dict[str, GenericAsset]:
     return create_test_battery_assets(
-        fresh_db, setup_accounts_fresh_db, setup_markets_fresh_db, setup_generic_asset_types_fresh_db
+        fresh_db,
+        setup_accounts_fresh_db,
+        setup_markets_fresh_db,
+        setup_generic_asset_types_fresh_db,
     )
 
 
@@ -646,7 +658,7 @@ def create_test_battery_assets(
             is_producer=True,
             can_curtail=True,
             can_shift=True,
-        )
+        ),
     )
     test_battery_sensor_no_prices = Sensor(
         name="power",
@@ -747,7 +759,7 @@ def create_charging_station_assets(
         generic_asset=bidirectional_charging_station,
         unit="MW",
         event_resolution=timedelta(minutes=15),
-        attributes = dict(
+        attributes=dict(
             daily_seasonality=True,
             weekly_seasonality=True,
             yearly_seasonality=True,

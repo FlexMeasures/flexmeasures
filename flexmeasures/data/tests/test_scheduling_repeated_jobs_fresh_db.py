@@ -4,7 +4,6 @@ from datetime import datetime, timedelta
 
 import pytz
 
-from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.tests.utils import work_on_rq, exception_reporter
 from flexmeasures.data.services.scheduling import create_scheduling_job
 from flexmeasures.data.models.planning import Scheduler
@@ -12,7 +11,6 @@ from flexmeasures.data.services.scheduling import load_custom_scheduler
 
 
 class FailingScheduler(Scheduler):
-
     __author__ = "Test Organization"
     __version__ = "1"
 
@@ -41,7 +39,9 @@ def test_requeue_failing_job(
     end = tz.localize(datetime(2016, 1, 3))
     resolution = timedelta(minutes=15)
 
-    charging_station = add_charging_station_assets_fresh_db["Test charging station"].sensors[0]
+    charging_station = add_charging_station_assets_fresh_db[
+        "Test charging station"
+    ].sensors[0]
 
     custom_scheduler = {
         "module": "flexmeasures.data.tests.test_scheduling_repeated_jobs_fresh_db",

@@ -54,7 +54,6 @@ def test_forecasting_two_hours_of_solar(
     app, run_as_cli, setup_fresh_test_data, clean_redis
 ):
     # asset has only 1 power sensor
-    wind_device_2: Sensor = setup_fresh_test_data["wind-asset-2"].sensors[0]
     solar_device_1: Sensor = setup_fresh_test_data["solar-asset-1"].sensors[0]
 
     # makes 8 forecasts
@@ -83,10 +82,11 @@ def test_forecasting_two_hours_of_solar(
 
 
 @pytest.mark.parametrize(
-    "model_to_start_with, model_version", [
+    "model_to_start_with, model_version",
+    [
         ("failing-test", 1),
         ("linear-OLS", 2),
-    ]
+    ],
 )
 def test_failed_model_with_too_much_training_then_succeed_with_fallback(
     app,

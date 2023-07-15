@@ -135,9 +135,13 @@ def test_hashing(db, app, add_charging_station_assets, setup_test_data):
 
     # Here, we need to obtain the object through a db query, otherwise we run into session issues with deepcopy later on
     # charging_station = add_charging_station_assets["Test charging station"].sensors[0]
-    charging_station = Sensor.query.filter(
-        Sensor.name == "power"
-    ).join(GenericAsset).filter(GenericAsset.id == Sensor.generic_asset_id).filter(GenericAsset.name == "Test charging stations").one_or_none()
+    charging_station = (
+        Sensor.query.filter(Sensor.name == "power")
+        .join(GenericAsset)
+        .filter(GenericAsset.id == Sensor.generic_asset_id)
+        .filter(GenericAsset.name == "Test charging stations")
+        .one_or_none()
+    )
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 2))
     end = tz.localize(datetime(2015, 1, 3))

@@ -4,7 +4,7 @@ import pytz
 import pandas as pd
 
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.services.scheduling import create_scheduling_job
 from flexmeasures.data.tests.utils import work_on_rq, exception_reporter
 

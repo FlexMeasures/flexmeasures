@@ -201,7 +201,9 @@ def test_battery_solver_day_2(
         (5, "Test charging station (bidirectional)"),
     ],
 )
-def test_charging_station_solver_day_2(target_soc, charging_station_name, setup_planning_test_data):
+def test_charging_station_solver_day_2(
+    target_soc, charging_station_name, setup_planning_test_data
+):
     """Starting with a state of charge 1 kWh, within 2 hours we should be able to reach
     any state of charge in the range [1, 5] kWh for a unidirectional station,
     or [0, 5] for a bidirectional station, given a charging capacity of 2 kW.
@@ -271,7 +273,9 @@ def test_charging_station_solver_day_2(target_soc, charging_station_name, setup_
         (15, "Test charging station (bidirectional)"),
     ],
 )
-def test_fallback_to_unsolvable_problem(target_soc, charging_station_name, setup_planning_test_data):
+def test_fallback_to_unsolvable_problem(
+    target_soc, charging_station_name, setup_planning_test_data
+):
     """Starting with a state of charge 10 kWh, within 2 hours we should be able to reach
     any state of charge in the range [10, 14] kWh for a unidirectional station,
     or [6, 14] for a bidirectional station, given a charging capacity of 2 kW.

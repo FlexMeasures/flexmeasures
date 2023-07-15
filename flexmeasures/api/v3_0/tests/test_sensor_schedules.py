@@ -177,7 +177,6 @@ def test_trigger_and_get_schedule(
     message,
     asset_name,
 ):
-
     # Include the price sensor in the flex-context explicitly, to test deserialization
     price_sensor_id = add_market_prices["epex_da"].id
     message["flex-context"] = {
@@ -188,10 +187,13 @@ def test_trigger_and_get_schedule(
     # trigger a schedule through the /sensors/<id>/schedules/trigger [POST] api endpoint
     assert len(app.queues["scheduling"]) == 0
 
-    sensor = Sensor.query.filter(
-        Sensor.name == "power"
-    ).join(GenericAsset).filter(GenericAsset.id == Sensor.generic_asset_id).filter(
-        GenericAsset.name == asset_name).one_or_none()
+    sensor = (
+        Sensor.query.filter(Sensor.name == "power")
+        .join(GenericAsset)
+        .filter(GenericAsset.id == Sensor.generic_asset_id)
+        .filter(GenericAsset.name == asset_name)
+        .one_or_none()
+    )
     with app.test_client() as client:
         auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
         trigger_schedule_response = client.post(
