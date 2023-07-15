@@ -1031,10 +1031,6 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 
 /* ---- Date picker ---- */
 
-.datetimepicker input {
-    width: 100%;
-}
-
 .litepicker {
     font-size: 14px;
 }

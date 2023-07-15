@@ -48,8 +48,6 @@ def render_flexmeasures_template(html_filename: str, **variables):
     variables["event_ends_before"] = session.get("event_ends_before")
 
     variables["page"] = html_filename.split("/")[-1].replace(".html", "")
-    if "show_datepicker" not in variables:
-        variables["show_datepicker"] = variables["page"] in ("analytics", "portfolio")
 
     variables["resolution"] = session.get("resolution", "")
     variables["resolution_human"] = time_utils.freq_label_to_human_readable_label(

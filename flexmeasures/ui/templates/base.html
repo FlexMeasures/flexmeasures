@@ -24,10 +24,6 @@
     <link href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" rel="stylesheet" />
     <!-- Bootstrap -->
     <link href="https://ajax.aspnetcdn.com/ajax/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet" />
-    {% if show_datepicker %}
-    <link href="https://cdn.jsdelivr.net/npm/daterangepicker@3.1.0/daterangepicker.css"
-        rel="stylesheet" />
-    {% endif %}
     <!-- Fonts -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"
         rel="stylesheet" />
@@ -149,29 +145,6 @@
 
     {# Div blocks that child pages can reference #}
     {% block divs %}
-
-
-    {% block datetimepicker %}
-
-    <div class="form-group row datetimepicker">
-        <div class="col-sm-2">
-            <div class="col-sm-1"><i class="icon-time center-icon"></i></div>
-        </div>
-        <div class="col-sm-10">
-            <label class="control-label">Time window</label>
-            <div class="btn-group btn-group-justified">
-                <input type="text" name="daterange" value="01/01/2015 1:30 PM - 01/01/2015 2:00 PM" />
-            </div>
-        </div>
-    </div>
-    <!-- form to refresh page -->
-    <form style="display: hidden" action="" method="POST" id="datepicker_form">
-        <input type="hidden" id="datepicker_form_start_time" name="start_time" value="{{ start_time }}" />
-        <input type="hidden" id="datepicker_form_end_time" name="end_time" value="{{ end_time }}" />
-    </form>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
-    {% endblock datetimepicker %}
 
     {% block forecastpicker %}
 
@@ -606,14 +579,6 @@
     <!-- Custom scripts -->
     <script src="{{ url_for('flexmeasures_ui.static', filename='js/swiped-events.min.js') }}"></script>
     <script src="{{ url_for('flexmeasures_ui.static', filename='js/flexmeasures.js') }}"></script>
-    {% if show_datepicker %}
-    <script src="{{ url_for('flexmeasures_ui.static', filename='js/daterangepicker-init.js') }}"></script>
-    {% endif %}
-
-    <!-- External scripts that should run after custom scripts -->
-    {% if show_datepicker %}
-    <script src="https://cdn.jsdelivr.net/npm/daterangepicker@3.1.0/daterangepicker.min.js"></script>
-    {% endif %}
 
     {% endblock scripts %}
 
