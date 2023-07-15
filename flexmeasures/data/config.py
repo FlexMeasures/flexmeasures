@@ -39,11 +39,10 @@ def configure_db_for(app: Flask):
         Base.query = db.session.query_property()
 
         # Import all modules here that might define models so that
-        # they will be registered properly on the metadata. Otherwise
+        # they will be registered properly on the metadata. Otherwise,
         # you will have to import them first before calling configure_db().
         from flexmeasures.data.models import (  # noqa: F401
             time_series,
-            assets,
             data_sources,
             user,
             task_runs,
@@ -57,7 +56,7 @@ def configure_db_for(app: Flask):
 def commit_and_start_new_session(app: Flask):
     """Use this when a script wants to save a state before continuing
     Not tested well, just a starting point - not recommended anyway for any logic used by views or tasks.
-    Maybe session.flush can help you there."""
+    Maybe session.flush() can help you there."""
     global db, Base, session_options
     db.session.commit()
     db.session.close()
