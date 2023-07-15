@@ -56,17 +56,10 @@ jobs:
       - name: Install FlexMeasures & latest dependencies for tests
         run: make install-for-test pinned=no
         if: github.event_name == 'pull_request'
-      - name: Run all tests except those marked to be skipped by GitHub
-        run: |
-          pip install coveralls
-          pytest -m "not skip_github"
-        if: ${{ matrix.coverage != 'yes' }}
       - name: Run all tests except those marked to be skipped by GitHub AND record coverage
-        run: pytest -v -m "not skip_github" --cov=flexmeasures --cov-branch
-        if: ${{ matrix.coverage == 'yes' }}
-      - run: coveralls --service=github
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pytest -v -m "not skip_github" --cov=flexmeasures --cov-branch --cov-report=lcov
+      - name: Coveralls
+        uses: coverallsapp/github-action@v2
         if: ${{ matrix.coverage == 'yes' }}
     env:
       PGHOST: 127.0.0.1
