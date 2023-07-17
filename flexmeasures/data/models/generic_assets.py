@@ -456,12 +456,11 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         # Only allow showing sensors from assets owned by the user's organization,
         # except in play mode, where any sensor may be shown
-        if current_app.config.get("FLEXMEASURES_MODE") != "play":
-            account = self.owner
-        else:
+        accounts = [self.owner]
+        if current_app.config.get("FLEXMEASURES_MODE") == "play":
             from flexmeasures.data.models.user import Account
 
-            account = Account.query.all()
+            accounts = Account.query.all()
 
         from flexmeasures.data.services.sensors import get_sensors
 
@@ -469,7 +468,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         sensor_map = {
             sensor.id: sensor
             for sensor in get_sensors(
-                account=account,
+                account=accounts,
                 include_public_assets=True,
                 sensor_id_allowlist=flatten_unique(sensor_ids_to_show),
             )
