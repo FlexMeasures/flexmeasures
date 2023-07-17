@@ -435,7 +435,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         Sensors to show are defined as a list of sensor ids, which
         is set by the "sensors_to_show" field of the asset's "attributes" column.
         Valid sensors either belong to the asset itself, to other assets in the same account,
-        or to public assets.
+        or to public assets. In play mode, sensors from different accounts can be added.
         In case the field is missing, defaults to two of the asset's sensors.
 
         Sensor ids can be nested to denote that sensors should be 'shown together',
