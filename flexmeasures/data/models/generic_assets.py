@@ -474,15 +474,32 @@ class GenericAsset(db.Model, AuthModelMixin):
             )
         }
 
-        # Return sensor objects if accessible - in the order given by the sensors_to_show attribute, and with the same nesting
+        # Build list of sensor objects that are accessible
         sensors_to_show = []
+        missed_sensor_ids = []
+
+        # we make sure to build in the order given by the sensors_to_show attribute, and with the same nesting
         for s in sensor_ids_to_show:
             if isinstance(s, list):
-                sensors_to_show.append(
-                    [accessible_sensor_map[sensor_id] for sensor_id in s]
-                )
+                inaccessible = [sid for sid in s if sid not in accessible_sensor_map]
+                missed_sensor_ids.extend(inaccessible)
+                if len(inaccessible) < len(s):
+                    sensors_to_show.append(
+                        [
+                            accessible_sensor_map[sensor_id]
+                            for sensor_id in s
+                            if sensor_id in accessible_sensor_map
+                        ]
+                    )
             else:
-                sensors_to_show.append(accessible_sensor_map[s])
+                if s not in accessible_sensor_map:
+                    missed_sensor_ids.append(s)
+                else:
+                    sensors_to_show.append(accessible_sensor_map[s])
+        if missed_sensor_ids:
+            current_app.logger.warning(
+                f"Cannot include sensor(s) {missed_sensor_ids} in sensors_to_show on asset {self}, as it is not accessible to user {current_user}."
+            )
         return sensors_to_show
 
     @property
