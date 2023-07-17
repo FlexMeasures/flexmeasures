@@ -456,7 +456,7 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         # Only allow showing sensors from assets owned by the user's organization,
         # except in play mode, where any sensor may be shown
-        if current_app.get("FLEXMEASURES_MODE") != "play":
+        if current_app.config.get("FLEXMEASURES_MODE") != "play":
             account = self.owner
         else:
             from flexmeasures.data.models.user import Account
