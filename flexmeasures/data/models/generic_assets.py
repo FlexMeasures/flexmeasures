@@ -465,7 +465,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         from flexmeasures.data.services.sensors import get_sensors
 
         sensor_ids_to_show = self.get_attribute("sensors_to_show")
-        sensor_map = {
+        accessible_sensor_map = {
             sensor.id: sensor
             for sensor in get_sensors(
                 account=accounts,
@@ -474,13 +474,15 @@ class GenericAsset(db.Model, AuthModelMixin):
             )
         }
 
-        # Return sensors in the order given by the sensors_to_show attribute, and with the same nesting
+        # Return sensor objects if accessible - in the order given by the sensors_to_show attribute, and with the same nesting
         sensors_to_show = []
         for s in sensor_ids_to_show:
             if isinstance(s, list):
-                sensors_to_show.append([sensor_map[sensor_id] for sensor_id in s])
+                sensors_to_show.append(
+                    [accessible_sensor_map[sensor_id] for sensor_id in s]
+                )
             else:
-                sensors_to_show.append(sensor_map[s])
+                sensors_to_show.append(accessible_sensor_map[s])
         return sensors_to_show
 
     @property
