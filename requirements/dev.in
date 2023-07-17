@@ -11,3 +11,4 @@ mypy
 pytest-runner
 setuptools_scm
 watchdog
+pyinstrument
