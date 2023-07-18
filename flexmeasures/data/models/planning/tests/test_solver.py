@@ -820,20 +820,15 @@ def test_infeasible_problem_error(add_battery_assets):
 
     # soc parameters
     soc_at_start = battery.get_attribute("soc_in_mwh")
-    soc_min = 0.5
-    soc_max = 4.5
-    soc_maxima = [{"datetime": "2015-01-02T15:00:00+01:00", "value": 1.0}]
-    soc_minima = [{"datetime": "2015-01-02T08:00:00+01:00", "value": 3.5}]
-
-    soc_targets = [{"datetime": "2015-01-02T16:00:00+01:00", "value": 8.0}]
+    infeasible_max_soc_targets = [
+        {"datetime": "2015-01-02T16:00:00+01:00", "value": 8.0}
+    ]
 
     flex_model = {
         "soc-at-start": soc_at_start,
-        "soc-min": soc_min,
-        "soc-max": soc_max,
-        "soc-maxima": soc_maxima,
-        "soc-minima": soc_minima,
-        "soc-targets": soc_targets,
+        "soc-min": 0.5,
+        "soc-max": 4.5,
+        "soc-targets": infeasible_max_soc_targets,
     }
 
     with pytest.raises(
