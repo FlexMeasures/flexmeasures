@@ -43,7 +43,7 @@ def get_asset_post_data(account_id: int = 1, asset_type_id: int = 1) -> dict:
 def get_sensor_post_data(generic_asset_id: int = 1) -> dict:
     post_data = {
         "name": "power",
-        "event_resolution": 10,
+        "resolution": "PT1H",
         "unit": "kWh",
         "generic_asset_id": generic_asset_id,
     }
