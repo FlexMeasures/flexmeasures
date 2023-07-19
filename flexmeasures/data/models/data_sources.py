@@ -1,11 +1,14 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import json
+from typing import TYPE_CHECKING, Any
+from sqlalchemy.ext.mutable import MutableDict
 
 import timely_beliefs as tb
 
 from flexmeasures.data import db
 from flask import current_app
+import hashlib
 
 
 if TYPE_CHECKING:
@@ -57,7 +60,9 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
     """Each data source is a data-providing entity."""
 
     __tablename__ = "data_source"
-    __table_args__ = (db.UniqueConstraint("name", "user_id", "model", "version"),)
+    __table_args__ = (
+        db.UniqueConstraint("name", "user_id", "model", "version", "attributes_hash"),
+    )
 
     # The type of data source (e.g. user, forecaster or scheduler)
     type = db.Column(db.String(80), default="")
@@ -68,6 +73,10 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
     )
     user = db.relationship("User", backref=db.backref("data_source", lazy=True))
 
+    attributes = db.Column(MutableDict.as_mutable(db.JSON), nullable=False, default={})
+
+    attributes_hash = db.Column(db.LargeBinary(length=256))
+
     # The model and version of a script source
     model = db.Column(db.String(80), nullable=True)
     version = db.Column(
@@ -75,11 +84,19 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         nullable=True,
     )
 
+    sensors = db.relationship(
+        "Sensor",
+        secondary="timed_belief",
+        backref=db.backref("data_sources", lazy="select"),
+        viewonly=True,
+    )
+
     def __init__(
         self,
         name: str | None = None,
         type: str | None = None,
         user: User | None = None,
+        attributes: dict | None = None,
         **kwargs,
     ):
         if user is not None:
@@ -89,6 +106,13 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         elif user is None and type == "user":
             raise TypeError("A data source cannot have type 'user' but no user set.")
         self.type = type
+
+        if attributes is not None:
+            self.attributes = attributes
+            self.attributes_hash = hashlib.sha256(
+                json.dumps(attributes).encode("utf-8")
+            ).digest()
+
         tb.BeliefSourceDBMixin.__init__(self, name=name)
         db.Model.__init__(self, **kwargs)
 
@@ -144,3 +168,17 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
             type=self.type if self.type in ("forecaster", "scheduler") else "other",
             description=self.description,
         )
+
+    @staticmethod
+    def hash_attributes(attributes: dict) -> str:
+        return hashlib.sha256(json.dumps(attributes).encode("utf-8")).digest()
+
+    def get_attribute(self, attribute: str, default: Any = None) -> Any:
+        """Looks for the attribute in the DataSource's attributes column."""
+        return self.attributes.get(attribute, default)
+
+    def has_attribute(self, attribute: str) -> bool:
+        return attribute in self.attributes
+
+    def set_attribute(self, attribute: str, value):
+        self.attributes[attribute] = value
