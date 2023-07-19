@@ -230,7 +230,7 @@
     <!-- Render Charts -->
     <script type="module" type="text/javascript">
 
-    import { subtract, thisMonth, lastNMonths, getOffsetBetweenTimezonesForDate } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}";
+    import { subtract, thisMonth, lastNMonths, countDSTTransitions, getOffsetBetweenTimezonesForDate } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}";
     import { partition, updateBeliefs, beliefTimedelta, setAbortableTimeout} from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}";
 
     let vegaView;
@@ -242,6 +242,7 @@
     {% if event_starts_after and event_ends_before %}
         storeStartDate = new Date('{{ event_starts_after }}');
         storeEndDate = new Date('{{ event_ends_before }}');
+        checkDSTTransitions(storeStartDate, storeEndDate);
     {% endif %}
     let replaySpeed = 100
     let chartType = 'bar_chart';  // initial chart type // todo: get from session?
@@ -276,6 +277,21 @@
             });
         }
     });
+
+    function checkDSTTransitions(startDate, endDate) {
+        var numDSTTransitions = countDSTTransitions(startDate, endDate, 90)
+        if (numDSTTransitions != 0) {
+            document.getElementById('dstwarn').style.display = 'block';
+            if (numDSTTransitions == 1) {
+                document.getElementById('dstwarn').innerHTML = 'Please note that the sensor data you are viewing includes a daylight saving time (DST) transition.';
+            } else {
+                document.getElementById('dstwarn').innerHTML = 'Please note that the sensor data you are viewing includes ' + numDSTTransitions + ' daylight saving time (DST) transitions.';
+            }
+        }
+        else {
+            document.getElementById('dstwarn').style.display = 'none';
+        }
+    }
 
     async function embedAndLoad(chartSpecsPath, elementId, datasetName, previousResult, startDate, endDate) {
 
@@ -369,6 +385,7 @@
         stopReplay()
 
         $("#spinner").show();
+        checkDSTTransitions(startDate, endDate)
         Promise.all([
             // Fetch time series data
             fetch(dataPath + '/chart_data/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
@@ -428,8 +445,8 @@
                 var offsetDifference = getOffsetBetweenTimezonesForDate(new Date(), data.timezone, jstz.determine().name());
                 if (offsetDifference != 0) {
                     document.getElementById('tzwarn').style.display = 'block';
-                    var offsetNotice = (offsetDifference > 0) ? 'which is currently ahead by ' + offsetDifference + 'minutes' : 'which is currently behind by ' + offsetDifference + ' minutes'
-                    document.getElementById('tzwarn').innerHTML = 'Please note that the sensor data you are viewing is located in a different timezone (' + offsetNotice + ').<br/>To view the data from a local perspective, set your locale timezone to ' + data.timezone + '.'
+                    var offsetNotice = (offsetDifference > 0) ? 'which is currently ahead by ' + offsetDifference + 'minutes' : 'which is currently behind by ' + offsetDifference + ' minutes';
+                    document.getElementById('tzwarn').innerHTML = 'Please note that the sensor data you are viewing is located in a different timezone (' + offsetNotice + ').<br/>To view the data from a local perspective, set your locale timezone to ' + data.timezone + '.';
                 }
                 {% if active_page == "assets" %}
                     var timerangeVar = 'timerange_of_sensors_to_show';
