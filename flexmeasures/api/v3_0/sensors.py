@@ -529,5 +529,4 @@ class SensorAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        sensor = Sensor.query.filter(Sensor.id == 1).one_or_none()
         return sensor_schema.dump(sensor), 200
