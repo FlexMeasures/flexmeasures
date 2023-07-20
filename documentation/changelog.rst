@@ -19,6 +19,8 @@ New features
 Bugfixes
 -----------
 
+* The error handling for infeasible constraints in storage.py was given too many arguments. This caused the response from the API to be unhelpful when a schedule was requested with infeasible constraints. [see `PR #758 <https://github.com/FlexMeasures/flexmeasures/pull/758>`_]
+
 Infrastructure / Support
 ----------------------
 
