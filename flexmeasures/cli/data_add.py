@@ -1158,6 +1158,118 @@ def add_schedule_for_storage(
             click.secho("New schedule is stored.", **MsgStyle.SUCCESS)
 
 
+@create_schedule.command("shiftable")
+@with_appcontext
+@click.option(
+    "--sensor-id",
+    "power_sensor",
+    type=SensorIdField(),
+    required=True,
+    help="Create schedule for this sensor. Should be a power sensor. Follow up with the sensor's ID.",
+)
+@click.option(
+    "--consumption-price-sensor",
+    "consumption_price_sensor",
+    type=SensorIdField(),
+    required=False,
+    help="Optimize consumption against this sensor. The sensor typically records an electricity price (e.g. in EUR/kWh), but this field can also be used to optimize against some emission intensity factor (e.g. in kg CO₂ eq./kWh). Follow up with the sensor's ID.",
+)
+@click.option(
+    "--start",
+    "start",
+    type=AwareDateTimeField(format="iso"),
+    required=True,
+    help="Schedule starts at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
+)
+@click.option(
+    "--duration",
+    "duration",
+    type=DurationField(),
+    required=True,
+    help="Duration of schedule, after --start. Follow up with a duration in ISO 6801 format, e.g. PT1H (1 hour) or PT45M (45 minutes).",
+)
+@click.option(
+    "--load-duration",
+    "load_duration",
+    type=DurationField(),
+    required=True,
+    help="Duration of the load. Follow up with a duration in ISO 6801 format, e.g. PT1H (1 hour) or PT45M (45 minutes).",
+)
+@click.option(
+    "--load-type",
+    "load_type",
+    type=click.Choice(["INFLEXIBLE", "BREAKABLE", "SHIFTABLE"], case_sensitive=False),
+    required=False,
+    default="INFLEXIBLE",
+    help="Load shift policy type: INFLEXIBLE, BREAKABLE or SHIFTABLE.",
+)
+@click.option(
+    "--load-power",
+    "load_power",
+    type=ur.Quantity,
+    required=True,
+    help="Constant power of the load during the activation period.",
+)
+@click.option(
+    "--as-job",
+    is_flag=True,
+    help="Whether to queue a scheduling job instead of computing directly. "
+    "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'scheduling' queue. Defaults to False.",
+)
+def add_schedule_shiftable_load(
+    power_sensor: Sensor,
+    consumption_price_sensor: Sensor,
+    start: datetime,
+    duration: timedelta,
+    load_duration: timedelta,
+    load_type: str,
+    load_power: ur.Quantity,
+    as_job: bool = False,
+):
+    """Create a new schedule for a shiftable asset.
+
+    Current limitations:
+    - Only supports consumption blocks.
+    - Not taking into account grid constraints or other loads.
+    """
+    # Parse input and required sensor attributes
+    if not power_sensor.measures_power:
+        click.secho(
+            f"Sensor with ID {power_sensor.id} is not a power sensor.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+
+    end = start + duration
+
+    load_power = convert_units(load_power.magnitude, load_power.units, "MW")  # type: ignore
+
+    scheduling_kwargs = dict(
+        start=start,
+        end=end,
+        belief_time=server_now(),
+        resolution=power_sensor.event_resolution,
+        flex_model={
+            "cost-sensor": consumption_price_sensor.id,
+            "duration": pd.Timedelta(load_duration).isoformat(),
+            "load-type": load_type,
+            "power": load_power,
+        },
+    )
+
+    if as_job:
+        job = create_scheduling_job(sensor=power_sensor, **scheduling_kwargs)
+        if job:
+            click.secho(
+                f"New scheduling job {job.id} has been added to the queue.",
+                **MsgStyle.SUCCESS,
+            )
+    else:
+        success = make_schedule(sensor_id=power_sensor.id, **scheduling_kwargs)
+        if success:
+            click.secho("New schedule is stored.", **MsgStyle.SUCCESS)
+
+
 @fm_add_data.command("report")
 @with_appcontext
 @click.option(

@@ -96,3 +96,41 @@ def reporter_config_raw(app, db, setup_dummy_data):
     )
 
     return reporter_config_raw
+
+
+@pytest.mark.skip_github
+@pytest.fixture(scope="module")
+def shiftable_load_power_sensor(db, app):
+    """
+    Create an asset with two sensors (1 and 2), and add the same set of 200 beliefs with an hourly resolution to each of them.
+    Return the two sensors and a result sensor (which has no data).
+    """
+
+    shiftable_load_asset_type = GenericAssetType(name="ShiftableLoad")
+
+    db.session.add(shiftable_load_asset_type)
+
+    shiftable_asset = GenericAsset(
+        name="Test Asset", generic_asset_type=shiftable_load_asset_type
+    )
+
+    db.session.add(shiftable_asset)
+
+    power_sensor = Sensor(
+        "power",
+        generic_asset=shiftable_asset,
+        event_resolution=timedelta(hours=1),
+        attributes={
+            "custom-scheduler": {
+                "class": "ShiftableLoadScheduler",
+                "module": "flexmeasures.data.models.planning.shiftable_load",
+            }
+        },
+        unit="MW",
+    )
+
+    db.session.add(power_sensor)
+
+    db.session.commit()
+
+    yield power_sensor.id
