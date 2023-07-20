@@ -103,7 +103,7 @@ class AssetAPI(FlaskView):
 
     @route("", methods=["POST"])
     @permission_required_for_context(
-        "create-children", arg_loader=AccountIdField.load_current
+        "create-children", ctx_arg_loader=AccountIdField.load_current
     )
     @use_args(asset_schema)
     def post(self, asset_data: dict):
