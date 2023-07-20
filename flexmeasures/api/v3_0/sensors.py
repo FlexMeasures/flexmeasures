@@ -544,24 +544,23 @@ class SensorAPI(FlaskView):
     def post(self, sensor_data: dict):
         """Create new asset.
 
-        .. :quickref: Asset; Create a new asset
+        .. :quickref: Sensor; Create a new Sensor
 
-        This endpoint creates a new asset.
+        This endpoint creates a new Sensor.
 
         **Example request**
 
         .. sourcecode:: json
 
             {
-                "name": "Test battery",
-                "generic_asset_type_id": 2,
-                "account_id": 2,
-                "latitude": 40,
-                "longitude": 170.3,
+                "name": "power",
+                "resolution": "PT1H",
+                "unit": "kWh",
+                "generic_asset_id": 1,
             }
 
 
-        The newly posted asset is returned in the response.
+        The newly posted sensor is returned in the response.
 
         :reqheader Authorization: The authentication token
         :reqheader Content-Type: application/json
@@ -581,17 +580,3 @@ class SensorAPI(FlaskView):
         sensor_json = sensor_schema.dump(sensor)
         del sensor_json["event_resolution"]
         return sensor_json, 201
-
-
-"""
-- fetch one
-- patch name, attributes
-- post one
-- html left collapsing panel with these options.
-asset_id = post_asset(args)
-sensor_id = post_sensor(asset_id)
-post_asset()
-get_asset()
-post_sensor()
-get_sensor()
-"""
