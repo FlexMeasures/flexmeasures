@@ -42,7 +42,7 @@ class AssetAPI(FlaskView):
         },
         location="query",
     )
-    @permission_required_for_context("read", arg_name="account")
+    @permission_required_for_context("read", ctx_arg_name="account")
     @as_json
     def index(self, account: Account):
         """List all assets owned by a certain account.
@@ -144,7 +144,7 @@ class AssetAPI(FlaskView):
 
     @route("/<id>", methods=["GET"])
     @use_kwargs({"asset": AssetIdField(data_key="id")}, location="path")
-    @permission_required_for_context("read", arg_name="asset")
+    @permission_required_for_context("read", ctx_arg_name="asset")
     @as_json
     def fetch_one(self, id, asset):
         """Fetch a given asset.
@@ -180,7 +180,7 @@ class AssetAPI(FlaskView):
     @route("/<id>", methods=["PATCH"])
     @use_args(partial_asset_schema)
     @use_kwargs({"db_asset": AssetIdField(data_key="id")}, location="path")
-    @permission_required_for_context("update", arg_name="db_asset")
+    @permission_required_for_context("update", ctx_arg_name="db_asset")
     @as_json
     def patch(self, asset_data: dict, id: int, db_asset: GenericAsset):
         """Update an asset given its identifier.
@@ -236,7 +236,7 @@ class AssetAPI(FlaskView):
 
     @route("/<id>", methods=["DELETE"])
     @use_kwargs({"asset": AssetIdField(data_key="id")}, location="path")
-    @permission_required_for_context("delete", arg_name="asset")
+    @permission_required_for_context("delete", ctx_arg_name="asset")
     @as_json
     def delete(self, id: int, asset: GenericAsset):
         """Delete an asset given its identifier.
@@ -278,7 +278,7 @@ class AssetAPI(FlaskView):
         },
         location="query",
     )
-    @permission_required_for_context("read", arg_name="asset")
+    @permission_required_for_context("read", ctx_arg_name="asset")
     def get_chart(self, id: int, asset: GenericAsset, **kwargs):
         """GET from /assets/<id>/chart
 
@@ -302,7 +302,7 @@ class AssetAPI(FlaskView):
         },
         location="query",
     )
-    @permission_required_for_context("read", arg_name="asset")
+    @permission_required_for_context("read", ctx_arg_name="asset")
     def get_chart_data(self, id: int, asset: GenericAsset, **kwargs):
         """GET from /assets/<id>/chart_data
 

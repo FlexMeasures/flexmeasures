@@ -64,7 +64,7 @@ class SensorAPI(FlaskView):
         },
         location="query",
     )
-    @permission_required_for_context("read", arg_name="account")
+    @permission_required_for_context("read", ctx_arg_name="account")
     @as_json
     def index(self, account: Account):
         """API endpoint to list all sensors of an account.
@@ -498,7 +498,7 @@ class SensorAPI(FlaskView):
 
     @route("/<id>", methods=["GET"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
-    @permission_required_for_context("read", arg_name="sensor")
+    @permission_required_for_context("read", ctx_arg_name="sensor")
     @as_json
     def fetch_one(self, id, sensor):
         """Fetch a given sensor.
@@ -537,10 +537,10 @@ class SensorAPI(FlaskView):
         return sensor_dict, 200
 
     @route("", methods=["POST"])
-    @permission_required_for_context(
-        "create-children", arg_loader=AccountIdField.load_current
-    )
     @use_args(sensor_schema)
+    @permission_required_for_context(
+        "create-children", ctx_arg_pos=0, ctx_arg_name="generic_asset_id"
+    )
     def post(self, sensor_data: dict):
         """Create new asset.
 

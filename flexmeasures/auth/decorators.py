@@ -106,20 +106,20 @@ def account_roles_required(*account_roles):
 
 def permission_required_for_context(
     permission: str,
-    arg_pos: int | None = None,
-    arg_name: str | None = None,
-    arg_loader: Callable | None = None,
+    ctx_arg_pos: int | None = None,
+    ctx_arg_name: str | None = None,
+    ctx_loader: Callable | None = None,
 ):
     """
     This decorator can be used to make sure that the current user has the necessary permission to access the context.
     The context needs to be an AuthModelMixin and is found ...
-    - by loading it via the arg_loader callable;
+    - by loading it via the ctx_loader callable;
     - otherwise:
-      * by the keyword argument arg_name;
-      * and/or by a position in the non-keyword arguments (arg_pos).
-    If nothing is passed, the context lookup defaults to arg_pos=0.
+      * by the keyword argument ctx_arg_name;
+      * and/or by a position in the non-keyword arguments (ctx_arg_pos).
+    If nothing is passed, the context lookup defaults to ctx_arg_pos=0.
 
-    Using both arg_name and arg_pos arguments is useful when Marshmallow de-serializes to a dict and you are using use_args. In this case, the context lookup applies first arg_pos, then arg_name.
+    Using both ctx_arg_name and ctx_arg_pos arguments is useful when Marshmallow de-serializes to a dict and you are using use_args. In this case, the context lookup applies first ctx_arg_pos, then ctx_arg_name.
 
     The permission needs to be a known permission and is checked with principal descriptions from the context's access control list (see AuthModelMixin.__acl__).
 
@@ -130,7 +130,7 @@ def permission_required_for_context(
             {"the_resource": ResourceIdField(data_key="resource_id")},
             location="path",
         )
-        @permission_required_for_context("read", arg_name="the_resource")
+        @permission_required_for_context("read", ctx_arg_name="the_resource")
         @as_json
         def view(resource_id: int, the_resource: Resource):
             return dict(name=the_resource.name)
@@ -145,14 +145,14 @@ def permission_required_for_context(
         @wraps(fn)
         def decorated_view(*args, **kwargs):
             # load & check context
-            if arg_loader is not None:
-                context: AuthModelMixin = arg_loader()
-            elif arg_pos is not None and arg_name is not None:
-                context = args[arg_pos][arg_name]
-            elif arg_pos is not None:
-                context = args[arg_pos]
-            elif arg_name is not None:
-                context = kwargs[arg_name]
+            if ctx_loader is not None:
+                context: AuthModelMixin = ctx_loader()
+            elif ctx_arg_pos is not None and ctx_arg_name is not None:
+                context = args[ctx_arg_pos][ctx_arg_name]
+            elif ctx_arg_pos is not None:
+                context = args[ctx_arg_pos]
+            elif ctx_arg_name is not None:
+                context = kwargs[ctx_arg_name]
             else:
                 context = args[0]
 
