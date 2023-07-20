@@ -192,6 +192,7 @@ def matrix_chart(
                 },
             },
             create_fall_dst_transition_layer(
+                sensor.timezone,
                 mark,
                 event_value_field_definition,
                 event_start_field_definition,
@@ -209,7 +210,7 @@ def matrix_chart(
 
 
 def create_fall_dst_transition_layer(
-    mark, event_value_field_definition, event_start_field_definition, tooltip
+    timezone, mark, event_value_field_definition, event_start_field_definition, tooltip
 ) -> dict:
     """Special layer for showing data during the daylight savings time transition in fall."""
     return {
@@ -228,7 +229,10 @@ def create_fall_dst_transition_layer(
             },
             "color": event_value_field_definition,
             "detail": FIELD_DEFINITIONS["source"],
-            "tooltip": tooltip,
+            "tooltip": [
+                {"field": "event_start", "type": "temporal", "title": "Timezone", "timeUnit": "utc", "format": [timezone], "formatType": "timezoneFormat"},
+                *tooltip,
+            ],
         },
         "transform": [
             {
