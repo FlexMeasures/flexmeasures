@@ -81,7 +81,7 @@ class ShiftableLoadScheduler(Scheduler):
                 start,
                 end,
                 freq=sensor.event_resolution,
-                closed="left",
+                inclusive="left",
                 name="event_start",
             ),
             data=0,
