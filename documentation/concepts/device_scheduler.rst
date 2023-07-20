@@ -1,8 +1,6 @@
-:orphan:
-
 .. _device_scheduler:
 
-Device Scheduler
+Device scheduler
 ===========
 
 Introduction
@@ -19,27 +17,51 @@ The solver minimises the costs of deviating from the commitments.
 Notation
 ---------
 
+Indexes
+^^^^^^^^
 ================================ ================================================ ==============================================================================================================  
 Symbol                              Variable in the Code                           Description
 ================================ ================================================ ==============================================================================================================  
-:math:`\Delta_{up}(c,j)`              commitment_upwards_deviation                       Upwards deviation from the power commitment of the EMS.
-:math:`\Delta_{down}(c,j)`            commitment_downwards_deviation                     Downward deviation from the power commitment of the EMS.
-:math:`\Delta Stock(d,j)`                           n/a                                  Change of stock of device :math:`d` in the :math:`j` time period.
-:math:`Price_{up}(c,j)`               up_price                                           Price of incurring a upwards deviations in commitment :math:`c` in the :math:`j` time period.
-:math:`Price_{down}(c,j)`             down_price                                         Price of incurring a downward deviations in commitment :math:`c` in the :math:`j` time period.
+:math:`c`                             c                                                  Commitments.
+:math:`d`                             d                                                  Devices.
+:math:`j`                             j                                                  Time.
+================================ ================================================ ==============================================================================================================  
+
+.. note::
+  The time index :math:`j` has two interpretations: a time period or an instantaneous moment at the end of time period :math:`j`. 
+  For example, :math:`j` in flow constraints correspond to time periods, whereas :math:`j` used in a stock constraint refers end of time period :math:`j`.
+
+Parameters
+^^^^^^^^^^
+================================ ================================================ ==============================================================================================================  
+Symbol                              Variable in the Code                           Description
+================================ ================================================ ==============================================================================================================  
+:math:`Price_{up}(c,j)`               up_price                                           Price of incurring an upwards deviations in commitment :math:`c` during :math:`j` time period.
+:math:`Price_{down}(c,j)`             down_price                                         Price of incurring a downwards deviations in commitment :math:`c` during :math:`j` time period.
 :math:`\eta_{up}(d,j)`                device_derivative_up_efficiency                    Upwards conversion efficiency.
-:math:`\eta_{down}(d,j)`              device_derivative_down_efficiency                  Downward conversion efficiency.
-:math:`Stock_{min}(d,j)`              device_min                                         Minium quantity for the Stock of device :math:`d` at time :math:`j`.
-:math:`Stock_{max}(d,j)`              device_max                                         Maximum quantity for the Stock of device :math:`d` at time :math:`j`.
+:math:`\eta_{down}(d,j)`              device_derivative_down_efficiency                  Downwards conversion efficiency.
+:math:`Stock_{min}(d,j)`              device_min                                         Minimum quantity for the stock of device :math:`d` at the end of :math:`j` time period.
+:math:`Stock_{max}(d,j)`              device_max                                         Maximum quantity for the stock of device :math:`d` at the end of :math:`j` time period.
 :math:`\epsilon(d,j)`                 efficiencies                                       Stock energy losses.
-:math:`P_{up}(d,j)`                   device_power_up                                    Upwards power of device :math:`d` at time :math:`j`.
-:math:`P_{down}(d,j)`                 device_power_down                                  Downward power of device :math:`d` at time :math:`j`.
-:math:`P_{max}(d,j)`                  device_derivative_max                              Maximum flow of device :math:`d` at time  :math:`j`.
-:math:`P_{min}(d,j)`                  device_derivative_min                              Minium flow of device :math:`d` at time  :math:`j`.
-:math:`P^{ems}_{min}(j)`              ems_derivative_min                                 Minium flow of the EMS at time  :math:`j`.
-:math:`P^{ems}_{max}(j)`              ems_derivative_max                                 Maximum flow of the EMS :math:`d` at time  :math:`j`.
-:math:`P^{ems}(j)`                    ems_power                                          Aggregated power of all the devices at time :math:`j`.
-:math:`Commitment(c,j)`               commitment_quantity                                Commitments made by the EMS.
+:math:`P_{max}(d,j)`                  device_derivative_max                              Maximum flow of device :math:`d` during :math:`j` time period.
+:math:`P_{min}(d,j)`                  device_derivative_min                              Minimum flow of device :math:`d` during :math:`j` time period.
+:math:`P^{ems}_{min}(j)`              ems_derivative_min                                 Minimum flow of the EMS during :math:`j` time period.
+:math:`P^{ems}_{max}(j)`              ems_derivative_max                                 Maximum flow of the EMS during :math:`j` time period.
+:math:`Commitment(c,j)`               commitment_quantity                                Commitment c (at EMS level) over time step :math:`j`.
+================================ ================================================ ==============================================================================================================  
+
+
+Variables
+^^^^^^^^^
+================================ ================================================ ==============================================================================================================  
+Symbol                              Variable in the Code                           Description
+================================ ================================================ ==============================================================================================================  
+:math:`\Delta_{up}(c,j)`              commitment_upwards_deviation                       Upwards deviation from the power commitment :math:`c` of the EMS during :math:`j` time period.
+:math:`\Delta_{down}(c,j)`            commitment_downwards_deviation                     Downwards deviation from the power commitment :math:`c` of the EMS during :math:`j` time period.
+:math:`\Delta Stock(d,j)`                           n/a                                  Change of stock of device :math:`d` at the end of :math:`j` time period.
+:math:`P_{up}(d,j)`                   device_power_up                                    Upwards power of device :math:`d` during :math:`j` time period.
+:math:`P_{down}(d,j)`                 device_power_down                                  Downwards power of device :math:`d` during :math:`j` time period.
+:math:`P^{ems}(j)`                    ems_power                                          Aggregated power of all the devices during :math:`j` time period.
 ================================ ================================================ ==============================================================================================================  
 
 Cost Function
@@ -132,20 +154,24 @@ Device bounds
     0 \leq P_{up}(d,j)\leq max(P_{max}(d,j),0)
 
 
+Grid constraints
+^^^^^^^^^^^^^^^^^
+
+.. math:: 
+    :name: device_derivative_equalities
+
+    P^{ems}(d,j) = P_{up}(d,j) + P_{down}(d,j)
+
 .. math:: 
   :name: ems_derivative_bounds
 
     P^{ems}_{min}(j) \leq \sum_d P^{ems}(d,j) \leq P^{ems}_{max}(j)
 
-EMS Power
-^^^^^^^^^^
+Energy management system 
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. math:: 
     :name: ems_flow_commitment_equalities
 
     \sum_d P^{ems}(d,j) = \sum_c Commitment(c,j) + \Delta {up}(c,j) + \Delta {down}(c,j)
 
-.. math:: 
-    :name: device_derivative_equalities
-
-    P^{ems}(d,j) = P_{up}(d,j) + P_{down}(d,j)
