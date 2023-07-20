@@ -85,7 +85,7 @@ def check_access(context: AuthModelMixin, permission: str):
 
     Raises 401 or 403 otherwise.
     """
-    # check current user
+    # check permission and current user before taking context into account
     if permission not in PERMISSIONS:
         raise Forbidden(f"Permission '{permission}' cannot be handled.")
     if current_user.is_anonymous:

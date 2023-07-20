@@ -109,9 +109,18 @@ def permission_required_for_context(
     ctx_arg_pos: int | None = None,
     ctx_arg_name: str | None = None,
     ctx_loader: Callable | None = None,
+    pass_ctx_to_loader: bool = False,
 ):
     """
     This decorator can be used to make sure that the current user has the necessary permission to access the context.
+    The permission needs to be a known permission and is checked with principal descriptions from the context's access control list (see AuthModelMixin.__acl__).
+    This decorator will first load the context (see below for details) and then call check_access to make sure the current user has the permission.
+
+    A 403 response is raised if there is no principal for the required permission.
+    A 401 response is raised if the user is not authenticated at all.
+
+    We will now explain how to load a context, and give an example:
+
     The context needs to be an AuthModelMixin and is found ...
     - by loading it via the ctx_loader callable;
     - otherwise:
@@ -119,11 +128,7 @@ def permission_required_for_context(
       * and/or by a position in the non-keyword arguments (ctx_arg_pos).
     If nothing is passed, the context lookup defaults to ctx_arg_pos=0.
 
-    Using both ctx_arg_name and ctx_arg_pos arguments is useful when Marshmallow de-serializes to a dict and you are using use_args. In this case, the context lookup applies first ctx_arg_pos, then ctx_arg_name.
-
-    The permission needs to be a known permission and is checked with principal descriptions from the context's access control list (see AuthModelMixin.__acl__).
-
-    Usually, you'd place a marshmallow field further up in the decorator chain, e.g.:
+    Let's look at an example. Usually, you'd place a marshmallow field further up in the decorator chain, e.g.:
 
         @app.route("/resource/<resource_id>", methods=["GET"])
         @use_kwargs(
@@ -135,26 +140,58 @@ def permission_required_for_context(
         def view(resource_id: int, the_resource: Resource):
             return dict(name=the_resource.name)
 
-    Where `ResourceIdField._deserialize()` turns the id parameter into a Resource context (if possible).
+    Note that in this example, `ResourceIdField._deserialize()` turns the id parameter into a Resource context (if possible).
 
-    This decorator raises a 403 response if there is no principal for the required permission.
-    It raises a 401 response if the user is not authenticated at all.
+    The ctx_loader:
+
+      The ctx_loader can be a function without arguments or it takes the context loaded from the arguments as input (using pass_ctx_to_loader=True).
+      A special case is useful when the arguments contain the context ID (not the instance).
+      Then, the loader can be a subclass of AuthModelMixin, and this decorator will look up the instance.
+
+    Using both arg name and position:
+
+      Using both ctx_arg_name and ctx_arg_pos arguments is useful when Marshmallow de-serializes to a dict and you are using use_args. In this case, the context lookup applies first ctx_arg_pos, then ctx_arg_name.
+
+    Let's look at a slightly more complex example where we combine both special cases from above.
+    We parse a dictionary from the input with a Marshmallow schema, in which a context ID can be found which we need to instantiate:
+
+        @app.route("/resource", methods=["POST"])
+        @use_args(resource_schema)
+        @permission_required_for_context(
+            "create-children", ctx_arg_pos=1, ctx_arg_name="resource_id", ctx_loader=Resource, pass_ctx_to_loader=True
+        )
+        def post(self, resource_data: dict):
+    Note that in this example, resource_data is the input parsed by resource_schema, "resource_id" is one of the parameters in this schema, and Resource is a subclass of AuthModelMixin.
     """
 
     def wrapper(fn):
         @wraps(fn)
         def decorated_view(*args, **kwargs):
             # load & check context
-            if ctx_loader is not None:
-                context: AuthModelMixin = ctx_loader()
-            elif ctx_arg_pos is not None and ctx_arg_name is not None:
-                context = args[ctx_arg_pos][ctx_arg_name]
+            context: AuthModelMixin = None
+
+            # first set context_from_args, if possible
+            context_from_args: AuthModelMixin = None
+            if ctx_arg_pos is not None and ctx_arg_name is not None:
+                context_from_args = args[ctx_arg_pos][ctx_arg_name]
             elif ctx_arg_pos is not None:
-                context = args[ctx_arg_pos]
+                context_from_args = args[ctx_arg_pos]
             elif ctx_arg_name is not None:
-                context = kwargs[ctx_arg_name]
+                context_from_args = kwargs[ctx_arg_name]
+            elif len(args) > 0:
+                context_from_args = args[0]
+
+            # if a loader is given, use that, otherwise fall back to context_from_args
+            if ctx_loader is not None:
+                if pass_ctx_to_loader:
+                    if issubclass(ctx_loader, AuthModelMixin):
+                        context = ctx_loader.query.get(context_from_args)
+                    else:
+                        context = ctx_loader(context_from_args)
+                else:
+                    context = ctx_loader()
             else:
-                context = args[0]
+                context = context_from_args
 
             check_access(context, permission)
 

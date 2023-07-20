@@ -30,6 +30,7 @@ from flexmeasures.api.common.utils.api_utils import save_and_enqueue
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account
+from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField
@@ -539,7 +540,11 @@ class SensorAPI(FlaskView):
     @route("", methods=["POST"])
     @use_args(sensor_schema)
     @permission_required_for_context(
-        "create-children", ctx_arg_pos=0, ctx_arg_name="generic_asset_id"
+        "create-children",
+        ctx_arg_pos=1,
+        ctx_arg_name="generic_asset_id",
+        ctx_loader=GenericAsset,
+        pass_ctx_to_loader=True,
     )
     def post(self, sensor_data: dict):
         """Create new asset.
