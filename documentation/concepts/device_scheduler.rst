@@ -167,8 +167,8 @@ Grid constraints
 
     P^{ems}_{min}(j) \leq \sum_d P^{ems}(d,j) \leq P^{ems}_{max}(j)
 
-Energy management system 
-^^^^^^^^^^^^^^^^^^^^^^^^^
+Power coupling constraints
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. math:: 
     :name: ems_flow_commitment_equalities
