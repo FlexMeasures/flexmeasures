@@ -230,7 +230,14 @@ def create_fall_dst_transition_layer(
             "color": event_value_field_definition,
             "detail": FIELD_DEFINITIONS["source"],
             "tooltip": [
-                {"field": "event_start", "type": "temporal", "title": "Timezone", "timeUnit": "utc", "format": [timezone], "formatType": "timezoneFormat"},
+                {
+                    "field": "event_start",
+                    "type": "temporal",
+                    "title": "Timezone",
+                    "timeUnit": "utc",
+                    "format": [timezone],
+                    "formatType": "timezoneFormat",
+                },
                 *tooltip,
             ],
         },
