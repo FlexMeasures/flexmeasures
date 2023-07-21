@@ -29,24 +29,24 @@ Symbol                              Variable in the Code                        
 
 .. note::
   The time index :math:`j` has two interpretations: a time period or an instantaneous moment at the end of time period :math:`j`. 
-  For example, :math:`j` in flow constraints correspond to time periods, whereas :math:`j` used in a stock constraint refers end of time period :math:`j`.
+  For example, :math:`j` in flow constraints correspond to time periods, whereas :math:`j` used in a stock constraint refers to the end of time period :math:`j`.
 
 Parameters
 ^^^^^^^^^^
 ================================ ================================================ ==============================================================================================================  
 Symbol                              Variable in the Code                           Description
 ================================ ================================================ ==============================================================================================================  
-:math:`Price_{up}(c,j)`               up_price                                           Price of incurring an upwards deviations in commitment :math:`c` during :math:`j` time period.
-:math:`Price_{down}(c,j)`             down_price                                         Price of incurring a downwards deviations in commitment :math:`c` during :math:`j` time period.
+:math:`Price_{up}(c,j)`               up_price                                           Price of incurring an upwards deviations in commitment :math:`c` during time period :math:`j`.
+:math:`Price_{down}(c,j)`             down_price                                         Price of incurring a downwards deviations in commitment :math:`c` during time period :math:`j`.
 :math:`\eta_{up}(d,j)`                device_derivative_up_efficiency                    Upwards conversion efficiency.
 :math:`\eta_{down}(d,j)`              device_derivative_down_efficiency                  Downwards conversion efficiency.
-:math:`Stock_{min}(d,j)`              device_min                                         Minimum quantity for the stock of device :math:`d` at the end of :math:`j` time period.
-:math:`Stock_{max}(d,j)`              device_max                                         Maximum quantity for the stock of device :math:`d` at the end of :math:`j` time period.
+:math:`Stock_{min}(d,j)`              device_min                                         Minimum quantity for the stock of device :math:`d` at the end of time period :math:`j`.
+:math:`Stock_{max}(d,j)`              device_max                                         Maximum quantity for the stock of device :math:`d` at the end of time period :math:`j`.
 :math:`\epsilon(d,j)`                 efficiencies                                       Stock energy losses.
-:math:`P_{max}(d,j)`                  device_derivative_max                              Maximum flow of device :math:`d` during :math:`j` time period.
-:math:`P_{min}(d,j)`                  device_derivative_min                              Minimum flow of device :math:`d` during :math:`j` time period.
-:math:`P^{ems}_{min}(j)`              ems_derivative_min                                 Minimum flow of the EMS during :math:`j` time period.
-:math:`P^{ems}_{max}(j)`              ems_derivative_max                                 Maximum flow of the EMS during :math:`j` time period.
+:math:`P_{max}(d,j)`                  device_derivative_max                              Maximum flow of device :math:`d` during time period :math:`j`.
+:math:`P_{min}(d,j)`                  device_derivative_min                              Minimum flow of device :math:`d` during time period :math:`j`.
+:math:`P^{ems}_{min}(j)`              ems_derivative_min                                 Minimum flow of the EMS during time period :math:`j`.
+:math:`P^{ems}_{max}(j)`              ems_derivative_max                                 Maximum flow of the EMS during time period :math:`j`.
 :math:`Commitment(c,j)`               commitment_quantity                                Commitment c (at EMS level) over time step :math:`j`.
 ================================ ================================================ ==============================================================================================================  
 
@@ -56,15 +56,15 @@ Variables
 ================================ ================================================ ==============================================================================================================  
 Symbol                              Variable in the Code                           Description
 ================================ ================================================ ==============================================================================================================  
-:math:`\Delta_{up}(c,j)`              commitment_upwards_deviation                       Upwards deviation from the power commitment :math:`c` of the EMS during :math:`j` time period.
-:math:`\Delta_{down}(c,j)`            commitment_downwards_deviation                     Downwards deviation from the power commitment :math:`c` of the EMS during :math:`j` time period.
-:math:`\Delta Stock(d,j)`                           n/a                                  Change of stock of device :math:`d` at the end of :math:`j` time period.
-:math:`P_{up}(d,j)`                   device_power_up                                    Upwards power of device :math:`d` during :math:`j` time period.
-:math:`P_{down}(d,j)`                 device_power_down                                  Downwards power of device :math:`d` during :math:`j` time period.
-:math:`P^{ems}(j)`                    ems_power                                          Aggregated power of all the devices during :math:`j` time period.
+:math:`\Delta_{up}(c,j)`              commitment_upwards_deviation                       Upwards deviation from the power commitment :math:`c` of the EMS during time period :math:`j`.
+:math:`\Delta_{down}(c,j)`            commitment_downwards_deviation                     Downwards deviation from the power commitment :math:`c` of the EMS during time period :math:`j`.
+:math:`\Delta Stock(d,j)`                           n/a                                  Change of stock of device :math:`d` at the end of time period :math:`j`.
+:math:`P_{up}(d,j)`                   device_power_up                                    Upwards power of device :math:`d` during time period :math:`j`.
+:math:`P_{down}(d,j)`                 device_power_down                                  Downwards power of device :math:`d` during time period :math:`j`.
+:math:`P^{ems}(j)`                    ems_power                                          Aggregated power of all the devices during time period :math:`j`.
 ================================ ================================================ ==============================================================================================================  
 
-Cost Function
+Cost function
 --------------
 
 The cost function quantifies the total cost of upwards and downwards deviations from the different commitments.
@@ -75,7 +75,7 @@ The cost function quantifies the total cost of upwards and downwards deviations 
     \min [\sum_{c,j} \Delta _{up}(c,j) \cdot Price_{up}(c,j) +  \Delta_{down}(c,j) \cdot Price_{down}(c,j)]
 
 
-State Dynamics
+State dynamics
 ---------------
 
 To simplify the description of the model, the auxiliary variable :math:`\Delta Stock(d,j)` is introduced in the documentation. It represents the
@@ -94,7 +94,7 @@ change of :math:`Stock(d,j)`, taking into account conversion efficiencies but no
     Stock_{min}(d,j)  \leq Stock(d,j) - Stock(d,-1)\leq Stock_{max}(d,j) 
 
 
-Perfect Efficiency
+Perfect efficiency
 ^^^^^^^^^^^^^^^^^^^
 
 .. math:: 
@@ -102,7 +102,7 @@ Perfect Efficiency
 
     Stock(d, j) = Stock(d, j-1) + \Delta Stock(d,j)
 
-Left Efficiency
+Left efficiency
 ^^^^^^^^^^^^^^^^^
 First apply the stock change, then apply the losses (i.e. the stock changes on the left side of the time interval in which the losses apply)
 
@@ -113,7 +113,7 @@ First apply the stock change, then apply the losses (i.e. the stock changes on t
     Stock(d, j)  = (Stock(d, j-1) + \Delta Stock(d,j)) \cdot \epsilon(d,j)
 
 
-Right Efficiency
+Right efficiency
 ^^^^^^^^^^^^^^^^^
 First apply the losses, then apply the stock change (i.e. the stock changes on the right side of the time interval in which the losses apply)
 
@@ -122,7 +122,7 @@ First apply the losses, then apply the stock change (i.e. the stock changes on t
 
     Stock(d, j)  = Stock(d, j-1) \cdot \epsilon(d,j) + \Delta Stock(d,j)
 
-Linear Efficiency
+Linear efficiency
 ^^^^^^^^^^^^^^^^^
 Assume the change happens at a constant rate, leading to a linear stock change, and exponential decay, within the current interval
 
