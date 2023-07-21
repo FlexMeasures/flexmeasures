@@ -37,7 +37,7 @@ class ShiftableLoadScheduler(Scheduler):
         Parameters
         ==========
 
-        cost_sensor: it defines the utility (economic, environmental, ) in each
+        consumption_price_sensor: it defines the utility (economic, environmental, ) in each
                      time period. It has units of quantity/energy, for example, EUR/kWh.
         power: nominal power of the load.
         duration: time that the load lasts.
@@ -58,7 +58,9 @@ class ShiftableLoadScheduler(Scheduler):
         belief_time = self.belief_time
         sensor = self.sensor
 
-        cost_sensor: Sensor = self.flex_model.get("cost_sensor")
+        consumption_price_sensor: Sensor = self.flex_model.get(
+            "consumption_price_sensor"
+        )
         duration: timedelta = self.flex_model.get("duration")
         power = self.flex_model.get("power")
         optimization_sense = self.flex_model.get("optimization_sense")
@@ -66,7 +68,7 @@ class ShiftableLoadScheduler(Scheduler):
         time_restrictions = self.flex_model.get("time_restrictions")
 
         # get cost data
-        cost = cost_sensor.search_beliefs(
+        cost = consumption_price_sensor.search_beliefs(
             event_starts_after=start,
             event_ends_before=end,
             resolution=resolution,
@@ -89,11 +91,13 @@ class ShiftableLoadScheduler(Scheduler):
         )
 
         # optimize schedule for tomorrow. We can fill len(schedule) rows, at most
-        rows_to_fill = min(ceil(duration / cost_sensor.event_resolution), len(schedule))
+        rows_to_fill = min(
+            ceil(duration / consumption_price_sensor.event_resolution), len(schedule)
+        )
 
         # convert power to energy using the resolution of the sensor.
         # e.g. resolution=15min, power=1kW -> energy=250W
-        energy = power * cost_sensor.event_resolution / timedelta(hours=1)
+        energy = power * consumption_price_sensor.event_resolution / timedelta(hours=1)
 
         if rows_to_fill > len(schedule):
             raise ValueError(
