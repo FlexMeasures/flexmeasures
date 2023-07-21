@@ -40,7 +40,7 @@ class ShiftableLoadScheduler(Scheduler):
         consumption_price_sensor: it defines the utility (economic, environmental, ) in each
                      time period. It has units of quantity/energy, for example, EUR/kWh.
         power: nominal power of the load.
-        duration: time that the load lasts.
+        duration: time that the load last.
 
         optimization_sense: objective of the scheduler, to maximize or minimize.
         time_restrictions: time periods in which the load cannot be schedule to.

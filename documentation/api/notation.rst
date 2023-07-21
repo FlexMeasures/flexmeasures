@@ -204,7 +204,13 @@ Here are the three types of flexibility models you can expect to be built-in:
 
 2) For **shiftable processes**
    
-   .. todo:: A simple and proven algorithm exists, but is awaiting proper integration into FlexMeasures, see `PR 729 <https://github.com/FlexMeasures/flexmeasures/pull/729>`_.
+    - ``consumption_price_sensor``: it defines the utility (economic, environmental, ) in each time period. It has units of quantity/energy, for example, EUR/kWh.
+    - ``power``: nominal power of the load.
+    - ``duration``: time that the load last.
+    - ``optimization_sense``: objective of the scheduler, to maximize or minimize.
+    - ``time_restrictions``: time periods in which the load cannot be schedule to.
+    - ``load_type``: Inflexible, Breakable or Shiftable.
+
 
 3) For **buffer devices** (e.g. thermal energy storage systems connected to heat pumps), use the same flexibility parameters described above for storage devices. Here are some tips to model a buffer with these parameters:
 
