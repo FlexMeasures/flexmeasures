@@ -12,7 +12,10 @@ from marshmallow import (
 )
 
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
+from flexmeasures.data.schemas.times import (
+    DurationField,
+    TimeIntervalSchema,
+)
 
 
 from flexmeasures.data.schemas.sensors import SensorIdField
@@ -31,13 +34,8 @@ class OptimizationSense(Enum):
     MIN = "MIN"
 
 
-class TimeIntervalSchema(Schema):
-    start = AwareDateTimeField(required=True)
-    duration = DurationField(required=True)
-
-
 class ShiftableLoadFlexModelSchema(Schema):
-    cost_sensor = SensorIdField(data_key="cost-sensor")
+    consumption_price_sensor = SensorIdField(data_key="consumption-price-sensor")
     duration = DurationField(required=True)
     power = fields.Float(required=True)
 

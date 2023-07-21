@@ -28,7 +28,7 @@ def test_shiftable_scheduler(
     epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
 
     flex_model = {
-        "cost-sensor": epex_da.id,
+        "consumption-price-sensor": epex_da.id,
         "duration": "PT4H",
         "load-type": load_type,
         "power": 4,
@@ -68,7 +68,7 @@ def test_duration_exceeds_planning_window(
     epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
 
     flex_model = {
-        "cost-sensor": epex_da.id,
+        "consumption-price-sensor": epex_da.id,
         "duration": "PT48H",
         "load-type": load_type,
         "power": 4,
@@ -100,7 +100,7 @@ def test_shiftable_scheduler_time_restrictions(add_battery_assets, shiftable_loa
     # time parameters
 
     flex_model = {
-        "cost-sensor": epex_da.id,
+        "consumption-price-sensor": epex_da.id,
         "duration": "PT4H",
         "load-type": "SHIFTABLE",
         "power": 4,
@@ -147,7 +147,7 @@ def test_breakable_scheduler_time_restrictions(add_battery_assets, shiftable_loa
     # time parameters
 
     flex_model = {
-        "cost-sensor": epex_da.id,
+        "consumption-price-sensor": epex_da.id,
         "duration": "PT4H",
         "load-type": "BREAKABLE",
         "power": 4,
@@ -199,7 +199,7 @@ def test_impossible_schedules(
     epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
 
     flex_model = {
-        "cost-sensor": epex_da.id,
+        "consumption-price-sensor": epex_da.id,
         "duration": "PT4H",
         "load-type": load_type,
         "power": 4,

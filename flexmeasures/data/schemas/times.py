@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta
 
 from flask import current_app
-from marshmallow import fields
+from marshmallow import fields, Schema
+from marshmallow.exceptions import ValidationError
 import isodate
 from isodate.isoerror import ISO8601Error
 import pandas as pd
@@ -84,3 +86,20 @@ class AwareDateTimeField(MarshmallowClickMixin, fields.AwareDateTime):
         """
         value = value.replace(" ", "+")
         return fields.AwareDateTime._deserialize(self, value, attr, obj, **kwargs)
+
+
+class TimeIntervalSchema(Schema):
+    start = AwareDateTimeField(required=True)
+    duration = DurationField(required=True)
+
+
+class TimeIntervalField(MarshmallowClickMixin, fields.Dict):
+    """Field that de-serializes to a TimeInverval defined with start and duration."""
+
+    def _deserialize(self, value: str, attr, obj, **kwargs) -> datetime:
+        try:
+            v = json.loads(value)
+        except json.JSONDecodeError:
+            raise ValidationError()
+
+        return TimeIntervalSchema().load(v)

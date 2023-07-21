@@ -5,6 +5,11 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL, allowing developers to upgrade at their own pace.
 
+v3.0-11 | 2023-07-20
+""""""""""""""""""""
+
+- Added REST endpoint for fetching one sensor: `/sensors/<id>` (GET)
+
 v3.0-10 | 2023-06-12
 """"""""""""""""""""
 
