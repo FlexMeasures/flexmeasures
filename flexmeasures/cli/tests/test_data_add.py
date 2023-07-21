@@ -237,6 +237,7 @@ def test_add_shiftable(
         "load-power": "0.4MW",
         "load-type": load_type,
         "consumption-price-sensor": epex_da.id,
+        "forbid": '{"start" : "2015-01-02T00:00:00+01:00", "duration" : "PT2H"}',
     }
 
     cli_input = to_flags(cli_input_params)

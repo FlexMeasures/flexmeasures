@@ -5,7 +5,7 @@ CLI commands for populating the database
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Type
+from typing import Type, List
 import json
 from pathlib import Path
 from io import TextIOBase
@@ -51,7 +51,9 @@ from flexmeasures.data.schemas import (
     LatitudeField,
     LongitudeField,
     SensorIdField,
+    TimeIntervalField,
 )
+from flexmeasures.data.schemas.times import TimeIntervalSchema
 from flexmeasures.data.schemas.scheduling.storage import EfficiencyField
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.schemas.units import QuantityField
@@ -1211,6 +1213,15 @@ def add_schedule_for_storage(
     help="Constant power of the load during the activation period.",
 )
 @click.option(
+    "--forbid",
+    type=TimeIntervalField(),
+    multiple=True,
+    required=False,
+    help="Add time restrictions to the optimization, where the load will not be scheduled into."
+    'Use the following format to define the restrictions: `{"start":<timezone-aware datetime in ISO 6801>, "duration":<ISO 6801 duration>}`'
+    "This options allows to define multiple time restrictions by using the --forbid for different periods.",
+)
+@click.option(
     "--as-job",
     is_flag=True,
     help="Whether to queue a scheduling job instead of computing directly. "
@@ -1224,6 +1235,7 @@ def add_schedule_shiftable_load(
     load_duration: timedelta,
     load_type: str,
     load_power: ur.Quantity,
+    forbid: List | None = None,
     as_job: bool = False,
 ):
     """Create a new schedule for a shiftable asset.
@@ -1232,6 +1244,10 @@ def add_schedule_shiftable_load(
     - Only supports consumption blocks.
     - Not taking into account grid constraints or other loads.
     """
+
+    if forbid is None:
+        forbid = []
+
     # Parse input and required sensor attributes
     if not power_sensor.measures_power:
         click.secho(
@@ -1250,10 +1266,11 @@ def add_schedule_shiftable_load(
         belief_time=server_now(),
         resolution=power_sensor.event_resolution,
         flex_model={
-            "cost-sensor": consumption_price_sensor.id,
+            "consumption-price-sensor": consumption_price_sensor.id,
             "duration": pd.Timedelta(load_duration).isoformat(),
             "load-type": load_type,
             "power": load_power,
+            "time-restrictions": [TimeIntervalSchema().dump(f) for f in forbid],
         },
     )
 
