@@ -67,4 +67,3 @@ Flask-SQLAlchemy>=2.4.3,<3
 # flask should be after all the flask plugins, because setup might find they ARE flask
 # <2.3: https://github.com/Parallels/rq-dashboard/issues/417 and https://github.com/FlexMeasures/flexmeasures/issues/754 and flask-login 0.6.1 not compatible
 flask>=1.0, <=2.1.2
-werkzeug<=2.1
