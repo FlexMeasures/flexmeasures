@@ -18,7 +18,7 @@ from pyomo.core import (
 )
 from pyomo.environ import UnknownSolver  # noqa F401
 from pyomo.environ import value
-from pyomo.opt import SolverFactory, SolverResults, TerminationCondition
+from pyomo.opt import SolverFactory, SolverResults
 
 from flexmeasures.data.models.planning.utils import initialize_series
 from flexmeasures.utils.calculations import apply_stock_changes_and_losses
@@ -346,7 +346,7 @@ def device_scheduler(  # noqa C901
     )
 
     # load the results only if the termination condition is not infeasible
-    if results.solver.termination_condition != TerminationCondition.infeasible:
+    if len(results.solution) > 0:
         model.solutions.load_from(results)
 
     planned_costs = value(model.costs)
