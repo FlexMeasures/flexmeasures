@@ -366,16 +366,15 @@ def run_device_scheduler(  # noqa C901
     model.costs = Objective(rule=cost_function, sense=minimize)
 
     # Solve
-    solver_name = current_app.config.get("FLEXMEASURES_LP_SOLVER")
-    opt = SolverFactory(solver_name)
 
-    if "highs" in solver_name.lower():
-        try:
-            results = opt.solve(model)
-        except RuntimeError:
-            results = opt.solve(model, load_solutions=False)
-    else:
-        results = opt.solve(model)
+    # load_solutions=False to avoid a RuntimeError exception in appsi solvers when solving an infeasible problem.
+    results = SolverFactory(current_app.config.get("FLEXMEASURES_LP_SOLVER")).solve(
+        model, load_solutions=False
+    )
+
+    # load the results only if the termination condition is not infeasible
+    if len(results.solution) > 0:
+        model.solutions.load_from(results)
 
     return model, results
 
