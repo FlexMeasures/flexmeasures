@@ -340,7 +340,7 @@ def device_scheduler(  # noqa C901
 
     # Solve
 
-    # load_solutions=False to avoid a RuntimeError exceptions in HiGHS when solving and infeasible problem.
+    # load_solutions=False to avoid a RuntimeError exception in appsi solvers when solving an infeasible problem.
     results = SolverFactory(current_app.config.get("FLEXMEASURES_LP_SOLVER")).solve(
         model, load_solutions=False
     )
