@@ -48,8 +48,8 @@ Keep in mind that FlexMeasures is based on `Flask <https://flask.palletsprojects
 Install the linear solver on the server
 ---------------------------------------
 
-To compute schedules, FlexMeasures uses the `Cbc <https://github.com/coin-or/Cbc>`_ or `HiGHS <https://highs.dev/>`_ mixed integer linear optimization solvers.
-It is used through `Pyomo <http://www.pyomo.org>`_\ , so in principle supporting a `different solver <https://pyomo.readthedocs.io/en/stable/solving_pyomo_models.html#supported-solvers>`_ would be possible.
+To compute schedules, FlexMeasures uses the `Cbc <https://github.com/coin-or/Cbc>`_ (FlexMeasures solver by default) or `HiGHS <https://highs.dev/>`_ mixed integer linear optimization solver.
+Solvers are used through `Pyomo <http://www.pyomo.org>`_\ , so in principle supporting a `different solver <https://pyomo.readthedocs.io/en/stable/solving_pyomo_models.html#supported-solvers>`_ would be possible.
 
 Cbc needs to be present on the server where FlexMeasures runs, under the ``cbc`` command.
 

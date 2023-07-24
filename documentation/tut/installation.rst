@@ -247,7 +247,7 @@ More information (e.g. for installing on Windows) on `the Cbc website <https://p
 HiGHS
 ******
 
-HiGHS is a modern LP solver that aims at solving large problems. It can installed using pip:
+HiGHS is a modern LP solver that aims at solving large problems. It can be installed using pip:
 
 .. code-block:: bash
 
