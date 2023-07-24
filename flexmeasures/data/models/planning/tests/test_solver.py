@@ -12,6 +12,7 @@ from flexmeasures.data.models.planning.storage import (
     add_storage_constraints,
     validate_storage_constraints,
 )
+from flexmeasures.data.models.planning.linear_optimization import run_device_scheduler
 from flexmeasures.data.models.planning.tests.utils import check_constraints
 from flexmeasures.data.models.planning.utils import initialize_series, initialize_df
 from flexmeasures.utils.calculations import (
@@ -83,7 +84,7 @@ def test_battery_solver_day_1(
     schedule = scheduler.compute()
 
     # Check if constraints were met
-    soc_schedule = check_constraints(battery, schedule, soc_at_start)
+    check_constraints(battery, schedule, soc_at_start)
 
 
 @pytest.mark.parametrize(
@@ -135,7 +136,9 @@ def test_battery_solver_day_2(
     schedule = scheduler.compute()
 
     # Check if constraints were met
-    soc_schedule = check_constraints(battery, schedule, soc_at_start, roundtrip_efficiency, storage_efficiency)
+    soc_schedule = check_constraints(
+        battery, schedule, soc_at_start, roundtrip_efficiency, storage_efficiency
+    )
 
     # Check whether the resulting soc schedule follows our expectations for 8 expensive, 8 cheap and 8 expensive hours
     assert soc_schedule.iloc[-1] == max(
@@ -168,11 +171,22 @@ def test_battery_solver_day_2(
         )
 
 
-# @pytest.mark.parametrize("use_inflexible_device", [False, True])
+@pytest.mark.parametrize("use_inflexible_device", [False, True])
 def test_battery_solver_day_3(
     # add_battery_assets, add_inflexible_device_forecasts, use_inflexible_device
-    add_battery_assets, add_inflexible_device_forecasts, use_inflexible_device = False
+    add_battery_assets,
+    add_inflexible_device_forecasts,
+    use_inflexible_device=False,
 ):
+    """Check battery scheduling results for day 3, which is set up with
+    8 hours with negative prices, followed by 16 expensive hours.
+
+    The battery is expected not to exploit the mechanism of charging and discharging within a time period
+    taking advantage of the inverter losses (heat) to consume energy. Nevertheless, as the consumption and production
+    prices are equal, the battery follows an oscillating dynamic in periods with negative prices. Again, due to conversion
+    efficiencies, the battery will charge **less** and will be able to discharge **more** than what is actually stored.
+
+    """
     epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
     battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
     assert battery.get_attribute("market_id") == epex_da.id
@@ -201,13 +215,44 @@ def test_battery_solver_day_3(
             else []
         },
     )
-    schedule = scheduler.compute()
 
-    # Check if constraints were met
-    soc_schedule = check_constraints(battery, schedule, soc_at_start, roundtrip_efficiency, storage_efficiency)
+    (
+        sensor,
+        start,
+        end,
+        resolution,
+        soc_at_start,
+        device_constraints,
+        ems_constraints,
+        commitment_quantities,
+        commitment_downwards_deviation_price,
+        commitment_upwards_deviation_price,
+    ) = scheduler._prepare(skip_validation=True)
 
-    # Check other assumptions
-    raise NotImplementedError("todo: check other assumptions")
+    model, results = run_device_scheduler(
+        device_constraints,
+        ems_constraints,
+        commitment_quantities,
+        commitment_downwards_deviation_price,
+        commitment_upwards_deviation_price,
+        initial_stock=soc_at_start * (timedelta(hours=1) / resolution),
+    )
+
+    device_power_sign = pd.Series(model.device_power_sign.extract_values())[0]
+    device_power_up = pd.Series(model.device_power_up.extract_values())[0]
+    device_power_down = pd.Series(model.device_power_down.extract_values())[0]
+
+    is_power_down = ~np.isclose(abs(device_power_down), 0)
+    is_power_up = ~np.isclose(abs(device_power_up), 0)
+
+    # only one power active at a time
+    assert (~(is_power_down & is_power_up)).all()
+
+    # downwards power not active when the binary variable is 1
+    assert (~is_power_down[device_power_sign == 1.0]).all()
+
+    # upwards power not active when the binary variable is 0
+    assert (~is_power_up[device_power_sign == 0.0]).all()
 
 
 @pytest.mark.parametrize(
