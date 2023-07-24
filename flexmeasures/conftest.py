@@ -510,7 +510,7 @@ def create_beliefs(db: SQLAlchemy, setup_markets, setup_sources) -> int:
 def add_market_prices(
     db: SQLAlchemy, setup_assets, setup_markets, setup_sources
 ) -> dict[str, Sensor]:
-    """Add two days of market prices for the EPEX day-ahead market."""
+    """Add three days of market prices for the EPEX day-ahead market."""
 
     # one day of test data (one complete sine curve)
     time_slots = initialize_index(
@@ -551,6 +551,25 @@ def add_market_prices(
         for dt, val in zip(time_slots, values)
     ]
     db.session.add_all(day2_beliefs)
+
+    # the third day of test data (8 hours with negative prices, followed by 16 expensive hours)
+    time_slots = initialize_index(
+        start=pd.Timestamp("2015-01-03").tz_localize("Europe/Amsterdam"),
+        end=pd.Timestamp("2015-01-04").tz_localize("Europe/Amsterdam"),
+        resolution="1H",
+    )
+    values = [-10] * 8 + [100] * 16
+    day3_beliefs = [
+        TimedBelief(
+            event_start=dt,
+            belief_horizon=timedelta(hours=0),
+            event_value=val,
+            source=setup_sources["Seita"],
+            sensor=setup_markets["epex_da"].corresponding_sensor,
+        )
+        for dt, val in zip(time_slots, values)
+    ]
+    db.session.add_all(day3_beliefs)
     return {"epex_da": setup_markets["epex_da"].corresponding_sensor}
 
 

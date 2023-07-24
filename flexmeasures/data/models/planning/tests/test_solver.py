@@ -12,6 +12,7 @@ from flexmeasures.data.models.planning.storage import (
     add_storage_constraints,
     validate_storage_constraints,
 )
+from flexmeasures.data.models.planning.tests.utils import check_constraints
 from flexmeasures.data.models.planning.utils import initialize_series, initialize_df
 from flexmeasures.utils.calculations import (
     apply_stock_changes_and_losses,
@@ -80,19 +81,9 @@ def test_battery_solver_day_1(
         },
     )
     schedule = scheduler.compute()
-    soc_schedule = integrate_time_series(schedule, soc_at_start, decimal_precision=6)
-
-    with pd.option_context("display.max_rows", None, "display.max_columns", 3):
-        print(soc_schedule)
 
     # Check if constraints were met
-    assert (
-        min(schedule.values) >= battery.get_attribute("capacity_in_mw") * -1 - TOLERANCE
-    )
-    assert max(schedule.values) <= battery.get_attribute("capacity_in_mw")
-    for soc in soc_schedule.values:
-        assert soc >= battery.get_attribute("min_soc_in_mwh")
-        assert soc <= battery.get_attribute("max_soc_in_mwh")
+    soc_schedule = check_constraints(battery, schedule, soc_at_start)
 
 
 @pytest.mark.parametrize(
@@ -142,24 +133,9 @@ def test_battery_solver_day_2(
         },
     )
     schedule = scheduler.compute()
-    soc_schedule = integrate_time_series(
-        schedule,
-        soc_at_start,
-        up_efficiency=roundtrip_efficiency**0.5,
-        down_efficiency=roundtrip_efficiency**0.5,
-        storage_efficiency=storage_efficiency,
-        decimal_precision=6,
-    )
-
-    with pd.option_context("display.max_rows", None, "display.max_columns", 3):
-        print(soc_schedule)
 
     # Check if constraints were met
-    assert min(schedule.values) >= battery.get_attribute("capacity_in_mw") * -1
-    assert max(schedule.values) <= battery.get_attribute("capacity_in_mw") + TOLERANCE
-    for soc in soc_schedule.values:
-        assert soc >= max(soc_min, battery.get_attribute("min_soc_in_mwh"))
-        assert soc <= battery.get_attribute("max_soc_in_mwh")
+    soc_schedule = check_constraints(battery, schedule, soc_at_start, roundtrip_efficiency, storage_efficiency)
 
     # Check whether the resulting soc schedule follows our expectations for 8 expensive, 8 cheap and 8 expensive hours
     assert soc_schedule.iloc[-1] == max(
@@ -190,6 +166,48 @@ def test_battery_solver_day_2(
         assert soc_schedule.loc[start + timedelta(hours=16)] == max(
             soc_min, battery.get_attribute("min_soc_in_mwh")
         )
+
+
+# @pytest.mark.parametrize("use_inflexible_device", [False, True])
+def test_battery_solver_day_3(
+    # add_battery_assets, add_inflexible_device_forecasts, use_inflexible_device
+    add_battery_assets, add_inflexible_device_forecasts, use_inflexible_device = False
+):
+    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
+    assert battery.get_attribute("market_id") == epex_da.id
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 3))
+    end = tz.localize(datetime(2015, 1, 4))
+    resolution = timedelta(minutes=15)
+    soc_at_start = battery.get_attribute("soc_in_mwh")
+    roundtrip_efficiency = 0.8
+    storage_efficiency = 1
+    scheduler: Scheduler = StorageScheduler(
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model={
+            "soc-at-start": soc_at_start,
+            "roundtrip-efficiency": roundtrip_efficiency,
+            "storage-efficiency": storage_efficiency,
+        },
+        flex_context={
+            "inflexible-device-sensors": [
+                s.id for s in add_inflexible_device_forecasts.keys()
+            ]
+            if use_inflexible_device
+            else []
+        },
+    )
+    schedule = scheduler.compute()
+
+    # Check if constraints were met
+    soc_schedule = check_constraints(battery, schedule, soc_at_start, roundtrip_efficiency, storage_efficiency)
+
+    # Check other assumptions
+    raise NotImplementedError("todo: check other assumptions")
 
 
 @pytest.mark.parametrize(

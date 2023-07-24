@@ -12,6 +12,7 @@ from pyomo.core import (
     Reals,
     NonNegativeReals,
     NonPositiveReals,
+    Binary,
     Constraint,
     Objective,
     minimize,
@@ -234,6 +235,7 @@ def device_scheduler(  # noqa C901
         model.d, model.j, domain=NonPositiveReals, initialize=0
     )
     model.device_power_up = Var(model.d, model.j, domain=NonNegativeReals, initialize=0)
+    model.device_power_sign = Var(model.d, model.j, domain=Binary, initialize=0)
     model.commitment_downwards_deviation = Var(
         model.c, model.j, domain=NonPositiveReals, initialize=0
     )
@@ -287,6 +289,16 @@ def device_scheduler(  # noqa C901
             max(0, m.device_derivative_max[d, j]),
         )
 
+    def device_up_derivative_sign(m, d, j):
+        """Derivative up if sign points up, derivative not up if sign points down."""
+        # todo determine 1000 from min/max power (we can safely assume these are never None)
+        return m.device_power_up[d, j] <= 1000 * m.device_power_sign[d, j]
+
+    def device_down_derivative_sign(m, d, j):
+        """Derivative down if sign points down, derivative not down if sign points up."""
+        # todo determine 1000 from min/max power (we can safely assume these are never None)
+        return -m.device_power_down[d, j] <= 1000 * (1 - m.device_power_sign[d, j])
+
     def ems_derivative_bounds(m, j):
         return m.ems_derivative_min[j], sum(m.ems_power[:, j]), m.ems_derivative_max[j]
 
@@ -318,6 +330,12 @@ def device_scheduler(  # noqa C901
     )
     model.device_power_up_bounds = Constraint(
         model.d, model.j, rule=device_up_derivative_bounds
+    )
+    model.device_power_up_sign = Constraint(
+        model.d, model.j, rule=device_up_derivative_sign
+    )
+    model.device_power_down_sign = Constraint(
+        model.d, model.j, rule=device_down_derivative_sign
     )
     model.ems_power_bounds = Constraint(model.j, rule=ems_derivative_bounds)
     model.ems_power_commitment_equalities = Constraint(
