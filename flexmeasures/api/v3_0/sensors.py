@@ -48,6 +48,7 @@ get_sensor_schema = GetSensorDataSchema()
 post_sensor_schema = PostSensorDataSchema()
 sensors_schema = SensorSchema(many=True)
 sensor_schema = SensorSchema()
+partial_sensor_schema = SensorSchema(partial=True, exclude=["generic_asset_id"])
 
 
 class SensorAPI(FlaskView):
@@ -532,10 +533,8 @@ class SensorAPI(FlaskView):
         """
 
         sensor.resolution = sensor.event_resolution
-        sensor_dict = sensor_schema.dump(sensor)
-        del sensor_dict["event_resolution"]
-
-        return sensor_dict, 200
+        
+        return sensor_schema.dump(sensor), 200
 
     @route("", methods=["POST"])
     @use_args(sensor_schema)
@@ -546,6 +545,7 @@ class SensorAPI(FlaskView):
         ctx_loader=GenericAsset,
         pass_ctx_to_loader=True,
     )
+    @as_json
     def post(self, sensor_data: dict):
         """Create new asset.
 
@@ -582,3 +582,59 @@ class SensorAPI(FlaskView):
         db.session.commit()
         sensor.resolution = sensor.event_resolution
         return sensor_schema.dump(sensor), 201
+
+
+
+    @route("/<id>", methods=["PATCH"])
+    @use_args(partial_sensor_schema)
+    @use_kwargs({"db_sensor": SensorIdField(data_key="id")}, location="path")
+    @permission_required_for_context("update", ctx_arg_name="db_sensor")
+    @as_json
+    def patch(self, sensor_data: dict, id: int, db_sensor: Sensor):
+        """Update an sensor given its identifier.
+
+        .. :quickref: Sensor; Update a sensor
+
+        This endpoint sets data for an existing sensor.
+        Any subset of sensor fields can be sent.
+
+        The following fields are not allowed to be updated:
+        - id
+        - generic_asset_id
+
+        **Example request**
+
+        .. sourcecode:: json
+
+            {
+                "name": "POWER",
+            }
+
+        **Example response**
+
+        The whole sensor is returned in the response:
+
+        .. sourcecode:: json
+
+            {
+                "name": "POWER",
+                "resolution": "PT1H",
+                "unit": "kWh",
+                "generic_asset_id": 1,
+            }
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 200: UPDATED
+        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+        for k, v in sensor_data.items():
+            setattr(db_sensor, k, v)
+        db.session.add(db_sensor)
+        print(db_sensor)
+        db.session.commit()
+        return sensor_schema.dump(db_sensor), 200

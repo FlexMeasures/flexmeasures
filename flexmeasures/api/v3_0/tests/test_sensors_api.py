@@ -45,7 +45,7 @@ def test_post_a_sensor(client, setup_api_test_data):
         json=post_data,
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
-    print("Server responded with:\n%s" % post_sensor_response.json)
+
     assert post_sensor_response.status_code == 201
     assert post_sensor_response.json["name"] == "power"
     assert post_sensor_response.json["resolution"] == "PT1H"
@@ -53,3 +53,14 @@ def test_post_a_sensor(client, setup_api_test_data):
     sensor: Sensor = Sensor.query.filter_by(name="power").one_or_none()
     assert sensor is not None
     assert sensor.unit == "kWh"
+
+    sensor_edit_response = client.patch(
+        url_for("SensorAPI:patch", id=sensor.id),
+        headers={"content-type": "application/json", "Authorization": auth_token},
+        json={
+            "name": "POWER",
+        },
+    )
+
+    assert sensor_edit_response.json["name"] == "POWER"
+
