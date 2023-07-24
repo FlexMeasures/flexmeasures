@@ -11,8 +11,6 @@ WORKDIR /app
 # requirements - doing this earlier, so we don't install them each time. Use --no-cache to refresh them.
 COPY requirements /app/requirements
 
-
-
 # py dev tooling
 RUN python3 -m pip install --no-cache-dir  --upgrade pip && python3 --version && pip3 install --no-cache-dir --upgrade setuptools && pip3 install highspy && pip3 install --no-cache-dir -r requirements/app.txt -r requirements/dev.txt -r requirements/test.txt
 
