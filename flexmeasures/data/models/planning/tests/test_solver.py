@@ -172,7 +172,7 @@ def test_battery_solver_day_3(
     # add_battery_assets, add_inflexible_device_forecasts, use_inflexible_device
     add_battery_assets,
     add_inflexible_device_forecasts,
-    use_inflexible_device=False,
+    use_inflexible_device,
 ):
     """Check battery scheduling results for day 3, which is set up with
     8 hours with negative prices, followed by 16 expensive hours.

@@ -426,7 +426,7 @@ def device_scheduler(  # noqa C901
     resolution = pd.to_timedelta(device_constraints[0].index.freq).to_pytimedelta()
     end = device_constraints[0].index.to_pydatetime()[-1] + resolution
 
-    model, results = run_device_scheduler_model(  # noqa C901
+    model, results = run_device_scheduler(  # noqa C901
         device_constraints,
         ems_constraints,
         commitment_quantities,
