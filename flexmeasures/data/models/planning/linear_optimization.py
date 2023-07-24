@@ -27,15 +27,17 @@ from flexmeasures.utils.calculations import apply_stock_changes_and_losses
 infinity = float("inf")
 
 
-def device_scheduler(  # noqa C901
+def run_device_scheduler(  # noqa C901
     device_constraints: List[pd.DataFrame],
     ems_constraints: pd.DataFrame,
     commitment_quantities: List[pd.Series],
     commitment_downwards_deviation_price: Union[List[pd.Series], List[float]],
     commitment_upwards_deviation_price: Union[List[pd.Series], List[float]],
     initial_stock: float = 0,
-) -> Tuple[List[pd.Series], float, SolverResults]:
-    """This generic device scheduler is able to handle an EMS with multiple devices,
+) -> Tuple[ConcreteModel, SolverResults]:
+    """This function solves the device scheduler model, returning the solution and the result metadata.
+
+    This generic device scheduler is able to handle an EMS with multiple devices,
     with various types of constraints on the EMS level and on the device level,
     and with multiple market commitments on the EMS level.
     A typical example is a house with many devices.
@@ -92,6 +94,15 @@ def device_scheduler(  # noqa C901
                 "Not implemented for different resolutions.\n%s\n%s"
                 % (resolution, resolution_c)
             )
+
+    # Compute a good value for M
+    M = 0.1
+    for device_constraint in device_constraints:
+        M = max(
+            M,
+            device_constraint["derivative max"].max(),
+            -device_constraint["derivative min"].min(),
+        )
 
     # Turn prices per commitment into prices per commitment flow
     if len(commitment_downwards_deviation_price) != 0:
@@ -291,13 +302,11 @@ def device_scheduler(  # noqa C901
 
     def device_up_derivative_sign(m, d, j):
         """Derivative up if sign points up, derivative not up if sign points down."""
-        # todo determine 1000 from min/max power (we can safely assume these are never None)
-        return m.device_power_up[d, j] <= 1000 * m.device_power_sign[d, j]
+        return m.device_power_up[d, j] <= M * m.device_power_sign[d, j]
 
     def device_down_derivative_sign(m, d, j):
         """Derivative down if sign points down, derivative not down if sign points up."""
-        # todo determine 1000 from min/max power (we can safely assume these are never None)
-        return -m.device_power_down[d, j] <= 1000 * (1 - m.device_power_sign[d, j])
+        return -m.device_power_down[d, j] <= M * (1 - m.device_power_sign[d, j])
 
     def ems_derivative_bounds(m, j):
         return m.ems_derivative_min[j], sum(m.ems_power[:, j]), m.ems_derivative_max[j]
@@ -367,6 +376,65 @@ def device_scheduler(  # noqa C901
             results = opt.solve(model, load_solutions=False)
     else:
         results = opt.solve(model)
+
+    return model, results
+
+
+def device_scheduler(  # noqa C901
+    device_constraints: List[pd.DataFrame],
+    ems_constraints: pd.DataFrame,
+    commitment_quantities: List[pd.Series],
+    commitment_downwards_deviation_price: Union[List[pd.Series], List[float]],
+    commitment_upwards_deviation_price: Union[List[pd.Series], List[float]],
+    initial_stock: float = 0,
+) -> Tuple[List[pd.Series], float, SolverResults]:
+    """This generic device scheduler is able to handle an EMS with multiple devices,
+    with various types of constraints on the EMS level and on the device level,
+    and with multiple market commitments on the EMS level.
+    A typical example is a house with many devices.
+    The commitments are assumed to be with regard to the flow of energy to the device (positive for consumption,
+    negative for production). The solver minimises the costs of deviating from the commitments.
+
+    Device constraints are on a device level. Handled constraints (listed by column name):
+        max: maximum stock assuming an initial stock of zero (e.g. in MWh or boxes)
+        min: minimum stock assuming an initial stock of zero
+        equal: exact amount of stock (we do this by clamping min and max)
+        efficiency: amount of stock left at the next datetime (the rest is lost)
+        derivative max: maximum flow (e.g. in MW or boxes/h)
+        derivative min: minimum flow
+        derivative equals: exact amount of flow (we do this by clamping derivative min and derivative max)
+        derivative down efficiency: conversion efficiency of flow out of a device (flow out : stock decrease)
+        derivative up efficiency: conversion efficiency of flow into a device (stock increase : flow in)
+    EMS constraints are on an EMS level. Handled constraints (listed by column name):
+        derivative max: maximum flow
+        derivative min: minimum flow
+    Commitments are on an EMS level. Parameter explanations:
+        commitment_quantities: amounts of flow specified in commitments (both previously ordered and newly requested)
+            - e.g. in MW or boxes/h
+        commitment_downwards_deviation_price: penalty for downwards deviations of the flow
+            - e.g. in EUR/MW or EUR/(boxes/h)
+            - either a single value (same value for each flow value) or a Series (different value for each flow value)
+        commitment_upwards_deviation_price: penalty for upwards deviations of the flow
+
+    All Series and DataFrames should have the same resolution.
+
+    For now, we pass in the various constraints and prices as separate variables, from which we make a MultiIndex
+    DataFrame. Later we could pass in a MultiIndex DataFrame directly.
+    """
+
+    start = device_constraints[0].index.to_pydatetime()[0]
+    # Workaround for https://github.com/pandas-dev/pandas/issues/53643. Was: resolution = pd.to_timedelta(device_constraints[0].index.freq)
+    resolution = pd.to_timedelta(device_constraints[0].index.freq).to_pytimedelta()
+    end = device_constraints[0].index.to_pydatetime()[-1] + resolution
+
+    model, results = run_device_scheduler_model(  # noqa C901
+        device_constraints,
+        ems_constraints,
+        commitment_quantities,
+        commitment_downwards_deviation_price,
+        commitment_upwards_deviation_price,
+        initial_stock,
+    )
 
     planned_costs = value(model.costs)
     planned_power_per_device = []
