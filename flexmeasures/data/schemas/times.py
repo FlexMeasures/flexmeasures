@@ -96,7 +96,7 @@ class TimeIntervalSchema(Schema):
 class TimeIntervalField(MarshmallowClickMixin, fields.Dict):
     """Field that de-serializes to a TimeInverval defined with start and duration."""
 
-    def _deserialize(self, value: str, attr, obj, **kwargs) -> datetime:
+    def _deserialize(self, value: str, attr, obj, **kwargs) -> dict:
         try:
             v = json.loads(value)
         except json.JSONDecodeError:

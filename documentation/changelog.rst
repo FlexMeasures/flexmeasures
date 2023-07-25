@@ -29,6 +29,16 @@ Infrastructure / Support
 * The endpoint `[POST] /health/ready <api/v3_0.html#get--api-v3_0-health-ready>`_ returns the status of the Redis connection, if configured [see `PR #699 <https://www.github.com/FlexMeasures/flexmeasures/pull/699>`_]
 * Document the `device_scheduler` linear program [see `PR #764 <https://www.github.com/FlexMeasures/flexmeasures/pull/764>`_].
 
+
+v0.14.2 | July 25, 2023
+============================
+
+Bugfixes
+-----------
+
+* The error handling for infeasible constraints in storage.py was given too many arguments. This caused the response from the API to be unhelpful when a schedule was requested with infeasible constraints. [see `PR #758 <https://github.com/FlexMeasures/flexmeasures/pull/758>`_]
+
+
 v0.14.1 | June 26, 2023
 ============================
 
