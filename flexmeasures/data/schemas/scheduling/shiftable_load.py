@@ -35,18 +35,23 @@ class OptimizationSense(Enum):
 
 
 class ShiftableLoadFlexModelSchema(Schema):
+    # it defines the utility (economic, environmental, ) in each time period. It has units of quantity/energy, for example, EUR/kWh.
     consumption_price_sensor = SensorIdField(data_key="consumption-price-sensor")
+    # time that the load last.
     duration = DurationField(required=True)
+    # nominal power of the load.
     power = fields.Float(required=True)
-
+    # policy to schedule a load: INFLEXIBLE, SHIFTABLE, BREAKABLE
     load_type = fields.Enum(
         LoadType, load_default=LoadType.INFLEXIBLE, data_key="load-type"
     )
+    # time_restrictions will be turned into a Series with Boolean values (where True means restricted for scheduling).
     time_restrictions = fields.List(
         fields.Nested(TimeIntervalSchema()),
         data_key="time-restrictions",
         load_default=[],
     )
+    # objective of the scheduler, to maximize or minimize.
     optimization_sense = fields.Enum(
         OptimizationSense,
         load_default=OptimizationSense.MIN,
@@ -102,11 +107,14 @@ class ShiftableLoadFlexModelSchema(Schema):
     @pre_load
     def pre_load_load_type(self, data: dict, **kwargs) -> dict:
         """Fallback mechanism for the load_type variable. If not found in data,
-        it tries to find it in among the sensor attributes and, if it's not found
+        it tries to find it in among the sensor or asset attributes and, if it's not found
         there either, it defaults to "INFLEXIBLE".
         """
         if "load-type" not in data or data["load-type"] is None:
             load_type = self.sensor.get_attribute("load_type")
+
+            if load_type is None:
+                load_type = self.sensor.generic_asset.get_attribute("load_type")
 
             if load_type is None:
                 load_type = "INFLEXIBLE"

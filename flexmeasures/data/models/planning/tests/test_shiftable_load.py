@@ -138,7 +138,8 @@ def test_breakable_scheduler_time_restrictions(add_battery_assets, shiftable_loa
     """
     Test breakable load_type of ShiftableLoadScheduler by introducing four 1-hour restrictions
     interspaced by 1 hour. The equivalent mask would be the following: [0,...,0,1,0,1,0,1,0,1,0, ...,0].
-    This makes the schedule choose time periods between.
+    Trying to get the best prices (between 9am and 4pm), his makes the schedule choose time periods between
+    the time restrictions.
     """
 
     # get the sensors from the database
