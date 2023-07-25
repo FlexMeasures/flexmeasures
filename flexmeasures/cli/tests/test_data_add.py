@@ -254,5 +254,3 @@ def test_add_shiftable(
 
     schedule = shiftable_load_power_sensor.search_beliefs()
     assert (schedule == -0.4).event_value.sum() == 4
-
-    # schedule = shiftable_load_power_sensor

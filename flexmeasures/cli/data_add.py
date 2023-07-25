@@ -1160,7 +1160,7 @@ def add_schedule_for_storage(
             click.secho("New schedule is stored.", **MsgStyle.SUCCESS)
 
 
-@create_schedule.command("shiftable")
+@create_schedule.command("for-shiftable")
 @with_appcontext
 @click.option(
     "--sensor-id",
@@ -1202,7 +1202,7 @@ def add_schedule_for_storage(
     "load_type",
     type=click.Choice(["INFLEXIBLE", "BREAKABLE", "SHIFTABLE"], case_sensitive=False),
     required=False,
-    default="INFLEXIBLE",
+    default="SHIFTABLE",
     help="Load shift policy type: INFLEXIBLE, BREAKABLE or SHIFTABLE.",
 )
 @click.option(
@@ -1266,11 +1266,13 @@ def add_schedule_shiftable_load(
         belief_time=server_now(),
         resolution=power_sensor.event_resolution,
         flex_model={
-            "consumption-price-sensor": consumption_price_sensor.id,
             "duration": pd.Timedelta(load_duration).isoformat(),
             "load-type": load_type,
             "power": load_power,
             "time-restrictions": [TimeIntervalSchema().dump(f) for f in forbid],
+        },
+        flex_context={
+            "consumption-price-sensor": consumption_price_sensor.id,
         },
     )
 
