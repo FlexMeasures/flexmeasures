@@ -16,15 +16,15 @@ class DurationValidationError(FMValidationError):
 
 
 class NewDurationField(MarshmallowClickMixin, fields.Str):
-    """Field that deserializes to a ISO8601 Duration
-    and serializes back to a string."""
+    """Field that deserializes to a ISO8601 timedelta.
+    and serializes back to an ISO8601 string."""
 
     def _deserialize(self, value, attr, obj, **kwargs) -> str:
         """
-        Use the isodate library to turn an ISO8601 string into a timedelta.
-        For some non-obvious cases, it will become an isodate.Duration, see
-        ground_from for more.
-        This method throws a ValidationError if the string is not ISO norm.
+        Use the isodate library to validate an ISO8601 string.
+        This method throws a ValidationError if the string is not ISO norm
+        or if the timedelta is able to be represented in multiples of
+        minutes.
         """
         try:
             value_isodate = isodate.parse_duration(value)
@@ -34,8 +34,6 @@ class NewDurationField(MarshmallowClickMixin, fields.Str):
             )
 
         if value_isodate.seconds % 60 != 0 or value_isodate.microseconds != 0:
-            print(value_isodate.seconds)
-            print(value_isodate.microseconds)
             raise DurationValidationError(
                 "FlexMeasures only support multiples of 1 minute."
             )
@@ -45,8 +43,7 @@ class NewDurationField(MarshmallowClickMixin, fields.Str):
     def _serialize(self, value, attr, data, **kwargs):
         """
         An implementation of _serialize.
-        It is not guaranteed to return the same string as was input,
-        if ground_from has been used!
+        Returns the same string as was input.
         """
         return isodate.strftime(value, "P%P")
 
