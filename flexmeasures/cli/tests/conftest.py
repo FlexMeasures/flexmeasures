@@ -102,11 +102,11 @@ def reporter_config_raw(app, db, setup_dummy_data):
 @pytest.fixture(scope="module")
 def shiftable_load_power_sensor(db, app):
     """
-    Create an asset with two sensors (1 and 2), and add the same set of 200 beliefs with an hourly resolution to each of them.
-    Return the two sensors and a result sensor (which has no data).
+    Create an asset of type "LoadType" and a power sensor to hold the result of
+    the scheduler.
     """
 
-    shiftable_load_asset_type = GenericAssetType(name="ShiftableLoad")
+    shiftable_load_asset_type = GenericAssetType(name="LoadType")
 
     db.session.add(shiftable_load_asset_type)
 

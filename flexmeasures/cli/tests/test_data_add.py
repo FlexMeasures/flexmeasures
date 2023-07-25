@@ -253,4 +253,6 @@ def test_add_shiftable(
     shiftable_load_power_sensor = Sensor.query.get(shiftable_load_power_sensor_id)
 
     schedule = shiftable_load_power_sensor.search_beliefs()
+    # check if the schedule is not empty more detailed testing can be found
+    # in data/models/planning/tests/test_shiftable_loads.py.
     assert (schedule == -0.4).event_value.sum() == 4
