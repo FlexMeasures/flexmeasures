@@ -54,6 +54,11 @@ def test_post_a_sensor(client, setup_api_test_data):
     assert sensor is not None
     assert sensor.unit == "kWh"
 
+
+def test_patch_sensor(client, setup_api_test_data):
+    auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
+    sensor = Sensor.query.filter(Sensor.name == "some gas sensor").one_or_none()
+
     sensor_edit_response = client.patch(
         url_for("SensorAPI:patch", id=sensor.id),
         headers={"content-type": "application/json", "Authorization": auth_token},
@@ -63,4 +68,3 @@ def test_post_a_sensor(client, setup_api_test_data):
     )
 
     assert sensor_edit_response.json["name"] == "POWER"
-
