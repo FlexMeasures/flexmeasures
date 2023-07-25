@@ -57,9 +57,7 @@ def test_storage_loss_function(
 def test_battery_solver_day_1(
     add_battery_assets, add_inflexible_device_forecasts, use_inflexible_device
 ):
-    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
-    battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
-    assert battery.get_attribute("market_id") == epex_da.id
+    epex_da, battery = get_sensors_from_db()
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 1))
     end = tz.localize(datetime(2015, 1, 2))
@@ -118,9 +116,7 @@ def test_battery_solver_day_2(
     and so we expect the scheduler to only:
     - completely discharge within the last 8 hours
     """
-    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
-    battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
-    assert battery.get_attribute("market_id") == epex_da.id
+    _epex_da, battery = get_sensors_from_db()
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 2))
     end = tz.localize(datetime(2015, 1, 3))
@@ -490,9 +486,7 @@ def test_soc_bounds_timeseries(add_battery_assets):
     """
 
     # get the sensors from the database
-    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
-    battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
-    assert battery.get_attribute("market_id") == epex_da.id
+    epex_da, battery = get_sensors_from_db()
 
     # time parameters
     tz = pytz.timezone("Europe/Amsterdam")
@@ -640,6 +634,26 @@ def test_add_storage_constraints(
 @pytest.mark.parametrize(
     "value_min1, value_equals1, value_max1, value_min2, value_equals2, value_max2, expected_constraint_type_violations",
     [
+        (1, np.nan, 9, 1, np.nan, 9, []),  # base case
+        (1, np.nan, 10, 1, np.nan, 10, []),  # exact equality
+        (
+            1,
+            np.nan,
+            10 + 0.5e-6,
+            1,
+            np.nan,
+            10,
+            [],
+        ),  # equality considering the precision (6 decimal figures)
+        (
+            1,
+            np.nan,
+            10 + 1e-5,
+            1,
+            np.nan,
+            10,
+            ["max(t) <= soc_max(t)"],
+        ),  # difference of 0.5e-5 > 1e-6
         (1, np.nan, 9, 2, np.nan, 20, ["max(t) <= soc_max(t)"]),
         (-1, np.nan, 9, 1, np.nan, 9, ["soc_min(t) <= min(t)"]),
         (1, 10, 9, 1, np.nan, 9, ["equals(t) <= max(t)"]),
@@ -772,3 +786,61 @@ def test_validate_constraints(
     )
 
     assert set(expected_constraint_type_violations) == constraint_type_violations_output
+
+
+def test_infeasible_problem_error(add_battery_assets):
+    """Try to create a schedule with infeasible constraints. soc-max is 4.5 and soc-target is 8.0"""
+
+    # get the sensors from the database
+    _epex_da, battery = get_sensors_from_db()
+
+    # time parameters
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 2))
+    end = tz.localize(datetime(2015, 1, 3))
+    resolution = timedelta(hours=1)
+
+    def compute_schedule(flex_model):
+        scheduler = StorageScheduler(
+            battery,
+            start,
+            end,
+            resolution,
+            flex_model=flex_model,
+        )
+        schedule = scheduler.compute()
+
+        soc_schedule = integrate_time_series(
+            schedule,
+            soc_at_start,
+            decimal_precision=1,
+        )
+
+        return soc_schedule
+
+    # soc parameters
+    soc_at_start = battery.get_attribute("soc_in_mwh")
+    infeasible_max_soc_targets = [
+        {"datetime": "2015-01-02T16:00:00+01:00", "value": 8.0}
+    ]
+
+    flex_model = {
+        "soc-at-start": soc_at_start,
+        "soc-min": 0.5,
+        "soc-max": 4.5,
+        "soc-targets": infeasible_max_soc_targets,
+    }
+
+    with pytest.raises(
+        ValueError, match="The input data yields an infeasible problem."
+    ):
+        compute_schedule(flex_model)
+
+
+def get_sensors_from_db():
+    # get the sensors from the database
+    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
+    assert battery.get_attribute("market_id") == epex_da.id
+
+    return epex_da, battery

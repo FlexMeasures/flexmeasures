@@ -19,7 +19,6 @@ def test_shiftable_load_flex_model_load(db, app, setup_dummy_sensors):
 
     shiftable_load_flex_model = schema.load(
         {
-            "cost-sensor": sensor1.id,
             "duration": "PT4H",
             "power": 30.0,
             "time-restrictions": [
@@ -45,7 +44,6 @@ def test_shiftable_load_flex_model_load_type(db, app, setup_dummy_sensors):
 
     shiftable_load_flex_model = schema.load(
         {
-            "cost-sensor": sensor1.id,
             "duration": "PT4H",
             "power": 30.0,
             "time-restrictions": [
@@ -68,7 +66,6 @@ def test_shiftable_load_flex_model_load_type(db, app, setup_dummy_sensors):
         {
             "duration": "PT4H",
             "power": 30.0,
-            "cost-sensor": sensor1.id,
             "time-restrictions": [
                 {"start": "2023-01-01T00:00:00+00:00", "duration": "PT3H"}
             ],

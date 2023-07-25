@@ -204,13 +204,19 @@ Here are the three types of flexibility models you can expect to be built-in:
 
 2) For **shiftable processes**
    
-   .. todo:: A simple algorithm exists, needs integration into FlexMeasures and asset type clarified.
+    - ``power``: nominal power of the load.
+    - ``duration``: time that the load last.
+    - ``optimization_sense``: objective of the scheduler, to maximize or minimize.
+    - ``time_restrictions``: time periods in which the load cannot be schedule to.
+    - ``load_type``: Inflexible, Breakable or Shiftable.
+
 
 3) For **buffer devices** (e.g. thermal energy storage systems connected to heat pumps), use the same flexibility parameters described above for storage devices. Here are some tips to model a buffer with these parameters:
 
    - Describe the thermal energy content in kWh or MWh.
    - Set ``soc-minima`` to the accumulative usage forecast.
    - Set ``roundtrip-efficiency`` to the square of the conversion efficiency. [#]_
+   - Set ``storage-efficiency`` to a value below 100% to model (heat) loss.
 
     .. [#] Setting a roundtrip efficiency of higher than 1 is not supported. We plan to implement a separate field for :abbr:`COP (coefficient of performance)` values.
 

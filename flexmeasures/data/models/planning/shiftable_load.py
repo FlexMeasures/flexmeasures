@@ -24,8 +24,11 @@ class ShiftableLoadScheduler(Scheduler):
     __author__ = "Seita"
 
     def compute(self) -> pd.Series | None:
-        """Schedule a load, defined as a `power` and a `duration`, within the specified time window.
-        For example, this scheduler can plan the start of a process that lasts 5h and requires a power of 10kW.
+        """Schedule a fix load, defined as a `power` and a `duration`, within the specified time window.
+        To schedule a battery, please, refer to the StorageScheduler.
+
+        For example, this scheduler can plan the start of a process of type `Shiftable` that lasts 5h and requires a power of 10kW.
+        In that case, the scheduler will find the best (as to minimize/maximize the cost) hour to start the process.
 
         This scheduler supports three types of `load_types`:
             - Inflexible: this load requires to be scheduled as soon as possible.
@@ -37,10 +40,10 @@ class ShiftableLoadScheduler(Scheduler):
         Parameters
         ==========
 
-        cost_sensor: it defines the utility (economic, environmental, ) in each
+        consumption_price_sensor: it defines the utility (economic, environmental, ) in each
                      time period. It has units of quantity/energy, for example, EUR/kWh.
         power: nominal power of the load.
-        duration: time that the load lasts.
+        duration: time that the load last.
 
         optimization_sense: objective of the scheduler, to maximize or minimize.
         time_restrictions: time periods in which the load cannot be schedule to.
@@ -58,7 +61,9 @@ class ShiftableLoadScheduler(Scheduler):
         belief_time = self.belief_time
         sensor = self.sensor
 
-        cost_sensor: Sensor = self.flex_model.get("cost_sensor")
+        consumption_price_sensor: Sensor = self.flex_context.get(
+            "consumption_price_sensor"
+        )
         duration: timedelta = self.flex_model.get("duration")
         power = self.flex_model.get("power")
         optimization_sense = self.flex_model.get("optimization_sense")
@@ -66,7 +71,7 @@ class ShiftableLoadScheduler(Scheduler):
         time_restrictions = self.flex_model.get("time_restrictions")
 
         # get cost data
-        cost = cost_sensor.search_beliefs(
+        cost = consumption_price_sensor.search_beliefs(
             event_starts_after=start,
             event_ends_before=end,
             resolution=resolution,
@@ -81,38 +86,33 @@ class ShiftableLoadScheduler(Scheduler):
                 start,
                 end,
                 freq=sensor.event_resolution,
-                closed="left",
+                inclusive="left",
                 name="event_start",
             ),
             data=0,
             name="event_value",
         )
 
-        # optimize schedule for tomorrow. We can fill len(schedule) rows, at most
-        rows_to_fill = min(ceil(duration / cost_sensor.event_resolution), len(schedule))
-
         # convert power to energy using the resolution of the sensor.
         # e.g. resolution=15min, power=1kW -> energy=250W
-        energy = power * cost_sensor.event_resolution / timedelta(hours=1)
+        energy = power * consumption_price_sensor.event_resolution / timedelta(hours=1)
 
-        if rows_to_fill > len(schedule):
-            raise ValueError(
-                f"Duration of the period exceeds the schedule window. The resulting schedule will be trimmed to fit the planning window ({start}, {end})."
-            )
+        # we can fill duration/resolution rows or, if the duration is larger than the schedule
+        # window, fill the entire window.
+        rows_to_fill = min(
+            ceil(duration / consumption_price_sensor.event_resolution), len(schedule)
+        )
 
-        # check if the time_restrictions allow for a load of the duration provided
+        if rows_to_fill == len(schedule):
+            schedule[:] = energy
+            return schedule
+
         if load_type in [LoadType.INFLEXIBLE, LoadType.SHIFTABLE]:
-            # get start time instants that are not feasible, i.e. some time during the ON period goes through
-            # a time restriction interval
-            time_restrictions = (
-                time_restrictions.rolling(duration).max().shift(-rows_to_fill + 1)
-            )
-            time_restrictions = (time_restrictions == 1) | time_restrictions.isna()
-
-            if time_restrictions.sum() == len(time_restrictions):
-                raise ValueError(
-                    "Cannot allocate a block of time {duration} given the time restrictions provided."
+            start_time_restrictions = (
+                self.block_invalid_starting_times_for_whole_process_scheduling(
+                    load_type, time_restrictions, duration, rows_to_fill
                 )
+            )
         else:  # LoadType.BREAKABLE
             if (~time_restrictions).sum() < rows_to_fill:
                 raise ValueError(
@@ -121,7 +121,9 @@ class ShiftableLoadScheduler(Scheduler):
 
         # create schedule
         if load_type == LoadType.INFLEXIBLE:
-            self.compute_inflexible(schedule, time_restrictions, rows_to_fill, energy)
+            self.compute_inflexible(
+                schedule, start_time_restrictions, rows_to_fill, energy
+            )
         elif load_type == LoadType.BREAKABLE:
             self.compute_breakable(
                 schedule,
@@ -135,7 +137,7 @@ class ShiftableLoadScheduler(Scheduler):
             self.compute_shiftable(
                 schedule,
                 optimization_sense,
-                time_restrictions,
+                start_time_restrictions,
                 cost,
                 rows_to_fill,
                 energy,
@@ -144,6 +146,53 @@ class ShiftableLoadScheduler(Scheduler):
             raise ValueError(f"Unknown load type '{load_type}'")
 
         return schedule.tz_convert(self.start.tzinfo)
+
+    def block_invalid_starting_times_for_whole_process_scheduling(
+        self,
+        load_type: LoadType,
+        time_restrictions: pd.Series,
+        duration: timedelta,
+        rows_to_fill: int,
+    ) -> pd.Series:
+        """Blocks time periods where the load cannot be schedule into, making
+          sure no other time restrictions runs in the middle of the activation of the load
+
+        More technically, this function applying an erosion of the time_restrictions array with a block of length duration.
+
+        Then, the condition if time_restrictions.sum() == len(time_restrictions):, makes sure that at least we have a spot to place the load.
+
+        For example:
+
+            time_restriction = [1 0 0 1 1 1 0 0 1 0]
+
+            # applying a dilation with duration = 2
+            time_restriction = [1 0 1 1 1 1 0 1 1 1]
+
+        We can only fit a block of duration = 2 in the positions 1 and 6. sum(start_time_restrictions) == 8,
+        while the len(time_restriction) == 10, which means we have 10-8=2 positions.
+
+        :param load_type: INFLEXIBLE, SHIFTABLE or BREAKABLE
+        :param time_restrictions: boolean time series indicating time periods in which the load cannot be scheduled.
+        :param duration: (datetime) duration of the length
+        :param rows_to_fill: (int) time periods that the load lasts
+        :return: filtered time restrictions
+        """
+
+        # get start time instants that are not feasible, i.e. some time during the ON period goes through
+        # a time restriction interval
+        start_time_restrictions = (
+            time_restrictions.rolling(duration).max().shift(-rows_to_fill + 1)
+        )
+        start_time_restrictions = (
+            start_time_restrictions == 1
+        ) | start_time_restrictions.isna()
+
+        if (~start_time_restrictions).sum() == 0:
+            raise ValueError(
+                "Cannot allocate a block of time {duration} given the time restrictions provided."
+            )
+
+        return start_time_restrictions
 
     def compute_inflexible(
         self,
@@ -199,7 +248,7 @@ class ShiftableLoadScheduler(Scheduler):
         else:
             start = block_cost[~time_restrictions].idxmax()
 
-        start = start.event_value
+        start = start.iloc[0]
 
         schedule.loc[start : start + self.resolution * (rows_to_fill - 1)] = energy
 
