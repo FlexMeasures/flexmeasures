@@ -30,7 +30,7 @@ Infrastructure / Support
 
 /api/v3_0/health/ready
 
-v0.14.2 | July 21, 2023
+v0.14.2 | July 25, 2023
 ============================
 
 Bugfixes
