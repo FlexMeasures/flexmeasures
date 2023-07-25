@@ -12,6 +12,8 @@ from email_validator import (
     EmailNotValidError,
     EmailUndeliverableError,
 )
+
+# from email_validator.deliverability import validate_email_deliverability
 from flask_security.utils import hash_password
 from werkzeug.exceptions import NotFound
 

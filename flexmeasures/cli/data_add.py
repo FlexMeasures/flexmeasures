@@ -200,7 +200,7 @@ def new_user(
 @click.option(
     "--event-resolution",
     required=True,
-    type=int,
+    type=int,  # should be str | int
     help="Expected resolution of the data in minutes",
 )
 @click.option(

@@ -27,7 +27,7 @@ def test_fetch_one_sensor(
     assert response.json["unit"] == "m³/h"
     assert response.json["generic_asset_id"] == 4
     assert response.json["timezone"] == "UTC"
-    assert response.json["resolution"] == "PT10M"
+    assert response.json["event_resolution"] == "PT10M"
 
 
 def make_headers_for(user_email: str | None, client) -> dict:
@@ -48,7 +48,7 @@ def test_post_a_sensor(client, setup_api_test_data):
     print("Server responded with:\n%s" % post_sensor_response.json)
     assert post_sensor_response.status_code == 201
     assert post_sensor_response.json["name"] == "power"
-    assert post_sensor_response.json["resolution"] == "PT1H"
+    assert post_sensor_response.json["event_resolution"] == "PT1H"
 
     sensor: Sensor = Sensor.query.filter_by(name="power").one_or_none()
     assert sensor is not None
