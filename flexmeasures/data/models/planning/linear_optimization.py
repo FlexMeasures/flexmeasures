@@ -345,7 +345,7 @@ def device_scheduler(  # noqa C901
         model, load_solutions=False
     )
 
-    # load the results only if the termination condition is not infeasible
+    # load the results only if a feasible solution has been found
     if len(results.solution) > 0:
         model.solutions.load_from(results)
 
