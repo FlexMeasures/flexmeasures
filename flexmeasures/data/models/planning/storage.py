@@ -50,12 +50,14 @@ class StorageScheduler(Scheduler):
 
         return self.compute()
 
-    def _prepare(self, skip_validation: bool = False) -> pd.Series | None:
-        """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
-        For the resulting consumption schedule, consumption is defined as positive values.
+    def _prepare(self, skip_validation: bool = False) -> tuple:
+        """This function prepares the required data to compute the schedule:
+            - price data
+            - device constraint
+            - ems constraints
 
         :param skip_validation: If True, skip validation of constraints specified in the data.
-        :returns:               The computed schedule.
+        :returns:               Input data for the scheduler
         """
 
         if not self.config_deserialized:
