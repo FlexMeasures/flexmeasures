@@ -13,19 +13,51 @@ from flexmeasures.data.models.planning.storage import (
     validate_storage_constraints,
 )
 from flexmeasures.data.models.planning.utils import initialize_series, initialize_df
-from flexmeasures.utils.calculations import integrate_time_series
+from flexmeasures.utils.calculations import (
+    apply_stock_changes_and_losses,
+    integrate_time_series,
+)
 
 
 TOLERANCE = 0.00001
+
+
+@pytest.mark.parametrize(
+    "initial_stock, stock_deltas, expected_stocks, storage_efficiency",
+    [
+        (
+            1000,
+            [100, -100, -100, 100],
+            [1000, 1089, 979.11, 870.3189, 960.615711],
+            0.99,
+        ),
+        (
+            2.5,
+            [-0.5, -0.5, -0.5, -0.5],
+            [2.5, 1.8, 1.17, 0.603, 0.0927],
+            0.9,
+        ),
+    ],
+)
+def test_storage_loss_function(
+    initial_stock, stock_deltas, expected_stocks, storage_efficiency
+):
+    stocks = apply_stock_changes_and_losses(
+        initial_stock,
+        stock_deltas,
+        storage_efficiency=storage_efficiency,
+        how="left",
+        decimal_precision=6,
+    )
+    print(stocks)
+    assert all(a == b for a, b in zip(stocks, expected_stocks))
 
 
 @pytest.mark.parametrize("use_inflexible_device", [False, True])
 def test_battery_solver_day_1(
     add_battery_assets, add_inflexible_device_forecasts, use_inflexible_device
 ):
-    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
-    battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
-    assert battery.get_attribute("market_id") == epex_da.id
+    epex_da, battery = get_sensors_from_db()
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 1))
     end = tz.localize(datetime(2015, 1, 2))
@@ -62,14 +94,18 @@ def test_battery_solver_day_1(
 
 
 @pytest.mark.parametrize(
-    "roundtrip_efficiency",
+    "roundtrip_efficiency, storage_efficiency",
     [
-        1,
-        0.99,
-        0.01,
+        (1, 1),
+        (1, 0.999),
+        (1, 0.5),
+        (0.99, 1),
+        (0.01, 1),
     ],
 )
-def test_battery_solver_day_2(add_battery_assets, roundtrip_efficiency: float):
+def test_battery_solver_day_2(
+    add_battery_assets, roundtrip_efficiency: float, storage_efficiency: float
+):
     """Check battery scheduling results for day 2, which is set up with
     8 expensive, then 8 cheap, then again 8 expensive hours.
     If efficiency losses aren't too bad, we expect the scheduler to:
@@ -80,9 +116,7 @@ def test_battery_solver_day_2(add_battery_assets, roundtrip_efficiency: float):
     and so we expect the scheduler to only:
     - completely discharge within the last 8 hours
     """
-    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
-    battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
-    assert battery.get_attribute("market_id") == epex_da.id
+    _epex_da, battery = get_sensors_from_db()
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 2))
     end = tz.localize(datetime(2015, 1, 3))
@@ -100,6 +134,7 @@ def test_battery_solver_day_2(add_battery_assets, roundtrip_efficiency: float):
             "soc-min": soc_min,
             "soc-max": soc_max,
             "roundtrip-efficiency": roundtrip_efficiency,
+            "storage-efficiency": storage_efficiency,
         },
     )
     schedule = scheduler.compute()
@@ -108,6 +143,7 @@ def test_battery_solver_day_2(add_battery_assets, roundtrip_efficiency: float):
         soc_at_start,
         up_efficiency=roundtrip_efficiency**0.5,
         down_efficiency=roundtrip_efficiency**0.5,
+        storage_efficiency=storage_efficiency,
         decimal_precision=6,
     )
 
@@ -126,21 +162,29 @@ def test_battery_solver_day_2(add_battery_assets, roundtrip_efficiency: float):
         soc_min, battery.get_attribute("min_soc_in_mwh")
     )  # Battery sold out at the end of its planning horizon
 
-    # As long as the roundtrip efficiency isn't too bad (I haven't computed the actual switch point)
-    if roundtrip_efficiency > 0.9:
+    # As long as the efficiencies aren't too bad (I haven't computed the actual switch points)
+    if roundtrip_efficiency > 0.9 and storage_efficiency > 0.9:
         assert soc_schedule.loc[start + timedelta(hours=8)] == max(
             soc_min, battery.get_attribute("min_soc_in_mwh")
         )  # Sell what you begin with
         assert soc_schedule.loc[start + timedelta(hours=16)] == min(
             soc_max, battery.get_attribute("max_soc_in_mwh")
         )  # Buy what you can to sell later
-    else:
-        # If the roundtrip efficiency is poor, best to stand idle
+    elif storage_efficiency > 0.9:
+        # If only the roundtrip efficiency is poor, best to stand idle (keep a high SoC as long as possible)
         assert soc_schedule.loc[start + timedelta(hours=8)] == battery.get_attribute(
             "soc_in_mwh"
         )
         assert soc_schedule.loc[start + timedelta(hours=16)] == battery.get_attribute(
             "soc_in_mwh"
+        )
+    else:
+        # If the storage efficiency is poor, regardless of whether the roundtrip efficiency is poor, best to sell asap
+        assert soc_schedule.loc[start + timedelta(hours=8)] == max(
+            soc_min, battery.get_attribute("min_soc_in_mwh")
+        )
+        assert soc_schedule.loc[start + timedelta(hours=16)] == max(
+            soc_min, battery.get_attribute("min_soc_in_mwh")
         )
 
 
@@ -187,6 +231,9 @@ def test_charging_station_solver_day_2(target_soc, charging_station_name):
             ),
             "roundtrip_efficiency": charging_station.get_attribute(
                 "roundtrip_efficiency", 1
+            ),
+            "storage_efficiency": charging_station.get_attribute(
+                "storage_efficiency", 1
             ),
             "soc_targets": soc_targets,
         },
@@ -260,6 +307,9 @@ def test_fallback_to_unsolvable_problem(target_soc, charging_station_name):
             ),
             "roundtrip_efficiency": charging_station.get_attribute(
                 "roundtrip_efficiency", 1
+            ),
+            "storage_efficiency": charging_station.get_attribute(
+                "storage_efficiency", 1
             ),
             "soc_targets": soc_targets,
         },
@@ -351,6 +401,7 @@ def test_building_solver_day_2(
             "soc_min": soc_min,
             "soc_max": soc_max,
             "roundtrip_efficiency": battery.get_attribute("roundtrip_efficiency", 1),
+            "storage_efficiency": battery.get_attribute("storage_efficiency", 1),
         },
         flex_context={
             "inflexible_device_sensors": inflexible_devices.values(),
@@ -435,9 +486,7 @@ def test_soc_bounds_timeseries(add_battery_assets):
     """
 
     # get the sensors from the database
-    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
-    battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
-    assert battery.get_attribute("market_id") == epex_da.id
+    epex_da, battery = get_sensors_from_db()
 
     # time parameters
     tz = pytz.timezone("Europe/Amsterdam")
@@ -511,15 +560,15 @@ def test_soc_bounds_timeseries(add_battery_assets):
 
     # test for soc_minima
     # check that the local minimum constraint is respected
-    assert soc_schedule2.loc[datetime(2015, 1, 2, 7)] >= 3.5
+    assert soc_schedule2.loc["2015-01-02T08:00:00+01:00"] >= 3.5
 
     # test for soc_maxima
     # check that the local maximum constraint is respected
-    assert soc_schedule2.loc[datetime(2015, 1, 2, 14)] <= 1.0
+    assert soc_schedule2.loc["2015-01-02T15:00:00+01:00"] <= 1.0
 
     # test for soc_targets
     # check that the SOC target (at 19 pm, local time) is met
-    assert soc_schedule2.loc[datetime(2015, 1, 2, 18)] == 2.0
+    assert soc_schedule2.loc["2015-01-02T19:00:00+01:00"] == 2.0
 
 
 @pytest.mark.parametrize(
@@ -585,6 +634,26 @@ def test_add_storage_constraints(
 @pytest.mark.parametrize(
     "value_min1, value_equals1, value_max1, value_min2, value_equals2, value_max2, expected_constraint_type_violations",
     [
+        (1, np.nan, 9, 1, np.nan, 9, []),  # base case
+        (1, np.nan, 10, 1, np.nan, 10, []),  # exact equality
+        (
+            1,
+            np.nan,
+            10 + 0.5e-6,
+            1,
+            np.nan,
+            10,
+            [],
+        ),  # equality considering the precision (6 decimal figures)
+        (
+            1,
+            np.nan,
+            10 + 1e-5,
+            1,
+            np.nan,
+            10,
+            ["max(t) <= soc_max(t)"],
+        ),  # difference of 0.5e-5 > 1e-6
         (1, np.nan, 9, 2, np.nan, 20, ["max(t) <= soc_max(t)"]),
         (-1, np.nan, 9, 1, np.nan, 9, ["soc_min(t) <= min(t)"]),
         (1, 10, 9, 1, np.nan, 9, ["equals(t) <= max(t)"]),
@@ -717,3 +786,61 @@ def test_validate_constraints(
     )
 
     assert set(expected_constraint_type_violations) == constraint_type_violations_output
+
+
+def test_infeasible_problem_error(add_battery_assets):
+    """Try to create a schedule with infeasible constraints. soc-max is 4.5 and soc-target is 8.0"""
+
+    # get the sensors from the database
+    _epex_da, battery = get_sensors_from_db()
+
+    # time parameters
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 2))
+    end = tz.localize(datetime(2015, 1, 3))
+    resolution = timedelta(hours=1)
+
+    def compute_schedule(flex_model):
+        scheduler = StorageScheduler(
+            battery,
+            start,
+            end,
+            resolution,
+            flex_model=flex_model,
+        )
+        schedule = scheduler.compute()
+
+        soc_schedule = integrate_time_series(
+            schedule,
+            soc_at_start,
+            decimal_precision=1,
+        )
+
+        return soc_schedule
+
+    # soc parameters
+    soc_at_start = battery.get_attribute("soc_in_mwh")
+    infeasible_max_soc_targets = [
+        {"datetime": "2015-01-02T16:00:00+01:00", "value": 8.0}
+    ]
+
+    flex_model = {
+        "soc-at-start": soc_at_start,
+        "soc-min": 0.5,
+        "soc-max": 4.5,
+        "soc-targets": infeasible_max_soc_targets,
+    }
+
+    with pytest.raises(
+        ValueError, match="The input data yields an infeasible problem."
+    ):
+        compute_schedule(flex_model)
+
+
+def get_sensors_from_db():
+    # get the sensors from the database
+    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
+    assert battery.get_attribute("market_id") == epex_da.id
+
+    return epex_da, battery

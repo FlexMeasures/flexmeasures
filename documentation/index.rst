@@ -173,6 +173,7 @@ The platform operator of FlexMeasures can be an Aggregator.
     concepts/inbuilt-smart-functionality
     concepts/algorithms
     concepts/security_auth
+    concepts/device_scheduler
 
 
 .. toctree::
@@ -180,6 +181,7 @@ The platform operator of FlexMeasures can be an Aggregator.
     :maxdepth: 1
     
     tut/toy-example-from-scratch
+    tut/toy-example-expanded
     tut/installation
     tut/posting_data
     tut/forecasting_scheduling
@@ -200,11 +202,6 @@ The platform operator of FlexMeasures can be an Aggregator.
     api/introduction
     api/notation
     api/v3_0
-    api/v2_0
-    api/v1_3
-    api/v1_2
-    api/v1_1
-    api/v1
     api/dev
     api/change_log
 
@@ -249,11 +246,25 @@ The platform operator of FlexMeasures can be an Aggregator.
     dev/docker-compose
 
 
+.. autosummary::
+   :caption: Code Documentation
+   :toctree: _autosummary/
+   :template: custom-module-template.rst
+   :recursive:
 
-Code documentation
-------------------
+   flexmeasures.api
+   flexmeasures.app
+   flexmeasures.auth
+   flexmeasures.cli
+   flexmeasures.data
+   flexmeasures.ui
+   flexmeasures.utils
 
-Go To :ref:`source`.
+
+.. Code documentation
+.. ------------------
+
+.. Go To :ref:`source`.
 
 
 
