@@ -8,10 +8,10 @@ from flask_security import current_user, SQLAlchemySessionUserDatastore
 from flask_security.recoverable import update_password
 from email_validator import (
     validate_email,
+    validate_email_deliverability,
     EmailNotValidError,
     EmailUndeliverableError,
 )
-from email_validator.deliverability import validate_email_deliverability
 from flask_security.utils import hash_password
 from werkzeug.exceptions import NotFound
 
