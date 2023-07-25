@@ -532,10 +532,7 @@ class SensorAPI(FlaskView):
         """
 
         sensor.resolution = sensor.event_resolution
-        sensor_dict = sensor_schema.dump(sensor)
-        del sensor_dict["event_resolution"]
-
-        return sensor_dict, 200
+        return sensor_schema.dump(sensor), 200
 
     @route("", methods=["POST"])
     @use_args(sensor_schema)
