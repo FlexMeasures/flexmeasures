@@ -61,7 +61,7 @@ class ShiftableLoadScheduler(Scheduler):
         belief_time = self.belief_time
         sensor = self.sensor
 
-        consumption_price_sensor: Sensor = self.flex_model.get(
+        consumption_price_sensor: Sensor = self.flex_context.get(
             "consumption_price_sensor"
         )
         duration: timedelta = self.flex_model.get("duration")
