@@ -8,7 +8,7 @@ since v0.15.0 | July XX, 2023
 =================================
 
 * Allow deleting multiple sensors with a single call to ``flexmeasures delete sensor`` by passing the ``--id`` option multiple times.
-* Add ``flexmeasures add schedule for-shiftable`` to create a new shiftable load schedule for a given power sensor.
+* Add ``flexmeasures add schedule for-process`` to create a new process schedule for a given power sensor.
 
 
 since v0.14.1 | June XX, 2023

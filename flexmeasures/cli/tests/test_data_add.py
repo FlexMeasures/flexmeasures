@@ -214,28 +214,26 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
 
 
 @pytest.mark.skip_github
-@pytest.mark.parametrize("load_type", [("INFLEXIBLE"), ("SHIFTABLE"), ("BREAKABLE")])
-def test_add_shiftable(
-    app, db, shiftable_load_power_sensor, add_market_prices, load_type
-):
+@pytest.mark.parametrize("process_type", [("INFLEXIBLE"), ("SHIFTABLE"), ("BREAKABLE")])
+def test_add_process(app, db, process_power_sensor, add_market_prices, process_type):
     """
     Schedule a 4h of consumption block at a constant power of 400kW in a day using
-    the three shiftable policies: inflexible, shiftable and breakable.
+    the three process policies: inflexible, shiftable and breakable.
     """
 
-    from flexmeasures.cli.data_add import add_schedule_shiftable_load
+    from flexmeasures.cli.data_add import add_schedule_process
 
     epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
 
-    shiftable_load_power_sensor_id = shiftable_load_power_sensor
+    process_power_sensor_id = process_power_sensor
 
     cli_input_params = {
-        "sensor-id": shiftable_load_power_sensor_id,
+        "sensor-id": process_power_sensor_id,
         "start": "2015-01-02T00:00:00+01:00",
         "duration": "PT24H",
-        "load-duration": "PT4H",
-        "load-power": "0.4MW",
-        "load-type": load_type,
+        "process-duration": "PT4H",
+        "process-power": "0.4MW",
+        "process-type": process_type,
         "consumption-price-sensor": epex_da.id,
         "forbid": '{"start" : "2015-01-02T00:00:00+01:00", "duration" : "PT2H"}',
     }
@@ -244,15 +242,15 @@ def test_add_shiftable(
     runner = app.test_cli_runner()
 
     # call command
-    result = runner.invoke(add_schedule_shiftable_load, cli_input)
+    result = runner.invoke(add_schedule_process, cli_input)
 
     print(result)
 
     assert result.exit_code == 0  # run command without errors
 
-    shiftable_load_power_sensor = Sensor.query.get(shiftable_load_power_sensor_id)
+    process_power_sensor = Sensor.query.get(process_power_sensor_id)
 
-    schedule = shiftable_load_power_sensor.search_beliefs()
+    schedule = process_power_sensor.search_beliefs()
     # check if the schedule is not empty more detailed testing can be found
-    # in data/models/planning/tests/test_shiftable_loads.py.
+    # in data/models/planning/tests/test_processs.py.
     assert (schedule == -0.4).event_value.sum() == 4
