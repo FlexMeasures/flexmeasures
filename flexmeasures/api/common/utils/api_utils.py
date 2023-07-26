@@ -11,7 +11,7 @@ from rq.job import Job
 from sqlalchemy.exc import IntegrityError
 
 from flexmeasures.data import db
-from flexmeasures.data.utils import save_to_db as modern_save_to_db
+from flexmeasures.data.utils import save_to_db
 from flexmeasures.api.common.responses import (
     invalid_replacement,
     ResponseTuple,
@@ -81,7 +81,7 @@ def save_and_enqueue(
     save_changed_beliefs_only: bool = True,
 ) -> ResponseTuple:
     # Attempt to save
-    status = modern_save_to_db(
+    status = save_to_db(
         data, save_changed_beliefs_only=save_changed_beliefs_only
     )
     db.session.commit()
