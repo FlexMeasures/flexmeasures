@@ -10,30 +10,30 @@ from flexmeasures.data.models.planning import Scheduler
 
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.schemas.scheduling.shiftable_load import (
-    ShiftableLoadFlexModelSchema,
-    LoadType,
+from flexmeasures.data.schemas.scheduling.process import (
+    ProcessSchedulerFlexModelSchema,
+    ProcessType,
     OptimizationSense,
 )
 from flexmeasures.data.schemas.scheduling import FlexContextSchema
 
 
-class ShiftableLoadScheduler(Scheduler):
+class ProcessScheduler(Scheduler):
 
     __version__ = "1"
     __author__ = "Seita"
 
     def compute(self) -> pd.Series | None:
-        """Schedule a fix load, defined as a `power` and a `duration`, within the specified time window.
+        """Schedule a prrocess, defined as a `power` and a `duration`, within the specified time window.
         To schedule a battery, please, refer to the StorageScheduler.
 
         For example, this scheduler can plan the start of a process of type `Shiftable` that lasts 5h and requires a power of 10kW.
         In that case, the scheduler will find the best (as to minimize/maximize the cost) hour to start the process.
 
-        This scheduler supports three types of `load_types`:
-            - Inflexible: this load requires to be scheduled as soon as possible.
-            - Breakable: this load can be divisible in smaller consumption periods.
-            - Shiftable: this load can start at any time within the specified time window.
+        This scheduler supports three types of `process_types`:
+            - Inflexible: this process needs to be scheduled as soon as possible.
+            - Breakable: this process can be divisible in smaller consumption periods.
+            - Shiftable: this process can start at any time within the specified time window.
 
         The resulting schedule provides the power flow at each time period.
 
@@ -42,12 +42,12 @@ class ShiftableLoadScheduler(Scheduler):
 
         consumption_price_sensor: it defines the utility (economic, environmental, ) in each
                      time period. It has units of quantity/energy, for example, EUR/kWh.
-        power: nominal power of the load.
-        duration: time that the load last.
+        power: nominal power of the process.
+        duration: time that the process last.
 
         optimization_sense: objective of the scheduler, to maximize or minimize.
-        time_restrictions: time periods in which the load cannot be schedule to.
-        load_type: Inflexible, Breakable or Shiftable.
+        time_restrictions: time periods in which the process cannot be schedule to.
+        process_type: Inflexible, Breakable or Shiftable.
 
         :returns:               The computed schedule.
         """
@@ -67,7 +67,7 @@ class ShiftableLoadScheduler(Scheduler):
         duration: timedelta = self.flex_model.get("duration")
         power = self.flex_model.get("power")
         optimization_sense = self.flex_model.get("optimization_sense")
-        load_type: LoadType = self.flex_model.get("load_type")
+        process_type: ProcessType = self.flex_model.get("process_type")
         time_restrictions = self.flex_model.get("time_restrictions")
 
         # get cost data
@@ -107,24 +107,24 @@ class ShiftableLoadScheduler(Scheduler):
             schedule[:] = energy
             return schedule
 
-        if load_type in [LoadType.INFLEXIBLE, LoadType.SHIFTABLE]:
+        if process_type in [ProcessType.INFLEXIBLE, ProcessType.SHIFTABLE]:
             start_time_restrictions = (
                 self.block_invalid_starting_times_for_whole_process_scheduling(
-                    load_type, time_restrictions, duration, rows_to_fill
+                    process_type, time_restrictions, duration, rows_to_fill
                 )
             )
-        else:  # LoadType.BREAKABLE
+        else:  # ProcessType.BREAKABLE
             if (~time_restrictions).sum() < rows_to_fill:
                 raise ValueError(
                     "Cannot allocate a block of time {duration} given the time restrictions provided."
                 )
 
         # create schedule
-        if load_type == LoadType.INFLEXIBLE:
+        if process_type == ProcessType.INFLEXIBLE:
             self.compute_inflexible(
                 schedule, start_time_restrictions, rows_to_fill, energy
             )
-        elif load_type == LoadType.BREAKABLE:
+        elif process_type == ProcessType.BREAKABLE:
             self.compute_breakable(
                 schedule,
                 optimization_sense,
@@ -133,7 +133,7 @@ class ShiftableLoadScheduler(Scheduler):
                 rows_to_fill,
                 energy,
             )
-        elif load_type == LoadType.SHIFTABLE:
+        elif process_type == ProcessType.SHIFTABLE:
             self.compute_shiftable(
                 schedule,
                 optimization_sense,
@@ -143,23 +143,23 @@ class ShiftableLoadScheduler(Scheduler):
                 energy,
             )
         else:
-            raise ValueError(f"Unknown load type '{load_type}'")
+            raise ValueError(f"Unknown process type '{process_type}'")
 
         return schedule.tz_convert(self.start.tzinfo)
 
     def block_invalid_starting_times_for_whole_process_scheduling(
         self,
-        load_type: LoadType,
+        process_type: ProcessType,
         time_restrictions: pd.Series,
         duration: timedelta,
         rows_to_fill: int,
     ) -> pd.Series:
-        """Blocks time periods where the load cannot be schedule into, making
-          sure no other time restrictions runs in the middle of the activation of the load
+        """Blocks time periods where the process cannot be schedule into, making
+          sure no other time restrictions runs in the middle of the activation of the process
 
         More technically, this function applying an erosion of the time_restrictions array with a block of length duration.
 
-        Then, the condition if time_restrictions.sum() == len(time_restrictions):, makes sure that at least we have a spot to place the load.
+        Then, the condition if time_restrictions.sum() == len(time_restrictions):, makes sure that at least we have a spot to place the process.
 
         For example:
 
@@ -171,10 +171,10 @@ class ShiftableLoadScheduler(Scheduler):
         We can only fit a block of duration = 2 in the positions 1 and 6. sum(start_time_restrictions) == 8,
         while the len(time_restriction) == 10, which means we have 10-8=2 positions.
 
-        :param load_type: INFLEXIBLE, SHIFTABLE or BREAKABLE
-        :param time_restrictions: boolean time series indicating time periods in which the load cannot be scheduled.
+        :param process_type: INFLEXIBLE, SHIFTABLE or BREAKABLE
+        :param time_restrictions: boolean time series indicating time periods in which the process cannot be scheduled.
         :param duration: (datetime) duration of the length
-        :param rows_to_fill: (int) time periods that the load lasts
+        :param rows_to_fill: (int) time periods that the process lasts
         :return: filtered time restrictions
         """
 
@@ -201,7 +201,7 @@ class ShiftableLoadScheduler(Scheduler):
         rows_to_fill: int,
         energy: float,
     ) -> None:
-        """Schedule load as early as possible."""
+        """Schedule process as early as possible."""
         start = time_restrictions[~time_restrictions].index[0]
 
         schedule.loc[start : start + self.resolution * (rows_to_fill - 1)] = energy
@@ -253,13 +253,13 @@ class ShiftableLoadScheduler(Scheduler):
         schedule.loc[start : start + self.resolution * (rows_to_fill - 1)] = energy
 
     def deserialize_flex_config(self):
-        """Deserialize flex_model using the schema ShiftableLoadFlexModelSchema and
+        """Deserialize flex_model using the schema ProcessSchedulerFlexModelSchema and
         flex_context using FlexContextSchema
         """
         if self.flex_model is None:
             self.flex_model = {}
 
-        self.flex_model = ShiftableLoadFlexModelSchema(
+        self.flex_model = ProcessSchedulerFlexModelSchema(
             start=self.start, end=self.end, sensor=self.sensor
         ).load(self.flex_model)
 

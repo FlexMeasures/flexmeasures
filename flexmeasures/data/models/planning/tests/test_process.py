@@ -3,7 +3,7 @@ import pytest
 import pytz
 
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.models.planning.shiftable_load import ShiftableLoadScheduler
+from flexmeasures.data.models.planning.process import ProcessScheduler
 
 
 tz = pytz.timezone("Europe/Amsterdam")
@@ -13,14 +13,12 @@ resolution = timedelta(hours=1)
 
 
 @pytest.mark.parametrize(
-    "load_type, optimal_start",
+    "process_type, optimal_start",
     [("INFLEXIBLE", datetime(2015, 1, 2, 0)), ("SHIFTABLE", datetime(2015, 1, 2, 8))],
 )
-def test_shiftable_scheduler(
-    add_battery_assets, shiftable_load, load_type, optimal_start
-):
+def test_shiftable_scheduler(add_battery_assets, process, process_type, optimal_start):
     """
-    Test scheduling a load of 4kW of power that last 4h using the ShiftableLoadScheduler
+    Test scheduling a process of 4kW of power that last 4h using the ProcessScheduler
     without time restrictions.
     """
 
@@ -29,7 +27,7 @@ def test_shiftable_scheduler(
 
     flex_model = {
         "duration": "PT4H",
-        "load-type": load_type,
+        "process-type": process_type,
         "power": 4,
     }
 
@@ -37,8 +35,8 @@ def test_shiftable_scheduler(
         "consumption-price-sensor": epex_da.id,
     }
 
-    scheduler = ShiftableLoadScheduler(
-        shiftable_load,
+    scheduler = ProcessScheduler(
+        process,
         start,
         end,
         resolution,
@@ -58,14 +56,14 @@ def test_shiftable_scheduler(
 
 
 @pytest.mark.parametrize(
-    "load_type, optimal_start",
+    "process_type, optimal_start",
     [("INFLEXIBLE", datetime(2015, 1, 2, 0)), ("SHIFTABLE", datetime(2015, 1, 2, 8))],
 )
 def test_duration_exceeds_planning_window(
-    add_battery_assets, shiftable_load, load_type, optimal_start
+    add_battery_assets, process, process_type, optimal_start
 ):
     """
-    Test scheduling a load that last longer than the planning window.
+    Test scheduling a process that last longer than the planning window.
     """
 
     # get the sensors from the database
@@ -73,7 +71,7 @@ def test_duration_exceeds_planning_window(
 
     flex_model = {
         "duration": "PT48H",
-        "load-type": load_type,
+        "process-type": process_type,
         "power": 4,
     }
 
@@ -81,8 +79,8 @@ def test_duration_exceeds_planning_window(
         "consumption-price-sensor": epex_da.id,
     }
 
-    scheduler = ShiftableLoadScheduler(
-        shiftable_load,
+    scheduler = ProcessScheduler(
+        process,
         start,
         end,
         resolution,
@@ -96,9 +94,9 @@ def test_duration_exceeds_planning_window(
     assert (schedule == 4).all()
 
 
-def test_shiftable_scheduler_time_restrictions(add_battery_assets, shiftable_load):
+def test_shiftable_scheduler_time_restrictions(add_battery_assets, process):
     """
-    Test ShiftableLoadScheduler with a time restrictions consisting of a block of 2h starting
+    Test ProcessScheduler with a time restrictions consisting of a block of 2h starting
     at 8am. The resulting schedules avoid the 8am-10am period and schedules for a valid period.
     """
 
@@ -109,7 +107,7 @@ def test_shiftable_scheduler_time_restrictions(add_battery_assets, shiftable_loa
 
     flex_model = {
         "duration": "PT4H",
-        "load-type": "SHIFTABLE",
+        "process-type": "SHIFTABLE",
         "power": 4,
         "time-restrictions": [
             {"start": "2015-01-02T08:00:00+01:00", "duration": "PT2H"}
@@ -119,8 +117,8 @@ def test_shiftable_scheduler_time_restrictions(add_battery_assets, shiftable_loa
         "consumption-price-sensor": epex_da.id,
     }
 
-    scheduler = ShiftableLoadScheduler(
-        shiftable_load,
+    scheduler = ProcessScheduler(
+        process,
         start,
         end,
         resolution,
@@ -145,9 +143,9 @@ def test_shiftable_scheduler_time_restrictions(add_battery_assets, shiftable_loa
     assert (schedule[time_restrictions] == 0).all()
 
 
-def test_breakable_scheduler_time_restrictions(add_battery_assets, shiftable_load):
+def test_breakable_scheduler_time_restrictions(add_battery_assets, process):
     """
-    Test breakable load_type of ShiftableLoadScheduler by introducing four 1-hour restrictions
+    Test breakable process_type of ProcessScheduler by introducing four 1-hour restrictions
     interspaced by 1 hour. The equivalent mask would be the following: [0,...,0,1,0,1,0,1,0,1,0, ...,0].
     Trying to get the best prices (between 9am and 4pm), his makes the schedule choose time periods between
     the time restrictions.
@@ -160,7 +158,7 @@ def test_breakable_scheduler_time_restrictions(add_battery_assets, shiftable_loa
 
     flex_model = {
         "duration": "PT4H",
-        "load-type": "BREAKABLE",
+        "process-type": "BREAKABLE",
         "power": 4,
         "time-restrictions": [
             {"start": "2015-01-02T09:00:00+01:00", "duration": "PT1H"},
@@ -174,8 +172,8 @@ def test_breakable_scheduler_time_restrictions(add_battery_assets, shiftable_loa
         "consumption-price-sensor": epex_da.id,
     }
 
-    scheduler = ShiftableLoadScheduler(
-        shiftable_load,
+    scheduler = ProcessScheduler(
+        process,
         start,
         end,
         resolution,
@@ -196,7 +194,7 @@ def test_breakable_scheduler_time_restrictions(add_battery_assets, shiftable_loa
 
 
 @pytest.mark.parametrize(
-    "load_type, time_restrictions",
+    "process_type, time_restrictions",
     [
         ("BREAKABLE", [{"start": "2015-01-02T00:00:00+01:00", "duration": "PT24H"}]),
         ("INFLEXIBLE", [{"start": "2015-01-02T03:00:00+01:00", "duration": "PT21H"}]),
@@ -204,7 +202,7 @@ def test_breakable_scheduler_time_restrictions(add_battery_assets, shiftable_loa
     ],
 )
 def test_impossible_schedules(
-    add_battery_assets, shiftable_load, load_type, time_restrictions
+    add_battery_assets, process, process_type, time_restrictions
 ):
     """
     Test schedules with time restrictions that make a 4h block not fit anytime during the
@@ -216,7 +214,7 @@ def test_impossible_schedules(
 
     flex_model = {
         "duration": "PT4H",
-        "load-type": load_type,
+        "process-type": process_type,
         "power": 4,
         "time-restrictions": time_restrictions,
     }
@@ -224,8 +222,8 @@ def test_impossible_schedules(
         "consumption-price-sensor": epex_da.id,
     }
 
-    scheduler = ShiftableLoadScheduler(
-        shiftable_load,
+    scheduler = ProcessScheduler(
+        process,
         start,
         end,
         resolution,

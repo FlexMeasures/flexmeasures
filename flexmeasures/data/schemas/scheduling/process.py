@@ -21,7 +21,7 @@ from flexmeasures.data.schemas.times import (
 from enum import Enum
 
 
-class LoadType(Enum):
+class ProcessType(Enum):
     INFLEXIBLE = "INFLEXIBLE"
     BREAKABLE = "BREAKABLE"
     SHIFTABLE = "SHIFTABLE"
@@ -32,14 +32,14 @@ class OptimizationSense(Enum):
     MIN = "MIN"
 
 
-class ShiftableLoadFlexModelSchema(Schema):
-    # time that the load last.
+class ProcessSchedulerFlexModelSchema(Schema):
+    # time that the process last.
     duration = DurationField(required=True)
-    # nominal power of the load.
+    # nominal power of the process.
     power = fields.Float(required=True)
-    # policy to schedule a load: INFLEXIBLE, SHIFTABLE, BREAKABLE
-    load_type = fields.Enum(
-        LoadType, load_default=LoadType.INFLEXIBLE, data_key="load-type"
+    # policy to schedule a process: INFLEXIBLE, SHIFTABLE, BREAKABLE
+    process_type = fields.Enum(
+        ProcessType, load_default=ProcessType.INFLEXIBLE, data_key="process-type"
     )
     # time_restrictions will be turned into a Series with Boolean values (where True means restricted for scheduling).
     time_restrictions = fields.List(
@@ -56,7 +56,7 @@ class ShiftableLoadFlexModelSchema(Schema):
 
     def __init__(self, sensor: Sensor, start: datetime, end: datetime, *args, **kwargs):
         """Pass start and end to convert time_restrictions into a time series and sensor
-        as a fallback mechanism for the load_type
+        as a fallback mechanism for the process_type
         """
         self.start = start.astimezone(pytz.utc)
         self.end = end.astimezone(pytz.utc)
@@ -101,20 +101,20 @@ class ShiftableLoadFlexModelSchema(Schema):
         return data
 
     @pre_load
-    def pre_load_load_type(self, data: dict, **kwargs) -> dict:
-        """Fallback mechanism for the load_type variable. If not found in data,
+    def pre_load_process_type(self, data: dict, **kwargs) -> dict:
+        """Fallback mechanism for the process_type variable. If not found in data,
         it tries to find it in among the sensor or asset attributes and, if it's not found
         there either, it defaults to "INFLEXIBLE".
         """
-        if "load-type" not in data or data["load-type"] is None:
-            load_type = self.sensor.get_attribute("load_type")
+        if "process-type" not in data or data["process-type"] is None:
+            process_type = self.sensor.get_attribute("process-type")
 
-            if load_type is None:
-                load_type = self.sensor.generic_asset.get_attribute("load_type")
+            if process_type is None:
+                process_type = self.sensor.generic_asset.get_attribute("process-type")
 
-            if load_type is None:
-                load_type = "INFLEXIBLE"
+            if process_type is None:
+                process_type = "INFLEXIBLE"
 
-            data["load-type"] = load_type
+            data["process-type"] = process_type
 
         return data
