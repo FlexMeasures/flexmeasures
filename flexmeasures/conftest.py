@@ -265,7 +265,7 @@ def create_test_markets(db) -> dict[str, Sensor]:
         ),
     )
     db.session.add(epex_da)
-    db.session.flush()  # assign an id so it can be used to set a market_id attribute on an Asset or Sensor
+    db.session.flush()  # assign an id, so it can be used to set a market_id attribute on a GenericAsset or Sensor
     return {"epex_da": epex_da}
 
 
