@@ -121,12 +121,6 @@ def shiftable_load_power_sensor(db, app):
         "power",
         generic_asset=shiftable_asset,
         event_resolution=timedelta(hours=1),
-        attributes={
-            "custom-scheduler": {
-                "class": "ShiftableLoadScheduler",
-                "module": "flexmeasures.data.models.planning.shiftable_load",
-            }
-        },
         unit="MW",
     )
 

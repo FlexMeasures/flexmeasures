@@ -1210,7 +1210,7 @@ def add_schedule_for_storage(
     "load_power",
     type=ur.Quantity,
     required=True,
-    help="Constant power of the load during the activation period.",
+    help="Constant power of the load during the activation period, e.g. 4kW.",
 )
 @click.option(
     "--forbid",
