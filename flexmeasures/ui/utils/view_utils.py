@@ -104,6 +104,15 @@ def clear_session():
         del session[skey]
 
 
+def set_session_variables(*var_names: str):
+    """Store request values as session variables, for a consistent UX across UI page loads.
+
+    >>> set_session_variables("event_starts_after", "event_ends_before", "chart_type")
+    """
+    for var_name in var_names:
+        session[var_name] = request.values.get(var_name)
+
+
 def set_time_range_for_session():
     """Set period on session if they are not yet set.
     The daterangepicker sends times as tz-aware UTC strings.
