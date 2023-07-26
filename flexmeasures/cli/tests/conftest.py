@@ -104,6 +104,7 @@ def shiftable_load_power_sensor(db, app):
     """
     Create an asset of type "LoadType" and a power sensor to hold the result of
     the scheduler.
+
     """
 
     shiftable_load_asset_type = GenericAssetType(name="LoadType")
