@@ -1,23 +1,23 @@
-from flexmeasures.data.schemas.scheduling.shiftable_load import (
-    ShiftableLoadFlexModelSchema,
-    LoadType,
+from flexmeasures.data.schemas.scheduling.process import (
+    ProcessSchedulerFlexModelSchema,
+    ProcessType,
 )
 
 from datetime import datetime
 import pytz
 
 
-def test_shiftable_load_flex_model_load(db, app, setup_dummy_sensors):
+def test_process_scheduler_flex_model_load(db, app, setup_dummy_sensors):
 
     sensor1, _ = setup_dummy_sensors
 
-    schema = ShiftableLoadFlexModelSchema(
+    schema = ProcessSchedulerFlexModelSchema(
         sensor=sensor1,
         start=datetime(2023, 1, 1, tzinfo=pytz.UTC),
         end=datetime(2023, 1, 2, tzinfo=pytz.UTC),
     )
 
-    shiftable_load_flex_model = schema.load(
+    process_scheduler_flex_model = schema.load(
         {
             "duration": "PT4H",
             "power": 30.0,
@@ -27,22 +27,22 @@ def test_shiftable_load_flex_model_load(db, app, setup_dummy_sensors):
         }
     )
 
-    print(shiftable_load_flex_model)
+    assert process_scheduler_flex_model["process_type"] == ProcessType.INFLEXIBLE
 
 
-def test_shiftable_load_flex_model_load_type(db, app, setup_dummy_sensors):
+def test_process_scheduler_flex_model_process_type(db, app, setup_dummy_sensors):
 
     sensor1, _ = setup_dummy_sensors
 
     # checking default
 
-    schema = ShiftableLoadFlexModelSchema(
+    schema = ProcessSchedulerFlexModelSchema(
         sensor=sensor1,
         start=datetime(2023, 1, 1, tzinfo=pytz.UTC),
         end=datetime(2023, 1, 2, tzinfo=pytz.UTC),
     )
 
-    shiftable_load_flex_model = schema.load(
+    process_scheduler_flex_model = schema.load(
         {
             "duration": "PT4H",
             "power": 30.0,
@@ -52,17 +52,17 @@ def test_shiftable_load_flex_model_load_type(db, app, setup_dummy_sensors):
         }
     )
 
-    assert shiftable_load_flex_model["load_type"] == LoadType.INFLEXIBLE
+    assert process_scheduler_flex_model["process_type"] == ProcessType.INFLEXIBLE
 
-    sensor1.attributes["load_type"] = "SHIFTABLE"
+    sensor1.attributes["process-type"] = "SHIFTABLE"
 
-    schema = ShiftableLoadFlexModelSchema(
+    schema = ProcessSchedulerFlexModelSchema(
         sensor=sensor1,
         start=datetime(2023, 1, 1, tzinfo=pytz.UTC),
         end=datetime(2023, 1, 2, tzinfo=pytz.UTC),
     )
 
-    shiftable_load_flex_model = schema.load(
+    process_scheduler_flex_model = schema.load(
         {
             "duration": "PT4H",
             "power": 30.0,
@@ -72,4 +72,4 @@ def test_shiftable_load_flex_model_load_type(db, app, setup_dummy_sensors):
         }
     )
 
-    assert shiftable_load_flex_model["load_type"] == LoadType.SHIFTABLE
+    assert process_scheduler_flex_model["process_type"] == ProcessType.SHIFTABLE
