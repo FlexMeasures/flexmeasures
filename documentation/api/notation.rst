@@ -204,7 +204,6 @@ Here are the three types of flexibility models you can expect to be built-in:
 
 2) For **shiftable processes**
    
-    - ``consumption_price_sensor``: it defines the utility (economic, environmental, ) in each time period. It has units of quantity/energy, for example, EUR/kWh.
     - ``power``: nominal power of the load.
     - ``duration``: time that the load last.
     - ``optimization_sense``: objective of the scheduler, to maximize or minimize.

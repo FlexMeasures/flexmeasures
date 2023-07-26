@@ -18,8 +18,6 @@ from flexmeasures.data.schemas.times import (
 )
 
 
-from flexmeasures.data.schemas.sensors import SensorIdField
-
 from enum import Enum
 
 
@@ -35,8 +33,6 @@ class OptimizationSense(Enum):
 
 
 class ShiftableLoadFlexModelSchema(Schema):
-    # it defines the utility (economic, environmental, ) in each time period. It has units of quantity/energy, for example, EUR/kWh.
-    consumption_price_sensor = SensorIdField(data_key="consumption-price-sensor")
     # time that the load last.
     duration = DurationField(required=True)
     # nominal power of the load.
