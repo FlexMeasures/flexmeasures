@@ -100,26 +100,26 @@ def reporter_config_raw(app, db, setup_dummy_data):
 
 @pytest.mark.skip_github
 @pytest.fixture(scope="module")
-def shiftable_load_power_sensor(db, app):
+def process_power_sensor(db, app):
     """
-    Create an asset of type "LoadType" and a power sensor to hold the result of
+    Create an asset of type "ProcessType" and a power sensor to hold the result of
     the scheduler.
 
     """
 
-    shiftable_load_asset_type = GenericAssetType(name="LoadType")
+    process_asset_type = GenericAssetType(name="process")
 
-    db.session.add(shiftable_load_asset_type)
+    db.session.add(process_asset_type)
 
-    shiftable_asset = GenericAsset(
-        name="Test Asset", generic_asset_type=shiftable_load_asset_type
+    processasset = GenericAsset(
+        name="Test Asset", generic_asset_type=process_asset_type
     )
 
-    db.session.add(shiftable_asset)
+    db.session.add(processasset)
 
     power_sensor = Sensor(
         "power",
-        generic_asset=shiftable_asset,
+        generic_asset=processasset,
         event_resolution=timedelta(hours=1),
         unit="MW",
     )

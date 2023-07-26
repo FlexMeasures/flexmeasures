@@ -36,7 +36,7 @@ of which some are referred to in this documentation.
 ``flexmeasures add source``                       Add a new data source.
 ``flexmeasures add forecasts``                    Create forecasts.
 ``flexmeasures add schedule for-storage``         Create a charging schedule for a storage asset.
-``flexmeasures add schedule for-shiftable``       Create a schedule for a shiftable load.
+``flexmeasures add schedule for-process``         Create a schedule for a process asset.
 ``flexmeasures add holidays``                     Add holiday annotations to accounts and/or assets.
 ``flexmeasures add annotation``                   Add annotation to accounts, assets and/or sensors.
 ``flexmeasures add toy-account``                  Create a toy account, for tutorials and trying things.

@@ -1160,7 +1160,7 @@ def add_schedule_for_storage(
             click.secho("New schedule is stored.", **MsgStyle.SUCCESS)
 
 
-@create_schedule.command("for-shiftable")
+@create_schedule.command("for-process")
 @with_appcontext
 @click.option(
     "--sensor-id",
@@ -1191,26 +1191,26 @@ def add_schedule_for_storage(
     help="Duration of schedule, after --start. Follow up with a duration in ISO 6801 format, e.g. PT1H (1 hour) or PT45M (45 minutes).",
 )
 @click.option(
-    "--load-duration",
-    "load_duration",
+    "--process-duration",
+    "process_duration",
     type=DurationField(),
     required=True,
-    help="Duration of the load. Follow up with a duration in ISO 6801 format, e.g. PT1H (1 hour) or PT45M (45 minutes).",
+    help="Duration of the process. Follow up with a duration in ISO 6801 format, e.g. PT1H (1 hour) or PT45M (45 minutes).",
 )
 @click.option(
-    "--load-type",
-    "load_type",
+    "--process-type",
+    "process_type",
     type=click.Choice(["INFLEXIBLE", "BREAKABLE", "SHIFTABLE"], case_sensitive=False),
     required=False,
     default="SHIFTABLE",
-    help="Load shift policy type: INFLEXIBLE, BREAKABLE or SHIFTABLE.",
+    help="Process schedule policy: INFLEXIBLE, BREAKABLE or SHIFTABLE.",
 )
 @click.option(
-    "--load-power",
-    "load_power",
+    "--process-power",
+    "process_power",
     type=ur.Quantity,
     required=True,
-    help="Constant power of the load during the activation period, e.g. 4kW.",
+    help="Constant power of the process during the activation period, e.g. 4kW.",
 )
 @click.option(
     "--forbid",
@@ -1227,22 +1227,22 @@ def add_schedule_for_storage(
     help="Whether to queue a scheduling job instead of computing directly. "
     "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'scheduling' queue. Defaults to False.",
 )
-def add_schedule_shiftable_load(
+def add_schedule_process(
     power_sensor: Sensor,
     consumption_price_sensor: Sensor,
     start: datetime,
     duration: timedelta,
-    load_duration: timedelta,
-    load_type: str,
-    load_power: ur.Quantity,
+    process_duration: timedelta,
+    process_type: str,
+    process_power: ur.Quantity,
     forbid: List | None = None,
     as_job: bool = False,
 ):
-    """Create a new schedule for a shiftable asset.
+    """Create a new schedule for a process asset.
 
     Current limitations:
     - Only supports consumption blocks.
-    - Not taking into account grid constraints or other loads.
+    - Not taking into account grid constraints or other processes.
     """
 
     if forbid is None:
@@ -1258,7 +1258,7 @@ def add_schedule_shiftable_load(
 
     end = start + duration
 
-    load_power = convert_units(load_power.magnitude, load_power.units, "MW")  # type: ignore
+    process_power = convert_units(process_power.magnitude, process_power.units, "MW")  # type: ignore
 
     scheduling_kwargs = dict(
         start=start,
@@ -1266,9 +1266,9 @@ def add_schedule_shiftable_load(
         belief_time=server_now(),
         resolution=power_sensor.event_resolution,
         flex_model={
-            "duration": pd.Timedelta(load_duration).isoformat(),
-            "load-type": load_type,
-            "power": load_power,
+            "duration": pd.Timedelta(process_duration).isoformat(),
+            "process-type": process_type,
+            "power": process_power,
             "time-restrictions": [TimeIntervalSchema().dump(f) for f in forbid],
         },
         flex_context={

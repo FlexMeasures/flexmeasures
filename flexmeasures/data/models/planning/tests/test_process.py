@@ -16,7 +16,7 @@ resolution = timedelta(hours=1)
     "process_type, optimal_start",
     [("INFLEXIBLE", datetime(2015, 1, 2, 0)), ("SHIFTABLE", datetime(2015, 1, 2, 8))],
 )
-def test_shiftable_scheduler(add_battery_assets, process, process_type, optimal_start):
+def test_processscheduler(add_battery_assets, process, process_type, optimal_start):
     """
     Test scheduling a process of 4kW of power that last 4h using the ProcessScheduler
     without time restrictions.
@@ -94,7 +94,7 @@ def test_duration_exceeds_planning_window(
     assert (schedule == 4).all()
 
 
-def test_shiftable_scheduler_time_restrictions(add_battery_assets, process):
+def test_processscheduler_time_restrictions(add_battery_assets, process):
     """
     Test ProcessScheduler with a time restrictions consisting of a block of 2h starting
     at 8am. The resulting schedules avoid the 8am-10am period and schedules for a valid period.
