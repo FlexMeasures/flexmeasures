@@ -38,7 +38,7 @@ class SensorField(fields.Str):
 
     def __init__(
         self,
-        entity_type: str,
+        entity_type: str = "sensor",
         fm_scheme: str = "fm1",
         *args,
         **kwargs,
