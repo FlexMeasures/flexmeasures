@@ -110,6 +110,10 @@ def clear_session():
         del session[skey]
 
 
+def set_chart_type_for_session():
+    session["chart_type"] = request.values.get("chart_type")
+
+
 def set_time_range_for_session():
     """Set period on session if they are not yet set.
     The daterangepicker sends times as tz-aware UTC strings.
