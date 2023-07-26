@@ -104,6 +104,7 @@ def shiftable_load_power_sensor(db, app):
     """
     Create an asset of type "LoadType" and a power sensor to hold the result of
     the scheduler.
+
     """
 
     shiftable_load_asset_type = GenericAssetType(name="LoadType")
@@ -120,12 +121,6 @@ def shiftable_load_power_sensor(db, app):
         "power",
         generic_asset=shiftable_asset,
         event_resolution=timedelta(hours=1),
-        attributes={
-            "custom-scheduler": {
-                "class": "ShiftableLoadScheduler",
-                "module": "flexmeasures.data.models.planning.shiftable_load",
-            }
-        },
         unit="MW",
     )
 

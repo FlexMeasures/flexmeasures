@@ -107,15 +107,23 @@ class ShiftableLoadScheduler(Scheduler):
             schedule[:] = energy
             return schedule
 
-        time_restrictions = (
-            self.block_invalid_starting_times_for_whole_process_scheduling(
-                load_type, time_restrictions, duration, rows_to_fill
+        if load_type in [LoadType.INFLEXIBLE, LoadType.SHIFTABLE]:
+            start_time_restrictions = (
+                self.block_invalid_starting_times_for_whole_process_scheduling(
+                    load_type, time_restrictions, duration, rows_to_fill
+                )
             )
-        )
+        else:  # LoadType.BREAKABLE
+            if (~time_restrictions).sum() < rows_to_fill:
+                raise ValueError(
+                    "Cannot allocate a block of time {duration} given the time restrictions provided."
+                )
 
         # create schedule
         if load_type == LoadType.INFLEXIBLE:
-            self.compute_inflexible(schedule, time_restrictions, rows_to_fill, energy)
+            self.compute_inflexible(
+                schedule, start_time_restrictions, rows_to_fill, energy
+            )
         elif load_type == LoadType.BREAKABLE:
             self.compute_breakable(
                 schedule,
@@ -129,7 +137,7 @@ class ShiftableLoadScheduler(Scheduler):
             self.compute_shiftable(
                 schedule,
                 optimization_sense,
-                time_restrictions,
+                start_time_restrictions,
                 cost,
                 rows_to_fill,
                 energy,
@@ -160,7 +168,7 @@ class ShiftableLoadScheduler(Scheduler):
             # applying a dilation with duration = 2
             time_restriction = [1 0 1 1 1 1 0 1 1 1]
 
-        We can only fit a block of duration = 2 in the positions 1 and 6. sum(time_restrictions) == 8,
+        We can only fit a block of duration = 2 in the positions 1 and 6. sum(start_time_restrictions) == 8,
         while the len(time_restriction) == 10, which means we have 10-8=2 positions.
 
         :param load_type: INFLEXIBLE, SHIFTABLE or BREAKABLE
@@ -170,24 +178,21 @@ class ShiftableLoadScheduler(Scheduler):
         :return: filtered time restrictions
         """
 
-        if load_type in [LoadType.INFLEXIBLE, LoadType.SHIFTABLE]:
-            # get start time instants that are not feasible, i.e. some time during the ON period goes through
-            # a time restriction interval
-            time_restrictions = (
-                time_restrictions.rolling(duration).max().shift(-rows_to_fill + 1)
-            )
-            time_restrictions = (time_restrictions == 1) | time_restrictions.isna()
+        # get start time instants that are not feasible, i.e. some time during the ON period goes through
+        # a time restriction interval
+        start_time_restrictions = (
+            time_restrictions.rolling(duration).max().shift(-rows_to_fill + 1)
+        )
+        start_time_restrictions = (
+            start_time_restrictions == 1
+        ) | start_time_restrictions.isna()
 
-            if time_restrictions.sum() == len(time_restrictions):
-                raise ValueError(
-                    "Cannot allocate a block of time {duration} given the time restrictions provided."
-                )
-        else:  # LoadType.BREAKABLE
-            if (~time_restrictions).sum() < rows_to_fill:
-                raise ValueError(
-                    "Cannot allocate a block of time {duration} given the time restrictions provided."
-                )
-        return time_restrictions
+        if (~start_time_restrictions).sum() == 0:
+            raise ValueError(
+                "Cannot allocate a block of time {duration} given the time restrictions provided."
+            )
+
+        return start_time_restrictions
 
     def compute_inflexible(
         self,
