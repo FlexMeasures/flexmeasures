@@ -36,14 +36,6 @@ def render_flexmeasures_template(html_filename: str, **variables):
         ):
             variables["show_queues"] = True
 
-    variables["start_time"] = time_utils.get_default_start_time()
-    if "start_time" in session:
-        variables["start_time"] = session["start_time"]
-
-    variables["end_time"] = time_utils.get_default_end_time()
-    if "end_time" in session:
-        variables["end_time"] = session["end_time"]
-
     variables["event_starts_after"] = session.get("event_starts_after")
     variables["event_ends_before"] = session.get("event_ends_before")
 
@@ -111,72 +103,6 @@ def set_session_variables(*var_names: str):
     """
     for var_name in var_names:
         session[var_name] = request.values.get(var_name)
-
-
-def set_time_range_for_session():
-    """Set period on session if they are not yet set.
-    The daterangepicker sends times as tz-aware UTC strings.
-    We re-interpret them as being in the server's timezone.
-    Also set the forecast horizon, if given.
-
-    TODO: event_[stars|ends]_before are used on the new asset and sensor pages.
-          We simply store the UTC strings.
-          It might be that the other settings & logic can be deprecated when we clean house.
-          Tip: grep for timerangeEnd, where end_time is used in our base template,
-               and then used in the daterangepicker. We seem to use litepicker now.
-    """
-    if "start_time" in request.values:
-        session["start_time"] = time_utils.localized_datetime(
-            iso8601.parse_date(request.values.get("start_time"))
-        )
-    elif "start_time" not in session:
-        session["start_time"] = time_utils.get_default_start_time()
-    else:
-        if (
-            session["start_time"].tzinfo is None
-        ):  # session storage seems to lose tz info and becomes UTC
-            session["start_time"] = time_utils.as_server_time(session["start_time"])
-
-    session["event_starts_after"] = request.values.get("event_starts_after")
-    session["event_ends_before"] = request.values.get("event_ends_before")
-    if "end_time" in request.values:
-        session["end_time"] = time_utils.localized_datetime(
-            iso8601.parse_date(request.values.get("end_time"))
-        )
-    elif "end_time" not in session:
-        session["end_time"] = time_utils.get_default_end_time()
-    else:
-        if session["end_time"].tzinfo is None:
-            session["end_time"] = time_utils.as_server_time(session["end_time"])
-
-    # Our demo server's UI should only work with the current year's data
-    if current_app.config.get("FLEXMEASURES_MODE", "") == "demo":
-        session["start_time"] = session["start_time"].replace(year=datetime.now().year)
-        session["end_time"] = session["end_time"].replace(year=datetime.now().year)
-        if session["start_time"] >= session["end_time"]:
-            session["start_time"], session["end_time"] = (
-                session["end_time"],
-                session["start_time"],
-            )
-
-    if session["start_time"] >= session["end_time"]:
-        raise BadRequest(
-            "Start time %s is not after end time %s."
-            % (session["start_time"], session["end_time"])
-        )
-
-    session["resolution"] = time_utils.decide_resolution(
-        session["start_time"], session["end_time"]
-    )
-
-    if "forecast_horizon" in request.values:
-        session["forecast_horizon"] = request.values.get("forecast_horizon")
-    allowed_horizons = time_utils.forecast_horizons_for(session["resolution"])
-    if (
-        session.get("forecast_horizon") not in allowed_horizons
-        and len(allowed_horizons) > 0
-    ):
-        session["forecast_horizon"] = allowed_horizons[0]
 
 
 def get_git_description() -> tuple[str, int, str]:
