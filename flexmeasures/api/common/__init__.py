@@ -1,3 +1,7 @@
+"""
+Functionality common to all API versions.
+"""
+
 from flask import Flask, Blueprint
 
 

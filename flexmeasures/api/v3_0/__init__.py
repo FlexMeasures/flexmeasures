@@ -1,3 +1,7 @@
+"""
+FlexMeasures API v3
+"""
+
 from flask import Flask
 
 from flexmeasures.api.v3_0.sensors import SensorAPI

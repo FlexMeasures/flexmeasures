@@ -29,7 +29,11 @@ def bar_chart(
         stack=None,
         **FIELD_DEFINITIONS["event_value"],
     )
-    event_start_field_definition = FIELD_DEFINITIONS["event_start"]
+    if unit == "%":
+        event_value_field_definition["scale"] = dict(
+            domain={"unionWith": [0, 105]}, nice=False
+        )
+    event_start_field_definition = FIELD_DEFINITIONS["event_start"].copy()
     event_start_field_definition["timeUnit"] = {
         "unit": "yearmonthdatehoursminutesseconds",
         "step": sensor.event_resolution.total_seconds(),
@@ -207,15 +211,16 @@ def chart_for_multiple_sensors(
     **override_chart_specs: dict,
 ):
     # Determine the shared data resolution
+    all_shown_sensors = flatten_unique(sensors_to_show)
     condition = list(
         sensor.event_resolution
-        for sensor in flatten_unique(sensors_to_show)
+        for sensor in all_shown_sensors
         if sensor.event_resolution > timedelta(0)
     )
     minimum_non_zero_resolution = min(condition) if any(condition) else timedelta(0)
 
     # Set up field definition for event starts
-    event_start_field_definition = FIELD_DEFINITIONS["event_start"]
+    event_start_field_definition = FIELD_DEFINITIONS["event_start"].copy()
     event_start_field_definition["timeUnit"] = {
         "unit": "yearmonthdatehoursminutesseconds",
         "step": minimum_non_zero_resolution.total_seconds(),
@@ -228,6 +233,12 @@ def chart_for_multiple_sensors(
                 event_ends_before.timestamp() * 10**3,
             ]
         }
+
+    # Set up field definition for sensor descriptions
+    sensor_field_definition = FIELD_DEFINITIONS["sensor_description"].copy()
+    sensor_field_definition["scale"] = dict(
+        domain=[sensor.to_dict()["description"] for sensor in all_shown_sensors]
+    )
 
     sensors_specs = []
     for s in sensors_to_show:
@@ -249,6 +260,10 @@ def chart_for_multiple_sensors(
             stack=None,
             **FIELD_DEFINITIONS["event_value"],
         )
+        if unit == "%":
+            event_value_field_definition["scale"] = dict(
+                domain={"unionWith": [0, 105]}, nice=False
+            )
 
         # Set up shared tooltip
         shared_tooltip = [
@@ -281,7 +296,10 @@ def chart_for_multiple_sensors(
         # Draw a line for each sensor (and each source)
         layers = [
             create_line_layer(
-                row_sensors, event_start_field_definition, event_value_field_definition
+                row_sensors,
+                event_start_field_definition,
+                event_value_field_definition,
+                sensor_field_definition,
             )
         ]
 
@@ -303,6 +321,7 @@ def chart_for_multiple_sensors(
                 row_sensors,
                 event_start_field_definition,
                 event_value_field_definition,
+                sensor_field_definition,
                 shared_tooltip,
             )
         )
@@ -386,11 +405,12 @@ def create_line_layer(
     sensors: list["Sensor"],  # noqa F821
     event_start_field_definition: dict,
     event_value_field_definition: dict,
+    sensor_field_definition: dict,
 ):
     event_resolutions = list(set([sensor.event_resolution for sensor in sensors]))
-    assert (
-        len(event_resolutions) == 1
-    ), "Sensors shown within one row must share the same event resolution."
+    assert all(res == timedelta(0) for res in event_resolutions) or all(
+        res != timedelta(0) for res in event_resolutions
+    ), "Sensors shown within one row must all be instantaneous (zero event resolution) or all be non-instantatneous (non-zero event resolution)."
     event_resolution = event_resolutions[0]
     line_layer = {
         "mark": {
@@ -403,7 +423,7 @@ def create_line_layer(
         "encoding": {
             "x": event_start_field_definition,
             "y": event_value_field_definition,
-            "color": FIELD_DEFINITIONS["sensor_description"],
+            "color": sensor_field_definition,
             "strokeDash": {
                 "scale": {
                     # Distinguish forecasters and schedulers by line stroke
@@ -426,6 +446,7 @@ def create_circle_layer(
     sensors: list["Sensor"],  # noqa F821
     event_start_field_definition: dict,
     event_value_field_definition: dict,
+    sensor_field_definition: dict,
     shared_tooltip: list,
 ):
     params = [
@@ -465,7 +486,7 @@ def create_circle_layer(
         "encoding": {
             "x": event_start_field_definition,
             "y": event_value_field_definition,
-            "color": FIELD_DEFINITIONS["sensor_description"],
+            "color": sensor_field_definition,
             "size": {
                 "condition": {"value": "200", "test": {"or": or_conditions}},
                 "value": "0",

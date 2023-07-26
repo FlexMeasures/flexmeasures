@@ -37,6 +37,10 @@ def test_scheduling_a_battery(db, app, add_battery_assets, setup_test_data):
         end=end,
         belief_time=start,
         resolution=resolution,
+        flex_model={
+            "roundtrip-efficiency": "98%",
+            "storage-efficiency": 0.999,
+        },
     )
 
     print("Job: %s" % job.id)
@@ -57,6 +61,9 @@ def test_scheduling_a_battery(db, app, add_battery_assets, setup_test_data):
     )
     print([v.event_value for v in power_values])
     assert len(power_values) == 96
+    assert (
+        sum(v.event_value for v in power_values) < -0.5
+    ), "some cycling should have occurred to make a profit, resulting in overall consumption due to losses"
 
 
 scheduler_specs = {

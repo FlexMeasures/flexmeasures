@@ -1,3 +1,7 @@
+"""
+Tooling & docs for implementing our auth policy
+"""
+
 from __future__ import annotations
 
 # Use | instead of Union, list instead of List and tuple instead of Tuple when FM stops supporting Python 3.9 (because of https://github.com/python/cpython/issues/86399)

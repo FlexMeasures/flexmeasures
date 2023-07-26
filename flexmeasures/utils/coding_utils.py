@@ -1,3 +1,4 @@
+""" Various coding utils (e.g. around function decoration) """
 from __future__ import annotations
 
 import functools
@@ -126,9 +127,11 @@ def sort_dict(unsorted_dict: dict) -> dict:
 def flatten_unique(nested_list_of_objects: list) -> list:
     """Returns unique objects in a possibly nested (one level) list of objects.
 
+    Preserves the original order in which unique objects first occurred.
+
     For example:
-    >>> flatten_unique([1, [2, 3, 4], 3, 5])
-    <<< [1, 2, 3, 4, 5]
+    >>> flatten_unique([1, [2, 20, 6], 10, [6, 2]])
+    <<< [1, 2, 20, 6, 10]
     """
     all_objects = []
     for s in nested_list_of_objects:
@@ -136,7 +139,7 @@ def flatten_unique(nested_list_of_objects: list) -> list:
             all_objects.extend(s)
         else:
             all_objects.append(s)
-    return list(set(all_objects))
+    return list(dict.fromkeys(all_objects).keys())
 
 
 def timeit(func):
@@ -173,34 +176,47 @@ def deprecated(alternative, version: str | None = None):
     return decorator
 
 
-def find_classes_module(module, superclass, skiptest=True):
+def find_classes_module(module, superclass):
     classes = []
-    reporting_module = importlib.import_module(module)
 
-    for submodule in pkgutil.iter_modules(reporting_module.__path__):
+    module_object = importlib.import_module(f"{module}")
+    module_classes = inspect.getmembers(module_object, inspect.isclass)
+
+    classes.extend(
+        [
+            (class_name, klass)
+            for class_name, klass in module_classes
+            if issubclass(klass, superclass) and klass != superclass
+        ]
+    )
+
+    return classes
+
+
+def find_classes_modules(module, superclass, skiptest=True):
+    classes = []
+
+    base_module = importlib.import_module(module)
+
+    # root (__init__.py) of the base module
+    classes += find_classes_module(module, superclass)
+
+    for submodule in pkgutil.iter_modules(base_module.__path__):
 
         if skiptest and ("test" in f"{module}.{submodule.name}"):
             continue
 
         if submodule.ispkg:
             classes.extend(
-                find_classes_module(
+                find_classes_modules(
                     f"{module}.{submodule.name}", superclass, skiptest=skiptest
                 )
             )
         else:
-            module_object = importlib.import_module(f"{module}.{submodule.name}")
-            module_classes = inspect.getmembers(module_object, inspect.isclass)
-            classes.extend(
-                [
-                    (class_name, klass)
-                    for class_name, klass in module_classes
-                    if issubclass(klass, superclass) and klass != superclass
-                ]
-            )
+            classes += find_classes_module(f"{module}.{submodule.name}", superclass)
 
     return classes
 
 
 def get_classes_module(module, superclass, skiptest=True) -> dict:
-    return dict(find_classes_module(module, superclass, skiptest=skiptest))
+    return dict(find_classes_modules(module, superclass, skiptest=skiptest))

@@ -1,8 +1,11 @@
-"""CLI Tasks for populating the database - most useful in development"""
+"""
+CLI commands for populating the database
+"""
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Optional, Type
+from typing import Type
 import json
 from pathlib import Path
 from io import TextIOBase
@@ -49,6 +52,7 @@ from flexmeasures.data.schemas import (
     LongitudeField,
     SensorIdField,
 )
+from flexmeasures.data.schemas.scheduling.storage import EfficiencyField
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.generic_assets import (
@@ -62,7 +66,7 @@ from flexmeasures.data.services.data_sources import (
 )
 from flexmeasures.data.services.utils import get_or_create_model
 from flexmeasures.utils import flexmeasures_inflection
-from flexmeasures.utils.time_utils import server_now, get_timezone, apply_offset_chain
+from flexmeasures.utils.time_utils import server_now, apply_offset_chain
 from flexmeasures.utils.unit_utils import convert_units, ur
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.data.models.reporting import Reporter
@@ -129,7 +133,12 @@ def new_account(name: str, roles: str):
 @with_appcontext
 @click.option("--username", required=True)
 @click.option("--email", required=True)
-@click.option("--account-id", type=int, required=True)
+@click.option(
+    "--account-id",
+    type=int,
+    required=True,
+    help="Add user to this account. Follow up with the account's ID.",
+)
 @click.option("--roles", help="e.g. anonymous,Prosumer,CPO")
 @click.option(
     "--timezone",
@@ -282,7 +291,12 @@ def add_asset_type(**args):
     type=LongitudeField(),
     help="Longitude of the asset's location",
 )
-@click.option("--account-id", type=int, required=True)
+@click.option(
+    "--account-id",
+    type=int,
+    required=False,
+    help="Add asset to this account. Follow up with the account's ID. If not set, the asset will become public (which makes it accessible to all users).",
+)
 @click.option(
     "--asset-type-id",
     "generic_asset_type_id",
@@ -294,6 +308,11 @@ def add_asset(**args):
     """Add an asset."""
     check_errors(GenericAssetSchema().validate(args))
     generic_asset = GenericAsset(**args)
+    if generic_asset.account_id is None:
+        click.secho(
+            "Creating a PUBLIC asset, as no --account-id is given ...",
+            **MsgStyle.WARN,
+        )
     db.session.add(generic_asset)
     db.session.commit()
     click.secho(
@@ -315,7 +334,7 @@ def add_initial_structure():
     "--name",
     required=True,
     type=str,
-    help="Name of the source (usually an organisation)",
+    help="Name of the source (usually an organization)",
 )
 @click.option(
     "--model",
@@ -355,7 +374,7 @@ def add_source(name: str, model: str, version: str, source_type: str):
     "sensor",
     required=True,
     type=SensorIdField(),
-    help="Sensor to which the beliefs pertain.",
+    help="Record the beliefs under this sensor. Follow up with the sensor's ID. ",
 )
 @click.option(
     "--source",
@@ -1012,10 +1031,21 @@ def create_schedule(ctx):
 @click.option(
     "--roundtrip-efficiency",
     "roundtrip_efficiency",
-    type=QuantityField("%", validate=validate.Range(min=0, max=1)),
+    type=EfficiencyField(),
     required=False,
     default=1,
     help="Round-trip efficiency (e.g. 85% or 0.85) to use for the schedule. Defaults to 100% (no losses).",
+)
+@click.option(
+    "--storage-efficiency",
+    "storage_efficiency",
+    type=EfficiencyField(),
+    required=False,
+    default=1,
+    help="Storage efficiency (e.g. 95% or 0.95) to use for the schedule,"
+    " applied over each time step equal to the sensor resolution."
+    " For example, a storage efficiency of 99 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of 0.99**(1/24)."
+    " Defaults to 100% (no losses).",
 )
 @click.option(
     "--as-job",
@@ -1036,6 +1066,7 @@ def add_schedule_for_storage(
     soc_min: ur.Quantity | None = None,
     soc_max: ur.Quantity | None = None,
     roundtrip_efficiency: ur.Quantity | None = None,
+    storage_efficiency: ur.Quantity | None = None,
     as_job: bool = False,
 ):
     """Create a new schedule for a storage asset.
@@ -1091,6 +1122,8 @@ def add_schedule_for_storage(
         soc_max = convert_units(soc_max.magnitude, str(soc_max.units), "MWh", capacity=capacity_str)  # type: ignore
     if roundtrip_efficiency is not None:
         roundtrip_efficiency = roundtrip_efficiency.magnitude / 100.0
+    if storage_efficiency is not None:
+        storage_efficiency = storage_efficiency.magnitude / 100.0
 
     scheduling_kwargs = dict(
         start=start,
@@ -1104,6 +1137,7 @@ def add_schedule_for_storage(
             "soc-max": soc_max,
             "soc-unit": "MWh",
             "roundtrip-efficiency": roundtrip_efficiency,
+            "storage-efficiency": storage_efficiency,
         },
         flex_context={
             "consumption-price-sensor": consumption_price_sensor.id,
@@ -1131,7 +1165,7 @@ def add_schedule_for_storage(
     "sensor",
     type=SensorIdField(),
     required=True,
-    help="ID of the sensor used to save the report."
+    help="Sensor used to save the report. Follow up with the sensor's ID. "
     " If needed, use `flexmeasures add sensor` to create a new sensor first.",
 )
 @click.option(
@@ -1196,8 +1230,7 @@ def add_schedule_for_storage(
     "--timezone",
     "timezone",
     required=False,
-    default="UTC",
-    help="Timezone as string, e.g. 'UTC' or 'Europe/Amsterdam' (defaults to FLEXMEASURES_TIMEZONE config setting)",
+    help="Timezone as string, e.g. 'UTC' or 'Europe/Amsterdam' (defaults to the timezone of the sensor used to save the report).",
 )
 @click.option(
     "--dry-run",
@@ -1209,26 +1242,26 @@ def add_report(  # noqa: C901
     reporter_class: str,
     sensor: Sensor,
     reporter_config: TextIOBase,
-    start: Optional[datetime] = None,
-    end: Optional[datetime] = None,
-    start_offset: Optional[str] = None,
-    end_offset: Optional[str] = None,
-    resolution: Optional[timedelta] = None,
-    output_file: Optional[Path] = None,
+    start: datetime | None = None,
+    end: datetime | None = None,
+    start_offset: str | None = None,
+    end_offset: str | None = None,
+    resolution: timedelta | None = None,
+    output_file: Path | None = None,
     dry_run: bool = False,
-    timezone: str | pytz.BaseTzInfo = get_timezone(),
+    timezone: str | None = None,
 ):
     """
     Create a new report using the Reporter class and save the results
     to the database or export them as CSV or Excel file.
     """
 
-    # parse timezone into a BaseTzInfo object
-    if isinstance(timezone, str):
+    # compute now in the timezone local to the output sensor
+    if timezone is not None:
         check_timezone(timezone)
-        timezone = pytz.timezone(zone=timezone)
-
-    now = timezone.localize(datetime.now())
+    now = pytz.timezone(
+        zone=timezone if timezone is not None else sensor.timezone
+    ).localize(datetime.now())
 
     # apply offsets, if provided
     if start_offset is not None:
@@ -1313,10 +1346,10 @@ def add_report(  # noqa: C901
             "Report computation done, but the report is empty.", **MsgStyle.WARN
         )
 
-    # save the report it's not running in dry mode
+    # save the report if it's not running in dry mode
     if not dry_run:
         click.echo("Saving report to the database...")
-        save_to_db(result)
+        save_to_db(result.dropna())
         db.session.commit()
         click.secho(
             "Success. The report has been saved to the database.",
