@@ -36,6 +36,9 @@ install: install-deps install-flexmeasures
 install-for-dev:
 	make freeze-deps
 	pip-sync requirements/app.txt requirements/dev.txt requirements/test.txt
+	cp requirements/app.txt requirements/${PYV}/app.txt
+	cp requirements/dev.txt requirements/${PYV}/dev.txt
+	cp requirements/test.txt requirements/${PYV}/test.txt
 	make install-flexmeasures
 
 install-for-test:
@@ -43,6 +46,8 @@ install-for-test:
 # Pass pinned=no if you want to test against latest stable packages, default is our pinned dependency set
 ifneq ($(pinned), no)
 	pip-sync requirements/app.txt requirements/test.txt
+	cp requirements/app.txt requirements/${PYV}/app.txt
+	cp requirements/test.txt requirements/${PYV}/test.txt
 else
 	# cutting off the -c inter-layer dependency (that's pip-tools specific)
 	tail -n +3 requirements/test.in >> temp-test.in
@@ -56,7 +61,8 @@ install-deps:
 	make freeze-deps
 # Pass pinned=no if you want to test against latest stable packages, default is our pinned dependency set
 ifneq ($(pinned), no)
-	pip-sync requirements/app.txt
+	pip-sync requirements/${PYV}/app.txt
+	cp requirements/app.txt requirements/${PYV}/app.txt
 else
 	pip install --upgrade -r requirements/app.in
 endif
@@ -68,7 +74,7 @@ install-pip-tools:
 	pip3 install -q "pip-tools>=6.4"
 
 install-docs-dependencies:
-	pip install -r requirements/docs.txt
+	pip install -r requirements/${PYV}/docs.txt
 
 freeze-deps:
 	make install-pip-tools
@@ -77,12 +83,23 @@ freeze-deps:
 	pip-compile -o requirements/dev.txt requirements/dev.in
 	pip-compile -o requirements/docs.txt requirements/docs.in
 
+	cp requirements/app.txt requirements/${PYV}/app.txt
+	cp requirements/test.txt requirements/${PYV}/test.txt
+	cp requirements/dev.txt requirements/${PYV}/dev.txt
+	cp requirements/docs.txt requirements/${PYV}/docs.txt
+
 upgrade-deps:
 	make install-pip-tools
 	pip-compile --upgrade -o requirements/app.txt requirements/app.in
 	pip-compile --upgrade -o requirements/test.txt requirements/test.in
 	pip-compile --upgrade -o requirements/dev.txt requirements/dev.in
 	pip-compile --upgrade -o requirements/docs.txt requirements/docs.in
+
+	cp requirements/app.txt requirements/${PYV}/app.txt
+	cp requirements/test.txt requirements/${PYV}/test.txt
+	cp requirements/dev.txt requirements/${PYV}/dev.txt
+	cp requirements/docs.txt requirements/${PYV}/docs.txt
+
 	make test
 
 
@@ -106,3 +123,7 @@ show-data-model:
 
 clean-db:
 	./flexmeasures/data/scripts/clean_database.sh ${db_name} ${db_user}
+
+# Check Python major and minor version
+# For more information, see https://stackoverflow.com/a/22105036
+PYV = $(shell python -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_info[:2]));sys.stdout.write(t)")
