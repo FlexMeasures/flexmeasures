@@ -24,16 +24,16 @@ class ProcessScheduler(Scheduler):
     __author__ = "Seita"
 
     def compute(self) -> pd.Series | None:
-        """Schedule a prrocess, defined as a `power` and a `duration`, within the specified time window.
+        """Schedule a process, defined as a `power` and a `duration`, within the specified time window.
         To schedule a battery, please, refer to the StorageScheduler.
 
-        For example, this scheduler can plan the start of a process of type `Shiftable` that lasts 5h and requires a power of 10kW.
+        For example, this scheduler can plan the start of a process of type `SHIFTABLE` that lasts 5h and requires a power of 10kW.
         In that case, the scheduler will find the best (as to minimize/maximize the cost) hour to start the process.
 
         This scheduler supports three types of `process_types`:
-            - Inflexible: this process needs to be scheduled as soon as possible.
-            - Breakable: this process can be divisible in smaller consumption periods.
-            - Shiftable: this process can start at any time within the specified time window.
+            - INFLEXIBLE: this process needs to be scheduled as soon as possible.
+            - BREAKABLE: this process can be divisible in smaller consumption periods.
+            - SHIFTABLE: this process can start at any time within the specified time window.
 
         The resulting schedule provides the power flow at each time period.
 
@@ -45,9 +45,9 @@ class ProcessScheduler(Scheduler):
         power: nominal power of the process.
         duration: time that the process last.
 
-        optimization_sense: objective of the scheduler, to maximize or minimize.
+        optimization_direction: objective of the scheduler, to maximize or minimize.
         time_restrictions: time periods in which the process cannot be schedule to.
-        process_type: Inflexible, Breakable or Shiftable.
+        process_type: INFLEXIBLE, BREAKABLE or SHIFTABLE.
 
         :returns:               The computed schedule.
         """
@@ -66,7 +66,7 @@ class ProcessScheduler(Scheduler):
         )
         duration: timedelta = self.flex_model.get("duration")
         power = self.flex_model.get("power")
-        optimization_sense = self.flex_model.get("optimization_sense")
+        optimization_direction = self.flex_model.get("optimization_direction")
         process_type: ProcessType = self.flex_model.get("process_type")
         time_restrictions = self.flex_model.get("time_restrictions")
 
@@ -125,7 +125,7 @@ class ProcessScheduler(Scheduler):
         elif process_type == ProcessType.BREAKABLE:
             self.compute_breakable(
                 schedule,
-                optimization_sense,
+                optimization_direction,
                 time_restrictions,
                 cost,
                 rows_to_fill,
@@ -134,7 +134,7 @@ class ProcessScheduler(Scheduler):
         elif process_type == ProcessType.SHIFTABLE:
             self.compute_shiftable(
                 schedule,
-                optimization_sense,
+                optimization_direction,
                 start_time_restrictions,
                 cost,
                 rows_to_fill,
@@ -207,16 +207,16 @@ class ProcessScheduler(Scheduler):
     def compute_breakable(
         self,
         schedule: pd.Series,
-        optimization_sense: OptimizationSense,
+        optimization_direction: OptimizationSense,
         time_restrictions: pd.Series,
         cost: pd.DataFrame,
         rows_to_fill: int,
         energy: float,
     ) -> None:
-        """Break up schedule and divide it over the time slots with the largest utility (max/min cost depending on optimization_sense)."""
+        """Break up schedule and divide it over the time slots with the largest utility (max/min cost depending on optimization_direction)."""
         cost = cost[~time_restrictions].reset_index()
 
-        if optimization_sense == OptimizationSense.MIN:
+        if optimization_direction == OptimizationSense.MIN:
             cost_ranking = cost.sort_values(
                 by=["event_value", "event_start"], ascending=[True, True]
             )
@@ -230,7 +230,7 @@ class ProcessScheduler(Scheduler):
     def compute_shiftable(
         self,
         schedule: pd.Series,
-        optimization_sense: OptimizationSense,
+        optimization_direction: OptimizationSense,
         time_restrictions: pd.Series,
         cost: pd.DataFrame,
         rows_to_fill: int,
@@ -241,7 +241,7 @@ class ProcessScheduler(Scheduler):
             cost.rolling(rows_to_fill).sum().shift(-rows_to_fill + 1)
         )
 
-        if optimization_sense == OptimizationSense.MIN:
+        if optimization_direction == OptimizationSense.MIN:
             start = block_cost[~time_restrictions].idxmin()
         else:
             start = block_cost[~time_restrictions].idxmax()

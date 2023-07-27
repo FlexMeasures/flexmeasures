@@ -145,7 +145,7 @@ def test_processscheduler_time_restrictions(add_battery_assets, process):
 
 def test_breakable_scheduler_time_restrictions(add_battery_assets, process):
     """
-    Test breakable process_type of ProcessScheduler by introducing four 1-hour restrictions
+    Test BREAKABLE process_type of ProcessScheduler by introducing four 1-hour restrictions
     interspaced by 1 hour. The equivalent mask would be the following: [0,...,0,1,0,1,0,1,0,1,0, ...,0].
     Trying to get the best prices (between 9am and 4pm), his makes the schedule choose time periods between
     the time restrictions.
