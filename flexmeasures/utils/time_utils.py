@@ -1,3 +1,7 @@
+"""
+Utils for dealing with time
+"""
+
 from __future__ import annotations
 
 import re

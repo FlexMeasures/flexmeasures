@@ -1,4 +1,4 @@
-"""CLI Tasks for saving, resetting, etc of the database"""
+"""CLI commands for saving, resetting, etc of the database"""
 
 from datetime import datetime
 import subprocess
