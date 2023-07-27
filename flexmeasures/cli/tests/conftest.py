@@ -102,7 +102,7 @@ def reporter_config_raw(app, db, setup_dummy_data):
 @pytest.fixture(scope="module")
 def process_power_sensor(db, app):
     """
-    Create an asset of type "ProcessType" and a power sensor to hold the result of
+    Create an asset of type "process" and a power sensor to hold the result of
     the scheduler.
 
     """
@@ -111,15 +111,15 @@ def process_power_sensor(db, app):
 
     db.session.add(process_asset_type)
 
-    processasset = GenericAsset(
+    process_asset = GenericAsset(
         name="Test Asset", generic_asset_type=process_asset_type
     )
 
-    db.session.add(processasset)
+    db.session.add(process_asset)
 
     power_sensor = Sensor(
         "power",
-        generic_asset=processasset,
+        generic_asset=process_asset,
         event_resolution=timedelta(hours=1),
         unit="MW",
     )
