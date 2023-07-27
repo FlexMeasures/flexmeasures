@@ -1,7 +1,7 @@
 import json
 
 from altair.utils.html import spec_to_html
-from flask import current_app, session
+from flask import current_app
 from flask_classful import FlaskView, route
 from flask_security import auth_required, login_required
 from marshmallow import fields
