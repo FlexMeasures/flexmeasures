@@ -69,6 +69,5 @@ class SensorUI(FlaskView):
         return render_flexmeasures_template(
             "views/sensors.html",
             sensor_id=id,
-            chart_type=session.get("chart_type", "bar_chart"),
             msg="",
         )
