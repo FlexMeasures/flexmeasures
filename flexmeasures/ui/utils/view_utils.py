@@ -117,7 +117,9 @@ def set_session_variables(*var_names: str):
     >>> set_session_variables("event_starts_after", "event_ends_before", "chart_type")
     """
     for var_name in var_names:
-        session[var_name] = request.values.get(var_name)
+        var = request.values.get(var_name)
+        if var is not None:
+            session[var_name] = var
 
 
 def set_time_range_for_session():
