@@ -173,6 +173,7 @@ The platform operator of FlexMeasures can be an Aggregator.
     concepts/inbuilt-smart-functionality
     concepts/algorithms
     concepts/security_auth
+    concepts/device_scheduler
 
 
 .. toctree::
@@ -181,6 +182,7 @@ The platform operator of FlexMeasures can be an Aggregator.
     
     tut/installation
     tut/toy-example-from-scratch
+    tut/toy-example-expanded
     tut/posting_data
     tut/forecasting_scheduling
     tut/building_uis

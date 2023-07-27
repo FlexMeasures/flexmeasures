@@ -5,10 +5,16 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL, allowing developers to upgrade at their own pace.
 
+v3.0-11 | 2023-07-20
+""""""""""""""""""""
+
+- Added REST endpoint for fetching one sensor: `/sensors/<id>` (GET)
+
 v3.0-10 | 2023-06-12
 """"""""""""""""""""
 
 - Introduced the ``storage-efficiency`` field to the ``flex-model``field for `/sensors/<id>/schedules/trigger` (POST).
+- Introduced the ``database_redis`` optional field to the response of the endpoint `/health/ready` (GET).
 
 v3.0-9 | 2023-04-26
 """""""""""""""""""
