@@ -24,7 +24,7 @@ class ProcessScheduler(Scheduler):
     __author__ = "Seita"
 
     def compute(self) -> pd.Series | None:
-        """Schedule a prrocess, defined as a `power` and a `duration`, within the specified time window.
+        """Schedule a process, defined as a `power` and a `duration`, within the specified time window.
         To schedule a battery, please, refer to the StorageScheduler.
 
         For example, this scheduler can plan the start of a process of type `SHIFTABLE` that lasts 5h and requires a power of 10kW.
