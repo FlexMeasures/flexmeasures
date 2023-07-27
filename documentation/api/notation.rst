@@ -202,13 +202,13 @@ Here are the three types of flexibility models you can expect to be built-in:
 
    For some examples, see the `[POST] /sensors/(id)/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_ endpoint docs.
 
-2) For **shiftable processes**
+2) For **processes**
    
     - ``power``: nominal power of the load.
     - ``duration``: time that the load last.
     - ``optimization_sense``: objective of the scheduler, to maximize or minimize.
     - ``time_restrictions``: time periods in which the load cannot be schedule to.
-    - ``load_type``: Inflexible, Breakable or Shiftable.
+    - ``process_type``: INFLEXIBLE, BREAKABLE or SHIFTABLE.
 
 
 3) For **buffer devices** (e.g. thermal energy storage systems connected to heat pumps), use the same flexibility parameters described above for storage devices. Here are some tips to model a buffer with these parameters:
@@ -233,7 +233,7 @@ Flex context
 
 With the flexibility context, we aim to describe the system in which the flexible assets operates:
 
-- ``inflexible-device-sensors`` ― power sensors that are relevant, but not flexible, such as a sensor recording rooftop solar power connected behind the main meter, whose production falls under the same contract as the flexible device(s) being scheduled
+- ``INFLEXIBLE-device-sensors`` ― power sensors that are relevant, but not flexible, such as a sensor recording rooftop solar power connected behind the main meter, whose production falls under the same contract as the flexible device(s) being scheduled
 - ``consumption-price-sensor`` ― the sensor which defines costs/revenues of consuming energy
 - ``production-price-sensor`` ― the sensor which defines cost/revenues of producing energy
 

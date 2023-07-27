@@ -27,13 +27,13 @@ class ProcessScheduler(Scheduler):
         """Schedule a prrocess, defined as a `power` and a `duration`, within the specified time window.
         To schedule a battery, please, refer to the StorageScheduler.
 
-        For example, this scheduler can plan the start of a process of type `Shiftable` that lasts 5h and requires a power of 10kW.
+        For example, this scheduler can plan the start of a process of type `SHIFTABLE` that lasts 5h and requires a power of 10kW.
         In that case, the scheduler will find the best (as to minimize/maximize the cost) hour to start the process.
 
         This scheduler supports three types of `process_types`:
-            - Inflexible: this process needs to be scheduled as soon as possible.
-            - Breakable: this process can be divisible in smaller consumption periods.
-            - Shiftable: this process can start at any time within the specified time window.
+            - INFLEXIBLE: this process needs to be scheduled as soon as possible.
+            - BREAKABLE: this process can be divisible in smaller consumption periods.
+            - SHIFTABLE: this process can start at any time within the specified time window.
 
         The resulting schedule provides the power flow at each time period.
 
@@ -47,7 +47,7 @@ class ProcessScheduler(Scheduler):
 
         optimization_direction: objective of the scheduler, to maximize or minimize.
         time_restrictions: time periods in which the process cannot be schedule to.
-        process_type: Inflexible, Breakable or Shiftable.
+        process_type: INFLEXIBLE, BREAKABLE or SHIFTABLE.
 
         :returns:               The computed schedule.
         """
