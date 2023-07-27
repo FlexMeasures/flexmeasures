@@ -233,7 +233,7 @@ Flex context
 
 With the flexibility context, we aim to describe the system in which the flexible assets operates:
 
-- ``INFLEXIBLE-device-sensors`` ― power sensors that are relevant, but not flexible, such as a sensor recording rooftop solar power connected behind the main meter, whose production falls under the same contract as the flexible device(s) being scheduled
+- ``inflexible-device-sensors`` ― power sensors that are relevant, but not flexible, such as a sensor recording rooftop solar power connected behind the main meter, whose production falls under the same contract as the flexible device(s) being scheduled
 - ``consumption-price-sensor`` ― the sensor which defines costs/revenues of consuming energy
 - ``production-price-sensor`` ― the sensor which defines cost/revenues of producing energy
 
