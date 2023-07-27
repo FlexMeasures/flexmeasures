@@ -1,3 +1,7 @@
+# Check Python major and minor version
+# For more information, see https://stackoverflow.com/a/22105036
+PYV = $(shell python -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_info[:2]));sys.stdout.write(t)")
+
 # Note: use tabs
 # actions which are virtual, i.e. not a script
 .PHONY: install install-for-dev install-for-test install-deps install-flexmeasures run-local test freeze-deps upgrade-deps update-docs update-docs-pdf show-file-space show-data-model clean-db
@@ -35,19 +39,14 @@ install: install-deps install-flexmeasures
 
 install-for-dev:
 	make freeze-deps
-	pip-sync requirements/app.txt requirements/dev.txt requirements/test.txt
-	cp requirements/app.txt requirements/${PYV}/app.txt
-	cp requirements/dev.txt requirements/${PYV}/dev.txt
-	cp requirements/test.txt requirements/${PYV}/test.txt
+	pip-sync requirements/${PYV}/app.txt requirements/${PYV}/dev.txt requirements/${PYV}/test.txt
 	make install-flexmeasures
 
 install-for-test:
 	make install-pip-tools
 # Pass pinned=no if you want to test against latest stable packages, default is our pinned dependency set
 ifneq ($(pinned), no)
-	pip-sync requirements/app.txt requirements/test.txt
-	cp requirements/app.txt requirements/${PYV}/app.txt
-	cp requirements/test.txt requirements/${PYV}/test.txt
+	pip-sync requirements/${PYV}/app.txt requirements/${PYV}/test.txt
 else
 	# cutting off the -c inter-layer dependency (that's pip-tools specific)
 	tail -n +3 requirements/test.in >> temp-test.in
@@ -62,7 +61,6 @@ install-deps:
 # Pass pinned=no if you want to test against latest stable packages, default is our pinned dependency set
 ifneq ($(pinned), no)
 	pip-sync requirements/${PYV}/app.txt
-	cp requirements/app.txt requirements/${PYV}/app.txt
 else
 	pip install --upgrade -r requirements/app.in
 endif
@@ -78,30 +76,19 @@ install-docs-dependencies:
 
 freeze-deps:
 	make install-pip-tools
-	pip-compile -o requirements/app.txt requirements/app.in
-	pip-compile -o requirements/test.txt requirements/test.in
-	pip-compile -o requirements/dev.txt requirements/dev.in
-	pip-compile -o requirements/docs.txt requirements/docs.in
-
-	cp requirements/app.txt requirements/${PYV}/app.txt
-	cp requirements/test.txt requirements/${PYV}/test.txt
-	cp requirements/dev.txt requirements/${PYV}/dev.txt
-	cp requirements/docs.txt requirements/${PYV}/docs.txt
+	pip-compile -o requirements/${PYV}/app.txt requirements/app.in
+	pip-compile -o requirements/${PYV}/test.txt requirements/test.in
+	pip-compile -o requirements/${PYV}/dev.txt requirements/dev.in
+	pip-compile -o requirements/${PYV}/docs.txt requirements/docs.in
 
 upgrade-deps:
 	make install-pip-tools
-	pip-compile --upgrade -o requirements/app.txt requirements/app.in
-	pip-compile --upgrade -o requirements/test.txt requirements/test.in
-	pip-compile --upgrade -o requirements/dev.txt requirements/dev.in
-	pip-compile --upgrade -o requirements/docs.txt requirements/docs.in
-
-	cp requirements/app.txt requirements/${PYV}/app.txt
-	cp requirements/test.txt requirements/${PYV}/test.txt
-	cp requirements/dev.txt requirements/${PYV}/dev.txt
-	cp requirements/docs.txt requirements/${PYV}/docs.txt
+	pip-compile --upgrade -o requirements/${PYV}/app.txt requirements/app.in
+	pip-compile --upgrade -o requirements/${PYV}/test.txt requirements/test.in
+	pip-compile --upgrade -o requirements/${PYV}/dev.txt requirements/dev.in
+	pip-compile --upgrade -o requirements/${PYV}/docs.txt requirements/docs.in
 
 	make test
-
 
 # ---- Data ----
 
@@ -123,7 +110,3 @@ show-data-model:
 
 clean-db:
 	./flexmeasures/data/scripts/clean_database.sh ${db_name} ${db_user}
-
-# Check Python major and minor version
-# For more information, see https://stackoverflow.com/a/22105036
-PYV = $(shell python -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_info[:2]));sys.stdout.write(t)")
