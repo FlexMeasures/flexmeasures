@@ -48,7 +48,7 @@ class ProcessSchedulerFlexModelSchema(Schema):
         load_default=[],
     )
     # objective of the scheduler, to maximize or minimize.
-    optimization_sense = fields.Enum(
+    optimization_direction = fields.Enum(
         OptimizationSense,
         load_default=OptimizationSense.MIN,
         data_key="optimization-sense",

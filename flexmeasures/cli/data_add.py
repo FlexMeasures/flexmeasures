@@ -1271,10 +1271,12 @@ def add_schedule_process(
             "power": process_power,
             "time-restrictions": [TimeIntervalSchema().dump(f) for f in forbid],
         },
-        flex_context={
-            "consumption-price-sensor": consumption_price_sensor.id,
-        },
     )
+
+    if consumption_price_sensor is not None:
+        scheduling_kwargs["flex_context"] = {
+            "consumption-price-sensor": consumption_price_sensor.id,
+        }
 
     if as_job:
         job = create_scheduling_job(sensor=power_sensor, **scheduling_kwargs)

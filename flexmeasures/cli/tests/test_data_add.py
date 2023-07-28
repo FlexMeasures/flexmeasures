@@ -218,7 +218,7 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
 def test_add_process(app, db, process_power_sensor, add_market_prices, process_type):
     """
     Schedule a 4h of consumption block at a constant power of 400kW in a day using
-    the three process policies: inflexible, shiftable and breakable.
+    the three process policies: INFLEXIBLE, SHIFTABLE and BREAKABLE.
     """
 
     from flexmeasures.cli.data_add import add_schedule_process
