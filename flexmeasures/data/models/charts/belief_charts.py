@@ -191,6 +191,16 @@ def matrix_chart(
                         "type": "temporal",
                         "timeUnit": "hoursminutesseconds",
                     },
+                    "y": {
+                        "field": "belief_time",
+                        "type": "temporal",
+                        "timeUnit": "yearmonthdate",
+                    },
+                    "yOffset": {
+                        "value": {
+                            "expr": "(scale('y', 24 * 60 * 60 * 1000) - scale('y', 0))"
+                        }
+                    },
                 },
             },
         ],
