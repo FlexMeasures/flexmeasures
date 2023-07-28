@@ -87,7 +87,7 @@ def bar_chart(
     return chart_specs
 
 
-def matrix_chart(
+def daily_heatmap(
     sensor: "Sensor",  # noqa F821
     event_starts_after: datetime | None = None,
     event_ends_before: datetime | None = None,
@@ -148,7 +148,7 @@ def matrix_chart(
             ],
         }
     chart_specs = {
-        "description": "A simple heatmap chart showing sensor data.",
+        "description": "A daily heatmap showing sensor data.",
         # the sensor type is already shown as the y-axis title (avoid redundant info)
         "title": capitalize(sensor.name) if sensor.name != sensor.sensor_type else None,
         "layer": [
