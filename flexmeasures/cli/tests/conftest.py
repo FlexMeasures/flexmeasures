@@ -2,10 +2,13 @@ import pytest
 
 from datetime import datetime, timedelta
 from pytz import utc
+import pandas as pd
 
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
+
+from flexmeasures.data.models.planning.utils import initialize_index
 
 
 @pytest.fixture(scope="module")
@@ -100,10 +103,10 @@ def reporter_config_raw(app, db, setup_dummy_data):
 
 @pytest.mark.skip_github
 @pytest.fixture(scope="module")
-def process_power_sensor(db, app):
+def process_power_sensor(db, app, setup_markets, setup_sources):
     """
-    Create an asset of type "process" and a power sensor to hold the result of
-    the scheduler.
+    Create an asset of type "process", power sensor to hold the result of
+    the scheduler and price data consisting of 8 expensive hours, 8 cheap hours, and again 8 expensive hours-
 
     """
 
@@ -112,7 +115,7 @@ def process_power_sensor(db, app):
     db.session.add(process_asset_type)
 
     process_asset = GenericAsset(
-        name="Test Asset", generic_asset_type=process_asset_type
+        name="Test Process Asset", generic_asset_type=process_asset_type
     )
 
     db.session.add(process_asset)
@@ -125,6 +128,24 @@ def process_power_sensor(db, app):
     )
 
     db.session.add(power_sensor)
+
+    time_slots = initialize_index(
+        start=pd.Timestamp("2015-01-02").tz_localize("Europe/Amsterdam"),
+        end=pd.Timestamp("2015-01-03").tz_localize("Europe/Amsterdam"),
+        resolution="1H",
+    )
+    values = [100] * 8 + [90] * 8 + [100] * 8
+    beliefs = [
+        TimedBelief(
+            event_start=dt,
+            belief_horizon=timedelta(hours=0),
+            event_value=val,
+            source=setup_sources["Seita"],
+            sensor=setup_markets["epex_da"].corresponding_sensor,
+        )
+        for dt, val in zip(time_slots, values)
+    ]
+    db.session.add_all(beliefs)
 
     db.session.commit()
 
