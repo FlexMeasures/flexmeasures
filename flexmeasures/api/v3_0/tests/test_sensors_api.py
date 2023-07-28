@@ -40,16 +40,33 @@ def make_headers_for(user_email: str | None, client) -> dict:
 def test_post_a_sensor(client, setup_api_test_data):
     auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
     post_data = get_sensor_post_data()
-    post_sensor_response = client.post(
+    response = client.post(
         url_for("SensorAPI:post"),
         json=post_data,
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
-    print("Server responded with:\n%s" % post_sensor_response.json)
-    assert post_sensor_response.status_code == 201
-    assert post_sensor_response.json["name"] == "power"
-    assert post_sensor_response.json["event_resolution"] == "PT1H"
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 201
+    assert response.json["name"] == "power"
+    assert response.json["event_resolution"] == "PT1H"
 
     sensor: Sensor = Sensor.query.filter_by(name="power").one_or_none()
     assert sensor is not None
     assert sensor.unit == "kWh"
+
+
+def test_post_sensor_auth(client, setup_api_test_data):
+    auth_token = get_auth_token(client, "test_supplier_user_4@seita.nl", "testtest")
+    post_data = get_sensor_post_data()
+    response = client.post(
+        url_for("SensorAPI:post"),
+        json=post_data,
+        headers={"content-type": "application/json", "Authorization": auth_token},
+    )
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 403
+    assert (
+        response.json["message"]
+        == "You cannot be authorized for this content or functionality."
+    )
+    assert response.json["status"] == "INVALID_SENDER"
