@@ -1529,7 +1529,7 @@ def add_report(  # noqa: C901
 @click.option(
     "--kind",
     default="battery",
-    type=click.Choice(["battery"]),
+    type=click.Choice(["battery", "process"]),
     help="What kind of toy account. Defaults to a battery.",
 )
 @click.option("--name", type=str, default="Toy Account", help="Name of the account")
@@ -1539,57 +1539,82 @@ def add_toy_account(kind: str, name: str):
     """
     asset_types = add_default_asset_types(db=db)
     location = (52.374, 4.88969)  # Amsterdam
+
+    # make an account (if not exist)
+    account = Account.query.filter(Account.name == name).one_or_none()
+    if account:
+        click.secho(
+            f"Account '{account}' already exists. Skipping account creation. Use `flexmeasures delete account --id {account.id}` if you need to remove it.",
+            **MsgStyle.WARN,
+        )
+
+    # make an account user (account-admin?)
+    email = "toy-user@flexmeasures.io"
+    user = User.query.filter_by(email=email).one_or_none()
+    if user is not None:
+        click.secho(
+            f"User with email {email} already exists in account {user.account.name}.",
+            **MsgStyle.WARN,
+        )
+    else:
+        user = create_user(
+            email=email,
+            check_email_deliverability=False,
+            password="toy-password",
+            user_roles=["account-admin"],
+            account_name=name,
+        )
+    db.session.commit()
+
+    # add public day-ahead market (as sensor of transmission zone asset)
+    nl_zone = add_transmission_zone_asset("NL", db=db)
+    day_ahead_sensor = get_or_create_model(
+        Sensor,
+        name="day-ahead prices",
+        generic_asset=nl_zone,
+        unit="EUR/MWh",
+        timezone="Europe/Amsterdam",
+        event_resolution=timedelta(minutes=60),
+        knowledge_horizon=(
+            x_days_ago_at_y_oclock,
+            {"x": 1, "y": 12, "z": "Europe/Paris"},
+        ),
+    )
+    db.session.commit()
+    click.secho(
+        f"The sensor recording day-ahead prices is {day_ahead_sensor} (ID: {day_ahead_sensor.id}).",
+        **MsgStyle.SUCCESS,
+    )
+
+    def create_power_asset(
+        asset_name: str, asset_type: str, sensor_name: str, **attributes
+    ):
+        asset = get_or_create_model(
+            GenericAsset,
+            name=asset_name,
+            generic_asset_type=asset_types[asset_type],
+            owner=user.account,
+            latitude=location[0],
+            longitude=location[1],
+        )
+        asset.attributes = attributes
+        power_sensor_specs = dict(
+            generic_asset=asset,
+            unit="MW",
+            timezone="Europe/Amsterdam",
+            event_resolution=timedelta(minutes=15),
+        )
+        power_sensor = get_or_create_model(
+            Sensor,
+            name=sensor_name,
+            **power_sensor_specs,
+        )
+        return power_sensor
+
     if kind == "battery":
-        # make an account (if not exist)
-        account = Account.query.filter(Account.name == name).one_or_none()
-        if account:
-            click.secho(
-                f"Account '{account}' already exists. Use `flexmeasures delete account --id {account.id}` to remove it first.",
-                **MsgStyle.ERROR,
-            )
-            raise click.Abort()
-        # make an account user (account-admin?)
-        email = "toy-user@flexmeasures.io"
-        user = User.query.filter_by(email=email).one_or_none()
-        if user is not None:
-            click.secho(
-                f"User with email {email} already exists in account {user.account.name}.",
-                **MsgStyle.ERROR,
-            )
-        else:
-            user = create_user(
-                email=email,
-                check_email_deliverability=False,
-                password="toy-password",
-                user_roles=["account-admin"],
-                account_name=name,
-            )
-
-        def create_power_asset(asset_type: str, sensor_name: str, **attributes):
-            asset = get_or_create_model(
-                GenericAsset,
-                name=f"toy-{asset_type}",
-                generic_asset_type=asset_types[asset_type],
-                owner=user.account,
-                latitude=location[0],
-                longitude=location[1],
-            )
-            asset.attributes = attributes
-            power_sensor_specs = dict(
-                generic_asset=asset,
-                unit="MW",
-                timezone="Europe/Amsterdam",
-                event_resolution=timedelta(minutes=15),
-            )
-            power_sensor = get_or_create_model(
-                Sensor,
-                name=sensor_name,
-                **power_sensor_specs,
-            )
-            return power_sensor
-
         # create battery
         discharging_sensor = create_power_asset(
+            "toy-battery",
             "battery",
             "discharging",
             capacity_in_mw=0.5,
@@ -1597,23 +1622,9 @@ def add_toy_account(kind: str, name: str):
             max_soc_in_mwh=0.45,
         )
 
-        # add public day-ahead market (as sensor of transmission zone asset)
-        nl_zone = add_transmission_zone_asset("NL", db=db)
-        day_ahead_sensor = get_or_create_model(
-            Sensor,
-            name="day-ahead prices",
-            generic_asset=nl_zone,
-            unit="EUR/MWh",
-            timezone="Europe/Amsterdam",
-            event_resolution=timedelta(minutes=60),
-            knowledge_horizon=(
-                x_days_ago_at_y_oclock,
-                {"x": 1, "y": 12, "z": "Europe/Paris"},
-            ),
-        )
-
         # create solar
         production_sensor = create_power_asset(
+            "toy-solar",
             "solar",
             "production",
         )
@@ -1628,24 +1639,60 @@ def add_toy_account(kind: str, name: str):
                 discharging_sensor.id,
             ],
         ]
-    db.session.commit()
 
-    click.secho(
-        f"Toy account {name} with user {user.email} created successfully. You might want to run `flexmeasures show account --id {user.account.id}`",
-        **MsgStyle.SUCCESS,
-    )
-    click.secho(
-        f"The sensor recording battery discharging is {discharging_sensor} (ID: {discharging_sensor.id}).",
-        **MsgStyle.SUCCESS,
-    )
-    click.secho(
-        f"The sensor recording day-ahead prices is {day_ahead_sensor} (ID: {day_ahead_sensor.id}).",
-        **MsgStyle.SUCCESS,
-    )
-    click.secho(
-        f"The sensor recording solar forecasts is {production_sensor} (ID: {production_sensor.id}).",
-        **MsgStyle.SUCCESS,
-    )
+        db.session.commit()
+
+        click.secho(
+            f"The sensor recording battery discharging is {discharging_sensor} (ID: {discharging_sensor.id}).",
+            **MsgStyle.SUCCESS,
+        )
+        click.secho(
+            f"The sensor recording solar forecasts is {production_sensor} (ID: {production_sensor.id}).",
+            **MsgStyle.SUCCESS,
+        )
+    elif kind == "process":
+        inflexible_power = create_power_asset(
+            "toy-process",
+            "process",
+            "Power (Inflexible)",
+        )
+
+        breakable_power = create_power_asset(
+            "toy-process",
+            "process",
+            "Power (Breakable)",
+        )
+
+        shiftable_power = create_power_asset(
+            "toy-process",
+            "process",
+            "Power (Shiftable)",
+        )
+
+        db.session.flush()
+
+        process = shiftable_power.generic_asset
+        process.attributes["sensors_to_show"] = [
+            day_ahead_sensor.id,
+            inflexible_power.id,
+            breakable_power.id,
+            shiftable_power.id,
+        ]
+
+        db.session.commit()
+
+        click.secho(
+            f"The sensor recording the power of the inflexible load is {inflexible_power} (ID: {inflexible_power.id}).",
+            **MsgStyle.SUCCESS,
+        )
+        click.secho(
+            f"The sensor recording the power of the breakable load is {breakable_power} (ID: {breakable_power.id}).",
+            **MsgStyle.SUCCESS,
+        )
+        click.secho(
+            f"The sensor recording the power of the shiftable load is {shiftable_power} (ID: {shiftable_power.id}).",
+            **MsgStyle.SUCCESS,
+        )
 
 
 app.cli.add_command(fm_add_data)

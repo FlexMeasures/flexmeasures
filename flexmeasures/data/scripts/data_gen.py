@@ -61,6 +61,7 @@ def add_default_asset_types(db: SQLAlchemy) -> Dict[str, GenericAssetType]:
         ("two-way_evse", "bi-directional Electric Vehicle Supply Equipment"),
         ("battery", "stationary battery"),
         ("building", "building"),
+        ("process", "process"),
     ):
         _type = GenericAssetType.query.filter(
             GenericAssetType.name == type_name
