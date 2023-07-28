@@ -39,6 +39,7 @@ install: install-deps install-flexmeasures
 
 install-for-dev:
 	make freeze-deps
+	make ensure-dep-folder
 	pip-sync requirements/${PYV}/app.txt requirements/${PYV}/dev.txt requirements/${PYV}/test.txt
 	make install-flexmeasures
 
@@ -58,6 +59,7 @@ endif
 install-deps:
 	make install-pip-tools
 	make freeze-deps
+	make ensure-dep-folder
 # Pass pinned=no if you want to test against latest stable packages, default is our pinned dependency set
 ifneq ($(pinned), no)
 	pip-sync requirements/${PYV}/app.txt
@@ -75,6 +77,7 @@ install-docs-dependencies:
 	pip install -r requirements/${PYV}/docs.txt
 
 freeze-deps:
+	make ensure-dep-folder
 	make install-pip-tools
 	pip-compile -o requirements/${PYV}/app.txt requirements/app.in
 	pip-compile -o requirements/${PYV}/test.txt requirements/test.in
@@ -82,6 +85,7 @@ freeze-deps:
 	pip-compile -o requirements/${PYV}/docs.txt requirements/docs.in
 
 upgrade-deps:
+	make ensure-dep-folder
 	make install-pip-tools
 	pip-compile --upgrade -o requirements/${PYV}/app.txt requirements/app.in
 	pip-compile --upgrade -o requirements/${PYV}/test.txt requirements/test.in
@@ -107,6 +111,9 @@ show-data-model:
 	# With --deprecated, you'll see the legacy models, and not their replacements.
 	# Use --help to learn more. 
 	./flexmeasures/data/scripts/visualize_data_model.py --uml
+
+ensure-dep-folder:
+	mkdir -p requirements/${PYV}
 
 clean-db:
 	./flexmeasures/data/scripts/clean_database.sh ${db_name} ${db_user}
