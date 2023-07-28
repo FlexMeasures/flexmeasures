@@ -101,7 +101,7 @@ Finally, we'll schedule the process using the SHIFTABLE policy. We'll keep the s
       --forbid "{\"start\" : \"${TOMORROW}T14:00:00+02:00\", \"duration\" : \"PT1H\"}"
  
  
-.. image:: https://github.com/FlexMeasures/screenshots/raw/process-tutorial/tut/toy-schedule/asset-view-process.png
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/asset-view-process.png
     :align: center
 |
 
