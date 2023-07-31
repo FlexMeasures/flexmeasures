@@ -251,7 +251,6 @@ def run_test_charge_discharge_sign(
     return schedule.tz_convert(tz), soc_schedule.tz_convert(tz)
 
 
-# todo: think if it is necessary to test with inflexible_device
 def test_battery_solver_day_3(
     add_battery_assets,
     add_inflexible_device_forecasts,
