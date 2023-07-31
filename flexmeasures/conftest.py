@@ -259,7 +259,18 @@ def create_test_markets(db) -> dict[str, Market]:
         knowledge_horizon_par={"x": 1, "y": 12, "z": "Europe/Paris"},
     )
     db.session.add(epex_da)
-    return {"epex_da": epex_da}
+
+    epex_da_production = Market(
+        name="epex_da_production",
+        market_type_name="day_ahead",
+        event_resolution=timedelta(hours=1),
+        unit="EUR/MWh",
+        knowledge_horizon_fnc="x_days_ago_at_y_oclock",
+        knowledge_horizon_par={"x": 1, "y": 12, "z": "Europe/Paris"},
+    )
+    db.session.add(epex_da_production)
+
+    return {"epex_da": epex_da, "epex_da_production": epex_da_production}
 
 
 @pytest.fixture(scope="module")
@@ -558,6 +569,8 @@ def add_market_prices(
         end=pd.Timestamp("2015-01-04").tz_localize("Europe/Amsterdam"),
         resolution="1H",
     )
+
+    # consumption prices
     values = [-10] * 8 + [100] * 16
     day3_beliefs = [
         TimedBelief(
@@ -570,7 +583,27 @@ def add_market_prices(
         for dt, val in zip(time_slots, values)
     ]
     db.session.add_all(day3_beliefs)
-    return {"epex_da": setup_markets["epex_da"].corresponding_sensor}
+
+    # production prices = consumption prices - 40
+    values = [-50] * 8 + [60] * 16
+    day3_beliefs_production = [
+        TimedBelief(
+            event_start=dt,
+            belief_horizon=timedelta(hours=0),
+            event_value=val,
+            source=setup_sources["Seita"],
+            sensor=setup_markets["epex_da_production"].corresponding_sensor,
+        )
+        for dt, val in zip(time_slots, values)
+    ]
+    db.session.add_all(day3_beliefs_production)
+
+    return {
+        "epex_da": setup_markets["epex_da"].corresponding_sensor,
+        "epex_da (production)": setup_markets[
+            "epex_da_production"
+        ].corresponding_sensor,
+    }
 
 
 @pytest.fixture(scope="module")
