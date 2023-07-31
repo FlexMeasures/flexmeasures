@@ -435,10 +435,6 @@ def device_scheduler(  # noqa C901
         initial_stock,
     )
 
-    # load the results only if a feasible solution has been found
-    if len(results.solution) > 0:
-        model.solutions.load_from(results)
-
     planned_costs = value(model.costs)
     planned_power_per_device = []
     for d in model.d:
