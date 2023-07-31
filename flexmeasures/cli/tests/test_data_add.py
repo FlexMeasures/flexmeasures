@@ -16,7 +16,7 @@ from flexmeasures.utils.time_utils import server_now
 
 
 @pytest.mark.skip_github
-def test_add_annotation(app, db, setup_roles_users):
+def test_add_annotation(app, fresh_db, setup_roles_users_fresh_db):
     from flexmeasures.cli.data_add import add_annotation
 
     cli_input = {
@@ -52,7 +52,7 @@ def test_add_annotation(app, db, setup_roles_users):
 
 
 @pytest.mark.skip_github
-def test_add_holidays(app, db, setup_roles_users):
+def test_add_holidays(app, fresh_db, setup_roles_users_fresh_db):
     from flexmeasures.cli.data_add import add_holidays
 
     cli_input = {
@@ -215,7 +215,7 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
 
 @pytest.mark.skip_github
 @pytest.mark.parametrize("process_type", [("INFLEXIBLE"), ("SHIFTABLE"), ("BREAKABLE")])
-def test_add_process(app, db, process_power_sensor, process_type):
+def test_add_process(app, process_power_sensor, process_type):
     """
     Schedule a 4h of consumption block at a constant power of 400kW in a day using
     the three process policies: INFLEXIBLE, SHIFTABLE and BREAKABLE.
