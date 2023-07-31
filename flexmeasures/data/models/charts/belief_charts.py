@@ -178,6 +178,12 @@ def daily_heatmap(
                         "calculate": "datum.source.name + ' (ID: ' + datum.source.id + ')'",
                         "as": "source_name_and_id",
                     },
+                    # In case of multiple sources, arbitrarily choose the first one occurring in the data
+                    {
+                        "window": [{"op": "first_value", "field": "source.id", "as": "first_source_id"}],
+                        "groupby": [],
+                    },
+                    {"filter": "datum.source.id == datum.first_source_id"},
                 ],
             },
             {
