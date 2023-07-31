@@ -22,6 +22,7 @@ def test_fetch_one_sensor(
         url_for("SensorAPI:fetch_one", id=sensor_id),
         headers=headers,
     )
+    print("Server responded with:\n%s" % response.json)
     assert response.status_code == 200
     assert response.json["name"] == "some gas sensor"
     assert response.json["unit"] == "m³/h"
