@@ -27,7 +27,7 @@ class ProcessType(Enum):
     SHIFTABLE = "SHIFTABLE"
 
 
-class OptimizationSense(Enum):
+class OptimizationDirection(Enum):
     MAX = "MAX"
     MIN = "MIN"
 
@@ -49,8 +49,8 @@ class ProcessSchedulerFlexModelSchema(Schema):
     )
     # objective of the scheduler, to maximize or minimize.
     optimization_direction = fields.Enum(
-        OptimizationSense,
-        load_default=OptimizationSense.MIN,
+        OptimizationDirection,
+        load_default=OptimizationDirection.MIN,
         data_key="optimization-sense",
     )
 
