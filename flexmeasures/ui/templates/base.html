@@ -248,7 +248,7 @@
         checkDSTTransitions(storeStartDate, storeEndDate);
     {% endif %}
     let replaySpeed = 100
-    let chartType = 'bar_chart';  // initial chart type // todo: get from session?
+    let chartType = '{{ chart_type }}';  // initial chart type from session variable
 
     // Update chart type
     document.addEventListener('DOMContentLoaded', function() {

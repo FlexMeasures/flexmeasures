@@ -87,7 +87,7 @@ def bar_chart(
     return chart_specs
 
 
-def matrix_chart(
+def daily_heatmap(
     sensor: "Sensor",  # noqa F821
     event_starts_after: datetime | None = None,
     event_ends_before: datetime | None = None,
@@ -158,7 +158,7 @@ def matrix_chart(
         FIELD_DEFINITIONS["source_model"],
     ]
     chart_specs = {
-        "description": "A simple heatmap chart showing sensor data.",
+        "description": "A daily heatmap showing sensor data.",
         # the sensor type is already shown as the y-axis title (avoid redundant info)
         "title": capitalize(sensor.name) if sensor.name != sensor.sensor_type else None,
         "layer": [
@@ -180,6 +180,19 @@ def matrix_chart(
                         "calculate": "datum.source.name + ' (ID: ' + datum.source.id + ')'",
                         "as": "source_name_and_id",
                     },
+                    # In case of multiple sources, show the one with the most visible data
+                    {
+                        "joinaggregate": [{"op": "count", "as": "source_count"}],
+                        "groupby": ["source.id"],
+                    },
+                    {
+                        "window": [
+                            {"op": "rank", "field": "source_count", "as": "source_rank"}
+                        ],
+                        "sort": [{"field": "source_count", "order": "descending"}],
+                        "frame": [None, None],
+                    },
+                    {"filter": "datum.source_rank == 1"},
                 ],
             },
             {
@@ -192,6 +205,16 @@ def matrix_chart(
                         "field": "belief_time",
                         "type": "temporal",
                         "timeUnit": "hoursminutesseconds",
+                    },
+                    "y": {
+                        "field": "belief_time",
+                        "type": "temporal",
+                        "timeUnit": "yearmonthdate",
+                    },
+                    "yOffset": {
+                        "value": {
+                            "expr": "(scale('y', 24 * 60 * 60 * 1000) - scale('y', 0))"
+                        }
                     },
                 },
             },

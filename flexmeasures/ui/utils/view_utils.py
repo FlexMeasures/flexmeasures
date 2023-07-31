@@ -50,6 +50,7 @@ def render_flexmeasures_template(html_filename: str, **variables):
 
     variables["event_starts_after"] = session.get("event_starts_after")
     variables["event_ends_before"] = session.get("event_ends_before")
+    variables["chart_type"] = session.get("chart_type", "bar_chart")
 
     variables["page"] = html_filename.split("/")[-1].replace(".html", "")
     if "show_datepicker" not in variables:
@@ -108,6 +109,17 @@ def clear_session():
             "Removing %s:%s from session ... " % (skey, session[skey])
         )
         del session[skey]
+
+
+def set_session_variables(*var_names: str):
+    """Store request values as session variables, for a consistent UX across UI page loads.
+
+    >>> set_session_variables("event_starts_after", "event_ends_before", "chart_type")
+    """
+    for var_name in var_names:
+        var = request.values.get(var_name)
+        if var is not None:
+            session[var_name] = var
 
 
 def set_time_range_for_session():

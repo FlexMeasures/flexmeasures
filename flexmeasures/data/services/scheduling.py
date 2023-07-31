@@ -19,6 +19,7 @@ import timely_beliefs as tb
 from flexmeasures.data import db
 from flexmeasures.data.models.planning import Scheduler
 from flexmeasures.data.models.planning.storage import StorageScheduler
+from flexmeasures.data.models.planning.process import ProcessScheduler
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.utils import get_data_source, save_to_db
@@ -194,6 +195,8 @@ def find_scheduler_class(sensor: Sensor) -> type:
         "two-way_evse",
     ):
         scheduler_class = StorageScheduler
+    elif sensor.generic_asset.generic_asset_type.name in ("process", "load"):
+        scheduler_class = ProcessScheduler
     else:
         raise ValueError(
             "Scheduling is not (yet) supported for asset type %s."
