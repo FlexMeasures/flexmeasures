@@ -61,6 +61,11 @@ Alternatively, the CBC solver can be installed with:
 
    $ apt-get install coinor-cbc
 
+Alternatively, HiGHS solver can be installed with pip:
+
+.. code-block:: bash
+
+   $ pip install highspy
 
 Configuration
 ^^^^^^^^^^^^^^^^^^^^
