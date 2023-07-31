@@ -57,7 +57,7 @@ jobs:
         run: make install-for-test pinned=no
         if: github.event_name == 'pull_request'
       - name: Run all tests except those marked to be skipped by GitHub AND record coverage
-        run: pytest -v -m "not skip_github_bbb" --cov=flexmeasures --cov-branch --cov-report=lcov
+        run: pytest -v -m "not skip_github" --cov=flexmeasures --cov-branch --cov-report=lcov
       - name: Coveralls
         uses: coverallsapp/github-action@v2
         if: ${{ matrix.coverage == 'yes' }}
