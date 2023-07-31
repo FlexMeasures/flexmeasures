@@ -202,9 +202,14 @@ Here are the three types of flexibility models you can expect to be built-in:
 
    For some examples, see the `[POST] /sensors/(id)/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_ endpoint docs.
 
-2) For **shiftable processes**
+2) For **processes**
    
-   .. todo:: A simple and proven algorithm exists, but is awaiting proper integration into FlexMeasures, see `PR 729 <https://github.com/FlexMeasures/flexmeasures/pull/729>`_.
+    - ``power``: nominal power of the load.
+    - ``duration``: time that the load last.
+    - ``optimization_sense``: objective of the scheduler, to maximize or minimize.
+    - ``time_restrictions``: time periods in which the load cannot be schedule to.
+    - ``process_type``: INFLEXIBLE, BREAKABLE or SHIFTABLE.
+
 
 3) For **buffer devices** (e.g. thermal energy storage systems connected to heat pumps), use the same flexibility parameters described above for storage devices. Here are some tips to model a buffer with these parameters:
 

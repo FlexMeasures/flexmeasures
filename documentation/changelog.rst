@@ -18,6 +18,7 @@ New features
 * DataSource table now allows storing arbitrary attributes as a JSON (without content validation), similar to the Sensor and GenericAsset tables [see `PR #750 <https://www.github.com/FlexMeasures/flexmeasures/pull/750>`_]
 * Added API endpoint `/sensor/<id>` for fetching a single sensor. [see `PR #759 <https://www.github.com/FlexMeasures/flexmeasures/pull/759>`_]
 * The CLI now allows to set lists and dicts as asset & sensor attributes (formerly only single values) [see `PR #762 <https://www.github.com/FlexMeasures/flexmeasures/pull/762>`_]
+* Add `ProcessScheduler` class, which optimizes the starting time of processes using one of the following policies: INFLEXIBLE, SHIFTABLE and BREAKABLE [see `PR #729 <https://www.github.com/FlexMeasures/flexmeasures/pull/729>`_]
 
 Bugfixes
 -----------
@@ -28,8 +29,7 @@ Infrastructure / Support
 * Add support for profiling Flask API calls using ``pyinstrument`` (if installed). Can be enabled by setting the environment variable ``FLEXMEASURES_PROFILE_REQUESTS`` to ``True`` [see `PR #722 <https://www.github.com/FlexMeasures/flexmeasures/pull/722>`_]
 * The endpoint `[POST] /health/ready <api/v3_0.html#get--api-v3_0-health-ready>`_ returns the status of the Redis connection, if configured [see `PR #699 <https://www.github.com/FlexMeasures/flexmeasures/pull/699>`_]
 * Document the `device_scheduler` linear program [see `PR #764 <https://www.github.com/FlexMeasures/flexmeasures/pull/764>`_].
-
-/api/v3_0/health/ready
+* Add support for `HiGHS <https://highs.dev/>`_ solver [see `PR #766 <https://www.github.com/FlexMeasures/flexmeasures/pull/766>`_].
 
 v0.14.2 | July 25, 2023
 ============================
