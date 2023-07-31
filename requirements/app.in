@@ -16,8 +16,8 @@ humanize
 psycopg2-binary
 bcrypt
 pytz
-# limit the numpy version to make it compatible with numba==0.56.4, which timely-beliefs >=1.18 depends on (library sktime).
-numpy<1.26
+# limit the numpy version to make it compatible with python 3.8, which timely-beliefs >=1.18 depends on (library sktime).
+numpy<1.25
 isodate
 click
 click-default-group
