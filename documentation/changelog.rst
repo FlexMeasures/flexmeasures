@@ -29,7 +29,7 @@ Infrastructure / Support
 * Document the `device_scheduler` linear program [see `PR #764 <https://www.github.com/FlexMeasures/flexmeasures/pull/764>`_].
 * Add support for `HiGHS <https://highs.dev/>`_ solver [see `PR #766 <https://www.github.com/FlexMeasures/flexmeasures/pull/766>`_].
 
-v0.14.2 | July 21, 2023
+v0.14.2 | July 25, 2023
 ============================
 
 Bugfixes
