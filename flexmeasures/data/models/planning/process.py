@@ -13,7 +13,7 @@ from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.scheduling.process import (
     ProcessSchedulerFlexModelSchema,
     ProcessType,
-    OptimizationSense,
+    OptimizationDirection,
 )
 from flexmeasures.data.schemas.scheduling import FlexContextSchema
 
@@ -103,7 +103,13 @@ class ProcessScheduler(Scheduler):
             ceil(duration / consumption_price_sensor.event_resolution), len(schedule)
         )
 
+        # duration of the process exceeds the scheduling window
         if rows_to_fill == len(schedule):
+            if time_restrictions.sum() > 0:
+                raise ValueError(
+                    "Cannot handle time restrictions if the duration of the process exceeds that of the schedule window."
+                )
+
             schedule[:] = energy
             return schedule
 
@@ -209,7 +215,7 @@ class ProcessScheduler(Scheduler):
     def compute_breakable(
         self,
         schedule: pd.Series,
-        optimization_direction: OptimizationSense,
+        optimization_direction: OptimizationDirection,
         time_restrictions: pd.Series,
         cost: pd.DataFrame,
         rows_to_fill: int,
@@ -218,7 +224,7 @@ class ProcessScheduler(Scheduler):
         """Break up schedule and divide it over the time slots with the largest utility (max/min cost depending on optimization_direction)."""
         cost = cost[~time_restrictions].reset_index()
 
-        if optimization_direction == OptimizationSense.MIN:
+        if optimization_direction == OptimizationDirection.MIN:
             cost_ranking = cost.sort_values(
                 by=["event_value", "event_start"], ascending=[True, True]
             )
@@ -232,7 +238,7 @@ class ProcessScheduler(Scheduler):
     def compute_shiftable(
         self,
         schedule: pd.Series,
-        optimization_direction: OptimizationSense,
+        optimization_direction: OptimizationDirection,
         time_restrictions: pd.Series,
         cost: pd.DataFrame,
         rows_to_fill: int,
@@ -243,7 +249,7 @@ class ProcessScheduler(Scheduler):
             cost.rolling(rows_to_fill).sum().shift(-rows_to_fill + 1)
         )
 
-        if optimization_direction == OptimizationSense.MIN:
+        if optimization_direction == OptimizationDirection.MIN:
             start = block_cost[~time_restrictions].idxmin()
         else:
             start = block_cost[~time_restrictions].idxmax()
