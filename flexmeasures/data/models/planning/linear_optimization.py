@@ -339,9 +339,15 @@ def device_scheduler(  # noqa C901
     model.costs = Objective(rule=cost_function, sense=minimize)
 
     # Solve
+
+    # load_solutions=False to avoid a RuntimeError exception in appsi solvers when solving an infeasible problem.
     results = SolverFactory(current_app.config.get("FLEXMEASURES_LP_SOLVER")).solve(
-        model
+        model, load_solutions=False
     )
+
+    # load the results only if a feasible solution has been found
+    if len(results.solution) > 0:
+        model.solutions.load_from(results)
 
     planned_costs = value(model.costs)
     planned_power_per_device = []
