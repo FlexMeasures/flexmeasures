@@ -51,8 +51,8 @@ def test_add_annotation(app, db, setup_roles_users):
     )
 
 
-@pytest.mark.skip_github
-def test_add_holidays(app, db, setup_roles_users):
+@pytest.mark.skip_githu
+def test_add_holidays(app, db_fresh, setup_roles_users_fresh_db):
     from flexmeasures.cli.data_add import add_holidays
 
     cli_input = {
