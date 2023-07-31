@@ -4,6 +4,7 @@ import pytz
 
 import numpy as np
 import pandas as pd
+from pandas.tseries.frequencies import to_offset
 
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.planning import Scheduler
@@ -167,48 +168,33 @@ def test_battery_solver_day_2(
         )
 
 
-@pytest.mark.parametrize("use_inflexible_device", [False, True])
-def test_battery_solver_day_3(
-    # add_battery_assets, add_inflexible_device_forecasts, use_inflexible_device
-    add_battery_assets,
-    add_inflexible_device_forecasts,
-    use_inflexible_device,
+def run_test_charge_discharge_sign(
+    roundtrip_efficiency, consumption_price_sensor_id, production_price_sensor_id
 ):
-    """Check battery scheduling results for day 3, which is set up with
-    8 hours with negative prices, followed by 16 expensive hours.
-
-    The battery is expected not to exploit the mechanism of charging and discharging within a time period
-    taking advantage of the inverter losses (heat) to consume energy. Nevertheless, as the consumption and production
-    prices are equal, the battery follows an oscillating dynamic in periods with negative prices. Again, due to conversion
-    efficiencies, the battery will charge **less** and will be able to discharge **more** than what is actually stored.
-
-    """
-    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
     battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
-    assert battery.get_attribute("market_id") == epex_da.id
+
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 3))
     end = tz.localize(datetime(2015, 1, 4))
-    resolution = timedelta(minutes=15)
-    soc_at_start = battery.get_attribute("soc_in_mwh")
-    roundtrip_efficiency = 0.8
+    resolution = timedelta(hours=1)
     storage_efficiency = 1
+
     scheduler: Scheduler = StorageScheduler(
         battery,
         start,
         end,
         resolution,
         flex_model={
-            "soc-at-start": soc_at_start,
+            "soc-at-start": battery.get_attribute("capacity_in_mw"),
+            "soc-min": 0,
+            "soc-max": battery.get_attribute("capacity_in_mw"),
             "roundtrip-efficiency": roundtrip_efficiency,
             "storage-efficiency": storage_efficiency,
+            "prefer-charging-sooner": False,
         },
         flex_context={
-            "inflexible-device-sensors": [
-                s.id for s in add_inflexible_device_forecasts.keys()
-            ]
-            if use_inflexible_device
-            else []
+            "consumption-price-sensor": consumption_price_sensor_id,
+            "production-price-sensor": production_price_sensor_id,
         },
     )
 
@@ -249,6 +235,99 @@ def test_battery_solver_day_3(
 
     # upwards power not active when the binary variable is 0
     assert (~is_power_up[device_power_sign == 0.0]).all()
+
+    schedule = initialize_series(
+        data=[model.ems_power[0, j].value for j in model.j],
+        start=start,
+        end=end,
+        resolution=to_offset(resolution),
+    )
+
+    # Check if constraints were met
+    soc_schedule = check_constraints(
+        battery, schedule, soc_at_start, roundtrip_efficiency, storage_efficiency
+    )
+
+    return schedule.tz_convert(tz), soc_schedule.tz_convert(tz)
+
+
+# todo: think if it is necessary to test with inflexible_device
+def test_battery_solver_day_3(
+    add_battery_assets,
+    add_inflexible_device_forecasts,
+):
+    """Check battery scheduling results for day 3, which is set up with
+    8 hours with negative prices, followed by 16 expensive hours.
+
+    Under certain conditions, batteries can be used to "burn" energy in form of heat, due to the conversion
+    losses of the inverters. Nonetheless, this doesn't come for free as this is shortening the lifetime of the asset.
+    For this reason, the constraints `device_up_derivative_sign` and `device_down_derivative_sign' make sure that
+    the storage can only charge or discharge within the same time period.
+
+    These constraints don't avoid burning energy in Case 1) in which a storage with conversion losses operating under the
+    same buy/sell prices.
+
+    Nonetheless, as shown in Cases 3) and 4), the oscillatory dynamic is gone when having Consumption Price > Production Price.
+    This is because even though the energy consumed is bigger than the produced, the difference between the cost of consuming and the
+    revenue of producing doesn't create a profit.
+    """
+
+    roundtrip_efficieny = 0.9
+    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    epex_da_production = Sensor.query.filter(
+        Sensor.name == "epex_da_production"
+    ).one_or_none()
+    battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
+
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 3))
+
+    # Case 1: Consumption Price = Production Price, roundtrip_efficieny < 1
+    schedule1, soc_schedule_1 = run_test_charge_discharge_sign(
+        roundtrip_efficieny, epex_da.id, epex_da.id
+    )
+
+    # For the negative price period, the schedule shows oscillations
+    # discharge in even hours
+    assert all(schedule1[:8:2] < 0)  # 12am, 2am, 4am, 6am
+
+    # charge in odd hours
+    assert all(schedule1[1:8:2] > 0)  # 1am, 3am, 5am, 7am
+
+    # in positive price hours, the battery will only discharge to sell the energy charged in the negative hours
+    assert all(schedule1.loc[start + timedelta(hours=8) :] <= 0)
+
+    # Case 2: Consumption Price = Production Price, roundtrip_efficieny = 1
+    schedule2, soc_schedule_2 = run_test_charge_discharge_sign(
+        1, epex_da.id, epex_da.id
+    )
+    assert all(schedule2[:8] == [-2, 0, 2, 0, 0, 0, 0, 0])  # no oscillation
+
+    # Case 3: Consumption Price > Production Price, roundtrip_efficieny < 1
+    # In this case, we expect the battery to hold the energy that has initially and sell it during the period of
+    # positive prices.
+    schedule3, soc_schedule_3 = run_test_charge_discharge_sign(
+        roundtrip_efficieny, epex_da.id, epex_da_production.id
+    )
+    assert all(np.isclose(schedule3[:8], 0))  # no oscillation
+    assert all(schedule3[8:] <= 0)
+
+    # discharge the whole battery in 1 time period
+    assert np.isclose(
+        schedule3.min(),
+        -battery.get_attribute("capacity_in_mw") * np.sqrt(roundtrip_efficieny),
+    )
+
+    # Case 4: Consumption Price > Production Price, roundtrip_efficieny < 1
+    schedule4, soc_schedule_4 = run_test_charge_discharge_sign(
+        1, epex_da.id, epex_da_production.id
+    )
+
+    assert all(np.isclose(schedule4[:8], 0))  # no oscillation
+    assert all(schedule4[8:] <= 0)
+
+    # discharge the whole battery in 1 time period, with no conversion losses
+    assert np.isclose(schedule4.min(), -battery.get_attribute("capacity_in_mw"))
 
 
 @pytest.mark.parametrize(
