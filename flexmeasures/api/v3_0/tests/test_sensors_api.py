@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-
+import pytest
 from flask import url_for
 
 
@@ -28,6 +28,37 @@ def test_fetch_one_sensor(
     assert response.json["generic_asset_id"] == 4
     assert response.json["timezone"] == "UTC"
     assert response.json["event_resolution"] == "PT10M"
+
+
+@pytest.mark.parametrize("use_auth", [False, True])
+def test_fetch_one_sensor_error(
+    client, setup_api_test_data: dict[str, Sensor], use_auth
+):
+    sensor_id = 1
+    if use_auth:
+        headers = make_headers_for("test_prosumer_user_2@seita.nl", client)
+        response = client.get(
+            url_for("SensorAPI:fetch_one", id=sensor_id),
+            headers=headers,
+        )
+        assert response.status_code == 403
+        assert (
+            response.json["message"]
+            == "You cannot be authorized for this content or functionality."
+        )
+        assert response.json["status"] == "INVALID_SENDER"
+    else:
+        headers = make_headers_for(None, client)
+        response = client.get(
+            url_for("SensorAPI:fetch_one", id=sensor_id),
+            headers=headers,
+        )
+        assert response.status_code == 401
+        assert (
+            response.json["message"]
+            == "You could not be properly authenticated for this content or functionality."
+        )
+        assert response.json["status"] == "UNAUTHORIZED"
 
 
 def make_headers_for(user_email: str | None, client) -> dict:
