@@ -573,10 +573,7 @@ class SensorAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        # sensor_data["event_resolution"] = sensor_data.pop("resolution")
-        # breakpoint()
         sensor = Sensor(**sensor_data)
         db.session.add(sensor)
         db.session.commit()
-        # sensor.resolution = sensor.event_resolution
         return sensor_schema.dump(sensor), 201

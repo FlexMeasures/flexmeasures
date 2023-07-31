@@ -40,7 +40,7 @@ def get_asset_post_data(account_id: int = 1, asset_type_id: int = 1) -> dict:
     return post_data
 
 
-def get_sensor_post_data(generic_asset_id: int = 1) -> dict:
+def get_sensor_post_data(generic_asset_id: int = 2) -> dict:
     post_data = {
         "name": "power",
         "event_resolution": "PT1H",

@@ -55,7 +55,7 @@ def test_post_a_sensor(client, setup_api_test_data):
     assert sensor.unit == "kWh"
 
 
-def test_post_sensor_auth(client, setup_api_test_data):
+def test_post_sensor_from_unauthorized_account(client, setup_api_test_data):
     auth_token = get_auth_token(client, "test_supplier_user_4@seita.nl", "testtest")
     post_data = get_sensor_post_data()
     response = client.post(
