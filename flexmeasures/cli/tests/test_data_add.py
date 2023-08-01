@@ -15,8 +15,10 @@ from flexmeasures.cli.tests.utils import get_click_commands
 from flexmeasures.utils.time_utils import server_now
 
 
-@pytest.mark.skip_github
-def test_add_annotation(app, fresh_db, setup_roles_users_fresh_db):
+# @pytest.mark.skip_github
+# def test_add_annotation(app, fresh_db, setup_roles_users_fresh_db):
+# @pytest.mark.skip_github
+def test_add_annotation(app, db, setup_roles_users):
     from flexmeasures.cli.data_add import add_annotation
 
     cli_input = {
@@ -51,8 +53,10 @@ def test_add_annotation(app, fresh_db, setup_roles_users_fresh_db):
     )
 
 
-@pytest.mark.skip_github
-def test_add_holidays(app, fresh_db, setup_roles_users_fresh_db):
+# @pytest.mark.skip_github
+# def test_add_holidays(app, fresh_db, setup_roles_users_fresh_db):
+# @pytest.mark.skip_github
+def test_add_holidays(app, db, setup_roles_users):
     from flexmeasures.cli.data_add import add_holidays
 
     cli_input = {
@@ -213,7 +217,7 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
         assert len(stored_report) == 95
 
 
-@pytest.mark.skip_github
+# @pytest.mark.skip_github
 @pytest.mark.parametrize("process_type", [("INFLEXIBLE"), ("SHIFTABLE"), ("BREAKABLE")])
 def test_add_process(app, process_power_sensor, process_type):
     """
