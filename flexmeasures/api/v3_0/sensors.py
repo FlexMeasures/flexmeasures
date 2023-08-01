@@ -516,7 +516,7 @@ class SensorAPI(FlaskView):
                 "name": "some gas sensor",
                 "unit": "m³/h",
                 "entity_address": "ea1.2023-08.localhost:fm1.1",
-                "event_resolution": 10,
+                "event_resolution": "PT10M",
                 "generic_asset_id": 4,
                 "timezone": "UTC",
             }
