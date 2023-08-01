@@ -37,7 +37,7 @@
     {% if active_page == "tasks" %}
     <link href="{{ url_for('flexmeasures_ui.static', filename='css/external/rq-dashboard-bootstrap.min.css') }}"
         rel="stylesheet" />
-    {% elif active_page in ("assets", "users", "portfolio","accounts") %}
+    {% elif active_page in ("assets", "users", "accounts") %}
     <link href="https://cdn.datatables.net/1.10.22/css/jquery.dataTables.min.css" rel="stylesheet" />
     {% endif %}
     {% if extra_css %}
@@ -103,9 +103,9 @@
                     </li>
                     {% else %}
                     <li {% if id == active_page %} class="active" {% endif %} data-toggle="tooltip" title="{{ tooltip }}" data-placement="bottom"
-                        {% if id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users', 'control', 'portfolio')) %}
+                        {% if id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users')) %}
                         class="disabled" {% endif %}>
-                        <a {% if not ( id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users', 'control', 'portfolio')) ) %}href="/{{ href|e }}"
+                        <a {% if not ( id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users')) ) %}href="/{{ href|e }}"
                             {% endif %}{% if id == 'docs' %} target="_blank" {% endif %}>
                             <span class="fa fa-{{ icon }}" aria-hidden="true"></span>
                             {{ caption|e }}
