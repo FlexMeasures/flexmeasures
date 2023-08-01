@@ -120,6 +120,9 @@ def test_patch_sensor(client, setup_api_test_data):
         },
     )
     assert response.json["name"] == "Changed name"
+    new_sensor = Sensor.query.filter(Sensor.name == "Changed name").one_or_none()
+    assert new_sensor.name == "Changed name"
+    assert Sensor.query.filter(Sensor.name == "some gas sensor").one_or_none() is None
 
 
 def test_patch_sensor_for_excluded_attribute(client, setup_api_test_data):
