@@ -73,7 +73,9 @@ def create(  # noqa C901
     if app.testing:
         from fakeredis import FakeStrictRedis
 
-        redis_conn = FakeStrictRedis()
+        redis_conn = FakeStrictRedis(
+            host="redis", port="1234"
+        )  # dummy connection details
     else:
         redis_conn = Redis(
             app.config["FLEXMEASURES_REDIS_URL"],

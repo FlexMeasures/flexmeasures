@@ -533,7 +533,6 @@ class SensorAPI(FlaskView):
         """
 
         sensor.resolution = sensor.event_resolution
-        
         return sensor_schema.dump(sensor), 200
 
     @route("", methods=["POST"])
@@ -545,7 +544,6 @@ class SensorAPI(FlaskView):
         ctx_loader=GenericAsset,
         pass_ctx_to_loader=True,
     )
-    @as_json
     def post(self, sensor_data: dict):
         """Create new asset.
 
@@ -559,7 +557,7 @@ class SensorAPI(FlaskView):
 
             {
                 "name": "power",
-                "resolution": "PT1H",
+                "event_resolution": "PT1H",
                 "unit": "kWh",
                 "generic_asset_id": 1,
             }
@@ -576,14 +574,10 @@ class SensorAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        sensor_data["event_resolution"] = sensor_data.pop("resolution")
         sensor = Sensor(**sensor_data)
         db.session.add(sensor)
         db.session.commit()
-        sensor.resolution = sensor.event_resolution
         return sensor_schema.dump(sensor), 201
-
-
 
     @route("/<id>", methods=["PATCH"])
     @use_args(partial_sensor_schema)
