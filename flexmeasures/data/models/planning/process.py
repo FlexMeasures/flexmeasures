@@ -95,13 +95,11 @@ class ProcessScheduler(Scheduler):
 
         # convert power to energy using the resolution of the sensor.
         # e.g. resolution=15min, power=1kW -> energy=250W
-        energy = power * consumption_price_sensor.event_resolution / timedelta(hours=1)
+        energy = power * self.resolution / timedelta(hours=1)
 
         # we can fill duration/resolution rows or, if the duration is larger than the schedule
         # window, fill the entire window.
-        rows_to_fill = min(
-            ceil(duration / consumption_price_sensor.event_resolution), len(schedule)
-        )
+        rows_to_fill = min(ceil(duration / self.resolution), len(schedule))
 
         # duration of the process exceeds the scheduling window
         if rows_to_fill == len(schedule):

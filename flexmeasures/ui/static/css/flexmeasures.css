@@ -189,7 +189,7 @@ p.error {
     font-weight: 700;
 }
 
-#tzwarn,#dstwarn {
+#tzwarn,#dstwarn,#sourcewarn {
     margin-top: 20px;
     margin-bottom: 20px;
     color: var(--secondary-color);

@@ -193,6 +193,17 @@ def daily_heatmap(
                         "frame": [None, None],
                     },
                     {"filter": "datum.source_rank == 1"},
+                    # In case of a tied rank, arbitrarily choose the first one occurring in the data
+                    {
+                        "window": [
+                            {
+                                "op": "first_value",
+                                "field": "source.id",
+                                "as": "first_source_id",
+                            }
+                        ],
+                    },
+                    {"filter": "datum.source.id == datum.first_source_id"},
                 ],
             },
             {
