@@ -531,7 +531,6 @@ class SensorAPI(FlaskView):
         :status 422: UNPROCESSABLE_ENTITY
         """
 
-        sensor.resolution = sensor.event_resolution
         return sensor_schema.dump(sensor), 200
 
     @route("", methods=["POST"])
