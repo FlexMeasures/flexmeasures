@@ -100,7 +100,7 @@ def daily_heatmap(
         formatType="quantityWithUnitFormat",
         stack=None,
         **FIELD_DEFINITIONS["event_value"],
-        scale={"scheme": "blueorange", "domainMid": 0},
+        scale={"scheme": "blueorange", "domainMid": 0, "domain": {"unionWith": [0]}},
     )
     event_start_field_definition = dict(
         field="event_start",
