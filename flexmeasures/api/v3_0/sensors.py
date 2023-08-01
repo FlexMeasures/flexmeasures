@@ -628,6 +628,5 @@ class SensorAPI(FlaskView):
         for k, v in sensor_data.items():
             setattr(db_sensor, k, v)
         db.session.add(db_sensor)
-        print(db_sensor)
         db.session.commit()
         return sensor_schema.dump(db_sensor), 200
