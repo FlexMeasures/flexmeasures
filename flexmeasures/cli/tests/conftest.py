@@ -112,3 +112,36 @@ def reporter_config_raw(app, db, setup_dummy_data):
     )
 
     return reporter_config_raw
+
+
+@pytest.mark.skip_github
+@pytest.fixture(scope="module")
+def process_power_sensor(db, app, add_market_prices):
+    """
+    Create an asset of type "process", power sensor to hold the result of
+    the scheduler and price data consisting of 8 expensive hours, 8 cheap hours, and again 8 expensive hours-
+
+    """
+
+    process_asset_type = GenericAssetType(name="process")
+
+    db.session.add(process_asset_type)
+
+    process_asset = GenericAsset(
+        name="Test Process Asset", generic_asset_type=process_asset_type
+    )
+
+    db.session.add(process_asset)
+
+    power_sensor = Sensor(
+        "power",
+        generic_asset=process_asset,
+        event_resolution=timedelta(hours=1),
+        unit="MW",
+    )
+
+    db.session.add(power_sensor)
+
+    db.session.commit()
+
+    yield power_sensor.id
