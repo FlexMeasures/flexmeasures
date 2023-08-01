@@ -556,7 +556,7 @@ class SensorAPI(FlaskView):
 
             {
                 "name": "power",
-                "resolution": "PT1H",
+                "event_resolution": "PT1H",
                 "unit": "kWh",
                 "generic_asset_id": 1,
             }

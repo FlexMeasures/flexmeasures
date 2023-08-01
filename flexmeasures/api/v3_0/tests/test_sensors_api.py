@@ -32,9 +32,12 @@ def test_fetch_one_sensor(
 
 
 @pytest.mark.parametrize("use_auth", [False, True])
-def test_fetch_one_sensor_error(
+def test_fetch_one_sensor_no_auth(
     client, setup_api_test_data: dict[str, Sensor], use_auth
 ):
+    """Test 1: Sensor with id 1 is not in the test_prosumer_user_2@seita.nl's account.
+    The Supplier Account as can be seen in flexmeasures/api/v3_0/tests/conftest.py
+    Test 2: There is no authentication int the headers"""
     sensor_id = 1
     if use_auth:
         headers = make_headers_for("test_prosumer_user_2@seita.nl", client)
@@ -87,7 +90,8 @@ def test_post_a_sensor(client, setup_api_test_data):
     assert sensor.unit == "kWh"
 
 
-def test_post_sensor_from_unauthorized_account(client, setup_api_test_data):
+def test_post_sensor_to_asset_from_unrelated_account(client, setup_api_test_data):
+    """Tries to add sensor to account the user doesn't have access to"""
     auth_token = get_auth_token(client, "test_supplier_user_4@seita.nl", "testtest")
     post_data = get_sensor_post_data()
     response = client.post(

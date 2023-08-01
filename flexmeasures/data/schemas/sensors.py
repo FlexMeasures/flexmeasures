@@ -30,10 +30,6 @@ class SensorSchemaMixin(Schema):
     unit = ma.auto_field(required=True)
     timezone = ma.auto_field()
     event_resolution = DurationField(required=True)
-    # event_resolution = fields.TimeDelta(precision="minutes")
-    # resolution = NewDurationField(
-    #     required=True
-    # )  # fields.TimeDelta(required=True, precision="minutes")
     entity_address = fields.String(dump_only=True)
 
     @validates("unit")
