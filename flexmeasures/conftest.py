@@ -227,7 +227,7 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
             ),
         )
     )
-    return {user.username: user for user in new_users}
+    return {user.username: user.id for user in new_users}
 
 
 @pytest.fixture(scope="module")
@@ -414,12 +414,12 @@ def setup_assets(
 ) -> dict[str, Asset]:
     """Add assets to known test users.
     Deprecated. Remove with Asset model."""
-
+    # db.session.refresh(setup_roles_users["Test Prosumer User"])
     assets = []
     for asset_name in ["wind-asset-1", "wind-asset-2", "solar-asset-1"]:
         asset = Asset(
             name=asset_name,
-            owner_id=setup_roles_users["Test Prosumer User"].id,
+            owner_id=setup_roles_users["Test Prosumer User"],
             asset_type_name="wind" if "wind" in asset_name else "solar",
             event_resolution=timedelta(minutes=15),
             capacity_in_mw=1,
@@ -453,6 +453,7 @@ def setup_assets(
             for dt, val in zip(time_slots, values)
         ]
         db.session.add_all(beliefs)
+    db.session.commit()
     return {asset.name: asset for asset in assets}
 
 
@@ -643,7 +644,7 @@ def create_test_battery_assets(
 
     test_battery = Asset(
         name="Test battery",
-        owner_id=setup_roles_users["Test Prosumer User"].id,
+        owner_id=setup_roles_users["Test Prosumer User"],
         asset_type_name="battery",
         event_resolution=timedelta(minutes=15),
         capacity_in_mw=2,
@@ -661,7 +662,7 @@ def create_test_battery_assets(
 
     test_battery_no_prices = Asset(
         name="Test battery with no known prices",
-        owner_id=setup_roles_users["Test Prosumer User"].id,
+        owner_id=setup_roles_users["Test Prosumer User"],
         asset_type_name="battery",
         event_resolution=timedelta(minutes=15),
         capacity_in_mw=2,
@@ -729,7 +730,7 @@ def create_charging_station_assets(
 
     charging_station = Asset(
         name="Test charging station",
-        owner_id=setup_roles_users["Test Prosumer User"].id,
+        owner_id=setup_roles_users["Test Prosumer User"],
         asset_type_name="one-way_evse",
         event_resolution=timedelta(minutes=15),
         capacity_in_mw=2,
@@ -747,7 +748,7 @@ def create_charging_station_assets(
 
     bidirectional_charging_station = Asset(
         name="Test charging station (bidirectional)",
-        owner_id=setup_roles_users["Test Prosumer User"].id,
+        owner_id=setup_roles_users["Test Prosumer User"],
         asset_type_name="two-way_evse",
         event_resolution=timedelta(minutes=15),
         capacity_in_mw=2,
