@@ -1,4 +1,4 @@
-# import pytest
+import pytest
 import json
 import os
 
@@ -15,7 +15,7 @@ from flexmeasures.cli.tests.utils import get_click_commands
 from flexmeasures.utils.time_utils import server_now
 
 
-# @pytest.mark.skip_github
+@pytest.mark.skip_github
 def test_add_annotation(app, setup_roles_users_fresh_db):
     from flexmeasures.cli.data_add import add_annotation
 
@@ -51,7 +51,7 @@ def test_add_annotation(app, setup_roles_users_fresh_db):
     )
 
 
-# @pytest.mark.skip_github
+@pytest.mark.skip_github
 def test_add_holidays(app, setup_roles_users_fresh_db):
     from flexmeasures.cli.data_add import add_holidays
 
@@ -95,7 +95,7 @@ def test_cli_help(app):
         assert "Usage" in result.output
 
 
-# @pytest.mark.skip_github
+@pytest.mark.skip_github
 def test_add_reporter(app, fresh_db, setup_dummy_data, reporter_config_raw):
     """
     The reporter aggregates input data from two sensors (both have 200 data points)
