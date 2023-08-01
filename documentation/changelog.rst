@@ -11,6 +11,8 @@ v0.15.0 | July XX, 2023
 
 .. warning:: If your server is running in play mode (``FLEXMEASURES_MODE = "play"``), users will be able to see sensor data from any account [see `PR #740 <https://www.github.com/FlexMeasures/flexmeasures/pull/740>`_].
 
+.. warning:: If your server is running in play mode (``FLEXMEASURES_MODE = "play"``), users will be able to see sensor data from any account [see `PR #740 <https://www.github.com/FlexMeasures/flexmeasures/pull/740>`_].
+
 New features
 -------------
 
