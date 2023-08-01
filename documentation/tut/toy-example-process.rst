@@ -9,17 +9,17 @@ Until this point we've been using a static battery, one of the most flexible ene
 
 However, in some settings, we can reduce electricity bills by *just* consuming energy smartly. In other words, if the process can be displaced, by breaking it into smaller consumption periods or shifting its start time, the process run can match the lower price hours better.
 
-For example, we could have a load that consumes energy at a constant rate (e.g. 100kW) for a fix duration (e.g. 3h), but there's some flexibility in the start time. In that case, we could find the optimal start time in order to minimize the energy cost.
+For example, we could have a load that consumes energy at a constant rate (e.g. 100kW) for a fixed duration (e.g. 3h), but there's some flexibility in the start time. In that case, we could find the optimal start time in order to minimize the energy cost.
 
 Examples of flexible processes are: 
     - Water irrigation in agriculture
     - Mechanical pulping in the paper industry
-    - Water pumping in waster water management
+    - Water pumping in waste water management
     - Cooling for the food industry
 
 
-For consumers under ToU (Time of Use) tariffs, FlexMeasures `ProcessScheduler` can plan the start time of the process to minimizes the overall cost of energy.
-Alternatively, it can create a consumption pan to minimize the CO2 emissions. 
+For consumers under :abbr:`ToU (Time of Use)` tariffs, FlexMeasures `ProcessScheduler` can plan the start time of the process to minimize the overall cost of energy.
+Alternatively, it can create a consumption plan to minimize the CO2 emissions. 
 
 
 In this tutorial, you'll learn how to schedule processes using three different policies: INFLEXIBLE, BREAKABLE and SHIFTABLE. 
@@ -65,7 +65,7 @@ In this example, we are planning to consume 200kW for a period of 4h, tomorrow.
 In addition, we'll add a time period in which the scheduler won't be able to run the process.
 
 Now we are ready to schedule a process. Let's start with the INFLEXIBLE policy, the simplest. The scheduler
-cannot schedule the process after one hour from midnight.
+cannot schedule the process to run within the first hour after midnight.
 
 .. code-block:: bash
 
@@ -74,7 +74,7 @@ cannot schedule the process after one hour from midnight.
       --process-power 0.2MW --process-type INFLEXIBLE \ 
       --forbid "{\"start\" : \"${TOMORROW}T00:00:00+02:00\", \"duration\" : \"PT1H\"}"
 
-This policy consist of scheduling the process as soon as possible. That is from 1am to 2am, as the time restriction from 12am to 1am makes the scheduler unable to start at 12am.
+This policy consist of scheduling the process as soon as possible. That is from 1am to 5am, as the time restriction from 12am to 1am makes the scheduler unable to start at 12am.
 
 Following the INFLEXIBLE policy, we'll schedule the same 4h block using a BREAKABLE policy.
 
@@ -107,4 +107,4 @@ Finally, we'll schedule the process using the SHIFTABLE policy. We'll keep the s
 
 The image above show the schedules following the three policies. 
 
-In the first policy, there's no flexibility and it needs to schedule as soon as possible. Meanwhile, in the BREAKABLE policy, the consumption blocks surrounds the time restriction to consume in the cheapest hours. Finally, in the SHIFTABLE the process is shifted to capture the best prices, avoiding the time restrictions.
+In the first policy, there's no flexibility and it needs to schedule as soon as possible. Meanwhile, in the BREAKABLE policy, the consumption blocks surrounds the time restriction to consume in the cheapest hours. Finally, in the SHIFTABLE policy, the process is shifted to capture the best prices, avoiding the time restrictions.
