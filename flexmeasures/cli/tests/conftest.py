@@ -8,9 +8,9 @@ from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetTy
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 @pytest.mark.skip_github
-def setup_dummy_data(db, app):
+def setup_dummy_data(fresh_db, app):
     """
     Create an asset with two sensors (1 and 2), and add the same set of 200 beliefs with an hourly resolution to each of them.
     Return the two sensors and a result sensor (which has no data).
@@ -19,7 +19,7 @@ def setup_dummy_data(db, app):
     dummy_asset_type = GenericAssetType(name="DummyGenericAssetType")
     report_asset_type = GenericAssetType(name="ReportAssetType")
 
-    db.session.add_all([dummy_asset_type, report_asset_type])
+    fresh_db.session.add_all([dummy_asset_type, report_asset_type])
 
     dummy_asset = GenericAsset(
         name="DummyGenericAsset", generic_asset_type=dummy_asset_type
@@ -29,23 +29,23 @@ def setup_dummy_data(db, app):
         name="PandasReport", generic_asset_type=report_asset_type
     )
 
-    db.session.add_all([dummy_asset, pandas_report])
+    fresh_db.session.add_all([dummy_asset, pandas_report])
 
     sensor1 = Sensor(
         "sensor 1", generic_asset=dummy_asset, event_resolution=timedelta(hours=1)
     )
 
-    db.session.add(sensor1)
+    fresh_db.session.add(sensor1)
     sensor2 = Sensor(
         "sensor 2", generic_asset=dummy_asset, event_resolution=timedelta(hours=1)
     )
-    db.session.add(sensor2)
+    fresh_db.session.add(sensor2)
     report_sensor = Sensor(
         "report sensor",
         generic_asset=pandas_report,
         event_resolution=timedelta(hours=2),
     )
-    db.session.add(report_sensor)
+    fresh_db.session.add(report_sensor)
 
     # Create 1 DataSources
     source = DataSource("source1")
@@ -64,15 +64,15 @@ def setup_dummy_data(db, app):
                 )
             )
 
-    db.session.add_all(beliefs)
-    db.session.commit()
+    fresh_db.session.add_all(beliefs)
+    fresh_db.session.commit()
 
     yield sensor1, sensor2, report_sensor
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 @pytest.mark.skip_github
-def reporter_config_raw(app, db, setup_dummy_data):
+def reporter_config_raw(app, setup_dummy_data):
     """
     This reporter_config defines the operations to add up the
     values of the sensors 1 and 2 and resamples the result to a
