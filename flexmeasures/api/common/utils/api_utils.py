@@ -81,9 +81,7 @@ def save_and_enqueue(
     save_changed_beliefs_only: bool = True,
 ) -> ResponseTuple:
     # Attempt to save
-    status = save_to_db(
-        data, save_changed_beliefs_only=save_changed_beliefs_only
-    )
+    status = save_to_db(data, save_changed_beliefs_only=save_changed_beliefs_only)
     db.session.commit()
 
     # Only enqueue forecasting jobs upon successfully saving new data
