@@ -98,7 +98,7 @@ def reporter_config_raw(app, db, setup_dummy_data):
     return reporter_config_raw
 
 
-# @pytest.mark.skip_github
+@pytest.mark.skip_github
 @pytest.fixture(scope="module")
 def process_power_sensor(db, app, add_market_prices):
     """
