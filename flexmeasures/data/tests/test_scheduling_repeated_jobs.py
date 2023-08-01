@@ -156,7 +156,8 @@ def test_hashing(db, app, add_charging_station_assets, setup_test_data):
     print("RIGHT HASH: ", hash)
 
     # checks that hashes are consistent between different runtime calls
-    assert hash == "4ed0V9h247brxusBYk3ug9Cy7miPnynOeSNBT8hd5Mo="
+    # this test needs to be updated in case of a version upgrade
+    assert hash == "mmENiTzn49DRv7zbPZn05yVK7RXrdxglalRfmteuFms="
 
     kwargs2 = copy.deepcopy(kwargs)
     args2 = copy.deepcopy(args)
