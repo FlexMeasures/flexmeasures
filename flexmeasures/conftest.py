@@ -249,7 +249,9 @@ def create_test_markets(db) -> dict[str, Market]:
         weekly_seasonality=True,
         yearly_seasonality=True,
     )
+
     db.session.add(day_ahead)
+
     epex_da = Market(
         name="epex_da",
         market_type_name="day_ahead",
@@ -598,11 +600,9 @@ def add_market_prices(
     ]
     db.session.add_all(day3_beliefs_production)
 
-    return {
+    yield {
         "epex_da": setup_markets["epex_da"].corresponding_sensor,
-        "epex_da (production)": setup_markets[
-            "epex_da_production"
-        ].corresponding_sensor,
+        "epex_da_production": setup_markets["epex_da_production"].corresponding_sensor,
     }
 
 
@@ -615,7 +615,7 @@ def add_battery_assets(
 
 @pytest.fixture(scope="function")
 def add_battery_assets_fresh_db(
-    fresh_db, setup_roles_users_fresh_db, setup_markets_fresh_db
+    fresh_db, setup_roles_users_fresh_db, setup_markets_fresh_db, create
 ) -> dict[str, Asset]:
     return create_test_battery_assets(
         fresh_db, setup_roles_users_fresh_db, setup_markets_fresh_db

@@ -30,7 +30,7 @@ from flexmeasures.utils.entity_address_utils import build_entity_address
             ),
             "connection",
             "fm0",
-            "Test battery with no known prices",
+            "Test battery",
         ),
     ],
 )
