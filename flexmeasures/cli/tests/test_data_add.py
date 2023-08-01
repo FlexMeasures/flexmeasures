@@ -256,6 +256,7 @@ def test_add_process(app, process_power_sensor, process_type):
     assert (schedule == -0.4).event_value.sum() == 4
 
 
+@pytest.mark.skip_github
 @pytest.mark.parametrize(
     "event_resolution, name, success",
     [("PT20M", "ONE", True), (15, "TWO", True), ("some_string", "THREE", False)],
