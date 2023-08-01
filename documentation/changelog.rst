@@ -7,6 +7,7 @@ v0.15.0 | July XX, 2023
 ============================
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+.. warning:: Upgrading to this version requires installing the LP/MILP solver HiGHS using ``pip install highspy``.
 
 New features
 -------------
@@ -21,6 +22,8 @@ New features
 
 Bugfixes
 -----------
+
+* Add binary constraint to avoid energy leakages. [see `PR #770 <https://www.github.com/FlexMeasures/flexmeasures/pull/770>`_]
 
 Infrastructure / Support
 ----------------------
