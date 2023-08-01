@@ -112,11 +112,48 @@ def test_patch_sensor(client, setup_api_test_data):
     auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
     sensor = Sensor.query.filter(Sensor.name == "some gas sensor").one_or_none()
 
-    sensor_edit_response = client.patch(
+    response = client.patch(
         url_for("SensorAPI:patch", id=sensor.id),
         headers={"content-type": "application/json", "Authorization": auth_token},
         json={
-            "name": "POWER",
+            "name": "Changed name",
         },
     )
-    assert sensor_edit_response.json["name"] == "POWER"
+    assert response.json["name"] == "Changed name"
+
+
+def test_patch_sensor_for_excluded_attribute(client, setup_api_test_data):
+    """Test to change the generic_asset_id that should not be allowed.
+    The generic_asset_id is excluded in the partial_sensor_schema"""
+    auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
+    sensor = Sensor.query.filter(Sensor.name == "some temperature sensor").one_or_none()
+
+    response = client.patch(
+        url_for("SensorAPI:patch", id=sensor.id),
+        headers={"content-type": "application/json", "Authorization": auth_token},
+        json={
+            "generic_asset_id": 8,
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json["status"] == "UNPROCESSABLE_ENTITY"
+
+
+def test_patch_sensor_from_unrelated_account(client, setup_api_test_data):
+    """Try to change the name of a sensor that is in an account the user does not
+    have access to"""
+    headers = make_headers_for("test_prosumer_user_2@seita.nl", client)
+
+    sensor = Sensor.query.filter(Sensor.name == "some temperature sensor").one_or_none()
+
+    response = client.patch(
+        url_for("SensorAPI:patch", id=sensor.id),
+        headers=headers,
+        json={
+            "name": "try to change the name",
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json["status"] == "INVALID_SENDER"
