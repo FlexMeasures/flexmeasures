@@ -20,7 +20,7 @@ New features
 * DataSource table now allows storing arbitrary attributes as a JSON (without content validation), similar to the Sensor and GenericAsset tables [see `PR #750 <https://www.github.com/FlexMeasures/flexmeasures/pull/750>`_]
 * Added API endpoints `/sensors/<id>` for fetching a single sensor and `/sensors` (POST) for adding a sensor. [see `PR #759 <https://www.github.com/FlexMeasures/flexmeasures/pull/759>`_] and [see `PR #767 <https://www.github.com/FlexMeasures/flexmeasures/pull/767>`_]
 * The CLI now allows to set lists and dicts as asset & sensor attributes (formerly only single values) [see `PR #762 <https://www.github.com/FlexMeasures/flexmeasures/pull/762>`_]
-* Add `ProcessScheduler` class, which optimizes the starting time of processes using one of the following policies: INFLEXIBLE, SHIFTABLE and BREAKABLE [see `PR #729 <https://www.github.com/FlexMeasures/flexmeasures/pull/729>`_]
+* Add `ProcessScheduler` class to optimize the starting time of processes one of the policies developed (INFLEXIBLE, SHIFTABLE and BREAKABLE), accessible via the CLI command `flexmeasures add schedule for-process` [see `PR #729 <https://www.github.com/FlexMeasures/flexmeasures/pull/729>`_ and `PR #768 <https://www.github.com/FlexMeasures/flexmeasures/pull/768>`_]
 
 Bugfixes
 -----------

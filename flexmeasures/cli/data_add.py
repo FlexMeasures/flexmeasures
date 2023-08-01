@@ -5,8 +5,8 @@ CLI commands for populating the database
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from typing import Type, List
 import isodate
-from typing import Type
 import json
 from pathlib import Path
 from io import TextIOBase
@@ -52,7 +52,9 @@ from flexmeasures.data.schemas import (
     LatitudeField,
     LongitudeField,
     SensorIdField,
+    TimeIntervalField,
 )
+from flexmeasures.data.schemas.times import TimeIntervalSchema
 from flexmeasures.data.schemas.scheduling.storage import EfficiencyField
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.schemas.units import QuantityField
@@ -1156,6 +1158,137 @@ def add_schedule_for_storage(
             "inflexible-device-sensors": [s.id for s in inflexible_device_sensors],
         },
     )
+    if as_job:
+        job = create_scheduling_job(sensor=power_sensor, **scheduling_kwargs)
+        if job:
+            click.secho(
+                f"New scheduling job {job.id} has been added to the queue.",
+                **MsgStyle.SUCCESS,
+            )
+    else:
+        success = make_schedule(sensor_id=power_sensor.id, **scheduling_kwargs)
+        if success:
+            click.secho("New schedule is stored.", **MsgStyle.SUCCESS)
+
+
+@create_schedule.command("for-process")
+@with_appcontext
+@click.option(
+    "--sensor-id",
+    "power_sensor",
+    type=SensorIdField(),
+    required=True,
+    help="Create schedule for this sensor. Should be a power sensor. Follow up with the sensor's ID.",
+)
+@click.option(
+    "--consumption-price-sensor",
+    "consumption_price_sensor",
+    type=SensorIdField(),
+    required=False,
+    help="Optimize consumption against this sensor. The sensor typically records an electricity price (e.g. in EUR/kWh), but this field can also be used to optimize against some emission intensity factor (e.g. in kg CO₂ eq./kWh). Follow up with the sensor's ID.",
+)
+@click.option(
+    "--start",
+    "start",
+    type=AwareDateTimeField(format="iso"),
+    required=True,
+    help="Schedule starts at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
+)
+@click.option(
+    "--duration",
+    "duration",
+    type=DurationField(),
+    required=True,
+    help="Duration of schedule, after --start. Follow up with a duration in ISO 6801 format, e.g. PT1H (1 hour) or PT45M (45 minutes).",
+)
+@click.option(
+    "--process-duration",
+    "process_duration",
+    type=DurationField(),
+    required=True,
+    help="Duration of the process. Follow up with a duration in ISO 6801 format, e.g. PT1H (1 hour) or PT45M (45 minutes).",
+)
+@click.option(
+    "--process-type",
+    "process_type",
+    type=click.Choice(["INFLEXIBLE", "BREAKABLE", "SHIFTABLE"], case_sensitive=False),
+    required=False,
+    default="SHIFTABLE",
+    help="Process schedule policy: INFLEXIBLE, BREAKABLE or SHIFTABLE.",
+)
+@click.option(
+    "--process-power",
+    "process_power",
+    type=ur.Quantity,
+    required=True,
+    help="Constant power of the process during the activation period, e.g. 4kW.",
+)
+@click.option(
+    "--forbid",
+    type=TimeIntervalField(),
+    multiple=True,
+    required=False,
+    help="Add time restrictions to the optimization, where the load will not be scheduled into."
+    'Use the following format to define the restrictions: `{"start":<timezone-aware datetime in ISO 6801>, "duration":<ISO 6801 duration>}`'
+    "This options allows to define multiple time restrictions by using the --forbid for different periods.",
+)
+@click.option(
+    "--as-job",
+    is_flag=True,
+    help="Whether to queue a scheduling job instead of computing directly. "
+    "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'scheduling' queue. Defaults to False.",
+)
+def add_schedule_process(
+    power_sensor: Sensor,
+    consumption_price_sensor: Sensor,
+    start: datetime,
+    duration: timedelta,
+    process_duration: timedelta,
+    process_type: str,
+    process_power: ur.Quantity,
+    forbid: List | None = None,
+    as_job: bool = False,
+):
+    """Create a new schedule for a process asset.
+
+    Current limitations:
+    - Only supports consumption blocks.
+    - Not taking into account grid constraints or other processes.
+    """
+
+    if forbid is None:
+        forbid = []
+
+    # Parse input and required sensor attributes
+    if not power_sensor.measures_power:
+        click.secho(
+            f"Sensor with ID {power_sensor.id} is not a power sensor.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+
+    end = start + duration
+
+    process_power = convert_units(process_power.magnitude, process_power.units, "MW")  # type: ignore
+
+    scheduling_kwargs = dict(
+        start=start,
+        end=end,
+        belief_time=server_now(),
+        resolution=power_sensor.event_resolution,
+        flex_model={
+            "duration": pd.Timedelta(process_duration).isoformat(),
+            "process-type": process_type,
+            "power": process_power,
+            "time-restrictions": [TimeIntervalSchema().dump(f) for f in forbid],
+        },
+    )
+
+    if consumption_price_sensor is not None:
+        scheduling_kwargs["flex_context"] = {
+            "consumption-price-sensor": consumption_price_sensor.id,
+        }
+
     if as_job:
         job = create_scheduling_job(sensor=power_sensor, **scheduling_kwargs)
         if job:

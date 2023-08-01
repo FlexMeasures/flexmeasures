@@ -226,7 +226,7 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
             ),
         )
     )
-    return {user.username: user for user in new_users}
+    return {user.username: user.id for user in new_users}
 
 
 @pytest.fixture(scope="module")
@@ -455,6 +455,7 @@ def create_assets(
             for dt, val in zip(time_slots, values)
         ]
         db.session.add_all(beliefs)
+    db.session.commit()
     return {asset.name: asset for asset in assets}
 
 
