@@ -17,42 +17,6 @@ class DurationValidationError(FMValidationError):
     status = "INVALID_PERIOD"  # USEF error status
 
 
-class NewDurationField(MarshmallowClickMixin, fields.Str):
-    """Field that deserializes to a ISO8601 Duration
-    and serializes back to a string."""
-
-    def _deserialize(self, value, attr, obj, **kwargs) -> str:
-        """
-        Use the isodate library to turn an ISO8601 string into a timedelta.
-        For some non-obvious cases, it will become an isodate.Duration, see
-        ground_from for more.
-        This method throws a ValidationError if the string is not ISO norm.
-        """
-        try:
-            value_isodate = isodate.parse_duration(value)
-        except ISO8601Error as iso_err:
-            raise DurationValidationError(
-                f"Cannot parse {value} as ISO8601 duration: {iso_err}"
-            )
-
-        if value_isodate.seconds % 60 != 0 or value_isodate.microseconds != 0:
-            print(value_isodate.seconds)
-            print(value_isodate.microseconds)
-            raise DurationValidationError(
-                "FlexMeasures only support multiples of 1 minute."
-            )
-
-        return value
-
-    def _serialize(self, value, attr, data, **kwargs):
-        """
-        An implementation of _serialize.
-        It is not guaranteed to return the same string as was input,
-        if ground_from has been used!
-        """
-        return isodate.strftime(value, "P%P")
-
-
 class DurationField(MarshmallowClickMixin, fields.Str):
     """Field that deserializes to a ISO8601 Duration
     and serializes back to a string."""
