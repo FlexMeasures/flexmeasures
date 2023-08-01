@@ -65,6 +65,7 @@ def test_duration_field_nominal_grounded(
         ("1H", "Unable to parse duration string"),
         ("PP1M", "time designator 'T' missing"),
         ("PT2D", "Unrecognised ISO 8601 date format"),
+        ("PT40S", "FlexMeasures only support multiples of 1 minute."),
     ],
 )
 def test_duration_field_invalid(duration_input, error_msg):
