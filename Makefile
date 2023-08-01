@@ -80,17 +80,27 @@ freeze-deps:
 	make ensure-dep-folder
 	make install-pip-tools
 	pip-compile -o requirements/${PYV}/app.txt requirements/app.in
+	# Create app_temp.txt to create constraints for test.txt and dev.txt
+	cat requirements/${PYV}/app.txt > requirements/app_temp.txt
 	pip-compile -o requirements/${PYV}/test.txt requirements/test.in
+	cat requirements/${PYV}/test.txt >> requirements/app_temp.txt
 	pip-compile -o requirements/${PYV}/dev.txt requirements/dev.in
+	cat requirements/${PYV}/app.txt > requirements/app_temp.txt
 	pip-compile -o requirements/${PYV}/docs.txt requirements/docs.in
+	rm requirements/app_temp.txt
 
 upgrade-deps:
 	make ensure-dep-folder
 	make install-pip-tools
 	pip-compile --upgrade -o requirements/${PYV}/app.txt requirements/app.in
+	# Create app_temp.txt to create constraints for test.txt and dev.txt
+	cat requirements/${PYV}/app.txt > requirements/app_temp.txt
 	pip-compile --upgrade -o requirements/${PYV}/test.txt requirements/test.in
+	cat requirements/${PYV}/test.txt >> requirements/app_temp.txt
 	pip-compile --upgrade -o requirements/${PYV}/dev.txt requirements/dev.in
+	cat requirements/${PYV}/app.txt > requirements/app_temp.txt
 	pip-compile --upgrade -o requirements/${PYV}/docs.txt requirements/docs.in
+	rm requirements/app_temp.txt
 
 	make test
 
