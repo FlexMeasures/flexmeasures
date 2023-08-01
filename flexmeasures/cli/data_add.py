@@ -5,6 +5,7 @@ CLI commands for populating the database
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+import isodate
 from typing import Type
 import json
 from pathlib import Path
@@ -200,8 +201,8 @@ def new_user(
 @click.option(
     "--event-resolution",
     required=True,
-    type=int,
-    help="Expected resolution of the data in minutes",
+    type=str,
+    help="Expected resolution of the data in ISO8601 duration string",
 )
 @click.option(
     "--timezone",
@@ -234,8 +235,18 @@ def add_sensor(**args):
         )
         raise click.Abort()
     del args["attributes"]  # not part of schema
+    if args["event_resolution"].isdigit():
+        click.secho(
+            "DeprecationWarning: Use ISO8601 duration string for event-resolution, minutes in int will be depricated from v0.16.0",
+            **MsgStyle.WARN,
+        )
+        timedelta_event_resolution = timedelta(minutes=int(args["event_resolution"]))
+        isodate_event_resolution = isodate.duration_isoformat(
+            timedelta_event_resolution
+        )
+        args["event_resolution"] = isodate_event_resolution
     check_errors(SensorSchema().validate(args))
-    args["event_resolution"] = timedelta(minutes=args["event_resolution"])
+
     sensor = Sensor(**args)
     if not isinstance(attributes, dict):
         click.secho("Attributes should be a dict.", **MsgStyle.ERROR)
