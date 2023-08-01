@@ -13,7 +13,7 @@ from flexmeasures.data.models.planning.storage import (
     add_storage_constraints,
     validate_storage_constraints,
 )
-from flexmeasures.data.models.planning.linear_optimization import run_device_scheduler
+from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.planning.tests.utils import check_constraints
 from flexmeasures.data.models.planning.utils import initialize_series, initialize_df
 from flexmeasures.utils.calculations import (
@@ -211,7 +211,7 @@ def run_test_charge_discharge_sign(
         commitment_upwards_deviation_price,
     ) = scheduler._prepare(skip_validation=True)
 
-    model, results = run_device_scheduler(
+    _, _, results, model = device_scheduler(
         device_constraints,
         ems_constraints,
         commitment_quantities,

@@ -238,7 +238,7 @@ class StorageScheduler(Scheduler):
             commitment_upwards_deviation_price,
         ) = self._prepare(skip_validation=skip_validation)
 
-        ems_schedule, expected_costs, scheduler_results = device_scheduler(
+        ems_schedule, expected_costs, scheduler_results, _ = device_scheduler(
             device_constraints,
             ems_constraints,
             commitment_quantities,
