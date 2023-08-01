@@ -517,7 +517,7 @@ class SensorAPI(FlaskView):
                 "name": "some gas sensor",
                 "unit": "m³/h",
                 "entity_address": "ea1.2023-08.localhost:fm1.1",
-                "event_resolution": 10,
+                "event_resolution": "PT10M",
                 "generic_asset_id": 4,
                 "timezone": "UTC",
             }
@@ -532,7 +532,6 @@ class SensorAPI(FlaskView):
         :status 422: UNPROCESSABLE_ENTITY
         """
 
-        sensor.resolution = sensor.event_resolution
         return sensor_schema.dump(sensor), 200
 
     @route("", methods=["POST"])
