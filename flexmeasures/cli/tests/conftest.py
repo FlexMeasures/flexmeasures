@@ -129,3 +129,22 @@ def process_power_sensor(db, app, add_market_prices):
     db.session.commit()
 
     yield power_sensor.id
+
+
+@pytest.fixture(scope="module")
+@pytest.mark.skip_github
+def setup_dummy_asset(db, app):
+    """
+    Create an Asset to add sensors to and return the id.
+    """
+    dummy_asset_type = GenericAssetType(name="DummyGenericAssetType")
+
+    db.session.add(dummy_asset_type)
+
+    dummy_asset = GenericAsset(
+        name="DummyGenericAsset", generic_asset_type=dummy_asset_type
+    )
+    db.session.add(dummy_asset)
+    db.session.commit()
+
+    return dummy_asset.id

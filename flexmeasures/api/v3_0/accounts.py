@@ -70,7 +70,7 @@ class AccountAPI(FlaskView):
 
     @route("/<id>", methods=["GET"])
     @use_kwargs({"account": AccountIdField(data_key="id")}, location="path")
-    @permission_required_for_context("read", arg_name="account")
+    @permission_required_for_context("read", ctx_arg_name="account")
     @as_json
     def get(self, id: int, account: Account):
         """API endpoint to get an account.
