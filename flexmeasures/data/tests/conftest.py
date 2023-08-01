@@ -9,7 +9,6 @@ import numpy as np
 from flask_sqlalchemy import SQLAlchemy
 from statsmodels.api import OLS
 
-from flexmeasures import User
 from flexmeasures.data.models.annotations import Annotation
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import TimedBelief, Sensor
