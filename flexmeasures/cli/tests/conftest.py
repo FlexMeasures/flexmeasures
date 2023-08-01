@@ -96,3 +96,22 @@ def reporter_config_raw(app, db, setup_dummy_data):
     )
 
     return reporter_config_raw
+
+
+@pytest.fixture(scope="module")
+@pytest.mark.skip_github
+def setup_dummy_asset(db, app):
+    """
+    Create an Asset to add sensors to and return the id.
+    """
+    dummy_asset_type = GenericAssetType(name="DummyGenericAssetType")
+
+    db.session.add(dummy_asset_type)
+
+    dummy_asset = GenericAsset(
+        name="DummyGenericAsset", generic_asset_type=dummy_asset_type
+    )
+    db.session.add(dummy_asset)
+    db.session.commit()
+
+    return dummy_asset.id

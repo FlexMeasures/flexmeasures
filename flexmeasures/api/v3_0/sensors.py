@@ -30,6 +30,7 @@ from flexmeasures.api.common.utils.api_utils import save_and_enqueue
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account
+from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField
@@ -46,6 +47,7 @@ from flexmeasures.utils.time_utils import duration_isoformat
 get_sensor_schema = GetSensorDataSchema()
 post_sensor_schema = PostSensorDataSchema()
 sensors_schema = SensorSchema(many=True)
+sensor_schema = SensorSchema()
 
 
 class SensorAPI(FlaskView):
@@ -63,7 +65,7 @@ class SensorAPI(FlaskView):
         },
         location="query",
     )
-    @permission_required_for_context("read", arg_name="account")
+    @permission_required_for_context("read", ctx_arg_name="account")
     @as_json
     def index(self, account: Account):
         """API endpoint to list all sensors of an account.
@@ -494,3 +496,83 @@ class SensorAPI(FlaskView):
 
         d, s = request_processed()
         return dict(**response, **d), s
+
+    @route("/<id>", methods=["GET"])
+    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    @permission_required_for_context("read", ctx_arg_name="sensor")
+    @as_json
+    def fetch_one(self, id, sensor):
+        """Fetch a given sensor.
+
+        .. :quickref: Sensor; Get a sensor
+
+        This endpoint gets a sensor.
+
+        **Example response**
+
+        .. sourcecode:: json
+
+            {
+                "name": "some gas sensor",
+                "unit": "m³/h",
+                "entity_address": "ea1.2023-08.localhost:fm1.1",
+                "event_resolution": "PT10M",
+                "generic_asset_id": 4,
+                "timezone": "UTC",
+            }
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 200: PROCESSED
+        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+
+        return sensor_schema.dump(sensor), 200
+
+    @route("", methods=["POST"])
+    @use_args(sensor_schema)
+    @permission_required_for_context(
+        "create-children",
+        ctx_arg_pos=1,
+        ctx_arg_name="generic_asset_id",
+        ctx_loader=GenericAsset,
+        pass_ctx_to_loader=True,
+    )
+    def post(self, sensor_data: dict):
+        """Create new asset.
+
+        .. :quickref: Sensor; Create a new Sensor
+
+        This endpoint creates a new Sensor.
+
+        **Example request**
+
+        .. sourcecode:: json
+
+            {
+                "name": "power",
+                "event_resolution": "PT1H",
+                "unit": "kWh",
+                "generic_asset_id": 1,
+            }
+
+
+        The newly posted sensor is returned in the response.
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 201: CREATED
+        :status 400: INVALID_REQUEST
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+        sensor = Sensor(**sensor_data)
+        db.session.add(sensor)
+        db.session.commit()
+        return sensor_schema.dump(sensor), 201

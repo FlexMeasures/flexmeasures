@@ -50,7 +50,7 @@ class SensorAPI(FlaskView):
         },
         location="query",
     )
-    @permission_required_for_context("read", arg_name="sensor")
+    @permission_required_for_context("read", ctx_arg_name="sensor")
     def get_chart(self, id: int, sensor: Sensor, **kwargs):
         """GET from /sensor/<id>/chart
 
@@ -86,7 +86,7 @@ class SensorAPI(FlaskView):
         },
         location="query",
     )
-    @permission_required_for_context("read", arg_name="sensor")
+    @permission_required_for_context("read", ctx_arg_name="sensor")
     def get_chart_data(self, id: int, sensor: Sensor, **kwargs):
         """GET from /sensor/<id>/chart_data
 
@@ -119,7 +119,7 @@ class SensorAPI(FlaskView):
         },
         location="query",
     )
-    @permission_required_for_context("read", arg_name="sensor")
+    @permission_required_for_context("read", ctx_arg_name="sensor")
     def get_chart_annotations(self, id: int, sensor: Sensor, **kwargs):
         """GET from /sensor/<id>/chart_annotations
 
@@ -148,7 +148,7 @@ class SensorAPI(FlaskView):
         {"sensor": SensorIdField(data_key="id")},
         location="path",
     )
-    @permission_required_for_context("read", arg_name="sensor")
+    @permission_required_for_context("read", ctx_arg_name="sensor")
     def get(self, id: int, sensor: Sensor):
         """GET from /sensor/<id>
 
@@ -171,7 +171,7 @@ class AssetAPI(FlaskView):
         {"asset": AssetIdField(data_key="id")},
         location="path",
     )
-    @permission_required_for_context("read", arg_name="asset")
+    @permission_required_for_context("read", ctx_arg_name="asset")
     def get(self, id: int, asset: GenericAsset):
         """GET from /asset/<id>
 

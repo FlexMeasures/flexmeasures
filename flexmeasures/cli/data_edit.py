@@ -10,6 +10,7 @@ import click
 import pandas as pd
 from flask import current_app as app
 from flask.cli import with_appcontext
+import json
 
 from flexmeasures import Sensor
 from flexmeasures.data import db
@@ -79,6 +80,20 @@ def fm_edit_data():
     help="Set the attribute to this integer value.",
 )
 @click.option(
+    "--list",
+    "attribute_list_value",
+    required=False,
+    type=str,
+    help="Set the attribute to this list value. Pass a string with a JSON-parse-able list representation, e.g. '[1,\"a\"]'.",
+)
+@click.option(
+    "--dict",
+    "attribute_dict_value",
+    required=False,
+    type=str,
+    help="Set the attribute to this dict value. Pass a string with a JSON-parse-able dict representation, e.g. '{1:\"a\"}'.",
+)
+@click.option(
     "--null",
     "attribute_null_value",
     required=False,
@@ -95,6 +110,8 @@ def edit_attribute(
     attribute_bool_value: bool | None = None,
     attribute_str_value: str | None = None,
     attribute_int_value: int | None = None,
+    attribute_list_value: str | None = None,
+    attribute_dict_value: str | None = None,
 ):
     """Edit (or add) an asset attribute or sensor attribute."""
 
@@ -107,6 +124,8 @@ def edit_attribute(
         attribute_bool_value=attribute_bool_value,
         attribute_str_value=attribute_str_value,
         attribute_int_value=attribute_int_value,
+        attribute_list_value=attribute_list_value,
+        attribute_dict_value=attribute_dict_value,
         attribute_null_value=attribute_null_value,
     )
 
@@ -211,13 +230,15 @@ def resample_sensor_data(
 app.cli.add_command(fm_edit_data)
 
 
-def parse_attribute_value(
+def parse_attribute_value(  # noqa: C901
     attribute_null_value: bool,
     attribute_float_value: float | None = None,
     attribute_bool_value: bool | None = None,
     attribute_str_value: str | None = None,
     attribute_int_value: int | None = None,
-) -> float | int | bool | str | None:
+    attribute_list_value: str | None = None,
+    attribute_dict_value: str | None = None,
+) -> float | int | bool | str | list | dict | None:
     """Parse attribute value."""
     if not single_true(
         [attribute_null_value]
@@ -228,6 +249,8 @@ def parse_attribute_value(
                 attribute_bool_value,
                 attribute_str_value,
                 attribute_int_value,
+                attribute_list_value,
+                attribute_dict_value,
             ]
         ]
     ):
@@ -240,6 +263,22 @@ def parse_attribute_value(
         return bool(attribute_bool_value)
     elif attribute_int_value is not None:
         return int(attribute_int_value)
+    elif attribute_list_value is not None:
+        try:
+            val = json.loads(attribute_list_value)
+        except json.decoder.JSONDecodeError as jde:
+            raise ValueError(f"Error parsing list value: {jde}")
+        if not isinstance(val, list):
+            raise ValueError(f"{val} is not a list.")
+        return val
+    elif attribute_dict_value is not None:
+        try:
+            val = json.loads(attribute_dict_value)
+        except json.decoder.JSONDecodeError as jde:
+            raise ValueError(f"Error parsing dict value: {jde}")
+        if not isinstance(val, dict):
+            raise ValueError(f"{val} is not a dict.")
+        return val
     return attribute_str_value
 
 

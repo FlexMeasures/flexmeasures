@@ -9,6 +9,7 @@ from flexmeasures.data.schemas.utils import (
     with_appcontext_if_needed,
 )
 from flexmeasures.utils.unit_utils import is_valid_unit
+from flexmeasures.data.schemas.times import DurationField
 
 
 class SensorSchemaMixin(Schema):
@@ -28,7 +29,7 @@ class SensorSchemaMixin(Schema):
     name = ma.auto_field(required=True)
     unit = ma.auto_field(required=True)
     timezone = ma.auto_field()
-    event_resolution = fields.TimeDelta(required=True, precision="minutes")
+    event_resolution = DurationField(required=True)
     entity_address = fields.String(dump_only=True)
 
     @validates("unit")
