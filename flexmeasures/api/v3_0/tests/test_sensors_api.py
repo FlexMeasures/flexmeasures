@@ -127,7 +127,11 @@ def test_patch_sensor(client, setup_api_test_data):
 
 @pytest.mark.parametrize(
     "attribute, value",
-    [("generic_asset_id", 8), ("entity_address", "ea1.2025-01.io.flexmeasures:fm1.1")],
+    [
+        ("generic_asset_id", 8),
+        ("entity_address", "ea1.2025-01.io.flexmeasures:fm1.1"),
+        ("id", 7),
+    ],
 )
 def test_patch_sensor_for_excluded_attribute(
     client, setup_api_test_data, attribute, value
