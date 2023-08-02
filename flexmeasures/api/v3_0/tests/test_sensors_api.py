@@ -125,7 +125,10 @@ def test_patch_sensor(client, setup_api_test_data):
     assert Sensor.query.filter(Sensor.name == "some gas sensor").one_or_none() is None
 
 
-def test_patch_sensor_for_excluded_attribute(client, setup_api_test_data):
+@pytest.mark.parametrize(
+    "attribute", ["generic_asset_id", "timezone", "entity_address"]
+)
+def test_patch_sensor_for_excluded_attribute(client, setup_api_test_data, attribute):
     """Test to change the generic_asset_id that should not be allowed.
     The generic_asset_id is excluded in the partial_sensor_schema"""
     auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
@@ -135,7 +138,7 @@ def test_patch_sensor_for_excluded_attribute(client, setup_api_test_data):
         url_for("SensorAPI:patch", id=sensor.id),
         headers={"content-type": "application/json", "Authorization": auth_token},
         json={
-            "generic_asset_id": 8,
+            attribute: 8,
         },
     )
 

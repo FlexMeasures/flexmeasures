@@ -584,7 +584,7 @@ class SensorAPI(FlaskView):
     @permission_required_for_context("update", ctx_arg_name="db_sensor")
     @as_json
     def patch(self, sensor_data: dict, id: int, db_sensor: Sensor):
-        """Update an sensor given its identifier.
+        """Update a sensor given its identifier.
 
         .. :quickref: Sensor; Update a sensor
 
