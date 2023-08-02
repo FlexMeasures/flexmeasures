@@ -1310,7 +1310,7 @@ def add_schedule_process(
     "sensor",
     type=SensorIdField(),
     required=False,
-    help="Sensor used to save the report. Follow up with the sensor's ID. Can be defined in the input file, as well"
+    help="Sensor used to save the report. Follow up with the sensor's ID. Can be defined in the parameters file, as well"
     " If needed, use `flexmeasures add sensor` to create a new sensor first.",
 )
 @click.option(
@@ -1321,11 +1321,11 @@ def add_schedule_process(
     help="Path to the JSON or YAML file with the configuration of the reporter.",
 )
 @click.option(
-    "--input",
-    "input_file",
+    "--parameters",
+    "parameters_file",
     required=False,
     type=click.File("r"),
-    help="Path to the JSON or YAML file with the report inputs.",
+    help="Path to the JSON or YAML file with the report parameters (passed to the compute step).",
 )
 @click.option(
     "--reporter",
@@ -1397,16 +1397,16 @@ def add_schedule_process(
     help="Add this flag to edit the configuration of the Reporter in your default text editor (e.g. nano).",
 )
 @click.option(
-    "--edit-input",
-    "edit_input",
+    "--edit-parameters",
+    "edit_parameters",
     is_flag=True,
-    help="Add this flag to edit the input to the Reporter in your default text editor (e.g. nano).",
+    help="Add this flag to edit the parameters passed to the Reporter in your default text editor (e.g. nano).",
 )
 def add_report(  # noqa: C901
     reporter_class: str,
     sensor: Sensor | None = None,
     config_file: TextIOBase | None = None,
-    input_file: TextIOBase | None = None,
+    parameters_file: TextIOBase | None = None,
     start: datetime | None = None,
     end: datetime | None = None,
     start_offset: str | None = None,
@@ -1415,7 +1415,7 @@ def add_report(  # noqa: C901
     output_file: Path | None = None,
     dry_run: bool = False,
     edit_config: bool = False,
-    edit_input: bool = False,
+    edit_parameters: bool = False,
     timezone: str | None = None,
 ):
     """
@@ -1431,27 +1431,27 @@ def add_report(  # noqa: C901
     if edit_config:
         config = launch_editor("/tmp/config.yml")
 
-    input = dict()
+    parameters = dict()
 
-    if input_file:
-        input = yaml.safe_load(input_file)
+    if parameters_file:
+        parameters = yaml.safe_load(parameters_file)
 
-    if edit_input:
-        input = launch_editor("/tmp/input.yml")
+    if edit_parameters:
+        parameters = launch_editor("/tmp/parameters.yml")
 
     if sensor is not None:
-        input["sensor"] = sensor.id
+        parameters["sensor"] = sensor.id
 
-    # check if sensor is not provided either in the input or the CLI
+    # check if sensor is not provided either in the parameters or the CLI
     # click parameter
-    if input.get("sensor") is None:
+    if parameters.get("sensor") is None:
         click.secho(
-            "Report sensor needs to be defined, either on the `input` file or trough the --sensor CLI parameter...",
+            "Report sensor needs to be defined, either on the `parameters` file or trough the --sensor CLI parameter...",
             **MsgStyle.ERROR,
         )
         raise click.Abort()
 
-    sensor = Sensor.query.get(input.get("sensor"))
+    sensor = Sensor.query.get(parameters.get("sensor"))
 
     # compute now in the timezone local to the output sensor
     if timezone is not None:
@@ -1530,15 +1530,15 @@ def add_report(  # noqa: C901
 
     click.echo("Report computation is running...")
 
-    if ("start" not in input) and (start is not None):
-        input["start"] = start.isoformat()
-    if ("end" not in input) and (end is not None):
-        input["end"] = end.isoformat()
-    if ("resolution" not in input) and (resolution is not None):
-        input["resolution"] = pd.Timedelta(resolution).isoformat()
+    if ("start" not in parameters) and (start is not None):
+        parameters["start"] = start.isoformat()
+    if ("end" not in parameters) and (end is not None):
+        parameters["end"] = end.isoformat()
+    if ("resolution" not in parameters) and (resolution is not None):
+        parameters["resolution"] = pd.Timedelta(resolution).isoformat()
 
     # compute the report
-    result: BeliefsDataFrame = reporter.compute(input=input)
+    result: BeliefsDataFrame = reporter.compute(parameters=parameters)
 
     if not result.empty:
         click.secho("Report computation done.", **MsgStyle.SUCCESS)

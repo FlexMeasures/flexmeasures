@@ -123,15 +123,15 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config):
 
     cli_input_params = {
         "config": "reporter_config.yaml",
-        "input": "input.json",
+        "parameters": "parameters.json",
         "reporter": "PandasReporter",
         "start": "2023-04-10T00:00:00 00:00",
         "end": "2023-04-10T10:00:00 00:00",
         "output-file": "test.csv",
     }
 
-    input = dict(
-        input_sensors=dict(
+    parameters = dict(
+        input_variables=dict(
             sensor_1=dict(sensor=sensor1.id), sensor_2=dict(sensor=sensor2.id)
         ),
         sensor=report_sensor_id,
@@ -146,8 +146,8 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config):
         with open("reporter_config.yaml", "w") as f:
             yaml.dump(reporter_config, f)
 
-        with open("input.json", "w") as f:
-            json.dump(input, f)
+        with open("parameters.json", "w") as f:
+            json.dump(parameters, f)
 
         # call command
         result = runner.invoke(add_report, cli_input)
@@ -187,7 +187,7 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config):
 
     cli_input_params = {
         "config": "reporter_config.json",
-        "input": "input.json",
+        "parameters": "parameters.json",
         "reporter": "PandasReporter",
         "output-file": "test.csv",
         "timezone": "UTC",
@@ -201,8 +201,8 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config):
         with open("reporter_config.json", "w") as f:
             json.dump(reporter_config, f)
 
-        with open("input.json", "w") as f:
-            json.dump(input, f)
+        with open("parameters.json", "w") as f:
+            json.dump(parameters, f)
 
         # call command
         result = runner.invoke(add_report, cli_input)
