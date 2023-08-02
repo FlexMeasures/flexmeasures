@@ -560,22 +560,38 @@ def get_or_create_generic_asset(
     name: str,
     generic_asset_type_id: int,
     attributes: dict,
+    latitude: float = None,
+    longitude: float = None,
+    account_id: int = None,
     flush: bool = True,
-) -> DataSource:
+) -> GenericAsset:
 
-    _generic_asset = (
-        GenericAsset.query.filter(GenericAsset.name == name)
-        .filter(GenericAsset.generic_asset_type_id == generic_asset_type_id)
-        .one_or_none()
+    _query = GenericAsset.query.filter(GenericAsset.name == name).filter(
+        GenericAsset.generic_asset_type_id == generic_asset_type_id
     )
 
+    if latitude is not None:
+        _query = _query.filter(GenericAsset.latitude == latitude)
+    if longitude is not None:
+        _query = _query.filter(GenericAsset.longitude == longitude)
+    if account_id is not None:
+        _query = _query.filter(GenericAsset.account_id == account_id)
+
+    _generic_asset = _query.one_or_none()
+
     if _generic_asset is None:
+
         _generic_asset = GenericAsset(
             name=name,
             generic_asset_type_id=generic_asset_type_id,
             attributes=attributes,
+            latitude=latitude,
+            longitude=longitude,
+            account_id=account_id,
         )
+
         db.session.add(_generic_asset)
+
         if flush:
             # assigns id so that we can reference the new object in the current db session
             db.session.flush()
@@ -610,19 +626,12 @@ def create_generic_asset(generic_asset_type: str, **kwargs) -> GenericAsset:
         name=kwargs["name"],
         generic_asset_type_id=generic_asset_type.id,
         attributes=kwargs["attributes"] if "attributes" in kwargs else {},
+        latitude=kwargs.get("latitude"),
+        longitude=kwargs.get("longitude"),
+        account_id=kwargs.get("account_id"),
+        flush=True,
     )
 
-    # GenericAsset(
-    #     name=kwargs["name"],
-    #     generic_asset_type_id=generic_asset_type.id,
-    #     attributes=kwargs["attributes"] if "attributes" in kwargs else {},
-    # )
-
-    for arg in ("latitude", "longitude", "account_id"):
-        if arg in kwargs:
-            setattr(new_generic_asset, arg, kwargs[arg])
-    # db.session.add(new_generic_asset)
-    # db.session.flush()  # generates the pkey for new_generic_asset
     return new_generic_asset
 
 
