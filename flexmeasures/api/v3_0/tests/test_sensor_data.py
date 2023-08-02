@@ -44,7 +44,9 @@ def test_get_sensor_data(
 ):
     """Check the /sensors/data endpoint for fetching 1 hour of data of a 10-minute resolution sensor."""
     sensor = setup_api_test_data["some gas sensor"]
-    source: Source = setup_roles_users["Test Supplier User"].data_source[0]
+    source: Source = User.query.get(
+        setup_roles_users["Test Supplier User"]
+    ).data_source[0]
     assert sensor.event_resolution == timedelta(minutes=10)
     message = {
         "sensor": f"ea1.2021-01.io.flexmeasures:fm1.{sensor.id}",
@@ -76,7 +78,9 @@ def test_get_instantaneous_sensor_data(
 ):
     """Check the /sensors/data endpoint for fetching 1 hour of data of an instantaneous sensor."""
     sensor = setup_api_test_data["some temperature sensor"]
-    source: Source = setup_roles_users["Test Supplier User"].data_source[0]
+    source: Source = User.query.get(
+        setup_roles_users["Test Supplier User"]
+    ).data_source[0]
     assert sensor.event_resolution == timedelta(minutes=0)
     message = {
         "sensor": f"ea1.2021-01.io.flexmeasures:fm1.{sensor.id}",

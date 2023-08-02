@@ -1,6 +1,3 @@
-from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
-
 from flexmeasures.data.schemas.reporting.pandas_reporter import (
     PandasReporterConfigSchema,
     PandasReporterInputSchema,
@@ -8,32 +5,6 @@ from flexmeasures.data.schemas.reporting.pandas_reporter import (
 from marshmallow.exceptions import ValidationError
 
 import pytest
-
-
-@pytest.fixture(scope="module")
-def setup_dummy_sensors(db, app):
-
-    dummy_asset_type = GenericAssetType(name="DummyGenericAssetType")
-    db.session.add(dummy_asset_type)
-
-    dummy_asset = GenericAsset(
-        name="DummyGenericAsset", generic_asset_type=dummy_asset_type
-    )
-    db.session.add(dummy_asset)
-
-    sensor1 = Sensor("sensor 1", generic_asset=dummy_asset)
-    db.session.add(sensor1)
-    sensor2 = Sensor("sensor 2", generic_asset=dummy_asset)
-    db.session.add(sensor2)
-
-    db.session.commit()
-
-    yield sensor1, sensor2
-
-    db.session.delete(sensor1)
-    db.session.delete(sensor2)
-
-    db.session.commit()
 
 
 @pytest.mark.parametrize(

@@ -30,7 +30,7 @@ You, as the endpoint author, need to make sure this is checked. Here is an examp
         {"the_resource": ResourceIdField(data_key="resource_id")},
         location="path",
     )
-    @permission_required_for_context("read", arg_name="the_resource")
+    @permission_required_for_context("read", ctx_arg_name="the_resource")
     @as_json
     def view(resource_id: int, resource: Resource):
         return dict(name=resource.name)

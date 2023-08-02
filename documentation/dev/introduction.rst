@@ -54,6 +54,11 @@ Go into the ``flexmeasures`` folder and install all dependencies including the o
 
    $ apt-get install coinor-cbc
 
+Alternatively, HiGHS solver can be installed with pip:
+
+.. code-block:: bash
+
+   $ pip install highspy
 
 Configuration
 ^^^^^^^^^^^^^^^^^^^^

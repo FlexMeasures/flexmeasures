@@ -10,6 +10,7 @@ from statsmodels.api import OLS
 import timely_beliefs as tb
 
 from flexmeasures.data.models.reporting import Reporter
+from flexmeasures import User
 from flexmeasures.data.models.annotations import Annotation
 from flexmeasures.data.models.assets import Asset
 from flexmeasures.data.models.data_sources import DataSource
@@ -75,7 +76,7 @@ def setup_fresh_test_data(
             unit="MW",
             market_id=setup_markets["epex_da"].id,
         )
-        asset.owner = setup_roles_users["Test Prosumer User"]
+        asset.owner = User.query.get(setup_roles_users["Test Prosumer User"])
         db.session.add(asset)
 
         time_slots = pd.date_range(
