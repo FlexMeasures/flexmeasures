@@ -86,11 +86,12 @@ class SensorAPI(FlaskView):
             [
                 {
                     "entity_address": "ea1.2021-01.io.flexmeasures.company:fm1.42",
-                    "event_resolution": 15,
+                    "event_resolution": PT15M,
                     "generic_asset_id": 1,
                     "name": "Gas demand",
                     "timezone": "Europe/Amsterdam",
                     "unit": "m\u00b3/h"
+                    "id": 2
                 }
             ]
 
@@ -520,6 +521,7 @@ class SensorAPI(FlaskView):
                 "event_resolution": "PT10M",
                 "generic_asset_id": 4,
                 "timezone": "UTC",
+                "id": 2
             }
 
         :reqheader Authorization: The authentication token
@@ -574,6 +576,7 @@ class SensorAPI(FlaskView):
                 "event_resolution": "PT1H",
                 "generic_asset_id": 1,
                 "timezone": "UTC",
+                "id": 2
             }
 
         :reqheader Authorization: The authentication token
@@ -629,6 +632,7 @@ class SensorAPI(FlaskView):
                 "event_resolution": "PT10M",
                 "generic_asset_id": 4,
                 "timezone": "UTC",
+                "id": 2
             }
 
         :reqheader Authorization: The authentication token
