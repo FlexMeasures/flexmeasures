@@ -10,7 +10,7 @@ v3.0-11 | 2023-08-02
 
 - Added REST endpoint for fetching one sensor: `/sensors/<id>` (GET)
 - Added REST endpoint for adding a sensor: `/sensors` (POST)
-- Added REST endpoint for patching a sensor: `/sensor<id>` (PATCH)
+- Added REST endpoint for patching a sensor: `/sensors/<id>` (PATCH)
 
 v3.0-10 | 2023-06-12
 """"""""""""""""""""
