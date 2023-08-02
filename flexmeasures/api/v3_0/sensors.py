@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+
 from datetime import datetime, timedelta
 
 from flask import current_app
@@ -31,7 +32,7 @@ from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField
 from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
@@ -630,3 +631,33 @@ class SensorAPI(FlaskView):
         db.session.add(db_sensor)
         db.session.commit()
         return sensor_schema.dump(db_sensor), 200
+
+    @route("/<id>", methods=["DELETE"])
+    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    @permission_required_for_context("delete", ctx_arg_name="sensor")
+    @as_json
+    def delete(self, id: int, sensor: Sensor):
+        """Delete a sensor given its identifier.
+
+        .. :quickref: Sensor; Delete a sensor
+
+        This endpoint deletes an existing sensor, as well as all measurements recorded for it.
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 204: DELETED
+        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+
+        """Delete time series data."""
+        TimedBelief.query.filter(TimedBelief.sensor_id == sensor.id).delete()
+
+        sensor_name = sensor.name
+        db.session.delete(sensor)
+        db.session.commit()
+        current_app.logger.info("Deleted sensor '%s'." % sensor_name)
+        return {}, 204

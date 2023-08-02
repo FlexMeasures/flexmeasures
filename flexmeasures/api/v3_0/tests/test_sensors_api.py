@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from flask import url_for
 
-
+from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures import Sensor
 from flexmeasures.api.tests.utils import get_auth_token
 from flexmeasures.api.v3_0.tests.utils import get_sensor_post_data
@@ -160,3 +160,28 @@ def test_patch_sensor_from_unrelated_account(client, setup_api_test_data):
 
     assert response.status_code == 403
     assert response.json["status"] == "INVALID_SENDER"
+
+
+def test_delete_a_sensor(client, setup_api_test_data):
+
+    existing_sensor_id = setup_api_test_data["some temperature sensor"].id
+    headers = make_headers_for("test_admin_user@seita.nl", client)
+    sensor_data = TimedBelief.query.filter(
+        TimedBelief.sensor_id == existing_sensor_id
+    ).all()
+    sensor_count = len(Sensor.query.all())
+
+    assert sensor_data[0].event_value == 815.0
+
+    delete_sensor_response = client.delete(
+        url_for("SensorAPI:delete", id=existing_sensor_id),
+        headers=headers,
+    )
+    assert delete_sensor_response.status_code == 204
+    deleted_sensor = Sensor.query.filter_by(id=existing_sensor_id).one_or_none()
+    assert deleted_sensor is None
+    assert (
+        TimedBelief.query.filter(TimedBelief.sensor_id == existing_sensor_id).all()
+        == []
+    )
+    assert len(Sensor.query.all()) == sensor_count - 1
