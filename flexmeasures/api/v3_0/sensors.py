@@ -594,6 +594,8 @@ class SensorAPI(FlaskView):
         The following fields are not allowed to be updated:
         - id
         - generic_asset_id
+        - entity_address
+        - timezone
 
         **Example request**
 
