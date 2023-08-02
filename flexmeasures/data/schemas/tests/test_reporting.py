@@ -1,39 +1,10 @@
-from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
-
 from flexmeasures.data.schemas.reporting.pandas_reporter import (
     PandasReporterConfigSchema,
-    PandasReporterInputSchema,
+    PandasReporterParametersSchema,
 )
 from marshmallow.exceptions import ValidationError
 
 import pytest
-
-
-@pytest.fixture(scope="module")
-def setup_dummy_sensors(db, app):
-
-    dummy_asset_type = GenericAssetType(name="DummyGenericAssetType")
-    db.session.add(dummy_asset_type)
-
-    dummy_asset = GenericAsset(
-        name="DummyGenericAsset", generic_asset_type=dummy_asset_type
-    )
-    db.session.add(dummy_asset)
-
-    sensor1 = Sensor("sensor 1", generic_asset=dummy_asset)
-    db.session.add(sensor1)
-    sensor2 = Sensor("sensor 2", generic_asset=dummy_asset)
-    db.session.add(sensor2)
-
-    db.session.commit()
-
-    yield sensor1, sensor2
-
-    db.session.delete(sensor1)
-    db.session.delete(sensor2)
-
-    db.session.commit()
 
 
 @pytest.mark.parametrize(
@@ -104,12 +75,16 @@ def test_pandas_reporter_config_schema(config, is_valid, db, app, setup_dummy_se
 
 
 @pytest.mark.parametrize(
-    "input, is_valid",
+    "parameters, is_valid",
     [
         (
             {
-                "sensor": 1,
-                "input_sensors": {"sensor_1": {"sensor": 1}},
+                "sensor": 2,  # sensor to save the output to
+                "input_variables": {  # we're describing how the named variables should be constructed, by defining search filters on the sensor data, rather than on the sensor
+                    "sensor_1_df": {
+                        "sensor": 1
+                    },  # alias, i.e. variable name of the DataFrame containing the input data
+                },
                 "start": "2023-06-06T00:00:00+02:00",
                 "end": "2023-06-06T00:00:00+02:00",
             },
@@ -117,15 +92,19 @@ def test_pandas_reporter_config_schema(config, is_valid, db, app, setup_dummy_se
         ),
         (
             {
-                "input_sensors": {"sensor_1": {"sensor": 1}},
+                "input_variables": {
+                    "sensor_1_df": {
+                        "sensor": 1
+                    }  # alias, i.e. variable name of the DataFrame containing the input data
+                },
             },
             False,
         ),
         (
             {
-                "sensor": 1,
-                "input_sensors": {
-                    "sensor_1": {
+                "sensor": 2,  # sensor to save the output to
+                "input_variables": {
+                    "sensor_1_df": {  # alias, i.e. variable name of the DataFrame containing the parameters data
                         "sensor": 1,
                         "event_starts_after": "2023-06-07T00:00:00+02:00",
                         "event_ends_before": "2023-06-07T00:00:00+02:00",
@@ -136,12 +115,14 @@ def test_pandas_reporter_config_schema(config, is_valid, db, app, setup_dummy_se
         ),
     ],
 )
-def test_pandas_reporter_input_schema(input, is_valid, db, app, setup_dummy_sensors):
+def test_pandas_reporter_parameters_schema(
+    parameters, is_valid, db, app, setup_dummy_sensors
+):
 
-    schema = PandasReporterInputSchema()
+    schema = PandasReporterParametersSchema()
 
     if is_valid:
-        schema.load(input)
+        schema.load(parameters)
     else:
         with pytest.raises(ValidationError):
-            schema.load(input)
+            schema.load(parameters)

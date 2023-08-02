@@ -15,9 +15,9 @@ class ReporterConfigSchema(Schema):
     pass
 
 
-class ReporterInputSchema(Schema):
+class ReporterParametersSchema(Schema):
     """
-    This schema is used to validate the inputs to the method `compute` of
+    This schema is used to validate the parameters to the method `compute` of
      the Reporter class.
     Inherit from this class to extend this schema with your own parameters.
     """

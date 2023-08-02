@@ -94,11 +94,11 @@ If this resolution does not match the sensor's resolution, FlexMeasures will try
 Likewise, if the data unit does not match the sensor’s unit, FlexMeasures will attempt to convert the data or, if that is not possible, complain.
 
 
-Posting power data
-------------------
+Being explicit when posting power data
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 For power data, USEF specifies separate message types for observations and forecasts.
-Correspondingly, we allow the following message types to be used with the [POST] /sensors/data endpoint (see :ref:`posting_sensor_data`):
+Correspondingly, we allow the following message types to be used with the `POST  /sensors/data <../api/v3_0.html#post--api-v3_0-sensors-data>`_ endpoint:
 
 .. code-block:: json
 
@@ -239,8 +239,8 @@ Multiple values (indicating a univariate timeseries) for 15-minute time interval
 
 .. _observations_vs_forecasts
 
-Observations vs forecasts
---------------------------
+Observations vs forecasts: The time of knowledge
+-------------------------------------------------
 
 To correctly tell FlexMeasures when a meter reading or forecast was known is crucial, as it determines which data is being used to compute schedules or to make other forecasts.
 

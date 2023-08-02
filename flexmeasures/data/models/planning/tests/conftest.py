@@ -187,6 +187,22 @@ def add_inflexible_device_forecasts(
     }
 
 
+@pytest.fixture(scope="module")
+def process(db, building, setup_sources) -> dict[str, Sensor]:
+    """
+    Set up a process sensor where the output of the optimization is stored.
+    """
+    _process = Sensor(
+        name="Process",
+        generic_asset=building,
+        event_resolution=timedelta(hours=1),
+        unit="kWh",
+    )
+    db.session.add(_process)
+
+    return _process
+
+
 def add_as_beliefs(db, sensor, values, time_slots, source):
     beliefs = [
         TimedBelief(

@@ -17,7 +17,9 @@ def setup_api_test_data(
     Set up data for API v3.0 tests.
     """
     print("Setting up data for API v3.0 tests on %s" % db.engine)
-    sensors = add_incineration_line(db, setup_roles_users["Test Supplier User"])
+    sensors = add_incineration_line(
+        db, User.query.get(setup_roles_users["Test Supplier User"])
+    )
     return sensors
 
 
@@ -32,7 +34,7 @@ def setup_api_fresh_test_data(
     for sensor in Sensor.query.all():
         fresh_db.delete(sensor)
     sensors = add_incineration_line(
-        fresh_db, setup_roles_users_fresh_db["Test Supplier User"]
+        fresh_db, User.query.get(setup_roles_users_fresh_db["Test Supplier User"])
     )
     return sensors
 

@@ -10,7 +10,7 @@ import pandas as pd
 from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.schemas.reporting.pandas_reporter import (
     PandasReporterConfigSchema,
-    PandasReporterInputSchema,
+    PandasReporterParametersSchema,
 )
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.utils.time_utils import server_now
@@ -23,7 +23,7 @@ class PandasReporter(Reporter):
     __author__ = "Seita"
 
     _config_schema = PandasReporterConfigSchema()
-    _input_schema = PandasReporterInputSchema()
+    _parameters_schema = PandasReporterParametersSchema()
 
     input_variables: list[str] = None
     transformations: list[dict[str, Any]] = None
@@ -35,7 +35,7 @@ class PandasReporter(Reporter):
         self,
         start: datetime,
         end: datetime,
-        input_sensors: dict,
+        input_variables: dict,
         resolution: timedelta | None = None,
         belief_time: datetime | None = None,
     ):
@@ -44,7 +44,7 @@ class PandasReporter(Reporter):
         """
 
         self.data = {}
-        for alias, tb_query in input_sensors.items():
+        for alias, tb_query in input_variables.items():
             _tb_query = tb_query.copy()
 
             # using start / end instead of event_starts_after/event_ends_before when not defined
@@ -79,7 +79,7 @@ class PandasReporter(Reporter):
         # report configuration
         start: datetime = kwargs.get("start")
         end: datetime = kwargs.get("end")
-        input_sensors: dict = kwargs.get("input_sensors")
+        input_variables: dict = kwargs.get("input_variables")
 
         resolution: timedelta | None = kwargs.get("resolution", None)
         belief_time: datetime | None = kwargs.get("belief_time", None)
@@ -88,7 +88,7 @@ class PandasReporter(Reporter):
             resolution = self.sensor.event_resolution
 
         # fetch sensor data
-        self.fetch_data(start, end, input_sensors, resolution, belief_time)
+        self.fetch_data(start, end, input_variables, resolution, belief_time)
 
         if belief_time is None:
             belief_time = server_now()
