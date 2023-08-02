@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+
 from datetime import datetime, timedelta
 
 from flask import current_app
@@ -31,7 +32,7 @@ from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField
 from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
@@ -48,6 +49,7 @@ get_sensor_schema = GetSensorDataSchema()
 post_sensor_schema = PostSensorDataSchema()
 sensors_schema = SensorSchema(many=True)
 sensor_schema = SensorSchema()
+partial_sensor_schema = SensorSchema(partial=True, exclude=["generic_asset_id"])
 
 
 class SensorAPI(FlaskView):
@@ -85,11 +87,12 @@ class SensorAPI(FlaskView):
             [
                 {
                     "entity_address": "ea1.2021-01.io.flexmeasures.company:fm1.42",
-                    "event_resolution": 15,
+                    "event_resolution": PT15M,
                     "generic_asset_id": 1,
                     "name": "Gas demand",
                     "timezone": "Europe/Amsterdam",
                     "unit": "m\u00b3/h"
+                    "id": 2
                 }
             ]
 
@@ -519,6 +522,7 @@ class SensorAPI(FlaskView):
                 "event_resolution": "PT10M",
                 "generic_asset_id": 4,
                 "timezone": "UTC",
+                "id": 2
             }
 
         :reqheader Authorization: The authentication token
@@ -560,8 +564,21 @@ class SensorAPI(FlaskView):
                 "generic_asset_id": 1,
             }
 
+        **Example response**
 
-        The newly posted sensor is returned in the response.
+        The whole sensor is returned in the response:
+
+        .. sourcecode:: json
+
+            {
+                "name": "power",
+                "unit": "kWh",
+                "entity_address": "ea1.2023-08.localhost:fm1.1",
+                "event_resolution": "PT1H",
+                "generic_asset_id": 1,
+                "timezone": "UTC",
+                "id": 2
+            }
 
         :reqheader Authorization: The authentication token
         :reqheader Content-Type: application/json
@@ -576,3 +593,90 @@ class SensorAPI(FlaskView):
         db.session.add(sensor)
         db.session.commit()
         return sensor_schema.dump(sensor), 201
+
+    @route("/<id>", methods=["PATCH"])
+    @use_args(partial_sensor_schema)
+    @use_kwargs({"db_sensor": SensorIdField(data_key="id")}, location="path")
+    @permission_required_for_context("update", ctx_arg_name="db_sensor")
+    @as_json
+    def patch(self, sensor_data: dict, id: int, db_sensor: Sensor):
+        """Update a sensor given its identifier.
+
+        .. :quickref: Sensor; Update a sensor
+
+        This endpoint sets data for an existing sensor.
+        Any subset of sensor fields can be sent.
+
+        The following fields are not allowed to be updated:
+        - id
+        - generic_asset_id
+        - entity_address
+
+        **Example request**
+
+        .. sourcecode:: json
+
+            {
+                "name": "POWER",
+            }
+
+        **Example response**
+
+        The whole sensor is returned in the response:
+
+        .. sourcecode:: json
+
+            {
+                "name": "some gas sensor",
+                "unit": "m³/h",
+                "entity_address": "ea1.2023-08.localhost:fm1.1",
+                "event_resolution": "PT10M",
+                "generic_asset_id": 4,
+                "timezone": "UTC",
+                "id": 2
+            }
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 200: UPDATED
+        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+        for k, v in sensor_data.items():
+            setattr(db_sensor, k, v)
+        db.session.add(db_sensor)
+        db.session.commit()
+        return sensor_schema.dump(db_sensor), 200
+
+    @route("/<id>", methods=["DELETE"])
+    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    @permission_required_for_context("delete", ctx_arg_name="sensor")
+    @as_json
+    def delete(self, id: int, sensor: Sensor):
+        """Delete a sensor given its identifier.
+
+        .. :quickref: Sensor; Delete a sensor
+
+        This endpoint deletes an existing sensor, as well as all measurements recorded for it.
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 204: DELETED
+        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+
+        """Delete time series data."""
+        TimedBelief.query.filter(TimedBelief.sensor_id == sensor.id).delete()
+
+        sensor_name = sensor.name
+        db.session.delete(sensor)
+        db.session.commit()
+        current_app.logger.info("Deleted sensor '%s'." % sensor_name)
+        return {}, 204
