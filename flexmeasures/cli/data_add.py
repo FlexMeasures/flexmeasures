@@ -1575,6 +1575,11 @@ def add_toy_account(kind: str, name: str):
             user_roles=["account-admin"],
             account_name=name,
         )
+        click.secho(
+            f"Toy account {name} with user {user.email} created successfully. You might want to run `flexmeasures show account --id {user.account.id}`",
+            **MsgStyle.SUCCESS,
+        )
+
     db.session.commit()
 
     # add public day-ahead market (as sensor of transmission zone asset)
