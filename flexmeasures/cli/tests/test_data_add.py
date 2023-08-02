@@ -214,6 +214,49 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
 
 
 @pytest.mark.skip_github
+@pytest.mark.parametrize("process_type", [("INFLEXIBLE"), ("SHIFTABLE"), ("BREAKABLE")])
+def test_add_process(app, process_power_sensor, process_type):
+    """
+    Schedule a 4h of consumption block at a constant power of 400kW in a day using
+    the three process policies: INFLEXIBLE, SHIFTABLE and BREAKABLE.
+    """
+
+    from flexmeasures.cli.data_add import add_schedule_process
+
+    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+
+    process_power_sensor_id = process_power_sensor
+
+    cli_input_params = {
+        "sensor-id": process_power_sensor_id,
+        "start": "2015-01-02T00:00:00+01:00",
+        "duration": "PT24H",
+        "process-duration": "PT4H",
+        "process-power": "0.4MW",
+        "process-type": process_type,
+        "consumption-price-sensor": epex_da.id,
+        "forbid": '{"start" : "2015-01-02T00:00:00+01:00", "duration" : "PT2H"}',
+    }
+
+    cli_input = to_flags(cli_input_params)
+    runner = app.test_cli_runner()
+
+    # call command
+    result = runner.invoke(add_schedule_process, cli_input)
+
+    print(result)
+
+    assert result.exit_code == 0  # run command without errors
+
+    process_power_sensor = Sensor.query.get(process_power_sensor_id)
+
+    schedule = process_power_sensor.search_beliefs()
+    # check if the schedule is not empty more detailed testing can be found
+    # in data/models/planning/tests/test_processs.py.
+    assert (schedule == -0.4).event_value.sum() == 4
+
+
+@pytest.mark.skip_github
 @pytest.mark.parametrize(
     "event_resolution, name, success",
     [("PT20M", "ONE", True), (15, "TWO", True), ("some_string", "THREE", False)],
