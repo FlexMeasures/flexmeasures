@@ -87,11 +87,12 @@ class SensorAPI(FlaskView):
             [
                 {
                     "entity_address": "ea1.2021-01.io.flexmeasures.company:fm1.42",
-                    "event_resolution": 15,
+                    "event_resolution": PT15M,
                     "generic_asset_id": 1,
                     "name": "Gas demand",
                     "timezone": "Europe/Amsterdam",
                     "unit": "m\u00b3/h"
+                    "id": 2
                 }
             ]
 
@@ -521,6 +522,7 @@ class SensorAPI(FlaskView):
                 "event_resolution": "PT10M",
                 "generic_asset_id": 4,
                 "timezone": "UTC",
+                "id": 2
             }
 
         :reqheader Authorization: The authentication token
@@ -562,8 +564,21 @@ class SensorAPI(FlaskView):
                 "generic_asset_id": 1,
             }
 
+        **Example response**
 
-        The newly posted sensor is returned in the response.
+        The whole sensor is returned in the response:
+
+        .. sourcecode:: json
+
+            {
+                "name": "power",
+                "unit": "kWh",
+                "entity_address": "ea1.2023-08.localhost:fm1.1",
+                "event_resolution": "PT1H",
+                "generic_asset_id": 1,
+                "timezone": "UTC",
+                "id": 2
+            }
 
         :reqheader Authorization: The authentication token
         :reqheader Content-Type: application/json
@@ -585,7 +600,7 @@ class SensorAPI(FlaskView):
     @permission_required_for_context("update", ctx_arg_name="db_sensor")
     @as_json
     def patch(self, sensor_data: dict, id: int, db_sensor: Sensor):
-        """Update an sensor given its identifier.
+        """Update a sensor given its identifier.
 
         .. :quickref: Sensor; Update a sensor
 
@@ -595,6 +610,7 @@ class SensorAPI(FlaskView):
         The following fields are not allowed to be updated:
         - id
         - generic_asset_id
+        - entity_address
 
         **Example request**
 
@@ -611,10 +627,13 @@ class SensorAPI(FlaskView):
         .. sourcecode:: json
 
             {
-                "name": "POWER",
-                "event_resolution": "PT1H",
-                "unit": "kWh",
-                "generic_asset_id": 1,
+                "name": "some gas sensor",
+                "unit": "m³/h",
+                "entity_address": "ea1.2023-08.localhost:fm1.1",
+                "event_resolution": "PT10M",
+                "generic_asset_id": 4,
+                "timezone": "UTC",
+                "id": 2
             }
 
         :reqheader Authorization: The authentication token
