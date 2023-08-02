@@ -215,7 +215,7 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
 
 @pytest.mark.skip_github
 @pytest.mark.parametrize("process_type", [("INFLEXIBLE"), ("SHIFTABLE"), ("BREAKABLE")])
-def test_add_process(app, db, process_power_sensor, process_type):
+def test_add_process(app, process_power_sensor, process_type):
     """
     Schedule a 4h of consumption block at a constant power of 400kW in a day using
     the three process policies: INFLEXIBLE, SHIFTABLE and BREAKABLE.
@@ -254,3 +254,33 @@ def test_add_process(app, db, process_power_sensor, process_type):
     # check if the schedule is not empty more detailed testing can be found
     # in data/models/planning/tests/test_processs.py.
     assert (schedule == -0.4).event_value.sum() == 4
+
+
+@pytest.mark.skip_github
+@pytest.mark.parametrize(
+    "event_resolution, name, success",
+    [("PT20M", "ONE", True), (15, "TWO", True), ("some_string", "THREE", False)],
+)
+def test_add_sensor(app, db, setup_dummy_asset, event_resolution, name, success):
+    from flexmeasures.cli.data_add import add_sensor
+
+    asset = setup_dummy_asset
+
+    runner = app.test_cli_runner()
+
+    cli_input = {
+        "name": name,
+        "event-resolution": event_resolution,
+        "unit": "kWh",
+        "asset-id": asset,
+        "timezone": "UTC",
+    }
+    runner = app.test_cli_runner()
+    result = runner.invoke(add_sensor, to_flags(cli_input))
+    sensor: Sensor = Sensor.query.filter_by(name=name).one_or_none()
+    if success:
+        assert result.exit_code == 0
+        sensor.unit == "kWh"
+    else:
+        assert result.exit_code == 1
+        assert sensor is None

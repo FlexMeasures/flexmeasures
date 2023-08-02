@@ -2,37 +2,50 @@ import pytest
 
 from datetime import datetime, timedelta
 from pytz import utc
-import pandas as pd
 
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 
-from flexmeasures.data.models.planning.utils import initialize_index
+
+@pytest.fixture(scope="module")
+@pytest.mark.skip_github
+def setup_dummy_asset(db, app):
+    """
+    Create an Asset to add sensors to and return the id.
+    """
+    dummy_asset_type = GenericAssetType(name="DummyGenericAssetType")
+
+    db.session.add(dummy_asset_type)
+
+    dummy_asset = GenericAsset(
+        name="DummyGenericAsset", generic_asset_type=dummy_asset_type
+    )
+    db.session.add(dummy_asset)
+    db.session.commit()
+
+    return dummy_asset.id
 
 
 @pytest.fixture(scope="module")
 @pytest.mark.skip_github
-def setup_dummy_data(db, app):
+def setup_dummy_data(db, app, setup_dummy_asset):
     """
     Create an asset with two sensors (1 and 2), and add the same set of 200 beliefs with an hourly resolution to each of them.
     Return the two sensors and a result sensor (which has no data).
     """
 
-    dummy_asset_type = GenericAssetType(name="DummyGenericAssetType")
     report_asset_type = GenericAssetType(name="ReportAssetType")
 
-    db.session.add_all([dummy_asset_type, report_asset_type])
-
-    dummy_asset = GenericAsset(
-        name="DummyGenericAsset", generic_asset_type=dummy_asset_type
-    )
+    db.session.add(report_asset_type)
 
     pandas_report = GenericAsset(
         name="PandasReport", generic_asset_type=report_asset_type
     )
 
-    db.session.add_all([dummy_asset, pandas_report])
+    db.session.add(pandas_report)
+
+    dummy_asset = GenericAsset.query.get(setup_dummy_asset)
 
     sensor1 = Sensor(
         "sensor 1", generic_asset=dummy_asset, event_resolution=timedelta(hours=1)
@@ -103,7 +116,7 @@ def reporter_config_raw(app, db, setup_dummy_data):
 
 @pytest.mark.skip_github
 @pytest.fixture(scope="module")
-def process_power_sensor(db, app, setup_markets, setup_sources):
+def process_power_sensor(db, app, add_market_prices):
     """
     Create an asset of type "process", power sensor to hold the result of
     the scheduler and price data consisting of 8 expensive hours, 8 cheap hours, and again 8 expensive hours-
@@ -128,24 +141,6 @@ def process_power_sensor(db, app, setup_markets, setup_sources):
     )
 
     db.session.add(power_sensor)
-
-    time_slots = initialize_index(
-        start=pd.Timestamp("2015-01-02").tz_localize("Europe/Amsterdam"),
-        end=pd.Timestamp("2015-01-03").tz_localize("Europe/Amsterdam"),
-        resolution="1H",
-    )
-    values = [100] * 8 + [90] * 8 + [100] * 8
-    beliefs = [
-        TimedBelief(
-            event_start=dt,
-            belief_horizon=timedelta(hours=0),
-            event_value=val,
-            source=setup_sources["Seita"],
-            sensor=setup_markets["epex_da"].corresponding_sensor,
-        )
-        for dt, val in zip(time_slots, values)
-    ]
-    db.session.add_all(beliefs)
 
     db.session.commit()
 
