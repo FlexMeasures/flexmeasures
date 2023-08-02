@@ -561,8 +561,20 @@ class SensorAPI(FlaskView):
                 "generic_asset_id": 1,
             }
 
+        **Example response**
 
-        The newly posted sensor is returned in the response.
+        The whole sensor is returned in the response:
+
+        .. sourcecode:: json
+
+            {
+                "name": "power",
+                "unit": "kWh",
+                "entity_address": "ea1.2023-08.localhost:fm1.1",
+                "event_resolution": "PT1H",
+                "generic_asset_id": 1,
+                "timezone": "UTC",
+            }
 
         :reqheader Authorization: The authentication token
         :reqheader Content-Type: application/json
@@ -595,7 +607,6 @@ class SensorAPI(FlaskView):
         - id
         - generic_asset_id
         - entity_address
-        - timezone
 
         **Example request**
 
@@ -612,10 +623,12 @@ class SensorAPI(FlaskView):
         .. sourcecode:: json
 
             {
-                "name": "POWER",
-                "event_resolution": "PT1H",
-                "unit": "kWh",
-                "generic_asset_id": 1,
+                "name": "some gas sensor",
+                "unit": "m³/h",
+                "entity_address": "ea1.2023-08.localhost:fm1.1",
+                "event_resolution": "PT10M",
+                "generic_asset_id": 4,
+                "timezone": "UTC",
             }
 
         :reqheader Authorization: The authentication token

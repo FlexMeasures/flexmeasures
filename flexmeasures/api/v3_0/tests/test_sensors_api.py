@@ -126,9 +126,12 @@ def test_patch_sensor(client, setup_api_test_data):
 
 
 @pytest.mark.parametrize(
-    "attribute", ["generic_asset_id", "timezone", "entity_address"]
+    "attribute, value",
+    [("generic_asset_id", 8), ("entity_address", "ea1.2025-01.io.flexmeasures:fm1.1")],
 )
-def test_patch_sensor_for_excluded_attribute(client, setup_api_test_data, attribute):
+def test_patch_sensor_for_excluded_attribute(
+    client, setup_api_test_data, attribute, value
+):
     """Test to change the generic_asset_id that should not be allowed.
     The generic_asset_id is excluded in the partial_sensor_schema"""
     auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
@@ -138,12 +141,14 @@ def test_patch_sensor_for_excluded_attribute(client, setup_api_test_data, attrib
         url_for("SensorAPI:patch", id=sensor.id),
         headers={"content-type": "application/json", "Authorization": auth_token},
         json={
-            attribute: 8,
+            attribute: value,
         },
     )
 
+    print(response.json)
     assert response.status_code == 422
     assert response.json["status"] == "UNPROCESSABLE_ENTITY"
+    assert response.json["message"]["json"][attribute] == ["Unknown field."]
 
 
 def test_patch_sensor_from_unrelated_account(client, setup_api_test_data):
