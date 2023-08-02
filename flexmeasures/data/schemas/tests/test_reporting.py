@@ -1,6 +1,6 @@
 from flexmeasures.data.schemas.reporting.pandas_reporter import (
     PandasReporterConfigSchema,
-    PandasReporterInputSchema,
+    PandasReporterParametersSchema,
 )
 from marshmallow.exceptions import ValidationError
 
@@ -75,7 +75,7 @@ def test_pandas_reporter_config_schema(config, is_valid, db, app, setup_dummy_se
 
 
 @pytest.mark.parametrize(
-    "input, is_valid",
+    "parameters, is_valid",
     [
         (
             {
@@ -104,7 +104,7 @@ def test_pandas_reporter_config_schema(config, is_valid, db, app, setup_dummy_se
             {
                 "sensor": 2,  # sensor to save the output to
                 "input_variables": {
-                    "sensor_1_df": {  # alias, i.e. variable name of the DataFrame containing the input data
+                    "sensor_1_df": {  # alias, i.e. variable name of the DataFrame containing the parameters data
                         "sensor": 1,
                         "event_starts_after": "2023-06-07T00:00:00+02:00",
                         "event_ends_before": "2023-06-07T00:00:00+02:00",
@@ -115,12 +115,14 @@ def test_pandas_reporter_config_schema(config, is_valid, db, app, setup_dummy_se
         ),
     ],
 )
-def test_pandas_reporter_input_schema(input, is_valid, db, app, setup_dummy_sensors):
+def test_pandas_reporter_parameters_schema(
+    parameters, is_valid, db, app, setup_dummy_sensors
+):
 
-    schema = PandasReporterInputSchema()
+    schema = PandasReporterParametersSchema()
 
     if is_valid:
-        schema.load(input)
+        schema.load(parameters)
     else:
         with pytest.raises(ValidationError):
-            schema.load(input)
+            schema.load(parameters)

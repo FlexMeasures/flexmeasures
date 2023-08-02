@@ -23,7 +23,7 @@ class DataGenerator:
 
     _config: dict = None
 
-    _input_schema: Schema | None = None
+    _parameters_schema: Schema | None = None
     _config_schema: Schema | None = None
 
     def __init__(self, config: dict | None = None, **kwargs) -> None:
@@ -31,7 +31,7 @@ class DataGenerator:
 
         The configuration `config` stores static parameters, parameters that, if
         changed, trigger the creation of a new DataSource.  Dynamic parameters, such as
-        the start date, can go into the `input`. See docstring of the method `DataGenerator.compute` for
+        the start date, can go into the `parameters`. See docstring of the method `DataGenerator.compute` for
         more details.
 
 
@@ -75,22 +75,22 @@ class DataGenerator:
     def _compute(self, **kwargs):
         raise NotImplementedError()
 
-    def compute(self, input: dict | None = None, **kwargs):
-        """The configuration `input` stores dynamic parameters, parameters that, if
+    def compute(self, parameters: dict | None = None, **kwargs):
+        """The configuration `parameters` stores dynamic parameters, parameters that, if
         changed, DO NOT trigger the creation of a new DataSource. Static parameters, such as
         the topology of an energy system, can go into `config`.
 
-        :param input: serialized `input` parameters, defaults to None
+        :param parameters: serialized `parameters` parameters, defaults to None
         """
-        if input is None:
-            _input = kwargs
-            DataGenerator.validate_deserialized(_input, self._input_schema)
-        elif self._input_schema:
-            _input = self._input_schema.load(input)
+        if parameters is None:
+            _parameters = kwargs
+            DataGenerator.validate_deserialized(_parameters, self._parameters_schema)
+        elif self._parameters_schema:
+            _parameters = self._parameters_schema.load(parameters)
         else:  # skip validation
-            _input = input
+            _parameters = parameters
 
-        return self._compute(**_input)
+        return self._compute(**_parameters)
 
     @staticmethod
     def validate_deserialized(values: dict, schema: Schema) -> bool:

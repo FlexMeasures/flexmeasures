@@ -110,7 +110,7 @@ def test_reporter_repeated(setup_dummy_data):
         final_df_output="df_merge",
     )
 
-    input = dict(
+    parameters = dict(
         sensor=report_sensor.id,
         start="2023-04-10T00:00:00 00:00",
         end="2023-04-10T10:00:00 00:00",
@@ -122,8 +122,8 @@ def test_reporter_repeated(setup_dummy_data):
 
     reporter = PandasReporter(config=reporter_config)
 
-    report1 = reporter.compute(input=input)
-    report2 = reporter.compute(input=input)
+    report1 = reporter.compute(parameters=parameters)
+    report2 = reporter.compute(parameters=parameters)
 
     assert all(report2.values == report1.values)
 

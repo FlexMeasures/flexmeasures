@@ -4,7 +4,7 @@ from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.data_sources import DataGenerator
 
 from flexmeasures.data.schemas.reporting import (
-    ReporterInputSchema,
+    ReporterParametersSchema,
     ReporterConfigSchema,
 )
 
@@ -20,7 +20,7 @@ class Reporter(DataGenerator):
 
     sensor: Sensor = None
 
-    _input_schema = ReporterInputSchema()
+    _parameters_schema = ReporterParametersSchema()
     _config_schema = ReporterConfigSchema()
 
     def _compute(self, **kwargs) -> tb.BeliefsDataFrame:

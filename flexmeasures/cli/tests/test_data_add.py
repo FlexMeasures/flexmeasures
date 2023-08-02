@@ -96,7 +96,7 @@ def test_cli_help(app):
 
 
 @pytest.mark.skip_github
-def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
+def test_add_reporter(app, db, setup_dummy_data, reporter_config):
     """
     The reporter aggregates input data from two sensors (both have 200 data points)
     to a two-hour resolution.
@@ -136,7 +136,7 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
 
         # save reporter_config to a json file
         with open("reporter_config.json", "w") as f:
-            json.dump(reporter_config_raw, f)
+            json.dump(reporter_config, f)
 
         # call command
         result = runner.invoke(add_report, cli_input)
@@ -188,7 +188,7 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
 
         # save reporter_config to a json file
         with open("reporter_config.json", "w") as f:
-            json.dump(reporter_config_raw, f)
+            json.dump(reporter_config, f)
 
         # call command
         result = runner.invoke(add_report, cli_input)

@@ -10,7 +10,7 @@ import pandas as pd
 from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.schemas.reporting.pandas_reporter import (
     PandasReporterConfigSchema,
-    PandasReporterInputSchema,
+    PandasReporterParametersSchema,
 )
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.utils.time_utils import server_now
@@ -23,7 +23,7 @@ class PandasReporter(Reporter):
     __author__ = "Seita"
 
     _config_schema = PandasReporterConfigSchema()
-    _input_schema = PandasReporterInputSchema()
+    _parameters_schema = PandasReporterParametersSchema()
 
     input_variables: list[str] = None
     transformations: list[dict[str, Any]] = None
