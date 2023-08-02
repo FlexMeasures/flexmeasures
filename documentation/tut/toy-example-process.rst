@@ -1,15 +1,13 @@
 .. _tut_toy_schedule_process:
 
-
-
 Toy example III: Computing schedules for processes
-====================================================================
+====================================================
 
 Until this point we've been using a static battery, one of the most flexible energy assets, to reduce electricity bills. 
 
 However, in some settings, we can reduce electricity bills by *just* consuming energy smartly. In other words, if the process can be displaced, by breaking it into smaller consumption periods or shifting its start time, the process run can match the lower price hours better.
 
-For example, we could have a load that consumes energy at a constant rate (e.g. 100kW) for a fixed duration (e.g. 3h), but there's some flexibility in the start time. In that case, we could find the optimal start time in order to minimize the energy cost.
+For example, we could have a load that consumes energy at a constant rate (e.g. 200kW) for a fixed duration (e.g. 4h), but there's some flexibility in the start time. In that case, we could find the optimal start time in order to minimize the energy cost.
 
 Examples of flexible processes are: 
     - Water irrigation in agriculture
@@ -36,14 +34,7 @@ Before moving forward, we'll add the `process` asset and three sensors to store 
 .. code-block:: bash
 
     $ flexmeasures add toy-account --kind process
-
-        Asset type solar already exists.
-        Asset type wind already exists.
-        Asset type one-way_evse already exists.
-        Asset type two-way_evse already exists.
-        Asset type battery already exists.
-        Asset type building already exists.
-        Asset type process already exists.
+    
         Account '<Account Toy Account (ID:1)>' already exists. Skipping account creation. Use `flexmeasures delete account --id 1` if you need to remove it.
         User with email toy-user@flexmeasures.io already exists in account Toy Account.
         The sensor recording day-ahead prices is day-ahead prices (ID: 1).
@@ -60,51 +51,74 @@ Before moving forward, we'll add the `process` asset and three sensors to store 
 Trigger an updated schedule
 ----------------------------
 
-In this example, we are planning to consume 200kW for a period of 4h, tomorrow. 
+In this example, we are planning to consume at a 200kW constant power for a period of 4h. 
 
-In addition, we'll add a time period in which the scheduler won't be able to run the process.
+This load is to be schedule for tomorrow, except from the period from 3pm to 4pm (imposed using the ``--forbid`` flag).
 
-Now we are ready to schedule a process. Let's start with the INFLEXIBLE policy, the simplest. The scheduler
-cannot schedule the process to run within the first hour after midnight.
+
+Now we are ready to schedule a process. Let's start with the INFLEXIBLE policy, the simplest.
 
 .. code-block:: bash
 
     flexmeasures add schedule for-process --sensor-id 4 --consumption-price-sensor 1\
       --start ${TOMORROW}T00:00:00+02:00 --duration PT24H --process-duration PT4H \
       --process-power 0.2MW --process-type INFLEXIBLE \ 
-      --forbid "{\"start\" : \"${TOMORROW}T00:00:00+02:00\", \"duration\" : \"PT1H\"}"
+      --forbid "{\"start\" : \"${TOMORROW}T15:00:00+02:00\", \"duration\" : \"PT1H\"}"
 
-This policy consist of scheduling the process as soon as possible. That is from 1am to 5am, as the time restriction from 12am to 1am makes the scheduler unable to start at 12am.
+Under the INFLEXIBLE policy, the process starts as soon as possible, in this case, coinciding with the start of the planning window.
 
 Following the INFLEXIBLE policy, we'll schedule the same 4h block using a BREAKABLE policy.
-
-In this other case, will restrict the period from 2pm to 3pm from scheduling any process. This block corresponds to the lowest price of the day.
 
 .. code-block:: bash
 
     flexmeasures add schedule for-process --sensor-id 5 --consumption-price-sensor 1\
       --start ${TOMORROW}T00:00:00+02:00 --duration PT24H --process-duration PT4H \
       --process-power 0.2MW --process-type BREAKABLE \ 
-      --forbid "{\"start\" : \"${TOMORROW}T14:00:00+02:00\", \"duration\" : \"PT1H\"}"
+      --forbid "{\"start\" : \"${TOMORROW}T15:00:00+02:00\", \"duration\" : \"PT1H\"}"
  
-The BREAKABLE policy splits or breaks the process into blocks that can be scheduled discontinuously. 
+The BREAKABLE policy splits or breaks the process into blocks that can be scheduled discontinuously. The smallest possible unit is (currently) determined by the sensor's resolution. 
 
-Finally, we'll schedule the process using the SHIFTABLE policy. We'll keep the same time restrictions as in the BREAKABLE process.
-
-
+Finally, we'll schedule the process using the SHIFTABLE policy.
 
 .. code-block:: bash
 
     flexmeasures add schedule for-process --sensor-id 6 --consumption-price-sensor 1\
       --start ${TOMORROW}T00:00:00+02:00 --duration PT24H --process-duration PT4H \
       --process-power 0.2MW --process-type SHIFTABLE \ 
-      --forbid "{\"start\" : \"${TOMORROW}T14:00:00+02:00\", \"duration\" : \"PT1H\"}"
+      --forbid "{\"start\" : \"${TOMORROW}T15:00:00+02:00\", \"duration\" : \"PT1H\"}"
  
+
+Results
+---------
+
+The image below show the resulting schedules following each of the three policies. You will see similar results in your `FlexMeasures UI <http://localhost:5000/assets/4/>`_. 
+
  
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/asset-view-process.png
     :align: center
 |
 
-The image above show the schedules following the three policies. 
 
-In the first policy, there's no flexibility and it needs to schedule as soon as possible. Meanwhile, in the BREAKABLE policy, the consumption blocks surrounds the time restriction to consume in the cheapest hours. Finally, in the SHIFTABLE policy, the process is shifted to capture the best prices, avoiding the time restrictions.
+In the first policy, there's no flexibility and it needs to schedule the process as soon as possible. 
+Meanwhile, in the BREAKABLE policy, the consumption blocks surrounds the time restriction to consume in the cheapest hours. Among the three polices, the BREAKABLE policy can achieve the best 
+Finally, in the SHIFTABLE policy, the process is shifted to capture the best prices, avoiding the time restrictions.
+
+
+Quantitatively, comparing the total cost of running the process under each policy, the BREAKABLE policy achieves the best results. This is because it can fit much more consumption blocks in the cheapest hours.
+
+
++-------------------------+------------+-----------+-----------+
+|          Block          | INFLEXIBLE | BREAKABLE | SHIFTABLE |
++=========================+============+===========+===========+
+|            1            |   10.00    |   5.00    |   10.00   |
++-------------------------+------------+-----------+-----------+
+|            2            |   11.00    |   4.00    |   8.00    |
++-------------------------+------------+-----------+-----------+
+|            3            |   12.00    |   5.50    |   5.00    |
++-------------------------+------------+-----------+-----------+
+|            4            |   15.00    |   7.00    |   4.00    |
++-------------------------+------------+-----------+-----------+
+| Average Price (EUR/MWh) |   12.00    |   5.37    |   6.75    |
++-------------------------+------------+-----------+-----------+
+|    Total Cost (EUR)     |    9.60    |   4.29    |   5.40    |
++-------------------------+------------+-----------+-----------+

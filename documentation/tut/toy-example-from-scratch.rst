@@ -5,29 +5,26 @@ Toy example: Scheduling a battery, from scratch
 
 Let's walk through an example from scratch! We'll optimize a 12h-schedule for a battery that is half full.
 
-What do you need? Your own computer, with one of two situations: either you have `Docker <https://www.docker.com/>`_ or your computer supports Python 3.8+, pip and PostgresDB. The former might be easier, see the installation step below. But you choose.
-
-Below are the ``flexmeasures`` CLI commands we'll run, and which we'll explain step by step. There are some other crucial steps for installation and setup, so this becomes a complete example from scratch, but this is the meat:
-
-.. code-block:: bash
-
-    # make the schedule
-    $ flexmeasures add schedule for-storage --sensor-id 1 --consumption-price-sensor 2 \
-        --start ${TOMORROW}T07:00+01:00 --duration PT12H \
-        --soc-at-start 50% --roundtrip-efficiency 90%
-
-
 Okay, let's get started!
 
-
 .. note:: You can copy the commands by hovering on the top right corner of code examples. You'll copy only the commands, not the output!
+
+Setup
+------
+
+.. note:: If you haven't run through :ref:`tut_install_load_data` yet, do that first. There, we added power prices for a 24h window.
+
+For this tutorial, we'll setup a battery asset and a (dis)charging sensor (ID 2) where the schedule will be stored into.
+
+
+
 
 Make a schedule
 ---------------------------------------
 
-Finally, we can create the schedule, which is the main benefit of FlexMeasures (smart real-time control).
+After going through the setup, we can finally create the schedule, which is the main benefit of FlexMeasures (smart real-time control).
 
-We'll ask FlexMeasures for a schedule for our discharging sensor (ID 2). We also need to specify what to optimize against. Here we pass the Id of our market price sensor (ID 1).
+We'll ask FlexMeasures for a schedule for our (dis)charging sensor (ID 2). We also need to specify what to optimize against. Here we pass the Id of our market price sensor (ID 1).
 To keep it short, we'll only ask for a 12-hour window starting at 7am. Finally, the scheduler should know what the state of charge of the battery is when the schedule starts (50%) and what its roundtrip efficiency is (90%).
 
 .. code-block:: bash

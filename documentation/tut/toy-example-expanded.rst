@@ -105,4 +105,4 @@ Second, charging of the battery is also changed a bit (around 10am), as less can
 
 We hope this part of the tutorial shows how to incorporate a limited grid connection rather easily with FlexMeasures. There are more ways to model such settings, but this is a straightforward one.
 
-This tutorial showed the fastest way to a schedule. In :ref:`_tut_toy_schedule_process`, we'll go further into settings with more realistic ingredients: solar panels and a limited grid connection.
+This tutorial showed a quick way to add an inflexible load (like solar power) and a grid connection. In :ref:`tut_toy_schedule_process`, we'll turn to something different: the optimal timing of processes with fixed energy work and duration.

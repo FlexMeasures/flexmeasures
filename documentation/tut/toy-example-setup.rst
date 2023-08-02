@@ -117,11 +117,29 @@ FlexMeasures offers a command to create a toy account with a battery:
 
 .. code-block:: bash
 
-    $ flexmeasures add toy-account
+    $ flexmeasures add toy-account --kind battery
+
+    Generic asset type `solar` created successfully.
+    Generic asset type `wind` created successfully.
+    Generic asset type `one-way_evse` created successfully.
+    Generic asset type `two-way_evse` created successfully.
+    Generic asset type `battery` created successfully.
+    Generic asset type `building` created successfully.
+    Generic asset type `process` created successfully.
+    Creating account Toy Account ...
     Toy account Toy Account with user toy-user@flexmeasures.io created successfully. You might want to run `flexmeasures show account --id 1`
-    The sensor recording battery power is <Sensor 2: discharging, unit: MW res.: 0:15:00>.
-    The sensor recording day-ahead prices is <Sensor 1: day-ahead prices, unit: EUR/MWh res.: 1:00:00>.
-    The sensor recording solar forecasts is <Sensor 3: production, unit: MW res.: 0:15:00>.
+    Adding transmission zone type ...
+    Adding NL transmission zone ...
+    Created day-ahead prices
+    The sensor recording day-ahead prices is day-ahead prices (ID: 1).
+    Created <GenericAsset None: 'toy-battery' (battery)>
+    Created discharging
+    Created <GenericAsset None: 'toy-solar' (solar)>
+    Created production
+    The sensor recording battery discharging is discharging (ID: 2).
+    The sensor recording solar forecasts is production (ID: 3).
+
+
 
 And with that, we're done with the structural data for this tutorial!
 
@@ -138,17 +156,18 @@ If you want, you can inspect what you created:
     Account has no roles.
 
     All users:
-
-      Id  Name      Email                     Last Login    Roles
-    ----  --------  ------------------------  ------------  -------------
-       1  toy-user  toy-user@flexmeasures.io                account-admin
+    
+    ID  Name      Email                     Last Login    Last Seen    Roles
+    ----  --------  ------------------------  ------------  -----------  -------------
+    1  toy-user  toy-user@flexmeasures.io  None          None         account-admin
 
     All assets:
+    
+    ID  Name         Type     Location
+    ----  -----------  -------  -----------------
+    2  toy-battery  battery  (52.374, 4.88969)
+    3  toy-solar    solar    (52.374, 4.88969)
 
-      ID  Name          Type      Location
-    ----  ------------  --------  -----------------
-       2  toy-battery   battery   (52.374, 4.88969)
-       3  toy-solar     solar     (52.374, 4.88969)
 
     $ flexmeasures show asset --id 2
 
@@ -157,17 +176,18 @@ If you want, you can inspect what you created:
     =========================
 
     Type     Location           Attributes
-    -------  -----------------  ---------------------
+    -------  -----------------  ----------------------------
     battery  (52.374, 4.88969)  capacity_in_mw: 0.5
                                 min_soc_in_mwh: 0.05
                                 max_soc_in_mwh: 0.45
-                                sensors_to_show: [2, [3, 1]]
+                                sensors_to_show: [1, [3, 2]]
 
     All sensors in asset:
-
-      ID  Name         Unit    Resolution    Timezone          Attributes
+    
+    ID  Name         Unit    Resolution    Timezone          Attributes
     ----  -----------  ------  ------------  ----------------  ------------
-       2  discharging  MW      15 minutes    Europe/Amsterdam
+    2  discharging  MW      15 minutes    Europe/Amsterdam
+
 
 
 Yes, that is quite a large battery :)
@@ -189,7 +209,7 @@ Visit `http://localhost:5000/ <http://localhost:5000/>`_ (username is "toy-user@
 Add some price data
 ---------------------------------------
 
-Now to add price data. First, we'll create the csv file with prices (EUR/MWh, see the setup for sensor 1 above) for tomorrow.
+Now to add price data. First, we'll create the CSV file with prices (EUR/MWh, see the setup for sensor 1 above) for tomorrow.
 
 .. code-block:: bash
 
@@ -220,7 +240,7 @@ Now to add price data. First, we'll create the csv file with prices (EUR/MWh, se
     $ ${TOMORROW}T22:00:00,10
     $ ${TOMORROW}T23:00:00,7" > prices-tomorrow.csv
 
-This is time series data, in FlexMeasures we call "beliefs". Beliefs can also be sent to FlexMeasures via API or imported from open data hubs like `ENTSO-E <https://github.com/SeitaBV/flexmeasures-entsoe>`_ or `OpenWeatherMap <https://github.com/SeitaBV/flexmeasures-openweathermap>`_. However, in this tutorial we'll show how you can read data in from a CSV file. Sometimes that's just what you need :)
+This is time series data, in FlexMeasures we call *"beliefs"*. Beliefs can also be sent to FlexMeasures via API or imported from open data hubs like `ENTSO-E <https://github.com/SeitaBV/flexmeasures-entsoe>`_ or `OpenWeatherMap <https://github.com/SeitaBV/flexmeasures-openweathermap>`_. However, in this tutorial we'll show how you can read data in from a CSV file. Sometimes that's just what you need :)
 
 .. code-block:: bash
 
@@ -236,6 +256,7 @@ Let's look at the price data we just loaded:
 .. code-block:: bash
 
     $ flexmeasures show beliefs --sensor-id 1 --start ${TOMORROW}T00:00:00+01:00 --duration PT24H
+    
     Beliefs for Sensor 'day-ahead prices' (ID 1).
     Data spans a day and starts at 2022-03-03 00:00:00+01:00.
     The time resolution (x-axis) is an hour.
