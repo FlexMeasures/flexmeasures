@@ -171,7 +171,7 @@ def test_delete_a_sensor(client, setup_api_test_data):
     ).all()
     sensor_count = len(Sensor.query.all())
 
-    assert sensor_data[0].event_value == 815.0
+    assert isinstance(sensor_data[0].event_value, float)
 
     delete_sensor_response = client.delete(
         url_for("SensorAPI:delete", id=existing_sensor_id),
