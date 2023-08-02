@@ -21,6 +21,7 @@ New features
 * Added API endpoints `/sensors/<id>` for fetching a single sensor and `/sensors` (POST) for adding a sensor. [see `PR #759 <https://www.github.com/FlexMeasures/flexmeasures/pull/759>`_] and [see `PR #767 <https://www.github.com/FlexMeasures/flexmeasures/pull/767>`_]
 * The CLI now allows to set lists and dicts as asset & sensor attributes (formerly only single values) [see `PR #762 <https://www.github.com/FlexMeasures/flexmeasures/pull/762>`_]
 * Add `ProcessScheduler` class to optimize the starting time of processes one of the policies developed (INFLEXIBLE, SHIFTABLE and BREAKABLE), accessible via the CLI command `flexmeasures add schedule for-process` [see `PR #729 <https://www.github.com/FlexMeasures/flexmeasures/pull/729>`_ and `PR #768 <https://www.github.com/FlexMeasures/flexmeasures/pull/768>`_]
+* Refactor `Reporter`'s to subclass the `DataGenerator` class which allows storing ``DataSource``'s. [see `PR #751 <https://www.github.com/FlexMeasures/flexmeasures/pull/751>`_] and [see `PR #752 <https://www.github.com/FlexMeasures/flexmeasures/pull/752>`_]
 
 Bugfixes
 -----------
