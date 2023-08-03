@@ -26,6 +26,7 @@ class SensorSchemaMixin(Schema):
             model = Asset
     """
 
+    id = ma.auto_field(dump_only=True)
     name = ma.auto_field(required=True)
     unit = ma.auto_field(required=True)
     timezone = ma.auto_field()
