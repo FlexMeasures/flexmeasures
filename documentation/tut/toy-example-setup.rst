@@ -1,4 +1,4 @@
-.. _tut_install_load_data
+.. _tut_install_load_data:
 
 Toy example: Introduction and setup
 ===================================
