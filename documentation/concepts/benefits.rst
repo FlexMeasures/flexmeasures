@@ -34,4 +34,6 @@ The platform operator (as ESCo or Aggregator) and asset owners can share the pro
 FlexMeasures plans on providing basic accounting for this.
 
 
-.. note:: Read more on flexibility opportunities and activations, as well as profit sharing on :ref:`benefits_of_flex`
+..
+    <This cross reference has been commented out while we rewrite the benefits_of_flex page to fit out new data model and UI>
+    note:: Read more on flexibility opportunities and activations, as well as profit sharing on :ref:`benefits_of_flex`
