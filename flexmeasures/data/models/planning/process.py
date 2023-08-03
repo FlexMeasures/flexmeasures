@@ -93,10 +93,6 @@ class ProcessScheduler(Scheduler):
             name="event_value",
         )
 
-        # convert power to energy using the resolution of the sensor.
-        # e.g. resolution=15min, power=1kW -> energy=250W
-        energy = power * self.resolution / timedelta(hours=1)
-
         # we can fill duration/resolution rows or, if the duration is larger than the schedule
         # window, fill the entire window.
         rows_to_fill = min(ceil(duration / self.resolution), len(schedule))
@@ -108,7 +104,7 @@ class ProcessScheduler(Scheduler):
                     "Cannot handle time restrictions if the duration of the process exceeds that of the schedule window."
                 )
 
-            schedule[:] = energy
+            schedule[:] = power
             return schedule
 
         if process_type in [ProcessType.INFLEXIBLE, ProcessType.SHIFTABLE]:
@@ -126,7 +122,7 @@ class ProcessScheduler(Scheduler):
         # create schedule
         if process_type == ProcessType.INFLEXIBLE:
             self.compute_inflexible(
-                schedule, start_time_restrictions, rows_to_fill, energy
+                schedule, start_time_restrictions, rows_to_fill, power
             )
         elif process_type == ProcessType.BREAKABLE:
             self.compute_breakable(
@@ -135,7 +131,7 @@ class ProcessScheduler(Scheduler):
                 time_restrictions,
                 cost,
                 rows_to_fill,
-                energy,
+                power,
             )
         elif process_type == ProcessType.SHIFTABLE:
             self.compute_shiftable(
@@ -144,7 +140,7 @@ class ProcessScheduler(Scheduler):
                 start_time_restrictions,
                 cost,
                 rows_to_fill,
-                energy,
+                power,
             )
         else:
             raise ValueError(f"Unknown process type '{process_type}'")
@@ -203,12 +199,12 @@ class ProcessScheduler(Scheduler):
         schedule: pd.Series,
         time_restrictions: pd.Series,
         rows_to_fill: int,
-        energy: float,
+        power: float,
     ) -> None:
         """Schedule process as early as possible."""
         start = time_restrictions[~time_restrictions].index[0]
 
-        schedule.loc[start : start + self.resolution * (rows_to_fill - 1)] = energy
+        schedule.loc[start : start + self.resolution * (rows_to_fill - 1)] = power
 
     def compute_breakable(
         self,
@@ -217,7 +213,7 @@ class ProcessScheduler(Scheduler):
         time_restrictions: pd.Series,
         cost: pd.DataFrame,
         rows_to_fill: int,
-        energy: float,
+        power: float,
     ) -> None:
         """Break up schedule and divide it over the time slots with the largest utility (max/min cost depending on optimization_direction)."""
         cost = cost[~time_restrictions].reset_index()
@@ -231,7 +227,7 @@ class ProcessScheduler(Scheduler):
                 by=["event_value", "event_start"], ascending=[False, True]
             )
 
-        schedule.loc[cost_ranking.head(rows_to_fill).event_start] = energy
+        schedule.loc[cost_ranking.head(rows_to_fill).event_start] = power
 
     def compute_shiftable(
         self,
@@ -240,7 +236,7 @@ class ProcessScheduler(Scheduler):
         time_restrictions: pd.Series,
         cost: pd.DataFrame,
         rows_to_fill: int,
-        energy: float,
+        power: float,
     ) -> None:
         """Schedules a block of consumption/production of `rows_to_fill` periods to maximize a utility."""
         block_cost = simplify_index(
@@ -254,7 +250,7 @@ class ProcessScheduler(Scheduler):
 
         start = start.iloc[0]
 
-        schedule.loc[start : start + self.resolution * (rows_to_fill - 1)] = energy
+        schedule.loc[start : start + self.resolution * (rows_to_fill - 1)] = power
 
     def deserialize_flex_config(self):
         """Deserialize flex_model using the schema ProcessSchedulerFlexModelSchema and
