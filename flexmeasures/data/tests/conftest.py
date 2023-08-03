@@ -182,7 +182,7 @@ def setup_annotations(
 
 
 @pytest.fixture(scope="module")
-def aggregator_reporter_data_source(app, db, add_nearby_weather_sensors):
+def test_reporter(app, db, add_nearby_weather_sensors):
     class TestReporterConfigSchema(Schema):
         a = fields.Str()
 
