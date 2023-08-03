@@ -192,7 +192,7 @@ def run_test_charge_discharge_sign(
             "soc-at-start": soc_at_start,
             "roundtrip-efficiency": roundtrip_efficiency,
             "storage-efficiency": storage_efficiency,
-            "prefer-charging-sooner": False,
+            "prefer-charging-sooner": True,
         },
         flex_context={
             "consumption-price-sensor": consumption_price_sensor_id,
@@ -302,7 +302,7 @@ def test_battery_solver_day_3(
     schedule2, soc_schedule_2 = run_test_charge_discharge_sign(
         battery, 1, epex_da.id, epex_da.id
     )
-    assert all(schedule2[:8] == [-2, 0, 2, 0, 0, 0, 0, 0])  # no oscillation
+    assert all(np.isclose(schedule2[:8], 0))  # no oscillation
 
     # Case 3: Consumption Price > Production Price, roundtrip_efficiency < 1
     # In this case, we expect the battery to hold the energy that has initially and sell it during the period of
