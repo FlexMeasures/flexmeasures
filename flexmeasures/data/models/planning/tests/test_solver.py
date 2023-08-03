@@ -284,51 +284,51 @@ def test_battery_solver_day_3(
     start = tz.localize(datetime(2015, 1, 3))
 
     # Case 1: Consumption Price = Production Price, roundtrip_efficiency < 1
-    schedule1, soc_schedule_1 = run_test_charge_discharge_sign(
+    schedule_1, soc_schedule_1 = run_test_charge_discharge_sign(
         battery, roundtrip_efficiency, epex_da.id, epex_da.id
     )
 
     # For the negative price period, the schedule shows oscillations
     # discharge in even hours
-    assert all(schedule1[:8:2] < 0)  # 12am, 2am, 4am, 6am
+    assert all(schedule_1[:8:2] < 0)  # 12am, 2am, 4am, 6am
 
     # charge in odd hours
-    assert all(schedule1[1:8:2] > 0)  # 1am, 3am, 5am, 7am
+    assert all(schedule_1[1:8:2] > 0)  # 1am, 3am, 5am, 7am
 
     # in positive price hours, the battery will only discharge to sell the energy charged in the negative hours
-    assert all(schedule1.loc[start + timedelta(hours=8) :] <= 0)
+    assert all(schedule_1.loc[start + timedelta(hours=8) :] <= 0)
 
     # Case 2: Consumption Price = Production Price, roundtrip_efficiency = 1
-    schedule2, soc_schedule_2 = run_test_charge_discharge_sign(
+    schedule_2, soc_schedule_2 = run_test_charge_discharge_sign(
         battery, 1, epex_da.id, epex_da.id
     )
-    assert all(np.isclose(schedule2[:8], 0))  # no oscillation
+    assert all(np.isclose(schedule_2[:8], 0))  # no oscillation
 
     # Case 3: Consumption Price > Production Price, roundtrip_efficiency < 1
     # In this case, we expect the battery to hold the energy that has initially and sell it during the period of
     # positive prices.
-    schedule3, soc_schedule_3 = run_test_charge_discharge_sign(
+    schedule_3, soc_schedule_3 = run_test_charge_discharge_sign(
         battery, roundtrip_efficiency, epex_da.id, epex_da_production.id
     )
-    assert all(np.isclose(schedule3[:8], 0))  # no oscillation
-    assert all(schedule3[8:] <= 0)
+    assert all(np.isclose(schedule_3[:8], 0))  # no oscillation
+    assert all(schedule_3[8:] <= 0)
 
     # discharge the whole battery in 1 time period
     assert np.isclose(
-        schedule3.min(),
+        schedule_3.min(),
         -battery.get_attribute("capacity_in_mw") * np.sqrt(roundtrip_efficiency),
     )
 
     # Case 4: Consumption Price > Production Price, roundtrip_efficiency < 1
-    schedule4, soc_schedule_4 = run_test_charge_discharge_sign(
+    schedule_4, soc_schedule_4 = run_test_charge_discharge_sign(
         battery, 1, epex_da.id, epex_da_production.id
     )
 
-    assert all(np.isclose(schedule4[:8], 0))  # no oscillation
-    assert all(schedule4[8:] <= 0)
+    assert all(np.isclose(schedule_4[:8], 0))  # no oscillation
+    assert all(schedule_4[8:] <= 0)
 
     # discharge the whole battery in 1 time period, with no conversion losses
-    assert np.isclose(schedule4.min(), -battery.get_attribute("capacity_in_mw"))
+    assert np.isclose(schedule_4.min(), -battery.get_attribute("capacity_in_mw"))
 
 
 @pytest.mark.parametrize(
@@ -666,7 +666,7 @@ def test_soc_bounds_timeseries(add_battery_assets):
         "soc-max": soc_max,
     }
 
-    soc_schedule1 = compute_schedule(flex_model)
+    soc_schedule_1 = compute_schedule(flex_model)
 
     # soc maxima and soc minima
     soc_maxima = [
@@ -687,31 +687,31 @@ def test_soc_bounds_timeseries(add_battery_assets):
         "soc-targets": soc_targets,
     }
 
-    soc_schedule2 = compute_schedule(flex_model)
+    soc_schedule_2 = compute_schedule(flex_model)
 
     # check that, in this case, adding the constraints
     # alter the SOC profile
-    assert not soc_schedule2.equals(soc_schedule1)
+    assert not soc_schedule_2.equals(soc_schedule_1)
 
     # check that global minimum is achieved
-    assert soc_schedule1.min() == soc_min
-    assert soc_schedule2.min() == soc_min
+    assert soc_schedule_1.min() == soc_min
+    assert soc_schedule_2.min() == soc_min
 
     # check that global maximum is achieved
-    assert soc_schedule1.max() == soc_max
-    assert soc_schedule2.max() == soc_max
+    assert soc_schedule_1.max() == soc_max
+    assert soc_schedule_2.max() == soc_max
 
     # test for soc_minima
     # check that the local minimum constraint is respected
-    assert soc_schedule2.loc["2015-01-02T08:00:00+01:00"] >= 3.5
+    assert soc_schedule_2.loc["2015-01-02T08:00:00+01:00"] >= 3.5
 
     # test for soc_maxima
     # check that the local maximum constraint is respected
-    assert soc_schedule2.loc["2015-01-02T15:00:00+01:00"] <= 1.0
+    assert soc_schedule_2.loc["2015-01-02T15:00:00+01:00"] <= 1.0
 
     # test for soc_targets
     # check that the SOC target (at 19 pm, local time) is met
-    assert soc_schedule2.loc["2015-01-02T19:00:00+01:00"] == 2.0
+    assert soc_schedule_2.loc["2015-01-02T19:00:00+01:00"] == 2.0
 
 
 @pytest.mark.parametrize(
