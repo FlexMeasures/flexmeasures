@@ -189,7 +189,7 @@ p.error {
     font-weight: 700;
 }
 
-#tzwarn,#sourcewarn {
+#tzwarn,#dstwarn,#sourcewarn {
     margin-top: 20px;
     margin-bottom: 20px;
     color: var(--secondary-color);
@@ -1040,10 +1040,6 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 
 
 /* ---- Date picker ---- */
-
-.datetimepicker input {
-    width: 100%;
-}
 
 .litepicker {
     font-size: 14px;

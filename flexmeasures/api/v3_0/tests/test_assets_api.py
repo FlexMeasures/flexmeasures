@@ -294,7 +294,7 @@ def test_post_an_asset_with_invalid_data(client, setup_api_test_data):
     The right error messages should be in the response and the number of assets has not increased.
     """
     with UserContext("test_admin_user@seita.nl") as prosumer:
-        num_assets_before = len(prosumer.assets)
+        num_assets_before = len(prosumer.account.generic_assets)
 
     auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
 
