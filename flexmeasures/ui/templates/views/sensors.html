@@ -7,13 +7,25 @@
 {% block divs %}
 
       <div class="sensor-data charts text-center">
-          <div class="row"><div class="alert alert-info" id="tzwarn" style="display:none;"></div></div>
+          <div class="row">
+              <div class="alert alert-info" id="tzwarn" style="display:none;"></div>
+              <div class="alert alert-info" id="sourcewarn" style="display:none;"></div>
+          </div>
           <div class="row on-top-md">
               <div class="col-sm-2">
                   <div class="sidepanel-container">
                       <div class="left-sidepanel-label">Select dates</div>
                       <div class="sidepanel left-sidepanel">
                           <div id="datepicker"></div>
+                          <div class="dropdown header-action-button">
+                              <button class="btn dropdown-toggle" type="button" id="chartTypeDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                  Select chart
+                              </button>
+                              <ul class="dropdown-menu center-aligned" aria-labelledby="chartTypeDropdown">
+                                  <li><a class="dropdown-item" href="#" data-chart-type="bar_chart">Bar chart</a></li>
+                                  <li><a class="dropdown-item" href="#" data-chart-type="daily_heatmap">Daily heatmap</a></li>
+                              </ul>
+                          </div>
                       </div>
                   </div>
               </div>
