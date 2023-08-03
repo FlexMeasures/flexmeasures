@@ -127,14 +127,23 @@ def create(  # noqa C901
     reporters = get_classes_module("flexmeasures.data.models", reporting.Reporter)
     schedulers = get_classes_module("flexmeasures.data.models", planning.Scheduler)
 
-    app.reporters = reporters
-    app.schedulers = schedulers
-
     app.data_generators = dict()
     app.data_generators["reporter"] = copy(
         reporters
     )  # use copy to avoid mutating app.reporters
     app.data_generators["scheduler"] = schedulers
+
+    # deprecation of app.reporters
+    app.reporters = reporters
+    app.schedulers = schedulers
+
+    def get_reporters():
+        app.logger.warning(
+            '`app.reporters` is deprecated. Use `app.data_generators["reporter"]` instead.'
+        )
+        return app.data_generators["reporter"]
+
+    setattr(app, "reporters", property(get_reporters))
 
     # add auth policy
 
