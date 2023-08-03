@@ -6,11 +6,9 @@ from datetime import datetime
 from pytz import UTC
 
 
-def test_get_reporter_from_source(
-    db, app, aggregator_reporter_data_source, add_nearby_weather_sensors
-):
+def test_get_reporter_from_source(db, app, test_reporter, add_nearby_weather_sensors):
 
-    reporter = aggregator_reporter_data_source.data_generator
+    reporter = test_reporter.data_generator
 
     reporter_sensor = add_nearby_weather_sensors.get("farther_temperature")
 

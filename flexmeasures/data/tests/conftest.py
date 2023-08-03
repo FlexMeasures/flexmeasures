@@ -209,12 +209,9 @@ def test_reporter(app, db, add_nearby_weather_sensors):
 
     config = dict(a="b")
 
-    ds = DataSource(
-        name="Test",
-        model="TestReporter",
-        type="reporter",
-        attributes=dict(data_generator=dict(config=config)),
-    )
+    ds = TestReporter(config=config).data_source
+
+    assert ds.name == app.config.get("FLEXMEASURES_DEFAULT_DATASOURCE")
 
     db.session.add(ds)
     db.session.commit()
