@@ -1,5 +1,6 @@
 import pytest
 import json
+import yaml
 import os
 
 
@@ -121,13 +122,20 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config):
     runner = app.test_cli_runner()
 
     cli_input_params = {
-        "sensor-id": report_sensor_id,
-        "reporter-config": "reporter_config.json",
+        "config": "reporter_config.yaml",
+        "parameters": "parameters.json",
         "reporter": "PandasReporter",
         "start": "2023-04-10T00:00:00 00:00",
         "end": "2023-04-10T10:00:00 00:00",
         "output-file": "test.csv",
     }
+
+    parameters = dict(
+        input_variables=dict(
+            sensor_1=dict(sensor=sensor1.id), sensor_2=dict(sensor=sensor2.id)
+        ),
+        sensor=report_sensor_id,
+    )
 
     cli_input = to_flags(cli_input_params)
 
@@ -135,8 +143,11 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config):
     with runner.isolated_filesystem():
 
         # save reporter_config to a json file
-        with open("reporter_config.json", "w") as f:
-            json.dump(reporter_config, f)
+        with open("reporter_config.yaml", "w") as f:
+            yaml.dump(reporter_config, f)
+
+        with open("parameters.json", "w") as f:
+            json.dump(parameters, f)
 
         # call command
         result = runner.invoke(add_report, cli_input)
@@ -175,8 +186,8 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config):
     previous_command_end = cli_input_params.get("end").replace(" ", "+")
 
     cli_input_params = {
-        "sensor-id": report_sensor_id,
-        "reporter-config": "reporter_config.json",
+        "config": "reporter_config.json",
+        "parameters": "parameters.json",
         "reporter": "PandasReporter",
         "output-file": "test.csv",
         "timezone": "UTC",
@@ -189,6 +200,9 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config):
         # save reporter_config to a json file
         with open("reporter_config.json", "w") as f:
             json.dump(reporter_config, f)
+
+        with open("parameters.json", "w") as f:
+            json.dump(parameters, f)
 
         # call command
         result = runner.invoke(add_report, cli_input)
