@@ -169,10 +169,8 @@ def test_battery_solver_day_2(
 
 
 def run_test_charge_discharge_sign(
-    roundtrip_efficiency, consumption_price_sensor_id, production_price_sensor_id
+    battery, roundtrip_efficiency, consumption_price_sensor_id, production_price_sensor_id
 ):
-    battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
-
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 3))
     end = tz.localize(datetime(2015, 1, 4))
@@ -276,14 +274,14 @@ def test_battery_solver_day_3(
     epex_da_production = Sensor.query.filter(
         Sensor.name == "epex_da_production"
     ).one_or_none()
-    battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
+    battery = add_battery_assets["Test battery"].sensors[0]
 
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 3))
 
     # Case 1: Consumption Price = Production Price, roundtrip_efficiency < 1
     schedule1, soc_schedule_1 = run_test_charge_discharge_sign(
-        roundtrip_efficiency, epex_da.id, epex_da.id
+        battery, roundtrip_efficiency, epex_da.id, epex_da.id
     )
 
     # For the negative price period, the schedule shows oscillations
@@ -298,7 +296,7 @@ def test_battery_solver_day_3(
 
     # Case 2: Consumption Price = Production Price, roundtrip_efficiency = 1
     schedule2, soc_schedule_2 = run_test_charge_discharge_sign(
-        1, epex_da.id, epex_da.id
+        battery, 1, epex_da.id, epex_da.id
     )
     assert all(schedule2[:8] == [-2, 0, 2, 0, 0, 0, 0, 0])  # no oscillation
 
@@ -306,7 +304,7 @@ def test_battery_solver_day_3(
     # In this case, we expect the battery to hold the energy that has initially and sell it during the period of
     # positive prices.
     schedule3, soc_schedule_3 = run_test_charge_discharge_sign(
-        roundtrip_efficiency, epex_da.id, epex_da_production.id
+        battery, roundtrip_efficiency, epex_da.id, epex_da_production.id
     )
     assert all(np.isclose(schedule3[:8], 0))  # no oscillation
     assert all(schedule3[8:] <= 0)
@@ -319,7 +317,7 @@ def test_battery_solver_day_3(
 
     # Case 4: Consumption Price > Production Price, roundtrip_efficiency < 1
     schedule4, soc_schedule_4 = run_test_charge_discharge_sign(
-        1, epex_da.id, epex_da_production.id
+        battery, 1, epex_da.id, epex_da_production.id
     )
 
     assert all(np.isclose(schedule4[:8], 0))  # no oscillation
