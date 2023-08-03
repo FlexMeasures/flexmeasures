@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from typing import Type, List
 import isodate
 import json
+import yaml
 from pathlib import Path
 from io import TextIOBase
 
@@ -1308,16 +1309,23 @@ def add_schedule_process(
     "--sensor-id",
     "sensor",
     type=SensorIdField(),
-    required=True,
-    help="Sensor used to save the report. Follow up with the sensor's ID. "
+    required=False,
+    help="Sensor used to save the report. Follow up with the sensor's ID. Can be defined in the parameters file, as well"
     " If needed, use `flexmeasures add sensor` to create a new sensor first.",
 )
 @click.option(
-    "--reporter-config",
-    "reporter_config",
-    required=True,
+    "--config",
+    "config_file",
+    required=False,
     type=click.File("r"),
-    help="Path to the JSON file with the reporter configuration.",
+    help="Path to the JSON or YAML file with the configuration of the reporter.",
+)
+@click.option(
+    "--parameters",
+    "parameters_file",
+    required=False,
+    type=click.File("r"),
+    help="Path to the JSON or YAML file with the report parameters (passed to the compute step).",
 )
 @click.option(
     "--reporter",
@@ -1382,10 +1390,29 @@ def add_schedule_process(
     is_flag=True,
     help="Add this flag to avoid saving the results to the database.",
 )
+@click.option(
+    "--edit-config",
+    "edit_config",
+    is_flag=True,
+    help="Add this flag to edit the configuration of the Reporter in your default text editor (e.g. nano).",
+)
+@click.option(
+    "--edit-parameters",
+    "edit_parameters",
+    is_flag=True,
+    help="Add this flag to edit the parameters passed to the Reporter in your default text editor (e.g. nano).",
+)
+@click.option(
+    "--save-config",
+    "save_config",
+    is_flag=True,
+    help="Add this flag to save the `config` in the attributes of the DataSource for future reference.",
+)
 def add_report(  # noqa: C901
     reporter_class: str,
-    sensor: Sensor,
-    reporter_config: TextIOBase,
+    sensor: Sensor | None = None,
+    config_file: TextIOBase | None = None,
+    parameters_file: TextIOBase | None = None,
     start: datetime | None = None,
     end: datetime | None = None,
     start_offset: str | None = None,
@@ -1393,6 +1420,9 @@ def add_report(  # noqa: C901
     resolution: timedelta | None = None,
     output_file: Path | None = None,
     dry_run: bool = False,
+    edit_config: bool = False,
+    edit_parameters: bool = False,
+    save_config: bool = False,
     timezone: str | None = None,
 ):
     """
@@ -1400,9 +1430,40 @@ def add_report(  # noqa: C901
     to the database or export them as CSV or Excel file.
     """
 
+    config = dict()
+
+    if config_file:
+        config = yaml.safe_load(config_file)
+
+    if edit_config:
+        config = launch_editor("/tmp/config.yml")
+
+    parameters = dict()
+
+    if parameters_file:
+        parameters = yaml.safe_load(parameters_file)
+
+    if edit_parameters:
+        parameters = launch_editor("/tmp/parameters.yml")
+
+    if sensor is not None:
+        parameters["sensor"] = sensor.id
+
+    # check if sensor is not provided either in the parameters or the CLI
+    # click parameter
+    if parameters.get("sensor") is None:
+        click.secho(
+            "Report sensor needs to be defined, either on the `parameters` file or trough the --sensor CLI parameter...",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+
+    sensor = Sensor.query.get(parameters.get("sensor"))
+
     # compute now in the timezone local to the output sensor
     if timezone is not None:
         check_timezone(timezone)
+
     now = pytz.timezone(
         zone=timezone if timezone is not None else sensor.timezone
     ).localize(datetime.now())
@@ -1457,7 +1518,9 @@ def add_report(  # noqa: C901
     )
 
     # get reporter class
-    ReporterClass: Type[Reporter] = app.reporters.get(reporter_class)
+    ReporterClass: Type[Reporter] = app.data_generators.get("reporter").get(
+        reporter_class
+    )
 
     # check if it exists
     if ReporterClass is None:
@@ -1469,19 +1532,20 @@ def add_report(  # noqa: C901
 
     click.secho(f"Reporter {reporter_class} found.", **MsgStyle.SUCCESS)
 
-    reporter_config_raw = json.load(reporter_config)
-
     # initialize reporter class with the reporter sensor and reporter config
-    reporter: Reporter = ReporterClass(
-        sensor=sensor, reporter_config_raw=reporter_config_raw
-    )
+    reporter: Reporter = ReporterClass(config=config, save_config=save_config)
 
     click.echo("Report computation is running...")
 
+    if ("start" not in parameters) and (start is not None):
+        parameters["start"] = start.isoformat()
+    if ("end" not in parameters) and (end is not None):
+        parameters["end"] = end.isoformat()
+    if ("resolution" not in parameters) and (resolution is not None):
+        parameters["resolution"] = pd.Timedelta(resolution).isoformat()
+
     # compute the report
-    result: BeliefsDataFrame = reporter.compute(
-        start=start, end=end, input_resolution=resolution
-    )
+    result: BeliefsDataFrame = reporter.compute(parameters=parameters)
 
     if not result.empty:
         click.secho("Report computation done.", **MsgStyle.SUCCESS)
@@ -1533,6 +1597,18 @@ def add_report(  # noqa: C901
             "Success.",
             **MsgStyle.SUCCESS,
         )
+
+
+def launch_editor(filename: str) -> dict:
+    """Launch editor to create/edit a json object"""
+    click.edit("{\n}", filename=filename)
+
+    with open(filename, "r") as f:
+        content = yaml.safe_load(f)
+        if content is None:
+            return dict()
+
+        return content
 
 
 @fm_add_data.command("toy-account")
