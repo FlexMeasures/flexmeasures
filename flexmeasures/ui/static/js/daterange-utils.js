@@ -39,3 +39,32 @@ function getTimeZoneOffset(date, timeZone) {
     // this matches the output of `Date.getTimeZoneOffset`
     return -(lie - date) / 60 / 1000;
 }
+
+/**
+ * Count the number of Daylight Saving Time (DST) transitions within a given datetime range.
+ * @param {Date} startDate - The start date of the datetime range.
+ * @param {Date} endDate - The end date of the datetime range.
+ * @param {number} increment - The number of days to increment between iterations.
+ * @returns {number} The count of DST transitions within the specified range.
+ */
+export function countDSTTransitions(startDate, endDate, increment) {
+    let transitions = 0;
+    let currentDate = new Date(startDate);
+    let nextDate = new Date(startDate);
+
+    while (currentDate <= endDate) {
+        const currentOffset = currentDate.getTimezoneOffset();
+        nextDate.setDate(currentDate.getDate() + increment);
+        if (nextDate > endDate) {
+            nextDate = endDate;
+        }
+        const nextOffset = nextDate.getTimezoneOffset();
+
+        if (currentOffset !== nextOffset) {
+            transitions++;
+        }
+        currentDate.setDate(currentDate.getDate() + increment);
+    }
+
+    return transitions;
+}

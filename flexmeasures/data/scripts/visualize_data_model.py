@@ -27,17 +27,16 @@ For rendering of graphs (instead of saving a PNG), you'll need pillow:
 
 DEBUG = True
 
+# List here modules which should be scanned for the UML version
 RELEVANT_MODULES = [
     "task_runs",
     "data_sources",
-    "markets",
-    "assets",
     "generic_assets",
-    "weather",
     "user",
     "time_series",
 ]
 
+# List here tables in the data model which are currently relevant
 RELEVANT_TABLES = [
     "role",
     "account",
@@ -45,26 +44,17 @@ RELEVANT_TABLES = [
     "fm_user",
     "data_source",
     "latest_task_run",
-]
-LEGACY_TABLES = [
-    "asset",
-    "asset_type",
-    "market",
-    "market_type",
-    "power",
-    "price",
-    "weather",
-    "weather_sensor",
-    "weather_sensor_type",
-]
-RELEVANT_TABLES_NEW = [
     "generic_asset_type",
     "generic_asset",
     "sensor",
     "timed_belief",
     "timed_value",
 ]
-IGNORED_TABLES = ["alembic_version", "roles_users", "roles_accounts"]
+
+# The following two lists are useful for transition periods, when some tables are legacy, and some have been added.
+# This allows you to show the old model as well as the future model.
+LEGACY_TABLES = []
+RELEVANT_TABLES_NEW = []
 
 
 def check_sqlalchemy_schemadisplay_installation():

@@ -6,7 +6,7 @@ import pytest
 from rq.job import Job
 
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.tests.utils import work_on_rq, exception_reporter
 from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
@@ -20,7 +20,7 @@ def test_scheduling_a_battery(db, app, add_battery_assets, setup_test_data):
     - schedule has been made
     """
 
-    battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
+    battery = add_battery_assets["Test battery"].sensors[0]
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 2))
     end = tz.localize(datetime(2015, 1, 3))
@@ -104,7 +104,7 @@ def test_assigning_custom_scheduler(db, app, add_battery_assets, is_path: bool):
     """
     scheduler_specs["module"] = make_module_descr(is_path)
 
-    battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
+    battery = add_battery_assets["Test battery"].sensors[0]
     battery.attributes["custom-scheduler"] = scheduler_specs
 
     tz = pytz.timezone("Europe/Amsterdam")

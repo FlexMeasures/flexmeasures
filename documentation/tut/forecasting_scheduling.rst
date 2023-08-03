@@ -40,7 +40,7 @@ You can also clear the job queues:
 
 When the main FlexMeasures process runs (e.g. by ``flexmeasures run``\ ), the queues of forecasting and scheduling jobs can be visited at ``http://localhost:5000/tasks/forecasting`` and ``http://localhost:5000/tasks/schedules``\ , respectively (by admins).
 
-When forecasts and schedules have been generated, they should be visible at ``http://localhost:5000/analytics``.
+When forecasts and schedules have been generated, they should be visible at ``http://localhost:5000/assets/<id>``.
 
 
 .. note:: You can run workers who process jobs on different computers than the main server process. This can be a great architectural choice. Just keep in mind to use the same databases (postgres/redis) and to stick to the same FlexMeasures version on both.

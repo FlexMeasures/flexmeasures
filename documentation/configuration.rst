@@ -179,7 +179,7 @@ For more fine-grained control, the entries can also be tuples of view names and 
 
 .. note:: This fine-grained control requires FlexMeasures version 0.6.0
 
-Default: ``["dashboard", "analytics", "portfolio", "assets", "users"]``
+Default: ``["dashboard"]``
 
 
 FLEXMEASURES_MENU_LISTED_VIEW_ICONS

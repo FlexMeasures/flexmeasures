@@ -15,12 +15,14 @@ v0.15.0 | July XX, 2023
 New features
 -------------
 
+* Users can select a new chart type (daily heatmap) on the sensor page of the UI, showing how sensor values are distributed over the time of day [see `PR #715 <https://www.github.com/FlexMeasures/flexmeasures/pull/715>`_]
+* Users are warned in the UI on when the data they are seeing includes one or more Daylight Saving Time (DST) transitions, and heatmaps (see previous feature) visualize these transitions intuitively [see `PR #723 <https://www.github.com/FlexMeasures/flexmeasures/pull/723>`_]
 * Allow deleting multiple sensors with a single call to ``flexmeasures delete sensor`` by passing the ``--id`` option multiple times [see `PR #734 <https://www.github.com/FlexMeasures/flexmeasures/pull/734>`_]
 * Make it a lot easier to read off the color legend on the asset page, especially when showing many sensors, as they will now be ordered from top to bottom in the same order as they appear in the chart (as defined in the ``sensors_to_show`` attribute), rather than alphabetically [see `PR #742 <https://www.github.com/FlexMeasures/flexmeasures/pull/742>`_]
 * Users on FlexMeasures servers in play mode (``FLEXMEASURES_MODE = "play"``) can use the ``sensors_to_show`` attribute to show any sensor on their asset pages, rather than only sensors registered to assets in their own account or to public assets [see `PR #740 <https://www.github.com/FlexMeasures/flexmeasures/pull/740>`_]
 * Having percentages within the [0, 100] domain is such a common use case that we now always include it in sensor charts with % units, making it easier to read off individual charts and also to compare across charts [see `PR #739 <https://www.github.com/FlexMeasures/flexmeasures/pull/739>`_]
 * DataSource table now allows storing arbitrary attributes as a JSON (without content validation), similar to the Sensor and GenericAsset tables [see `PR #750 <https://www.github.com/FlexMeasures/flexmeasures/pull/750>`_]
-* Added API endpoints `/sensors/<id>` for fetching a single sensor and `/sensors` (POST) for adding a sensor. [see `PR #759 <https://www.github.com/FlexMeasures/flexmeasures/pull/759>`_] and [see `PR #767 <https://www.github.com/FlexMeasures/flexmeasures/pull/767>`_]
+* Added API endpoints `/sensors/<id>` for fetching a single sensor, `/sensors` (POST) for adding a sensor, `/sensors/<id>` (PATCH) for updating a sensor and `/sensors/<id>` (DELETE) for deleting a sensor. [see `PR #759 <https://www.github.com/FlexMeasures/flexmeasures/pull/759>`_] and [see `PR #767 <https://www.github.com/FlexMeasures/flexmeasures/pull/767>`_] and [see `PR #773 <https://www.github.com/FlexMeasures/flexmeasures/pull/773>`_] and [see `PR #784 <https://www.github.com/FlexMeasures/flexmeasures/pull/784>`_]
 * The CLI now allows to set lists and dicts as asset & sensor attributes (formerly only single values) [see `PR #762 <https://www.github.com/FlexMeasures/flexmeasures/pull/762>`_]
 * Add `ProcessScheduler` class to optimize the starting time of processes one of the policies developed (INFLEXIBLE, SHIFTABLE and BREAKABLE), accessible via the CLI command `flexmeasures add schedule for-process` [see `PR #729 <https://www.github.com/FlexMeasures/flexmeasures/pull/729>`_ and `PR #768 <https://www.github.com/FlexMeasures/flexmeasures/pull/768>`_]
 
@@ -36,6 +38,8 @@ Infrastructure / Support
 * The endpoint `[POST] /health/ready <api/v3_0.html#get--api-v3_0-health-ready>`_ returns the status of the Redis connection, if configured [see `PR #699 <https://www.github.com/FlexMeasures/flexmeasures/pull/699>`_]
 * Document the `device_scheduler` linear program [see `PR #764 <https://www.github.com/FlexMeasures/flexmeasures/pull/764>`_].
 * Add support for `HiGHS <https://highs.dev/>`_ solver [see `PR #766 <https://www.github.com/FlexMeasures/flexmeasures/pull/766>`_].
+* Add support for installing FlexMeasures under Python 3.11 [see `PR #771 <https://www.github.com/FlexMeasures/flexmeasures/pull/771>`_].
+* Removed obsolete code dealing with deprecated data models (e.g. assets, markets and weather sensors), and sunset the fm0 scheme for entity addresses [see `PR #695 <https://www.github.com/FlexMeasures/flexmeasures/pull/695>`_ and `project 11 <https://www.github.com/FlexMeasures/flexmeasures/projects/11>`_]
 
 v0.14.2 | July 25, 2023
 ============================

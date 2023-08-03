@@ -2,9 +2,6 @@ from flask import abort
 from marshmallow import fields
 
 from flexmeasures.api import FMValidationError
-from flexmeasures.api.common.utils.api_utils import (
-    get_sensor_by_generic_asset_type_and_location,
-)
 from flexmeasures.utils.entity_address_utils import (
     parse_entity_address,
     EntityAddressException,
@@ -33,20 +30,21 @@ class SensorIdField(fields.Integer):
 
 class SensorField(fields.Str):
     """Field that de-serializes to a Sensor,
-    and serializes a Sensor, Asset, Market or WeatherSensor into an entity address (string)."""
+    and serializes a Sensor into an entity address (string).
+    """
 
     # todo: when Actuators also get an entity address, refactor this class to EntityField,
     #       where an Entity represents anything with an entity address: we currently foresee Sensors and Actuators
 
     def __init__(
         self,
-        entity_type: str,
-        fm_scheme: str,
+        entity_type: str = "sensor",
+        fm_scheme: str = "fm1",
         *args,
         **kwargs,
     ):
         """
-        :param entity_type: "sensor", "connection", "market" or "weather_sensor"
+        :param entity_type: "sensor" (in the future, possibly also another type of resource that is assigned an entity address)
         :param fm_scheme:   "fm0" or "fm1"
         """
         self.entity_type = entity_type
@@ -58,20 +56,7 @@ class SensorField(fields.Str):
         try:
             ea = parse_entity_address(value, self.entity_type, self.fm_scheme)
             if self.fm_scheme == "fm0":
-                if self.entity_type == "connection":
-                    sensor = Sensor.query.filter(
-                        Sensor.id == ea["asset_id"]
-                    ).one_or_none()
-                elif self.entity_type == "market":
-                    sensor = Sensor.query.filter(
-                        Sensor.name == ea["market_name"]
-                    ).one_or_none()
-                elif self.entity_type == "weather_sensor":
-                    sensor = get_sensor_by_generic_asset_type_and_location(
-                        ea["weather_sensor_type_name"], ea["latitude"], ea["longitude"]
-                    )
-                else:
-                    return NotImplemented
+                raise EntityAddressException("The fm0 scheme is no longer supported.")
             else:
                 sensor = Sensor.query.filter(Sensor.id == ea["sensor_id"]).one_or_none()
             if sensor is not None:
