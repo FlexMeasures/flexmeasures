@@ -1402,6 +1402,12 @@ def add_schedule_process(
     is_flag=True,
     help="Add this flag to edit the parameters passed to the Reporter in your default text editor (e.g. nano).",
 )
+@click.option(
+    "--save-config",
+    "save_config",
+    is_flag=True,
+    help="Add this flag to save the `config` in the attributes of the DataSource for future reference.",
+)
 def add_report(  # noqa: C901
     reporter_class: str,
     sensor: Sensor | None = None,
@@ -1416,6 +1422,7 @@ def add_report(  # noqa: C901
     dry_run: bool = False,
     edit_config: bool = False,
     edit_parameters: bool = False,
+    save_config: bool = False,
     timezone: str | None = None,
 ):
     """
@@ -1526,7 +1533,7 @@ def add_report(  # noqa: C901
     click.secho(f"Reporter {reporter_class} found.", **MsgStyle.SUCCESS)
 
     # initialize reporter class with the reporter sensor and reporter config
-    reporter: Reporter = ReporterClass(config=config)
+    reporter: Reporter = ReporterClass(config=config, save_config=save_config)
 
     click.echo("Report computation is running...")
 
