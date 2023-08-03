@@ -271,7 +271,7 @@ def test_battery_solver_day_3(
     revenue of producing doesn't create a profit.
     """
 
-    roundtrip_efficieny = 0.9
+    roundtrip_efficiency = 0.9
     epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
     epex_da_production = Sensor.query.filter(
         Sensor.name == "epex_da_production"
@@ -281,9 +281,9 @@ def test_battery_solver_day_3(
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 3))
 
-    # Case 1: Consumption Price = Production Price, roundtrip_efficieny < 1
+    # Case 1: Consumption Price = Production Price, roundtrip_efficiency < 1
     schedule1, soc_schedule_1 = run_test_charge_discharge_sign(
-        roundtrip_efficieny, epex_da.id, epex_da.id
+        roundtrip_efficiency, epex_da.id, epex_da.id
     )
 
     # For the negative price period, the schedule shows oscillations
@@ -296,17 +296,17 @@ def test_battery_solver_day_3(
     # in positive price hours, the battery will only discharge to sell the energy charged in the negative hours
     assert all(schedule1.loc[start + timedelta(hours=8) :] <= 0)
 
-    # Case 2: Consumption Price = Production Price, roundtrip_efficieny = 1
+    # Case 2: Consumption Price = Production Price, roundtrip_efficiency = 1
     schedule2, soc_schedule_2 = run_test_charge_discharge_sign(
         1, epex_da.id, epex_da.id
     )
     assert all(schedule2[:8] == [-2, 0, 2, 0, 0, 0, 0, 0])  # no oscillation
 
-    # Case 3: Consumption Price > Production Price, roundtrip_efficieny < 1
+    # Case 3: Consumption Price > Production Price, roundtrip_efficiency < 1
     # In this case, we expect the battery to hold the energy that has initially and sell it during the period of
     # positive prices.
     schedule3, soc_schedule_3 = run_test_charge_discharge_sign(
-        roundtrip_efficieny, epex_da.id, epex_da_production.id
+        roundtrip_efficiency, epex_da.id, epex_da_production.id
     )
     assert all(np.isclose(schedule3[:8], 0))  # no oscillation
     assert all(schedule3[8:] <= 0)
@@ -314,10 +314,10 @@ def test_battery_solver_day_3(
     # discharge the whole battery in 1 time period
     assert np.isclose(
         schedule3.min(),
-        -battery.get_attribute("capacity_in_mw") * np.sqrt(roundtrip_efficieny),
+        -battery.get_attribute("capacity_in_mw") * np.sqrt(roundtrip_efficiency),
     )
 
-    # Case 4: Consumption Price > Production Price, roundtrip_efficieny < 1
+    # Case 4: Consumption Price > Production Price, roundtrip_efficiency < 1
     schedule4, soc_schedule_4 = run_test_charge_discharge_sign(
         1, epex_da.id, epex_da_production.id
     )
