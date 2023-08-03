@@ -169,7 +169,6 @@ The platform operator of FlexMeasures can be an Aggregator.
     :maxdepth: 1
 
     concepts/benefits
-    concepts/benefits_of_flex
     concepts/inbuilt-smart-functionality
     concepts/algorithms
     concepts/security_auth
