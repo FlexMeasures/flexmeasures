@@ -100,7 +100,7 @@ def daily_heatmap(
         formatType="quantityWithUnitFormat",
         stack=None,
         **FIELD_DEFINITIONS["event_value"],
-        scale={"scheme": "blueorange", "domainMid": 0},
+        scale={"scheme": "blueorange", "domainMid": 0, "domain": {"unionWith": [0]}},
     )
     event_start_field_definition = dict(
         field="event_start",
@@ -147,33 +147,35 @@ def daily_heatmap(
                 event_ends_before.timestamp() * 10**3,
             ],
         }
+    mark = {"type": "rect", "clip": True, "opacity": 0.7}
+    tooltip = [
+        FIELD_DEFINITIONS["full_date"],
+        {
+            **event_value_field_definition,
+            **dict(title=f"{capitalize(sensor.sensor_type)}"),
+        },
+        FIELD_DEFINITIONS["source_name_and_id"],
+        FIELD_DEFINITIONS["source_model"],
+    ]
     chart_specs = {
         "description": "A daily heatmap showing sensor data.",
         # the sensor type is already shown as the y-axis title (avoid redundant info)
         "title": capitalize(sensor.name) if sensor.name != sensor.sensor_type else None,
         "layer": [
             {
-                "mark": {
-                    "type": "rect",
-                    "clip": True,
-                },
+                "mark": mark,
                 "encoding": {
                     "x": event_start_field_definition,
                     "y": event_start_date_field_definition,
                     "color": event_value_field_definition,
                     "detail": FIELD_DEFINITIONS["source"],
-                    "opacity": {"value": 0.7},
-                    "tooltip": [
-                        FIELD_DEFINITIONS["full_date"],
-                        {
-                            **event_value_field_definition,
-                            **dict(title=f"{capitalize(sensor.sensor_type)}"),
-                        },
-                        FIELD_DEFINITIONS["source_name_and_id"],
-                        FIELD_DEFINITIONS["source_model"],
-                    ],
+                    "tooltip": tooltip,
                 },
                 "transform": [
+                    {
+                        # Mask overlapping data during the fall DST transition, which we show later with a special layer
+                        "filter": "timezoneoffset(datum.event_start) >= timezoneoffset(datum.event_start + 60 * 60 * 1000) && timezoneoffset(datum.event_start) <= timezoneoffset(datum.event_start - 60 * 60 * 1000)"
+                    },
                     {
                         "calculate": "datum.source.name + ' (ID: ' + datum.source.id + ')'",
                         "as": "source_name_and_id",
@@ -227,6 +229,13 @@ def daily_heatmap(
                     },
                 },
             },
+            create_fall_dst_transition_layer(
+                sensor.timezone,
+                mark,
+                event_value_field_definition,
+                event_start_field_definition,
+                tooltip,
+            ),
         ],
     }
     for k, v in override_chart_specs.items():
@@ -236,6 +245,60 @@ def daily_heatmap(
         # "legend": {"direction": "horizontal"},
     }
     return chart_specs
+
+
+def create_fall_dst_transition_layer(
+    timezone, mark, event_value_field_definition, event_start_field_definition, tooltip
+) -> dict:
+    """Special layer for showing data during the daylight savings time transition in fall."""
+    return {
+        "mark": mark,
+        "encoding": {
+            "x": event_start_field_definition,
+            "y": {
+                "field": "dst_transition_event_start",
+                "type": "temporal",
+                "title": None,
+                "timeUnit": {"unit": "yearmonthdatehours", "step": 12},
+            },
+            "y2": {
+                "field": "dst_transition_event_start_next",
+                "timeUnit": {"unit": "yearmonthdatehours", "step": 12},
+            },
+            "color": event_value_field_definition,
+            "detail": FIELD_DEFINITIONS["source"],
+            "tooltip": [
+                {
+                    "field": "event_start",
+                    "type": "temporal",
+                    "title": "Timezone",
+                    "timeUnit": "utc",
+                    "format": [timezone],
+                    "formatType": "timezoneFormat",
+                },
+                *tooltip,
+            ],
+        },
+        "transform": [
+            {
+                "filter": "timezoneoffset(datum.event_start) < timezoneoffset(datum.event_start + 60 * 60 * 1000) || timezoneoffset(datum.event_start) > timezoneoffset(datum.event_start - 60 * 60 * 1000)"
+            },
+            {
+                # Push the more recent hour into the second 12-hour bin
+                "calculate": "timezoneoffset(datum.event_start + 60 * 60 * 1000) > timezoneoffset(datum.event_start) ? datum.event_start : datum.event_start + 12 * 60 * 60 * 1000",
+                "as": "dst_transition_event_start",
+            },
+            {
+                # Calculate a time point in the next 12-hour bin
+                "calculate": "datum.dst_transition_event_start + 12 * 60 * 60 * 1000 - 60 * 60 * 1000",
+                "as": "dst_transition_event_start_next",
+            },
+            {
+                "calculate": "datum.source.name + ' (ID: ' + datum.source.id + ')'",
+                "as": "source_name_and_id",
+            },
+        ],
+    }
 
 
 def chart_for_multiple_sensors(
