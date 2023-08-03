@@ -48,6 +48,7 @@ Symbol                              Variable in the Code                        
 :math:`P^{ems}_{min}(j)`              ems_derivative_min                                 Minimum flow of the EMS during time period :math:`j`.
 :math:`P^{ems}_{max}(j)`              ems_derivative_max                                 Maximum flow of the EMS during time period :math:`j`.
 :math:`Commitment(c,j)`               commitment_quantity                                Commitment c (at EMS level) over time step :math:`j`.
+:math:`M`                             M                                                  Large constant number, upper bound of :math:`Power_{up}(d,j)` and :math:`|Power_{down}(d,j)|`
 ================================ ================================================ ==============================================================================================================  
 
 
@@ -62,6 +63,7 @@ Symbol                              Variable in the Code                        
 :math:`P_{up}(d,j)`                   device_power_up                                    Upwards power of device :math:`d` during time period :math:`j`.
 :math:`P_{down}(d,j)`                 device_power_down                                  Downwards power of device :math:`d` during time period :math:`j`.
 :math:`P^{ems}(j)`                    ems_power                                          Aggregated power of all the devices during time period :math:`j`.
+:math:`\sigma(d,j)`                   device_power_sign                                  Upwards power activation if :math:`\sigma(d,j)=1`, downwards power activation otherwise.
 ================================ ================================================ ==============================================================================================================  
 
 Cost function
@@ -152,6 +154,22 @@ Device bounds
   :name: device_up_derivative_bounds
 
     0 \leq P_{up}(d,j)\leq max(P_{max}(d,j),0)
+
+
+Upwards/Downwards activation selection
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Avoid simultaneous upwards and downwards activation during the same time period.
+
+.. math:: 
+  :name: device_up_derivative_sign
+
+    P_{up}(d,j) \leq M \cdot \sigma(d,j)
+
+.. math:: 
+  :name: device_down_derivative_sign
+
+    -P_{down}(d,j) \leq M \cdot (1-\sigma(d,j))
 
 
 Grid constraints

@@ -8,6 +8,8 @@ v0.15.0 | July XX, 2023
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
 
+.. warning:: Upgrading to this version requires installing the LP/MILP solver HiGHS using ``pip install highspy``.
+
 .. warning:: If your server is running in play mode (``FLEXMEASURES_MODE = "play"``), users will be able to see sensor data from any account [see `PR #740 <https://www.github.com/FlexMeasures/flexmeasures/pull/740>`_].
 
 New features
@@ -28,6 +30,8 @@ New features
 
 Bugfixes
 -----------
+
+* Add binary constraint to avoid energy leakages during periods with negative prices [see `PR #770 <https://www.github.com/FlexMeasures/flexmeasures/pull/770>`_]
 
 Infrastructure / Support
 ----------------------

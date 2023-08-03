@@ -6,10 +6,9 @@ from datetime import datetime
 from pytz import UTC
 
 
-def test_get_reporter_from_source(
-    db, app, aggregator_reporter_data_source, add_nearby_weather_sensors
-):
-    reporter = aggregator_reporter_data_source.data_generator
+def test_get_reporter_from_source(db, app, test_reporter, add_nearby_weather_sensors):
+
+    reporter = test_reporter.data_generator
 
     reporter_sensor = add_nearby_weather_sensors.get("farther_temperature")
 
@@ -32,41 +31,43 @@ def test_get_reporter_from_source(
         )
 
 
-def test_data_source(db, app, aggregator_reporter_data_source):
-    TestTeporter = app.data_generators["reporter"].get("TestReporter")
+def test_data_source(db, app, test_reporter):
+    # get TestReporter class from the data_generators registry
+    TestReporter = app.data_generators["reporter"].get("TestReporter")
 
-    ds1 = TestTeporter(config={"a": "1"})
+    reporter1 = TestReporter(config={"a": "1"})
 
-    db.session.add(ds1.data_source)
-    db.session.commit()
+    db.session.add(reporter1.data_source)
 
-    ds2 = TestTeporter(config={"a": "1"})
+    reporter2 = TestReporter(config={"a": "1"})
 
-    assert ds1.data_source == ds2.data_source
-    assert ds1.data_source.attributes.get("data_generator").get(
+    # reporter1 and reporter2 have the same data_source because they share the same config
+    assert reporter1.data_source == reporter2.data_source
+    assert reporter1.data_source.attributes.get("data_generator").get(
         "config"
-    ) == ds2.data_source.attributes.get("data_generator").get("config")
+    ) == reporter2.data_source.attributes.get("data_generator").get("config")
 
-    ds3 = TestTeporter(config={"a": "2"})
+    reporter3 = TestReporter(config={"a": "2"})
 
-    assert ds3.data_source != ds2.data_source
-    assert ds3.data_source.attributes.get("data_generator").get(
+    # reporter3 and reporter2 have different data sources because they have different config values
+    assert reporter3.data_source != reporter2.data_source
+    assert reporter3.data_source.attributes.get("data_generator").get(
         "config"
-    ) != ds2.data_source.attributes.get("data_generator").get("config")
+    ) != reporter2.data_source.attributes.get("data_generator").get("config")
 
-    ds4 = ds3.data_source.data_generator
+    # recreate reporter3 from its data source
+    reporter4 = reporter3.data_source.data_generator
 
-    assert ds4._config == ds3._config
+    # check that reporter3 and reporter4 share the same config values
+    assert reporter4._config == reporter3._config
 
 
-def test_data_generator_save_config(
-    db, app, aggregator_reporter_data_source, add_nearby_weather_sensors
-):
-    TestTeporter = app.data_generators["reporter"].get("TestReporter")
+def test_data_generator_save_config(db, app, test_reporter, add_nearby_weather_sensors):
+    TestReporter = app.data_generators["reporter"].get("TestReporter")
 
     reporter_sensor = add_nearby_weather_sensors.get("farther_temperature")
 
-    reporter = TestTeporter(config={"a": "1"})
+    reporter = TestReporter(config={"a": "1"})
 
     res = reporter.compute(
         sensor=reporter_sensor,
@@ -78,7 +79,7 @@ def test_data_generator_save_config(
         "a": "1"
     }
 
-    reporter = TestTeporter(config={"a": "1"}, save_config=False)
+    reporter = TestReporter(config={"a": "1"}, save_config=False)
 
     res = reporter.compute(
         sensor=reporter_sensor,

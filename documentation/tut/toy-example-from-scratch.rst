@@ -9,12 +9,7 @@ Okay, let's get started!
 
 .. note:: You can copy the commands by hovering on the top right corner of code examples. You'll copy only the commands, not the output!
 
-Setup
-------
-
 .. note:: If you haven't run through :ref:`tut_install_load_data` yet, do that first. There, we added power prices for a 24h window.
-
-For this tutorial, we'll setup a battery asset and a (dis)charging sensor (ID 2) where the schedule will be stored into.
 
 
 
