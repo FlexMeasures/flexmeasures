@@ -98,7 +98,8 @@ def reporter_config(app, db, setup_dummy_data):
     sensor1, sensor2, report_sensor = setup_dummy_data
 
     reporter_config = dict(
-        input_variables=["sensor_1", "sensor_2"],
+        required_input=[{"name": "sensor_1"}, {"name": "sensor_2"}],
+        required_output=[{"name": "df_agg"}],
         transformations=[
             dict(
                 df_input="sensor_1",
@@ -108,7 +109,6 @@ def reporter_config(app, db, setup_dummy_data):
             ),
             dict(method="resample_events", args=["2h"]),
         ],
-        final_df_output="df_agg",
     )
 
     return reporter_config

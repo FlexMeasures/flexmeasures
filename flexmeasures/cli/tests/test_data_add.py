@@ -131,9 +131,10 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config):
     }
 
     parameters = dict(
-        input_variables=dict(
-            sensor_1=dict(sensor=sensor1.id), sensor_2=dict(sensor=sensor2.id)
-        ),
+        input=[
+            dict(name="sensor_1", sensor=sensor1.id),
+            dict(name="sensor_2", sensor=sensor2.id),
+        ],
         sensor=report_sensor_id,
     )
 
