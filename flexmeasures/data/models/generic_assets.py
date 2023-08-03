@@ -581,6 +581,7 @@ def create_generic_asset(generic_asset_type: str, **kwargs) -> GenericAsset:
     ).one_or_none()
     if generic_asset_type is None:
         raise ValueError(f"Cannot find GenericAssetType {asset_type_name} in database.")
+
     new_generic_asset = GenericAsset(
         name=kwargs["name"],
         generic_asset_type_id=generic_asset_type.id,
@@ -591,6 +592,7 @@ def create_generic_asset(generic_asset_type: str, **kwargs) -> GenericAsset:
             setattr(new_generic_asset, arg, kwargs[arg])
     db.session.add(new_generic_asset)
     db.session.flush()  # generates the pkey for new_generic_asset
+
     return new_generic_asset
 
 

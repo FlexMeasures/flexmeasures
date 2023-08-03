@@ -48,7 +48,14 @@ Go into the ``flexmeasures`` folder and install all dependencies including the o
    $ cd flexmeasures
    $ make install-for-dev
 
-:ref:`Install the LP solver <install-lp-solver>`. On Unix the Cbc LP solver can be installed with:
+:ref:`Install the LP solver <install-lp-solver>`. On Linux, the HiGHS solver can be installed with:
+
+.. code-block:: bash
+
+   $ pip install highspy
+
+
+Alternatively, the CBC solver can be installed with:
 
 .. code-block:: bash
 
