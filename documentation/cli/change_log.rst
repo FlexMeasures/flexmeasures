@@ -9,7 +9,7 @@ since v0.15.0 | July XX, 2023
 
 * Allow deleting multiple sensors with a single call to ``flexmeasures delete sensor`` by passing the ``--id`` option multiple times.
 * Add ``flexmeasures add schedule for-process`` to create a new process schedule for a given power sensor.
-
+* Add ``--kind process`` option to create the asset and sensors for the ``ProcessScheduler`` tutorial.
 
 since v0.14.1 | June XX, 2023
 =================================

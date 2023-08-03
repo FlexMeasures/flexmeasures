@@ -16,7 +16,7 @@ from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as Asset
 from flexmeasures.api.common.schemas.generic_assets import AssetIdField
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.utils.coding_utils import flatten_unique
-from flexmeasures.ui.utils.view_utils import set_time_range_for_session
+from flexmeasures.ui.utils.view_utils import set_session_variables
 
 
 asset_schema = AssetSchema()
@@ -284,7 +284,8 @@ class AssetAPI(FlaskView):
 
         .. :quickref: Chart; Download a chart with time series
         """
-        set_time_range_for_session()
+        # Store selected time range as session variables, for a consistent UX across UI page loads
+        set_session_variables("event_starts_after", "event_ends_before")
         return json.dumps(asset.chart(**kwargs))
 
     @route("/<id>/chart_data/")
