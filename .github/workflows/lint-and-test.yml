@@ -49,7 +49,6 @@ jobs:
             ${{ runner.os }}-pip-
       - run: |
           ci/setup-postgres.sh
-          pip install highspy
       - name: Install FlexMeasures & exact dependencies for tests
         run: make install-for-test
         if: github.event_name == 'push' && steps.cache.outputs.cache-hit != 'true'
