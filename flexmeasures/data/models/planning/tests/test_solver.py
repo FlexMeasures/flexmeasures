@@ -169,7 +169,10 @@ def test_battery_solver_day_2(
 
 
 def run_test_charge_discharge_sign(
-    battery, roundtrip_efficiency, consumption_price_sensor_id, production_price_sensor_id
+    battery,
+    roundtrip_efficiency,
+    consumption_price_sensor_id,
+    production_price_sensor_id,
 ):
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 3))
