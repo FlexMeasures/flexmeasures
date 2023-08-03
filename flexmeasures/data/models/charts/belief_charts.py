@@ -87,6 +87,157 @@ def bar_chart(
     return chart_specs
 
 
+def daily_heatmap(
+    sensor: "Sensor",  # noqa F821
+    event_starts_after: datetime | None = None,
+    event_ends_before: datetime | None = None,
+    **override_chart_specs: dict,
+):
+    unit = sensor.unit if sensor.unit else "a.u."
+    event_value_field_definition = dict(
+        title=f"{capitalize(sensor.sensor_type)} ({unit})",
+        format=[".3~r", unit],
+        formatType="quantityWithUnitFormat",
+        stack=None,
+        **FIELD_DEFINITIONS["event_value"],
+        scale={"scheme": "blueorange", "domainMid": 0},
+    )
+    event_start_field_definition = dict(
+        field="event_start",
+        type="temporal",
+        title=None,
+        timeUnit={
+            "unit": "hoursminutesseconds",
+            "step": sensor.event_resolution.total_seconds(),
+        },
+        axis={
+            "labelExpr": "timeFormat(datum.value, '%H:%M')",
+            "labelFlush": False,
+            "labelOverlap": True,
+            "labelSeparation": 1,
+        },
+        scale={
+            "domain": [
+                {"hours": 0},
+                {"hours": 24},
+            ]
+        },
+    )
+    event_start_date_field_definition = dict(
+        field="event_start",
+        type="temporal",
+        title=None,
+        timeUnit={
+            "unit": "yearmonthdate",
+        },
+        axis={
+            "tickCount": "day",
+            # Center align the date labels
+            "labelOffset": {
+                "expr": "(scale('y', 24 * 60 * 60 * 1000) - scale('y', 0)) / 2"
+            },
+            "labelFlush": False,
+            "labelBound": True,
+        },
+    )
+    if event_starts_after and event_ends_before:
+        event_start_date_field_definition["scale"] = {
+            "domain": [
+                event_starts_after.timestamp() * 10**3,
+                event_ends_before.timestamp() * 10**3,
+            ],
+        }
+    chart_specs = {
+        "description": "A daily heatmap showing sensor data.",
+        # the sensor type is already shown as the y-axis title (avoid redundant info)
+        "title": capitalize(sensor.name) if sensor.name != sensor.sensor_type else None,
+        "layer": [
+            {
+                "mark": {
+                    "type": "rect",
+                    "clip": True,
+                },
+                "encoding": {
+                    "x": event_start_field_definition,
+                    "y": event_start_date_field_definition,
+                    "color": event_value_field_definition,
+                    "detail": FIELD_DEFINITIONS["source"],
+                    "opacity": {"value": 0.7},
+                    "tooltip": [
+                        FIELD_DEFINITIONS["full_date"],
+                        {
+                            **event_value_field_definition,
+                            **dict(title=f"{capitalize(sensor.sensor_type)}"),
+                        },
+                        FIELD_DEFINITIONS["source_name_and_id"],
+                        FIELD_DEFINITIONS["source_model"],
+                    ],
+                },
+                "transform": [
+                    {
+                        "calculate": "datum.source.name + ' (ID: ' + datum.source.id + ')'",
+                        "as": "source_name_and_id",
+                    },
+                    # In case of multiple sources, show the one with the most visible data
+                    {
+                        "joinaggregate": [{"op": "count", "as": "source_count"}],
+                        "groupby": ["source.id"],
+                    },
+                    {
+                        "window": [
+                            {"op": "rank", "field": "source_count", "as": "source_rank"}
+                        ],
+                        "sort": [{"field": "source_count", "order": "descending"}],
+                        "frame": [None, None],
+                    },
+                    {"filter": "datum.source_rank == 1"},
+                    # In case of a tied rank, arbitrarily choose the first one occurring in the data
+                    {
+                        "window": [
+                            {
+                                "op": "first_value",
+                                "field": "source.id",
+                                "as": "first_source_id",
+                            }
+                        ],
+                    },
+                    {"filter": "datum.source.id == datum.first_source_id"},
+                ],
+            },
+            {
+                "data": {"name": "replay"},
+                "mark": {
+                    "type": "rule",
+                },
+                "encoding": {
+                    "x": {
+                        "field": "belief_time",
+                        "type": "temporal",
+                        "timeUnit": "hoursminutesseconds",
+                    },
+                    "y": {
+                        "field": "belief_time",
+                        "type": "temporal",
+                        "timeUnit": "yearmonthdate",
+                    },
+                    "yOffset": {
+                        "value": {
+                            "expr": "(scale('y', 24 * 60 * 60 * 1000) - scale('y', 0))"
+                        }
+                    },
+                },
+            },
+        ],
+    }
+    for k, v in override_chart_specs.items():
+        chart_specs[k] = v
+    chart_specs["config"] = {
+        "legend": {"orient": "right"},
+        # "legend": {"direction": "horizontal"},
+    }
+    return chart_specs
+
+
 def chart_for_multiple_sensors(
     sensors_to_show: list["Sensor", list["Sensor"]],  # noqa F821
     event_starts_after: datetime | None = None,
