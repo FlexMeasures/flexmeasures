@@ -1,4 +1,4 @@
--c app_temp.txt
+-c app.txt
 
 sphinx
 sphinx-rtd-theme >= 1.2
