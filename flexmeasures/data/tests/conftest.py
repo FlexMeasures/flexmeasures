@@ -10,7 +10,6 @@ from flask_sqlalchemy import SQLAlchemy
 from statsmodels.api import OLS
 import timely_beliefs as tb
 from flexmeasures.data.models.reporting import Reporter
-from flexmeasures import User
 
 from flexmeasures.data.models.annotations import Annotation
 from flexmeasures.data.models.data_sources import DataSource
