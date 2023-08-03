@@ -1,14 +1,13 @@
 from marshmallow import Schema, fields, ValidationError, validates_schema, validate
 from inspect import signature
 
-from flexmeasures.data.schemas.sensors import SensorIdField
-from flexmeasures.data.schemas.sources import DataSourceIdField
-
-from flexmeasures.data.schemas import AwareDateTimeField, DurationField
+from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.schemas.reporting import (
     ReporterConfigSchema,
     ReporterParametersSchema,
 )
+
+from flexmeasures.data.schemas.io import RequiredInput, RequiredOutput, Input, Output
 
 from timely_beliefs import BeliefsDataFrame
 
@@ -50,65 +49,45 @@ class PandasMethodCall(Schema):
             )
 
 
-class BeliefsSearchConfigSchema(Schema):
-    """
-    This schema implements the required fields to perform a TimedBeliefs search
-    using the method flexmeasures.data.models.time_series:Sensor.search_beliefs
-    """
-
-    sensor = SensorIdField(required=True)
-
-    event_starts_after = AwareDateTimeField()
-    event_ends_before = AwareDateTimeField()
-
-    belief_time = AwareDateTimeField()
-
-    horizons_at_least = DurationField()
-    horizons_at_most = DurationField()
-
-    source = DataSourceIdField()
-
-    source_types = fields.List(fields.Str())
-    exclude_source_types = fields.List(fields.Str())
-    most_recent_beliefs_only = fields.Boolean()
-    most_recent_events_only = fields.Boolean()
-
-    one_deterministic_belief_per_event = fields.Boolean()
-    one_deterministic_belief_per_event_per_source = fields.Boolean()
-    resolution = DurationField()
-    sum_multiple = fields.Boolean()
-
-
 class PandasReporterConfigSchema(ReporterConfigSchema):
     """
     This schema lists fields that can be used to describe sensors in the optimised portfolio
 
     Example:
 
-    {
-        "input_variables" : ["df1"],
-        "transformations" : [
-            {
-                "df_input" : "df1",
-                "df_output" : "df2",
-                "method" : "copy"
-            },
-            {
-                "df_input" : "df2",
-                "df_output" : "df2",
-                "method" : "sum"
-            },
-            {
-                "method" : "sum",
-                "kwargs" : {"axis" : 0}
-            }
-        ],
-        "final_df_output" : "df2"
+        {
+            "required_input" : [
+                {"name" : "df1}
+            ],
+            "required_output" : [
+                {"name" : "df2"}
+            ],
+            "transformations" : [
+                {
+                    "df_input" : "df1",
+                    "df_output" : "df2",
+                    "method" : "copy"
+                },
+                {
+                    "df_input" : "df2",
+                    "df_output" : "df2",
+                    "method" : "sum"
+                },
+                {
+                    "method" : "sum",
+                    "kwargs" : {"axis" : 0}
+                }
+            ],
+        }
     """
 
-    input_variables = fields.List(fields.Str(), required=True)  # expected input aliases
+    required_input = fields.List(
+        fields.Nested(RequiredInput()), validate=validate.Length(min=1)
+    )
+    required_output = fields.List(
+        fields.Nested(RequiredOutput()), validate=validate.Length(min=1, max=1)
+    )
     transformations = fields.List(fields.Nested(PandasMethodCall()), required=True)
-    final_df_output = fields.Str(required=True)
 
     @validates_schema
     def validate_chaining(self, data, **kwargs):
@@ -120,20 +99,20 @@ class PandasReporterConfigSchema(ReporterConfigSchema):
         # fake_data mocks the PandasReporter class attribute data. It contains empty BeliefsDataFrame
         # to simulate the process of applying the transformations.
         fake_data = dict(
-            (variable, BeliefsDataFrame) for variable in data.get("input_variables")
+            (_input["name"], BeliefsDataFrame) for _input in data.get("required_input")
         )
-        final_df_output = data.get("final_df_output")
+        output_names = [_output["name"] for _output in data.get("required_output")]
 
         previous_df = None
-        final_df_output_method = None
+        output_method = dict()
 
         for transformation in data.get("transformations"):
 
             df_input = transformation.get("df_input", previous_df)
             df_output = transformation.get("df_output", df_input)
 
-            if df_output == final_df_output:
-                final_df_output_method = transformation.get("method")
+            if df_output in output_names:
+                output_method[df_output] = transformation.get("method")
 
             if df_input not in fake_data:
                 raise ValidationError("Cannot find the input DataFrame.")
@@ -142,15 +121,18 @@ class PandasReporterConfigSchema(ReporterConfigSchema):
 
             fake_data[df_output] = BeliefsDataFrame
 
-        if final_df_output not in fake_data:
-            raise ValidationError(
-                "Cannot find final output DataFrame among the resulting DataFrames."
-            )
+        for _output in output_names:
+            if _output not in fake_data:
+                raise ValidationError(
+                    "Cannot find final output `{_output}` DataFrame among the resulting DataFrames."
+                )
 
-        if final_df_output_method in ["resample", "groupby"]:
-            raise ValidationError(
-                "Final output type cannot by of type `Resampler` or `DataFrameGroupBy`"
-            )
+            if (_output in output_method) and (
+                output_method[_output] in ["resample", "groupby"]
+            ):
+                raise ValidationError(
+                    f"Final output (`{_output}`) type cannot by of type `Resampler` or `DataFrameGroupBy`"
+                )
 
 
 class PandasReporterParametersSchema(ReporterParametersSchema):
@@ -159,11 +141,9 @@ class PandasReporterParametersSchema(ReporterParametersSchema):
     start = AwareDateTimeField(required=False)
     end = AwareDateTimeField(required=False)
 
-    input_variables = fields.Dict(
-        keys=fields.Str(),  # alias
-        values=fields.Nested(BeliefsSearchConfigSchema()),
-        required=True,
-        validator=validate.Length(min=1),
+    input = fields.List(fields.Nested(Input()), validate=validate.Length(min=1))
+    output = fields.List(
+        fields.Nested(Output()), validate=validate.Length(min=0, max=1)
     )
 
     @validates_schema
@@ -176,13 +156,22 @@ class PandasReporterParametersSchema(ReporterParametersSchema):
         if ("start" in data) and ("end" in data):
             return
 
-        for alias, input_sensor in data.get("input_variables").items():
-            if ("event_starts_after" not in input_sensor) and ("start" not in data):
+        for input_description in data.get("input", []):
+            input_sensor = input_description["sensor"]
+            if ("event_starts_after" not in input_description) and (
+                "start" not in data
+            ):
                 raise ValidationError(
-                    f"Start parameter not provided for sensor `{alias}` ({input_sensor})."
+                    f"Start parameter not provided for sensor {input_sensor}"
                 )
 
-            if ("event_ends_before" not in input_sensor) and ("end" not in data):
+            if ("event_ends_before" not in input_description) and ("end" not in data):
                 raise ValidationError(
-                    f"End parameter not provided for sensor `{alias}` ({input_sensor})."
+                    f"End parameter not provided for sensor {input_sensor}"
                 )
+
+        # check that either `sensor` is provided or output
+        if "sensor" not in data and len(data.get("output", [])) == 0:
+            raise ValidationError(
+                "An output sensor needs to be defined the field `sensor` or `output`."
+            )

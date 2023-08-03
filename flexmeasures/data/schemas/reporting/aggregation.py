@@ -2,8 +2,9 @@ from marshmallow import fields, ValidationError, validates_schema, validate
 
 from flexmeasures.data.schemas.reporting import (
     ReporterConfigSchema,
-    BeliefsSearchConfigSchema,
 )
+
+from flexmeasures.data.schemas.io import Input
 
 
 class AggregatorConfigSchema(ReporterConfigSchema):
@@ -12,16 +13,16 @@ class AggregatorConfigSchema(ReporterConfigSchema):
     Example:
     .. code-block:: json
         {
-            "data": [
+            "input": [
                 {
+                    "name" : "pv",
                     "sensor": 1,
                     "source" : 1,
-                    "alias" : "pv"
                 },
                 {
+                    "name" : "consumption",
                     "sensor": 1,
                     "source" : 2,
-                    "alias" : "consumption"
                 }
             ],
             "method" : "sum",
@@ -34,8 +35,8 @@ class AggregatorConfigSchema(ReporterConfigSchema):
 
     method = fields.Str(required=False, dump_default="sum", load_default="sum")
     weights = fields.Dict(fields.Str(), fields.Float(), required=False)
-    data = fields.List(
-        fields.Nested(BeliefsSearchConfigSchema()),
+    input = fields.List(
+        fields.Nested(Input()),
         required=True,
         validator=validate.Length(min=1),
     )
@@ -43,8 +44,8 @@ class AggregatorConfigSchema(ReporterConfigSchema):
     @validates_schema
     def validate_source(self, data, **kwargs):
 
-        for d in data["data"]:
-            if "source" not in d:
+        for input_description in data["input"]:
+            if "source" not in input_description:
                 raise ValidationError("`source` is a required field.")
 
     @validates_schema
@@ -52,15 +53,15 @@ class AggregatorConfigSchema(ReporterConfigSchema):
         if "weights" not in data:
             return
 
-        # get aliases
-        aliases = []
-        for d in data["data"]:
-            if "alias" in d:
-                aliases.append(d.get("alias"))
+        # get names
+        names = []
+        for input_description in data["input"]:
+            if "name" in input_description:
+                names.append(input_description.get("name"))
 
-        # check that the aliases in weights are defined
-        for alias in data.get("weights", {}).keys():
-            if alias not in aliases:
+        # check that the names in weights are defined in input
+        for name in data.get("weights", {}).keys():
+            if name not in names:
                 raise ValidationError(
-                    f"alias `{alias}` in `weights` is not defined in `data`"
+                    f"name `{name}` in `weights` is not defined in `input`"
                 )

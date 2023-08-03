@@ -90,16 +90,19 @@ class TibberReporter(Reporter):
 
         da_prices = Sensor.query.filter(Sensor.name == "DA prices").one_or_none()
 
-        self.input_variables = {
-            "energy_tax": {"sensor": EnergyTax},
-            "VAT": {"sensor": VAT},
-            "tariff": {"sensor": tibber_tariff},
-            "da_prices": {"sensor": da_prices},
-        }
+        self.input = [
+            {"name": "energy_tax", "sensor": EnergyTax},
+            {"name": "VAT", "sensor": VAT},
+            {"name": "tariff", "sensor": tibber_tariff},
+            {"name": "da_prices", "sensor": da_prices},
+        ]
 
         # create the PandasReporter reporter config
         pandas_reporter_config = dict(
-            input_variables=["energy_tax", "VAT", "tariff", "da_prices"],
+            required_input=[
+                {"name": v} for v in ["energy_tax", "VAT", "tariff", "da_prices"]
+            ],
+            required_output=[{"name": "da_prices"}],
             transformations=[
                 dict(
                     df_input="VAT",
@@ -133,13 +136,12 @@ class TibberReporter(Reporter):
                 ),  # da_prices = da_price * VAT, VAT
                 dict(method="round"),
             ],
-            final_df_output="da_prices",
         )
 
         self._inner_reporter = PandasReporter(config=pandas_reporter_config)
 
     def _compute_report(self, **kwargs):
-        kwargs["input_variables"] = self.input_variables
+        kwargs["input"] = self.input
         return self._inner_reporter.compute(**kwargs)
 
 

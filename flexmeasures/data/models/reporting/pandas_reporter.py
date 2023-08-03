@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Union, Dict
 from datetime import datetime, timedelta
-from copy import deepcopy
+from copy import deepcopy, copy
 
 from flask import current_app
 import timely_beliefs as tb
@@ -25,7 +25,7 @@ class PandasReporter(Reporter):
     _config_schema = PandasReporterConfigSchema()
     _parameters_schema = PandasReporterParametersSchema()
 
-    input_variables: list[str] = None
+    input: list[str] = None
     transformations: list[dict[str, Any]] = None
     final_df_output: str = None
 
@@ -35,7 +35,7 @@ class PandasReporter(Reporter):
         self,
         start: datetime,
         end: datetime,
-        input_variables: dict,
+        input: dict,
         resolution: timedelta | None = None,
         belief_time: datetime | None = None,
     ):
@@ -44,23 +44,27 @@ class PandasReporter(Reporter):
         """
 
         self.data = {}
-        for alias, tb_query in input_variables.items():
-            _tb_query = tb_query.copy()
+        for input_search_parameters in input:
+            _input_search_parameters = input_search_parameters.copy()
+
+            sensor: Sensor = _input_search_parameters.pop("sensor", None)
+
+            name = _input_search_parameters.pop("name", f"sensor_{sensor.id}")
 
             # using start / end instead of event_starts_after/event_ends_before when not defined
-            event_starts_after = _tb_query.pop("event_starts_after", start)
-            event_ends_before = _tb_query.pop("event_ends_before", end)
-            resolution = _tb_query.pop("resolution", resolution)
-            belief_time = _tb_query.pop("belief_time", belief_time)
-
-            sensor: Sensor = _tb_query.pop("sensor", None)
+            event_starts_after = _input_search_parameters.pop(
+                "event_starts_after", start
+            )
+            event_ends_before = _input_search_parameters.pop("event_ends_before", end)
+            resolution = _input_search_parameters.pop("resolution", resolution)
+            belief_time = _input_search_parameters.pop("belief_time", belief_time)
 
             bdf = sensor.search_beliefs(
                 event_starts_after=event_starts_after,
                 event_ends_before=event_ends_before,
                 resolution=resolution,
                 beliefs_before=belief_time,
-                **_tb_query,
+                **_input_search_parameters,
             )
 
             # store data source as local variable
@@ -68,7 +72,7 @@ class PandasReporter(Reporter):
                 self.data[f"source_{source.id}"] = source
 
             # store BeliefsDataFrame as local variable
-            self.data[alias] = bdf
+            self.data[name] = bdf
 
     def _compute_report(self, **kwargs) -> tb.BeliefsDataFrame:
         """
@@ -79,7 +83,8 @@ class PandasReporter(Reporter):
         # report configuration
         start: datetime = kwargs.get("start")
         end: datetime = kwargs.get("end")
-        input_variables: dict = kwargs.get("input_variables")
+        input: dict = kwargs.get("input")
+        output_sensor: Sensor | None = kwargs.get("sensor")
 
         resolution: timedelta | None = kwargs.get("resolution", None)
         belief_time: datetime | None = kwargs.get("belief_time", None)
@@ -88,7 +93,7 @@ class PandasReporter(Reporter):
             resolution = self.sensor.event_resolution
 
         # fetch sensor data
-        self.fetch_data(start, end, input_variables, resolution, belief_time)
+        self.fetch_data(start, end, input, resolution, belief_time)
 
         if belief_time is None:
             belief_time = server_now()
@@ -96,40 +101,81 @@ class PandasReporter(Reporter):
         # apply pandas transformations to the dataframes in `self.data`
         self._apply_transformations()
 
-        final_output = self.data[self._config.get("final_df_output")]
+        output = kwargs.get("output", [])
 
-        if isinstance(final_output, tb.BeliefsDataFrame):
-
-            # filing the missing indexes with default values:
-            # belief_time=belief_time, cummulative_probability=0.5, source=data_source
-            if "belief_time" not in final_output.index.names:
-                final_output["belief_time"] = [belief_time] * len(final_output)
-                final_output = final_output.set_index("belief_time", append=True)
-
-            if "cumulative_probability" not in final_output.index.names:
-                final_output["cumulative_probability"] = [0.5] * len(final_output)
-                final_output = final_output.set_index(
-                    "cumulative_probability", append=True
-                )
-
-            if "source" not in final_output.index.names:
-                final_output["source"] = [self.data_source] * len(final_output)
-                final_output = final_output.set_index("source", append=True)
-
-            final_output = final_output.reorder_levels(
-                tb.BeliefsDataFrame().index.names
+        if len(output) == 0 and output_sensor is None:
+            raise ValueError(
+                "No output sensor defined. At least define an output sensor in the `sensor` or `output` fields in `parameters`."
             )
 
-        elif isinstance(final_output, tb.BeliefsSeries):
-            final_output = final_output.to_frame("event_value")
-            final_output["belief_time"] = belief_time
-            final_output["cumulative_probability"] = 0.5
-            final_output["source"] = self.data_source
-            final_output = final_output.set_index(
-                ["belief_time", "source", "cumulative_probability"], append=True
-            )
+        if len(output) == 0:
+            output = [
+                {
+                    "name": self._config["required_output"][0]["name"],
+                    "sensor": output_sensor,
+                }
+            ]
 
-        return final_output
+        results = []
+
+        for output_description in output:
+            result = copy(output_description)
+
+            # TODO: use sensor to store multiple outputs
+            # sensor = output_description["sensor"]
+            name = output_description["name"]
+
+            output_data = self.data[name]
+
+            if isinstance(output_data, tb.BeliefsDataFrame):
+                # if column is missing, use the first column
+                column = output_description.get("column", output_data.columns[0])
+                output_data = output_data.rename(columns={column: "event_value"})[
+                    ["event_value"]
+                ]
+                output_data = self._clean_belief_dataframe(output_data, belief_time)
+
+            elif isinstance(output_data, tb.BeliefsSeries):
+                output_data = self._clean_belief_series(output_data, belief_time)
+
+            result["data"] = output_data
+
+            results.append(result)
+
+        return results[0].get("data")
+
+    def _clean_belief_series(
+        self, belief_series: tb.BeliefsSeries, belief_time: datetime
+    ) -> tb.BeliefsDataFrame:
+        belief_series = belief_series.to_frame("event_value")
+        belief_series["belief_time"] = belief_time
+        belief_series["cumulative_probability"] = 0.5
+        belief_series["source"] = self.data_source
+        belief_series = belief_series.set_index(
+            ["belief_time", "source", "cumulative_probability"], append=True
+        )
+
+        return belief_series
+
+    def _clean_belief_dataframe(
+        self, bdf: tb.BeliefsDataFrame, belief_time: datetime
+    ) -> tb.BeliefsDataFrame:
+        # filing the missing indexes with default values:
+        # belief_time=belief_time, cummulative_probability=0.5, source=data_source
+        if "belief_time" not in bdf.index.names:
+            bdf["belief_time"] = [belief_time] * len(bdf)
+            bdf = bdf.set_index("belief_time", append=True)
+
+        if "cumulative_probability" not in bdf.index.names:
+            bdf["cumulative_probability"] = [0.5] * len(bdf)
+            bdf = bdf.set_index("cumulative_probability", append=True)
+
+        if "source" not in bdf.index.names:
+            bdf["source"] = [self.data_source] * len(bdf)
+            bdf = bdf.set_index("source", append=True)
+
+        bdf = bdf.reorder_levels(tb.BeliefsDataFrame().index.names)
+        return bdf
 
     def get_object_or_literal(self, value: Any, method: str) -> Any:
         """This method allows using the dataframes as inputs of the Pandas methods that

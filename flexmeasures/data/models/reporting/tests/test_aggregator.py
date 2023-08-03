@@ -39,7 +39,7 @@ def test_aggregator(setup_dummy_data, aggregation_method, expected_value):
     s1, s2, s3, report_sensor, daily_report_sensor = setup_dummy_data
 
     reporter_config = dict(
-        data=[
+        input=[
             dict(sensor=s1.id, source=1),
             dict(sensor=s2.id, source=2),
         ],
@@ -65,7 +65,7 @@ def test_dst_transition(setup_dummy_data):
     s1, s2, s3, report_sensor, daily_report_sensor = setup_dummy_data
 
     reporter_config = dict(
-        data=[
+        input=[
             dict(sensor=s3.id, source=1),
         ],
     )
@@ -99,7 +99,7 @@ def test_resampling(setup_dummy_data):
     s1, s2, s3, report_sensor, daily_report_sensor = setup_dummy_data
 
     reporter_config = dict(
-        data=[
+        input=[
             dict(sensor=s3.id, source=1),
         ],
     )

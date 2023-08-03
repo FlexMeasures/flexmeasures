@@ -39,19 +39,21 @@ class AggregatorReporter(Reporter):
 
         method: str = self._config.get("method")
         weights: list = self._config.get("weights", {})
-        data: list = self._config.get("data")
+        input: list = self._config.get("input")
 
         dataframes = []
 
         if belief_time is None:
             belief_time = server_now()
 
-        for d in data:
+        for input_description in input:
             # if alias is not in belief_search_config, using the Sensor id instead
-            column_name = d.get("alias", f"sensor_{d['sensor'].id}")
+            column_name = input_description.get(
+                "alias", f"sensor_{input_description['sensor'].id}"
+            )
 
             df = (
-                d["sensor"]
+                input_description["sensor"]
                 .search_beliefs(
                     event_starts_after=start,
                     event_ends_before=end,

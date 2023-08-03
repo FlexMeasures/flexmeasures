@@ -9,7 +9,8 @@ def test_reporter(app, setup_dummy_data):
     s1, s2, s3, report_sensor, daily_report_sensor = setup_dummy_data
 
     reporter_config = dict(
-        input_variables=["sensor_1", "sensor_2"],
+        required_input=[{"name": "sensor_1"}, {"name": "sensor_2"}],
+        required_output=[{"name": "df_merge"}],
         transformations=[
             dict(
                 df_input="sensor_1",
@@ -36,18 +37,15 @@ def test_reporter(app, setup_dummy_data):
             dict(method="mean"),
             dict(method="sum", kwargs=dict(axis=1)),
         ],
-        final_df_output="df_merge",
     )
 
     reporter = PandasReporter(config=reporter_config)
 
     start = datetime(2023, 4, 10, tzinfo=utc)
     end = datetime(2023, 4, 10, 10, tzinfo=utc)
-    input_variables = dict(sensor_1=dict(sensor=s1), sensor_2=dict(sensor=s2))
+    input = [dict(name="sensor_1", sensor=s1), dict(name="sensor_2", sensor=s2)]
 
-    report1 = reporter.compute(
-        sensor=report_sensor, start=start, end=end, input_variables=input_variables
-    )
+    report1 = reporter.compute(sensor=report_sensor, start=start, end=end, input=input)
 
     assert len(report1) == 5
     assert str(report1.event_starts[0]) == "2023-04-10 00:00:00+00:00"
@@ -68,7 +66,7 @@ def test_reporter(app, setup_dummy_data):
         sensor=report_sensor,
         start=datetime(2023, 4, 10, 3, tzinfo=utc),
         end=end,
-        input_variables=input_variables,
+        input=input,
     )
     assert len(report2) == 4
     assert str(report2.event_starts[0]) == "2023-04-10 02:00:00+00:00"
@@ -80,7 +78,8 @@ def test_reporter_repeated(setup_dummy_data):
     s1, s2, s3, report_sensor, daily_report_sensor = setup_dummy_data
 
     reporter_config = dict(
-        input_variables=["sensor_1", "sensor_2"],
+        required_input=[{"name": "sensor_1"}, {"name": "sensor_2"}],
+        required_output=[{"name": "df_merge"}],
         transformations=[
             dict(
                 df_input="sensor_1",
@@ -107,17 +106,16 @@ def test_reporter_repeated(setup_dummy_data):
             dict(method="mean"),
             dict(method="sum", kwargs=dict(axis=1)),
         ],
-        final_df_output="df_merge",
     )
 
     parameters = dict(
         sensor=report_sensor.id,
         start="2023-04-10T00:00:00 00:00",
         end="2023-04-10T10:00:00 00:00",
-        input_variables=dict(
-            sensor_1=dict(sensor=s1.id),
-            sensor_2=dict(sensor=s2.id),
-        ),
+        input=[
+            dict(name="sensor_1", sensor=s1.id),
+            dict(name="sensor_2", sensor=s2.id),
+        ],
     )
 
     reporter = PandasReporter(config=reporter_config)
@@ -133,9 +131,9 @@ def test_reporter_empty(setup_dummy_data):
     s1, s2, s3, report_sensor, daily_report_sensor = setup_dummy_data
 
     config = dict(
-        input_variables=["sensor_1"],
+        required_input=[{"name": "sensor_1"}],
+        required_output=[{"name": "sensor_1"}],
         transformations=[],
-        final_df_output="sensor_1",
     )
 
     reporter = PandasReporter(config=config)
@@ -145,7 +143,7 @@ def test_reporter_empty(setup_dummy_data):
         sensor=report_sensor,
         start=datetime(2023, 4, 10, tzinfo=utc),
         end=datetime(2023, 4, 10, 10, tzinfo=utc),
-        input_variables=dict(sensor_1=dict(sensor=s1)),
+        input=[dict(name="sensor_1", sensor=s1)],
     )
 
     assert not report.empty
@@ -155,7 +153,7 @@ def test_reporter_empty(setup_dummy_data):
         sensor=report_sensor,
         start=datetime(2021, 4, 10, tzinfo=utc),
         end=datetime(2021, 4, 10, 10, tzinfo=utc),
-        input_variables=dict(sensor_1=dict(sensor=s1)),
+        input=[dict(name="sensor_1", sensor=s1)],
     )
 
     assert report.empty
