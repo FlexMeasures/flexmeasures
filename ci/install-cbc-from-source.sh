@@ -1,9 +1,10 @@
 #!/bin/bash
 
-######################################################################
+#################################################################################
 # This script installs the Cbc solver from source
-# (for cases where you can't install the coinor-cbc package)
-######################################################################
+# (for cases where you can't install the coinor-cbc package via package managers)
+# Note: We use 2.9 here, but 2.10 has also been working well in our CI pipeline.
+#################################################################################
 
 # Install to this dir
 SOFTWARE_DIR=/home/seita/software

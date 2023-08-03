@@ -35,6 +35,7 @@ def render_flexmeasures_template(html_filename: str, **variables):
 
     variables["event_starts_after"] = session.get("event_starts_after")
     variables["event_ends_before"] = session.get("event_ends_before")
+    variables["chart_type"] = session.get("chart_type", "bar_chart")
 
     variables["page"] = html_filename.split("/")[-1].replace(".html", "")
 
@@ -99,7 +100,9 @@ def set_session_variables(*var_names: str):
     >>> set_session_variables("event_starts_after", "event_ends_before", "chart_type")
     """
     for var_name in var_names:
-        session[var_name] = request.values.get(var_name)
+        var = request.values.get(var_name)
+        if var is not None:
+            session[var_name] = var
 
 
 def get_git_description() -> tuple[str, int, str]:

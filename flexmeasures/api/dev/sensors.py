@@ -45,6 +45,7 @@ class SensorAPI(FlaskView):
             "include_asset_annotations": fields.Boolean(required=False),
             "include_account_annotations": fields.Boolean(required=False),
             "dataset_name": fields.Str(required=False),
+            "chart_type": fields.Str(required=False),
             "height": fields.Str(required=False),
             "width": fields.Str(required=False),
         },
@@ -63,11 +64,12 @@ class SensorAPI(FlaskView):
         - "beliefs_after" (see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
         - "beliefs_before" (see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
         - "include_data" (if true, chart specs include the data; if false, use the `GET /api/dev/sensor/(id)/chart_data/ <../api/dev.html#get--api-dev-sensor-(id)-chart_data->`_ endpoint to fetch data)
+        - "chart_type" (currently 'bar_chart' and 'daily_heatmap' are supported types)
         - "width" (an integer number of pixels; without it, the chart will be scaled to the full width of the container (hint: use ``<div style="width: 100%;">`` to set a div width to 100%)
         - "height" (an integer number of pixels; without it, FlexMeasures sets a default, currently 300)
         """
-        # Store selected time range as session variables, for a consistent UX across UI page loads
-        set_session_variables("event_starts_after", "event_ends_before")
+        # Store selected time range and chart type as session variables, for a consistent UX across UI page loads
+        set_session_variables("event_starts_after", "event_ends_before", "chart_type")
         return json.dumps(sensor.chart(**kwargs))
 
     @route("/<id>/chart_data/")
