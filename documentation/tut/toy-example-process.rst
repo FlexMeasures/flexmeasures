@@ -3,9 +3,10 @@
 Toy example III: Computing schedules for processes
 ====================================================
 
-Until this point we've been using a static battery, one of the most flexible energy assets, to reduce electricity bills. 
+Until this point we've been using a static battery, one of the most flexible energy assets, to reduce electricity bills. A battery can modulate rather freely, and both charge and discharge.
 
-However, in some settings, we can reduce electricity bills by *just* consuming energy smartly. In other words, if the process can be displaced, by breaking it into smaller consumption periods or shifting its start time, the process run can match the lower price hours better.
+
+However, in some settings, we can reduce electricity bills by **just** smartly timing the necessary work that we know we have to do. We call this work a "process". In other words, if the process can be displaced, by breaking it into smaller consumption periods or shifting its start time, the process run can match the lower price hours better.
 
 For example, we could have a load that consumes energy at a constant rate (e.g. 200kW) for a fixed duration (e.g. 4h), but there's some flexibility in the start time. In that case, we could find the optimal start time in order to minimize the energy cost.
 
@@ -91,7 +92,7 @@ Finally, we'll schedule the process using the SHIFTABLE policy.
 Results
 ---------
 
-The image below show the resulting schedules following each of the three policies. You will see similar results in your `FlexMeasures UI <http://localhost:5000/assets/4/>`_. 
+The image below shows the resulting schedules following each of the three policies. You will see similar results in your `FlexMeasures UI <http://localhost:5000/assets/4/>`_. 
 
  
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/asset-view-process.png
@@ -104,8 +105,7 @@ Meanwhile, in the BREAKABLE policy, the consumption blocks surrounds the time re
 Finally, in the SHIFTABLE policy, the process is shifted to capture the best prices, avoiding the time restrictions.
 
 
-Quantitatively, comparing the total cost of running the process under each policy, the BREAKABLE policy achieves the best results. This is because it can fit much more consumption blocks in the cheapest hours.
-
+Let's list the power price the policies achieved for each of the four blocks they scheduled:
 
 +-------------------------+------------+-----------+-----------+
 |          Block          | INFLEXIBLE | BREAKABLE | SHIFTABLE |
@@ -122,3 +122,5 @@ Quantitatively, comparing the total cost of running the process under each polic
 +-------------------------+------------+-----------+-----------+
 |    Total Cost (EUR)     |    9.60    |   4.29    |   5.40    |
 +-------------------------+------------+-----------+-----------+
+
+Quantitatively, comparing the total cost of running the process under each policy, the BREAKABLE policy achieves the best results. This is because it can fit much more consumption blocks in the cheapest hours.
