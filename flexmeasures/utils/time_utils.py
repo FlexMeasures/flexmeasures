@@ -246,14 +246,6 @@ def get_most_recent_clocktime_window(
     return begin_time, end_time
 
 
-def get_default_start_time() -> datetime:
-    return get_most_recent_quarter() - timedelta(days=1)
-
-
-def get_default_end_time() -> datetime:
-    return get_most_recent_quarter() + timedelta(days=1)
-
-
 def get_first_day_of_next_month() -> datetime:
     return (datetime.now().replace(day=1) + timedelta(days=32)).replace(day=1)
 

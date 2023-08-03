@@ -16,8 +16,6 @@ In this mode, the server is assumed to be used as a demonstration tool. Most of 
 - [UI] Logged-in users can view queues on the demo server (usually only admins can do that)
 - [UI] Demo servers often display login credentials, so visitors can try out functionality. Use the :ref:`demo-credentials-config` config setting to do this.
 - [UI] The dashboard shows all non-empty asset groups, instead of only the ones for the current user.
-- [UI] The analytics page mocks confidence intervals around power, price and weather data, so that the demo data doesn't need to have them. 
-- [UI] The portfolio page mocks flexibility numbers and a mocked control action.
 
 Play
 ------

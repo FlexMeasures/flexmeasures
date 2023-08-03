@@ -56,7 +56,7 @@ def test_new_asset_page(client, setup_assets, as_admin):
 
 def test_asset_page(db, client, setup_assets, requests_mock, as_prosumer_user1):
     user = find_user_by_email("test_prosumer_user@seita.nl")
-    asset = user.assets[0]
+    asset = user.account.generic_assets[0]
     db.session.expunge(user)
     mock_asset = mock_asset_response(as_list=False)
     mock_asset["latitude"] = asset.latitude
