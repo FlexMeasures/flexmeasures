@@ -58,3 +58,33 @@ def test_data_source(db, app, aggregator_reporter_data_source):
     ds4 = ds3.data_source.data_generator
 
     assert ds4._config == ds3._config
+
+
+def test_data_generator_save_config(
+    db, app, aggregator_reporter_data_source, add_nearby_weather_sensors
+):
+    TestTeporter = app.data_generators["reporter"].get("TestReporter")
+
+    reporter_sensor = add_nearby_weather_sensors.get("farther_temperature")
+
+    reporter = TestTeporter(config={"a": "1"})
+
+    res = reporter.compute(
+        sensor=reporter_sensor,
+        start=datetime(2023, 1, 1, tzinfo=UTC),
+        end=datetime(2023, 1, 2, tzinfo=UTC),
+    )
+
+    assert res.lineage.sources[0].attributes.get("data_generator").get("config") == {
+        "a": "1"
+    }
+
+    reporter = TestTeporter(config={"a": "1"}, save_config=False)
+
+    res = reporter.compute(
+        sensor=reporter_sensor,
+        start=datetime(2023, 1, 1, tzinfo=UTC),
+        end=datetime(2023, 1, 2, tzinfo=UTC),
+    )
+
+    assert len(res.lineage.sources[0].attributes) == 0

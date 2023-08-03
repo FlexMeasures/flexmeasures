@@ -25,15 +25,15 @@ class DataGenerator:
 
     _parameters_schema: Schema | None = None
     _config_schema: Schema | None = None
+    _save_config: bool = True
 
-    def __init__(self, config: dict | None = None, **kwargs) -> None:
+    def __init__(self, config: dict | None = None, save_config=True, **kwargs) -> None:
         """Base class for the Schedulers, Reporters and Forecasters.
 
         The configuration `config` stores static parameters, parameters that, if
         changed, trigger the creation of a new DataSource.  Dynamic parameters, such as
         the start date, can go into the `parameters`. See docstring of the method `DataGenerator.compute` for
         more details.
-
 
         Create a new DataGenerator with a certain configuration. There are two alternatives
         to define the parameters:
@@ -42,6 +42,9 @@ class DataGenerator:
             2.  Deserialized, passing each parameter as keyword arguments.
 
         The configuration is validated using the schema `_config_schema`, to be defined by the subclass.
+
+        `config` cannot contain the key `config` at its top level, otherwise it could conflict with the constructor keyword argument `config`
+        when passing the config as deserialized attributes.
 
         Example:
 
@@ -62,7 +65,10 @@ class DataGenerator:
 
 
         :param config: serialized `config` parameters, defaults to None
+        :param save_config: whether to save the config into the data source attributes
         """
+
+        self._save_config = save_config
 
         if config is None:
             self._config = kwargs
@@ -79,6 +85,9 @@ class DataGenerator:
         """The configuration `parameters` stores dynamic parameters, parameters that, if
         changed, DO NOT trigger the creation of a new DataSource. Static parameters, such as
         the topology of an energy system, can go into `config`.
+
+        `parameters` cannot contain the key `parameters` at its top level, otherwise it could conflict with keyword argument `parameters`
+        of the method compute when passing the `parameters` as deserialized attributes.
 
         :param parameters: serialized `parameters` parameters, defaults to None
         """
@@ -123,9 +132,14 @@ class DataGenerator:
 
         if self._data_source is None:
             data_source_info = self.get_data_source_info()
-            data_source_info["attributes"] = {
-                "data_generator": {"config": self._config_schema.dump(self._config)}
-            }
+
+            attributes = {}
+            if self._save_config:
+                attributes = {
+                    "data_generator": {"config": self._config_schema.dump(self._config)}
+                }
+
+            data_source_info["attributes"] = attributes
 
             self._data_source = get_or_create_source(**data_source_info)
 
