@@ -265,7 +265,7 @@ def test_battery_solver_day_3(
     same buy/sell prices.
 
     Nonetheless, as shown in Cases 3) and 4), the oscillatory dynamic is gone when having Consumption Price > Production Price.
-    This is because even though the energy consumed is bigger than the produced, the difference between the cost of consuming and the
+    This is because even though the energy consumed is bigger than that produced, the difference between the cost of consuming and the
     revenue of producing doesn't create a profit.
     """
 
