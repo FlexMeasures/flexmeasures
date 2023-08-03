@@ -176,6 +176,10 @@ def run_test_charge_discharge_sign(
     end = tz.localize(datetime(2015, 1, 4))
     resolution = timedelta(hours=1)
     storage_efficiency = 1
+    # Choose the SoC constraints and starting value such that the battery can fully charge or discharge in a single time step
+    soc_min = 0
+    soc_max = battery.get_attribute("capacity_in_mw")
+    soc_at_start = battery.get_attribute("capacity_in_mw")
 
     scheduler: Scheduler = StorageScheduler(
         battery,
@@ -183,9 +187,9 @@ def run_test_charge_discharge_sign(
         end,
         resolution,
         flex_model={
-            "soc-at-start": battery.get_attribute("capacity_in_mw"),
-            "soc-min": 0,
-            "soc-max": battery.get_attribute("capacity_in_mw"),
+            "soc-min": soc_min,
+            "soc-max": soc_max,
+            "soc-at-start": soc_at_start,
             "roundtrip-efficiency": roundtrip_efficiency,
             "storage-efficiency": storage_efficiency,
             "prefer-charging-sooner": False,
