@@ -7,8 +7,7 @@ from flexmeasures.data.schemas.reporting import (
     ReporterParametersSchema,
 )
 
-from flexmeasures.data.schemas.io import RequiredInput, RequiredOutput, Input, Output
-
+from flexmeasures.data.schemas.io import RequiredInput, RequiredOutput
 from timely_beliefs import BeliefsDataFrame
 
 
@@ -141,11 +140,6 @@ class PandasReporterParametersSchema(ReporterParametersSchema):
     start = AwareDateTimeField(required=False)
     end = AwareDateTimeField(required=False)
 
-    input = fields.List(fields.Nested(Input()), validate=validate.Length(min=1))
-    output = fields.List(
-        fields.Nested(Output()), validate=validate.Length(min=0, max=1)
-    )
-
     @validates_schema
     def validate_time_parameters(self, data, **kwargs):
         """This method validates that all input sensors have start
@@ -169,9 +163,3 @@ class PandasReporterParametersSchema(ReporterParametersSchema):
                 raise ValidationError(
                     f"End parameter not provided for sensor {input_sensor}"
                 )
-
-        # check that either `sensor` is provided or output
-        if "sensor" not in data and len(data.get("output", [])) == 0:
-            raise ValidationError(
-                "An output sensor needs to be defined the field `sensor` or `output`."
-            )

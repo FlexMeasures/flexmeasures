@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from flexmeasures.data.models.time_series import Sensor
+from copy import deepcopy
+
+from typing import List, Dict, Any
 from flexmeasures.data.models.data_sources import DataGenerator
 
 from flexmeasures.data.schemas.reporting import (
     ReporterParametersSchema,
     ReporterConfigSchema,
 )
-
-import timely_beliefs as tb
 
 
 class Reporter(DataGenerator):
@@ -18,45 +18,50 @@ class Reporter(DataGenerator):
     __author__ = None
     __data_generator_base__ = "reporter"
 
-    sensor: Sensor = None
-
     _parameters_schema = ReporterParametersSchema()
     _config_schema = ReporterConfigSchema()
 
-    def _compute(self, **kwargs) -> tb.BeliefsDataFrame:
+    def _compute(self, **kwargs) -> List[Dict[str, Any]]:
         """This method triggers the creation of a new report.
 
         The same object can generate multiple reports with different start, end, resolution
         and belief_time values.
         """
 
-        self.sensor = kwargs["sensor"]
+        results: List[Dict[str, Any]] = self._compute_report(**kwargs)
 
-        # Result
-        result: tb.BeliefsDataFrame = self._compute_report(**kwargs)
+        for result in results:
+            # checking that the event_resolution of the output BeliefDataFrame is equal to the one of the output sensor
+            assert (
+                result["sensor"].event_resolution == result["data"].event_resolution
+            ), f"The resolution of the results ({result['data'].event_resolution}) should match that of the output sensor ({result['sensor'].event_resolution}, ID {result['sensor'].id})."
 
-        # checking that the event_resolution of the output BeliefDataFrame is equal to the one of the output sensor
-        assert (
-            self.sensor.event_resolution == result.event_resolution
-        ), f"The resolution of the results ({result.event_resolution}) should match that of the output sensor ({self.sensor.event_resolution}, ID {self.sensor.id})."
+            # Assign sensor to BeliefDataFrame
+            result["data"].sensor = result["sensor"]
 
-        # Assign sensor to BeliefDataFrame
-        result.sensor = self.sensor
+            if not result["data"].empty:
+                # update data source
+                result["data"].index = result["data"].index.set_levels(
+                    [self.data_source] * len(result["data"]),
+                    level="source",
+                    verify_integrity=False,
+                )
 
-        if result.empty:
-            return result
+        return results
 
-        # update data source
-        result.index = result.index.set_levels(
-            [self.data_source] * len(result), level="source", verify_integrity=False
-        )
-
-        return result
-
-    def _compute_report(self, **kwargs) -> tb.BeliefsDataFrame:
+    def _compute_report(self, **kwargs) -> List[Dict[str, Any]]:
         """
         Overwrite with the actual computation of your report.
 
         :returns BeliefsDataFrame: report as a BeliefsDataFrame.
         """
         raise NotImplementedError()
+
+    def _clean_parameters(self, parameters: dict) -> dict:
+        _parameters = deepcopy(parameters)
+        fields_to_remove = ["start", "end", "resolution"]
+
+        for field in fields_to_remove:
+            _parameters.pop(field, None)
+
+        return _parameters

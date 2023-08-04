@@ -79,25 +79,29 @@ def test_pandas_reporter_config_schema(config, is_valid, db, app, setup_dummy_se
     [
         (
             {
-                "sensor": 2,  # sensor to save the output to
                 "input": [
                     {
                         "name": "sensor_1_df",
                         "sensor": 1,
                     }  # we're describing how the named variables should be constructed, by defining search filters on the sensor data, rather than on the sensor
                 ],
+                "output": [
+                    {"name": "df2", "sensor": 2}
+                ],  # sensor to save the output to
                 "start": "2023-06-06T00:00:00+02:00",
                 "end": "2023-06-06T00:00:00+02:00",
             },
             True,
         ),
         (  # missing start and end
-            {"input": [{"name": "sensor_1_df", "sensor": 1}]},
+            {
+                "input": [{"name": "sensor_1_df", "sensor": 1}],
+                "output": [{"name": "df2", "sensor": 2}],
+            },
             False,
         ),
         (
             {
-                "sensor": 2,  # sensor to save the output to
                 "input": [
                     {
                         "name": "sensor_1_df",
@@ -106,6 +110,9 @@ def test_pandas_reporter_config_schema(config, is_valid, db, app, setup_dummy_se
                         "event_ends_before": "2023-06-07T00:00:00+02:00",
                     }
                 ],
+                "output": [
+                    {"name": "df2", "sensor": 2}
+                ],  # sensor to save the output to
             },
             True,
         ),
