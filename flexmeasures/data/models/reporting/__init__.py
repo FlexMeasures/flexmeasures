@@ -75,7 +75,7 @@ class Reporter(DataGeneratorMixin):
             )
 
             # store data source as local variable
-            for source in bdf.sources.unique():
+            for source in bdf.sources.unique().dropna():
                 self.data[f"source_{source.id}"] = source
 
             # store BeliefsDataFrame as local variable

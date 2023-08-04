@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 
 from flask import current_app
 import timely_beliefs as tb
+import pandas as pd
 
 from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.schemas.reporting.pandas_reporter import (
@@ -80,6 +81,18 @@ class PandasReporter(Reporter):
             final_output = final_output.set_index(
                 ["belief_time", "source", "cumulative_probability"], append=True
             )
+
+        # use event_starts frequency when final_output event resolution
+        # does not correspond with the event resolution of the output sensor
+        event_frequency = final_output.event_starts.inferred_freq
+
+        if event_frequency:
+            event_frequency = pd.to_timedelta(
+                pd.tseries.frequencies.to_offset(event_frequency)
+            ).to_pytimedelta()
+
+            if final_output.event_resolution != final_output.sensor.event_resolution:
+                final_output.event_resolution = event_frequency
 
         return final_output
 
