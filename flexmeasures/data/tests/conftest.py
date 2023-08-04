@@ -11,6 +11,7 @@ from statsmodels.api import OLS
 import timely_beliefs as tb
 from flexmeasures.data.models.reporting import Reporter
 
+from flexmeasures.data.schemas.reporting import ReporterParametersSchema
 from flexmeasures.data.models.annotations import Annotation
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import TimedBelief, Sensor
@@ -186,13 +187,18 @@ def test_reporter(app, db, add_nearby_weather_sensors):
     class TestReporterConfigSchema(Schema):
         a = fields.Str()
 
+    class TestReporterParametersSchema(ReporterParametersSchema):
+        b = fields.Str(required=False)
+
     class TestReporter(Reporter):
         _config_schema = TestReporterConfigSchema()
+        _parameters_schema = TestReporterParametersSchema()
 
-        def _compute_report(self, **kwargs) -> tb.BeliefsDataFrame:
+        def _compute_report(self, **kwargs) -> list:
             start = kwargs.get("start")
             end = kwargs.get("end")
-            resolution = self.sensor.event_resolution
+            sensor = kwargs["output"][0]["sensor"]
+            resolution = sensor.event_resolution
 
             index = pd.date_range(start=start, end=end, freq=resolution)
 
@@ -203,7 +209,9 @@ def test_reporter(app, db, add_nearby_weather_sensors):
             r["cumulative_probability"] = 0.5
             r["event_value"] = 0
 
-            return tb.BeliefsDataFrame(r, sensor=self.sensor)
+            bdf = tb.BeliefsDataFrame(r, sensor=sensor)
+
+            return [{"data": bdf, "sensor": sensor}]
 
     app.data_generators["reporter"].update({"TestReporter": TestReporter})
 

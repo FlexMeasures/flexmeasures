@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Union, Dict
+from typing import Any, Union, Dict, List
 from datetime import datetime, timedelta
 from copy import deepcopy, copy
 
@@ -74,7 +74,7 @@ class PandasReporter(Reporter):
             # store BeliefsDataFrame as local variable
             self.data[name] = bdf
 
-    def _compute_report(self, **kwargs) -> tb.BeliefsDataFrame:
+    def _compute_report(self, **kwargs) -> List[Dict[str, Any]]:
         """
         This method applies the transformations and outputs the dataframe
         defined in `final_df_output` field of the report_config.
@@ -84,13 +84,14 @@ class PandasReporter(Reporter):
         start: datetime = kwargs.get("start")
         end: datetime = kwargs.get("end")
         input: dict = kwargs.get("input")
-        output_sensor: Sensor | None = kwargs.get("sensor")
 
         resolution: timedelta | None = kwargs.get("resolution", None)
         belief_time: datetime | None = kwargs.get("belief_time", None)
+        output: List[Dict[str, Any]] = kwargs.get("output")
 
+        # by default, use the minimum resolution among the output sensors
         if resolution is None:
-            resolution = self.sensor.event_resolution
+            resolution = min([o["sensor"].event_resolution for o in output])
 
         # fetch sensor data
         self.fetch_data(start, end, input, resolution, belief_time)
@@ -101,28 +102,11 @@ class PandasReporter(Reporter):
         # apply pandas transformations to the dataframes in `self.data`
         self._apply_transformations()
 
-        output = kwargs.get("output", [])
-
-        if len(output) == 0 and output_sensor is None:
-            raise ValueError(
-                "No output sensor defined. At least define an output sensor in the `sensor` or `output` fields in `parameters`."
-            )
-
-        if len(output) == 0:
-            output = [
-                {
-                    "name": self._config["required_output"][0]["name"],
-                    "sensor": output_sensor,
-                }
-            ]
-
         results = []
 
         for output_description in output:
             result = copy(output_description)
 
-            # TODO: use sensor to store multiple outputs
-            # sensor = output_description["sensor"]
             name = output_description["name"]
 
             output_data = self.data[name]
@@ -142,11 +126,13 @@ class PandasReporter(Reporter):
 
             results.append(result)
 
-        return results[0].get("data")
+        return results
 
     def _clean_belief_series(
         self, belief_series: tb.BeliefsSeries, belief_time: datetime
     ) -> tb.BeliefsDataFrame:
+        """Create a BeliefDataFrame from a BeliefsSeries creating the necessary indexes."""
+
         belief_series = belief_series.to_frame("event_value")
         belief_series["belief_time"] = belief_time
         belief_series["cumulative_probability"] = 0.5
@@ -160,8 +146,9 @@ class PandasReporter(Reporter):
     def _clean_belief_dataframe(
         self, bdf: tb.BeliefsDataFrame, belief_time: datetime
     ) -> tb.BeliefsDataFrame:
+        """Add missing indexes to build a proper BeliefDataFrame."""
+
         # filing the missing indexes with default values:
-        # belief_time=belief_time, cummulative_probability=0.5, source=data_source
         if "belief_time" not in bdf.index.names:
             bdf["belief_time"] = [belief_time] * len(bdf)
             bdf = bdf.set_index("belief_time", append=True)
@@ -174,7 +161,6 @@ class PandasReporter(Reporter):
             bdf["source"] = [self.data_source] * len(bdf)
             bdf = bdf.set_index("source", append=True)
 
-        bdf = bdf.reorder_levels(tb.BeliefsDataFrame().index.names)
         return bdf
 
     def get_object_or_literal(self, value: Any, method: str) -> Any:

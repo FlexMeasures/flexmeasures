@@ -12,13 +12,14 @@ class RequiredInput(Schema):
 class Input(Schema):
     """
     This schema implements the required fields to perform a TimedBeliefs search
-    using the method flexmeasures.data.models.time_series:Sensor.search_beliefs
+    using the method flexmeasures.data.models.time_series:TimedBelief.search_beliefs.
+
+    It includes the field `name`, which is not part of the search query, for later reference of the belief.
     """
 
     name = fields.Str(required=False)
-    # column = fields.Str(required=True)
-    sensor = SensorIdField(required=True)
 
+    sensor = SensorIdField(required=True)
     source = DataSourceIdField()
 
     event_starts_after = AwareDateTimeField()
@@ -41,7 +42,7 @@ class Input(Schema):
 
 
 class Output(Schema):
-    name = fields.Str(required=True)
+    name = fields.Str(required=False)
     column = fields.Str(required=False)
     sensor = SensorIdField(required=True)
 

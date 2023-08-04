@@ -16,16 +16,18 @@ def test_get_reporter_from_source(db, app, test_reporter, add_nearby_weather_sen
     assert reporter.__class__.__name__ == "TestReporter"
 
     res = reporter.compute(
-        sensor=reporter_sensor,
+        input=[{"sensor": reporter_sensor}],
+        output=[{"sensor": reporter_sensor}],
         start=datetime(2023, 1, 1, tzinfo=UTC),
         end=datetime(2023, 1, 2, tzinfo=UTC),
-    )
+    )[0]["data"]
 
     assert res.lineage.sources[0] == reporter.data_source
 
     with pytest.raises(AttributeError):
         reporter.compute(
-            sensor=reporter_sensor,
+            input=[{"sensor": reporter_sensor}],
+            output=[{"sensor": reporter_sensor}],
             start=datetime(2023, 1, 1, tzinfo=UTC),
             end="not a date",
         )
@@ -70,10 +72,11 @@ def test_data_generator_save_config(db, app, test_reporter, add_nearby_weather_s
     reporter = TestReporter(config={"a": "1"})
 
     res = reporter.compute(
-        sensor=reporter_sensor,
+        input=[{"sensor": reporter_sensor}],
+        output=[{"sensor": reporter_sensor}],
         start=datetime(2023, 1, 1, tzinfo=UTC),
         end=datetime(2023, 1, 2, tzinfo=UTC),
-    )
+    )[0]["data"]
 
     assert res.lineage.sources[0].attributes.get("data_generator").get("config") == {
         "a": "1"
@@ -82,9 +85,60 @@ def test_data_generator_save_config(db, app, test_reporter, add_nearby_weather_s
     reporter = TestReporter(config={"a": "1"}, save_config=False)
 
     res = reporter.compute(
-        sensor=reporter_sensor,
+        input=[{"sensor": reporter_sensor}],
+        output=[{"sensor": reporter_sensor}],
         start=datetime(2023, 1, 1, tzinfo=UTC),
         end=datetime(2023, 1, 2, tzinfo=UTC),
+    )[0]["data"]
+
+    assert len(res.lineage.sources[0].attributes.get("data_generator")) == 0
+
+
+def test_data_generator_save_parameters(
+    db, app, test_reporter, add_nearby_weather_sensors
+):
+    TestReporter = app.data_generators["reporter"].get("TestReporter")
+
+    reporter_sensor = add_nearby_weather_sensors.get("farther_temperature")
+
+    reporter = TestReporter(config={"a": "1"}, save_parameters=True)
+
+    parameters = {
+        "input": [{"sensor": reporter_sensor.id}],
+        "output": [{"sensor": reporter_sensor.id}],
+        "start": "2023-01-01T00:00:00+00:00",
+        "end": "2023-01-02T00:00:00+00:00",
+        "b": "test",
+    }
+
+    parameters_without_start_end = {
+        "input": [{"sensor": reporter_sensor.id}],
+        "output": [{"sensor": reporter_sensor.id}],
+        "b": "test",
+    }
+
+    res = reporter.compute(parameters=parameters)[0]["data"]
+
+    assert res.lineage.sources[0].attributes.get("data_generator").get("config") == {
+        "a": "1"
+    }
+
+    assert (
+        res.lineage.sources[0].attributes.get("data_generator").get("parameters")
+        == parameters_without_start_end
     )
 
-    assert len(res.lineage.sources[0].attributes) == 0
+    dg2 = reporter.data_source.data_generator
+
+    parameters_2 = {
+        "start": "2023-01-01T10:00:00+00:00",
+        "end": "2023-01-02T00:00:00+00:00",
+        "b": "test2",
+    }
+
+    res = dg2.compute(parameters=parameters_2)[0]["data"]
+
+    # check that compute gets data stored in the DB (i.e. `input`/`output`) and updated data
+    # from the method call (e.g. field `b``)
+    assert dg2._parameters["b"] == parameters_2["b"]
+    assert dg2._parameters["start"].isoformat() == parameters_2["start"]
