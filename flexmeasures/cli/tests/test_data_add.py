@@ -97,7 +97,7 @@ def test_cli_help(app):
 
 
 @pytest.mark.skip_github
-def test_add_reporter(app, db, setup_dummy_data, reporter_config):
+def test_add_reporter(app, db, setup_dummy_data):
     """
     The reporter aggregates input data from two sensors (both have 200 data points)
     to a two-hour resolution.
@@ -114,8 +114,21 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config):
 
     from flexmeasures.cli.data_add import add_report
 
-    sensor1, sensor2, report_sensor = setup_dummy_data
-    report_sensor_id = report_sensor.id
+    sensor1_id, sensor2_id, report_sensor_id, _ = setup_dummy_data
+
+    reporter_config = dict(
+        required_input=[{"name": "sensor_1"}, {"name": "sensor_2"}],
+        required_output=[{"name": "df_agg"}],
+        transformations=[
+            dict(
+                df_input="sensor_1",
+                method="add",
+                args=["@sensor_2"],
+                df_output="df_agg",
+            ),
+            dict(method="resample_events", args=["2h"]),
+        ],
+    )
 
     # Running the command with start and end values.
 
@@ -132,10 +145,10 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config):
 
     parameters = dict(
         input=[
-            dict(name="sensor_1", sensor=sensor1.id),
-            dict(name="sensor_2", sensor=sensor2.id),
+            dict(name="sensor_1", sensor=sensor1_id),
+            dict(name="sensor_2", sensor=sensor2_id),
         ],
-        sensor=report_sensor_id,
+        output=[dict(name="df_agg", sensor=report_sensor_id)],
     )
 
     cli_input = to_flags(cli_input_params)
@@ -226,6 +239,87 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config):
         )
 
         assert len(stored_report) == 95
+
+
+@pytest.mark.skip_github
+def test_add_multiple_output(app, db, setup_dummy_data):
+    """ """
+
+    from flexmeasures.cli.data_add import add_report
+
+    sensor_1_id, sensor_2_id, report_sensor_id, report_sensor_2_id = setup_dummy_data
+
+    reporter_config = dict(
+        required_input=[{"name": "sensor_1"}, {"name": "sensor_2"}],
+        required_output=[{"name": "df_agg"}, {"name": "df_sub"}],
+        transformations=[
+            dict(
+                df_input="sensor_1",
+                method="add",
+                args=["@sensor_2"],
+                df_output="df_agg",
+            ),
+            dict(method="resample_events", args=["2h"]),
+            dict(
+                df_input="sensor_1",
+                method="subtract",
+                args=["@sensor_2"],
+                df_output="df_sub",
+            ),
+            dict(method="resample_events", args=["2h"]),
+        ],
+    )
+
+    # Running the command with start and end values.
+
+    runner = app.test_cli_runner()
+
+    cli_input_params = {
+        "config": "reporter_config.yaml",
+        "parameters": "parameters.json",
+        "reporter": "PandasReporter",
+        "start": "2023-04-10T00:00:00 00:00",
+        "end": "2023-04-10T10:00:00 00:00",
+        "output-file": "test-$name.csv",
+    }
+
+    parameters = dict(
+        input=[
+            dict(name="sensor_1", sensor=sensor_1_id),
+            dict(name="sensor_2", sensor=sensor_2_id),
+        ],
+        output=[
+            dict(name="df_agg", sensor=report_sensor_id),
+            dict(name="df_sub", sensor=report_sensor_2_id),
+        ],
+    )
+
+    cli_input = to_flags(cli_input_params)
+
+    # run test in an isolated file system
+    with runner.isolated_filesystem():
+
+        # save reporter_config to a json file
+        with open("reporter_config.yaml", "w") as f:
+            yaml.dump(reporter_config, f)
+
+        with open("parameters.json", "w") as f:
+            json.dump(parameters, f)
+
+        # call command
+        result = runner.invoke(add_report, cli_input)
+
+        assert os.path.exists("test-df_agg.csv")
+        assert os.path.exists("test-df_sub.csv")
+
+        print(result)
+
+        assert result.exit_code == 0  # run command without errors
+
+        assert "Reporter PandasReporter found" in result.output
+        assert "Report computation done." in result.output
+
+        # Check report is save
 
 
 @pytest.mark.skip_github
