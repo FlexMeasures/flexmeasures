@@ -30,7 +30,7 @@ class Reporter(DataGenerator):
         and belief_time values.
         """
 
-        self.sensor = kwargs["sensor"]
+        self.sensor = kwargs.get("output", [None])[0].get("sensor")
 
         # Result
         result: tb.BeliefsDataFrame = self._compute_report(**kwargs)

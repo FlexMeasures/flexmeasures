@@ -22,7 +22,7 @@ class ReporterParametersSchema(Schema):
     Inherit from this class to extend this schema with your own parameters.
     """
 
-    sensor = SensorIdField(required=True)
+    sensor = SensorIdField(required=False)
 
     start = AwareDateTimeField(required=True)
     end = AwareDateTimeField(required=True)
