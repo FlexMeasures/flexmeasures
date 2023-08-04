@@ -1453,7 +1453,7 @@ def add_report(  # noqa: C901
     # click parameter
     if parameters.get("sensor") is None:
         click.secho(
-            "Report sensor needs to be defined, either on the `parameters` file or trough the --sensor CLI parameter...",
+            "Report sensor needs to be defined, either on the `parameters` file or through the --sensor CLI parameter...",
             **MsgStyle.ERROR,
         )
         raise click.Abort()
