@@ -84,7 +84,7 @@ class PandasReporterConfigSchema(ReporterConfigSchema):
         fields.Nested(RequiredInput()), validate=validate.Length(min=1)
     )
     required_output = fields.List(
-        fields.Nested(RequiredOutput()), validate=validate.Length(min=1, max=1)
+        fields.Nested(RequiredOutput()), validate=validate.Length(min=1)
     )
     transformations = fields.List(fields.Nested(PandasMethodCall()), required=True)
 
