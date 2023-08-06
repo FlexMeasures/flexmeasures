@@ -41,7 +41,9 @@ class DataGenerator:
         The configuration `config` stores static parameters, parameters that, if
         changed, trigger the creation of a new DataSource.  Dynamic parameters, such as
         the start date, can go into the `parameters`. See docstring of the method `DataGenerator.compute` for
-        more details.
+        more details. Nevertheless, the parameter `save_parameters` can be set to True if some `parameters` need
+        to be saved to the DB. In that case, the method `_clean_parameters` is called to remove any field that is not
+        to be persisted, e.g. time parameters which are already contained in the TimedBelief.
 
         Create a new DataGenerator with a certain configuration. There are two alternatives
         to define the parameters:
@@ -74,6 +76,7 @@ class DataGenerator:
 
         :param config: serialized `config` parameters, defaults to None
         :param save_config: whether to save the config into the data source attributes
+        :param save_parameters: whether to save the parameters into the data source attributes
         """
 
         self._save_config = save_config
@@ -165,7 +168,24 @@ class DataGenerator:
 
     def _clean_parameters(self, parameters: dict) -> dict:
         """Use this function to clean up the parameters dictionary from the
-        fields that are not to be persisted to the DB with the option save_parameters=True
+        fields that are not to be persisted to the DB as data source attributes (when save_parameters=True),
+        e.g. because they are already stored as TimedBelief properties, or otherwise.
+
+        Example:
+
+            An DataGenerator has the following parameters: ["start", "end", "field1", "field2"] and we want just "field1" and "field2"
+            to be persisted.
+
+            Parameters provided to the `compute` method (input of the method `_clean_parameters`):
+            parameters = {
+                            "start" : "2023-01-01T00:00:00+02:00",
+                            "end" : "2023-01-02T00:00:00+02:00",
+                            "field1" : 1,
+                            "field2" : 2
+                        }
+
+            Parameters persisted to the DB (output of the method `_clean_parameters`):
+            parameters = {"field1" : 1,"field2" : 2}
         """
 
         raise NotImplementedError()
