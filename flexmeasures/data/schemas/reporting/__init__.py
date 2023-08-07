@@ -1,9 +1,10 @@
-from marshmallow import Schema, fields
+from marshmallow import Schema, fields, validate
 
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.schemas.sources import DataSourceIdField
 
 from flexmeasures.data.schemas import AwareDateTimeField, DurationField
+from flexmeasures.data.schemas.io import Input, Output
 
 
 class ReporterConfigSchema(Schema):
@@ -22,7 +23,13 @@ class ReporterParametersSchema(Schema):
     Inherit from this class to extend this schema with your own parameters.
     """
 
-    sensor = SensorIdField(required=True)
+    input = fields.List(
+        fields.Nested(Input()),
+        required=True,
+        validator=validate.Length(min=1),
+    )
+
+    output = fields.List(fields.Nested(Output()), validate=validate.Length(min=1))
 
     start = AwareDateTimeField(required=True)
     end = AwareDateTimeField(required=True)

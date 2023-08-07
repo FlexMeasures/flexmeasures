@@ -1,7 +1,7 @@
 import pytest
 
 from flexmeasures.data.models.reporting.aggregator import AggregatorReporter
-
+from flexmeasures.data.models.data_sources import DataSource
 from datetime import datetime
 from pytz import utc, timezone
 
@@ -38,21 +38,16 @@ def test_aggregator(setup_dummy_data, aggregation_method, expected_value):
     """
     s1, s2, s3, report_sensor, daily_report_sensor = setup_dummy_data
 
-    reporter_config = dict(
-        data=[
-            dict(sensor=s1.id, source=1),
-            dict(sensor=s2.id, source=2),
-        ],
-        method=aggregation_method,
-    )
+    agg_reporter = AggregatorReporter(method=aggregation_method)
 
-    agg_reporter = AggregatorReporter(config=reporter_config)
+    source_1 = DataSource.query.get(1)
 
     result = agg_reporter.compute(
-        sensor=report_sensor,
+        input=[dict(sensor=s1, source=source_1), dict(sensor=s2, source=source_1)],
+        output=[dict(sensor=report_sensor)],
         start=datetime(2023, 5, 10, tzinfo=utc),
         end=datetime(2023, 5, 11, tzinfo=utc),
-    )
+    )[0]["data"]
 
     # check that we got a result for 24 hours
     assert len(result) == 24
@@ -61,36 +56,65 @@ def test_aggregator(setup_dummy_data, aggregation_method, expected_value):
     assert (result == expected_value).all().event_value
 
 
+@pytest.mark.parametrize(
+    "weight_1, weight_2, expected_result",
+    [(1, 1, 0), (1, -1, 2), (2, 0, 2), (0, 2, -2)],
+)
+def test_aggregator_reporter_weights(
+    setup_dummy_data, weight_1, weight_2, expected_result
+):
+    s1, s2, s3, report_sensor, daily_report_sensor = setup_dummy_data
+
+    reporter_config = dict(method="sum", weights={"s1": weight_1, "sensor_2": weight_2})
+
+    source_1 = DataSource.query.get(1)
+    source_2 = DataSource.query.get(1)
+
+    agg_reporter = AggregatorReporter(config=reporter_config)
+
+    result = agg_reporter.compute(
+        input=[
+            dict(name="s1", sensor=s1, source=source_1),
+            dict(sensor=s2, source=source_2),
+        ],
+        output=[dict(sensor=report_sensor)],
+        start=datetime(2023, 5, 10, tzinfo=utc),
+        end=datetime(2023, 5, 11, tzinfo=utc),
+    )[0]["data"]
+
+    # check that we got a result for 24 hours
+    assert len(result) == 24
+
+    # check that the value is equal to expected_value
+    assert (result == expected_result).all().event_value
+
+
 def test_dst_transition(setup_dummy_data):
     s1, s2, s3, report_sensor, daily_report_sensor = setup_dummy_data
 
-    reporter_config = dict(
-        data=[
-            dict(sensor=s3.id, source=1),
-        ],
-    )
-
-    agg_reporter = AggregatorReporter(config=reporter_config)
+    agg_reporter = AggregatorReporter()
 
     tz = timezone("Europe/Amsterdam")
 
     # transition from winter (CET) to summer (CEST)
     result = agg_reporter.compute(
-        sensor=report_sensor,
+        input=[dict(sensor=s3, source=DataSource.query.get(1))],
+        output=[dict(sensor=report_sensor)],
         start=tz.localize(datetime(2023, 3, 26)),
         end=tz.localize(datetime(2023, 3, 27)),
         belief_time=tz.localize(datetime(2023, 12, 1)),
-    )
+    )[0]["data"]
 
     assert len(result) == 23
 
     # transition from summer (CEST) to winter (CET)
     result = agg_reporter.compute(
-        sensor=report_sensor,
+        input=[dict(sensor=s3, source=DataSource.query.get(1))],
+        output=[dict(sensor=report_sensor)],
         start=tz.localize(datetime(2023, 10, 29)),
         end=tz.localize(datetime(2023, 10, 30)),
         belief_time=tz.localize(datetime(2023, 12, 1)),
-    )
+    )[0]["data"]
 
     assert len(result) == 25
 
@@ -98,24 +122,19 @@ def test_dst_transition(setup_dummy_data):
 def test_resampling(setup_dummy_data):
     s1, s2, s3, report_sensor, daily_report_sensor = setup_dummy_data
 
-    reporter_config = dict(
-        data=[
-            dict(sensor=s3.id, source=1),
-        ],
-    )
-
-    agg_reporter = AggregatorReporter(config=reporter_config)
+    agg_reporter = AggregatorReporter()
 
     tz = timezone("Europe/Amsterdam")
 
     # transition from winter (CET) to summer (CEST)
     result = agg_reporter.compute(
-        sensor=daily_report_sensor,
         start=tz.localize(datetime(2023, 3, 27)),
         end=tz.localize(datetime(2023, 3, 28)),
+        input=[dict(sensor=s3, source=DataSource.query.get(1))],
+        output=[dict(sensor=daily_report_sensor, source=DataSource.query.get(1))],
         belief_time=tz.localize(datetime(2023, 12, 1)),
         resolution=pd.Timedelta("1D"),
-    )
+    )[0]["data"]
 
     assert result.event_starts[0] == pd.Timestamp(
         year=2023, month=3, day=27, tz="Europe/Amsterdam"
@@ -123,12 +142,13 @@ def test_resampling(setup_dummy_data):
 
     # transition from summer (CEST) to winter (CET)
     result = agg_reporter.compute(
-        sensor=daily_report_sensor,
         start=tz.localize(datetime(2023, 10, 29)),
         end=tz.localize(datetime(2023, 10, 30)),
+        input=[dict(sensor=s3, source=DataSource.query.get(1))],
+        output=[dict(sensor=daily_report_sensor, source=DataSource.query.get(1))],
         belief_time=tz.localize(datetime(2023, 12, 1)),
         resolution=pd.Timedelta("1D"),
-    )
+    )[0]["data"]
 
     assert result.event_starts[0] == pd.Timestamp(
         year=2023, month=10, day=29, tz="Europe/Amsterdam"

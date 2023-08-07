@@ -2,28 +2,18 @@ from marshmallow import fields, ValidationError, validates_schema, validate
 
 from flexmeasures.data.schemas.reporting import (
     ReporterConfigSchema,
-    BeliefsSearchConfigSchema,
+    ReporterParametersSchema,
 )
+
+from flexmeasures.data.schemas.io import Output
 
 
 class AggregatorConfigSchema(ReporterConfigSchema):
-    """Schema for the reporter_config of the AggregatorReporter
+    """Schema for the AggregatorReporter configuration
 
     Example:
     .. code-block:: json
         {
-            "data": [
-                {
-                    "sensor": 1,
-                    "source" : 1,
-                    "alias" : "pv"
-                },
-                {
-                    "sensor": 1,
-                    "source" : 2,
-                    "alias" : "consumption"
-                }
-            ],
             "method" : "sum",
             "weights" : {
                 "pv" : 1.0,
@@ -34,33 +24,43 @@ class AggregatorConfigSchema(ReporterConfigSchema):
 
     method = fields.Str(required=False, dump_default="sum", load_default="sum")
     weights = fields.Dict(fields.Str(), fields.Float(), required=False)
-    data = fields.List(
-        fields.Nested(BeliefsSearchConfigSchema()),
-        required=True,
-        validator=validate.Length(min=1),
+
+
+class AggregatorParametersSchema(ReporterParametersSchema):
+    """Schema for the AggregatorReporter parameters
+
+    Example:
+    .. code-block:: json
+        {
+            "input": [
+                {
+                    "name" : "pv",
+                    "sensor": 1,
+                    "source" : 1,
+                },
+                {
+                    "name" : "consumption",
+                    "sensor": 1,
+                    "source" : 2,
+                }
+            ],
+            "output": [
+                {
+                    "sensor": 3,
+                }
+            ],
+            "start" : "2023-01-01T00:00:00+00:00",
+            "end" : "2023-01-03T00:00:00+00:00",
+        }
+    """
+
+    # redefining output to restrict the output length to 1
+    output = fields.List(
+        fields.Nested(Output()), validate=validate.Length(min=1, max=1)
     )
 
     @validates_schema
     def validate_source(self, data, **kwargs):
-
-        for d in data["data"]:
-            if "source" not in d:
+        for input_description in data["input"]:
+            if "source" not in input_description:
                 raise ValidationError("`source` is a required field.")
-
-    @validates_schema
-    def validate_weights(self, data, **kwargs):
-        if "weights" not in data:
-            return
-
-        # get aliases
-        aliases = []
-        for d in data["data"]:
-            if "alias" in d:
-                aliases.append(d.get("alias"))
-
-        # check that the aliases in weights are defined
-        for alias in data.get("weights", {}).keys():
-            if alias not in aliases:
-                raise ValidationError(
-                    f"alias `{alias}` in `weights` is not defined in `data`"
-                )

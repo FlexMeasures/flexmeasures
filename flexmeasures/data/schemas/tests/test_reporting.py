@@ -12,7 +12,8 @@ import pytest
     [
         (
             {  # this checks that the final_df_output dataframe is actually generated at some point of the processing pipeline
-                "input_variables": ["sensor_1"],
+                "required_input": [{"name": "sensor_1"}],
+                "required_output": [{"name": "final_output"}],
                 "transformations": [
                     {
                         "df_output": "final_output",
@@ -20,44 +21,43 @@ import pytest
                         "method": "copy",
                     }
                 ],
-                "final_df_output": "final_output",
             },
             True,
         ),
         (
             {  # this checks that chaining works, applying the method copy on the previous dataframe
-                "input_variables": ["sensor_1"],
+                "required_input": [{"name": "sensor_1"}],
+                "required_output": [{"name": "final_output"}],
                 "transformations": [
                     {"df_output": "output1", "df_input": "sensor_1", "method": "copy"},
                     {"method": "copy"},
                     {"df_output": "final_output", "method": "copy"},
                 ],
-                "final_df_output": "final_output",
             },
             True,
         ),
         (
             {  # this checks that resample cannot be the last method being applied
-                "input_variables": ["sensor_1", "sensor_2"],
+                "required_input": [{"name": "sensor_1"}, {"name": "sensor_2"}],
+                "required_output": [{"name": "final_output"}],
                 "transformations": [
                     {"df_output": "output1", "df_input": "sensor_1", "method": "copy"},
                     {"method": "copy"},
                     {"df_output": "final_output", "method": "resample", "args": ["1h"]},
                 ],
-                "final_df_output": "final_output",
             },
             False,
         ),
         (
             {  # this checks that resample cannot be the last method being applied
-                "input_variables": ["sensor_1", "sensor_2"],
+                "required_input": [{"name": "sensor_1"}, {"name": "sensor_2"}],
+                "required_output": [{"name": "final_output"}],
                 "transformations": [
                     {"df_output": "output1", "df_input": "sensor_1", "method": "copy"},
                     {"method": "copy"},
                     {"df_output": "final_output", "method": "resample", "args": ["1h"]},
                     {"method": "sum"},
                 ],
-                "final_df_output": "final_output",
             },
             True,
         ),
@@ -79,37 +79,40 @@ def test_pandas_reporter_config_schema(config, is_valid, db, app, setup_dummy_se
     [
         (
             {
-                "sensor": 2,  # sensor to save the output to
-                "input_variables": {  # we're describing how the named variables should be constructed, by defining search filters on the sensor data, rather than on the sensor
-                    "sensor_1_df": {
-                        "sensor": 1
-                    },  # alias, i.e. variable name of the DataFrame containing the input data
-                },
+                "input": [
+                    {
+                        "name": "sensor_1_df",
+                        "sensor": 1,
+                    }  # we're describing how the named variables should be constructed, by defining search filters on the sensor data, rather than on the sensor
+                ],
+                "output": [
+                    {"name": "df2", "sensor": 2}
+                ],  # sensor to save the output to
                 "start": "2023-06-06T00:00:00+02:00",
                 "end": "2023-06-06T00:00:00+02:00",
             },
             True,
         ),
-        (
+        (  # missing start and end
             {
-                "input_variables": {
-                    "sensor_1_df": {
-                        "sensor": 1
-                    }  # alias, i.e. variable name of the DataFrame containing the input data
-                },
+                "input": [{"name": "sensor_1_df", "sensor": 1}],
+                "output": [{"name": "df2", "sensor": 2}],
             },
             False,
         ),
         (
             {
-                "sensor": 2,  # sensor to save the output to
-                "input_variables": {
-                    "sensor_1_df": {  # alias, i.e. variable name of the DataFrame containing the parameters data
+                "input": [
+                    {
+                        "name": "sensor_1_df",
                         "sensor": 1,
                         "event_starts_after": "2023-06-07T00:00:00+02:00",
                         "event_ends_before": "2023-06-07T00:00:00+02:00",
                     }
-                },
+                ],
+                "output": [
+                    {"name": "df2", "sensor": 2}
+                ],  # sensor to save the output to
             },
             True,
         ),

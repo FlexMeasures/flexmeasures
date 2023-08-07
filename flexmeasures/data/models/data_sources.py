@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, List, Dict
 from sqlalchemy.ext.mutable import MutableDict
 
 import timely_beliefs as tb
@@ -22,18 +22,28 @@ class DataGenerator:
     _data_source: DataSource | None = None
 
     _config: dict = None
+    _parameters: dict = None
 
     _parameters_schema: Schema | None = None
     _config_schema: Schema | None = None
     _save_config: bool = True
+    _save_parameters: bool = False
 
-    def __init__(self, config: dict | None = None, save_config=True, **kwargs) -> None:
+    def __init__(
+        self,
+        config: dict | None = None,
+        save_config=True,
+        save_parameters=False,
+        **kwargs,
+    ) -> None:
         """Base class for the Schedulers, Reporters and Forecasters.
 
         The configuration `config` stores static parameters, parameters that, if
         changed, trigger the creation of a new DataSource.  Dynamic parameters, such as
         the start date, can go into the `parameters`. See docstring of the method `DataGenerator.compute` for
-        more details.
+        more details. Nevertheless, the parameter `save_parameters` can be set to True if some `parameters` need
+        to be saved to the DB. In that case, the method `_clean_parameters` is called to remove any field that is not
+        to be persisted, e.g. time parameters which are already contained in the TimedBelief.
 
         Create a new DataGenerator with a certain configuration. There are two alternatives
         to define the parameters:
@@ -66,22 +76,24 @@ class DataGenerator:
 
         :param config: serialized `config` parameters, defaults to None
         :param save_config: whether to save the config into the data source attributes
+        :param save_parameters: whether to save the parameters into the data source attributes
         """
 
         self._save_config = save_config
+        self._save_parameters = save_parameters
 
-        if config is None:
+        if config is None and len(kwargs) > 0:
             self._config = kwargs
             DataGenerator.validate_deserialized(self._config, self._config_schema)
-        elif self._config_schema:
+        elif config is not None:
             self._config = self._config_schema.load(config)
-        else:
-            self._config = config
+        elif len(kwargs) == 0:
+            self._config = self._config_schema.load({})
 
-    def _compute(self, **kwargs):
+    def _compute(self, **kwargs) -> List[Dict[str, Any]]:
         raise NotImplementedError()
 
-    def compute(self, parameters: dict | None = None, **kwargs):
+    def compute(self, parameters: dict | None = None, **kwargs) -> List[Dict[str, Any]]:
         """The configuration `parameters` stores dynamic parameters, parameters that, if
         changed, DO NOT trigger the creation of a new DataSource. Static parameters, such as
         the topology of an energy system, can go into `config`.
@@ -91,15 +103,18 @@ class DataGenerator:
 
         :param parameters: serialized `parameters` parameters, defaults to None
         """
-        if parameters is None:
-            _parameters = kwargs
-            DataGenerator.validate_deserialized(_parameters, self._parameters_schema)
-        elif self._parameters_schema:
-            _parameters = self._parameters_schema.load(parameters)
-        else:  # skip validation
-            _parameters = parameters
 
-        return self._compute(**_parameters)
+        if self._parameters is None:
+            self._parameters = {}
+
+        if parameters is None:
+            self._parameters.update(self._parameters_schema.dump(kwargs))
+        else:
+            self._parameters.update(parameters)
+
+        self._parameters = self._parameters_schema.load(self._parameters)
+
+        return self._compute(**self._parameters)
 
     @staticmethod
     def validate_deserialized(values: dict, schema: Schema) -> bool:
@@ -133,17 +148,47 @@ class DataGenerator:
         if self._data_source is None:
             data_source_info = self.get_data_source_info()
 
-            attributes = {}
+            attributes = {"data_generator": {}}
+
             if self._save_config:
-                attributes = {
-                    "data_generator": {"config": self._config_schema.dump(self._config)}
-                }
+                attributes["data_generator"]["config"] = self._config_schema.dump(
+                    self._config
+                )
+
+            if self._save_parameters:
+                attributes["data_generator"]["parameters"] = self._clean_parameters(
+                    self._parameters_schema.dump(self._parameters)
+                )
 
             data_source_info["attributes"] = attributes
 
             self._data_source = get_or_create_source(**data_source_info)
 
         return self._data_source
+
+    def _clean_parameters(self, parameters: dict) -> dict:
+        """Use this function to clean up the parameters dictionary from the
+        fields that are not to be persisted to the DB as data source attributes (when save_parameters=True),
+        e.g. because they are already stored as TimedBelief properties, or otherwise.
+
+        Example:
+
+            An DataGenerator has the following parameters: ["start", "end", "field1", "field2"] and we want just "field1" and "field2"
+            to be persisted.
+
+            Parameters provided to the `compute` method (input of the method `_clean_parameters`):
+            parameters = {
+                            "start" : "2023-01-01T00:00:00+02:00",
+                            "end" : "2023-01-02T00:00:00+02:00",
+                            "field1" : 1,
+                            "field2" : 2
+                        }
+
+            Parameters persisted to the DB (output of the method `_clean_parameters`):
+            parameters = {"field1" : 1,"field2" : 2}
+        """
+
+        raise NotImplementedError()
 
 
 class DataSource(db.Model, tb.BeliefSourceDBMixin):
@@ -237,11 +282,15 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         # fetch DataGenerator details
         data_generator_details = self.attributes.get("data_generator", {})
         config = data_generator_details.get("config", {})
+        parameters = data_generator_details.get("parameters", {})
 
-        # create DataGenerator class and assign the current DataSource (self) as its source
+        # create DataGenerator class and add the parameters
         data_generator = current_app.data_generators[self.type][self.model](
             config=config
         )
+        data_generator._parameters = parameters
+
+        # assign the current DataSource (self) as its source
         data_generator._data_source = self
 
         self._data_generator = data_generator
