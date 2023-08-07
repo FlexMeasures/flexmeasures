@@ -5,10 +5,13 @@ CLI commands for populating the database
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Type
+from typing import Type, List
+import isodate
 import json
+import yaml
 from pathlib import Path
 from io import TextIOBase
+from string import Template
 
 from marshmallow import validate
 import pandas as pd
@@ -51,9 +54,12 @@ from flexmeasures.data.schemas import (
     LatitudeField,
     LongitudeField,
     SensorIdField,
+    TimeIntervalField,
 )
+from flexmeasures.data.schemas.times import TimeIntervalSchema
 from flexmeasures.data.schemas.scheduling.storage import EfficiencyField
 from flexmeasures.data.schemas.sensors import SensorSchema
+from flexmeasures.data.schemas.io import Output
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema,
@@ -200,8 +206,8 @@ def new_user(
 @click.option(
     "--event-resolution",
     required=True,
-    type=int,
-    help="Expected resolution of the data in minutes",
+    type=str,
+    help="Expected resolution of the data in ISO8601 duration string",
 )
 @click.option(
     "--timezone",
@@ -234,8 +240,18 @@ def add_sensor(**args):
         )
         raise click.Abort()
     del args["attributes"]  # not part of schema
+    if args["event_resolution"].isdigit():
+        click.secho(
+            "DeprecationWarning: Use ISO8601 duration string for event-resolution, minutes in int will be depricated from v0.16.0",
+            **MsgStyle.WARN,
+        )
+        timedelta_event_resolution = timedelta(minutes=int(args["event_resolution"]))
+        isodate_event_resolution = isodate.duration_isoformat(
+            timedelta_event_resolution
+        )
+        args["event_resolution"] = isodate_event_resolution
     check_errors(SensorSchema().validate(args))
-    args["event_resolution"] = timedelta(minutes=args["event_resolution"])
+
     sensor = Sensor(**args)
     if not isinstance(attributes, dict):
         click.secho("Attributes should be a dict.", **MsgStyle.ERROR)
@@ -1158,22 +1174,152 @@ def add_schedule_for_storage(
             click.secho("New schedule is stored.", **MsgStyle.SUCCESS)
 
 
-@fm_add_data.command("report")
+@create_schedule.command("for-process")
 @with_appcontext
 @click.option(
     "--sensor-id",
-    "sensor",
+    "power_sensor",
     type=SensorIdField(),
     required=True,
-    help="Sensor used to save the report. Follow up with the sensor's ID. "
-    " If needed, use `flexmeasures add sensor` to create a new sensor first.",
+    help="Create schedule for this sensor. Should be a power sensor. Follow up with the sensor's ID.",
 )
 @click.option(
-    "--reporter-config",
-    "reporter_config",
+    "--consumption-price-sensor",
+    "consumption_price_sensor",
+    type=SensorIdField(),
+    required=False,
+    help="Optimize consumption against this sensor. The sensor typically records an electricity price (e.g. in EUR/kWh), but this field can also be used to optimize against some emission intensity factor (e.g. in kg CO₂ eq./kWh). Follow up with the sensor's ID.",
+)
+@click.option(
+    "--start",
+    "start",
+    type=AwareDateTimeField(format="iso"),
     required=True,
+    help="Schedule starts at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
+)
+@click.option(
+    "--duration",
+    "duration",
+    type=DurationField(),
+    required=True,
+    help="Duration of schedule, after --start. Follow up with a duration in ISO 6801 format, e.g. PT1H (1 hour) or PT45M (45 minutes).",
+)
+@click.option(
+    "--process-duration",
+    "process_duration",
+    type=DurationField(),
+    required=True,
+    help="Duration of the process. Follow up with a duration in ISO 6801 format, e.g. PT1H (1 hour) or PT45M (45 minutes).",
+)
+@click.option(
+    "--process-type",
+    "process_type",
+    type=click.Choice(["INFLEXIBLE", "BREAKABLE", "SHIFTABLE"], case_sensitive=False),
+    required=False,
+    default="SHIFTABLE",
+    help="Process schedule policy: INFLEXIBLE, BREAKABLE or SHIFTABLE.",
+)
+@click.option(
+    "--process-power",
+    "process_power",
+    type=ur.Quantity,
+    required=True,
+    help="Constant power of the process during the activation period, e.g. 4kW.",
+)
+@click.option(
+    "--forbid",
+    type=TimeIntervalField(),
+    multiple=True,
+    required=False,
+    help="Add time restrictions to the optimization, where the load will not be scheduled into."
+    'Use the following format to define the restrictions: `{"start":<timezone-aware datetime in ISO 6801>, "duration":<ISO 6801 duration>}`'
+    "This options allows to define multiple time restrictions by using the --forbid for different periods.",
+)
+@click.option(
+    "--as-job",
+    is_flag=True,
+    help="Whether to queue a scheduling job instead of computing directly. "
+    "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'scheduling' queue. Defaults to False.",
+)
+def add_schedule_process(
+    power_sensor: Sensor,
+    consumption_price_sensor: Sensor,
+    start: datetime,
+    duration: timedelta,
+    process_duration: timedelta,
+    process_type: str,
+    process_power: ur.Quantity,
+    forbid: List | None = None,
+    as_job: bool = False,
+):
+    """Create a new schedule for a process asset.
+
+    Current limitations:
+    - Only supports consumption blocks.
+    - Not taking into account grid constraints or other processes.
+    """
+
+    if forbid is None:
+        forbid = []
+
+    # Parse input and required sensor attributes
+    if not power_sensor.measures_power:
+        click.secho(
+            f"Sensor with ID {power_sensor.id} is not a power sensor.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+
+    end = start + duration
+
+    process_power = convert_units(process_power.magnitude, process_power.units, "MW")  # type: ignore
+
+    scheduling_kwargs = dict(
+        start=start,
+        end=end,
+        belief_time=server_now(),
+        resolution=power_sensor.event_resolution,
+        flex_model={
+            "duration": pd.Timedelta(process_duration).isoformat(),
+            "process-type": process_type,
+            "power": process_power,
+            "time-restrictions": [TimeIntervalSchema().dump(f) for f in forbid],
+        },
+    )
+
+    if consumption_price_sensor is not None:
+        scheduling_kwargs["flex_context"] = {
+            "consumption-price-sensor": consumption_price_sensor.id,
+        }
+
+    if as_job:
+        job = create_scheduling_job(sensor=power_sensor, **scheduling_kwargs)
+        if job:
+            click.secho(
+                f"New scheduling job {job.id} has been added to the queue.",
+                **MsgStyle.SUCCESS,
+            )
+    else:
+        success = make_schedule(sensor_id=power_sensor.id, **scheduling_kwargs)
+        if success:
+            click.secho("New schedule is stored.", **MsgStyle.SUCCESS)
+
+
+@fm_add_data.command("report")
+@with_appcontext
+@click.option(
+    "--config",
+    "config_file",
+    required=False,
     type=click.File("r"),
-    help="Path to the JSON file with the reporter configuration.",
+    help="Path to the JSON or YAML file with the configuration of the reporter.",
+)
+@click.option(
+    "--parameters",
+    "parameters_file",
+    required=False,
+    type=click.File("r"),
+    help="Path to the JSON or YAML file with the report parameters (passed to the compute step).",
 )
 @click.option(
     "--reporter",
@@ -1220,17 +1366,20 @@ def add_schedule_for_storage(
 )
 @click.option(
     "--output-file",
-    "output_file",
+    "output_file_pattern",
     required=False,
     type=click.Path(),
-    help="Path to save the report to file. Will override any previous file contents."
-    " Use the `.csv` suffix to save the results as Comma Separated Values and `.xlsx` to export them as Excel sheets.",
+    help="Format of the output file. Use dollar sign ($) to interpolate values among the following ones:"
+    " now (current time), name (name of the output), sensor_id (id of the sensor), column (column of the output)."
+    " Example: 'result_file_$name_$now.csv'. "
+    "Use the `.csv` suffix to save the results as Comma Separated Values and `.xlsx` to export them as Excel sheets.",
 )
 @click.option(
     "--timezone",
     "timezone",
     required=False,
-    help="Timezone as string, e.g. 'UTC' or 'Europe/Amsterdam' (defaults to the timezone of the sensor used to save the report).",
+    help="Timezone as string, e.g. 'UTC' or 'Europe/Amsterdam' (defaults to the timezone of the sensor used to save the report)."
+    "The timezone of the first output sensor (specified in the parameters) is taken as a default.",
 )
 @click.option(
     "--dry-run",
@@ -1238,17 +1387,38 @@ def add_schedule_for_storage(
     is_flag=True,
     help="Add this flag to avoid saving the results to the database.",
 )
+@click.option(
+    "--edit-config",
+    "edit_config",
+    is_flag=True,
+    help="Add this flag to edit the configuration of the Reporter in your default text editor (e.g. nano).",
+)
+@click.option(
+    "--edit-parameters",
+    "edit_parameters",
+    is_flag=True,
+    help="Add this flag to edit the parameters passed to the Reporter in your default text editor (e.g. nano).",
+)
+@click.option(
+    "--save-config",
+    "save_config",
+    is_flag=True,
+    help="Add this flag to save the `config` in the attributes of the DataSource for future reference.",
+)
 def add_report(  # noqa: C901
     reporter_class: str,
-    sensor: Sensor,
-    reporter_config: TextIOBase,
+    config_file: TextIOBase | None = None,
+    parameters_file: TextIOBase | None = None,
     start: datetime | None = None,
     end: datetime | None = None,
     start_offset: str | None = None,
     end_offset: str | None = None,
     resolution: timedelta | None = None,
-    output_file: Path | None = None,
+    output_file_pattern: Path | None = None,
     dry_run: bool = False,
+    edit_config: bool = False,
+    edit_parameters: bool = False,
+    save_config: bool = False,
     timezone: str | None = None,
 ):
     """
@@ -1256,11 +1426,38 @@ def add_report(  # noqa: C901
     to the database or export them as CSV or Excel file.
     """
 
+    config = dict()
+
+    if config_file:
+        config = yaml.safe_load(config_file)
+
+    if edit_config:
+        config = launch_editor("/tmp/config.yml")
+
+    parameters = dict()
+
+    if parameters_file:
+        parameters = yaml.safe_load(parameters_file)
+
+    if edit_parameters:
+        parameters = launch_editor("/tmp/parameters.yml")
+
+    # check if sensor is not provided in the `parameters` description
+    if "output" not in parameters or len(parameters["output"]) == 0:
+        click.secho(
+            "At least one output sensor needs to be specified in the parameters description.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+
+    output = [Output().load(o) for o in parameters["output"]]
+
     # compute now in the timezone local to the output sensor
     if timezone is not None:
         check_timezone(timezone)
+
     now = pytz.timezone(
-        zone=timezone if timezone is not None else sensor.timezone
+        zone=timezone if timezone is not None else output[0]["sensor"].timezone
     ).localize(datetime.now())
 
     # apply offsets, if provided
@@ -1281,9 +1478,11 @@ def add_report(  # noqa: C901
             " Trying to use the latest datapoint of the report sensor as the start time...",
             **MsgStyle.WARN,
         )
+
+        # todo: get the oldest last_value among all the sensors
         last_value_datetime = (
             db.session.query(func.max(TimedBelief.event_start))
-            .filter(TimedBelief.sensor_id == sensor.id)
+            .filter(TimedBelief.sensor_id == output[0]["sensor"].id)
             .one_or_none()
         )
 
@@ -1292,7 +1491,8 @@ def add_report(  # noqa: C901
             start = last_value_datetime[0]
         else:
             click.secho(
-                f"Could not find any data for the report sensor {sensor}.",
+                "Could not find any data for the output sensors provided. Such data is needed to compute"
+                " a sensible default start for the report, so setting a start explicitly would resolve this issue.",
                 **MsgStyle.ERROR,
             )
             raise click.Abort()
@@ -1313,7 +1513,9 @@ def add_report(  # noqa: C901
     )
 
     # get reporter class
-    ReporterClass: Type[Reporter] = app.reporters.get(reporter_class)
+    ReporterClass: Type[Reporter] = app.data_generators.get("reporter").get(
+        reporter_class
+    )
 
     # check if it exists
     if ReporterClass is None:
@@ -1325,70 +1527,102 @@ def add_report(  # noqa: C901
 
     click.secho(f"Reporter {reporter_class} found.", **MsgStyle.SUCCESS)
 
-    reporter_config_raw = json.load(reporter_config)
-
     # initialize reporter class with the reporter sensor and reporter config
-    reporter: Reporter = ReporterClass(
-        sensor=sensor, reporter_config_raw=reporter_config_raw
-    )
+    reporter: Reporter = ReporterClass(config=config, save_config=save_config)
 
     click.echo("Report computation is running...")
 
+    if ("start" not in parameters) and (start is not None):
+        parameters["start"] = start.isoformat()
+    if ("end" not in parameters) and (end is not None):
+        parameters["end"] = end.isoformat()
+    if ("resolution" not in parameters) and (resolution is not None):
+        parameters["resolution"] = pd.Timedelta(resolution).isoformat()
+
     # compute the report
-    result: BeliefsDataFrame = reporter.compute(
-        start=start, end=end, input_resolution=resolution
-    )
+    results: BeliefsDataFrame = reporter.compute(parameters=parameters)
 
-    if not result.empty:
-        click.secho("Report computation done.", **MsgStyle.SUCCESS)
-    else:
-        click.secho(
-            "Report computation done, but the report is empty.", **MsgStyle.WARN
-        )
-
-    # save the report if it's not running in dry mode
-    if not dry_run:
-        click.echo("Saving report to the database...")
-        save_to_db(result.dropna())
-        db.session.commit()
-        click.secho(
-            "Success. The report has been saved to the database.",
-            **MsgStyle.SUCCESS,
-        )
-    else:
-        click.echo(
-            f"Not saving report to the database (because of --dry-run), but this is what I computed:\n{result}"
-        )
-
-    # if an output file path is provided, save the results
-    if output_file:
-        suffix = str(output_file).split(".")[-1] if "." in str(output_file) else ""
-
-        if suffix == "xlsx":  # save to EXCEL
-            result.to_excel(output_file)
+    for result in results:
+        data = result["data"]
+        sensor = result["sensor"]
+        if not data.empty:
             click.secho(
-                f"Success. The report has been exported as EXCEL to the file `{output_file}`",
-                **MsgStyle.SUCCESS,
+                f"Report computation done for sensor `{sensor}`.", **MsgStyle.SUCCESS
             )
-
-        elif suffix == "csv":  # save to CSV
-            result.to_csv(output_file)
+        else:
             click.secho(
-                f"Success. The report has been exported as CSV to the file `{output_file}`",
-                **MsgStyle.SUCCESS,
-            )
-
-        else:  # default output format: CSV.
-            click.secho(
-                f"File suffix not provided. Exporting results as CSV to file {output_file}",
+                f"Report computation done for sensor `{sensor}`, but the report is empty.",
                 **MsgStyle.WARN,
             )
-            result.to_csv(output_file)
-    else:
-        click.secho(
-            "Success.",
-            **MsgStyle.SUCCESS,
-        )
+
+        # save the report if it's not running in dry mode
+        if not dry_run:
+            click.echo(f"Saving report for sensor `{sensor}` to the database...")
+            save_to_db(data.dropna())
+            db.session.commit()
+            click.secho(
+                f"Success. The report for sensor `{sensor}` has been saved to the database.",
+                **MsgStyle.SUCCESS,
+            )
+        else:
+            click.echo(
+                f"Not saving report for sensor `{sensor}` to the database  (because of --dry-run), but this is what I computed:\n{data}"
+            )
+
+        # if an output file path is provided, save the data
+        if output_file_pattern:
+            suffix = (
+                str(output_file_pattern).split(".")[-1]
+                if "." in str(output_file_pattern)
+                else ""
+            )
+            template = Template(str(output_file_pattern))
+
+            filename = template.safe_substitute(
+                sensor_id=result["sensor"].id,
+                name=result.get("name", ""),
+                column=result.get("column", ""),
+                reporter_class=reporter_class,
+                now=now.strftime("%Y_%m_%dT%H%M%S"),
+            )
+
+            if suffix == "xlsx":  # save to EXCEL
+                data.to_excel(filename)
+                click.secho(
+                    f"Success. The report for sensor `{sensor}` has been exported as EXCEL to the file `{filename}`",
+                    **MsgStyle.SUCCESS,
+                )
+
+            elif suffix == "csv":  # save to CSV
+                data.to_csv(filename)
+                click.secho(
+                    f"Success. The report for sensor `{sensor}` has been exported as CSV to the file `{filename}`",
+                    **MsgStyle.SUCCESS,
+                )
+
+            else:  # default output format: CSV.
+                click.secho(
+                    f"File suffix not provided. Exporting results for sensor `{sensor}` as CSV to file {filename}",
+                    **MsgStyle.WARN,
+                )
+                data.to_csv(filename)
+        else:
+            click.secho(
+                "Success.",
+                **MsgStyle.SUCCESS,
+            )
+
+
+def launch_editor(filename: str) -> dict:
+    """Launch editor to create/edit a json object"""
+    click.edit("{\n}", filename=filename)
+
+    with open(filename, "r") as f:
+        content = yaml.safe_load(f)
+        if content is None:
+            return dict()
+
+        return content
 
 
 @fm_add_data.command("toy-account")
@@ -1396,7 +1630,7 @@ def add_report(  # noqa: C901
 @click.option(
     "--kind",
     default="battery",
-    type=click.Choice(["battery"]),
+    type=click.Choice(["battery", "process"]),
     help="What kind of toy account. Defaults to a battery.",
 )
 @click.option("--name", type=str, default="Toy Account", help="Name of the account")
@@ -1406,57 +1640,87 @@ def add_toy_account(kind: str, name: str):
     """
     asset_types = add_default_asset_types(db=db)
     location = (52.374, 4.88969)  # Amsterdam
+
+    # make an account (if not exist)
+    account = Account.query.filter(Account.name == name).one_or_none()
+    if account:
+        click.secho(
+            f"Account '{account}' already exists. Skipping account creation. Use `flexmeasures delete account --id {account.id}` if you need to remove it.",
+            **MsgStyle.WARN,
+        )
+
+    # make an account user (account-admin?)
+    email = "toy-user@flexmeasures.io"
+    user = User.query.filter_by(email=email).one_or_none()
+    if user is not None:
+        click.secho(
+            f"User with email {email} already exists in account {user.account.name}.",
+            **MsgStyle.WARN,
+        )
+    else:
+        user = create_user(
+            email=email,
+            check_email_deliverability=False,
+            password="toy-password",
+            user_roles=["account-admin"],
+            account_name=name,
+        )
+        click.secho(
+            f"Toy account {name} with user {user.email} created successfully. You might want to run `flexmeasures show account --id {user.account.id}`",
+            **MsgStyle.SUCCESS,
+        )
+
+    db.session.commit()
+
+    # add public day-ahead market (as sensor of transmission zone asset)
+    nl_zone = add_transmission_zone_asset("NL", db=db)
+    day_ahead_sensor = get_or_create_model(
+        Sensor,
+        name="day-ahead prices",
+        generic_asset=nl_zone,
+        unit="EUR/MWh",
+        timezone="Europe/Amsterdam",
+        event_resolution=timedelta(minutes=60),
+        knowledge_horizon=(
+            x_days_ago_at_y_oclock,
+            {"x": 1, "y": 12, "z": "Europe/Paris"},
+        ),
+    )
+    db.session.commit()
+    click.secho(
+        f"The sensor recording day-ahead prices is {day_ahead_sensor} (ID: {day_ahead_sensor.id}).",
+        **MsgStyle.SUCCESS,
+    )
+
+    def create_power_asset(
+        asset_name: str, asset_type: str, sensor_name: str, **attributes
+    ):
+        asset = get_or_create_model(
+            GenericAsset,
+            name=asset_name,
+            generic_asset_type=asset_types[asset_type],
+            owner=user.account,
+            latitude=location[0],
+            longitude=location[1],
+        )
+        asset.attributes = attributes
+        power_sensor_specs = dict(
+            generic_asset=asset,
+            unit="MW",
+            timezone="Europe/Amsterdam",
+            event_resolution=timedelta(minutes=15),
+        )
+        power_sensor = get_or_create_model(
+            Sensor,
+            name=sensor_name,
+            **power_sensor_specs,
+        )
+        return power_sensor
+
     if kind == "battery":
-        # make an account (if not exist)
-        account = Account.query.filter(Account.name == name).one_or_none()
-        if account:
-            click.secho(
-                f"Account '{account}' already exists. Use `flexmeasures delete account --id {account.id}` to remove it first.",
-                **MsgStyle.ERROR,
-            )
-            raise click.Abort()
-        # make an account user (account-admin?)
-        email = "toy-user@flexmeasures.io"
-        user = User.query.filter_by(email=email).one_or_none()
-        if user is not None:
-            click.secho(
-                f"User with email {email} already exists in account {user.account.name}.",
-                **MsgStyle.ERROR,
-            )
-        else:
-            user = create_user(
-                email=email,
-                check_email_deliverability=False,
-                password="toy-password",
-                user_roles=["account-admin"],
-                account_name=name,
-            )
-
-        def create_power_asset(asset_type: str, sensor_name: str, **attributes):
-            asset = get_or_create_model(
-                GenericAsset,
-                name=f"toy-{asset_type}",
-                generic_asset_type=asset_types[asset_type],
-                owner=user.account,
-                latitude=location[0],
-                longitude=location[1],
-            )
-            asset.attributes = attributes
-            power_sensor_specs = dict(
-                generic_asset=asset,
-                unit="MW",
-                timezone="Europe/Amsterdam",
-                event_resolution=timedelta(minutes=15),
-            )
-            power_sensor = get_or_create_model(
-                Sensor,
-                name=sensor_name,
-                **power_sensor_specs,
-            )
-            return power_sensor
-
         # create battery
         discharging_sensor = create_power_asset(
+            "toy-battery",
             "battery",
             "discharging",
             capacity_in_mw=0.5,
@@ -1464,23 +1728,9 @@ def add_toy_account(kind: str, name: str):
             max_soc_in_mwh=0.45,
         )
 
-        # add public day-ahead market (as sensor of transmission zone asset)
-        nl_zone = add_transmission_zone_asset("NL", db=db)
-        day_ahead_sensor = get_or_create_model(
-            Sensor,
-            name="day-ahead prices",
-            generic_asset=nl_zone,
-            unit="EUR/MWh",
-            timezone="Europe/Amsterdam",
-            event_resolution=timedelta(minutes=60),
-            knowledge_horizon=(
-                x_days_ago_at_y_oclock,
-                {"x": 1, "y": 12, "z": "Europe/Paris"},
-            ),
-        )
-
         # create solar
         production_sensor = create_power_asset(
+            "toy-solar",
             "solar",
             "production",
         )
@@ -1495,24 +1745,60 @@ def add_toy_account(kind: str, name: str):
                 discharging_sensor.id,
             ],
         ]
-    db.session.commit()
 
-    click.secho(
-        f"Toy account {name} with user {user.email} created successfully. You might want to run `flexmeasures show account --id {user.account.id}`",
-        **MsgStyle.SUCCESS,
-    )
-    click.secho(
-        f"The sensor recording battery discharging is {discharging_sensor} (ID: {discharging_sensor.id}).",
-        **MsgStyle.SUCCESS,
-    )
-    click.secho(
-        f"The sensor recording day-ahead prices is {day_ahead_sensor} (ID: {day_ahead_sensor.id}).",
-        **MsgStyle.SUCCESS,
-    )
-    click.secho(
-        f"The sensor recording solar forecasts is {production_sensor} (ID: {production_sensor.id}).",
-        **MsgStyle.SUCCESS,
-    )
+        db.session.commit()
+
+        click.secho(
+            f"The sensor recording battery discharging is {discharging_sensor} (ID: {discharging_sensor.id}).",
+            **MsgStyle.SUCCESS,
+        )
+        click.secho(
+            f"The sensor recording solar forecasts is {production_sensor} (ID: {production_sensor.id}).",
+            **MsgStyle.SUCCESS,
+        )
+    elif kind == "process":
+        inflexible_power = create_power_asset(
+            "toy-process",
+            "process",
+            "Power (Inflexible)",
+        )
+
+        breakable_power = create_power_asset(
+            "toy-process",
+            "process",
+            "Power (Breakable)",
+        )
+
+        shiftable_power = create_power_asset(
+            "toy-process",
+            "process",
+            "Power (Shiftable)",
+        )
+
+        db.session.flush()
+
+        process = shiftable_power.generic_asset
+        process.attributes["sensors_to_show"] = [
+            day_ahead_sensor.id,
+            inflexible_power.id,
+            breakable_power.id,
+            shiftable_power.id,
+        ]
+
+        db.session.commit()
+
+        click.secho(
+            f"The sensor recording the power of the inflexible load is {inflexible_power} (ID: {inflexible_power.id}).",
+            **MsgStyle.SUCCESS,
+        )
+        click.secho(
+            f"The sensor recording the power of the breakable load is {breakable_power} (ID: {breakable_power.id}).",
+            **MsgStyle.SUCCESS,
+        )
+        click.secho(
+            f"The sensor recording the power of the shiftable load is {shiftable_power} (ID: {shiftable_power.id}).",
+            **MsgStyle.SUCCESS,
+        )
 
 
 app.cli.add_command(fm_add_data)

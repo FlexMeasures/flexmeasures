@@ -108,7 +108,7 @@ class Config(object):
         "renewables": ["solar", "wind"],
         "EVSE": ["one-way_evse", "two-way_evse"],
     }  # how to group assets by asset types
-    FLEXMEASURES_LP_SOLVER: str = "cbc"
+    FLEXMEASURES_LP_SOLVER: str = "appsi_highs"
     FLEXMEASURES_JOB_TTL: timedelta = timedelta(days=1)
     FLEXMEASURES_PLANNING_HORIZON: timedelta = timedelta(days=2)
     FLEXMEASURES_MAX_PLANNING_HORIZON: timedelta | int | None = 2520  # smallest number divisible by 1-10, which yields pleasant-looking durations for common sensor resolutions

@@ -16,8 +16,6 @@ In this mode, the server is assumed to be used as a demonstration tool. Most of 
 - [UI] Logged-in users can view queues on the demo server (usually only admins can do that)
 - [UI] Demo servers often display login credentials, so visitors can try out functionality. Use the :ref:`demo-credentials-config` config setting to do this.
 - [UI] The dashboard shows all non-empty asset groups, instead of only the ones for the current user.
-- [UI] The analytics page mocks confidence intervals around power, price and weather data, so that the demo data doesn't need to have them. 
-- [UI] The portfolio page mocks flexibility numbers and a mocked control action.
 
 Play
 ------
@@ -39,3 +37,4 @@ Small features
 - [API] Posted UDI events are not enforced to be consecutive.
 - [API] Names in ``GetConnectionResponse`` are the connections' unique database names rather than their display names (this feature is planned to be deprecated).
 - [UI] The dashboard plot showing the latest power value is not enforced to lie in the past (in case of simulating future values).
+- [UI] On the asset page, the ``sensors_to_show`` attribute can be used to show any sensor from any account, rather than only sensors from assets owned by the user's organization.

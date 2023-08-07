@@ -226,9 +226,12 @@ For FlexMeasures to be able to send email to users (e.g. for resetting passwords
 Install an LP solver
 ^^^^^^^^^^^^^^^^^^^^
 
-For planning balancing actions, the FlexMeasures platform uses a linear program solver. Currently that is the Cbc solver. See :ref:`solver-config` if you want to change to a different solver.
+For planning balancing actions, the FlexMeasures platform uses a linear program solver. Currently that is the CBC or HiGHS solvers. See :ref:`solver-config` if you want to change to a different solver.
 
-Installing Cbc can be done on Unix via:
+CBC
+*****
+
+Installing CBC can be done on Unix via:
 
 .. code-block:: bash
 
@@ -239,7 +242,18 @@ Installing Cbc can be done on Unix via:
 
 We provide a script for installing from source (without requiring ``sudo`` rights) in the `ci` folder.
 
-More information (e.g. for installing on Windows) on `the Cbc website <https://projects.coin-or.org/Cbc>`_.
+More information (e.g. for installing on Windows) on `the CBC website <https://projects.coin-or.org/Cbc>`_.
+
+HiGHS
+******
+
+HiGHS is a modern LP solver that aims at solving large problems. It can be installed using pip:
+
+.. code-block:: bash
+
+   $ pip install highspy
+
+More information (e.g. for installing on Windows) on `the HiGHS website <https://highs.dev/>`_.
 
 
 Install and configure Redis

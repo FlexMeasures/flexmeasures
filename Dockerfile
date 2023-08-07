@@ -13,7 +13,7 @@ COPY requirements /app/requirements
 
 # py dev tooling
 RUN python3 -m pip install --no-cache-dir --upgrade pip && python3 --version && \
-    pip3 install --no-cache-dir --upgrade setuptools && \
+    pip3 install --no-cache-dir --upgrade setuptools && pip3 install highspy && \
     PYV=$(python3 -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_info[:2]));sys.stdout.write(t)") && \
     pip3 install --no-cache-dir -r requirements/$PYV/app.txt -r requirements/$PYV/dev.txt -r requirements/$PYV/test.txt
 

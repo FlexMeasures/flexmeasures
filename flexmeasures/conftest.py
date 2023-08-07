@@ -2,9 +2,8 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 import pytest
-from random import random
+from random import random, seed
 from datetime import datetime, timedelta
-import pytz
 
 from isodate import parse_duration
 import pandas as pd
@@ -12,6 +11,8 @@ import numpy as np
 from flask import request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_security import roles_accepted
+from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
+
 from werkzeug.exceptions import (
     InternalServerError,
     BadRequest,
@@ -24,11 +25,9 @@ from flexmeasures.app import create as create_app
 from flexmeasures.auth.policy import ADMIN_ROLE
 from flexmeasures.utils.time_utils import as_server_time
 from flexmeasures.data.services.users import create_user
-from flexmeasures.data.models.assets import AssetType, Asset
 from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.planning.utils import initialize_index
-from flexmeasures.data.models.markets import Market, MarketType
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.user import User, Account, AccountRole
 
@@ -227,39 +226,50 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
             ),
         )
     )
-    return {user.username: user for user in new_users}
+    return {user.username: user.id for user in new_users}
 
 
 @pytest.fixture(scope="module")
-def setup_markets(db) -> dict[str, Market]:
+def setup_markets(db) -> dict[str, Sensor]:
     return create_test_markets(db)
 
 
 @pytest.fixture(scope="function")
-def setup_markets_fresh_db(fresh_db) -> dict[str, Market]:
+def setup_markets_fresh_db(fresh_db) -> dict[str, Sensor]:
     return create_test_markets(fresh_db)
 
 
-def create_test_markets(db) -> dict[str, Market]:
+def create_test_markets(db) -> dict[str, Sensor]:
     """Create the epex_da market."""
 
-    day_ahead = MarketType(
+    day_ahead = GenericAssetType(
         name="day_ahead",
-        daily_seasonality=True,
-        weekly_seasonality=True,
-        yearly_seasonality=True,
     )
-    db.session.add(day_ahead)
-    epex_da = Market(
-        name="epex_da",
-        market_type_name="day_ahead",
-        event_resolution=timedelta(hours=1),
-        unit="EUR/MWh",
-        knowledge_horizon_fnc="x_days_ago_at_y_oclock",
-        knowledge_horizon_par={"x": 1, "y": 12, "z": "Europe/Paris"},
+    epex = GenericAsset(
+        name="epex",
+        generic_asset_type=day_ahead,
     )
-    db.session.add(epex_da)
-    return {"epex_da": epex_da}
+    price_sensors = {}
+    for sensor_name in ("epex_da", "epex_da_production"):
+        price_sensor = Sensor(
+            name=sensor_name,
+            generic_asset=epex,
+            event_resolution=timedelta(hours=1),
+            unit="EUR/MWh",
+            knowledge_horizon=(
+                x_days_ago_at_y_oclock,
+                {"x": 1, "y": 12, "z": "Europe/Paris"},
+            ),
+            attributes=dict(
+                daily_seasonality=True,
+                weekly_seasonality=True,
+                yearly_seasonality=True,
+            ),
+        )
+        db.session.add(price_sensor)
+        price_sensors[sensor_name] = price_sensor
+    db.session.flush()  # assign an id, so the markets can be used to set a market_id attribute on a GenericAsset or Sensor
+    return price_sensors
 
 
 @pytest.fixture(scope="module")
@@ -281,19 +291,9 @@ def create_sources(db) -> dict[str, DataSource]:
 
 
 @pytest.fixture(scope="module")
-def setup_asset_types(db) -> dict[str, AssetType]:
-    return create_test_asset_types(db)
-
-
-@pytest.fixture(scope="function")
-def setup_asset_types_fresh_db(fresh_db) -> dict[str, AssetType]:
-    return create_test_asset_types(fresh_db)
-
-
-@pytest.fixture(scope="module")
 def setup_generic_assets(
     db, setup_generic_asset_types, setup_accounts
-) -> dict[str, AssetType]:
+) -> dict[str, GenericAsset]:
     """Make some generic assets used throughout."""
     return create_generic_assets(db, setup_generic_asset_types, setup_accounts)
 
@@ -301,14 +301,16 @@ def setup_generic_assets(
 @pytest.fixture(scope="function")
 def setup_generic_assets_fresh_db(
     fresh_db, setup_generic_asset_types_fresh_db, setup_accounts_fresh_db
-) -> dict[str, AssetType]:
+) -> dict[str, GenericAsset]:
     """Make some generic assets used throughout."""
     return create_generic_assets(
         fresh_db, setup_generic_asset_types_fresh_db, setup_accounts_fresh_db
     )
 
 
-def create_generic_assets(db, setup_generic_asset_types, setup_accounts):
+def create_generic_assets(
+    db, setup_generic_asset_types, setup_accounts
+) -> dict[str, GenericAsset]:
     troposphere = GenericAsset(
         name="troposphere", generic_asset_type=setup_generic_asset_types["public_good"]
     )
@@ -335,18 +337,18 @@ def create_generic_assets(db, setup_generic_asset_types, setup_accounts):
 
 
 @pytest.fixture(scope="module")
-def setup_generic_asset_types(db) -> dict[str, AssetType]:
+def setup_generic_asset_types(db) -> dict[str, GenericAssetType]:
     """Make some generic asset types used throughout."""
     return create_generic_asset_types(db)
 
 
 @pytest.fixture(scope="function")
-def setup_generic_asset_types_fresh_db(fresh_db) -> dict[str, AssetType]:
+def setup_generic_asset_types_fresh_db(fresh_db) -> dict[str, GenericAssetType]:
     """Make some generic asset types used throughout."""
     return create_generic_asset_types(fresh_db)
 
 
-def create_generic_asset_types(db):
+def create_generic_asset_types(db) -> dict[str, GenericAssetType]:
     public_good = GenericAssetType(
         name="public good",
     )
@@ -372,59 +374,75 @@ def create_generic_asset_types(db):
     )
 
 
-def create_test_asset_types(db) -> dict[str, AssetType]:
-    """Make some asset types used throughout.
-    Deprecated. Remove with Asset model."""
-
-    solar = AssetType(
-        name="solar",
-        is_producer=True,
-        can_curtail=True,
-        daily_seasonality=True,
-        yearly_seasonality=True,
-    )
-    db.session.add(solar)
-    wind = AssetType(
-        name="wind",
-        is_producer=True,
-        can_curtail=True,
-        daily_seasonality=True,
-        yearly_seasonality=True,
-    )
-    db.session.add(wind)
-    return dict(solar=solar, wind=wind)
-
-
 @pytest.fixture(scope="module")
 def setup_assets(
-    db, setup_roles_users, setup_markets, setup_sources, setup_asset_types
-) -> dict[str, Asset]:
-    """Add assets to known test users.
-    Deprecated. Remove with Asset model."""
+    db, setup_accounts, setup_markets, setup_sources, setup_generic_asset_types
+) -> dict[str, GenericAsset]:
+    return create_assets(
+        db, setup_accounts, setup_markets, setup_sources, setup_generic_asset_types
+    )
+
+
+@pytest.fixture(scope="function")
+def setup_assets_fresh_db(
+    fresh_db,
+    setup_accounts_fresh_db,
+    setup_markets_fresh_db,
+    setup_sources_fresh_db,
+    setup_generic_asset_types_fresh_db,
+) -> dict[str, GenericAsset]:
+    return create_assets(
+        fresh_db,
+        setup_accounts_fresh_db,
+        setup_markets_fresh_db,
+        setup_sources_fresh_db,
+        setup_generic_asset_types_fresh_db,
+    )
+
+
+def create_assets(
+    db, setup_accounts, setup_markets, setup_sources, setup_asset_types
+) -> dict[str, GenericAsset]:
+    """Add assets with power sensors to known test accounts."""
 
     assets = []
     for asset_name in ["wind-asset-1", "wind-asset-2", "solar-asset-1"]:
-        asset = Asset(
+        asset = GenericAsset(
             name=asset_name,
-            owner_id=setup_roles_users["Test Prosumer User"].id,
-            asset_type_name="wind" if "wind" in asset_name else "solar",
-            event_resolution=timedelta(minutes=15),
-            capacity_in_mw=1,
+            generic_asset_type=setup_asset_types["wind"]
+            if "wind" in asset_name
+            else setup_asset_types["solar"],
+            owner=setup_accounts["Prosumer"],
             latitude=10,
             longitude=100,
-            min_soc_in_mwh=0,
-            max_soc_in_mwh=0,
-            soc_in_mwh=0,
-            unit="MW",
-            market_id=setup_markets["epex_da"].id,
+            attributes=dict(
+                capacity_in_mw=1,
+                min_soc_in_mwh=0,
+                max_soc_in_mwh=0,
+                soc_in_mwh=0,
+                market_id=setup_markets["epex_da"].id,
+                is_producer=True,
+                can_curtail=True,
+            ),
         )
-        db.session.add(asset)
+        sensor = Sensor(
+            name="power",
+            generic_asset=asset,
+            event_resolution=timedelta(minutes=15),
+            unit="MW",
+            attributes=dict(
+                daily_seasonality=True,
+                yearly_seasonality=True,
+            ),
+        )
+        db.session.add(sensor)
         assets.append(asset)
 
         # one day of test data (one complete sine curve)
         time_slots = pd.date_range(
             datetime(2015, 1, 1), datetime(2015, 1, 1, 23, 45), freq="15T"
         )
+        seed(42)  # ensure same results over different test runs
         values = [
             random() * (1 + np.sin(x * 2 * np.pi / (4 * 24)))
             for x in range(len(time_slots))
@@ -434,12 +452,13 @@ def setup_assets(
                 event_start=as_server_time(dt),
                 belief_horizon=parse_duration("PT0M"),
                 event_value=val,
-                sensor=asset.corresponding_sensor,
+                sensor=sensor,
                 source=setup_sources["Seita"],
             )
             for dt, val in zip(time_slots, values)
         ]
         db.session.add_all(beliefs)
+    db.session.commit()
     return {asset.name: asset for asset in assets}
 
 
@@ -510,7 +529,7 @@ def create_beliefs(db: SQLAlchemy, setup_markets, setup_sources) -> int:
 def add_market_prices(
     db: SQLAlchemy, setup_assets, setup_markets, setup_sources
 ) -> dict[str, Sensor]:
-    """Add two days of market prices for the EPEX day-ahead market."""
+    """Add three days of market prices for the EPEX day-ahead market."""
 
     # one day of test data (one complete sine curve)
     time_slots = initialize_index(
@@ -518,6 +537,7 @@ def add_market_prices(
         end=pd.Timestamp("2015-01-02").tz_localize("Europe/Amsterdam"),
         resolution="1H",
     )
+    seed(42)  # ensure same results over different test runs
     values = [
         random() * (1 + np.sin(x * 2 * np.pi / 24)) for x in range(len(time_slots))
     ]
@@ -527,7 +547,7 @@ def add_market_prices(
             belief_horizon=timedelta(hours=0),
             event_value=val,
             source=setup_sources["Seita"],
-            sensor=setup_markets["epex_da"].corresponding_sensor,
+            sensor=setup_markets["epex_da"],
         )
         for dt, val in zip(time_slots, values)
     ]
@@ -546,84 +566,155 @@ def add_market_prices(
             belief_horizon=timedelta(hours=0),
             event_value=val,
             source=setup_sources["Seita"],
-            sensor=setup_markets["epex_da"].corresponding_sensor,
+            sensor=setup_markets["epex_da"],
         )
         for dt, val in zip(time_slots, values)
     ]
     db.session.add_all(day2_beliefs)
-    return {"epex_da": setup_markets["epex_da"].corresponding_sensor}
+
+    # the third day of test data (8 hours with negative prices, followed by 16 expensive hours)
+    time_slots = initialize_index(
+        start=pd.Timestamp("2015-01-03").tz_localize("Europe/Amsterdam"),
+        end=pd.Timestamp("2015-01-04").tz_localize("Europe/Amsterdam"),
+        resolution="1H",
+    )
+
+    # consumption prices
+    values = [-10] * 8 + [100] * 16
+    day3_beliefs = [
+        TimedBelief(
+            event_start=dt,
+            belief_horizon=timedelta(hours=0),
+            event_value=val,
+            source=setup_sources["Seita"],
+            sensor=setup_markets["epex_da"],
+        )
+        for dt, val in zip(time_slots, values)
+    ]
+    db.session.add_all(day3_beliefs)
+
+    # production prices = consumption prices - 40
+    values = [-50] * 8 + [60] * 16
+    day3_beliefs_production = [
+        TimedBelief(
+            event_start=dt,
+            belief_horizon=timedelta(hours=0),
+            event_value=val,
+            source=setup_sources["Seita"],
+            sensor=setup_markets["epex_da_production"],
+        )
+        for dt, val in zip(time_slots, values)
+    ]
+    db.session.add_all(day3_beliefs_production)
+
+    yield {
+        "epex_da": setup_markets["epex_da"],
+        "epex_da_production": setup_markets["epex_da_production"],
+    }
 
 
 @pytest.fixture(scope="module")
 def add_battery_assets(
-    db: SQLAlchemy, setup_roles_users, setup_markets
-) -> dict[str, Asset]:
-    return create_test_battery_assets(db, setup_roles_users, setup_markets)
+    db: SQLAlchemy,
+    setup_roles_users,
+    setup_accounts,
+    setup_markets,
+    setup_generic_asset_types,
+) -> dict[str, GenericAsset]:
+    return create_test_battery_assets(
+        db, setup_accounts, setup_markets, setup_generic_asset_types
+    )
 
 
 @pytest.fixture(scope="function")
 def add_battery_assets_fresh_db(
-    fresh_db, setup_roles_users_fresh_db, setup_markets_fresh_db
-) -> dict[str, Asset]:
+    fresh_db,
+    setup_roles_users_fresh_db,
+    setup_accounts_fresh_db,
+    setup_markets_fresh_db,
+    setup_generic_asset_types_fresh_db,
+) -> dict[str, GenericAsset]:
     return create_test_battery_assets(
-        fresh_db, setup_roles_users_fresh_db, setup_markets_fresh_db
+        fresh_db,
+        setup_accounts_fresh_db,
+        setup_markets_fresh_db,
+        setup_generic_asset_types_fresh_db,
     )
 
 
 def create_test_battery_assets(
-    db: SQLAlchemy, setup_roles_users, setup_markets
-) -> dict[str, Asset]:
+    db: SQLAlchemy, setup_accounts, setup_markets, generic_asset_types
+) -> dict[str, GenericAsset]:
     """
     Add two battery assets, set their capacity values and their initial SOC.
     """
-    db.session.add(
-        AssetType(
-            name="battery",
+    battery_type = generic_asset_types["battery"]
+
+    test_battery = GenericAsset(
+        name="Test battery",
+        owner=setup_accounts["Prosumer"],
+        generic_asset_type=battery_type,
+        latitude=10,
+        longitude=100,
+        attributes=dict(
+            capacity_in_mw=2,
+            max_soc_in_mwh=5,
+            min_soc_in_mwh=0,
+            soc_in_mwh=2.5,
+            soc_datetime="2015-01-01T00:00+01",
+            soc_udi_event_id=203,
+            market_id=setup_markets["epex_da"].id,
             is_consumer=True,
             is_producer=True,
             can_curtail=True,
             can_shift=True,
+        ),
+    )
+    test_battery_sensor = Sensor(
+        name="power",
+        generic_asset=test_battery,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+        attributes=dict(
             daily_seasonality=True,
             weekly_seasonality=True,
             yearly_seasonality=True,
-        )
+        ),
     )
+    db.session.add(test_battery_sensor)
 
-    test_battery = Asset(
-        name="Test battery",
-        owner_id=setup_roles_users["Test Prosumer User"].id,
-        asset_type_name="battery",
-        event_resolution=timedelta(minutes=15),
-        capacity_in_mw=2,
-        max_soc_in_mwh=5,
-        min_soc_in_mwh=0,
-        soc_in_mwh=2.5,
-        soc_datetime=pytz.timezone("Europe/Amsterdam").localize(datetime(2015, 1, 1)),
-        soc_udi_event_id=203,
-        latitude=10,
-        longitude=100,
-        market_id=setup_markets["epex_da"].id,
-        unit="MW",
-    )
-    db.session.add(test_battery)
-
-    test_battery_no_prices = Asset(
+    test_battery_no_prices = GenericAsset(
         name="Test battery with no known prices",
-        owner_id=setup_roles_users["Test Prosumer User"].id,
-        asset_type_name="battery",
-        event_resolution=timedelta(minutes=15),
-        capacity_in_mw=2,
-        max_soc_in_mwh=5,
-        min_soc_in_mwh=0,
-        soc_in_mwh=2.5,
-        soc_datetime=pytz.timezone("Europe/Amsterdam").localize(datetime(2040, 1, 1)),
-        soc_udi_event_id=203,
+        owner=setup_accounts["Prosumer"],
+        generic_asset_type=battery_type,
         latitude=10,
         longitude=100,
-        market_id=setup_markets["epex_da"].id,
-        unit="MW",
+        attributes=dict(
+            capacity_in_mw=2,
+            max_soc_in_mwh=5,
+            min_soc_in_mwh=0,
+            soc_in_mwh=2.5,
+            soc_datetime="2040-01-01T00:00+01",
+            soc_udi_event_id=203,
+            market_id=setup_markets["epex_da"].id,
+            is_consumer=True,
+            is_producer=True,
+            can_curtail=True,
+            can_shift=True,
+        ),
     )
-    db.session.add(test_battery_no_prices)
+    test_battery_sensor_no_prices = Sensor(
+        name="power",
+        generic_asset=test_battery_no_prices,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+        attributes=dict(
+            daily_seasonality=True,
+            weekly_seasonality=True,
+            yearly_seasonality=True,
+        ),
+    )
+    db.session.add(test_battery_sensor_no_prices)
     return {
         "Test battery": test_battery,
         "Test battery with no known prices": test_battery_no_prices,
@@ -632,84 +723,92 @@ def create_test_battery_assets(
 
 @pytest.fixture(scope="module")
 def add_charging_station_assets(
-    db: SQLAlchemy, setup_roles_users, setup_markets
-) -> dict[str, Asset]:
-    return create_charging_station_assets(db, setup_roles_users, setup_markets)
+    db: SQLAlchemy, setup_accounts, setup_markets
+) -> dict[str, GenericAsset]:
+    return create_charging_station_assets(db, setup_accounts, setup_markets)
 
 
 @pytest.fixture(scope="function")
 def add_charging_station_assets_fresh_db(
-    fresh_db: SQLAlchemy, setup_roles_users_fresh_db, setup_markets_fresh_db
-) -> dict[str, Asset]:
+    fresh_db: SQLAlchemy, setup_accounts_fresh_db, setup_markets_fresh_db
+) -> dict[str, GenericAsset]:
     return create_charging_station_assets(
-        fresh_db, setup_roles_users_fresh_db, setup_markets_fresh_db
+        fresh_db, setup_accounts_fresh_db, setup_markets_fresh_db
     )
 
 
 def create_charging_station_assets(
-    db: SQLAlchemy, setup_roles_users, setup_markets
-) -> dict[str, Asset]:
+    db: SQLAlchemy, setup_accounts, setup_markets
+) -> dict[str, GenericAsset]:
     """Add uni- and bi-directional charging station assets, set their capacity value and their initial SOC."""
-    db.session.add(
-        AssetType(
-            name="one-way_evse",
+    oneway_evse = GenericAssetType(name="one-way_evse")
+    twoway_evse = GenericAssetType(name="two-way_evse")
+
+    charging_station = GenericAsset(
+        name="Test charging station",
+        owner=setup_accounts["Prosumer"],
+        generic_asset_type=oneway_evse,
+        latitude=10,
+        longitude=100,
+        attributes=dict(
+            capacity_in_mw=2,
+            max_soc_in_mwh=5,
+            min_soc_in_mwh=0,
+            soc_in_mwh=2.5,
+            soc_datetime="2015-01-01T00:00+01",
+            soc_udi_event_id=203,
+            market_id=setup_markets["epex_da"].id,
             is_consumer=True,
             is_producer=False,
             can_curtail=True,
             can_shift=True,
+        ),
+    )
+    charging_station_power_sensor = Sensor(
+        name="power",
+        generic_asset=charging_station,
+        unit="MW",
+        event_resolution=timedelta(minutes=15),
+        attributes=dict(
             daily_seasonality=True,
             weekly_seasonality=True,
             yearly_seasonality=True,
-        )
+        ),
     )
-    db.session.add(
-        AssetType(
-            name="two-way_evse",
+    db.session.add(charging_station_power_sensor)
+
+    bidirectional_charging_station = GenericAsset(
+        name="Test charging station (bidirectional)",
+        owner=setup_accounts["Prosumer"],
+        generic_asset_type=twoway_evse,
+        latitude=10,
+        longitude=100,
+        attributes=dict(
+            capacity_in_mw=2,
+            max_soc_in_mwh=5,
+            min_soc_in_mwh=0,
+            soc_in_mwh=2.5,
+            soc_datetime="2015-01-01T00:00+01",
+            soc_udi_event_id=203,
+            market_id=setup_markets["epex_da"].id,
             is_consumer=True,
             is_producer=True,
             can_curtail=True,
             can_shift=True,
+        ),
+    )
+    bidirectional_charging_station_power_sensor = Sensor(
+        name="power",
+        generic_asset=bidirectional_charging_station,
+        unit="MW",
+        event_resolution=timedelta(minutes=15),
+        attributes=dict(
             daily_seasonality=True,
             weekly_seasonality=True,
             yearly_seasonality=True,
-        )
+        ),
     )
-
-    charging_station = Asset(
-        name="Test charging station",
-        owner_id=setup_roles_users["Test Prosumer User"].id,
-        asset_type_name="one-way_evse",
-        event_resolution=timedelta(minutes=15),
-        capacity_in_mw=2,
-        max_soc_in_mwh=5,
-        min_soc_in_mwh=0,
-        soc_in_mwh=2.5,
-        soc_datetime=pytz.timezone("Europe/Amsterdam").localize(datetime(2015, 1, 1)),
-        soc_udi_event_id=203,
-        latitude=10,
-        longitude=100,
-        market_id=setup_markets["epex_da"].id,
-        unit="MW",
-    )
-    db.session.add(charging_station)
-
-    bidirectional_charging_station = Asset(
-        name="Test charging station (bidirectional)",
-        owner_id=setup_roles_users["Test Prosumer User"].id,
-        asset_type_name="two-way_evse",
-        event_resolution=timedelta(minutes=15),
-        capacity_in_mw=2,
-        max_soc_in_mwh=5,
-        min_soc_in_mwh=0,
-        soc_in_mwh=2.5,
-        soc_datetime=pytz.timezone("Europe/Amsterdam").localize(datetime(2015, 1, 1)),
-        soc_udi_event_id=203,
-        latitude=10,
-        longitude=100,
-        market_id=setup_markets["epex_da"].id,
-        unit="MW",
-    )
-    db.session.add(bidirectional_charging_station)
+    db.session.add(bidirectional_charging_station_power_sensor)
     return {
         "Test charging station": charging_station,
         "Test charging station (bidirectional)": bidirectional_charging_station,

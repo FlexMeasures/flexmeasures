@@ -71,7 +71,7 @@ install-flexmeasures:
 	pip install -e .
 
 install-pip-tools:
-	pip3 install -q "pip-tools>=6.4"
+	pip3 install -q "pip-tools>=7.0"
 
 install-docs-dependencies:
 	pip install -r requirements/${PYV}/docs.txt

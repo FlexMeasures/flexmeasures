@@ -18,7 +18,7 @@ from flexmeasures.data.schemas import (
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.services.annotations import prepare_annotations_for_chart
-from flexmeasures.ui.utils.view_utils import set_time_range_for_session
+from flexmeasures.ui.utils.view_utils import set_session_variables
 
 
 class SensorAPI(FlaskView):
@@ -45,12 +45,13 @@ class SensorAPI(FlaskView):
             "include_asset_annotations": fields.Boolean(required=False),
             "include_account_annotations": fields.Boolean(required=False),
             "dataset_name": fields.Str(required=False),
+            "chart_type": fields.Str(required=False),
             "height": fields.Str(required=False),
             "width": fields.Str(required=False),
         },
         location="query",
     )
-    @permission_required_for_context("read", arg_name="sensor")
+    @permission_required_for_context("read", ctx_arg_name="sensor")
     def get_chart(self, id: int, sensor: Sensor, **kwargs):
         """GET from /sensor/<id>/chart
 
@@ -63,10 +64,12 @@ class SensorAPI(FlaskView):
         - "beliefs_after" (see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
         - "beliefs_before" (see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
         - "include_data" (if true, chart specs include the data; if false, use the `GET /api/dev/sensor/(id)/chart_data/ <../api/dev.html#get--api-dev-sensor-(id)-chart_data->`_ endpoint to fetch data)
+        - "chart_type" (currently 'bar_chart' and 'daily_heatmap' are supported types)
         - "width" (an integer number of pixels; without it, the chart will be scaled to the full width of the container (hint: use ``<div style="width: 100%;">`` to set a div width to 100%)
         - "height" (an integer number of pixels; without it, FlexMeasures sets a default, currently 300)
         """
-        set_time_range_for_session()
+        # Store selected time range and chart type as session variables, for a consistent UX across UI page loads
+        set_session_variables("event_starts_after", "event_ends_before", "chart_type")
         return json.dumps(sensor.chart(**kwargs))
 
     @route("/<id>/chart_data/")
@@ -85,7 +88,7 @@ class SensorAPI(FlaskView):
         },
         location="query",
     )
-    @permission_required_for_context("read", arg_name="sensor")
+    @permission_required_for_context("read", ctx_arg_name="sensor")
     def get_chart_data(self, id: int, sensor: Sensor, **kwargs):
         """GET from /sensor/<id>/chart_data
 
@@ -118,7 +121,7 @@ class SensorAPI(FlaskView):
         },
         location="query",
     )
-    @permission_required_for_context("read", arg_name="sensor")
+    @permission_required_for_context("read", ctx_arg_name="sensor")
     def get_chart_annotations(self, id: int, sensor: Sensor, **kwargs):
         """GET from /sensor/<id>/chart_annotations
 
@@ -147,7 +150,7 @@ class SensorAPI(FlaskView):
         {"sensor": SensorIdField(data_key="id")},
         location="path",
     )
-    @permission_required_for_context("read", arg_name="sensor")
+    @permission_required_for_context("read", ctx_arg_name="sensor")
     def get(self, id: int, sensor: Sensor):
         """GET from /sensor/<id>
 
@@ -170,7 +173,7 @@ class AssetAPI(FlaskView):
         {"asset": AssetIdField(data_key="id")},
         location="path",
     )
-    @permission_required_for_context("read", arg_name="asset")
+    @permission_required_for_context("read", ctx_arg_name="asset")
     def get(self, id: int, asset: GenericAsset):
         """GET from /asset/<id>
 

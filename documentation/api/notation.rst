@@ -94,7 +94,7 @@ It uses the fact that all FlexMeasures sensors have unique IDs.
 
 The ``fm0`` scheme is the original scheme.
 It identified different types of sensors (such as grid connections, weather sensors and markets) in different ways.
-The ``fm0`` scheme has been deprecated and is no longer supported officially.
+The ``fm0`` scheme has been sunset since API version 3.
 
 
 Timeseries
@@ -202,9 +202,14 @@ Here are the three types of flexibility models you can expect to be built-in:
 
    For some examples, see the `[POST] /sensors/(id)/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_ endpoint docs.
 
-2) For **shiftable processes**
+2) For **processes**
    
-   .. todo:: A simple and proven algorithm exists, but is awaiting proper integration into FlexMeasures, see `PR 729 <https://github.com/FlexMeasures/flexmeasures/pull/729>`_.
+    - ``power``: nominal power of the load.
+    - ``duration``: time that the load last.
+    - ``optimization_sense``: objective of the scheduler, to maximize or minimize.
+    - ``time_restrictions``: time periods in which the load cannot be schedule to.
+    - ``process_type``: INFLEXIBLE, BREAKABLE or SHIFTABLE.
+
 
 3) For **buffer devices** (e.g. thermal energy storage systems connected to heat pumps), use the same flexibility parameters described above for storage devices. Here are some tips to model a buffer with these parameters:
 
@@ -388,21 +393,16 @@ For example, to obtain data originating from data source 42, include the followi
 
 Data source IDs can be found by hovering over data in charts.
 
-.. note:: Older API version (< 3) accepted user IDs (integers), account roles (strings) and lists thereof, instead of data source IDs (integers).
-
-
 .. _units:
 
 Units
 ^^^^^
 
-From API version 3 onwards, we are much more flexible with sent units.
+The FlexMeasures API is quite flexible with sent units.
 A valid unit for timeseries data is any unit that is convertible to the configured sensor unit registered in FlexMeasures.
 So, for example, you can send timeseries data with "W" unit to a "kW" sensor.
 And if you wish to do so, you can even send a timeseries with "kWh" unit to a "kW" sensor.
 In this case, FlexMeasures will convert the data using the resolution of the timeseries.
-
-For API versions 1 and 2, the unit sent needs to be an exact match with the sensor unit, and only "MW" is allowed for power sensors.
 
 .. _signs:
 

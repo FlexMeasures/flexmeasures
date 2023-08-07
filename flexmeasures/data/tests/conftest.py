@@ -4,14 +4,15 @@ import pytest
 from datetime import datetime, timedelta
 from random import random
 
-from isodate import parse_duration
 import pandas as pd
 import numpy as np
 from flask_sqlalchemy import SQLAlchemy
 from statsmodels.api import OLS
+import timely_beliefs as tb
+from flexmeasures.data.models.reporting import Reporter
 
+from flexmeasures.data.schemas.reporting import ReporterParametersSchema
 from flexmeasures.data.models.annotations import Annotation
-from flexmeasures.data.models.assets import Asset
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import TimedBelief, Sensor
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
@@ -21,6 +22,9 @@ from flexmeasures.data.models.forecasting.model_spec_factory import (
 )
 from flexmeasures.utils.time_utils import as_server_time
 
+from marshmallow import fields
+from marshmallow import Schema
+
 
 @pytest.fixture(scope="module")
 def setup_test_data(
@@ -29,7 +33,6 @@ def setup_test_data(
     add_market_prices,
     setup_assets,
     setup_generic_asset_types,
-    remove_seasonality_for_power_forecasts,
 ):
     """
     Adding a few forecasting jobs (based on data made in flexmeasures.conftest).
@@ -39,77 +42,20 @@ def setup_test_data(
     add_test_weather_sensor_and_forecasts(db, setup_generic_asset_types)
 
     print("Done setting up data for data tests")
+    return setup_assets
 
 
 @pytest.fixture(scope="function")
 def setup_fresh_test_data(
     fresh_db,
     setup_markets_fresh_db,
-    setup_roles_users_fresh_db,
+    setup_accounts_fresh_db,
+    setup_assets_fresh_db,
     setup_generic_asset_types_fresh_db,
     app,
-    fresh_remove_seasonality_for_power_forecasts,
-):
-    db = fresh_db
-    setup_roles_users = setup_roles_users_fresh_db
-    setup_markets = setup_markets_fresh_db
-
-    data_source = DataSource(name="Seita", type="demo script")
-    db.session.add(data_source)
-    db.session.flush()
-
-    for asset_name in ["wind-asset-2", "solar-asset-1"]:
-        asset = Asset(
-            name=asset_name,
-            asset_type_name="wind" if "wind" in asset_name else "solar",
-            event_resolution=timedelta(minutes=15),
-            capacity_in_mw=1,
-            latitude=10,
-            longitude=100,
-            min_soc_in_mwh=0,
-            max_soc_in_mwh=0,
-            soc_in_mwh=0,
-            unit="MW",
-            market_id=setup_markets["epex_da"].id,
-        )
-        asset.owner = setup_roles_users["Test Prosumer User"]
-        db.session.add(asset)
-
-        time_slots = pd.date_range(
-            datetime(2015, 1, 1), datetime(2015, 1, 1, 23, 45), freq="15T"
-        )
-        values = [random() * (1 + np.sin(x / 15)) for x in range(len(time_slots))]
-        beliefs = [
-            TimedBelief(
-                event_start=as_server_time(dt),
-                belief_horizon=parse_duration("PT0M"),
-                event_value=val,
-                sensor=asset.corresponding_sensor,
-                source=data_source,
-            )
-            for dt, val in zip(time_slots, values)
-        ]
-        db.session.add_all(beliefs)
+) -> dict[str, GenericAsset]:
     add_test_weather_sensor_and_forecasts(fresh_db, setup_generic_asset_types_fresh_db)
-
-
-@pytest.fixture(scope="module", autouse=True)
-def remove_seasonality_for_power_forecasts(db, setup_asset_types):
-    """Make sure the AssetType specs make us query only data we actually have in the test db"""
-    for asset_type in setup_asset_types.keys():
-        setup_asset_types[asset_type].daily_seasonality = False
-        setup_asset_types[asset_type].weekly_seasonality = False
-        setup_asset_types[asset_type].yearly_seasonality = False
-
-
-@pytest.fixture(scope="function")
-def fresh_remove_seasonality_for_power_forecasts(db, setup_asset_types_fresh_db):
-    """Make sure the AssetType specs make us query only data we actually have in the test db"""
-    setup_asset_types = setup_asset_types_fresh_db
-    for asset_type in setup_asset_types.keys():
-        setup_asset_types[asset_type].daily_seasonality = False
-        setup_asset_types[asset_type].weekly_seasonality = False
-        setup_asset_types[asset_type].yearly_seasonality = False
+    return setup_assets_fresh_db
 
 
 def add_test_weather_sensor_and_forecasts(db: SQLAlchemy, setup_generic_asset_types):
@@ -234,3 +180,48 @@ def setup_annotations(
         asset=asset,
         sensor=sensor,
     )
+
+
+@pytest.fixture(scope="module")
+def test_reporter(app, db, add_nearby_weather_sensors):
+    class TestReporterConfigSchema(Schema):
+        a = fields.Str()
+
+    class TestReporterParametersSchema(ReporterParametersSchema):
+        b = fields.Str(required=False)
+
+    class TestReporter(Reporter):
+        _config_schema = TestReporterConfigSchema()
+        _parameters_schema = TestReporterParametersSchema()
+
+        def _compute_report(self, **kwargs) -> list:
+            start = kwargs.get("start")
+            end = kwargs.get("end")
+            sensor = kwargs["output"][0]["sensor"]
+            resolution = sensor.event_resolution
+
+            index = pd.date_range(start=start, end=end, freq=resolution)
+
+            r = pd.DataFrame()
+            r["event_start"] = index
+            r["belief_time"] = index
+            r["source"] = self.data_source
+            r["cumulative_probability"] = 0.5
+            r["event_value"] = 0
+
+            bdf = tb.BeliefsDataFrame(r, sensor=sensor)
+
+            return [{"data": bdf, "sensor": sensor}]
+
+    app.data_generators["reporter"].update({"TestReporter": TestReporter})
+
+    config = dict(a="b")
+
+    ds = TestReporter(config=config).data_source
+
+    assert ds.name == app.config.get("FLEXMEASURES_DEFAULT_DATASOURCE")
+
+    db.session.add(ds)
+    db.session.commit()
+
+    return ds
