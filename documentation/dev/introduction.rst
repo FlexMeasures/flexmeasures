@@ -48,16 +48,18 @@ Go into the ``flexmeasures`` folder and install all dependencies including the o
    $ cd flexmeasures
    $ make install-for-dev
 
-:ref:`Install the LP solver <install-lp-solver>`. On Unix the Cbc LP solver can be installed with:
+:ref:`Install the LP solver <install-lp-solver>`. On Linux, the HiGHS solver can be installed with:
+
+.. code-block:: bash
+
+   $ pip install highspy
+
+
+Alternatively, the CBC solver can be installed with:
 
 .. code-block:: bash
 
    $ apt-get install coinor-cbc
-
-.. note::
-
-    If you are on Windows, then running & developing FlexMeasures will not work 100%. For instance, the queueing only works if you install rq-win (https://github.com/michaelbrooks/rq-win) manually and the make tooling is difficult to get to work as well.
-    We recommend to use the Windows Sub-system for Linux (https://learn.microsoft.com/en-us/windows/wsl/install) or work via Docker-compose (https://flexmeasures.readthedocs.io/en/latest/dev/docker-compose.html).
 
 
 Configuration
@@ -134,6 +136,13 @@ Otherwise, you need to add some other user first. Here is how we add an admin:
     $ flexmeasures add user --username admin --account-id 1 --email admin@mycompany.io --roles admin
 
 (The account-id you need in the 2nd command is printed by the 1st)
+
+
+.. note::
+
+    If you are on Windows, then running & developing FlexMeasures will not work 100%. For instance, the queueing only works if you install rq-win (https://github.com/michaelbrooks/rq-win) manually and the make tooling is difficult to get to work as well.
+    We recommend to use the Windows Sub-system for Linux (https://learn.microsoft.com/en-us/windows/wsl/install) or work via Docker-compose (https://flexmeasures.readthedocs.io/en/latest/dev/docker-compose.html).
+
 
 
 Logfile

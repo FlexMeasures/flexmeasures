@@ -12,6 +12,7 @@ from pyomo.core import (
     Reals,
     NonNegativeReals,
     NonPositiveReals,
+    Binary,
     Constraint,
     Objective,
     minimize,
@@ -33,7 +34,7 @@ def device_scheduler(  # noqa C901
     commitment_downwards_deviation_price: Union[List[pd.Series], List[float]],
     commitment_upwards_deviation_price: Union[List[pd.Series], List[float]],
     initial_stock: float = 0,
-) -> Tuple[List[pd.Series], float, SolverResults]:
+) -> Tuple[List[pd.Series], float, SolverResults, ConcreteModel]:
     """This generic device scheduler is able to handle an EMS with multiple devices,
     with various types of constraints on the EMS level and on the device level,
     and with multiple market commitments on the EMS level.
@@ -91,6 +92,15 @@ def device_scheduler(  # noqa C901
                 "Not implemented for different resolutions.\n%s\n%s"
                 % (resolution, resolution_c)
             )
+
+    # Compute a good value for M
+    M = 0.1
+    for device_constraint in device_constraints:
+        M = max(
+            M,
+            device_constraint["derivative max"].max(),
+            -device_constraint["derivative min"].min(),
+        )
 
     # Turn prices per commitment into prices per commitment flow
     if len(commitment_downwards_deviation_price) != 0:
@@ -234,6 +244,7 @@ def device_scheduler(  # noqa C901
         model.d, model.j, domain=NonPositiveReals, initialize=0
     )
     model.device_power_up = Var(model.d, model.j, domain=NonNegativeReals, initialize=0)
+    model.device_power_sign = Var(model.d, model.j, domain=Binary, initialize=0)
     model.commitment_downwards_deviation = Var(
         model.c, model.j, domain=NonPositiveReals, initialize=0
     )
@@ -287,6 +298,14 @@ def device_scheduler(  # noqa C901
             max(0, m.device_derivative_max[d, j]),
         )
 
+    def device_up_derivative_sign(m, d, j):
+        """Derivative up if sign points up, derivative not up if sign points down."""
+        return m.device_power_up[d, j] <= M * m.device_power_sign[d, j]
+
+    def device_down_derivative_sign(m, d, j):
+        """Derivative down if sign points down, derivative not down if sign points up."""
+        return -m.device_power_down[d, j] <= M * (1 - m.device_power_sign[d, j])
+
     def ems_derivative_bounds(m, j):
         return m.ems_derivative_min[j], sum(m.ems_power[:, j]), m.ems_derivative_max[j]
 
@@ -319,6 +338,12 @@ def device_scheduler(  # noqa C901
     model.device_power_up_bounds = Constraint(
         model.d, model.j, rule=device_up_derivative_bounds
     )
+    model.device_power_up_sign = Constraint(
+        model.d, model.j, rule=device_up_derivative_sign
+    )
+    model.device_power_down_sign = Constraint(
+        model.d, model.j, rule=device_down_derivative_sign
+    )
     model.ems_power_bounds = Constraint(model.j, rule=ems_derivative_bounds)
     model.ems_power_commitment_equalities = Constraint(
         model.j, rule=ems_flow_commitment_equalities
@@ -339,9 +364,15 @@ def device_scheduler(  # noqa C901
     model.costs = Objective(rule=cost_function, sense=minimize)
 
     # Solve
+
+    # load_solutions=False to avoid a RuntimeError exception in appsi solvers when solving an infeasible problem.
     results = SolverFactory(current_app.config.get("FLEXMEASURES_LP_SOLVER")).solve(
-        model
+        model, load_solutions=False
     )
+
+    # load the results only if a feasible solution has been found
+    if len(results.solution) > 0:
+        model.solutions.load_from(results)
 
     planned_costs = value(model.costs)
     planned_power_per_device = []
@@ -360,4 +391,4 @@ def device_scheduler(  # noqa C901
     # model.display()
     # print(results.solver.termination_condition)
     # print(planned_costs)
-    return planned_power_per_device, planned_costs, results
+    return planned_power_per_device, planned_costs, results, model

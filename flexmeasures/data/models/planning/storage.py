@@ -26,7 +26,7 @@ from flexmeasures.utils.coding_utils import deprecated
 
 class StorageScheduler(Scheduler):
 
-    __version__ = "1"
+    __version__ = "2"
     __author__ = "Seita"
 
     COLUMNS = [
@@ -50,13 +50,16 @@ class StorageScheduler(Scheduler):
 
         return self.compute()
 
-    def compute(self, skip_validation: bool = False) -> pd.Series | None:
-        """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
-        For the resulting consumption schedule, consumption is defined as positive values.
+    def _prepare(self, skip_validation: bool = False) -> tuple:
+        """This function prepares the required data to compute the schedule:
+            - price data
+            - device constraint
+            - ems constraints
 
         :param skip_validation: If True, skip validation of constraints specified in the data.
-        :returns:               The computed schedule.
+        :returns:               Input data for the scheduler
         """
+
         if not self.config_deserialized:
             self.deserialize_config()
 
@@ -201,7 +204,41 @@ class StorageScheduler(Scheduler):
             ems_constraints["derivative min"] = ems_capacity * -1
             ems_constraints["derivative max"] = ems_capacity
 
-        ems_schedule, expected_costs, scheduler_results = device_scheduler(
+        return (
+            sensor,
+            start,
+            end,
+            resolution,
+            soc_at_start,
+            device_constraints,
+            ems_constraints,
+            commitment_quantities,
+            commitment_downwards_deviation_price,
+            commitment_upwards_deviation_price,
+        )
+
+    def compute(self, skip_validation: bool = False) -> pd.Series | None:
+        """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
+        For the resulting consumption schedule, consumption is defined as positive values.
+
+        :param skip_validation: If True, skip validation of constraints specified in the data.
+        :returns:               The computed schedule.
+        """
+
+        (
+            sensor,
+            start,
+            end,
+            resolution,
+            soc_at_start,
+            device_constraints,
+            ems_constraints,
+            commitment_quantities,
+            commitment_downwards_deviation_price,
+            commitment_upwards_deviation_price,
+        ) = self._prepare(skip_validation=skip_validation)
+
+        ems_schedule, expected_costs, scheduler_results, _ = device_scheduler(
             device_constraints,
             ems_constraints,
             commitment_quantities,

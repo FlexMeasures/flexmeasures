@@ -52,7 +52,13 @@ def test_forecasting_an_hour_of_wind(db, run_as_cli, app, setup_test_data):
     - data source was made,
     - forecasts have been made
     """
-    wind_device_1 = Sensor.query.filter_by(name="wind-asset-1").one_or_none()
+    # asset has only 1 power sensor
+    wind_device_1: Sensor = setup_test_data["wind-asset-1"].sensors[0]
+
+    # Remove each seasonality, so we don't query test data that isn't there
+    wind_device_1.set_attribute("daily_seasonality", False)
+    wind_device_1.set_attribute("weekly_seasonality", False)
+    wind_device_1.set_attribute("yearly_seasonality", False)
 
     assert get_data_source() is None
 
@@ -88,11 +94,12 @@ def test_forecasting_an_hour_of_wind(db, run_as_cli, app, setup_test_data):
 def test_forecasting_two_hours_of_solar_at_edge_of_data_set(
     db, run_as_cli, app, setup_test_data
 ):
-    solar_device1: Sensor = Sensor.query.filter_by(name="solar-asset-1").one_or_none()
+    # asset has only 1 power sensor
+    solar_device_1: Sensor = setup_test_data["solar-asset-1"].sensors[0]
 
     last_power_datetime = (
         (
-            TimedBelief.query.filter(TimedBelief.sensor_id == solar_device1.id)
+            TimedBelief.query.filter(TimedBelief.sensor_id == solar_device_1.id)
             .filter(TimedBelief.belief_horizon == timedelta(hours=0))
             .order_by(TimedBelief.event_start.desc())
         )
@@ -112,7 +119,7 @@ def test_forecasting_two_hours_of_solar_at_edge_of_data_set(
         horizons=[
             timedelta(hours=6)
         ],  # so we want forecasts for 11.15pm (Jan 1st) to 0.15am (Jan 2nd)
-        sensor_id=solar_device1.id,
+        sensor_id=solar_device_1.id,
         custom_model_params=custom_model_params(),
     )
     print("Job: %s" % job[0].id)
@@ -120,13 +127,13 @@ def test_forecasting_two_hours_of_solar_at_edge_of_data_set(
     work_on_rq(app.queues["forecasting"], exc_handler=handle_forecasting_exception)
 
     forecasts = (
-        TimedBelief.query.filter(TimedBelief.sensor_id == solar_device1.id)
+        TimedBelief.query.filter(TimedBelief.sensor_id == solar_device_1.id)
         .filter(TimedBelief.belief_horizon == horizon)
         .filter(TimedBelief.event_start > last_power_datetime)
         .all()
     )
     assert len(forecasts) == 1
-    check_aggregate(4, horizon, solar_device1.id)
+    check_aggregate(4, horizon, solar_device_1.id)
 
 
 def check_failures(
@@ -176,12 +183,15 @@ def test_failed_forecasting_insufficient_data(
 ):
     """This one (as well as the fallback) should fail as there is no underlying data.
     (Power data is in 2015)"""
-    solar_device1: Sensor = Sensor.query.filter_by(name="solar-asset-1").one_or_none()
+
+    # asset has only 1 power sensor
+    solar_device_1: Sensor = setup_test_data["solar-asset-1"].sensors[0]
+
     create_forecasting_jobs(
         start_of_roll=as_server_time(datetime(2016, 1, 1, 20)),
         end_of_roll=as_server_time(datetime(2016, 1, 1, 22)),
         horizons=[timedelta(hours=1)],
-        sensor_id=solar_device1.id,
+        sensor_id=solar_device_1.id,
         custom_model_params=custom_model_params(),
     )
     work_on_rq(app.queues["forecasting"], exc_handler=handle_forecasting_exception)
@@ -192,12 +202,15 @@ def test_failed_forecasting_invalid_horizon(
     app, run_as_cli, clean_redis, setup_test_data
 ):
     """This one (as well as the fallback) should fail as the horizon is invalid."""
-    solar_device1: Sensor = Sensor.query.filter_by(name="solar-asset-1").one_or_none()
+
+    # asset has only 1 power sensor
+    solar_device_1: Sensor = setup_test_data["solar-asset-1"].sensors[0]
+
     create_forecasting_jobs(
         start_of_roll=as_server_time(datetime(2015, 1, 1, 21)),
         end_of_roll=as_server_time(datetime(2015, 1, 1, 23)),
         horizons=[timedelta(hours=18)],
-        sensor_id=solar_device1.id,
+        sensor_id=solar_device_1.id,
         custom_model_params=custom_model_params(),
     )
     work_on_rq(app.queues["forecasting"], exc_handler=handle_forecasting_exception)
@@ -206,7 +219,10 @@ def test_failed_forecasting_invalid_horizon(
 
 def test_failed_unknown_model(app, clean_redis, setup_test_data):
     """This one should fail because we use a model search term which yields no model configurator."""
-    solar_device1: Sensor = Sensor.query.filter_by(name="solar-asset-1").one_or_none()
+
+    # asset has only 1 power sensor
+    solar_device_1: Sensor = setup_test_data["solar-asset-1"].sensors[0]
+
     horizon = timedelta(hours=1)
 
     cmp = custom_model_params()
@@ -216,7 +232,7 @@ def test_failed_unknown_model(app, clean_redis, setup_test_data):
         start_of_roll=as_server_time(datetime(2015, 1, 1, 12)),
         end_of_roll=as_server_time(datetime(2015, 1, 1, 14)),
         horizons=[horizon],
-        sensor_id=solar_device1.id,
+        sensor_id=solar_device_1.id,
         model_search_term="no-one-knows-this",
         custom_model_params=cmp,
     )

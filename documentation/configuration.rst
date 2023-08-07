@@ -55,7 +55,7 @@ Default: ``False``
 FLEXMEASURES_LP_SOLVER
 ^^^^^^^^^^^^^^^^^^^^^^
 
-The command to run the scheduling solver. This is the executable command which FlexMeasures calls via the `pyomo library <http://www.pyomo.org/>`_. Other values might be ``cplex`` or ``glpk``. Consult `their documentation <https://pyomo.readthedocs.io/en/stable/solving_pyomo_models.html#supported-solvers>`_ to learn more. 
+The command to run the scheduling solver. This is the executable command which FlexMeasures calls via the `pyomo library <http://www.pyomo.org/>`_. Other values might be ``cplex``, ``glpk`` or ``appsi_highs`` for `HiGHS <https://highs.dev/>`_. Consult `their documentation <https://pyomo.readthedocs.io/en/stable/solving_pyomo_models.html#supported-solvers>`_ to learn more. 
 
 Default: ``"cbc"``
 
@@ -179,7 +179,7 @@ For more fine-grained control, the entries can also be tuples of view names and 
 
 .. note:: This fine-grained control requires FlexMeasures version 0.6.0
 
-Default: ``["dashboard", "analytics", "portfolio", "assets", "users"]``
+Default: ``["dashboard"]``
 
 
 FLEXMEASURES_MENU_LISTED_VIEW_ICONS
