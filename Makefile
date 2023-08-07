@@ -39,7 +39,7 @@ install: install-deps install-flexmeasures
 
 install-for-dev:
 	make freeze-deps
-	make ensure-dep-folder
+	make ensure-deps-folder
 	pip-sync requirements/${PYV}/app.txt requirements/${PYV}/dev.txt requirements/${PYV}/test.txt
 	make install-flexmeasures
 
@@ -59,7 +59,6 @@ endif
 install-deps:
 	make install-pip-tools
 	make freeze-deps
-	make ensure-dep-folder
 # Pass pinned=no if you want to test against latest stable packages, default is our pinned dependency set
 ifneq ($(pinned), no)
 	pip-sync requirements/${PYV}/app.txt
@@ -77,7 +76,7 @@ install-docs-dependencies:
 	pip install -r requirements/${PYV}/docs.txt
 
 freeze-deps:
-	make ensure-dep-folder
+	make ensure-deps-folder
 	make install-pip-tools
 	pip-compile -o requirements/${PYV}/app.txt requirements/app.in
 	# Create app.txt to create constraints for test.txt and dev.txt
@@ -90,7 +89,7 @@ freeze-deps:
 	rm requirements/test.txt
 
 upgrade-deps:
-	make ensure-dep-folder
+	make ensure-deps-folder
 	make install-pip-tools
 	pip-compile --upgrade -o requirements/${PYV}/app.txt requirements/app.in
 	# Create app.txt to create constraints for test.txt and dev.txt
@@ -122,7 +121,7 @@ show-data-model:
 	# Use --help to learn more. 
 	./flexmeasures/data/scripts/visualize_data_model.py --uml
 
-ensure-dep-folder:
+ensure-deps-folder:
 	mkdir -p requirements/${PYV}
 
 clean-db:
