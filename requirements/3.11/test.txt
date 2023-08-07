@@ -24,6 +24,8 @@ flask==2.1.2
     # via
     #   -c requirements/app.txt
     #   pytest-flask
+highspy==1.5.3
+    # via -r requirements/test.in
 idna==3.4
     # via
     #   -c requirements/app.txt
