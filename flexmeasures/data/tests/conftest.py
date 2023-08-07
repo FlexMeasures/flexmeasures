@@ -8,7 +8,10 @@ import pandas as pd
 import numpy as np
 from flask_sqlalchemy import SQLAlchemy
 from statsmodels.api import OLS
+import timely_beliefs as tb
+from flexmeasures.data.models.reporting import Reporter
 
+from flexmeasures.data.schemas.reporting import ReporterParametersSchema
 from flexmeasures.data.models.annotations import Annotation
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import TimedBelief, Sensor
@@ -18,6 +21,9 @@ from flexmeasures.data.models.forecasting.model_spec_factory import (
     create_initial_model_specs,
 )
 from flexmeasures.utils.time_utils import as_server_time
+
+from marshmallow import fields
+from marshmallow import Schema
 
 
 @pytest.fixture(scope="module")
@@ -174,3 +180,48 @@ def setup_annotations(
         asset=asset,
         sensor=sensor,
     )
+
+
+@pytest.fixture(scope="module")
+def test_reporter(app, db, add_nearby_weather_sensors):
+    class TestReporterConfigSchema(Schema):
+        a = fields.Str()
+
+    class TestReporterParametersSchema(ReporterParametersSchema):
+        b = fields.Str(required=False)
+
+    class TestReporter(Reporter):
+        _config_schema = TestReporterConfigSchema()
+        _parameters_schema = TestReporterParametersSchema()
+
+        def _compute_report(self, **kwargs) -> list:
+            start = kwargs.get("start")
+            end = kwargs.get("end")
+            sensor = kwargs["output"][0]["sensor"]
+            resolution = sensor.event_resolution
+
+            index = pd.date_range(start=start, end=end, freq=resolution)
+
+            r = pd.DataFrame()
+            r["event_start"] = index
+            r["belief_time"] = index
+            r["source"] = self.data_source
+            r["cumulative_probability"] = 0.5
+            r["event_value"] = 0
+
+            bdf = tb.BeliefsDataFrame(r, sensor=sensor)
+
+            return [{"data": bdf, "sensor": sensor}]
+
+    app.data_generators["reporter"].update({"TestReporter": TestReporter})
+
+    config = dict(a="b")
+
+    ds = TestReporter(config=config).data_source
+
+    assert ds.name == app.config.get("FLEXMEASURES_DEFAULT_DATASOURCE")
+
+    db.session.add(ds)
+    db.session.commit()
+
+    return ds
