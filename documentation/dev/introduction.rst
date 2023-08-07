@@ -61,11 +61,6 @@ Alternatively, the CBC solver can be installed with:
 
    $ apt-get install coinor-cbc
 
-Alternatively, HiGHS solver can be installed with pip:
-
-.. code-block:: bash
-
-   $ pip install highspy
 
 Configuration
 ^^^^^^^^^^^^^^^^^^^^
@@ -141,6 +136,13 @@ Otherwise, you need to add some other user first. Here is how we add an admin:
     $ flexmeasures add user --username admin --account-id 1 --email admin@mycompany.io --roles admin
 
 (The account-id you need in the 2nd command is printed by the 1st)
+
+
+.. note::
+
+    If you are on Windows, then running & developing FlexMeasures will not work 100%. For instance, the queueing only works if you install rq-win (https://github.com/michaelbrooks/rq-win) manually and the make tooling is difficult to get to work as well.
+    We recommend to use the Windows Sub-system for Linux (https://learn.microsoft.com/en-us/windows/wsl/install) or work via Docker-compose (https://flexmeasures.readthedocs.io/en/latest/dev/docker-compose.html).
+
 
 
 Logfile

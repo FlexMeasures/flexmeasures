@@ -4,6 +4,38 @@ from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.schemas.sources import DataSourceIdField
 
 from flexmeasures.data.schemas import AwareDateTimeField, DurationField
+from flexmeasures.data.schemas.io import Input, Output
+
+
+class ReporterConfigSchema(Schema):
+    """
+    This schema is used to validate Reporter class configurations (config).
+    Inherit from this class to extend this schema with your own parameters.
+    """
+
+    pass
+
+
+class ReporterParametersSchema(Schema):
+    """
+    This schema is used to validate the parameters to the method `compute` of
+     the Reporter class.
+    Inherit from this class to extend this schema with your own parameters.
+    """
+
+    input = fields.List(
+        fields.Nested(Input()),
+        required=True,
+        validator=validate.Length(min=1),
+    )
+
+    output = fields.List(fields.Nested(Output()), validate=validate.Length(min=1))
+
+    start = AwareDateTimeField(required=True)
+    end = AwareDateTimeField(required=True)
+
+    resolution = DurationField(required=False)
+    belief_time = AwareDateTimeField(required=False)
 
 
 class BeliefsSearchConfigSchema(Schema):
@@ -34,16 +66,3 @@ class BeliefsSearchConfigSchema(Schema):
     one_deterministic_belief_per_event_per_source = fields.Boolean()
     resolution = DurationField()
     sum_multiple = fields.Boolean()
-
-
-class ReporterConfigSchema(Schema):
-    """
-    This schema is used to validate Reporter class configurations (reporter_config).
-    Inherit from this to extend this schema with your own parameters.
-    """
-
-    beliefs_search_configs = fields.List(
-        fields.Nested(BeliefsSearchConfigSchema()),
-        required=True,
-        validator=validate.Length(min=1),
-    )

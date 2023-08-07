@@ -8,8 +8,10 @@ from datetime import datetime, timedelta
 from typing import Type, List
 import isodate
 import json
+import yaml
 from pathlib import Path
 from io import TextIOBase
+from string import Template
 
 from marshmallow import validate
 import pandas as pd
@@ -57,6 +59,7 @@ from flexmeasures.data.schemas import (
 from flexmeasures.data.schemas.times import TimeIntervalSchema
 from flexmeasures.data.schemas.scheduling.storage import EfficiencyField
 from flexmeasures.data.schemas.sensors import SensorSchema
+from flexmeasures.data.schemas.io import Output
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema,
@@ -1305,19 +1308,18 @@ def add_schedule_process(
 @fm_add_data.command("report")
 @with_appcontext
 @click.option(
-    "--sensor-id",
-    "sensor",
-    type=SensorIdField(),
-    required=True,
-    help="Sensor used to save the report. Follow up with the sensor's ID. "
-    " If needed, use `flexmeasures add sensor` to create a new sensor first.",
+    "--config",
+    "config_file",
+    required=False,
+    type=click.File("r"),
+    help="Path to the JSON or YAML file with the configuration of the reporter.",
 )
 @click.option(
-    "--reporter-config",
-    "reporter_config",
-    required=True,
+    "--parameters",
+    "parameters_file",
+    required=False,
     type=click.File("r"),
-    help="Path to the JSON file with the reporter configuration.",
+    help="Path to the JSON or YAML file with the report parameters (passed to the compute step).",
 )
 @click.option(
     "--reporter",
@@ -1364,17 +1366,20 @@ def add_schedule_process(
 )
 @click.option(
     "--output-file",
-    "output_file",
+    "output_file_pattern",
     required=False,
     type=click.Path(),
-    help="Path to save the report to file. Will override any previous file contents."
-    " Use the `.csv` suffix to save the results as Comma Separated Values and `.xlsx` to export them as Excel sheets.",
+    help="Format of the output file. Use dollar sign ($) to interpolate values among the following ones:"
+    " now (current time), name (name of the output), sensor_id (id of the sensor), column (column of the output)."
+    " Example: 'result_file_$name_$now.csv'. "
+    "Use the `.csv` suffix to save the results as Comma Separated Values and `.xlsx` to export them as Excel sheets.",
 )
 @click.option(
     "--timezone",
     "timezone",
     required=False,
-    help="Timezone as string, e.g. 'UTC' or 'Europe/Amsterdam' (defaults to the timezone of the sensor used to save the report).",
+    help="Timezone as string, e.g. 'UTC' or 'Europe/Amsterdam' (defaults to the timezone of the sensor used to save the report)."
+    "The timezone of the first output sensor (specified in the parameters) is taken as a default.",
 )
 @click.option(
     "--dry-run",
@@ -1382,17 +1387,38 @@ def add_schedule_process(
     is_flag=True,
     help="Add this flag to avoid saving the results to the database.",
 )
+@click.option(
+    "--edit-config",
+    "edit_config",
+    is_flag=True,
+    help="Add this flag to edit the configuration of the Reporter in your default text editor (e.g. nano).",
+)
+@click.option(
+    "--edit-parameters",
+    "edit_parameters",
+    is_flag=True,
+    help="Add this flag to edit the parameters passed to the Reporter in your default text editor (e.g. nano).",
+)
+@click.option(
+    "--save-config",
+    "save_config",
+    is_flag=True,
+    help="Add this flag to save the `config` in the attributes of the DataSource for future reference.",
+)
 def add_report(  # noqa: C901
     reporter_class: str,
-    sensor: Sensor,
-    reporter_config: TextIOBase,
+    config_file: TextIOBase | None = None,
+    parameters_file: TextIOBase | None = None,
     start: datetime | None = None,
     end: datetime | None = None,
     start_offset: str | None = None,
     end_offset: str | None = None,
     resolution: timedelta | None = None,
-    output_file: Path | None = None,
+    output_file_pattern: Path | None = None,
     dry_run: bool = False,
+    edit_config: bool = False,
+    edit_parameters: bool = False,
+    save_config: bool = False,
     timezone: str | None = None,
 ):
     """
@@ -1400,11 +1426,38 @@ def add_report(  # noqa: C901
     to the database or export them as CSV or Excel file.
     """
 
+    config = dict()
+
+    if config_file:
+        config = yaml.safe_load(config_file)
+
+    if edit_config:
+        config = launch_editor("/tmp/config.yml")
+
+    parameters = dict()
+
+    if parameters_file:
+        parameters = yaml.safe_load(parameters_file)
+
+    if edit_parameters:
+        parameters = launch_editor("/tmp/parameters.yml")
+
+    # check if sensor is not provided in the `parameters` description
+    if "output" not in parameters or len(parameters["output"]) == 0:
+        click.secho(
+            "At least one output sensor needs to be specified in the parameters description.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+
+    output = [Output().load(o) for o in parameters["output"]]
+
     # compute now in the timezone local to the output sensor
     if timezone is not None:
         check_timezone(timezone)
+
     now = pytz.timezone(
-        zone=timezone if timezone is not None else sensor.timezone
+        zone=timezone if timezone is not None else output[0]["sensor"].timezone
     ).localize(datetime.now())
 
     # apply offsets, if provided
@@ -1425,9 +1478,11 @@ def add_report(  # noqa: C901
             " Trying to use the latest datapoint of the report sensor as the start time...",
             **MsgStyle.WARN,
         )
+
+        # todo: get the oldest last_value among all the sensors
         last_value_datetime = (
             db.session.query(func.max(TimedBelief.event_start))
-            .filter(TimedBelief.sensor_id == sensor.id)
+            .filter(TimedBelief.sensor_id == output[0]["sensor"].id)
             .one_or_none()
         )
 
@@ -1436,7 +1491,8 @@ def add_report(  # noqa: C901
             start = last_value_datetime[0]
         else:
             click.secho(
-                f"Could not find any data for the report sensor {sensor}.",
+                "Could not find any data for the output sensors provided. Such data is needed to compute"
+                " a sensible default start for the report, so setting a start explicitly would resolve this issue.",
                 **MsgStyle.ERROR,
             )
             raise click.Abort()
@@ -1457,7 +1513,9 @@ def add_report(  # noqa: C901
     )
 
     # get reporter class
-    ReporterClass: Type[Reporter] = app.reporters.get(reporter_class)
+    ReporterClass: Type[Reporter] = app.data_generators.get("reporter").get(
+        reporter_class
+    )
 
     # check if it exists
     if ReporterClass is None:
@@ -1469,70 +1527,102 @@ def add_report(  # noqa: C901
 
     click.secho(f"Reporter {reporter_class} found.", **MsgStyle.SUCCESS)
 
-    reporter_config_raw = json.load(reporter_config)
-
     # initialize reporter class with the reporter sensor and reporter config
-    reporter: Reporter = ReporterClass(
-        sensor=sensor, reporter_config_raw=reporter_config_raw
-    )
+    reporter: Reporter = ReporterClass(config=config, save_config=save_config)
 
     click.echo("Report computation is running...")
 
+    if ("start" not in parameters) and (start is not None):
+        parameters["start"] = start.isoformat()
+    if ("end" not in parameters) and (end is not None):
+        parameters["end"] = end.isoformat()
+    if ("resolution" not in parameters) and (resolution is not None):
+        parameters["resolution"] = pd.Timedelta(resolution).isoformat()
+
     # compute the report
-    result: BeliefsDataFrame = reporter.compute(
-        start=start, end=end, input_resolution=resolution
-    )
+    results: BeliefsDataFrame = reporter.compute(parameters=parameters)
 
-    if not result.empty:
-        click.secho("Report computation done.", **MsgStyle.SUCCESS)
-    else:
-        click.secho(
-            "Report computation done, but the report is empty.", **MsgStyle.WARN
-        )
-
-    # save the report if it's not running in dry mode
-    if not dry_run:
-        click.echo("Saving report to the database...")
-        save_to_db(result.dropna())
-        db.session.commit()
-        click.secho(
-            "Success. The report has been saved to the database.",
-            **MsgStyle.SUCCESS,
-        )
-    else:
-        click.echo(
-            f"Not saving report to the database (because of --dry-run), but this is what I computed:\n{result}"
-        )
-
-    # if an output file path is provided, save the results
-    if output_file:
-        suffix = str(output_file).split(".")[-1] if "." in str(output_file) else ""
-
-        if suffix == "xlsx":  # save to EXCEL
-            result.to_excel(output_file)
+    for result in results:
+        data = result["data"]
+        sensor = result["sensor"]
+        if not data.empty:
             click.secho(
-                f"Success. The report has been exported as EXCEL to the file `{output_file}`",
-                **MsgStyle.SUCCESS,
+                f"Report computation done for sensor `{sensor}`.", **MsgStyle.SUCCESS
             )
-
-        elif suffix == "csv":  # save to CSV
-            result.to_csv(output_file)
+        else:
             click.secho(
-                f"Success. The report has been exported as CSV to the file `{output_file}`",
-                **MsgStyle.SUCCESS,
-            )
-
-        else:  # default output format: CSV.
-            click.secho(
-                f"File suffix not provided. Exporting results as CSV to file {output_file}",
+                f"Report computation done for sensor `{sensor}`, but the report is empty.",
                 **MsgStyle.WARN,
             )
-            result.to_csv(output_file)
-    else:
-        click.secho(
-            "Success.",
-            **MsgStyle.SUCCESS,
-        )
+
+        # save the report if it's not running in dry mode
+        if not dry_run:
+            click.echo(f"Saving report for sensor `{sensor}` to the database...")
+            save_to_db(data.dropna())
+            db.session.commit()
+            click.secho(
+                f"Success. The report for sensor `{sensor}` has been saved to the database.",
+                **MsgStyle.SUCCESS,
+            )
+        else:
+            click.echo(
+                f"Not saving report for sensor `{sensor}` to the database  (because of --dry-run), but this is what I computed:\n{data}"
+            )
+
+        # if an output file path is provided, save the data
+        if output_file_pattern:
+            suffix = (
+                str(output_file_pattern).split(".")[-1]
+                if "." in str(output_file_pattern)
+                else ""
+            )
+            template = Template(str(output_file_pattern))
+
+            filename = template.safe_substitute(
+                sensor_id=result["sensor"].id,
+                name=result.get("name", ""),
+                column=result.get("column", ""),
+                reporter_class=reporter_class,
+                now=now.strftime("%Y_%m_%dT%H%M%S"),
+            )
+
+            if suffix == "xlsx":  # save to EXCEL
+                data.to_excel(filename)
+                click.secho(
+                    f"Success. The report for sensor `{sensor}` has been exported as EXCEL to the file `{filename}`",
+                    **MsgStyle.SUCCESS,
+                )
+
+            elif suffix == "csv":  # save to CSV
+                data.to_csv(filename)
+                click.secho(
+                    f"Success. The report for sensor `{sensor}` has been exported as CSV to the file `{filename}`",
+                    **MsgStyle.SUCCESS,
+                )
+
+            else:  # default output format: CSV.
+                click.secho(
+                    f"File suffix not provided. Exporting results for sensor `{sensor}` as CSV to file {filename}",
+                    **MsgStyle.WARN,
+                )
+                data.to_csv(filename)
+        else:
+            click.secho(
+                "Success.",
+                **MsgStyle.SUCCESS,
+            )
+
+
+def launch_editor(filename: str) -> dict:
+    """Launch editor to create/edit a json object"""
+    click.edit("{\n}", filename=filename)
+
+    with open(filename, "r") as f:
+        content = yaml.safe_load(f)
+        if content is None:
+            return dict()
+
+        return content
 
 
 @fm_add_data.command("toy-account")
