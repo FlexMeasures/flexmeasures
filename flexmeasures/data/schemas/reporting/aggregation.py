@@ -44,16 +44,9 @@ class AggregatorParametersSchema(ReporterParametersSchema):
                     "source" : 2,
                 }
             ],
-            "input": [
+            "output": [
                 {
-                    "name" : "pv",
-                    "sensor": 1,
-                    "source" : 1,
-                },
-                {
-                    "name" : "consumption",
-                    "sensor": 1,
-                    "source" : 2,
+                    "sensor": 3,
                 }
             ],
             "start" : "2023-01-01T00:00:00+00:00",

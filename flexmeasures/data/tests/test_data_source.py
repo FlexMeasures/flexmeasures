@@ -91,7 +91,8 @@ def test_data_generator_save_config(db, app, test_reporter, add_nearby_weather_s
         end=datetime(2023, 1, 2, tzinfo=UTC),
     )[0]["data"]
 
-    assert len(res.lineage.sources[0].attributes.get("data_generator")) == 0
+    # check that the data_generator is not saving the config in the data_source attributes
+    assert res.lineage.sources[0].attributes.get("data_generator") == dict()
 
 
 def test_data_generator_save_parameters(
