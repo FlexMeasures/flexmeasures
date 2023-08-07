@@ -63,6 +63,13 @@ def setup_dummy_data(db, app, setup_dummy_asset):
     )
     db.session.add(report_sensor)
 
+    report_sensor_2 = Sensor(
+        "report sensor 2",
+        generic_asset=pandas_report,
+        event_resolution=timedelta(hours=2),
+    )
+    db.session.add(report_sensor_2)
+
     # Create 1 DataSources
     source = DataSource("source1")
 
@@ -83,35 +90,7 @@ def setup_dummy_data(db, app, setup_dummy_asset):
     db.session.add_all(beliefs)
     db.session.commit()
 
-    yield sensor1, sensor2, report_sensor
-
-
-@pytest.fixture(scope="module")
-@pytest.mark.skip_github
-def reporter_config(app, db, setup_dummy_data):
-    """
-    This reporter_config defines the operations to add up the
-    values of the sensors 1 and 2 and resamples the result to a
-    two hour resolution.
-    """
-
-    sensor1, sensor2, report_sensor = setup_dummy_data
-
-    reporter_config = dict(
-        required_input=[{"name": "sensor_1"}, {"name": "sensor_2"}],
-        required_output=[{"name": "df_agg"}],
-        transformations=[
-            dict(
-                df_input="sensor_1",
-                method="add",
-                args=["@sensor_2"],
-                df_output="df_agg",
-            ),
-            dict(method="resample_events", args=["2h"]),
-        ],
-    )
-
-    return reporter_config
+    yield sensor1.id, sensor2.id, report_sensor.id, report_sensor_2.id
 
 
 @pytest.mark.skip_github
