@@ -2,7 +2,8 @@ import pytest
 import json
 import yaml
 import os
-
+from datetime import datetime
+import pytz
 
 from flexmeasures.cli.tests.utils import to_flags
 from flexmeasures.data.models.annotations import (
@@ -170,15 +171,14 @@ def test_add_reporter(app, db, setup_dummy_data):
 
         assert result.exit_code == 0  # run command without errors
 
-        assert "Reporter PandasReporter found" in result.output
-        assert "Report computation done." in result.output
-
-        # Check report is saved to the database
-
         report_sensor = Sensor.query.get(
             report_sensor_id
         )  # get fresh report sensor instance
 
+        assert "Reporter PandasReporter found" in result.output
+        assert f"Report computation done for sensor `{report_sensor}`." in result.output
+
+        # Check report is saved to the database
         stored_report = report_sensor.search_beliefs(
             event_starts_after=cli_input_params.get("start").replace(" ", "+"),
             event_ends_before=cli_input_params.get("end").replace(" ", "+"),
@@ -225,13 +225,13 @@ def test_add_reporter(app, db, setup_dummy_data):
 
         assert result.exit_code == 0  # run command without errors
 
-        assert "Reporter PandasReporter found" in result.output
-        assert "Report computation done." in result.output
-
         # Check if the report is saved to the database
         report_sensor = Sensor.query.get(
             report_sensor_id
         )  # get fresh report sensor instance
+
+        assert "Reporter PandasReporter found" in result.output
+        assert f"Report computation done for sensor `{report_sensor}`." in result.output
 
         stored_report = report_sensor.search_beliefs(
             event_starts_after=previous_command_end,
@@ -278,8 +278,8 @@ def test_add_multiple_output(app, db, setup_dummy_data):
         "config": "reporter_config.yaml",
         "parameters": "parameters.json",
         "reporter": "PandasReporter",
-        "start": "2023-04-10T00:00:00 00:00",
-        "end": "2023-04-10T10:00:00 00:00",
+        "start": "2023-04-10T00:00:00+00:00",
+        "end": "2023-04-10T10:00:00+00:00",
         "output-file": "test-$name.csv",
     }
 
@@ -316,10 +316,23 @@ def test_add_multiple_output(app, db, setup_dummy_data):
 
         assert result.exit_code == 0  # run command without errors
 
-        assert "Reporter PandasReporter found" in result.output
-        assert "Report computation done." in result.output
+        report_sensor = Sensor.query.get(report_sensor_id)
+        report_sensor_2 = Sensor.query.get(report_sensor_2_id)
 
-        # Check report is save
+        assert "Reporter PandasReporter found" in result.output
+        assert f"Report computation done for sensor `{report_sensor}`." in result.output
+        assert (
+            f"Report computation done for sensor `{report_sensor_2}`." in result.output
+        )
+
+        # check that the reports are saved
+        assert all(
+            report_sensor.search_beliefs(
+                event_ends_before=datetime(2023, 4, 10, 10, tzinfo=pytz.UTC)
+            ).values.flatten()
+            == [1, 5, 9, 13, 17]
+        )
+        assert all(report_sensor_2.search_beliefs() == 0)
 
 
 @pytest.mark.skip_github

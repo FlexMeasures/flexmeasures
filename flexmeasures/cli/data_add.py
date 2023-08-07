@@ -1370,7 +1370,7 @@ def add_schedule_process(
     required=False,
     type=click.Path(),
     help="Format of the output file. Use dollar sign ($) to interpolate values among the following ones:"
-    " now (current time), name (dame of the output), sensor_id (id of the sensor), column (column of the output)."
+    " now (current time), name (name of the output), sensor_id (id of the sensor), column (column of the output)."
     " Example: 'result_file_$name_$now.csv'. "
     "Use the `.csv` suffix to save the results as Comma Separated Values and `.xlsx` to export them as Excel sheets.",
 )
@@ -1378,7 +1378,8 @@ def add_schedule_process(
     "--timezone",
     "timezone",
     required=False,
-    help="Timezone as string, e.g. 'UTC' or 'Europe/Amsterdam' (defaults to the timezone of the sensor used to save the report).",
+    help="Timezone as string, e.g. 'UTC' or 'Europe/Amsterdam' (defaults to the timezone of the sensor used to save the report)."
+    "The timezone of the first output sensor (specified in the parameters) is taken as a default.",
 )
 @click.option(
     "--dry-run",
@@ -1490,7 +1491,8 @@ def add_report(  # noqa: C901
             start = last_value_datetime[0]
         else:
             click.secho(
-                "Could not find any data for the output sensors provided.",
+                "Could not find any data for the output sensors provided. Such data is needed to compute"
+                " a sensible default start for the report, so setting a start explicitly would resolve this issue.",
                 **MsgStyle.ERROR,
             )
             raise click.Abort()
@@ -1542,28 +1544,32 @@ def add_report(  # noqa: C901
 
     for result in results:
         data = result["data"]
+        sensor = result["sensor"]
         if not data.empty:
-            click.secho("Report computation done.", **MsgStyle.SUCCESS)
+            click.secho(
+                f"Report computation done for sensor `{sensor}`.", **MsgStyle.SUCCESS
+            )
         else:
             click.secho(
-                "Report computation done, but the report is empty.", **MsgStyle.WARN
+                f"Report computation done for sensor `{sensor}`, but the report is empty.",
+                **MsgStyle.WARN,
             )
 
         # save the report if it's not running in dry mode
         if not dry_run:
-            click.echo("Saving report to the database...")
+            click.echo(f"Saving report for sensor `{sensor}` to the database...")
             save_to_db(data.dropna())
             db.session.commit()
             click.secho(
-                "Success. The report has been saved to the database.",
+                f"Success. The report for sensor `{sensor}` has been saved to the database.",
                 **MsgStyle.SUCCESS,
             )
         else:
             click.echo(
-                f"Not saving report to the database (because of --dry-run), but this is what I computed:\n{data}"
+                f"Not saving report for sensor `{sensor}` to the database  (because of --dry-run), but this is what I computed:\n{data}"
             )
 
-        # if an output file path is provided, save the datas
+        # if an output file path is provided, save the data
         if output_file_pattern:
             suffix = (
                 str(output_file_pattern).split(".")[-1]
@@ -1583,20 +1589,20 @@ def add_report(  # noqa: C901
             if suffix == "xlsx":  # save to EXCEL
                 data.to_excel(filename)
                 click.secho(
-                    f"Success. The report has been exported as EXCEL to the file `{filename}`",
+                    f"Success. The report for sensor `{sensor}` has been exported as EXCEL to the file `{filename}`",
                     **MsgStyle.SUCCESS,
                 )
 
             elif suffix == "csv":  # save to CSV
                 data.to_csv(filename)
                 click.secho(
-                    f"Success. The report has been exported as CSV to the file `{filename}`",
+                    f"Success. The report for sensor `{sensor}` has been exported as CSV to the file `{filename}`",
                     **MsgStyle.SUCCESS,
                 )
 
             else:  # default output format: CSV.
                 click.secho(
-                    f"File suffix not provided. Exporting results as CSV to file {filename}",
+                    f"File suffix not provided. Exporting results for sensor `{sensor}` as CSV to file {filename}",
                     **MsgStyle.WARN,
                 )
                 data.to_csv(filename)
