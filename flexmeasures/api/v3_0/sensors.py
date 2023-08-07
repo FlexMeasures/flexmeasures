@@ -606,6 +606,7 @@ class SensorAPI(FlaskView):
 
         This endpoint sets data for an existing sensor.
         Any subset of sensor fields can be sent.
+        Only admin users have rights to update the sensor fields.
 
         The following fields are not allowed to be updated:
         - id
