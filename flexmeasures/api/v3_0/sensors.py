@@ -604,14 +604,15 @@ class SensorAPI(FlaskView):
 
         .. :quickref: Sensor; Update a sensor
 
-        This endpoint sets data for an existing sensor.
-        Any subset of sensor fields can be sent.
-        Only admin users have rights to update the sensor fields.
+        This endpoint updates the descriptive data of an existing sensor.
 
-        The following fields are not allowed to be updated:
+        Any subset of sensor fields can be sent.
+        However, the following fields are not allowed to be updated:
         - id
         - generic_asset_id
         - entity_address
+
+        Only admin users have rights to update the sensor fields. Be aware that changing unit, event resolution and knowledge horizon should currently only be done on sensors without existing belief data (to avoid a serious mismatch), or if you really know what you are doing.
 
         **Example request**
 
