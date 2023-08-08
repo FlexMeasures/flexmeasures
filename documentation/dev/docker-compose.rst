@@ -90,7 +90,7 @@ Let's go into the `flexmeasures-worker` container:
 
     $ docker exec -it flexmeasures-worker-1 bash
 
-There, we add the price data, as described in :ref:`tut_toy_schedule_price_data`. Create the prices and add them to the FlexMeasures DB in the container's bash session.
+There, we'll now add the price data, as described in :ref:`tut_toy_schedule_price_data`. Copy the commands from that section and run them in the container's bash session, to create the prices and add them to the FlexMeasures DB.
 
 Next, we put a scheduling job in the worker's queue. This only works because we have the Redis container running ― the toy tutorial doesn't have it. The difference is that we're adding ``--as-job``:
 
