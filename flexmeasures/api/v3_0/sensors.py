@@ -596,21 +596,23 @@ class SensorAPI(FlaskView):
 
     @route("/<id>", methods=["PATCH"])
     @use_args(partial_sensor_schema)
-    @use_kwargs({"db_sensor": SensorIdField(data_key="id")}, location="path")
-    @permission_required_for_context("update", ctx_arg_name="db_sensor")
+    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    @permission_required_for_context("update", ctx_arg_name="sensor")
     @as_json
-    def patch(self, sensor_data: dict, id: int, db_sensor: Sensor):
+    def patch(self, sensor_data: dict, id: int, sensor: Sensor):
         """Update a sensor given its identifier.
 
         .. :quickref: Sensor; Update a sensor
 
-        This endpoint sets data for an existing sensor.
-        Any subset of sensor fields can be sent.
+        This endpoint updates the descriptive data of an existing sensor.
 
-        The following fields are not allowed to be updated:
+        Any subset of sensor fields can be sent.
+        However, the following fields are not allowed to be updated:
         - id
         - generic_asset_id
         - entity_address
+
+        Only admin users have rights to update the sensor fields. Be aware that changing unit, event resolution and knowledge horizon should currently only be done on sensors without existing belief data (to avoid a serious mismatch), or if you really know what you are doing.
 
         **Example request**
 
@@ -646,10 +648,10 @@ class SensorAPI(FlaskView):
         :status 422: UNPROCESSABLE_ENTITY
         """
         for k, v in sensor_data.items():
-            setattr(db_sensor, k, v)
-        db.session.add(db_sensor)
+            setattr(sensor, k, v)
+        db.session.add(sensor)
         db.session.commit()
-        return sensor_schema.dump(db_sensor), 200
+        return sensor_schema.dump(sensor), 200
 
     @route("/<id>", methods=["DELETE"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
