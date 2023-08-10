@@ -133,7 +133,7 @@ def create(  # noqa C901
     )  # use copy to avoid mutating app.reporters
     app.data_generators["scheduler"] = schedulers
 
-    # deprecation of app.reporters
+    # deprecated: app.reporters and app.schedulers
     app.reporters = reporters
     app.schedulers = schedulers
 
@@ -143,7 +143,7 @@ def create(  # noqa C901
         )
         return app.data_generators["reporter"]
 
-    setattr(app, "reporters", property(get_reporters))
+    setattr(app, "reporters", get_reporters())
 
     # add auth policy
 
@@ -188,7 +188,7 @@ def create(  # noqa C901
             try:
                 import pyinstrument  # noqa F401
 
-                g.profiler = pyinstrument.Profiler()
+                g.profiler = pyinstrument.Profiler(async_mode="disabled")
                 g.profiler.start()
             except ImportError:
                 pass
