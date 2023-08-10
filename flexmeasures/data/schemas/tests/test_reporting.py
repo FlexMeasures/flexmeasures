@@ -2,6 +2,9 @@ from flexmeasures.data.schemas.reporting.pandas_reporter import (
     PandasReporterConfigSchema,
     PandasReporterParametersSchema,
 )
+from flexmeasures.data.schemas.reporting.cost import (
+    CostReporterConfigSchema,
+)
 from marshmallow.exceptions import ValidationError
 
 import pytest
@@ -129,3 +132,41 @@ def test_pandas_reporter_parameters_schema(
     else:
         with pytest.raises(ValidationError):
             schema.load(parameters)
+
+
+@pytest.mark.parametrize(
+    "config, is_valid",
+    [
+        (  # missing start and end
+            {
+                "consumption_price_sensor": 1,
+                "production_price_sensor": 2,
+            },
+            True,
+        ),
+        (
+            {
+                "consumption_price_sensor": 1,
+            },
+            True,
+        ),
+        (
+            {
+                "production_price_sensor": 1,
+            },
+            True,
+        ),
+        (
+            {},
+            False,
+        ),
+    ],
+)
+def test_cost_reporter_config_schema(config, is_valid, db, app, setup_dummy_sensors):
+    schema = CostReporterConfigSchema()
+
+    if is_valid:
+        schema.load(config)
+    else:
+        with pytest.raises(ValidationError):
+            schema.load(config)
