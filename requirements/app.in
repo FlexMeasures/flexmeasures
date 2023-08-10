@@ -52,7 +52,7 @@ Flask-Security-Too>=5.0, <5.2
 # On repeated call to API with auth token, user is anonymous.
 # See test_get_one_user or test_api_task_run_post_unauthorized_wrong_role for a good example
 Flask-Login<0.6.2
-Flask-Classful @ git+https://github.com/superseed/flask-classful@werkzeug-2.2
+Flask-Classful
 # <0.15: https://github.com/marshmallow-code/flask-marshmallow/issues/262
 Flask-Marshmallow<0.15
 Flask-Cors

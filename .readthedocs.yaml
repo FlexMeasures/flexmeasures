@@ -21,8 +21,8 @@ build:
 
 python: 
   install:
-    - requirements: requirements/app.txt
-    - requirements: requirements/docs.txt
+    - requirements: requirements/3.9/app.txt
+    - requirements: requirements/3.9/docs.txt
 
 
 sphinx:
