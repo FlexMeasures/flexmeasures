@@ -75,7 +75,7 @@ flask==2.1.2
     #   flask-wtf
     #   rq-dashboard
     #   sentry-sdk
-flask-classful @ git+https://github.com/superseed/flask-classful@werkzeug-2.2
+flask-classful == 0.14.2
     # via -r requirements/app.in
 flask-cors==4.0.0
     # via -r requirements/app.in
