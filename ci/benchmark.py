@@ -28,7 +28,7 @@ def main():
                 timings[idx] = [start - stop]
 
     # Get mean and standard deviation of timings
-    print("All timings are in seconds and iterated {max_iterations} times")
+    print(f"All timings are in seconds and iterated {max_iterations} times")
     for idx, timing in timings.items():
         print(f"Command {commands[idx]}: {np.mean(timing)} ± {np.std(timing)}")
 
