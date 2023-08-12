@@ -1,7 +1,7 @@
 import pytest
 
 from datetime import timedelta
-from flexmeasures.data.models.reporting.cost import CostReporter
+from flexmeasures.data.models.reporting.profit import ProfitReporter
 from flexmeasures.data.models.time_series import Sensor
 from datetime import datetime
 from pytz import timezone
@@ -11,13 +11,13 @@ from pytz import timezone
     "use_power_sensor",
     [True, False],
 )
-def test_cost_reporter(app, db, cost_report, use_power_sensor):
+def test_profit_reporter(app, db, profit_report, use_power_sensor):
     (
-        cashflow_sensor_hourly,
-        cashflow_sensor_daily,
+        profit_sensor_hourly,
+        profit_sensor_daily,
         power_sensor,
         energy_sensor,
-    ) = cost_report
+    ) = profit_report
     output_sensor = energy_sensor
 
     if use_power_sensor:
@@ -28,19 +28,19 @@ def test_cost_reporter(app, db, cost_report, use_power_sensor):
         Sensor.name == "epex_da_production"
     ).one_or_none()
 
-    cost_reporter = CostReporter(
+    profit_reporter = ProfitReporter(
         consumption_price_sensor=epex_da, production_price_sensor=epex_da_production
     )
 
     tz = timezone("Europe/Amsterdam")
 
-    result = cost_reporter.compute(
+    result = profit_reporter.compute(
         start=tz.localize(datetime(2015, 1, 3)),
         end=tz.localize(datetime(2015, 1, 4)),
         input=[dict(sensor=output_sensor)],
         output=[
-            dict(sensor=cashflow_sensor_hourly),
-            dict(sensor=cashflow_sensor_daily),
+            dict(sensor=profit_sensor_hourly),
+            dict(sensor=profit_sensor_daily),
         ],
     )
 

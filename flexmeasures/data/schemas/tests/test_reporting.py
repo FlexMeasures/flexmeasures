@@ -2,8 +2,8 @@ from flexmeasures.data.schemas.reporting.pandas_reporter import (
     PandasReporterConfigSchema,
     PandasReporterParametersSchema,
 )
-from flexmeasures.data.schemas.reporting.cost import (
-    CostReporterConfigSchema,
+from flexmeasures.data.schemas.reporting.profit import (
+    ProfitReporterConfigSchema,
 )
 from marshmallow.exceptions import ValidationError
 
@@ -162,8 +162,8 @@ def test_pandas_reporter_parameters_schema(
         ),
     ],
 )
-def test_cost_reporter_config_schema(config, is_valid, db, app, setup_dummy_sensors):
-    schema = CostReporterConfigSchema()
+def test_profit_reporter_config_schema(config, is_valid, db, app, setup_dummy_sensors):
+    schema = ProfitReporterConfigSchema()
 
     if is_valid:
         schema.load(config)

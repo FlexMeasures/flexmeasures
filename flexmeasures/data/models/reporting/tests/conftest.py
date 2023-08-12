@@ -26,7 +26,7 @@ def generic_report(db, app):
 
 
 @pytest.fixture(scope="module")
-def cost_report(db, app, generic_report, add_market_prices, setup_sources):
+def profit_report(db, app, generic_report, add_market_prices, setup_sources):
 
     device_type = GenericAssetType(name="Device")
 
@@ -54,16 +54,16 @@ def cost_report(db, app, generic_report, add_market_prices, setup_sources):
         timezone="Europe/Amsterdam",
     )
 
-    cashflow_sensor_hourly = Sensor(
-        "cashflow hourly",
+    profit_sensor_hourly = Sensor(
+        "profit hourly",
         generic_asset=generic_report,
         event_resolution=timedelta(hours=1),
         unit="EUR",
         timezone="Europe/Amsterdam",
     )
 
-    cashflow_sensor_daily = Sensor(
-        "cashflow daily",
+    profit_sensor_daily = Sensor(
+        "profit daily",
         generic_asset=generic_report,
         event_resolution=timedelta(hours=24),
         unit="EUR",
@@ -71,7 +71,7 @@ def cost_report(db, app, generic_report, add_market_prices, setup_sources):
     )
 
     db.session.add_all(
-        [cashflow_sensor_hourly, cashflow_sensor_daily, energy_sensor, power_sensor]
+        [profit_sensor_hourly, profit_sensor_daily, energy_sensor, power_sensor]
     )
 
     time_slots = initialize_index(
@@ -104,7 +104,7 @@ def cost_report(db, app, generic_report, add_market_prices, setup_sources):
 
     db.session.commit()
 
-    yield cashflow_sensor_hourly, cashflow_sensor_daily, power_sensor, energy_sensor
+    yield profit_sensor_hourly, profit_sensor_daily, power_sensor, energy_sensor
 
 
 @pytest.fixture(scope="module")

@@ -5,19 +5,19 @@ from typing import Any, List, Dict
 
 
 from flexmeasures.data.models.reporting import Reporter
-from flexmeasures.data.schemas.reporting.cost import (
-    CostReporterConfigSchema,
-    CostReporterParametersSchema,
+from flexmeasures.data.schemas.reporting.profit import (
+    ProfitReporterConfigSchema,
+    ProfitReporterParametersSchema,
 )
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.data.queries.utils import simplify_index
 
 
-class CostReporter(Reporter):
-    """Compute the cashflow due to energy/power flow.
+class ProfitReporter(Reporter):
+    """Compute the profit due to energy/power flow.
 
-    Given power/energy and price sensors, this reporter computes the cost/profit
+    Given power/energy and price sensors, this reporter computes the profit (revenue - cost)
     of a power/energy flow under a certain tariff.
 
     Sign convention
@@ -27,17 +27,17 @@ class CostReporter(Reporter):
         (+) production
         (-) consumption
 
-    Cash flows:
-        (+) to charge
-        (-) to pay
+    Profit:
+        (+) gain
+        (-) loss
 
     """
 
     __version__ = "1"
     __author__ = "Seita"
 
-    _config_schema = CostReporterConfigSchema()
-    _parameters_schema = CostReporterParametersSchema()
+    _config_schema = ProfitReporterConfigSchema()
+    _parameters_schema = ProfitReporterParametersSchema()
 
     weights: dict
     method: str

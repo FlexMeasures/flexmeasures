@@ -9,8 +9,8 @@ from flexmeasures.data.schemas.io import Input
 from flexmeasures.data.schemas.sensors import SensorIdField
 
 
-class CostReporterConfigSchema(ReporterConfigSchema):
-    """Schema for the CostReporterReporter configuration
+class ProfitReporterConfigSchema(ReporterConfigSchema):
+    """Schema for the ProfitReporter configuration
 
     Example:
     .. code-block:: json
@@ -45,8 +45,8 @@ class CostReporterConfigSchema(ReporterConfigSchema):
         return data
 
 
-class CostReporterParametersSchema(ReporterParametersSchema):
-    """Schema for the CostReporterReporter parameters
+class ProfitReporterParametersSchema(ReporterParametersSchema):
+    """Schema for the ProfitReporter parameters
 
     Example:
     .. code-block:: json
@@ -68,8 +68,3 @@ class CostReporterParametersSchema(ReporterParametersSchema):
 
     # redefining output to restrict the input length to 1
     input = fields.List(fields.Nested(Input()), validate=validate.Length(min=1, max=1))
-
-    # # redefining output to restrict the output length to 1
-    # output = fields.List(
-    #     fields.Nested(Output()), validate=validate.Length(min=1, max=1)
-    # )
