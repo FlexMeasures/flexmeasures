@@ -1,4 +1,11 @@
-from marshmallow import fields, ValidationError, validates_schema, validate, post_load
+from marshmallow import (
+    fields,
+    ValidationError,
+    validates_schema,
+    validate,
+    post_load,
+    validates,
+)
 
 from flexmeasures.data.schemas.reporting import (
     ReporterConfigSchema,
@@ -7,6 +14,7 @@ from flexmeasures.data.schemas.reporting import (
 
 from flexmeasures.data.schemas.io import Input
 from flexmeasures.data.schemas.sensors import SensorIdField
+from flexmeasures.utils.unit_utils import is_currency_unit
 
 
 class ProfitReporterConfigSchema(ReporterConfigSchema):
@@ -44,6 +52,20 @@ class ProfitReporterConfigSchema(ReporterConfigSchema):
 
         return data
 
+    @validates("consumption_price_sensor")
+    def validate_consumption_price_units(self, value):
+        if not value.measures_energy_price:
+            raise ValidationError(
+                f"`consumption_price_sensor` has wrong units. Expected `Energy / Currency` but got `{value.unit}`"
+            )
+
+    @validates("production_price_sensor")
+    def validate_production_price_units(self, value):
+        if not value.measures_energy_price:
+            raise ValidationError(
+                f"`production_price_sensor` has wrong units. Expected `Energy / Currency` but got `{value.unit}`"
+            )
+
 
 class ProfitReporterParametersSchema(ReporterParametersSchema):
     """Schema for the ProfitReporter parameters
@@ -68,3 +90,20 @@ class ProfitReporterParametersSchema(ReporterParametersSchema):
 
     # redefining output to restrict the input length to 1
     input = fields.List(fields.Nested(Input()), validate=validate.Length(min=1, max=1))
+
+    @validates("input")
+    def validate_input_measures_power_energy(self, value):
+        if not (
+            value[0]["sensor"].measures_power or value[0]["sensor"].measures_energy
+        ):
+            raise ValidationError(
+                "Input sensor can only contain power or energy values."
+            )
+
+    @validates("output")
+    def validate_output_unit_currency(self, value):
+        for output_description in value:
+            if not is_currency_unit(output_description["sensor"].unit):
+                raise ValidationError(
+                    "Output sensor unit can only be a currency, e.g. EUR."
+                )
