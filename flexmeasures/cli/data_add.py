@@ -43,6 +43,7 @@ from flexmeasures.data.models.time_series import (
     Sensor,
     TimedBelief,
 )
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.validation_utils import (
     check_required_attributes,
     MissingAttributeException,
@@ -56,6 +57,7 @@ from flexmeasures.data.schemas import (
     SensorIdField,
     TimeIntervalField,
 )
+from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.schemas.times import TimeIntervalSchema
 from flexmeasures.data.schemas.scheduling.storage import EfficiencyField
 from flexmeasures.data.schemas.sensors import SensorSchema
@@ -1315,6 +1317,13 @@ def add_schedule_process(
     help="Path to the JSON or YAML file with the configuration of the reporter.",
 )
 @click.option(
+    "--source-id",
+    "source",
+    required=False,
+    type=DataSourceIdField(),
+    help="DataSource ID of the `Reporter`.",
+)
+@click.option(
     "--parameters",
     "parameters_file",
     required=False,
@@ -1407,6 +1416,7 @@ def add_schedule_process(
 )
 def add_report(  # noqa: C901
     reporter_class: str,
+    source: DataSource | None = None,
     config_file: TextIOBase | None = None,
     parameters_file: TextIOBase | None = None,
     start: datetime | None = None,
@@ -1508,29 +1518,51 @@ def add_report(  # noqa: C901
 
     click.echo(f"Report scope:\n\tstart: {start}\n\tend:   {end}")
 
-    click.echo(
-        f"Looking for the Reporter {reporter_class} among all the registered reporters...",
-    )
+    if source is None:
 
-    # get reporter class
-    ReporterClass: Type[Reporter] = app.data_generators.get("reporter").get(
-        reporter_class
-    )
-
-    # check if it exists
-    if ReporterClass is None:
-        click.secho(
-            f"Reporter class `{reporter_class}` not available.",
-            **MsgStyle.ERROR,
+        click.echo(
+            f"Looking for the Reporter {reporter_class} among all the registered reporters...",
         )
-        raise click.Abort()
 
-    click.secho(f"Reporter {reporter_class} found.", **MsgStyle.SUCCESS)
+        # get reporter class
+        ReporterClass: Type[Reporter] = app.data_generators.get("reporter").get(
+            reporter_class
+        )
 
-    # initialize reporter class with the reporter sensor and reporter config
-    reporter: Reporter = ReporterClass(config=config, save_config=save_config)
+        # check if it exists
+        if ReporterClass is None:
+            click.secho(
+                f"Reporter class `{reporter_class}` not available.",
+                **MsgStyle.ERROR,
+            )
+            raise click.Abort()
 
-    click.echo("Report computation is running...")
+        click.secho(f"Reporter {reporter_class} found.", **MsgStyle.SUCCESS)
+
+        # initialize reporter class with the reporter sensor and reporter config
+        reporter: Reporter = ReporterClass(config=config, save_config=save_config)
+
+    else:
+        try:
+            reporter: Reporter = source.data_generator  # type: ignore
+
+            if not isinstance(reporter, Reporter):
+                raise NotImplementedError(
+                    f"DataGenerator `{reporter}` is not of the type `Reporter`"
+                )
+
+            click.secho(
+                f"Reporter `{reporter.__class__.__name__}` fetch successfully from the database.",
+                **MsgStyle.SUCCESS,
+            )
+
+        except NotImplementedError:
+            click.secho(
+                f"Error! DataSource `{source}` not storing a valid Reporter.",
+                **MsgStyle.ERROR,
+            )
+
+        reporter._save_config = save_config
 
     if ("start" not in parameters) and (start is not None):
         parameters["start"] = start.isoformat()
@@ -1538,6 +1570,8 @@ def add_report(  # noqa: C901
         parameters["end"] = end.isoformat()
     if ("resolution" not in parameters) and (resolution is not None):
         parameters["resolution"] = pd.Timedelta(resolution).isoformat()
+
+    click.echo("Report computation is running...")
 
     # compute the report
     results: BeliefsDataFrame = reporter.compute(parameters=parameters)
