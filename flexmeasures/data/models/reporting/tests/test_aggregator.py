@@ -154,3 +154,22 @@ def test_resampling(setup_dummy_data):
     assert result.event_starts[0] == pd.Timestamp(
         year=2023, month=10, day=29, tz="Europe/Amsterdam"
     )
+
+
+def test_multiple_sources(setup_dummy_data):
+    """check that it uses the first source as default, instead of using all of them."""
+    s1, s2, s3, report_sensor, daily_report_sensor = setup_dummy_data
+
+    agg_reporter = AggregatorReporter()
+
+    tz = timezone("UTC")
+
+    result = agg_reporter.compute(
+        start=tz.localize(datetime(2023, 4, 10)),
+        end=tz.localize(datetime(2023, 4, 10, 10)),
+        input=[dict(sensor=s1)],
+        output=[dict(sensor=report_sensor)],
+        belief_time=tz.localize(datetime(2023, 12, 1)),
+    )[0]["data"]
+
+    assert len(result) == 10
