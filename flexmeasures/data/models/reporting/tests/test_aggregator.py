@@ -41,9 +41,10 @@ def test_aggregator(setup_dummy_data, aggregation_method, expected_value):
     agg_reporter = AggregatorReporter(method=aggregation_method)
 
     source_1 = DataSource.query.get(1)
+    source_2 = DataSource.query.get(2)
 
     result = agg_reporter.compute(
-        input=[dict(sensor=s1, source=source_1), dict(sensor=s2, source=source_1)],
+        input=[dict(sensor=s1, source=source_1), dict(sensor=s2, source=source_2)],
         output=[dict(sensor=report_sensor)],
         start=datetime(2023, 5, 10, tzinfo=utc),
         end=datetime(2023, 5, 11, tzinfo=utc),
@@ -68,7 +69,7 @@ def test_aggregator_reporter_weights(
     reporter_config = dict(method="sum", weights={"s1": weight_1, "sensor_2": weight_2})
 
     source_1 = DataSource.query.get(1)
-    source_2 = DataSource.query.get(1)
+    source_2 = DataSource.query.get(2)
 
     agg_reporter = AggregatorReporter(config=reporter_config)
 
@@ -153,3 +154,22 @@ def test_resampling(setup_dummy_data):
     assert result.event_starts[0] == pd.Timestamp(
         year=2023, month=10, day=29, tz="Europe/Amsterdam"
     )
+
+
+def test_multiple_sources(setup_dummy_data):
+    """check that it uses the first source as default, instead of using all of them."""
+    s1, s2, s3, report_sensor, daily_report_sensor = setup_dummy_data
+
+    agg_reporter = AggregatorReporter()
+
+    tz = timezone("UTC")
+
+    result = agg_reporter.compute(
+        start=tz.localize(datetime(2023, 4, 10)),
+        end=tz.localize(datetime(2023, 4, 10, 10)),
+        input=[dict(sensor=s1)],
+        output=[dict(sensor=report_sensor)],
+        belief_time=tz.localize(datetime(2023, 12, 1)),
+    )[0]["data"]
+
+    assert len(result) == 10

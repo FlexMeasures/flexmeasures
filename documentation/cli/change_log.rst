@@ -6,19 +6,17 @@ FlexMeasures CLI Changelog
 
 since v0.16.0 | September XX, 2023
 =================================
-
 * Add ``--id`` option to ``flexmeasures show data-sources`` to show just one ``DataSource``.
 * Add ``--show-attributes`` flag to ``flexmeasures show data-sources`` to select whether to show the attributes field or not.
 
-since v0.15.0 | July XX, 2023
-=================================
-
+since v0.15.0 | August 9, 2023
+================================
 * Allow deleting multiple sensors with a single call to ``flexmeasures delete sensor`` by passing the ``--id`` option multiple times.
 * Add ``flexmeasures add schedule for-process`` to create a new process schedule for a given power sensor.
 * Add support for describing ``config`` and ``parameters`` in YAML for the command ``flexmeasures add report``, editable in user's code editor using the flags ``--edit-config`` or ``--edit-parameters``.
 * Add ``--kind process`` option to create the asset and sensors for the ``ProcessScheduler`` tutorial.
 
-since v0.14.1 | June XX, 2023
+since v0.14.1 | June 20, 2023
 =================================
 
 * Avoid saving any :abbr:`NaN (not a number)` values to the database, when calling ``flexmeasures add report``.

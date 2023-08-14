@@ -55,16 +55,22 @@ class AggregatorReporter(Reporter):
                 "name", f"sensor_{input_description['sensor'].id}"
             )
 
-            df = (
-                input_description["sensor"]
-                .search_beliefs(
-                    event_starts_after=start,
-                    event_ends_before=end,
-                    resolution=resolution,
-                    beliefs_before=belief_time,
-                )
-                .droplevel([1, 2, 3])
+            source = input_description.get("source")
+
+            df = input_description["sensor"].search_beliefs(
+                event_starts_after=start,
+                event_ends_before=end,
+                resolution=resolution,
+                beliefs_before=belief_time,
+                source=source,
             )
+
+            # use first source as the default one
+            if source is None and not df.empty:
+                source = df.lineage.sources[0]
+                df = df[df.sources == source]
+
+            df = df.droplevel([1, 2, 3])
 
             # apply weight
             if column_name in weights:

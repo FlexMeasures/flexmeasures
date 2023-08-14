@@ -45,13 +45,28 @@ The web server is told about the WSGI script, but also about the object which re
 Keep in mind that FlexMeasures is based on `Flask <https://flask.palletsprojects.com/>`_, so almost all knowledge on the web on how to deploy a Flask app also helps with deploying FlexMeasures. 
 
 
+.. _installing-a-solver:
+
 Install the linear solver on the server
 ---------------------------------------
 
-To compute schedules, FlexMeasures uses the `CBC <https://github.com/coin-or/Cbc>`_ (FlexMeasures solver by default) or `HiGHS <https://highs.dev/>`_ mixed integer linear optimization solver.
+To compute schedules, FlexMeasures uses the `HiGHS <https://highs.dev/>`_ mixed integer linear optimization solver (FlexMeasures solver by default) or `Cbc <https://github.com/coin-or/Cbc>`_.
 Solvers are used through `Pyomo <http://www.pyomo.org>`_\ , so in principle supporting a `different solver <https://pyomo.readthedocs.io/en/stable/solving_pyomo_models.html#supported-solvers>`_ would be possible.
 
-CBC needs to be present on the server where FlexMeasures runs, under the ``cbc`` command.
+They need to be installed in addition to FlexMeasures. Here is advice on how to install the two solvers we test internally:
+
+
+.. note:: We default to HiGHS, as it seems more powerful, but during unit tests we currently run Cbc, as it works for us on Python3.8
+
+
+HiGHS can be installed using pip:
+
+.. code-block:: bash
+
+   $ pip install highspy
+
+
+Cbc needs to be present on the server where FlexMeasures runs, under the ``cbc`` command.
 
 You can install it on Debian like this:
 
@@ -65,11 +80,5 @@ We provide an example script in ``ci/install-cbc-from-source.sh`` to do that, wh
 pass a directory for the installation.
 
 In case you want to install a later version, adapt the version in the script. 
-
-HiGHS can be installed using pip:
-
-.. code-block:: bash
-
-   $ pip install highspy
 
 
