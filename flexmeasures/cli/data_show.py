@@ -13,6 +13,8 @@ from tabulate import tabulate
 from humanize import naturaldelta, naturaltime
 import pandas as pd
 import uniplot
+import json
+
 
 from flexmeasures.data.models.user import Account, AccountRole, User, Role
 from flexmeasures.data.models.data_sources import DataSource
@@ -213,20 +215,54 @@ def show_generic_asset(asset):
 
 @fm_show_data.command("data-sources")
 @with_appcontext
-def list_data_sources():
+@click.option(
+    "--id",
+    "source",
+    required=False,
+    type=DataSourceIdField(),
+    help="ID of data source.",
+)
+@click.option(
+    "--show-attributes",
+    "show_attributes",
+    type=bool,
+    help="Whether to show the attributes of the DataSource.",
+    is_flag=True,
+)
+def list_data_sources(source: DataSource | None = None, show_attributes: bool = False):
     """
     Show available data sources
     """
-    sources = DataSource.query.order_by(DataSource.name).all()
+    if source is None:
+        sources = DataSource.query.order_by(DataSource.name).all()
+    else:
+        sources = [source]
+
     if not sources:
         click.secho("No data sources created yet.", **MsgStyle.WARN)
         raise click.Abort()
-    click.echo(
-        tabulate(
-            [(s.id, s.name, s.type, s.user_id, s.model, s.version) for s in sources],
-            headers=["ID", "Name", "Type", "User ID", "Model", "Version"],
-        )
-    )
+
+    headers = ["ID", "Name", "Type", "User ID", "Model", "Version"]
+
+    if show_attributes:
+        headers.append("Attributes")
+
+    rows = []
+
+    for source in sources:
+        row = [
+            source.id,
+            source.name,
+            source.type,
+            source.user_id,
+            source.model,
+            source.version,
+        ]
+        if show_attributes:
+            row.append(json.dumps(source.attributes, indent=4))
+        rows.append(row)
+
+    click.echo(tabulate(rows, headers=headers))
 
 
 @fm_show_data.command("beliefs")
