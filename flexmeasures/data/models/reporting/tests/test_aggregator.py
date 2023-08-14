@@ -41,9 +41,10 @@ def test_aggregator(setup_dummy_data, aggregation_method, expected_value):
     agg_reporter = AggregatorReporter(method=aggregation_method)
 
     source_1 = DataSource.query.get(1)
+    source_2 = DataSource.query.get(2)
 
     result = agg_reporter.compute(
-        input=[dict(sensor=s1, source=source_1), dict(sensor=s2, source=source_1)],
+        input=[dict(sensor=s1, source=source_1), dict(sensor=s2, source=source_2)],
         output=[dict(sensor=report_sensor)],
         start=datetime(2023, 5, 10, tzinfo=utc),
         end=datetime(2023, 5, 11, tzinfo=utc),
@@ -68,7 +69,7 @@ def test_aggregator_reporter_weights(
     reporter_config = dict(method="sum", weights={"s1": weight_1, "sensor_2": weight_2})
 
     source_1 = DataSource.query.get(1)
-    source_2 = DataSource.query.get(1)
+    source_2 = DataSource.query.get(2)
 
     agg_reporter = AggregatorReporter(config=reporter_config)
 
