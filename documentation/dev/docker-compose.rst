@@ -90,13 +90,13 @@ Let's go into the `flexmeasures-worker` container:
 
     $ docker exec -it flexmeasures-worker-1 bash
 
-There, we add the price data, as described in :ref:`tut_toy_schedule_price_data`. Create the prices and add them to the FlexMeasures DB in the container's bash session.
+There, we'll now add the price data, as described in :ref:`tut_toy_schedule_price_data`. Copy the commands from that section and run them in the container's bash session, to create the prices and add them to the FlexMeasures DB.
 
 Next, we put a scheduling job in the worker's queue. This only works because we have the Redis container running ― the toy tutorial doesn't have it. The difference is that we're adding ``--as-job``:
 
 .. code-block:: bash
 
-    $ flexmeasures add schedule for-storage --sensor-id 1 --consumption-price-sensor 2 \
+    $ flexmeasures add schedule for-storage --sensor-id 2 --consumption-price-sensor 1 \
         --start ${TOMORROW}T07:00+01:00 --duration PT12H --soc-at-start 50% \
         --roundtrip-efficiency 90% --as-job
 
@@ -104,7 +104,7 @@ We should now see in the output of ``docker logs flexmeasures-worker-1`` somethi
 
 .. code-block:: bash
 
-    Running Scheduling Job d3e10f6d-31d2-46c6-8308-01ede48f8fdd: <Sensor 2: charging, unit: MW res.: 0:15:00>, from 2022-07-06 07:00:00+01:00 to 2022-07-06 19:00:00+01:00
+    Running Scheduling Job d3e10f6d-31d2-46c6-8308-01ede48f8fdd: discharging, from 2022-07-06 07:00:00+01:00 to 2022-07-06 19:00:00+01:00
 
 So the job had been queued in Redis, was then picked up by the worker process, and the result should be in our SQL database container. Let's check!
 
@@ -113,7 +113,7 @@ We'll not go into the server container this time, but simply send a command:
 .. code-block:: bash
 
     $ TOMORROW=$(date --date="next day" '+%Y-%m-%d')
-    $ docker exec -it flexmeasures-server-1 bash -c "flexmeasures show beliefs --sensor-id 1 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H"
+    $ docker exec -it flexmeasures-server-1 bash -c "flexmeasures show beliefs --sensor-id 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H"
 
 The charging/discharging schedule should be there:
 
@@ -171,4 +171,4 @@ After you've started the compose stack with ``docker-compose up``, run:
 
     $ docker exec -it -e SQLALCHEMY_TEST_DATABASE_URI="postgresql://fm-test-db-user:fm-test-db-pass@test-db:5432/fm-test-db" flexmeasures-server-1 pytest
 
-This rounds up the dev experience offered by running FlexMeasures in Docker. Now you can develop FlexMeasures and also run your tests. If you develop plugins, you could extend the command being used, e.g. ``bash -c "cd /path/to/my/plugin && pytest"``. 
+This rounds up the developer experience offered by running FlexMeasures in Docker. Now you can develop FlexMeasures and also run your tests. If you develop plugins, you could extend the command being used, e.g. ``bash -c "cd /path/to/my/plugin && pytest"``. 
