@@ -62,6 +62,7 @@ class AggregatorReporter(Reporter):
                     event_ends_before=end,
                     resolution=resolution,
                     beliefs_before=belief_time,
+                    source=input_description.get("source"),
                 )
                 .droplevel([1, 2, 3])
             )
