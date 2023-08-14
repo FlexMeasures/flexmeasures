@@ -55,9 +55,13 @@ Default: ``False``
 FLEXMEASURES_LP_SOLVER
 ^^^^^^^^^^^^^^^^^^^^^^
 
-The command to run the scheduling solver. This is the executable command which FlexMeasures calls via the `pyomo library <http://www.pyomo.org/>`_. Other values might be ``cplex``, ``glpk`` or ``appsi_highs`` for `HiGHS <https://highs.dev/>`_. Consult `their documentation <https://pyomo.readthedocs.io/en/stable/solving_pyomo_models.html#supported-solvers>`_ to learn more. 
+The command to run the scheduling solver. This is the executable command which FlexMeasures calls via the `pyomo library <http://www.pyomo.org/>`_. Potential values might be ``cbc``, ``cplex``, ``glpk`` or ``appsi_highs``. Consult `their documentation <https://pyomo.readthedocs.io/en/stable/solving_pyomo_models.html#supported-solvers>`_ to learn more. 
+We have tested FlexMeasures with `HiGHS <https://highs.dev/>`_ and `Cbc <https://coin-or.github.io/Cbc/intro>`_.
+Note that you need to install the solver, read more at :ref:`installing-a-solver`.
 
-Default: ``"cbc"``
+Default: ``"appsi_highs"``  (in unit testing, we use ``cbc`` as it runs well for us in Python3.8)
+
+
 
 FLEXMEASURES_HOSTS_AND_AUTH_START
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

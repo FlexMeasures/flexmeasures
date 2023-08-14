@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+
 from flask import url_for
 
 from flexmeasures.data.models.time_series import TimedBelief
@@ -88,6 +89,7 @@ def test_post_a_sensor(client, setup_api_test_data):
     sensor: Sensor = Sensor.query.filter_by(name="power").one_or_none()
     assert sensor is not None
     assert sensor.unit == "kWh"
+    assert sensor.attributes["capacity_in_mw"] == 0.0074
 
 
 def test_post_sensor_to_asset_from_unrelated_account(client, setup_api_test_data):
@@ -117,12 +119,14 @@ def test_patch_sensor(client, setup_api_test_data):
         headers={"content-type": "application/json", "Authorization": auth_token},
         json={
             "name": "Changed name",
+            "attributes": '{"test_attribute": "test_attribute_value"}',
         },
     )
     assert response.json["name"] == "Changed name"
     new_sensor = Sensor.query.filter(Sensor.name == "Changed name").one_or_none()
     assert new_sensor.name == "Changed name"
     assert Sensor.query.filter(Sensor.name == "some gas sensor").one_or_none() is None
+    assert new_sensor.attributes["test_attribute"] == "test_attribute_value"
 
 
 @pytest.mark.parametrize(
@@ -155,10 +159,9 @@ def test_patch_sensor_for_excluded_attribute(
     assert response.json["message"]["json"][attribute] == ["Unknown field."]
 
 
-def test_patch_sensor_from_unrelated_account(client, setup_api_test_data):
-    """Try to change the name of a sensor that is in an account the user does not
-    have access to"""
-    headers = make_headers_for("test_prosumer_user_2@seita.nl", client)
+def test_patch_sensor_non_admin(client, setup_api_test_data):
+    """Try to change the name of a sensor with a non admin account"""
+    headers = make_headers_for("test_supplier_user_4@seita.nl", client)
 
     sensor = Sensor.query.filter(Sensor.name == "some temperature sensor").one_or_none()
 
