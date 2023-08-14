@@ -1664,7 +1664,7 @@ def launch_editor(filename: str) -> dict:
 @click.option(
     "--kind",
     default="battery",
-    type=click.Choice(["battery", "process"]),
+    type=click.Choice(["battery", "process", "reporting"]),
     help="What kind of toy account. Defaults to a battery.",
 )
 @click.option("--name", type=str, default="Toy Account", help="Name of the account")
@@ -1726,8 +1726,12 @@ def add_toy_account(kind: str, name: str):
         **MsgStyle.SUCCESS,
     )
 
-    def create_power_asset(
-        asset_name: str, asset_type: str, sensor_name: str, **attributes
+    def create_sensor_asset(
+        asset_name: str,
+        asset_type: str,
+        sensor_name: str,
+        unit: str = "MW",
+        **attributes,
     ):
         asset = get_or_create_model(
             GenericAsset,
@@ -1738,22 +1742,22 @@ def add_toy_account(kind: str, name: str):
             longitude=location[1],
         )
         asset.attributes = attributes
-        power_sensor_specs = dict(
+        sensor_specs = dict(
             generic_asset=asset,
-            unit="MW",
+            unit=unit,
             timezone="Europe/Amsterdam",
             event_resolution=timedelta(minutes=15),
         )
-        power_sensor = get_or_create_model(
+        sensor = get_or_create_model(
             Sensor,
             name=sensor_name,
-            **power_sensor_specs,
+            **sensor_specs,
         )
-        return power_sensor
+        return sensor
 
     if kind == "battery":
         # create battery
-        discharging_sensor = create_power_asset(
+        discharging_sensor = create_sensor_asset(
             "toy-battery",
             "battery",
             "discharging",
@@ -1763,7 +1767,7 @@ def add_toy_account(kind: str, name: str):
         )
 
         # create solar
-        production_sensor = create_power_asset(
+        production_sensor = create_sensor_asset(
             "toy-solar",
             "solar",
             "production",
@@ -1791,19 +1795,19 @@ def add_toy_account(kind: str, name: str):
             **MsgStyle.SUCCESS,
         )
     elif kind == "process":
-        inflexible_power = create_power_asset(
+        inflexible_power = create_sensor_asset(
             "toy-process",
             "process",
             "Power (Inflexible)",
         )
 
-        breakable_power = create_power_asset(
+        breakable_power = create_sensor_asset(
             "toy-process",
             "process",
             "Power (Breakable)",
         )
 
-        shiftable_power = create_power_asset(
+        shiftable_power = create_sensor_asset(
             "toy-process",
             "process",
             "Power (Shiftable)",
@@ -1833,6 +1837,59 @@ def add_toy_account(kind: str, name: str):
             f"The sensor recording the power of the shiftable load is {shiftable_power} (ID: {shiftable_power.id}).",
             **MsgStyle.SUCCESS,
         )
+    elif kind == "reporting":
+        # Part A) of tutorial IV
+        grid_connection_capacity = get_or_create_model(
+            Sensor,
+            name="Grid Connection Capacity",
+            generic_asset=nl_zone,
+            timezone="Europe/Amsterdam",
+            event_resolution=timedelta(days=365),
+            unit="MW",
+        )
+        db.session.commit()
+
+        click.secho(
+            f"The sensor storing the grid connection capacity of the building is {grid_connection_capacity} (ID: {grid_connection_capacity.id}).",
+            **MsgStyle.SUCCESS,
+        )
+
+        tz = pytz.timezone(app.config.get("FLEXMEASURES_TIMEZONE", "Europe/Amsterdam"))
+
+        belief = TimedBelief(
+            event_start=tz.localize(datetime.now().replace()),
+            belief_horizon=timedelta(hours=0),
+            event_value=0.5,
+            source=DataSource.query.get(1),
+            sensor=grid_connection_capacity,
+        )
+
+        db.session.add(belief)
+        db.session.commit()
+
+        headroom = create_sensor_asset(
+            "toy-battery",
+            "battery",
+            "Headroom",
+        )
+
+        db.session.commit()
+
+        click.secho(
+            f"The sensor storing the headroom is {headroom} (ID: {headroom.id}).",
+            **MsgStyle.SUCCESS,
+        )
+
+        for name in ["Inflexible", "Shiftable", "Breakable"]:
+            profit_sensor = create_sensor_asset(
+                "toy-process", "process", f"Profit ({name})", unit="EUR"
+            )
+
+            db.session.commit()
+            click.secho(
+                f"The sensor storing the profit of {profit_sensor} (ID: {profit_sensor.id}).",
+                **MsgStyle.SUCCESS,
+            )
 
 
 app.cli.add_command(fm_add_data)
