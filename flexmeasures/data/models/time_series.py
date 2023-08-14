@@ -106,7 +106,10 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             "read": f"account:{self.generic_asset.account_id}"
             if self.generic_asset.account_id is not None
             else EVERY_LOGGED_IN_USER,
-            "update": f"account:{self.generic_asset.account_id}",
+            "update": (
+                f"account:{self.generic_asset.account_id}",
+                "role:account-admin",
+            ),
             "delete": (
                 f"account:{self.generic_asset.account_id}",
                 "role:account-admin",

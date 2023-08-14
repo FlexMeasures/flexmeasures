@@ -16,7 +16,7 @@ from flask import Flask, Blueprint
 from flexmeasures.utils.coding_utils import get_classes_module
 
 
-def register_plugins(app: Flask):
+def register_plugins(app: Flask):  # noqa: C901
     """
     Register FlexMeasures plugins as Blueprints.
     This is configured by the config setting FLEXMEASURES_PLUGINS.
@@ -113,13 +113,14 @@ def register_plugins(app: Flask):
         plugin_reporters = get_classes_module(module.__name__, Reporter)
         plugin_schedulers = get_classes_module(module.__name__, Scheduler)
 
-        # for legacy, we keep reporters and schedulers
-        app.reporters.update(plugin_reporters)
-        app.schedulers.update(plugin_schedulers)
-
         # add DataGenerators
-        app.data_generators["scheduler"].update(plugin_schedulers)
-        app.data_generators["reporter"].update(plugin_reporters)
+        # for legacy, we still maintain app.reporters and app.schedulers
+        if plugin_reporters:
+            app.data_generators["reporter"].update(plugin_reporters)
+            app.reporters.update(plugin_reporters)
+        if plugin_schedulers:
+            app.data_generators["scheduler"].update(plugin_schedulers)
+            app.schedulers.update(plugin_schedulers)
 
         app.config["LOADED_PLUGINS"][plugin_name] = plugin_version
     app.logger.info(f"Loaded plugins: {app.config['LOADED_PLUGINS']}")
