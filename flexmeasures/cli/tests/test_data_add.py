@@ -203,7 +203,7 @@ def test_add_reporter(app, fresh_db, setup_dummy_data):
     previous_command_end = cli_input_params.get("end").replace(" ", "+")
 
     cli_input_params = {
-        "source-id": stored_report.lineage.sources[0].id,
+        "source": stored_report.sources[0].id,
         "parameters": "parameters.json",
         "output-file": "test.csv",
         "timezone": "UTC",
@@ -233,7 +233,7 @@ def test_add_reporter(app, fresh_db, setup_dummy_data):
         )  # get fresh report sensor instance
 
         assert (
-            "Reporter `PandasReporter` fetch successfully from the database."
+            "Reporter `PandasReporter` fetched successfully from the database."
             in result.output
         )
         assert f"Report computation done for sensor `{report_sensor}`." in result.output
