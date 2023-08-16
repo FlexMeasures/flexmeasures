@@ -63,12 +63,8 @@ class AggregatorReporter(Reporter):
                 resolution=resolution,
                 beliefs_before=belief_time,
                 source=source,
+                one_deterministic_belief_per_event=True,
             )
-
-            # use first source as the default one
-            if source is None and not df.empty:
-                source = df.lineage.sources[0]
-                df = df[df.sources == source]
 
             df = df.droplevel([1, 2, 3])
 
@@ -88,6 +84,7 @@ class AggregatorReporter(Reporter):
         output_df["belief_time"] = belief_time
         output_df["cumulative_probability"] = 0.5
         output_df["source"] = self.data_source
+        output_df.sensor = output[0]["sensor"]
 
         output_df = output_df.set_index(
             ["belief_time", "source", "cumulative_probability"], append=True
