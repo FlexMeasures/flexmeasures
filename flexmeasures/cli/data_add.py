@@ -86,6 +86,27 @@ def fm_add_data():
     """FlexMeasures: Add data."""
 
 
+@fm_add_data.command("data-gen-sources")
+@with_appcontext
+def add_data_generators_sources():
+    """Create data sources for the data generators found registered in the
+    application and the plugins. Currently, this command only registeres the
+    sources for the Reporters.
+    """
+
+    for name, reporter in app.data_generators["reporter"].items():
+        ds_info = reporter.get_data_source_info()
+
+        # add empty data_generator configuration
+        ds_info["attributes"] = {"data_generator": {"config": {}, "parameters": {}}}
+
+        source = get_or_create_source(**ds_info)
+
+        click.echo(f"Done. DataSource for data generator `{name}` is `{source}`.")
+
+    app.db.session.commit()
+
+
 @fm_add_data.command("account-role")
 @with_appcontext
 @click.option("--name", required=True)
@@ -1317,7 +1338,7 @@ def add_schedule_process(
     help="Path to the JSON or YAML file with the configuration of the reporter.",
 )
 @click.option(
-    "--source-id",
+    "--source",
     "source",
     required=False,
     type=DataSourceIdField(),
@@ -1552,7 +1573,7 @@ def add_report(  # noqa: C901
                 )
 
             click.secho(
-                f"Reporter `{reporter.__class__.__name__}` fetch successfully from the database.",
+                f"Reporter `{reporter.__class__.__name__}` fetched successfully from the database.",
                 **MsgStyle.SUCCESS,
             )
 
