@@ -85,6 +85,7 @@ class AggregatorReporter(Reporter):
         output_df["cumulative_probability"] = 0.5
         output_df["source"] = self.data_source
         output_df.sensor = output[0]["sensor"]
+        output_df.event_resolution = output[0]["sensor"].event_resolution
 
         output_df = output_df.set_index(
             ["belief_time", "source", "cumulative_probability"], append=True
