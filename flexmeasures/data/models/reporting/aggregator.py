@@ -56,6 +56,7 @@ class AggregatorReporter(Reporter):
             )
 
             source = input_description.get("source")
+            source = input_description.get("sources", source)
 
             df = input_description["sensor"].search_beliefs(
                 event_starts_after=start,
