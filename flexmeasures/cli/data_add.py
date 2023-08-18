@@ -78,6 +78,7 @@ from flexmeasures.utils.time_utils import server_now, apply_offset_chain
 from flexmeasures.utils.unit_utils import convert_units, ur
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.data.models.reporting import Reporter
+from flexmeasures.data.models.reporting.profit import ProfitReporter
 from timely_beliefs import BeliefsDataFrame
 
 
@@ -1747,6 +1748,9 @@ def add_toy_account(kind: str, name: str):
         **MsgStyle.SUCCESS,
     )
 
+    account_id = user.account_id
+    print(account_id)
+
     def create_sensor_asset(
         asset_name: str,
         asset_type: str,
@@ -1758,11 +1762,13 @@ def add_toy_account(kind: str, name: str):
             GenericAsset,
             name=asset_name,
             generic_asset_type=asset_types[asset_type],
-            owner=user.account,
+            owner=Account.query.get(account_id),
             latitude=location[0],
             longitude=location[1],
         )
-        asset.attributes = attributes
+        if len(attributes) > 0:
+            asset.attributes = attributes
+
         sensor_specs = dict(
             generic_asset=asset,
             unit=unit,
@@ -1876,10 +1882,12 @@ def add_toy_account(kind: str, name: str):
         )
 
         tz = pytz.timezone(app.config.get("FLEXMEASURES_TIMEZONE", "Europe/Amsterdam"))
+        current_year = datetime.now().year
+        start_year = datetime(current_year, 1, 1)
 
         belief = TimedBelief(
-            event_start=tz.localize(datetime.now().replace()),
-            belief_horizon=timedelta(hours=0),
+            event_start=tz.localize(start_year),
+            belief_time=tz.localize(datetime.now()),
             event_value=0.5,
             source=DataSource.query.get(1),
             sensor=grid_connection_capacity,
@@ -1901,7 +1909,7 @@ def add_toy_account(kind: str, name: str):
             **MsgStyle.SUCCESS,
         )
 
-        for name in ["Inflexible", "Shiftable", "Breakable"]:
+        for name in ["Inflexible", "Breakable", "Shiftable"]:
             profit_sensor = create_sensor_asset(
                 "toy-process", "process", f"Profit ({name})", unit="EUR"
             )
@@ -1911,6 +1919,15 @@ def add_toy_account(kind: str, name: str):
                 f"The sensor storing the profit of {profit_sensor} (ID: {profit_sensor.id}).",
                 **MsgStyle.SUCCESS,
             )
+
+        reporter = ProfitReporter(consumption_price_sensor=day_ahead_sensor)
+        ds = reporter.data_source
+        db.session.commit()
+
+        click.secho(
+            f"Reporter `ProfitReporter` saved with the day ahead price sensor in the `DataSource` (id={ds.id})",
+            **MsgStyle.SUCCESS,
+        )
 
 
 app.cli.add_command(fm_add_data)
