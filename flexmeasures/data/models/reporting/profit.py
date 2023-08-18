@@ -125,7 +125,7 @@ class ProfitReporter(Reporter):
         if input_sensor.get_attribute("consumption_is_positive", False):
             power_energy_data *= -1.0
 
-        # compute cashflow
+        # compute profit
         # this step assumes that positive flows represent production and negative flows consumption
         result = (
             power_energy_data.clip(lower=0) * production_price
@@ -158,7 +158,7 @@ class ProfitReporter(Reporter):
 
             results.append(
                 {
-                    "name": "cashflow",
+                    "name": "profit",
                     "column": "event_value",
                     "sensor": output_description["sensor"],
                     "data": _result,
