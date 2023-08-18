@@ -92,7 +92,7 @@ def fm_add_data():
     default=["reporters"],
     type=click.Choice(["reporters", "schedulers", "forecasters"]),
     multiple=True,
-    help="What kind of toy account. Defaults to a battery.",
+    help="What kind of data generators to consider in the creation of the basic DataSources. Defaults to `reporter`.",
 )
 @with_appcontext
 def add_sources(kind: List[str]):
@@ -101,18 +101,26 @@ def add_sources(kind: List[str]):
     sources for the Reporters.
     """
 
-    if "reporters" in kind:
-        click.echo("Adding `DataSources` for the reporters data generators.")
+    for k in kind:
+        if "reporters" in k:
+            click.echo("Adding `DataSources` for the reporters data generators.")
 
-        for name, reporter in app.data_generators["reporter"].items():
-            ds_info = reporter.get_data_source_info()
+            for name, reporter in app.data_generators["reporter"].items():
+                ds_info = reporter.get_data_source_info()
 
-            # add empty data_generator configuration
-            ds_info["attributes"] = {"data_generator": {"config": {}, "parameters": {}}}
+                # add empty data_generator configuration
+                ds_info["attributes"] = {
+                    "data_generator": {"config": {}, "parameters": {}}
+                }
 
-            source = get_or_create_source(**ds_info)
+                source = get_or_create_source(**ds_info)
 
-            click.echo(f"Done. DataSource for data generator `{name}` is `{source}`.")
+                click.secho(
+                    f"Done. DataSource for data generator `{name}` is `{source}`.",
+                    **MsgStyle.SUCCESS,
+                )
+        else:
+            click.secho(f"Oh no, we don't support kind '{k}' yet.", **MsgStyle.WARN)
 
     app.db.session.commit()
 
