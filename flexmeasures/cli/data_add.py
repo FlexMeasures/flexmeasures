@@ -86,23 +86,33 @@ def fm_add_data():
     """FlexMeasures: Add data."""
 
 
-@fm_add_data.command("data-gen-sources")
+@fm_add_data.command("sources")
+@click.option(
+    "--kind",
+    default=["reporters"],
+    type=click.Choice(["reporters", "schedulers", "forecasters"]),
+    multiple=True,
+    help="What kind of toy account. Defaults to a battery.",
+)
 @with_appcontext
-def add_data_generators_sources():
+def add_sources(kind: List[str]):
     """Create data sources for the data generators found registered in the
-    application and the plugins. Currently, this command only registeres the
+    application and the plugins. Currently, this command only registers the
     sources for the Reporters.
     """
 
-    for name, reporter in app.data_generators["reporter"].items():
-        ds_info = reporter.get_data_source_info()
+    if "reporters" in kind:
+        click.echo("Adding `DataSources` for the reporters data generators.")
 
-        # add empty data_generator configuration
-        ds_info["attributes"] = {"data_generator": {"config": {}, "parameters": {}}}
+        for name, reporter in app.data_generators["reporter"].items():
+            ds_info = reporter.get_data_source_info()
 
-        source = get_or_create_source(**ds_info)
+            # add empty data_generator configuration
+            ds_info["attributes"] = {"data_generator": {"config": {}, "parameters": {}}}
 
-        click.echo(f"Done. DataSource for data generator `{name}` is `{source}`.")
+            source = get_or_create_source(**ds_info)
+
+            click.echo(f"Done. DataSource for data generator `{name}` is `{source}`.")
 
     app.db.session.commit()
 
