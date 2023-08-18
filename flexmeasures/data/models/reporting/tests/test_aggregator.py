@@ -212,3 +212,16 @@ def test_source_transition(setup_dummy_data):
 
     assert len(result) == 12
     assert (result == -1).all().event_value
+
+    # if no source is passed, the reporter should raise a ValueError
+    # as there are events with different time sources in the report time period.
+    # This is important, for instance, for sensors containing power and scheduled values
+    # where we could get beliefs from both sources.
+    with pytest.raises(ValueError):
+        result = agg_reporter.compute(
+            start=tz.localize(datetime(2023, 4, 24)),
+            end=tz.localize(datetime(2023, 4, 25)),
+            input=[dict(sensor=s3)],
+            output=[dict(sensor=report_sensor)],
+            belief_time=tz.localize(datetime(2023, 12, 1)),
+        )[0]["data"]
