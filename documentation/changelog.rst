@@ -3,6 +3,15 @@
 FlexMeasures Changelog
 **********************
 
+v0.15.1 | August XX, 2023
+============================
+
+Bugfixes
+-----------
+
+* Disable HiGHS logs on the standard output when `LOGGING_LEVEL=INFO` [see `PR #824 <https://github.com/FlexMeasures/flexmeasures/pull/824>`_]
+
+
 v0.15.0 | August 9, 2023
 ============================
 
