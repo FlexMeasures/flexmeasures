@@ -157,7 +157,9 @@ def test_resampling(setup_dummy_data):
 
 
 def test_multiple_sources(setup_dummy_data):
-    """check that it uses the first source as default, instead of using all of them."""
+    """check that it uses the first source as default, instead of using all of them.
+    The result should contain only 1 belief per event.
+    """
     s1, s2, s3, report_sensor, daily_report_sensor = setup_dummy_data
 
     agg_reporter = AggregatorReporter()
@@ -172,4 +174,6 @@ def test_multiple_sources(setup_dummy_data):
         belief_time=tz.localize(datetime(2023, 12, 1)),
     )[0]["data"]
 
+    # check that each event has a single belief.
     assert len(result) == 10
+    assert len(result.event_starts.unique()) == len(result)
