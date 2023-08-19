@@ -102,6 +102,7 @@ def add_sources(kind: List[str]):
     """
 
     for k in kind:
+        # todo: add other data-generators when adapted (and remove this check when all listed under our click.Choice are represented)
         if k not in ("reporter",):
             click.secho(f"Oh no, we don't support kind '{k}' yet.", **MsgStyle.WARN)
             continue
