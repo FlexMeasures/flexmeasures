@@ -112,9 +112,7 @@ def add_sources(kind: List[str]):
             ds_info = data_generator.get_data_source_info()
 
             # add empty data_generator configuration
-            ds_info["attributes"] = {
-                "data_generator": {"config": {}, "parameters": {}}
-            }
+            ds_info["attributes"] = {"data_generator": {"config": {}, "parameters": {}}}
 
             source = get_or_create_source(**ds_info)
 
