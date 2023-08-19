@@ -123,7 +123,7 @@ def add_sources(kind: List[str]):
                 **MsgStyle.SUCCESS,
             )
 
-    app.db.session.commit()
+    db.session.commit()
 
 
 @fm_add_data.command("account-role")
