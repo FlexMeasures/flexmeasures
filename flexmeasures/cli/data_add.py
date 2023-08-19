@@ -92,7 +92,7 @@ def fm_add_data():
     default=["reporters"],
     type=click.Choice(["reporters", "schedulers", "forecasters"]),
     multiple=True,
-    help="What kind of data generators to consider in the creation of the basic DataSources. Defaults to `reporter`.",
+    help="What kind of data generators to consider in the creation of the basic DataSources. Defaults to `reporters`.",
 )
 @with_appcontext
 def add_sources(kind: List[str]):
