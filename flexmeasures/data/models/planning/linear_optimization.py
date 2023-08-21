@@ -369,8 +369,8 @@ def device_scheduler(  # noqa C901
     solver = SolverFactory(solver_name)
 
     # disable logs for the HiGHS solver in case that LOGGING_LEVEL is INFO
-    if current_app.config["LOGGING_LEVEL"] == "INFO" and solver_name.lower().contains(
-        "highs"
+    if current_app.config["LOGGING_LEVEL"] == "INFO" and (
+        "highs" in solver_name.lower()
     ):
         solver.options["output_flag"] = "false"
 
