@@ -29,7 +29,7 @@ Just as in previous sections, we need to run the command ```flexmeasures add toy
 
 Under the hood, this command is adding the following entities:
     - A yearly sensor that stores the capacity of the grid connection.
-    - A power sensor, `Headroom`, to store the remaining capacity for the battery. This is where we'll store the report.
+    - A power sensor, `headroom`, to store the remaining capacity for the battery. This is where we'll store the report.
     - A `ProfitLossReporter` configured to use the prices that we setup in Tut. Part II.
     - Three sensors to register the profit of running the process of Tut. Part III.
 
@@ -88,7 +88,7 @@ Moreover, we can check the freshly created source `<Source id=6>` which defines 
 Compute headroom
 -------------------
 
-In this case, the discharge headroom is nothing but the difference between the *Grid Connection Capacity* and the PV power. To compute that quantity, we can use the `AggregatorReporter` using the weights to make the PV to substract the grid connection capacity.
+In this case, the discharge headroom is nothing but the difference between the grid connection capacity and the PV power. To compute that quantity, we can use the `AggregatorReporter` using the weights to make the PV to substract the grid connection capacity.
 
 In practice, we need to create the `config` and `parameters`:
 
@@ -97,7 +97,7 @@ In practice, we need to create the `config` and `parameters`:
     $ echo "
     $ {
     $    'weights' : {
-    $        'Grid Connection Capacity' : 1.0,
+    $        'grid connection capacity' : 1.0,
     $        'PV' : -1.0,
     $    }
     $ }" > headroom-config.json
@@ -107,7 +107,7 @@ In practice, we need to create the `config` and `parameters`:
 
     $ echo "
     $ {
-    $     'input' : [{'name' : 'Grid Connection Capacity','sensor' : 7},
+    $     'input' : [{'name' : 'grid connection capacity','sensor' : 7},
     $                {'name' : 'PV', 'sensor' : 3}],
     $     'output' : [{'sensor' : 8}]
     $ }" > headroom-parameters.json
