@@ -5,6 +5,11 @@ FlexMeasures CLI Changelog
 **********************
 
 since v0.16.0 | September XX, 2023
+=======================================
+* Add command ``flexmeasures add sources`` to add the base `DataSources` for the `DataGenerators`.
+
+
+since v0.15.0 | August 9, 2023
 =================================
 * Add ``--id`` option to ``flexmeasures show data-sources`` to show just one ``DataSource``.
 * Add ``--show-attributes`` flag to ``flexmeasures show data-sources`` to select whether to show the attributes field or not.

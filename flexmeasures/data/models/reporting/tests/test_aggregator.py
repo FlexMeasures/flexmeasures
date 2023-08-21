@@ -156,20 +156,72 @@ def test_resampling(setup_dummy_data):
     )
 
 
-def test_multiple_sources(setup_dummy_data):
-    """check that it uses the first source as default, instead of using all of them."""
+def test_source_transition(setup_dummy_data):
+    """The first 13 hours of the time window "belong" to Source 1 and are filled with 1.0.
+    From 12:00 to 24:00, there are events belonging to Source 2 with value -1.
+
+    We expect the reporter to use only the values defined in the `sources` array in the `input` field.
+    In case of encountering more that one source per event, the first source defined in the sources
+    array is prioritized.
+
+    """
     s1, s2, s3, report_sensor, daily_report_sensor = setup_dummy_data
 
     agg_reporter = AggregatorReporter()
 
     tz = timezone("UTC")
 
+    ds1 = DataSource.query.get(1)
+    ds2 = DataSource.query.get(2)
+
+    # considering DataSource 1 and 2
     result = agg_reporter.compute(
-        start=tz.localize(datetime(2023, 4, 10)),
-        end=tz.localize(datetime(2023, 4, 10, 10)),
-        input=[dict(sensor=s1)],
+        start=tz.localize(datetime(2023, 4, 24)),
+        end=tz.localize(datetime(2023, 4, 25)),
+        input=[dict(sensor=s3, sources=[ds1, ds2])],
         output=[dict(sensor=report_sensor)],
         belief_time=tz.localize(datetime(2023, 12, 1)),
     )[0]["data"]
 
-    assert len(result) == 10
+    assert len(result) == 24
+    assert (
+        (result[:13] == 1).all().event_value
+    )  # the data from the first source is used
+    assert (result[13:] == -1).all().event_value
+
+    # only considering DataSource 1
+    result = agg_reporter.compute(
+        start=tz.localize(datetime(2023, 4, 24)),
+        end=tz.localize(datetime(2023, 4, 25)),
+        input=[dict(sensor=s3, sources=[ds1])],
+        output=[dict(sensor=report_sensor)],
+        belief_time=tz.localize(datetime(2023, 12, 1)),
+    )[0]["data"]
+
+    assert len(result) == 13
+    assert (result == 1).all().event_value
+
+    # only considering DataSource 2
+    result = agg_reporter.compute(
+        start=tz.localize(datetime(2023, 4, 24)),
+        end=tz.localize(datetime(2023, 4, 25)),
+        input=[dict(sensor=s3, sources=[ds2])],
+        output=[dict(sensor=report_sensor)],
+        belief_time=tz.localize(datetime(2023, 12, 1)),
+    )[0]["data"]
+
+    assert len(result) == 12
+    assert (result == -1).all().event_value
+
+    # if no source is passed, the reporter should raise a ValueError
+    # as there are events with different time sources in the report time period.
+    # This is important, for instance, for sensors containing power and scheduled values
+    # where we could get beliefs from both sources.
+    with pytest.raises(ValueError):
+        result = agg_reporter.compute(
+            start=tz.localize(datetime(2023, 4, 24)),
+            end=tz.localize(datetime(2023, 4, 25)),
+            input=[dict(sensor=s3)],
+            output=[dict(sensor=report_sensor)],
+            belief_time=tz.localize(datetime(2023, 12, 1)),
+        )[0]["data"]

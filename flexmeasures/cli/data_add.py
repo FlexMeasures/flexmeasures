@@ -87,25 +87,42 @@ def fm_add_data():
     """FlexMeasures: Add data."""
 
 
-@fm_add_data.command("data-gen-sources")
+@fm_add_data.command("sources")
+@click.option(
+    "--kind",
+    default=["reporter"],
+    type=click.Choice(["reporter", "scheduler", "forecaster"]),
+    multiple=True,
+    help="What kind of data generators to consider in the creation of the basic DataSources. Defaults to `reporter`.",
+)
 @with_appcontext
-def add_data_generators_sources():
+def add_sources(kind: List[str]):
     """Create data sources for the data generators found registered in the
-    application and the plugins. Currently, this command only registeres the
+    application and the plugins. Currently, this command only registers the
     sources for the Reporters.
     """
 
-    for name, reporter in app.data_generators["reporter"].items():
-        ds_info = reporter.get_data_source_info()
+    for k in kind:
+        # todo: add other data-generators when adapted (and remove this check when all listed under our click.Choice are represented)
+        if k not in ("reporter",):
+            click.secho(f"Oh no, we don't support kind '{k}' yet.", **MsgStyle.WARN)
+            continue
+        click.echo(f"Adding `DataSources` for the {k} data generators.")
 
-        # add empty data_generator configuration
-        ds_info["attributes"] = {"data_generator": {"config": {}, "parameters": {}}}
+        for name, data_generator in app.data_generators[k].items():
+            ds_info = data_generator.get_data_source_info()
 
-        source = get_or_create_source(**ds_info)
+            # add empty data_generator configuration
+            ds_info["attributes"] = {"data_generator": {"config": {}, "parameters": {}}}
 
-        click.echo(f"Done. DataSource for data generator `{name}` is `{source}`.")
+            source = get_or_create_source(**ds_info)
 
-    app.db.session.commit()
+            click.secho(
+                f"Done. DataSource for data generator `{name}` is `{source}`.",
+                **MsgStyle.SUCCESS,
+            )
+
+    db.session.commit()
 
 
 @fm_add_data.command("account-role")
