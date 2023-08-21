@@ -234,7 +234,12 @@ def list_data_sources(source: DataSource | None = None, show_attributes: bool = 
     Show available data sources
     """
     if source is None:
-        sources = DataSource.query.order_by(DataSource.name).all()
+        sources = (
+            DataSource.query.order_by(DataSource.name)
+            .order_by(DataSource.model)
+            .order_by(DataSource.version)
+            .all()
+        )
     else:
         sources = [source]
 
@@ -247,7 +252,7 @@ def list_data_sources(source: DataSource | None = None, show_attributes: bool = 
     if show_attributes:
         headers.append("Attributes")
 
-    rows = []
+    rows = dict()
 
     for source in sources:
         row = [
@@ -260,9 +265,17 @@ def list_data_sources(source: DataSource | None = None, show_attributes: bool = 
         ]
         if show_attributes:
             row.append(json.dumps(source.attributes, indent=4))
-        rows.append(row)
 
-    click.echo(tabulate(rows, headers=headers))
+        if source.type not in rows:
+            rows[source.type] = [row]
+        else:
+            rows[source.type].append(row)
+
+    for ds_type, rows in rows.items():
+        click.echo(ds_type)
+        click.echo("=" * len(ds_type))
+        click.echo(tabulate(rows, headers=headers))
+        click.echo("\n")
 
 
 @fm_show_data.command("beliefs")
