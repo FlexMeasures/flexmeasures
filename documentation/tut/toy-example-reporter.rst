@@ -3,20 +3,20 @@
 Toy example IV: Computing reports
 =====================================
 
-So far, we have work on the scheduling batteries and processes. Now, we are moving to one of the other the three pillars of FlexMeasures: Reporting. 
+So far, we have worked on the scheduling batteries and processes. Now, we are moving to one of the other three pillars of FlexMeasures: reporting. 
 
 In essence, reporters apply arbitrary transformations to data coming from some sensors (multiple inputs) and save the results to other sensors (multiple outputs). In practice, this allows to compute KPIs (e.g. profit, total daily energy production, ...), apply operations to beliefs (e.g. change sign of a power sensor for a time period), among other things. 
 
 Currently, FlexMeasures comes with the following reporters:
     - `PandasReporter`: applies arbitrary pandas methods to sensor data. 
     - `AggregatorReporter`: combines data from multiple sensors into one using any of the Pandas `aggregate` function supported method (e.g. sum, average, max, min...).
-    - `ProfitReporter`: computes the cost/profit due to an energy flow under a specific tariff.
+    - `ProfitLossReporter`: computes the profit/loss due to an energy flow under a specific tariff.
 
 Moreover, it's possible to implement your custom reporters in plugins. Instructions for this to come.
 
-Now, coming back to the tutorial, we are going to use the `AggregatorReporter` and the `ProfitReporter`. In the first part, we'll use the `AggregatorReporter` to compute the (discharge) headroom of the battery in :ref:`tut_toy_schedule_expanded`. That way, we can verify the maximum power at which the battery can discharge at any point of time. In the second part, we'll use the `ProfitReporter` to compute the profit of operating the process of Tut. Part III in the different policies.
+Now, coming back to the tutorial, we are going to use the `AggregatorReporter` and the `ProfitLossReporter`. In the first part, we'll use the `AggregatorReporter` to compute the (discharge) headroom of the battery in :ref:`tut_toy_schedule_expanded`. That way, we can verify the maximum power at which the battery can discharge at any point of time. In the second part, we'll use the `ProfitLossReporter` to compute the profit of operating the process of Tut. Part III in the different policies.
 
-Before getting to the meat of the tutorial, we need to setup up all the entities. Instead of having to do that manually (e.g. using commands such as ``flexmeasures add sensor```), we have prepared a command that does that automatically.
+Before getting to the meat of the tutorial, we need to set up up all the entities. Instead of having to do that manually (e.g. using commands such as ``flexmeasures add sensor``), we have prepared a command that does that automatically.
 
 Setup
 .....
@@ -25,12 +25,12 @@ Just as in previous sections, we need to run the command ```flexmeasures add toy
 
 .. code-block:: bash
 
-    $ flexmeasures add toy-account --kind reporting
+    $ flexmeasures add toy-account --kind reporter
 
 Under the hood, this command is adding the following entities:
     - A yearly sensor that stores the capacity of the grid connection.
     - A power sensor, `Headroom`, to store the remaining capacity for the battery. This is where we'll store the report.
-    - A `ProfitReporter` configured to use the prices that we setup in Tut. Part II.
+    - A `ProfitLossReporter` configured to use the prices that we setup in Tut. Part II.
     - Three sensors to register the profit of running the process of Tut. Part III.
 
 Let's check it out! 
@@ -68,15 +68,15 @@ Run the command below to show the values for the `Grid Connection Capacity`:
                         ██ Grid Connection Capacity
 
 
-Moreover, we can check the freshly created source `<Source id=6>` which defines the `ProfitReporter` with the required configuration. You'll notice that the `config` is under `data_generator` field. That's because reporter belong to a bigger category of class which also contains the `Schedulers` and `Forecasters`.
+Moreover, we can check the freshly created source `<Source id=6>` which defines the `ProfitLossReporter` with the required configuration. You'll notice that the `config` is under `data_generator` field. That's because reporters belong to a bigger category of classes that also contains the `Schedulers` and `Forecasters`.
 
 .. code-block:: bash
 
-    $ flexmeasures show data-sources --show-attributes --id 6
+    $ flexmeasures show data-sources --show-attributes --id 5
 
          ID  Name          Type      User ID    Model           Version    Attributes                                  
        ----  ------------  --------  ---------  --------------  ---------  -----------------------------------------   
-          6  FlexMeasures  reporter             ProfitReporter             {                                            
+          6  FlexMeasures  reporter             ProfitLossReporter             {                                            
                                                                                "data_generator": {                      
                                                                                    "config": {                          
                                                                                        "consumption_price_sensor": 1     
@@ -135,7 +135,7 @@ at noon the battery can only discharge at 280kW max.
 Process scheduler profit
 -------------------------
 
-For the second part of this tutorial, we are going to use the `ProfitReporter` to compute the profit (defined as `revenue - cost`) of operating the 
+For the second part of this tutorial, we are going to use the `ProfitLossReporter` to compute the profit (defined as `revenue - cost`) of operating the 
 process from Tut. Part III, under the three different policies: INFLEXIBLE, BREAKABLE and SHIFTABLE.
 
 In addition, we'll explore another way to invoke reporters: data generators. Without going too much into detail, data generators
@@ -159,7 +159,7 @@ Create report:
 
 .. code-block:: bash
 
-    $ flexmeasures add report --source 6 \
+    $ flexmeasures add report --source 5 \
        --parameters inflexible-parameters.json \
        --start-offset DB,1D --end-offset DB,2D
 
@@ -171,7 +171,7 @@ Check the results `here <http://localhost:5000/sensor/9/>`_. The image should be
 |
 
 
-breakable-parameters process
+Breakable process
 ^^^^^^^^^^^^^^^^^^^
 Define parameters in a JSON file:
 
@@ -187,7 +187,7 @@ Create report:
 
 .. code-block:: bash
 
-    $ flexmeasures add report --source 6 \
+    $ flexmeasures add report --source 5 \
        --parameters breakable-parameters.json \
        --start-offset DB,1D --end-offset DB,2D
 
@@ -215,7 +215,7 @@ Create report:
 
 .. code-block:: bash
 
-    $ flexmeasures add report --source 6 \
+    $ flexmeasures add report --source 5 \
        --parameters shiftable-parameters.json \
        --start-offset DB,1D --end-offset DB,2D
 
@@ -227,4 +227,4 @@ Check the results `here <http://localhost:5000/sensor/11/>`_. The image should b
 |
 
 Now, we can compare the results of the reports to the ones we computed manually in :ref:`this table <table-process>`). Keep in mind that the
-report is showing the profit of each 15min period and adding them all show that it matches with our previous results.
+report is showing the profit of each 15min period and adding them all shows that it matches with our previous results.
