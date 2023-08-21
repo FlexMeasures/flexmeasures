@@ -78,7 +78,7 @@ from flexmeasures.utils.time_utils import server_now, apply_offset_chain
 from flexmeasures.utils.unit_utils import convert_units, ur
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.data.models.reporting import Reporter
-from flexmeasures.data.models.reporting.profit import ProfitReporter
+from flexmeasures.data.models.reporting.profit import ProfitOrLossReporter
 from timely_beliefs import BeliefsDataFrame
 
 
@@ -1703,7 +1703,7 @@ def launch_editor(filename: str) -> dict:
 @click.option(
     "--kind",
     default="battery",
-    type=click.Choice(["battery", "process", "reporting"]),
+    type=click.Choice(["battery", "process", "reporter"]),
     help="What kind of toy account. Defaults to a battery.",
 )
 @click.option("--name", type=str, default="Toy Account", help="Name of the account")
@@ -1881,7 +1881,7 @@ def add_toy_account(kind: str, name: str):
             f"The sensor recording the power of the shiftable load is {shiftable_power} (ID: {shiftable_power.id}).",
             **MsgStyle.SUCCESS,
         )
-    elif kind == "reporting":
+    elif kind == "reporter":
         # Part A) of tutorial IV
         grid_connection_capacity = get_or_create_model(
             Sensor,
@@ -1937,12 +1937,14 @@ def add_toy_account(kind: str, name: str):
                 **MsgStyle.SUCCESS,
             )
 
-        reporter = ProfitReporter(consumption_price_sensor=day_ahead_sensor)
+        reporter = ProfitOrLossReporter(
+            consumption_price_sensor=day_ahead_sensor, is_profit=False
+        )
         ds = reporter.data_source
         db.session.commit()
 
         click.secho(
-            f"Reporter `ProfitReporter` saved with the day ahead price sensor in the `DataSource` (id={ds.id})",
+            f"Reporter `ProfitOrLossReporter` saved with the day ahead price sensor in the `DataSource` (id={ds.id})",
             **MsgStyle.SUCCESS,
         )
 
