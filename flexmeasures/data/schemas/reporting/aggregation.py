@@ -1,4 +1,4 @@
-from marshmallow import fields, ValidationError, validates_schema, validate
+from marshmallow import fields, validate
 
 from flexmeasures.data.schemas.reporting import (
     ReporterConfigSchema,
@@ -58,9 +58,3 @@ class AggregatorParametersSchema(ReporterParametersSchema):
     output = fields.List(
         fields.Nested(Output()), validate=validate.Length(min=1, max=1)
     )
-
-    @validates_schema
-    def validate_source(self, data, **kwargs):
-        for input_description in data["input"]:
-            if "source" not in input_description:
-                raise ValidationError("`source` is a required field.")

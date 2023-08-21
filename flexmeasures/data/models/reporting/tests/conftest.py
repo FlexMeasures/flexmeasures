@@ -117,6 +117,41 @@ def setup_dummy_data(db, app):
             )
         )
 
+    # Add data source transition, from DataSource 1 to DataSource 2
+    # At 12:00, there is one event from both of the sources
+    for t in range(12):  # create data for 4 days
+        # 00:00 -> 12:00
+        beliefs.append(
+            TimedBelief(
+                event_start=datetime(2023, 4, 24, tzinfo=utc) + timedelta(hours=t),
+                belief_horizon=timedelta(hours=24),
+                event_value=1,
+                sensor=sensor3,
+                source=source1,
+            )
+        )
+        # 12:00 -> 24:00
+        beliefs.append(
+            TimedBelief(
+                event_start=datetime(2023, 4, 24, tzinfo=utc) + timedelta(hours=t + 12),
+                belief_horizon=timedelta(hours=24),
+                event_value=-1,
+                sensor=sensor3,
+                source=source2,
+            )
+        )
+
+    # add a belief belonging to Source 2 in the second half of the day ()
+    beliefs.append(
+        TimedBelief(
+            event_start=datetime(2023, 4, 24, tzinfo=utc) + timedelta(hours=12),
+            belief_horizon=timedelta(hours=24),
+            event_value=1,
+            sensor=sensor3,
+            source=source1,
+        )
+    )
+
     db.session.add_all(beliefs)
     db.session.commit()
 
