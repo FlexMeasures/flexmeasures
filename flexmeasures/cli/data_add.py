@@ -1766,9 +1766,8 @@ def add_toy_account(kind: str, name: str):
     )
 
     account_id = user.account_id
-    print(account_id)
 
-    def create_sensor_asset(
+    def create_asset_with_one_sensor(
         asset_name: str,
         asset_type: str,
         sensor_name: str,
@@ -1801,7 +1800,7 @@ def add_toy_account(kind: str, name: str):
 
     if kind == "battery":
         # create battery
-        discharging_sensor = create_sensor_asset(
+        discharging_sensor = create_asset_with_one_sensor(
             "toy-battery",
             "battery",
             "discharging",
@@ -1811,7 +1810,7 @@ def add_toy_account(kind: str, name: str):
         )
 
         # create solar
-        production_sensor = create_sensor_asset(
+        production_sensor = create_asset_with_one_sensor(
             "toy-solar",
             "solar",
             "production",
@@ -1839,19 +1838,19 @@ def add_toy_account(kind: str, name: str):
             **MsgStyle.SUCCESS,
         )
     elif kind == "process":
-        inflexible_power = create_sensor_asset(
+        inflexible_power = create_asset_with_one_sensor(
             "toy-process",
             "process",
             "Power (Inflexible)",
         )
 
-        breakable_power = create_sensor_asset(
+        breakable_power = create_asset_with_one_sensor(
             "toy-process",
             "process",
             "Power (Breakable)",
         )
 
-        shiftable_power = create_sensor_asset(
+        shiftable_power = create_asset_with_one_sensor(
             "toy-process",
             "process",
             "Power (Shiftable)",
@@ -1885,10 +1884,10 @@ def add_toy_account(kind: str, name: str):
         # Part A) of tutorial IV
         grid_connection_capacity = get_or_create_model(
             Sensor,
-            name="Grid Connection Capacity",
+            name="grid connection capacity",
             generic_asset=nl_zone,
             timezone="Europe/Amsterdam",
-            event_resolution=timedelta(days=365),
+            event_resolution="P1Y",
             unit="MW",
         )
         db.session.commit()
@@ -1913,10 +1912,10 @@ def add_toy_account(kind: str, name: str):
         db.session.add(belief)
         db.session.commit()
 
-        headroom = create_sensor_asset(
+        headroom = create_asset_with_one_sensor(
             "toy-battery",
             "battery",
-            "Headroom",
+            "headroom",
         )
 
         db.session.commit()
@@ -1927,7 +1926,7 @@ def add_toy_account(kind: str, name: str):
         )
 
         for name in ["Inflexible", "Breakable", "Shiftable"]:
-            profit_sensor = create_sensor_asset(
+            profit_sensor = create_asset_with_one_sensor(
                 "toy-process", "process", f"Profit ({name})", unit="EUR"
             )
 
