@@ -1926,13 +1926,13 @@ def add_toy_account(kind: str, name: str):
         )
 
         for name in ["Inflexible", "Breakable", "Shiftable"]:
-            profit_sensor = create_asset_with_one_sensor(
-                "toy-process", "process", f"Profit ({name})", unit="EUR"
+            loss_sensor = create_asset_with_one_sensor(
+                "toy-process", "process", f"Losses ({name})", unit="EUR"
             )
 
             db.session.commit()
             click.secho(
-                f"The sensor storing the profit of {profit_sensor} (ID: {profit_sensor.id}).",
+                f"The sensor storing the loss is {loss_sensor} (ID: {loss_sensor.id}).",
                 **MsgStyle.SUCCESS,
             )
 
