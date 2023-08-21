@@ -6,8 +6,8 @@ from typing import Any, List, Dict
 
 from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.schemas.reporting.profit import (
-    ProfitReporterConfigSchema,
-    ProfitReporterParametersSchema,
+    ProfitOrLossReporterConfigSchema,
+    ProfitOrLossReporterParametersSchema,
 )
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.utils.time_utils import server_now
@@ -15,13 +15,13 @@ from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.utils.unit_utils import ur, determine_stock_unit, is_currency_unit
 
 
-class ProfitReporter(Reporter):
-    """Compute the profit due to energy/power flow.
+class ProfitOrLossReporter(Reporter):
+    """Compute the profit or loss due to energy/power flow.
 
     Given power/energy and price sensors, this reporter computes the profit (revenue - cost)
-    of a power/energy flow under a certain tariff.
+    or losses (cost - revenue) of a power/energy flow under a certain tariff.
 
-    Sign convention
+    Sign convention (by default)
     ----------------
 
     Power flows:
@@ -32,13 +32,17 @@ class ProfitReporter(Reporter):
         (+) gains
         (-) losses
 
+    This sign convention can be adapted to your needs:
+        - The power/energy convention can be inverted by setting the sensor attribute `consumption_is_positive` to True.
+        - The output (gains/losses) sign can be inverted by setting the reporter config attribute `is_profit` to False.
+
     """
 
     __version__ = "1"
     __author__ = "Seita"
 
-    _config_schema = ProfitReporterConfigSchema()
-    _parameters_schema = ProfitReporterParametersSchema()
+    _config_schema = ProfitOrLossReporterConfigSchema()
+    _parameters_schema = ProfitOrLossReporterParametersSchema()
 
     weights: dict
     method: str
@@ -65,6 +69,7 @@ class ProfitReporter(Reporter):
 
         production_price_sensor: Sensor = self._config.get("production_price_sensor")
         consumption_price_sensor: Sensor = self._config.get("consumption_price_sensor")
+        is_profit: bool = self._config.get("is_profit", True)
 
         input_sensor: Sensor = input[0]["sensor"]  # power or energy sensor
         input_source: Sensor = input[0].get("source", None)
@@ -131,6 +136,10 @@ class ProfitReporter(Reporter):
             power_energy_data.clip(lower=0) * production_price
             + power_energy_data.clip(upper=0) * consumption_price
         )
+
+        # transform a losses in negative to positive
+        if not is_profit:
+            result *= -1.0
 
         results = []
 

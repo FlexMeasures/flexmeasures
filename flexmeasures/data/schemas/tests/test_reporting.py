@@ -3,8 +3,8 @@ from flexmeasures.data.schemas.reporting.pandas_reporter import (
     PandasReporterParametersSchema,
 )
 from flexmeasures.data.schemas.reporting.profit import (
-    ProfitReporterConfigSchema,
-    ProfitReporterParametersSchema,
+    ProfitOrLossReporterConfigSchema,
+    ProfitOrLossReporterParametersSchema,
 )
 from marshmallow.exceptions import ValidationError
 
@@ -164,7 +164,7 @@ def test_pandas_reporter_parameters_schema(
     ],
 )
 def test_profit_reporter_config_schema(config, is_valid, db, app, setup_dummy_sensors):
-    schema = ProfitReporterConfigSchema()
+    schema = ProfitOrLossReporterConfigSchema()
 
     if is_valid:
         schema.load(config)
@@ -221,7 +221,7 @@ end = "2023-01-02T00:00:00+01:00"
 def test_profit_reporter_parameters_schema(
     parameters, is_valid, db, app, setup_dummy_sensors
 ):
-    schema = ProfitReporterParametersSchema()
+    schema = ProfitOrLossReporterParametersSchema()
 
     if is_valid:
         schema.load(parameters)
