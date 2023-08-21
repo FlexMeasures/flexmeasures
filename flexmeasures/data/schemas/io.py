@@ -1,8 +1,9 @@
-from marshmallow import fields, Schema
+from marshmallow import fields, Schema, post_load, post_dump
 
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.schemas import AwareDateTimeField, DurationField
 from flexmeasures.data.schemas.sources import DataSourceIdField
+from flask import current_app
 
 
 class RequiredInput(Schema):
@@ -21,6 +22,7 @@ class Input(Schema):
 
     sensor = SensorIdField(required=True)
     source = DataSourceIdField()
+    sources = fields.List(DataSourceIdField())
 
     event_starts_after = AwareDateTimeField()
     event_ends_before = AwareDateTimeField()
@@ -39,6 +41,22 @@ class Input(Schema):
     one_deterministic_belief_per_event_per_source = fields.Boolean()
     resolution = DurationField()
     sum_multiple = fields.Boolean()
+
+    def print_source_deprecation_warning(self, data):
+        if "source" in data:
+            current_app.logger.warning(
+                "`source` field to be deprecated in v0.17.0. Please, use `sources` instead"
+            )
+
+    @post_load
+    def post_load_deprecation_warning_source(self, data: dict, **kawrgs) -> dict:
+        self.print_source_deprecation_warning(data)
+        return data
+
+    @post_dump
+    def post_dump_deprecation_warning_source(self, data: dict, **kwargs) -> dict:
+        self.print_source_deprecation_warning(data)
+        return data
 
 
 class Output(Schema):
