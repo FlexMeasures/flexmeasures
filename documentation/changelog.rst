@@ -10,7 +10,7 @@ Bugfixes
 -----------
 
 * Disable HiGHS logs on the standard output when `LOGGING_LEVEL=INFO` [see `PR #824 <https://github.com/FlexMeasures/flexmeasures/pull/824>`_]
-* Fix showing sensor data on the asset page of public assets [see `PR #830 <https://github.com/FlexMeasures/flexmeasures/pull/830>`_]
+* Fix showing sensor data on the asset page of public assets, and searching for annotations on public assets [see `PR #830 <https://github.com/FlexMeasures/flexmeasures/pull/830>`_]
 
 
 v0.15.0 | August 9, 2023
