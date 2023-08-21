@@ -135,16 +135,27 @@ at noon the battery can only discharge at 280kW max.
 Process scheduler profit
 -------------------------
 
-For the second part of this tutorial, we are going to use the `ProfitLossReporter` to compute the profit (defined as `revenue - cost`) of operating the 
+For the second part of this tutorial, we are going to use the `ProfitLossReporter` to compute the losses (defined as `cost - revenue`) of operating the 
 process from Tut. Part III, under the three different policies: INFLEXIBLE, BREAKABLE and SHIFTABLE.
 
 In addition, we'll explore another way to invoke reporters: data generators. Without going too much into detail, data generators
 create new data. The thee main types are: `Reporters`, `Schedulers` and `Forecasters`. This will come handy as the three reports that
-we are going to create share the same `config`. Still, we need to define the parameters.
+we are going to create share the same `config`. The `config` defines the price sensor to use and sets the reporter to work in **losses** mode which means
+that it will return positive values cost and negative values revenue.
 
+Still, we need to define the parameters. The three reports share the same structure for the paramters with the following fields:
+* `input`: sensor that stores the power/energy flow. The number of sensors is limit to 1.
+* `output`: sensor to store the result of the report. We can provide sensors with differen resolutions to store the same results at different time scales.
+
+It's possible to define the `config` and `parameters` in JSON or YAML formats.
+
+After setting up `config` and `paramters`, we can invoke the reporter using the command ``flexmeasures add report``. The command takes the data source id,
+the files containing the paramters and the timing paramters (start and end). For this particular case, we make use of the offsets to indicate that we want the
+report to encompass the day of tomorrow.
 
 Inflexible process
 ^^^^^^^^^^^^^^^^^^^
+
 Define parameters in a JSON file:
 
 .. code-block:: bash
