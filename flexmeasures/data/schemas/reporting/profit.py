@@ -17,19 +17,24 @@ from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.utils.unit_utils import is_currency_unit
 
 
-class ProfitReporterConfigSchema(ReporterConfigSchema):
-    """Schema for the ProfitReporter configuration
+class ProfitOrLossReporterConfigSchema(ReporterConfigSchema):
+    """Schema for the ProfitOrLossReporter configuration
 
     Example:
     .. code-block:: json
         {
             "production-price-sensor" : 1,
             "consumption-price-sensor" : 2,
+            "is_profit" : False
         }
     """
 
     consumption_price_sensor = SensorIdField(required=False)
     production_price_sensor = SensorIdField(required=False)
+
+    # set this to False to get the losses as positive values, otherwise, profit is positive.
+    # by default, the Reporter works in `profit` mode.
+    is_profit = fields.Bool(load_default=True, dump_default=True, required=False)
 
     @validates_schema
     def validate_price_sensors(self, data, **kwargs):
@@ -67,8 +72,8 @@ class ProfitReporterConfigSchema(ReporterConfigSchema):
             )
 
 
-class ProfitReporterParametersSchema(ReporterParametersSchema):
-    """Schema for the ProfitReporter parameters
+class ProfitOrLossReporterParametersSchema(ReporterParametersSchema):
+    """Schema for the ProfitOrLossReporter parameters
 
     Example:
     .. code-block:: json

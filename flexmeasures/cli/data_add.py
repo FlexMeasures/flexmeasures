@@ -89,8 +89,8 @@ def fm_add_data():
 @fm_add_data.command("sources")
 @click.option(
     "--kind",
-    default=["reporters"],
-    type=click.Choice(["reporters", "schedulers", "forecasters"]),
+    default=["reporter"],
+    type=click.Choice(["reporter", "scheduler", "forecaster"]),
     multiple=True,
     help="What kind of data generators to consider in the creation of the basic DataSources. Defaults to `reporter`.",
 )
@@ -102,27 +102,26 @@ def add_sources(kind: List[str]):
     """
 
     for k in kind:
-        if "reporters" in k:
-            click.echo("Adding `DataSources` for the reporters data generators.")
-
-            for name, reporter in app.data_generators["reporter"].items():
-                ds_info = reporter.get_data_source_info()
-
-                # add empty data_generator configuration
-                ds_info["attributes"] = {
-                    "data_generator": {"config": {}, "parameters": {}}
-                }
-
-                source = get_or_create_source(**ds_info)
-
-                click.secho(
-                    f"Done. DataSource for data generator `{name}` is `{source}`.",
-                    **MsgStyle.SUCCESS,
-                )
-        else:
+        # todo: add other data-generators when adapted (and remove this check when all listed under our click.Choice are represented)
+        if k not in ("reporter",):
             click.secho(f"Oh no, we don't support kind '{k}' yet.", **MsgStyle.WARN)
+            continue
+        click.echo(f"Adding `DataSources` for the {k} data generators.")
 
-    app.db.session.commit()
+        for name, data_generator in app.data_generators[k].items():
+            ds_info = data_generator.get_data_source_info()
+
+            # add empty data_generator configuration
+            ds_info["attributes"] = {"data_generator": {"config": {}, "parameters": {}}}
+
+            source = get_or_create_source(**ds_info)
+
+            click.secho(
+                f"Done. DataSource for data generator `{name}` is `{source}`.",
+                **MsgStyle.SUCCESS,
+            )
+
+    db.session.commit()
 
 
 @fm_add_data.command("account-role")
