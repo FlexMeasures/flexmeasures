@@ -240,9 +240,12 @@ def _convert_time_units(
         # unit abbreviations passed to pd.Timedelta need a number (so, for example, h becomes 1h)
         to_unit = f"1{to_unit}"
     if from_unit == "datetime":
-        return (
-            pd.to_datetime(data, utc=True) - pd.Timestamp("1970-01-01", tz="utc")
-        ) // pd.Timedelta(to_unit)
+        dt_data = pd.to_datetime(data)
+        # localize timezone naive data to the sensor's timezone, if available
+        if dt_data.dt.tz is None:
+            timezone = data.sensor.timezone if hasattr(data, "sensor") else "utc"
+            dt_data = dt_data.dt.tz_localize(timezone)
+        return (dt_data - pd.Timestamp("1970-01-01", tz="utc")) // pd.Timedelta(to_unit)
     else:
         return data / pd.Timedelta(to_unit)
 
