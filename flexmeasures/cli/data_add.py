@@ -1937,7 +1937,7 @@ def add_toy_account(kind: str, name: str):
             )
 
         reporter = ProfitOrLossReporter(
-            consumption_price_sensor=day_ahead_sensor, is_profit=False
+            consumption_price_sensor=day_ahead_sensor, loss_is_positive=True
         )
         ds = reporter.data_source
         db.session.commit()
