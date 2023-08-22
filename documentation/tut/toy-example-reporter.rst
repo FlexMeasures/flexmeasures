@@ -35,14 +35,14 @@ Under the hood, this command is adding the following entities:
 
 Let's check it out! 
 
-Run the command below to show the values for the `Grid Connection Capacity`:
+Run the command below to show the values for the `grid connection capacity`:
 
 .. code-block:: bash
 
     $ TOMORROW=$(date --date="next day" '+%Y-%m-%d')
     $ flexmeasures show beliefs --sensor-id 7 --start ${TOMORROW}T00:00:00+02:00 --duration PT24H --resolution PT1H
       
-      Beliefs for Sensor 'Grid Connection Capacity' (ID 7).
+      Beliefs for Sensor 'grid connection capacity' (ID 7).
         Data spans a day and starts at 2023-08-14 00:00:00+02:00.
         The time resolution (x-axis) is an hour.
         ┌────────────────────────────────────────────────────────────┐
@@ -65,7 +65,7 @@ Run the command below to show the values for the `Grid Connection Capacity`:
         │                                                            │ -0.5MW
         └────────────────────────────────────────────────────────────┘
                 5            10            15           20
-                        ██ Grid Connection Capacity
+                        ██ grid connection capacity
 
 
 Moreover, we can check the freshly created source `<Source id=6>` which defines the `ProfitLossReporter` with the required configuration. You'll notice that the `config` is under `data_generator` field. That's because reporters belong to a bigger category of classes that also contains the `Schedulers` and `Forecasters`.
@@ -170,7 +170,7 @@ Create report:
 
 .. code-block:: bash
 
-    $ flexmeasures add report --source 5 \
+    $ flexmeasures add report --source 6 \
        --parameters inflexible-parameters.json \
        --start-offset DB,1D --end-offset DB,2D
 
@@ -198,7 +198,7 @@ Create report:
 
 .. code-block:: bash
 
-    $ flexmeasures add report --source 5 \
+    $ flexmeasures add report --source 6 \
        --parameters breakable-parameters.json \
        --start-offset DB,1D --end-offset DB,2D
 
@@ -226,7 +226,7 @@ Create report:
 
 .. code-block:: bash
 
-    $ flexmeasures add report --source 5 \
+    $ flexmeasures add report --source 6 \
        --parameters shiftable-parameters.json \
        --start-offset DB,1D --end-offset DB,2D
 
