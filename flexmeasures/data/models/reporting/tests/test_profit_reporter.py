@@ -8,10 +8,10 @@ from pytz import timezone
 
 
 @pytest.mark.parametrize(
-    "use_power_sensor, is_profit",
+    "use_power_sensor, loss_is_positive",
     [(False, False), (True, False), (False, True), (True, True)],
 )
-def test_profit_reporter(app, db, profit_report, use_power_sensor, is_profit):
+def test_profit_reporter(app, db, profit_report, use_power_sensor, loss_is_positive):
     (
         profit_sensor_hourly,
         profit_sensor_daily,
@@ -31,12 +31,12 @@ def test_profit_reporter(app, db, profit_report, use_power_sensor, is_profit):
     profit_reporter = ProfitOrLossReporter(
         consumption_price_sensor=epex_da,
         production_price_sensor=epex_da_production,
-        is_profit=is_profit,
+        loss_is_positive=loss_is_positive,
     )
 
     sign = 1.0
 
-    if not is_profit:
+    if loss_is_positive:
         sign = -1.0
 
     tz = timezone("Europe/Amsterdam")

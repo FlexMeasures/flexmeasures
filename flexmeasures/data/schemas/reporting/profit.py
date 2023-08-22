@@ -25,16 +25,17 @@ class ProfitOrLossReporterConfigSchema(ReporterConfigSchema):
         {
             "production-price-sensor" : 1,
             "consumption-price-sensor" : 2,
-            "is_profit" : False
+            "loss_is_positive" : True
         }
     """
 
     consumption_price_sensor = SensorIdField(required=False)
     production_price_sensor = SensorIdField(required=False)
 
-    # set this to False to get the losses as positive values, otherwise, profit is positive.
-    # by default, the Reporter works in `profit` mode.
-    is_profit = fields.Bool(load_default=True, dump_default=True, required=False)
+    # set this to True to get the losses as positive values, otherwise, profit is positive.
+    loss_is_positive = fields.Bool(
+        load_default=False, dump_default=True, required=False
+    )
 
     @validates_schema
     def validate_price_sensors(self, data, **kwargs):
