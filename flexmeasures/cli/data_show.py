@@ -248,7 +248,7 @@ def list_data_sources(source: DataSource | None = None, show_attributes: bool = 
         click.secho("No data sources created yet.", **MsgStyle.WARN)
         raise click.Abort()
 
-    headers = ["ID", "Name", "Type", "User ID", "Model", "Version"]
+    headers = ["ID", "Name", "User ID", "Model", "Version"]
 
     if show_attributes:
         headers.append("Attributes")
@@ -259,7 +259,6 @@ def list_data_sources(source: DataSource | None = None, show_attributes: bool = 
         row = [
             source.id,
             source.name,
-            source.type,
             source.user_id,
             source.model,
             source.version,
@@ -273,7 +272,7 @@ def list_data_sources(source: DataSource | None = None, show_attributes: bool = 
             rows[source.type].append(row)
 
     for ds_type, row in rows.items():
-        click.echo(ds_type)
+        click.echo(f"type: {ds_type}")
         click.echo("=" * len(ds_type))
         click.echo(tabulate(row, headers=headers))
         click.echo("\n")
