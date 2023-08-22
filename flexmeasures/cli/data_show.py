@@ -235,7 +235,8 @@ def list_data_sources(source: DataSource | None = None, show_attributes: bool = 
     """
     if source is None:
         sources = (
-            DataSource.query.order_by(DataSource.name)
+            DataSource.query.order_by(DataSource.type)
+            .order_by(DataSource.name)
             .order_by(DataSource.model)
             .order_by(DataSource.version)
             .all()
@@ -271,10 +272,10 @@ def list_data_sources(source: DataSource | None = None, show_attributes: bool = 
         else:
             rows[source.type].append(row)
 
-    for ds_type, rows in rows.items():
+    for ds_type, row in rows.items():
         click.echo(ds_type)
         click.echo("=" * len(ds_type))
-        click.echo(tabulate(rows, headers=headers))
+        click.echo(tabulate(row, headers=headers))
         click.echo("\n")
 
 
