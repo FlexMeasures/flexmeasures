@@ -9,7 +9,7 @@ In essence, reporters apply arbitrary transformations to data coming from some s
 
 .. note:: 
     Currently, FlexMeasures comes with the following reporters:
-        - `PandasReporter`: applies arbitrary pandas methods to sensor data. 
+        - `PandasReporter`: applies arbitrary `Pandas <https://pandas.pydata.org>`_ methods to sensor data. 
         - `AggregatorReporter`: combines data from multiple sensors into one using any of the Pandas `aggregate` function supported methods (e.g. sum, average, max, min...).
         - `ProfitLossReporter`: computes the profit/loss due to an energy flow under a specific tariff.
 
