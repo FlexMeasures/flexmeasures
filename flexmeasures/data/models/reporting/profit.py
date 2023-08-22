@@ -34,7 +34,7 @@ class ProfitOrLossReporter(Reporter):
 
     This sign convention can be adapted to your needs:
         - The power/energy convention can be inverted by setting the sensor attribute `consumption_is_positive` to True.
-        - The output (gains/losses) sign can be inverted by setting the reporter config attribute `is_profit` to False.
+        - The output (gains/losses) sign can be inverted by setting the reporter config attribute `loss_is_positive` to False.
 
     """
 
@@ -69,7 +69,7 @@ class ProfitOrLossReporter(Reporter):
 
         production_price_sensor: Sensor = self._config.get("production_price_sensor")
         consumption_price_sensor: Sensor = self._config.get("consumption_price_sensor")
-        is_profit: bool = self._config.get("is_profit", True)
+        loss_is_positive: bool = self._config.get("loss_is_positive", False)
 
         input_sensor: Sensor = input[0]["sensor"]  # power or energy sensor
         input_source: Sensor = input[0].get("source", None)
@@ -138,10 +138,15 @@ class ProfitOrLossReporter(Reporter):
         )
 
         # transform a losses in negative to positive
-        if not is_profit:
+        if loss_is_positive:
             result *= -1.0
 
         results = []
+
+        output_name = "profit"
+
+        if loss_is_positive:
+            output_name = "loss"
 
         for output_description in output:
             output_sensor = output_description["sensor"]
@@ -167,7 +172,7 @@ class ProfitOrLossReporter(Reporter):
 
             results.append(
                 {
-                    "name": "profit",
+                    "name": output_name,
                     "column": "event_value",
                     "sensor": output_description["sensor"],
                     "data": _result,
