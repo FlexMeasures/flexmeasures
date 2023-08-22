@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from moneyed import list_all_currencies
+from moneyed import list_all_currencies, Currency
 import numpy as np
 import pandas as pd
 import pint
@@ -185,6 +185,25 @@ def is_energy_unit(unit: str) -> bool:
     if not is_valid_unit(unit):
         return False
     return ur.Quantity(unit).dimensionality == ur.Quantity("Wh").dimensionality
+
+
+def is_currency_unit(unit: str | pint.Quantity | pint.Unit) -> bool:
+    """For Example:
+    >>> is_energy_price_unit("EUR")
+    True
+    >>> is_energy_price_unit("KRW")
+    True
+    >>> is_energy_price_unit("potatoe")
+    False
+    >>> is_energy_price_unit("MW")
+    False
+    """
+    if isinstance(unit, pint.Quantity):
+        return is_currency_unit(unit.units)
+    if isinstance(unit, pint.Unit):
+        return is_currency_unit(str(unit))
+
+    return Currency(code=unit) in list_all_currencies()
 
 
 def is_energy_price_unit(unit: str) -> bool:

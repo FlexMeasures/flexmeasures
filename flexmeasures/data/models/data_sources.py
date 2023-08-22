@@ -254,7 +254,7 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         db.Model.__init__(self, **kwargs)
 
     @property
-    def data_generator(self):
+    def data_generator(self) -> DataGenerator:
         if self._data_generator:
             return self._data_generator
 
