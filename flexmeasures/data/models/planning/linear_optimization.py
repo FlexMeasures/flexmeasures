@@ -364,11 +364,18 @@ def device_scheduler(  # noqa C901
     model.costs = Objective(rule=cost_function, sense=minimize)
 
     # Solve
+    solver_name = current_app.config.get("FLEXMEASURES_LP_SOLVER")
+
+    solver = SolverFactory(solver_name)
+
+    # disable logs for the HiGHS solver in case that LOGGING_LEVEL is INFO
+    if current_app.config["LOGGING_LEVEL"] == "INFO" and (
+        "highs" in solver_name.lower()
+    ):
+        solver.options["output_flag"] = "false"
 
     # load_solutions=False to avoid a RuntimeError exception in appsi solvers when solving an infeasible problem.
-    results = SolverFactory(current_app.config.get("FLEXMEASURES_LP_SOLVER")).solve(
-        model, load_solutions=False
-    )
+    results = solver.solve(model, load_solutions=False)
 
     # load the results only if a feasible solution has been found
     if len(results.solution) > 0:

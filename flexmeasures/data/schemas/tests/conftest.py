@@ -17,13 +17,36 @@ def setup_dummy_sensors(db, app):
     db.session.add(dummy_asset)
 
     sensor1 = Sensor(
-        "sensor 1", generic_asset=dummy_asset, event_resolution=timedelta(hours=1)
+        "sensor 1",
+        generic_asset=dummy_asset,
+        event_resolution=timedelta(hours=1),
+        unit="MWh",
     )
     db.session.add(sensor1)
+
     sensor2 = Sensor(
-        "sensor 2", generic_asset=dummy_asset, event_resolution=timedelta(hours=1)
+        "sensor 2",
+        generic_asset=dummy_asset,
+        event_resolution=timedelta(hours=1),
+        unit="EUR/MWh",
     )
     db.session.add(sensor2)
+
+    sensor3 = Sensor(
+        "sensor 3",
+        generic_asset=dummy_asset,
+        event_resolution=timedelta(hours=1),
+        unit="EUR",
+    )
+    db.session.add(sensor3)
+
+    sensor4 = Sensor(
+        "sensor 4",
+        generic_asset=dummy_asset,
+        event_resolution=timedelta(hours=1),
+        unit="MW",
+    )
+    db.session.add(sensor4)
 
     db.session.commit()
 
