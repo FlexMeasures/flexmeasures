@@ -3,7 +3,7 @@
 FlexMeasures Changelog
 **********************
 
-v0.15.1 | August XX, 2023
+v0.16.0 | September XX, 2023
 ============================
 
 New features
@@ -11,6 +11,9 @@ New features
 
 * Introduce new reporter to compute profit/loss due to electricity flows: `ProfitOrLossReporter` [see `PR #808 <https://github.com/FlexMeasures/flexmeasures/pull/808>`_]
 
+
+v0.15.1 | August XX, 2023
+============================
 
 Bugfixes
 -----------
