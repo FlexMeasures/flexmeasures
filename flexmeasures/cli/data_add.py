@@ -1170,8 +1170,9 @@ def add_schedule_for_storage(
             "MWh",
             capacity=capacity_str,
         )
-        soc_target_datetime = pd.Timestamp(soc_target_dt_str)
+        soc_target_datetime = soc_target_dt_str
         soc_targets.append(dict(value=soc_target_value, datetime=soc_target_datetime))
+
     if soc_min is not None:
         soc_min = convert_units(soc_min.magnitude, str(soc_min.units), "MWh", capacity=capacity_str)  # type: ignore
     if soc_max is not None:
