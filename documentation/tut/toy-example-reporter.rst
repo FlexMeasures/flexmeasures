@@ -15,7 +15,7 @@ In essence, reporters apply arbitrary transformations to data coming from some s
 
     Moreover, it's possible to implement your custom reporters in plugins. Instructions for this to come.
 
-Now, coming back to the tutorial, we are going to use the `AggregatorReporter` and the `ProfitLossReporter`. In the first part, we'll use the `AggregatorReporter` to compute the (discharge) headroom of the battery in :ref:`tut_toy_schedule_expanded`. That way, we can verify the maximum power at which the battery can discharge at any point of time. In the second part, we'll use the `ProfitLossReporter` to compute the profit of operating the process of Tut. Part III in the different policies.
+Now, coming back to the tutorial, we are going to use the `AggregatorReporter` and the `ProfitLossReporter`. In the first part, we'll use the `AggregatorReporter` to compute the (discharge) headroom of the battery in :ref:`tut_toy_schedule_expanded`. That way, we can verify the maximum power at which the battery can discharge at any point of time. In the second part, we'll use the `ProfitLossReporter` to compute the costs of operating the process of Tut. Part III in the different policies.
 
 Before getting to the meat of the tutorial, we need to set up up all the entities. Instead of having to do that manually (e.g. using commands such as ``flexmeasures add sensor``), we have prepared a command that does that automatically.
 
