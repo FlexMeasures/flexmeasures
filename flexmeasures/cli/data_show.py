@@ -232,6 +232,165 @@ def list_data_sources():
     )
 
 
+def delete_key_recursive(value, key):
+    """Delete key in a multilevel dictionary"""
+    if isinstance(value, dict):
+
+        if key in value:
+            del value[key]
+
+        for k, v in value.items():
+            value[k] = delete_key_recursive(v, key)
+
+        # value.pop(key, None)
+    elif isinstance(value, list):
+        for i, v in enumerate(value):
+            value[i] = delete_key_recursive(v, key)
+
+    return value
+
+
+@fm_show_data.command("chart")
+@with_appcontext
+@click.option(
+    "--sensor",
+    "sensors",
+    required=False,
+    multiple=True,
+    type=SensorIdField(),
+    help="ID of sensor(s). This argument can be given multiple times.",
+)
+@click.option(
+    "--asset",
+    "assets",
+    required=False,
+    multiple=True,
+    type=GenericAssetIdField(),
+    help="ID of asset(s). This argument can be given multiple times.",
+)
+@click.option(
+    "--start",
+    "start",
+    type=AwareDateTimeField(),
+    required=True,
+    help="Plot starting at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
+)
+@click.option(
+    "--end",
+    "end",
+    type=AwareDateTimeField(),
+    required=True,
+    help="Plot ending at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
+)
+@click.option(
+    "--belief-time",
+    "belief_time",
+    type=AwareDateTimeField(),
+    required=False,
+    help="Time at which beliefs had been known. Follow up with a timezone-aware datetime in ISO 6801 format.",
+)
+@click.option(
+    "--height",
+    "height",
+    required=False,
+    type=int,
+    default=200,
+    help="Height of the image in pixels..",
+)
+@click.option(
+    "--width",
+    "width",
+    required=False,
+    type=int,
+    default=500,
+    help="Width of the image in pixels.",
+)
+@click.option(
+    "--filename",
+    "filename_template",
+    required=False,
+    type=str,
+    default="chart-%now.png",
+    help="Format of the output file. Use dollar sign ($) to interpolate values among the following ones:"
+    " now (current time), id (id of the sensor or asset), asset_type (entity_typ f)"
+    " Example: 'result_file_$entity_type$id$_now.csv' -> 'result_file_asset_1_2023_08_24T144708' ",
+)
+def chart(
+    sensors: list[Sensor] | None = None,
+    assets: list[GenericAsset] | None = None,
+    start: datetime | None = None,
+    end: datetime | None = None,
+    belief_time: datetime | None = None,
+    height: int | None = None,
+    width: int | None = None,
+    filename_template: str | None = None,
+):
+    """
+    Export sensor or asset charts in PNG or SVG formats.
+    """
+
+    # flexmeasures show chart --start 2023-08-15T00:00:00+02:00 --end 2023-08-16T00:00:00+02:00 --asset 1
+    if sensors is None and assets is None:
+        click.secho(
+            "No sensor or asset IDs provided. Please, try passing them using the options `--asset` or `--sensor`.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+
+    if sensors is None:
+        sensors = []
+    if assets is None:
+        assets = []
+
+    for entity in sensors + assets:
+
+        entity_type = "sensor"
+
+        if isinstance(entity, GenericAsset):
+            entity_type = "asset"
+
+        timezone = app.config["FLEXMEASURES_TIMEZONE"]
+        now = pytz.timezone(zone=timezone).localize(datetime.now())
+
+        template = Template(str(filename_template))
+        filename = template.safe_substitute(
+            id=entity.id,
+            entity_type=entity_type,
+            now=now.strftime("%Y_%m_%dT%H%M%S"),
+        )
+        click.echo(f"Generating a chart for `{entity}`...")
+
+        # need to fetch the entities as they get detached
+        # and we get the (in)famous detached instance error.
+        if entity_type == "asset":
+            entity = GenericAsset.query.get(entity.id)
+        else:
+            entity = Sensor.query.get(entity.id)
+
+        chart_description = entity.chart(
+            event_starts_after=start,
+            event_ends_before=end,
+            beliefs_before=belief_time,
+            include_data=True,
+        )
+
+        # remove formatType as it relies on a custom JavaScript function
+        chart_description = delete_key_recursive(chart_description, "formatType")
+
+        # set width and heigt
+        chart_description["width"] = width
+        chart_description["height"] = height
+
+        png_data = vlc.vegalite_to_png(vl_spec=chart_description, scale=2)
+
+        with open(filename, "wb") as f:
+            f.write(png_data)
+
+        click.secho(
+            f"Chart for `{entity}` has been saved successively as `{filename}`."
+        )
+
+
 @fm_show_data.command("beliefs")
 @with_appcontext
 @click.option(
@@ -423,166 +582,6 @@ def list_schedulers():
 
     with app.app_context():
         list_items("schedulers")
-
-
-def delete_key_recursive(value, key):
-    """Delete key in a multilevel dictionary"""
-    if isinstance(value, dict):
-
-        if key in value:
-            del value[key]
-
-        for k, v in value.items():
-            value[k] = delete_key_recursive(v, key)
-
-        # value.pop(key, None)
-    elif isinstance(value, list):
-        for i, v in enumerate(value):
-            value[i] = delete_key_recursive(v, key)
-
-    return value
-
-
-@fm_show_data.command("chart")
-@with_appcontext
-@click.option(
-    "--sensor",
-    "sensors",
-    required=False,
-    multiple=True,
-    type=SensorIdField(),
-    help="ID of sensor(s). This argument can be given multiple times.",
-)
-@click.option(
-    "--asset",
-    "assets",
-    required=False,
-    multiple=True,
-    type=GenericAssetIdField(),
-    help="ID of asset(s). This argument can be given multiple times.",
-)
-@click.option(
-    "--start",
-    "start",
-    type=AwareDateTimeField(),
-    required=True,
-    help="Plot starting at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
-)
-@click.option(
-    "--end",
-    "end",
-    type=AwareDateTimeField(),
-    required=True,
-    help="Plot ending at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
-)
-@click.option(
-    "--belief-time",
-    "belief_time",
-    type=AwareDateTimeField(),
-    required=False,
-    help="Time at which beliefs had been known. Follow up with a timezone-aware datetime in ISO 6801 format.",
-)
-@click.option(
-    "--height",
-    "height",
-    required=False,
-    type=int,
-    default=200,
-    help="Height of the image in pixels..",
-)
-@click.option(
-    "--width",
-    "width",
-    required=False,
-    type=int,
-    default=500,
-    help="Width of the image in pixels.",
-)
-@click.option(
-    "--filename",
-    "filename_template",
-    required=False,
-    type=str,
-    default="chart-%now.png",
-    help="Format of the output file. Use dollar sign ($) to interpolate values among the following ones:"
-    " now (current time), id (id of the sensor or asset), asset_type (entity_typ f)"
-    " Example: 'result_file_$entity_type$id$_now.csv' -> 'result_file_asset_1_2023_08_24T144708' ",
-)
-def chart(
-    sensors: list[Sensor] | None = None,
-    assets: list[GenericAsset] | None = None,
-    start: datetime | None = None,
-    end: datetime | None = None,
-    belief_time: datetime | None = None,
-    height: int | None = None,
-    width: int | None = None,
-    filename_template: str | None = None,
-):
-    """
-    Export sensor or asset charts in PNG or SVG formats. The format is inferred from the the file extension: `.png` or `.svg`.
-    This command supports exporting multiple charts simultaneously by providing the IDs of the assets, sensors, or both.
-    """
-
-    # flexmeasures show chart --start 2023-08-15T00:00:00+02:00 --end 2023-08-16T00:00:00+02:00 --asset 1
-    if sensors is None and assets is None:
-        click.secho(
-            "No sensor or asset IDs provided. Please, try passing them using the options `--asset` or `--sensor`.",
-            **MsgStyle.ERROR,
-        )
-        raise click.Abort()
-
-    if sensors is None:
-        sensors = []
-    if assets is None:
-        assets = []
-
-    for entity in sensors + assets:
-
-        entity_type = "sensor"
-
-        if isinstance(entity, GenericAsset):
-            entity_type = "asset"
-
-        timezone = app.config["FLEXMEASURES_TIMEZONE"]
-        now = pytz.timezone(zone=timezone).localize(datetime.now())
-
-        template = Template(str(filename_template))
-        filename = template.safe_substitute(
-            id=entity.id,
-            entity_type=entity_type,
-            now=now.strftime("%Y_%m_%dT%H%M%S"),
-        )
-        click.echo(f"Generating a chart for `{entity}`...")
-
-        # need to fetch the entities as they get detached
-        # and we get the (in)famous detached instance error.
-        if entity_type == "asset":
-            entity = GenericAsset.query.get(entity.id)
-        else:
-            entity = Sensor.query.get(entity.id)
-
-        chart_description = entity.chart(
-            event_starts_after=start,
-            event_ends_before=end,
-            beliefs_before=belief_time,
-            include_data=True,
-        )
-
-        # remove formatType as it relies on a custom JavaScript function
-        chart_description = delete_key_recursive(chart_description, "formatType")
-
-        # set width and heigt
-        chart_description["width"] = width
-        chart_description["height"] = height
-
-        png_data = vlc.vegalite_to_png(vl_spec=chart_description, scale=2)
-
-        with open(filename, "wb") as f:
-            f.write(png_data)
-
-        click.secho(
-            f"Chart for `{entity}` has been saved successively as `{filename}`."
-        )
 
 
 app.cli.add_command(fm_show_data)
