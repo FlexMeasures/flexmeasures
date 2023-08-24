@@ -11,6 +11,7 @@ since v0.16.0 | September XX, 2023
 * Add ``--id`` option to ``flexmeasures show data-sources`` to show just one ``DataSource``.
 * Add ``--show-attributes`` flag to ``flexmeasures show data-sources`` to select whether to show the attributes field or not.
 
+
 since v0.15.0 | August 9, 2023
 ================================
 * Allow deleting multiple sensors with a single call to ``flexmeasures delete sensor`` by passing the ``--id`` option multiple times.
