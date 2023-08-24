@@ -142,7 +142,6 @@ def device_scheduler(  # noqa C901
     def device_max_select(m, d, j):
         min_v = device_constraints[d]["min"].iloc[j]
         max_v = device_constraints[d]["max"].iloc[j]
-        min_v = device_constraints[d]["min"].iloc[j]
         equal_v = device_constraints[d]["equals"].iloc[j]
         if np.isnan(max_v) and np.isnan(equal_v):
             return infinity
@@ -163,26 +162,23 @@ def device_scheduler(  # noqa C901
             if not np.isnan(equal_v):
                 # make equal_v <= max_v
                 equal_v = np.nanmin([equal_v, max_v])
-
             return np.nanmax([min_v, equal_v])
 
     def device_derivative_max_select(m, d, j):
         max_v = device_constraints[d]["derivative max"].iloc[j]
-        min_v = device_constraints[d]["derivative min"].iloc[j]
         equal_v = device_constraints[d]["derivative equals"].iloc[j]
         if np.isnan(max_v) and np.isnan(equal_v):
             return infinity
         else:
-            return np.nanmin([max_v, np.nanmax(equal_v, min_v)])
+            return np.nanmin([max_v, equal_v])
 
     def device_derivative_min_select(m, d, j):
         min_v = device_constraints[d]["derivative min"].iloc[j]
-        max_v = device_constraints[d]["derivative max"].iloc[j]
         equal_v = device_constraints[d]["derivative equals"].iloc[j]
         if np.isnan(min_v) and np.isnan(equal_v):
             return -infinity
         else:
-            return np.nanmax([min_v, np.nanmin(equal_v, max_v)])
+            return np.nanmax([min_v, equal_v])
 
     def ems_derivative_max_select(m, j):
         v = ems_constraints["derivative max"].iloc[j]
