@@ -239,8 +239,10 @@ def _convert_time_units(
     if not to_unit[0].isdigit():
         # unit abbreviations passed to pd.Timedelta need a number (so, for example, h becomes 1h)
         to_unit = f"1{to_unit}"
-    if from_unit == "datetime":
-        dt_data = pd.to_datetime(data)
+    if "datetime" in from_unit:
+        dt_data = pd.to_datetime(
+            data, dayfirst=True if "dayfirst" in from_unit else False
+        )
         # localize timezone naive data to the sensor's timezone, if available
         if dt_data.dt.tz is None:
             timezone = data.sensor.timezone if hasattr(data, "sensor") else "utc"
@@ -257,8 +259,14 @@ def convert_units(
     event_resolution: timedelta | None = None,
     capacity: str | None = None,
 ) -> pd.Series | list[int | float] | int | float:
-    """Updates data values to reflect the given unit conversion."""
-    if from_unit in ("datetime", "timedelta"):
+    """Updates data values to reflect the given unit conversion.
+
+    Handles units in short scientific notation (e.g. m³/h, kW, and ºC), as well as three special units to convert from:
+    - from_unit="datetime"          (with data point such as "2023-05-02", "2023-05-02 05:14:49" or "2023-05-02 05:14:49 +02:00")
+    - from_unit="dayfirst datetime" (with data point such as "02-05-2023")
+    - from_unit="timedelta"         (with data point such as "0 days 01:18:25")
+    """
+    if from_unit in ("datetime", "dayfirst datetime", "timedelta"):
         return _convert_time_units(data, from_unit, to_unit)
 
     if from_unit != to_unit:
