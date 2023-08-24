@@ -1163,14 +1163,13 @@ def add_schedule_for_storage(
     soc_at_start = convert_units(soc_at_start.magnitude, soc_at_start.units, "MWh", capacity=capacity_str)  # type: ignore
     soc_targets = []
     for soc_target_tuple in soc_target_strings:
-        soc_target_value_str, soc_target_dt_str = soc_target_tuple
+        soc_target_value_str, soc_target_datetime = soc_target_tuple
         soc_target_value = convert_units(
             soc_target_value_str.magnitude,
             str(soc_target_value_str.units),
             "MWh",
             capacity=capacity_str,
         )
-        soc_target_datetime = soc_target_dt_str
         soc_targets.append(dict(value=soc_target_value, datetime=soc_target_datetime))
 
     if soc_min is not None:
