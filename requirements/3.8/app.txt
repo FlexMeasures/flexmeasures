@@ -345,7 +345,8 @@ urllib3==2.0.3
     # via
     #   requests
     #   sentry-sdk
-webargs==8.2.0
+vl-convert-python==0.12.0
+    # via -r requirements/app.in
     # via -r requirements/app.in
 werkzeug==2.1.0
     # via
