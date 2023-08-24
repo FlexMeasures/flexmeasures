@@ -5,17 +5,17 @@ Toy example IV: Computing reports
 
 So far, we have worked on scheduling batteries and processes. Now, we are moving to one of the other three pillars of FlexMeasures: reporting. 
 
-In essence, reporters apply arbitrary transformations to data coming from some sensors (multiple inputs) and save the results to other sensors (multiple outputs). In practice, this allows to compute KPIs (e.g. profit, total daily energy production, ...), apply operations to beliefs (e.g. change sign of a power sensor for a time period), among other things. 
+In essence, reporters apply arbitrary transformations to data coming from some sensors (multiple inputs) and save the results to other sensors (multiple outputs). In practice, this allows to compute KPIs (such as profit and total daily energy production), to apply operations to beliefs (e.g. changing the sign of a power sensor for some time period), among other things.
 
 .. note:: 
     Currently, FlexMeasures comes with the following reporters:
         - `PandasReporter`: applies arbitrary `Pandas <https://pandas.pydata.org>`_ methods to sensor data. 
-        - `AggregatorReporter`: combines data from multiple sensors into one using any of the Pandas `aggregate` function supported methods (e.g. sum, average, max, min...).
+        - `AggregatorReporter`: combines data from multiple sensors into one using any of the methods supported by the Pandas `aggregate` function (e.g. sum, average, max, min...).
         - `ProfitLossReporter`: computes the profit/loss due to an energy flow under a specific tariff.
 
     Moreover, it's possible to implement your custom reporters in plugins. Instructions for this to come.
 
-Now, coming back to the tutorial, we are going to use the `AggregatorReporter` and the `ProfitLossReporter`. In the first part, we'll use the `AggregatorReporter` to compute the (discharge) headroom of the battery in :ref:`tut_toy_schedule_expanded`. That way, we can verify the maximum power at which the battery can discharge at any point of time. In the second part, we'll use the `ProfitLossReporter` to compute the profit of operating the process of Tut. Part III in the different policies.
+In this tutorial we are going to use the `AggregatorReporter` and the `ProfitLossReporter`. In the first part, we'll use the `AggregatorReporter` to compute the (discharge) headroom of the battery in :ref:`tut_toy_schedule_expanded`. That way, we can verify the maximum power at which the battery can discharge at any point of time. In the second part, we'll use the `ProfitLossReporter` to compute the profit of operating the process of Tut. Part III in the different policies.
 
 Before getting to the meat of the tutorial, we need to set up up all the entities. Instead of having to do that manually (e.g. using commands such as ``flexmeasures add sensor``), we have prepared a command that does that automatically.
 
@@ -89,7 +89,7 @@ Moreover, we can check the freshly created source `<Source id=6>` which defines 
 Compute headroom
 -------------------
 
-In this case, the discharge headroom is nothing but the difference between the grid connection capacity and the PV power. To compute that quantity, we can use the `AggregatorReporter` using the weights to make the PV to substract the grid connection capacity.
+In this case, the discharge headroom is nothing but the difference between the grid connection capacity and the PV power. To compute that quantity, we can use the `AggregatorReporter` using the weights to make the PV to subtract the grid connection capacity.
 
 In practice, we need to create the `config` and `parameters`:
 
@@ -142,7 +142,7 @@ process from Tut. Part III, under the three different policies: INFLEXIBLE, BREA
 In addition, we'll explore another way to invoke reporters: data generators. Without going too much into detail, data generators
 create new data. The thee main types are: `Reporters`, `Schedulers` and `Forecasters`. This will come handy as the three reports that
 we are going to create share the same `config`. The `config` defines the price sensor to use and sets the reporter to work in **losses** mode which means
-that it will return cost as positive values and revenue as negative values.
+that it will return costs as positive values and revenue as negative values.
 
 Still, we need to define the parameters. The three reports share the same structure for the parameters with the following fields:
 * `input`: sensor that stores the power/energy flow. The number of sensors is limited to 1.
