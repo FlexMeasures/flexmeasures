@@ -1927,7 +1927,7 @@ def add_toy_account(kind: str, name: str):
 
         for name in ["Inflexible", "Breakable", "Shiftable"]:
             loss_sensor = create_asset_with_one_sensor(
-                "toy-process", "process", f"Losses ({name})", unit="EUR"
+                "toy-process", "process", f"costs ({name})", unit="EUR"
             )
 
             db.session.commit()
