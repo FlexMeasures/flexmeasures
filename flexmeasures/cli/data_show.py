@@ -310,10 +310,10 @@ def delete_key_recursive(value, key):
     "filename_template",
     required=False,
     type=str,
-    default="chart-%now.png",
+    default="chart-$now.png",
     help="Format of the output file. Use dollar sign ($) to interpolate values among the following ones:"
-    " now (current time), id (id of the sensor or asset), asset_type (entity_typ f)"
-    " Example: 'result_file_$entity_type$id$_now.csv' -> 'result_file_asset_1_2023_08_24T144708' ",
+    " now (current time), id (id of the sensor or asset), entity_type (either 'asset' or 'sensor')"
+    " Example: 'result_file_$entity_type_$id_$now.csv' -> 'result_file_asset_1_2023-08-24T14:47:08' ",
 )
 def chart(
     sensors: list[Sensor] | None = None,
@@ -326,10 +326,13 @@ def chart(
     filename_template: str | None = None,
 ):
     """
-    Export sensor or asset charts in PNG or SVG formats.
+    Export sensor or asset charts in PNG or SVG formats. For example:
+
+        flexmeasures show chart --start 2023-08-15T00:00:00+02:00 --end 2023-08-16T00:00:00+02:00 --asset 1 --sensor 3
     """
 
-    # flexmeasures show chart --start 2023-08-15T00:00:00+02:00 --end 2023-08-16T00:00:00+02:00 --asset 1
+    datetime_format = "%Y-%m-%dT%H:%M:%S"
+
     if sensors is None and assets is None:
         click.secho(
             "No sensor or asset IDs provided. Please, try passing them using the options `--asset` or `--sensor`.",
@@ -352,13 +355,21 @@ def chart(
         timezone = app.config["FLEXMEASURES_TIMEZONE"]
         now = pytz.timezone(zone=timezone).localize(datetime.now())
 
+        belief_time_str = ""
+
+        if belief_time is not None:
+            belief_time_str = belief_time.strftime(datetime_format)
+
         template = Template(str(filename_template))
         filename = template.safe_substitute(
             id=entity.id,
             entity_type=entity_type,
-            now=now.strftime("%Y_%m_%dT%H%M%S"),
+            now=now.strftime(datetime_format),
+            start=start.strftime(datetime_format),
+            end=end.strftime(datetime_format),
+            belief_time=belief_time_str,
         )
-        click.echo(f"Generating a chart for `{entity}`...")
+        click.secho(f"Generating a chart for `{entity}`...", **MsgStyle.SUCCESS)
 
         # need to fetch the entities as they get detached
         # and we get the (in)famous detached instance error.
@@ -377,7 +388,7 @@ def chart(
         # remove formatType as it relies on a custom JavaScript function
         chart_description = delete_key_recursive(chart_description, "formatType")
 
-        # set width and heigt
+        # set width and height
         chart_description["width"] = width
         chart_description["height"] = height
 
@@ -387,7 +398,8 @@ def chart(
             f.write(png_data)
 
         click.secho(
-            f"Chart for `{entity}` has been saved successively as `{filename}`."
+            f"Chart for `{entity}` has been saved successfully as `{filename}`.",
+            **MsgStyle.SUCCESS,
         )
 
 
