@@ -1066,7 +1066,7 @@ def create_schedule(ctx):
     ),
     multiple=True,
     required=False,
-    help="Target state of charge (e.g 100%, or 1) at some datetime. Follow up with a float value and a timezone-aware datetime in ISO 6081 format."
+    help="Target state of charge (e.g 100%, or 1) at some datetime. Follow up with a float value and a timezone-aware datetime in ISO 8601 format."
     " This argument can be given multiple times."
     " For example: --soc-target 100% 2022-02-23T13:40:52+00:00",
 )
