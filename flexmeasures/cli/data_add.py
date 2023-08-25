@@ -1772,7 +1772,7 @@ def add_toy_account(kind: str, name: str):
         asset_type: str,
         sensor_name: str,
         unit: str = "MW",
-        **attributes,
+        **asset_attributes,
     ):
         asset = get_or_create_model(
             GenericAsset,
@@ -1782,8 +1782,8 @@ def add_toy_account(kind: str, name: str):
             latitude=location[0],
             longitude=location[1],
         )
-        if len(attributes) > 0:
-            asset.attributes = attributes
+        if len(asset_attributes) > 0:
+            asset.attributes = asset_attributes
 
         sensor_specs = dict(
             generic_asset=asset,
