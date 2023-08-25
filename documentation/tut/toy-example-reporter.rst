@@ -4,7 +4,7 @@ Toy example IV: Computing reports
 =====================================
 
 .. warning::
-    The reporting functionality is still in a early development stage. Beware that major changes might be introduced.
+    The reporting functionality is still in an early development stage. Beware that major changes might be introduced.
     
 So far, we have worked on scheduling batteries and processes. Now, we are moving to one of the other three pillars of FlexMeasures: reporting. 
 
