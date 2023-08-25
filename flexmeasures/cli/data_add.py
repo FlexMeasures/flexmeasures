@@ -1026,7 +1026,7 @@ def create_schedule(ctx):
     ),
     multiple=True,
     required=False,
-    help="Target state of charge (e.g 100%, or 1) at some datetime. Follow up with a float value and a timezone-aware datetime in ISO 6081 format."
+    help="Target state of charge (e.g 100%, or 1) at some datetime. Follow up with a float value and a timezone-aware datetime in ISO 8601 format."
     " This argument can be given multiple times."
     " For example: --soc-target 100% 2022-02-23T13:40:52+00:00",
 )
@@ -1123,15 +1123,17 @@ def add_schedule_for_storage(
     soc_at_start = convert_units(soc_at_start.magnitude, soc_at_start.units, "MWh", capacity=capacity_str)  # type: ignore
     soc_targets = []
     for soc_target_tuple in soc_target_strings:
-        soc_target_value_str, soc_target_dt_str = soc_target_tuple
+        soc_target_value_str, soc_target_datetime_str = soc_target_tuple
         soc_target_value = convert_units(
             soc_target_value_str.magnitude,
             str(soc_target_value_str.units),
             "MWh",
             capacity=capacity_str,
         )
-        soc_target_datetime = pd.Timestamp(soc_target_dt_str)
-        soc_targets.append(dict(value=soc_target_value, datetime=soc_target_datetime))
+        soc_targets.append(
+            dict(value=soc_target_value, datetime=soc_target_datetime_str)
+        )
+
     if soc_min is not None:
         soc_min = convert_units(soc_min.magnitude, str(soc_min.units), "MWh", capacity=capacity_str)  # type: ignore
     if soc_max is not None:
