@@ -992,8 +992,8 @@ def get_sensors_from_db(battery_assets):
     return epex_da, battery
 
 
-@pytest.mark.highs
-def test_numerical_errors(app, setup_planning_test_data):
+@pytest.mark.parametrize("solver", ["appsi_highs", "cbc"])
+def test_numerical_errors(app, setup_planning_test_data, solver):
     """Test that a soc-target = soc-max can exceed this value due to numerical errors in the operations
     to compute the device constraint DataFrame.
     In the case of HiGHS, the tiny difference creates an infeasible constraint.
@@ -1013,7 +1013,7 @@ def test_numerical_errors(app, setup_planning_test_data):
     target_soc_datetime = pd.Timestamp(start + duration_until_target).isoformat()
 
     # use highs instead of CBC (default)
-    app.config["FLEXMEASURES_LP_SOLVER"] = "appsi_highs"
+    app.config["FLEXMEASURES_LP_SOLVER"] = solver
 
     scheduler = StorageScheduler(
         charging_station,
