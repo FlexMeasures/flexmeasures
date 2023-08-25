@@ -29,6 +29,7 @@ from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
 from flexmeasures.data.services.time_series import simplify_index
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
 from flexmeasures.cli.utils import MsgStyle
+from flexmeasures.utils.coding_utils import delete_key_recursive
 
 
 @click.group("show")
@@ -230,24 +231,6 @@ def list_data_sources():
             headers=["ID", "Name", "Type", "User ID", "Model", "Version"],
         )
     )
-
-
-def delete_key_recursive(value, key):
-    """Delete key in a multilevel dictionary"""
-    if isinstance(value, dict):
-
-        if key in value:
-            del value[key]
-
-        for k, v in value.items():
-            value[k] = delete_key_recursive(v, key)
-
-        # value.pop(key, None)
-    elif isinstance(value, list):
-        for i, v in enumerate(value):
-            value[i] = delete_key_recursive(v, key)
-
-    return value
 
 
 @fm_show_data.command("chart")
