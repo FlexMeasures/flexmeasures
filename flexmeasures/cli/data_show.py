@@ -16,6 +16,7 @@ import uniplot
 import vl_convert as vlc
 from string import Template
 import pytz
+import json
 
 from flexmeasures.data.models.user import Account, AccountRole, User, Role
 from flexmeasures.data.models.data_sources import DataSource
@@ -217,20 +218,67 @@ def show_generic_asset(asset):
 
 @fm_show_data.command("data-sources")
 @with_appcontext
-def list_data_sources():
+@click.option(
+    "--id",
+    "source",
+    required=False,
+    type=DataSourceIdField(),
+    help="ID of data source.",
+)
+@click.option(
+    "--show-attributes",
+    "show_attributes",
+    type=bool,
+    help="Whether to show the attributes of the DataSource.",
+    is_flag=True,
+)
+def list_data_sources(source: DataSource | None = None, show_attributes: bool = False):
     """
     Show available data sources
     """
-    sources = DataSource.query.order_by(DataSource.name).all()
+    if source is None:
+        sources = (
+            DataSource.query.order_by(DataSource.type)
+            .order_by(DataSource.name)
+            .order_by(DataSource.model)
+            .order_by(DataSource.version)
+            .all()
+        )
+    else:
+        sources = [source]
+
     if not sources:
         click.secho("No data sources created yet.", **MsgStyle.WARN)
         raise click.Abort()
-    click.echo(
-        tabulate(
-            [(s.id, s.name, s.type, s.user_id, s.model, s.version) for s in sources],
-            headers=["ID", "Name", "Type", "User ID", "Model", "Version"],
-        )
-    )
+
+    headers = ["ID", "Name", "User ID", "Model", "Version"]
+
+    if show_attributes:
+        headers.append("Attributes")
+
+    rows = dict()
+
+    for source in sources:
+        row = [
+            source.id,
+            source.name,
+            source.user_id,
+            source.model,
+            source.version,
+        ]
+        if show_attributes:
+            row.append(json.dumps(source.attributes, indent=4))
+
+        if source.type not in rows:
+            rows[source.type] = [row]
+        else:
+            rows[source.type].append(row)
+
+    for ds_type, row in rows.items():
+        click.echo(f"type: {ds_type}")
+        click.echo("=" * len(ds_type))
+        click.echo(tabulate(row, headers=headers))
+        click.echo("\n")
 
 
 @fm_show_data.command("chart")
