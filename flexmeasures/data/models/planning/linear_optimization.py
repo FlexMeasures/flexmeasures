@@ -140,6 +140,7 @@ def device_scheduler(  # noqa C901
         return commitment_quantities[c].iloc[j]
 
     def device_max_select(m, d, j):
+        min_v = device_constraints[d]["min"].iloc[j]
         max_v = device_constraints[d]["max"].iloc[j]
         equal_v = device_constraints[d]["equals"].iloc[j]
         if np.isnan(max_v) and np.isnan(equal_v):
@@ -153,6 +154,7 @@ def device_scheduler(  # noqa C901
 
     def device_min_select(m, d, j):
         min_v = device_constraints[d]["min"].iloc[j]
+        max_v = device_constraints[d]["max"].iloc[j]
         equal_v = device_constraints[d]["equals"].iloc[j]
         if np.isnan(min_v) and np.isnan(equal_v):
             return -infinity
