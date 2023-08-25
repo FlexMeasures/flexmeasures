@@ -78,6 +78,7 @@ from flexmeasures.utils.time_utils import server_now, apply_offset_chain
 from flexmeasures.utils.unit_utils import convert_units, ur
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.data.models.reporting import Reporter
+from flexmeasures.data.models.reporting.profit import ProfitOrLossReporter
 from timely_beliefs import BeliefsDataFrame
 
 
@@ -1704,7 +1705,7 @@ def launch_editor(filename: str) -> dict:
 @click.option(
     "--kind",
     default="battery",
-    type=click.Choice(["battery", "process"]),
+    type=click.Choice(["battery", "process", "reporter"]),
     help="What kind of toy account. Defaults to a battery.",
 )
 @click.option("--name", type=str, default="Toy Account", help="Name of the account")
@@ -1766,34 +1767,42 @@ def add_toy_account(kind: str, name: str):
         **MsgStyle.SUCCESS,
     )
 
-    def create_power_asset(
-        asset_name: str, asset_type: str, sensor_name: str, **attributes
+    account_id = user.account_id
+
+    def create_asset_with_one_sensor(
+        asset_name: str,
+        asset_type: str,
+        sensor_name: str,
+        unit: str = "MW",
+        **asset_attributes,
     ):
         asset = get_or_create_model(
             GenericAsset,
             name=asset_name,
             generic_asset_type=asset_types[asset_type],
-            owner=user.account,
+            owner=Account.query.get(account_id),
             latitude=location[0],
             longitude=location[1],
         )
-        asset.attributes = attributes
-        power_sensor_specs = dict(
+        if len(asset_attributes) > 0:
+            asset.attributes = asset_attributes
+
+        sensor_specs = dict(
             generic_asset=asset,
-            unit="MW",
+            unit=unit,
             timezone="Europe/Amsterdam",
             event_resolution=timedelta(minutes=15),
         )
-        power_sensor = get_or_create_model(
+        sensor = get_or_create_model(
             Sensor,
             name=sensor_name,
-            **power_sensor_specs,
+            **sensor_specs,
         )
-        return power_sensor
+        return sensor
 
     if kind == "battery":
         # create battery
-        discharging_sensor = create_power_asset(
+        discharging_sensor = create_asset_with_one_sensor(
             "toy-battery",
             "battery",
             "discharging",
@@ -1803,7 +1812,7 @@ def add_toy_account(kind: str, name: str):
         )
 
         # create solar
-        production_sensor = create_power_asset(
+        production_sensor = create_asset_with_one_sensor(
             "toy-solar",
             "solar",
             "production",
@@ -1831,19 +1840,19 @@ def add_toy_account(kind: str, name: str):
             **MsgStyle.SUCCESS,
         )
     elif kind == "process":
-        inflexible_power = create_power_asset(
+        inflexible_power = create_asset_with_one_sensor(
             "toy-process",
             "process",
             "Power (Inflexible)",
         )
 
-        breakable_power = create_power_asset(
+        breakable_power = create_asset_with_one_sensor(
             "toy-process",
             "process",
             "Power (Breakable)",
         )
 
-        shiftable_power = create_power_asset(
+        shiftable_power = create_asset_with_one_sensor(
             "toy-process",
             "process",
             "Power (Shiftable)",
@@ -1871,6 +1880,72 @@ def add_toy_account(kind: str, name: str):
         )
         click.secho(
             f"The sensor recording the power of the shiftable load is {shiftable_power} (ID: {shiftable_power.id}).",
+            **MsgStyle.SUCCESS,
+        )
+    elif kind == "reporter":
+        # Part A) of tutorial IV
+        grid_connection_capacity = get_or_create_model(
+            Sensor,
+            name="grid connection capacity",
+            generic_asset=nl_zone,
+            timezone="Europe/Amsterdam",
+            event_resolution="P1Y",
+            unit="MW",
+        )
+        db.session.commit()
+
+        click.secho(
+            f"The sensor storing the grid connection capacity of the building is {grid_connection_capacity} (ID: {grid_connection_capacity.id}).",
+            **MsgStyle.SUCCESS,
+        )
+
+        tz = pytz.timezone(app.config.get("FLEXMEASURES_TIMEZONE", "Europe/Amsterdam"))
+        current_year = datetime.now().year
+        start_year = datetime(current_year, 1, 1)
+
+        belief = TimedBelief(
+            event_start=tz.localize(start_year),
+            belief_time=tz.localize(datetime.now()),
+            event_value=0.5,
+            source=DataSource.query.get(1),
+            sensor=grid_connection_capacity,
+        )
+
+        db.session.add(belief)
+        db.session.commit()
+
+        headroom = create_asset_with_one_sensor(
+            "toy-battery",
+            "battery",
+            "headroom",
+        )
+
+        db.session.commit()
+
+        click.secho(
+            f"The sensor storing the headroom is {headroom} (ID: {headroom.id}).",
+            **MsgStyle.SUCCESS,
+        )
+
+        for name in ["Inflexible", "Breakable", "Shiftable"]:
+            loss_sensor = create_asset_with_one_sensor(
+                "toy-process", "process", f"costs ({name})", unit="EUR"
+            )
+
+            db.session.commit()
+            click.secho(
+                f"The sensor storing the loss is {loss_sensor} (ID: {loss_sensor.id}).",
+                **MsgStyle.SUCCESS,
+            )
+
+        reporter = ProfitOrLossReporter(
+            consumption_price_sensor=day_ahead_sensor, loss_is_positive=True
+        )
+        ds = reporter.data_source
+        db.session.commit()
+
+        click.secho(
+            f"Reporter `ProfitOrLossReporter` saved with the day ahead price sensor in the `DataSource` (id={ds.id})",
             **MsgStyle.SUCCESS,
         )
 
