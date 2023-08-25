@@ -149,7 +149,6 @@ def device_scheduler(  # noqa C901
             if not np.isnan(equal_v):
                 # make min_v < equal_v
                 equal_v = np.nanmax([equal_v, min_v])
-
             return np.nanmin([max_v, equal_v])
 
     def device_min_select(m, d, j):
