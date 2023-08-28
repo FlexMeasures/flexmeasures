@@ -1000,7 +1000,9 @@ def test_numerical_errors(app, setup_planning_test_data, solver):
     """
 
     epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
-    charging_station = setup_planning_test_data["Test charging station"].sensors[0]
+    charging_station = setup_planning_test_data[
+        "Test charging station (bidirectional)"
+    ].sensors[0]
     assert charging_station.get_attribute("capacity_in_mw") == 2
     assert charging_station.get_attribute("market_id") == epex_da.id
 
@@ -1009,10 +1011,13 @@ def test_numerical_errors(app, setup_planning_test_data, solver):
     end = tz.localize(datetime(2015, 1, 3))
     resolution = timedelta(minutes=5)
 
-    duration_until_target = timedelta(hours=1)
-    target_soc_datetime = pd.Timestamp(start + duration_until_target).isoformat()
+    duration_until_next_target = timedelta(hours=1)
+    target_soc_datetime_1 = pd.Timestamp(start + duration_until_next_target).isoformat()
+    target_soc_datetime_2 = pd.Timestamp(
+        start + 2 * duration_until_next_target
+    ).isoformat()
 
-    # use highs instead of CBC (default)
+    # select which solver to use
     app.config["FLEXMEASURES_LP_SOLVER"] = solver
 
     scheduler = StorageScheduler(
@@ -1022,11 +1027,14 @@ def test_numerical_errors(app, setup_planning_test_data, solver):
         resolution,
         flex_model={
             "soc-at-start": 0.01456,
-            "soc-min": 0.01302,
+            "soc-min": 0.01295,
             "soc-max": 0.056,
             "roundtrip-efficiency": 0.85,
             "storage-efficiency": 1,
-            "soc-targets": [{"value": 0.056, "datetime": target_soc_datetime}],
+            "soc-targets": [
+                {"value": 0.01295, "datetime": target_soc_datetime_1},
+                {"value": 0.056, "datetime": target_soc_datetime_2},
+            ],
             "soc-unit": "MWh",
         },
     )
@@ -1054,4 +1062,5 @@ def test_numerical_errors(app, setup_planning_test_data, solver):
     )
 
     assert device_constraints[0]["equals"].max() > device_constraints[0]["max"].max()
+    assert device_constraints[0]["equals"].min() < device_constraints[0]["min"].min()
     assert results.solver.status == "ok"
