@@ -9,7 +9,7 @@ alembic==1.11.2
 altair==5.0.1
     # via -r requirements/app.in
 arrow==1.2.3
-    # via rq-dashboard
+    # via rq-dashboard-compatible
 async-timeout==4.0.3
     # via redis
 attrs==23.1.0
@@ -75,9 +75,9 @@ flask==2.1.2
     #   flask-sqlalchemy
     #   flask-sslify
     #   flask-wtf
-    #   rq-dashboard
+    #   rq-dashboard-compatible
     #   sentry-sdk
-flask-classful==0.14.2
+flask-classful @ git+https://github.com/superseed/flask-classful@ea025fc1d5a6d318d094383144f084986d6040db
     # via -r requirements/app.in
 flask-cors==4.0.0
     # via -r requirements/app.in
@@ -263,8 +263,11 @@ pyyaml==6.0.1
 redis==4.6.0
     # via
     #   -r requirements/app.in
+    #   redis-sentinel-url
     #   rq
-    #   rq-dashboard
+    #   rq-dashboard-compatible
+redis-sentinel-url==1.0.1
+    # via rq-dashboard-compatible
 referencing==0.30.2
     # via
     #   jsonschema
@@ -282,8 +285,8 @@ rpds-py==0.9.2
 rq==1.15.1
     # via
     #   -r requirements/app.in
-    #   rq-dashboard
-rq-dashboard==0.6.1
+    #   rq-dashboard-compatible
+rq-dashboard-compatible==0.1
     # via -r requirements/app.in
 scikit-base==0.5.0
     # via sktime
@@ -347,6 +350,8 @@ urllib3==2.0.4
     # via
     #   requests
     #   sentry-sdk
+vl-convert-python==0.13.0
+    # via -r requirements/app.in
 webargs==8.3.0
     # via -r requirements/app.in
 werkzeug==2.1.0
