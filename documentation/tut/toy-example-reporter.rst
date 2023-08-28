@@ -25,7 +25,7 @@ Before getting to the meat of the tutorial, we need to set up up all the entitie
 Setup
 .....
 
-Just as in previous sections, we need to run the command ```flexmeasures add toy-account``, but this time with a different value for *kind*:
+Just as in previous sections, we need to run the command ``flexmeasures add toy-account``, but this time with a different value for *kind*:
 
 .. code-block:: bash
 
