@@ -35,8 +35,8 @@
     <!-- Custom CSS -->
     <link href="{{ url_for('flexmeasures_ui.static', filename='css/flexmeasures.css') }}" rel="stylesheet" />
     {% if active_page == "tasks" %}
-    <link href="{{ url_for('flexmeasures_ui.static', filename='css/external/rq-dashboard-bootstrap.min.css') }}"
-        rel="stylesheet" />
+    <link href="{{ url_for('rq_dashboard.static', filename='css/main.css') }}" rel="stylesheet">
+    <link href="{{ url_for('flexmeasures_ui.static', filename='css/external/rq-dashboard-bootstrap.min.css') }}" rel="stylesheet" />
     {% elif active_page in ("assets", "users", "accounts") %}
     <link href="https://cdn.datatables.net/1.10.22/css/jquery.dataTables.min.css" rel="stylesheet" />
     {% endif %}
@@ -85,20 +85,23 @@
                             <span class="caret"></span></a>
                         <ul class="dropdown-menu">
                             <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
-                                    {% if not current_user.has_role('anonymous') %}href="/tasks/forecasting"
+                                    {% if not current_user.has_role('anonymous') %}href="/tasks/0/view/jobs/forecasting/started/10/1"
                                     {% endif %}>Forecasts</a></li>
                             <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
-                                    {% if not current_user.has_role('anonymous') %}href="/tasks/scheduling"
+                                    {% if not current_user.has_role('anonymous') %}href="/tasks/0/view/jobs/scheduling/started/10/1"
                                     {% endif %}>Schedules</a></li>
                             <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
-                                    {% if not current_user.has_role('anonymous') %}href="/tasks/labelling"
+                                    {% if not current_user.has_role('anonymous') %}href="/tasks/0/view/jobs/reporting/started/10/1"
+                                    {% endif %}>Reports</a></li>
+                            <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
+                                    {% if not current_user.has_role('anonymous') %}href="/tasks/0/view/jobs/labelling/started/10/1"
                                     {% endif %}>Labels</a></li>
                             <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
-                                    {% if not current_user.has_role('anonymous') %}href="/tasks/alerting"
+                                    {% if not current_user.has_role('anonymous') %}href="/tasks/0/view/jobs/alerting/started/10/1"
                                     {% endif %}>Alerts</a></li>
                             <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
-                                    {% if not current_user.has_role('anonymous') %}href="/tasks/reporting"
-                                    {% endif %}>Reports</a></li>
+                                    {% if not current_user.has_role('anonymous') %}href="/tasks/"
+                                    {% endif %}>Overview</a></li>
                         </ul>
                     </li>
                     {% else %}

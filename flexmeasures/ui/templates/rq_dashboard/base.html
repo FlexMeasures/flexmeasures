@@ -6,26 +6,56 @@
 
 {% block divs %}
 
-<div class="rq-style">
-
-<div id="alert-fixed" class="alert alert-error">
-    <strong>Warning!</strong> Selection pauses information refresh
-</div>
-
 <div class="container-fluid">
-
-    {% block content %}{% endblock %}
-
-</div>
-
-<div id="confirmation-modal" class="modal hide fade">
-    <div class="modal-header">
-        <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
-        <h3>Do you really want to <span id="confirmation-modal-action"></span>?</h3>
+    <div class="row">
+        <div id="alert-fixed" class="alert alert-error">
+            <strong>Warning!</strong> Selection pauses information refresh
+        </div>
     </div>
-    <div class="modal-footer">
-        <button id="confirmation-modal-no" class="btn">No</button>
-        <button id="confirmation-modal-yes" class="btn btn-primary">Yes</button>
+    <div class="row on-top-md">
+        <div class="col-sm-2">
+            <div class="header-action-button rq-style">
+                <div class="">
+                    <form action="{{rq_url_prefix}}{{ current_instance }}/view/queues" method="get">
+                        <button class="btn btn-sm btn-responsive btn-info {% if active_tab == 'queues'%} active {% endif %}" type="submit">Queues</button>
+                    </form>
+                </div>
+                <div class="">
+                    <form action="{{rq_url_prefix}}{{ current_instance }}/view/jobs" method="get">
+                        <button class="btn btn-sm btn-responsive btn-info {% if active_tab == 'jobs'%} active {% endif %}" type="submit">Jobs</button>
+                    </form>
+                </div>
+                <div class="">
+                    <form action="{{rq_url_prefix}}{{ current_instance }}/view/workers" method="get">
+                        <button class="btn btn-sm btn-responsive btn-info {% if active_tab == 'workers'%} active {% endif %}" type="submit">Workers</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="rq-style col-sm-8">
+
+            <div class="card">
+
+                {% block content %}{% endblock %}
+
+            </div>
+
+            <div id="confirmation-modal" class="modal fade">
+                <div class="modal-dialog" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3>Do you really want to <span id="confirmation-modal-action"></span>?</h3>
+                            <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" id="confirmation-modal-no" class="btn">No</button>
+                            <button type="button" id="confirmation-modal-yes" class="btn btn-primary">Yes</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-2"></div>
     </div>
 </div>
 
@@ -33,18 +63,16 @@
 
 {% endblock%}
 
-</div>
-
 {% block scripts %}
 
 {#- Custom JS for rq dashboard -#}
-<script src="{{ url_for('rq_dashboard.static', filename='js/jquery.min.js') }}" type="text/javascript"></script>
+<script src="{{ url_for('rq_dashboard.static', filename='js/jquery-3.4.1.min.js') }}" type="text/javascript"></script>
 <script src="{{ url_for('rq_dashboard.static', filename='js/underscore-min.js') }}" type="text/javascript"></script>
 <script src="{{ url_for('rq_dashboard.static', filename='js/sugar-1.2.1.min.js') }}" type="text/javascript"></script>
-<script src="{{ url_for('rq_dashboard.static', filename='js/bootstrap-tooltip.js') }}" type="text/javascript"></script>
-<script src="{{ url_for('rq_dashboard.static', filename='js/bootstrap-modal.js') }}" type="text/javascript"></script>
+<script src="{{ url_for('rq_dashboard.static', filename='js/bootstrap.bundle.min.js') }}" type="text/javascript"></script>
 <script type="text/javascript">
-{% block inline_js %}{% endblock %}
+    {% include "rq_dashboard/inline_js.html" %}
+    {% block content_scripts %}{% endblock %}
 </script>
 
 {% endblock scripts %}
