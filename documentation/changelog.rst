@@ -23,6 +23,7 @@ v0.15.1 | August XX, 2023
 Bugfixes
 -----------
 
+* Fix infeasible problem due to floating point error in :abbr:`SoC (state of charge)` targets [see `PR #832 <https://github.com/FlexMeasures/flexmeasures/pull/832>`_]
 * Use the `source` to filter beliefs in the `AggregatorReporter` and fix the case of having multiple sources [see `PR #819 <https://github.com/FlexMeasures/flexmeasures/pull/819>`_]
 * Disable HiGHS logs on the standard output when `LOGGING_LEVEL=INFO` [see `PR #824 <https://github.com/FlexMeasures/flexmeasures/pull/824>`_ and `PR #826 <https://github.com/FlexMeasures/flexmeasures/pull/826>`_]
 * Fix showing sensor data on the asset page of public assets, and searching for annotations on public assets [see `PR #830 <https://github.com/FlexMeasures/flexmeasures/pull/830>`_]
