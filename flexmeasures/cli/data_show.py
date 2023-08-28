@@ -400,7 +400,7 @@ def chart(
             end=end.strftime(datetime_format),
             belief_time=belief_time_str,
         )
-        click.secho(f"Generating a chart for `{entity}`...", **MsgStyle.SUCCESS)
+        click.echo(f"Generating a chart for `{entity}`...")
 
         # need to fetch the entities as they get detached
         # and we get the (in)famous detached instance error.
