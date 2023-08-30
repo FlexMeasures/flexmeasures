@@ -13,8 +13,10 @@ from tabulate import tabulate
 from humanize import naturaldelta, naturaltime
 import pandas as pd
 import uniplot
+import vl_convert as vlc
+from string import Template
+import pytz
 import json
-
 
 from flexmeasures.data.models.user import Account, AccountRole, User, Role
 from flexmeasures.data.models.data_sources import DataSource
@@ -28,6 +30,7 @@ from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
 from flexmeasures.data.services.time_series import simplify_index
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
 from flexmeasures.cli.utils import MsgStyle
+from flexmeasures.utils.coding_utils import delete_key_recursive
 
 
 @click.group("show")
@@ -276,6 +279,159 @@ def list_data_sources(source: DataSource | None = None, show_attributes: bool = 
         click.echo("=" * len(ds_type))
         click.echo(tabulate(row, headers=headers))
         click.echo("\n")
+
+
+@fm_show_data.command("chart")
+@with_appcontext
+@click.option(
+    "--sensor",
+    "sensors",
+    required=False,
+    multiple=True,
+    type=SensorIdField(),
+    help="ID of sensor(s). This argument can be given multiple times.",
+)
+@click.option(
+    "--asset",
+    "assets",
+    required=False,
+    multiple=True,
+    type=GenericAssetIdField(),
+    help="ID of asset(s). This argument can be given multiple times.",
+)
+@click.option(
+    "--start",
+    "start",
+    type=AwareDateTimeField(),
+    required=True,
+    help="Plot starting at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
+)
+@click.option(
+    "--end",
+    "end",
+    type=AwareDateTimeField(),
+    required=True,
+    help="Plot ending at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
+)
+@click.option(
+    "--belief-time",
+    "belief_time",
+    type=AwareDateTimeField(),
+    required=False,
+    help="Time at which beliefs had been known. Follow up with a timezone-aware datetime in ISO 6801 format.",
+)
+@click.option(
+    "--height",
+    "height",
+    required=False,
+    type=int,
+    default=200,
+    help="Height of the image in pixels..",
+)
+@click.option(
+    "--width",
+    "width",
+    required=False,
+    type=int,
+    default=500,
+    help="Width of the image in pixels.",
+)
+@click.option(
+    "--filename",
+    "filename_template",
+    required=False,
+    type=str,
+    default="chart-$now.png",
+    help="Format of the output file. Use dollar sign ($) to interpolate values among the following ones:"
+    " now (current time), id (id of the sensor or asset), entity_type (either 'asset' or 'sensor')"
+    " Example: 'result_file_$entity_type_$id_$now.csv' -> 'result_file_asset_1_2023-08-24T14:47:08' ",
+)
+def chart(
+    sensors: list[Sensor] | None = None,
+    assets: list[GenericAsset] | None = None,
+    start: datetime | None = None,
+    end: datetime | None = None,
+    belief_time: datetime | None = None,
+    height: int | None = None,
+    width: int | None = None,
+    filename_template: str | None = None,
+):
+    """
+    Export sensor or asset charts in PNG or SVG formats. For example:
+
+        flexmeasures show chart --start 2023-08-15T00:00:00+02:00 --end 2023-08-16T00:00:00+02:00 --asset 1 --sensor 3
+    """
+
+    datetime_format = "%Y-%m-%dT%H:%M:%S"
+
+    if sensors is None and assets is None:
+        click.secho(
+            "No sensor or asset IDs provided. Please, try passing them using the options `--asset` or `--sensor`.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+
+    if sensors is None:
+        sensors = []
+    if assets is None:
+        assets = []
+
+    for entity in sensors + assets:
+
+        entity_type = "sensor"
+
+        if isinstance(entity, GenericAsset):
+            entity_type = "asset"
+
+        timezone = app.config["FLEXMEASURES_TIMEZONE"]
+        now = pytz.timezone(zone=timezone).localize(datetime.now())
+
+        belief_time_str = ""
+
+        if belief_time is not None:
+            belief_time_str = belief_time.strftime(datetime_format)
+
+        template = Template(str(filename_template))
+        filename = template.safe_substitute(
+            id=entity.id,
+            entity_type=entity_type,
+            now=now.strftime(datetime_format),
+            start=start.strftime(datetime_format),
+            end=end.strftime(datetime_format),
+            belief_time=belief_time_str,
+        )
+        click.echo(f"Generating a chart for `{entity}`...")
+
+        # need to fetch the entities as they get detached
+        # and we get the (in)famous detached instance error.
+        if entity_type == "asset":
+            entity = GenericAsset.query.get(entity.id)
+        else:
+            entity = Sensor.query.get(entity.id)
+
+        chart_description = entity.chart(
+            event_starts_after=start,
+            event_ends_before=end,
+            beliefs_before=belief_time,
+            include_data=True,
+        )
+
+        # remove formatType as it relies on a custom JavaScript function
+        chart_description = delete_key_recursive(chart_description, "formatType")
+
+        # set width and height
+        chart_description["width"] = width
+        chart_description["height"] = height
+
+        png_data = vlc.vegalite_to_png(vl_spec=chart_description, scale=2)
+
+        with open(filename, "wb") as f:
+            f.write(png_data)
+
+        click.secho(
+            f"Chart for `{entity}` has been saved successfully as `{filename}`.",
+            **MsgStyle.SUCCESS,
+        )
 
 
 @fm_show_data.command("beliefs")
