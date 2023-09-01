@@ -24,8 +24,8 @@ click
 click-default-group
 email_validator
 rq
-# switch back to rq-dashboard once compatible with Flask 2.3, see https://github.com/Parallels/rq-dashboard/issues/417
-rq-dashboard-compatible
+# rq-dashboard-compatible # use this if compatibility with Flask 2.3 is not done
+rq-dashboard
 # the following uses environment markers (see PEP 496)
 rq-win; os_name == 'nt' or os_name == 'win'
 # This limit resolves a conflict with test.in. The culprit is fakeredis (check their pyproject.toml)
@@ -46,11 +46,17 @@ Flask_JSON
 Flask-Migrate
 Flask-WTF
 Flask-Mail
-Flask-Security-Too>=5.0
-Flask-Login
-# Replace with Flask-Classful>=0.16 once release
-Flask-Classful @ git+https://github.com/superseed/flask-classful@ea025fc1d5a6d318d094383144f084986d6040db
-Flask-Marshmallow
+# <5.2: https://github.com/Parallels/rq-dashboard/issues/417 as 5.2 requires Flask 2.3
+Flask-Security-Too>=5.0, <5.2
+# This pin is tough to debug, but logging in (in API) stops working at 0.6.2.
+# On repeated call to API with auth token, user is anonymous.
+# See test_get_one_user or test_api_task_run_post_unauthorized_wrong_role for a good example
+# The breaking code is introduced in https://github.com/maxcountryman/flask-login/issues/690
+# Moving to Flask>=2.2 should resolve this issue.
+Flask-Login<0.6.2
+Flask-Classful
+# <0.15: https://github.com/marshmallow-code/flask-marshmallow/issues/262
+Flask-Marshmallow<0.15
 Flask-Cors
 sentry-sdk[flask]
 marshmallow>=3
@@ -59,8 +65,10 @@ marshmallow-sqlalchemy>=0.23.1
 webargs
 # Minimum version that correctly aligns time series that include NaN values
 uniplot>=0.7.0
-Flask-SQLAlchemy>=2.4.3
+# Maximum constraints here due to Flask-Classful not supporting Werkzeug 2.2.0 yet, see GH#595 and https://github.com/teracyhq/flask-classful/pull/145
+Flask-SQLAlchemy>=2.4.3,<3
 # flask should be after all the flask plugins, because setup might find they ARE flask
-flask>=1.0
-werkzeug
+# <2.3: https://github.com/Parallels/rq-dashboard/issues/417 and https://github.com/FlexMeasures/flexmeasures/issues/754 and flask-login 0.6.1 not compatible
+flask>=1.0, <=2.1.2
+werkzeug<=2.1
 vl-convert-python
