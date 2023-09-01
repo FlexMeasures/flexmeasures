@@ -4,12 +4,12 @@
 #
 #    pip-compile --output-file=requirements/3.9/app.txt requirements/app.in
 #
-alembic==1.11.3
+alembic==1.12.0
     # via flask-migrate
-altair==5.1.0
+altair==5.1.1
     # via -r requirements/app.in
 arrow==1.2.3
-    # via rq-dashboard-compatible
+    # via rq-dashboard
 async-timeout==4.0.3
     # via redis
 attrs==23.1.0
@@ -22,9 +22,9 @@ bcrypt==4.0.1
     # via -r requirements/app.in
 blinker==1.6.2
     # via
-    #   flask
     #   flask-mail
     #   flask-principal
+    #   flask-security-too
     #   sentry-sdk
 certifi==2023.7.22
     # via
@@ -58,7 +58,7 @@ email-validator==2.0.0.post2
     #   flask-security-too
 filelock==3.12.3
     # via tldextract
-flask==2.3.3
+flask==2.1.3
     # via
     #   -r requirements/app.in
     #   flask-classful
@@ -73,29 +73,29 @@ flask==2.3.3
     #   flask-sqlalchemy
     #   flask-sslify
     #   flask-wtf
-    #   rq-dashboard-compatible
+    #   rq-dashboard
     #   sentry-sdk
 flask-classful @ git+https://github.com/superseed/flask-classful@ea025fc1d5a6d318d094383144f084986d6040db
     # via -r requirements/app.in
 flask-cors==4.0.0
     # via -r requirements/app.in
-flask-json==0.4.0
+flask-json==0.3.5
     # via -r requirements/app.in
-flask-login==0.6.2
+flask-login==0.6.1
     # via
     #   -r requirements/app.in
     #   flask-security-too
 flask-mail==0.9.1
     # via -r requirements/app.in
-flask-marshmallow==0.15.0
+flask-marshmallow==0.14.0
     # via -r requirements/app.in
 flask-migrate==4.0.4
     # via -r requirements/app.in
 flask-principal==0.4.0
     # via flask-security-too
-flask-security-too==5.3.0
+flask-security-too==5.1.2
     # via -r requirements/app.in
-flask-sqlalchemy==3.0.5
+flask-sqlalchemy==2.5.1
     # via
     #   -r requirements/app.in
     #   flask-migrate
@@ -122,9 +122,7 @@ importlib-metadata==6.8.0
     #   flask
     #   timely-beliefs
 importlib-resources==6.0.1
-    # via
-    #   flask-security-too
-    #   matplotlib
+    # via matplotlib
 inflect==6.0.2
     # via -r requirements/app.in
 inflection==0.5.1
@@ -138,6 +136,7 @@ isodate==0.6.1
 itsdangerous==2.1.2
     # via
     #   flask
+    #   flask-security-too
     #   flask-wtf
 jinja2==3.1.2
     # via
@@ -160,7 +159,6 @@ markupsafe==2.1.3
     #   jinja2
     #   mako
     #   sentry-sdk
-    #   werkzeug
     #   wtforms
 marshmallow==3.20.1
     # via
@@ -196,7 +194,6 @@ openturns==1.21
 packaging==23.1
     # via
     #   altair
-    #   flask-marshmallow
     #   marshmallow
     #   marshmallow-sqlalchemy
     #   matplotlib
@@ -267,9 +264,9 @@ redis==4.6.0
     #   -r requirements/app.in
     #   redis-sentinel-url
     #   rq
-    #   rq-dashboard-compatible
+    #   rq-dashboard
 redis-sentinel-url==1.0.1
-    # via rq-dashboard-compatible
+    # via rq-dashboard
 referencing==0.30.2
     # via
     #   jsonschema
@@ -287,8 +284,8 @@ rpds-py==0.10.0
 rq==1.15.1
     # via
     #   -r requirements/app.in
-    #   rq-dashboard-compatible
-rq-dashboard-compatible==0.1
+    #   rq-dashboard
+rq-dashboard==0.6.7
     # via -r requirements/app.in
 scikit-base==0.5.1
     # via sktime
@@ -308,6 +305,7 @@ sentry-sdk[flask]==1.30.0
     # via -r requirements/app.in
 six==1.16.0
     # via
+    #   flask-marshmallow
     #   isodate
     #   patsy
     #   python-dateutil
@@ -352,11 +350,11 @@ urllib3==2.0.4
     # via
     #   requests
     #   sentry-sdk
-vl-convert-python==0.13.0
+vl-convert-python==0.13.1
     # via -r requirements/app.in
 webargs==8.3.0
     # via -r requirements/app.in
-werkzeug==2.3.7
+werkzeug==2.1.0
     # via
     #   -r requirements/app.in
     #   flask
@@ -373,3 +371,6 @@ zipp==3.16.2
     # via
     #   importlib-metadata
     #   importlib-resources
+
+# The following packages are considered to be unsafe in a requirements file:
+# setuptools

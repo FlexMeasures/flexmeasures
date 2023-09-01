@@ -75,7 +75,7 @@ typing-extensions==4.7.1
     #   filelock
     #   mypy
     #   setuptools-scm
-virtualenv==20.24.3
+virtualenv==20.24.4
     # via pre-commit
 watchdog==3.0.0
     # via -r requirements/dev.in
