@@ -44,6 +44,9 @@ from flexmeasures.data.models.time_series import TimedBelief
         ),  # failed to resample from 6-min intervals to 10-min intervals
     ],
 )
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
 def test_post_sensor_data(
     client,
     setup_api_fresh_test_data,
@@ -53,6 +56,7 @@ def test_post_sensor_data(
     include_a_null,
     expected_value,
     expected_status,
+    requesting_user,
 ):
     post_data = make_sensor_data_request_for_gas_sensor(
         num_values=num_values, unit=unit, include_a_null=include_a_null
@@ -66,11 +70,9 @@ def test_post_sensor_data(
     print(f"BELIEFS BEFORE: {beliefs_before}")
     assert len(beliefs_before) == 0
 
-    auth_token = get_auth_token(client, "test_supplier_user_4@seita.nl", "testtest")
     response = client.post(
         url_for("SensorAPI:post_data"),
         json=post_data,
-        headers={"Authorization": auth_token},
     )
     print(response.json)
     assert response.status_code == expected_status
@@ -83,10 +85,12 @@ def test_post_sensor_data(
     )
 
 
+@pytest.mark.parametrize("requesting_user", ["improper_user@seita.nl"], indirect=True)
 def test_auto_fix_missing_registration_of_user_as_data_source(
     client,
     setup_api_fresh_test_data,
     setup_user_without_data_source,
+    requesting_user,
 ):
     """Try to post sensor data as a user that has not been properly registered as a data source.
     The API call should succeed and the user should be automatically registered as a data source.
@@ -101,11 +105,9 @@ def test_auto_fix_missing_registration_of_user_as_data_source(
     post_data = make_sensor_data_request_for_gas_sensor(
         num_values=6, unit="m³/h", include_a_null=False
     )
-    auth_token = get_auth_token(client, "improper_user@seita.nl", "testtest")
     response = client.post(
         url_for("SensorAPI:post_data"),
         json=post_data,
-        headers={"Authorization": auth_token},
     )
     assert response.status_code == 200
 

@@ -5,47 +5,41 @@ from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.api.tests.utils import get_auth_token, UserContext
 
 
-@pytest.mark.parametrize("use_auth", [False, True])
-def test_get_users_bad_auth(client, setup_api_test_data, use_auth):
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl", None], indirect=True
+)
+def test_get_users_bad_auth(requesting_user, client, setup_api_test_data):
     """
     Attempt to get users with insufficient or missing auth.
     """
     # the case without auth: authentication will fail
-    headers = {"content-type": "application/json"}
     query = {}
-    if use_auth:
+    if requesting_user:
         # in this case, we successfully authenticate,
         # but fail authorization (non-admin accessing another account)
-        headers["Authorization"] = get_auth_token(
-            client, "test_prosumer_user_2@seita.nl", "testtest"
-        )
         query = {"account_id": 2}
 
-    get_users_response = client.get(
-        url_for("UserAPI:index"), headers=headers, query_string=query
-    )
+    get_users_response = client.get(url_for("UserAPI:index"), query_string=query)
     print("Server responded with:\n%s" % get_users_response.data)
-    if use_auth:
+    if requesting_user:
         assert get_users_response.status_code == 403
     else:
         assert get_users_response.status_code == 401
 
 
 @pytest.mark.parametrize("include_inactive", [False, True])
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
 def test_get_users_inactive(
-    client, setup_api_test_data, setup_inactive_user, include_inactive
+    requesting_user, client, setup_api_test_data, setup_inactive_user, include_inactive
 ):
-    headers = {
-        "content-type": "application/json",
-        "Authorization": get_auth_token(
-            client, "test_prosumer_user_2@seita.nl", "testtest"
-        ),
-    }
     query = {}
     if include_inactive in (True, False):
         query["include_inactive"] = include_inactive
     get_users_response = client.get(
-        url_for("UserAPI:index"), query_string=query, headers=headers
+        url_for("UserAPI:index"),
+        query_string=query,
     )
     print("Server responded with:\n%s" % get_users_response.json)
     assert get_users_response.status_code == 200
@@ -57,7 +51,7 @@ def test_get_users_inactive(
 
 
 @pytest.mark.parametrize(
-    "requesting_user,status_code",
+    "requesting_user, status_code",
     [
         (None, 401),  # no auth is not allowed
         ("test_prosumer_user_2@seita.nl", 200),  # gets themselves
@@ -65,70 +59,56 @@ def test_get_users_inactive(
         ("test_dummy_user_3@seita.nl", 403),  # gets from other account
         ("test_admin_user@seita.nl", 200),  # admin can do this from another account
     ],
+    indirect=["requesting_user"],
 )
 def test_get_one_user(client, setup_api_test_data, requesting_user, status_code):
     test_user2_id = find_user_by_email("test_prosumer_user_2@seita.nl").id
-    headers = {"content-type": "application/json"}
-    if requesting_user:
-        headers["Authorization"] = get_auth_token(client, requesting_user, "testtest")
 
-    get_user_response = client.get(
-        url_for("UserAPI:get", id=test_user2_id),
-        headers=headers,
-    )
+    get_user_response = client.get(url_for("UserAPI:get", id=test_user2_id))
     print("Server responded with:\n%s" % get_user_response.data)
     assert get_user_response.status_code == status_code
     if status_code == 200:
         assert get_user_response.json["username"] == "Test Prosumer User 2"
 
 
-def test_edit_user(client, setup_api_test_data):
-    with UserContext("test_prosumer_user_2@seita.nl") as user2:
-        user2_auth_token = user2.get_auth_token()  # user2 is no admin
-        user2_id = user2.id
-    with UserContext("test_admin_user@seita.nl") as admin:
-        admin_auth_token = admin.get_auth_token()
-        admin_id = admin.id
-    # without being the user themselves or an admin, the user cannot be edited
+@pytest.mark.parametrize(
+    "requesting_user, requested_user, status_code",
+    [
+        (
+            "test_prosumer_user_2@seita.nl",
+            "test_admin_user@seita.nl",
+            403,
+        ),  # without being the user themselves or an admin, the user cannot be edited
+        (None, "test_prosumer_user_2@seita.nl", 401),  # anonymous user cannot edit
+        (
+            "test_admin_user@seita.nl",
+            "test_prosumer_user_2@seita.nl",
+            200,
+        ),  # admin can deactivate user2
+        (
+            "test_admin_user@seita.nl",
+            "test_admin_user@seita.nl",
+            403,
+        ),  # admin can edit themselves but not sensitive fields
+    ],
+    indirect=["requesting_user"],
+)
+def test_edit_user_as_user2(
+    requesting_user, requested_user, status_code, client, setup_api_test_data
+):
+    with UserContext(requested_user) as u:
+        requested_user_id = u.id
+
     user_edit_response = client.patch(
-        url_for("UserAPI:patch", id=admin_id),
-        headers={
-            "content-type": "application/json",
-            "Authorization": user2_auth_token,
-        },
-        json={},
-    )
-    assert user_edit_response.status_code == 403
-    user_edit_response = client.patch(
-        url_for("UserAPI:patch", id=user2_id),
-        headers={"content-type": "application/json"},
-        json={},
-    )
-    assert user_edit_response.status_code == 401
-    # admin can deactivate user2
-    admin_headers = {
-        "content-type": "application/json",
-        "Authorization": admin_auth_token,
-    }
-    user_edit_response = client.patch(
-        url_for("UserAPI:patch", id=user2_id),
-        headers=admin_headers,
+        url_for("UserAPI:patch", id=requested_user_id),
         json={"active": False},
     )
-    print("Server responded with:\n%s" % user_edit_response.json)
-    assert user_edit_response.status_code == 200
-    assert user_edit_response.json["active"] is False
-    user2 = find_user_by_email("test_prosumer_user_2@seita.nl")
-    assert user2.active is False
-    assert user2.id == user2_id
-    # admin can edit themselves but not sensitive fields
-    user_edit_response = client.patch(
-        url_for("UserAPI:patch", id=admin_id),
-        headers=admin_headers,
-        json={"active": False},
-    )
-    print("Server responded with:\n%s" % user_edit_response.json)
-    assert user_edit_response.status_code == 403
+    assert user_edit_response.status_code == status_code
+    if status_code == 200:
+        assert user_edit_response.json["active"] is False
+        user = find_user_by_email(requested_user)
+        assert user.active is False
+        assert user.id == requested_user_id
 
 
 @pytest.mark.parametrize(
@@ -139,20 +119,15 @@ def test_edit_user(client, setup_api_test_data):
         dict(account_id=10),  # account_id is a dump_only field
     ],
 )
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_edit_user_with_unexpected_fields(
-    client, setup_api_test_data, unexpected_fields: dict
+    requesting_user, client, setup_api_test_data, unexpected_fields: dict
 ):
     """Sending unexpected fields (not in Schema) is an Unprocessable Entity error."""
     with UserContext("test_prosumer_user_2@seita.nl") as user2:
         user2_id = user2.id
-    with UserContext("test_admin_user@seita.nl") as admin:
-        admin_auth_token = admin.get_auth_token()
     user_edit_response = client.patch(
         url_for("UserAPI:patch", id=user2_id),
-        headers={
-            "content-type": "application/json",
-            "Authorization": admin_auth_token,
-        },
         json={**{"active": False}, **unexpected_fields},
     )
     print("Server responded with:\n%s" % user_edit_response.json)

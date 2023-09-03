@@ -19,6 +19,9 @@ from flexmeasures.data.services.scheduling import (
 from flexmeasures.utils.calculations import integrate_time_series
 
 
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
 def test_get_schedule_wrong_job_id(
     app,
     add_market_prices,
@@ -26,14 +29,13 @@ def test_get_schedule_wrong_job_id(
     battery_soc_sensor,
     add_charging_station_assets,
     keep_scheduling_queue_empty,
+    requesting_user,
 ):
     wrong_job_id = 9999
     sensor = add_battery_assets["Test battery"].sensors[0]
     with app.test_client() as client:
-        auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
         get_schedule_response = client.get(
             url_for("SensorAPI:get_schedule", id=sensor.id, uuid=wrong_job_id),
-            headers={"content-type": "application/json", "Authorization": auth_token},
         )
     print("Server responded with:\n%s" % get_schedule_response.json)
     check_deprecation(get_schedule_response, deprecation=None, sunset=None)
@@ -63,6 +65,9 @@ def test_get_schedule_wrong_job_id(
         # ),
     ],
 )
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
 def test_trigger_schedule_with_invalid_flexmodel(
     app,
     add_battery_assets,
@@ -71,17 +76,16 @@ def test_trigger_schedule_with_invalid_flexmodel(
     field,
     sent_value,
     err_msg,
+    requesting_user,
 ):
     sensor = add_battery_assets["Test battery"].sensors[0]
     with app.test_client() as client:
         if sent_value:  # if None, field is a term we expect in the response, not more
             message["flex-model"][field] = sent_value
 
-        auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
         trigger_schedule_response = client.post(
             url_for("SensorAPI:trigger_schedule", id=sensor.id),
             json=message,
-            headers={"Authorization": auth_token},
         )
         print("Server responded with:\n%s" % trigger_schedule_response.json)
         check_deprecation(trigger_schedule_response, deprecation=None, sunset=None)
@@ -98,6 +102,9 @@ def test_trigger_schedule_with_invalid_flexmodel(
 
 
 @pytest.mark.parametrize("message", [message_for_trigger_schedule(unknown_prices=True)])
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
 def test_trigger_and_get_schedule_with_unknown_prices(
     app,
     add_market_prices,
@@ -106,17 +113,16 @@ def test_trigger_and_get_schedule_with_unknown_prices(
     add_charging_station_assets,
     keep_scheduling_queue_empty,
     message,
+    requesting_user,
 ):
     auth_token = None
     with app.test_client() as client:
         sensor = add_battery_assets["Test battery"].sensors[0]
 
         # trigger a schedule through the /sensors/<id>/schedules/trigger [POST] api endpoint
-        auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
         trigger_schedule_response = client.post(
             url_for("SensorAPI:trigger_schedule", id=sensor.id),
             json=message,
-            headers={"Authorization": auth_token},
         )
         print("Server responded with:\n%s" % trigger_schedule_response.json)
         check_deprecation(trigger_schedule_response, deprecation=None, sunset=None)
@@ -167,6 +173,9 @@ def test_trigger_and_get_schedule_with_unknown_prices(
         (message_for_trigger_schedule(with_targets=True), "Test charging station"),
     ],
 )
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
 def test_trigger_and_get_schedule(
     app,
     add_market_prices,
@@ -176,6 +185,7 @@ def test_trigger_and_get_schedule(
     keep_scheduling_queue_empty,
     message,
     asset_name,
+    requesting_user,
 ):
     # Include the price sensor in the flex-context explicitly, to test deserialization
     price_sensor_id = add_market_prices["epex_da"].id
@@ -195,11 +205,9 @@ def test_trigger_and_get_schedule(
         .one_or_none()
     )
     with app.test_client() as client:
-        auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
         trigger_schedule_response = client.post(
             url_for("SensorAPI:trigger_schedule", id=sensor.id),
             json=message,
-            headers={"Authorization": auth_token},
         )
         print("Server responded with:\n%s" % trigger_schedule_response.json)
         assert trigger_schedule_response.status_code == 200
@@ -292,11 +300,9 @@ def test_trigger_and_get_schedule(
             assert soc_schedule[target["datetime"]] == target["value"] / 1000
 
     # try to retrieve the schedule through the /sensors/<id>/schedules/<job_id> [GET] api endpoint
-    auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
     get_schedule_response = client.get(
         url_for("SensorAPI:get_schedule", id=sensor.id, uuid=job_id),
         query_string={"duration": "PT48H"},
-        headers={"content-type": "application/json", "Authorization": auth_token},
     )
     print("Server responded with:\n%s" % get_schedule_response.json)
     assert get_schedule_response.status_code == 200
@@ -307,7 +313,6 @@ def test_trigger_and_get_schedule(
     get_schedule_response_short = client.get(
         url_for("SensorAPI:get_schedule", id=sensor.id, uuid=job_id),
         query_string={"duration": "PT6H"},
-        headers={"content-type": "application/json", "Authorization": auth_token},
     )
     assert (
         get_schedule_response_short.json["values"]
@@ -318,7 +323,6 @@ def test_trigger_and_get_schedule(
     get_schedule_response_long = client.get(
         url_for("SensorAPI:get_schedule", id=sensor.id, uuid=job_id),
         query_string={"duration": "PT1000H"},
-        headers={"content-type": "application/json", "Authorization": auth_token},
     )
     assert (
         get_schedule_response_long.json["values"][0:192]
