@@ -46,7 +46,7 @@ platformdirs==3.10.0
     # via
     #   black
     #   virtualenv
-pre-commit==3.3.3
+pre-commit==3.4.0
     # via -r requirements/dev.in
 pycodestyle==2.8.0
     # via flake8
