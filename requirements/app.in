@@ -24,7 +24,6 @@ click
 click-default-group
 email_validator
 rq
-# rq-dashboard-compatible # use this if compatibility with Flask 2.3 is not done
 rq-dashboard
 # the following uses environment markers (see PEP 496)
 rq-win; os_name == 'nt' or os_name == 'win'
@@ -50,8 +49,7 @@ Flask-Mail
 Flask-Security-Too>=5.0
 Flask-Login
 Flask-Classful @ git+https://github.com/superseed/flask-classful@ea025fc1d5a6d318d094383144f084986d6040db
-# <0.15: https://github.com/marshmallow-code/flask-marshmallow/issues/262
-Flask-Marshmallow<0.15
+Flask-Marshmallow
 Flask-Cors
 sentry-sdk[flask]
 marshmallow>=3

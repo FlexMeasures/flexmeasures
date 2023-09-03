@@ -87,7 +87,7 @@ flask-login==0.6.2
     #   flask-security-too
 flask-mail==0.9.1
     # via -r requirements/app.in
-flask-marshmallow==0.14.0
+flask-marshmallow==0.15.0
     # via -r requirements/app.in
 flask-migrate==4.0.4
     # via -r requirements/app.in
@@ -195,6 +195,7 @@ openturns==1.21
 packaging==23.1
     # via
     #   altair
+    #   flask-marshmallow
     #   marshmallow
     #   marshmallow-sqlalchemy
     #   matplotlib
@@ -306,7 +307,6 @@ sentry-sdk[flask]==1.30.0
     # via -r requirements/app.in
 six==1.16.0
     # via
-    #   flask-marshmallow
     #   isodate
     #   patsy
     #   python-dateutil
