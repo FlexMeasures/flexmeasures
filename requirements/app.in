@@ -60,10 +60,10 @@ marshmallow-sqlalchemy>=0.23.1
 webargs
 # Minimum version that correctly aligns time series that include NaN values
 uniplot>=0.7.0
-# Maximum constraints here due to Flask-Classful not supporting Werkzeug 2.2.0 yet, see GH#595 and https://github.com/teracyhq/flask-classful/pull/145
-Flask-SQLAlchemy>=2.4.3
+# >=2.5.2: https://github.com/marshmallow-code/flask-marshmallow/issues/262
+Flask-SQLAlchemy>=2.5.2
 # flask should be after all the flask plugins, because setup might find they ARE flask
-# <2.3: https://github.com/Parallels/rq-dashboard/issues/417 and https://github.com/FlexMeasures/flexmeasures/issues/754 and flask-login 0.6.1 not compatible
-flask>=1.0, <=2.2.5
+# <2.3: https://github.com/FlexMeasures/flexmeasures/issues/754
+flask>=1.0, <2.3
 werkzeug<=2.2.3
 vl-convert-python
