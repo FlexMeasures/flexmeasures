@@ -1,7 +1,7 @@
 import pytest
 from flask import url_for, request
 
-from flexmeasures.api.tests.utils import UserContext, get_auth_token
+from flexmeasures.api.tests.utils import UserContext
 from flexmeasures.data.services.users import find_user_by_email
 
 

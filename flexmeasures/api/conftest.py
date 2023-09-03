@@ -1,6 +1,6 @@
 import pytest
 
-from flask_login import current_user, login_user, logout_user
+from flask_login import login_user, logout_user
 
 from flexmeasures.api.tests.utils import UserContext
 
@@ -32,8 +32,6 @@ def requesting_user(request):
     email = request.param
     if email is not None:
         with UserContext(request.param) as user:
-            # if current_user:
-            #     logout_user()
             login_user(user)
             yield user
             logout_user()

@@ -2,7 +2,7 @@ import json
 
 from flask import current_app
 from flask_classful import FlaskView, route
-from flask_security import auth_required, auth_token_required
+from flask_security import auth_token_required
 from flask_json import as_json
 from marshmallow import fields
 from webargs.flaskparser import use_kwargs, use_args

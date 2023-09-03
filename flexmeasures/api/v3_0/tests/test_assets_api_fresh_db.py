@@ -1,7 +1,7 @@
 from flask import url_for
 import pytest
 
-from flexmeasures.api.tests.utils import get_auth_token, AccountContext
+from flexmeasures.api.tests.utils import AccountContext
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.api.v3_0.tests.utils import get_asset_post_data
 

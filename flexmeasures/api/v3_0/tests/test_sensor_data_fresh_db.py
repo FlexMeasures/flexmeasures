@@ -5,7 +5,6 @@ from flask import url_for
 from timely_beliefs.tests.utils import equal_lists
 
 from flexmeasures import Sensor, Source
-from flexmeasures.api.tests.utils import get_auth_token
 from flexmeasures.api.v3_0.tests.utils import make_sensor_data_request_for_gas_sensor
 from flexmeasures.data.models.time_series import TimedBelief
 

@@ -6,7 +6,6 @@ from flask import url_for
 import pytest
 
 from flexmeasures import Sensor, Source, User
-from flexmeasures.api.tests.utils import get_auth_token
 from flexmeasures.api.v3_0.tests.utils import make_sensor_data_request_for_gas_sensor
 
 

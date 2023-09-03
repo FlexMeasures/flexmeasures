@@ -2,7 +2,7 @@ from flask import url_for
 import pytest
 
 from flexmeasures.data.services.users import find_user_by_email
-from flexmeasures.api.tests.utils import get_auth_token, UserContext
+from flexmeasures.api.tests.utils import UserContext
 
 
 @pytest.mark.parametrize(
