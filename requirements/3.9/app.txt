@@ -253,7 +253,7 @@ python-dateutil==2.8.2
     #   workalendar
 python-dotenv==1.0.0
     # via -r requirements/app.in
-pytz==2023.3
+pytz==2023.3.post1
     # via
     #   -r requirements/app.in
     #   pandas
@@ -279,7 +279,7 @@ requests==2.31.0
     #   tldextract
 requests-file==1.5.1
     # via tldextract
-rpds-py==0.10.0
+rpds-py==0.10.2
     # via
     #   jsonschema
     #   referencing
@@ -331,7 +331,7 @@ timely-beliefs[forecast]==1.22.0
     # via -r requirements/app.in
 timetomodel==0.7.3
     # via -r requirements/app.in
-tldextract==3.4.4
+tldextract==3.5.0
     # via -r requirements/app.in
 toolz==0.12.0
     # via altair
