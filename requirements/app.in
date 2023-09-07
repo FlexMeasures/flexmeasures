@@ -48,7 +48,7 @@ Flask-Mail
 # <5.2: https://github.com/Parallels/rq-dashboard/issues/417 as 5.2 requires Flask 2.3
 Flask-Security-Too>=5.0
 Flask-Login
-Flask-Classful @ git+https://github.com/superseed/flask-classful@ea025fc1d5a6d318d094383144f084986d6040db
+Flask-Classful @ git+https://github.com/pallets-eco/flask-classful@ba315822eb0a11d4be15a56f029a0107830bc6c8
 Flask-Marshmallow
 Flask-Cors
 sentry-sdk[flask]
