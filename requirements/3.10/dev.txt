@@ -15,7 +15,7 @@ click==8.1.7
     #   black
 distlib==0.3.7
     # via virtualenv
-filelock==3.12.2
+filelock==3.12.3
     # via
     #   -c requirements/app.txt
     #   virtualenv
@@ -46,13 +46,13 @@ platformdirs==3.10.0
     # via
     #   black
     #   virtualenv
-pre-commit==3.3.3
+pre-commit==3.4.0
     # via -r requirements/dev.in
 pycodestyle==2.8.0
     # via flake8
 pyflakes==2.4.0
     # via flake8
-pyinstrument==4.5.1
+pyinstrument==4.5.3
     # via -r requirements/dev.in
 pytest-runner==6.0.0
     # via -r requirements/dev.in
@@ -71,9 +71,10 @@ tomli==2.0.1
 typing-extensions==4.7.1
     # via
     #   -c requirements/app.txt
+    #   filelock
     #   mypy
     #   setuptools-scm
-virtualenv==20.24.3
+virtualenv==20.24.4
     # via pre-commit
 watchdog==3.0.0
     # via -r requirements/dev.in
