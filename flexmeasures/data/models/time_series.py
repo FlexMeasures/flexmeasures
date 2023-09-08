@@ -8,7 +8,6 @@ from flask import current_app
 import pandas as pd
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
-from sqlalchemy.orm import Query, Session
 from sqlalchemy.schema import UniqueConstraint
 from sqlalchemy import inspect
 import timely_beliefs as tb
@@ -20,20 +19,17 @@ from flexmeasures.data import db
 from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.data.services.annotations import prepare_annotations_for_chart
 from flexmeasures.data.services.timerange import get_timerange
-from flexmeasures.data.queries.utils import (
-    create_beliefs_query,
-    get_belief_timing_criteria,
-    get_source_criteria,
-)
-from flexmeasures.data.services.time_series import (
-    collect_time_series_data,
-    aggregate_values,
-)
+from flexmeasures.data.queries.utils import get_source_criteria
+from flexmeasures.data.services.time_series import aggregate_values
 from flexmeasures.utils.entity_address_utils import (
     EntityAddressException,
     build_entity_address,
 )
-from flexmeasures.utils.unit_utils import is_energy_unit, is_power_unit
+from flexmeasures.utils.unit_utils import (
+    is_energy_unit,
+    is_power_unit,
+    is_energy_price_unit,
+)
 from flexmeasures.data.models.annotations import (
     Annotation,
     SensorAnnotationRelationship,
@@ -110,7 +106,10 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             "read": f"account:{self.generic_asset.account_id}"
             if self.generic_asset.account_id is not None
             else EVERY_LOGGED_IN_USER,
-            "update": f"account:{self.generic_asset.account_id}",
+            "update": (
+                f"account:{self.generic_asset.account_id}",
+                "role:account-admin",
+            ),
             "delete": (
                 f"account:{self.generic_asset.account_id}",
                 "role:account-admin",
@@ -142,6 +141,11 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
     def measures_energy(self) -> bool:
         """True if this sensor's unit is measuring energy"""
         return is_energy_unit(self.unit)
+
+    @property
+    def measures_energy_price(self) -> bool:
+        """True if this sensors' unit is measuring energy prices"""
+        return is_energy_price_unit(self.unit)
 
     @property
     def is_strictly_non_positive(self) -> bool:
@@ -505,12 +509,12 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
 
         Can be called with an object that has latitude and longitude properties, for example:
 
-            sensor = Sensor.find_closest("weather_station", "wind speed", object=generic_asset)
+            sensor = Sensor.find_closest("weather station", "wind speed", object=generic_asset)
 
         Can also be called with latitude and longitude parameters, for example:
 
-            sensor = Sensor.find_closest("weather_station", "temperature", latitude=32, longitude=54)
-            sensor = Sensor.find_closest("weather_station", "temperature", lat=32, lng=54)
+            sensor = Sensor.find_closest("weather station", "temperature", latitude=32, longitude=54)
+            sensor = Sensor.find_closest("weather station", "temperature", lat=32, lng=54)
 
         Finally, pass in an account_id parameter if you want to query an account other than your own. This only works for admins. Public assets are always queried.
         """
@@ -766,130 +770,3 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
     def __repr__(self) -> str:
         """timely-beliefs representation of timed beliefs."""
         return tb.TimedBelief.__repr__(self)
-
-
-class TimedValue(object):
-    """
-    A mixin of all tables that store time series data, either forecasts or measurements.
-    Represents one row.
-
-    Note: This will be deprecated in favour of Timely-Beliefs - based code (see Sensor/TimedBelief)
-    """
-
-    @declared_attr
-    def __tablename__(cls):  # noqa: B902
-        return cls.__name__.lower()
-
-    """The time at which the value is supposed to (have) happen(ed)."""
-
-    @declared_attr
-    def datetime(cls):  # noqa: B902
-        return db.Column(db.DateTime(timezone=True), primary_key=True, index=True)
-
-    """The time delta of measuring or forecasting.
-    This should be a duration in ISO8601, e.g. "PT10M", which you can turn into a timedelta with
-    isodate.parse_duration, optionally with a minus sign, e.g. "-PT10M".
-    Positive durations indicate a forecast into the future, negative ones a backward forecast into the past or simply
-    a measurement after the fact.
-    """
-
-    @declared_attr
-    def horizon(cls):  # noqa: B902
-        return db.Column(
-            db.Interval(), nullable=False, primary_key=True
-        )  # todo: default=timedelta(hours=0)
-
-    """The value."""
-
-    @declared_attr
-    def value(cls):  # noqa: B902
-        return db.Column(db.Float, nullable=False)
-
-    """The data source."""
-
-    @declared_attr
-    def data_source_id(cls):  # noqa: B902
-        return db.Column(db.Integer, db.ForeignKey("data_source.id"), primary_key=True)
-
-    @classmethod
-    def make_query(
-        cls,
-        old_sensor_names: tuple[str],
-        query_window: tuple[datetime_type | None, datetime_type | None],
-        belief_horizon_window: tuple[timedelta | None, timedelta | None] = (
-            None,
-            None,
-        ),
-        belief_time_window: tuple[datetime_type | None, datetime_type | None] = (
-            None,
-            None,
-        ),
-        belief_time: datetime_type | None = None,
-        user_source_ids: int | list[int] | None = None,
-        source_types: list[str] | None = None,
-        exclude_source_types: list[str] | None = None,
-        session: Session = None,
-    ) -> Query:
-        """
-        Can be extended with the make_query function in subclasses.
-        We identify the assets by their name, which assumes a unique string field can be used.
-        The query window consists of two optional datetimes (start and end).
-        The horizon window expects first the shorter horizon (e.g. 6H) and then the longer horizon (e.g. 24H).
-        The session can be supplied, but if None, the implementation should find a session itself.
-
-        :param user_source_ids: Optional list of user source ids to query only specific user sources
-        :param source_types: Optional list of source type names to query only specific source types *
-        :param exclude_source_types: Optional list of source type names to exclude specific source types *
-
-        * If user_source_ids is specified, the "user" source type is automatically included (and not excluded).
-          Somewhat redundant, though still allowed, is to set both source_types and exclude_source_types.
-
-
-        # todo: add examples
-        # todo: switch to using timely_beliefs queries, which are more powerful
-        """
-        if session is None:
-            session = db.session
-        start, end = query_window
-        query = create_beliefs_query(cls, session, Sensor, old_sensor_names, start, end)
-        belief_timing_criteria = get_belief_timing_criteria(
-            cls, Sensor, belief_horizon_window, belief_time_window
-        )
-        source_criteria = get_source_criteria(
-            cls, user_source_ids, source_types, exclude_source_types
-        )
-        return query.filter(*belief_timing_criteria, *source_criteria)
-
-    @classmethod
-    def search(
-        cls,
-        old_sensor_names: str | list[str],
-        event_starts_after: datetime_type | None = None,
-        event_ends_before: datetime_type | None = None,
-        horizons_at_least: timedelta | None = None,
-        horizons_at_most: timedelta | None = None,
-        beliefs_after: datetime_type | None = None,
-        beliefs_before: datetime_type | None = None,
-        user_source_ids: int
-        | list[int]
-        | None = None,  # None is interpreted as all sources
-        source_types: list[str] | None = None,
-        exclude_source_types: list[str] | None = None,
-        resolution: str | timedelta = None,
-        sum_multiple: bool = True,
-    ) -> tb.BeliefsDataFrame | dict[str, tb.BeliefsDataFrame]:
-        """Basically a convenience wrapper for services.collect_time_series_data,
-        where time series data collection is implemented.
-        """
-        return collect_time_series_data(
-            old_sensor_names=old_sensor_names,
-            make_query=cls.make_query,
-            query_window=(event_starts_after, event_ends_before),
-            belief_horizon_window=(horizons_at_least, horizons_at_most),
-            belief_time_window=(beliefs_after, beliefs_before),
-            user_source_ids=user_source_ids,
-            source_types=source_types,
-            exclude_source_types=exclude_source_types,
-            resolution=resolution,
-            sum_multiple=sum_multiple,
-        )

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from moneyed import list_all_currencies
+from moneyed import list_all_currencies, Currency
 import numpy as np
 import pandas as pd
 import pint
@@ -187,6 +187,25 @@ def is_energy_unit(unit: str) -> bool:
     return ur.Quantity(unit).dimensionality == ur.Quantity("Wh").dimensionality
 
 
+def is_currency_unit(unit: str | pint.Quantity | pint.Unit) -> bool:
+    """For Example:
+    >>> is_energy_price_unit("EUR")
+    True
+    >>> is_energy_price_unit("KRW")
+    True
+    >>> is_energy_price_unit("potatoe")
+    False
+    >>> is_energy_price_unit("MW")
+    False
+    """
+    if isinstance(unit, pint.Quantity):
+        return is_currency_unit(unit.units)
+    if isinstance(unit, pint.Unit):
+        return is_currency_unit(str(unit))
+
+    return Currency(code=unit) in list_all_currencies()
+
+
 def is_energy_price_unit(unit: str) -> bool:
     """For example:
     >>> is_energy_price_unit("EUR/MWh")
@@ -220,10 +239,15 @@ def _convert_time_units(
     if not to_unit[0].isdigit():
         # unit abbreviations passed to pd.Timedelta need a number (so, for example, h becomes 1h)
         to_unit = f"1{to_unit}"
-    if from_unit == "datetime":
-        return (
-            pd.to_datetime(data, utc=True) - pd.Timestamp("1970-01-01", tz="utc")
-        ) // pd.Timedelta(to_unit)
+    if "datetime" in from_unit:
+        dt_data = pd.to_datetime(
+            data, dayfirst=True if "dayfirst" in from_unit else False
+        )
+        # localize timezone naive data to the sensor's timezone, if available
+        if dt_data.dt.tz is None:
+            timezone = data.sensor.timezone if hasattr(data, "sensor") else "utc"
+            dt_data = dt_data.dt.tz_localize(timezone)
+        return (dt_data - pd.Timestamp("1970-01-01", tz="utc")) // pd.Timedelta(to_unit)
     else:
         return data / pd.Timedelta(to_unit)
 
@@ -235,8 +259,14 @@ def convert_units(
     event_resolution: timedelta | None = None,
     capacity: str | None = None,
 ) -> pd.Series | list[int | float] | int | float:
-    """Updates data values to reflect the given unit conversion."""
-    if from_unit in ("datetime", "timedelta"):
+    """Updates data values to reflect the given unit conversion.
+
+    Handles units in short scientific notation (e.g. m³/h, kW, and ºC), as well as three special units to convert from:
+    - from_unit="datetime"          (with data point such as "2023-05-02", "2023-05-02 05:14:49" or "2023-05-02 05:14:49 +02:00")
+    - from_unit="dayfirst datetime" (with data point such as "02-05-2023")
+    - from_unit="timedelta"         (with data point such as "0 days 01:18:25")
+    """
+    if from_unit in ("datetime", "dayfirst datetime", "timedelta"):
         return _convert_time_units(data, from_unit, to_unit)
 
     if from_unit != to_unit:

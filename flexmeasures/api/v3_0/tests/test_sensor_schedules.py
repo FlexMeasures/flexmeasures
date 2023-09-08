@@ -9,6 +9,7 @@ from flexmeasures.api.common.responses import unknown_schedule, unrecognized_eve
 from flexmeasures.api.tests.utils import check_deprecation, get_auth_token
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.tests.utils import work_on_rq
 from flexmeasures.data.services.scheduling import (
@@ -27,7 +28,7 @@ def test_get_schedule_wrong_job_id(
     keep_scheduling_queue_empty,
 ):
     wrong_job_id = 9999
-    sensor = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
+    sensor = add_battery_assets["Test battery"].sensors[0]
     with app.test_client() as client:
         auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
         get_schedule_response = client.get(
@@ -71,7 +72,7 @@ def test_trigger_schedule_with_invalid_flexmodel(
     sent_value,
     err_msg,
 ):
-    sensor = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
+    sensor = add_battery_assets["Test battery"].sensors[0]
     with app.test_client() as client:
         if sent_value:  # if None, field is a term we expect in the response, not more
             message["flex-model"][field] = sent_value
@@ -108,7 +109,7 @@ def test_trigger_and_get_schedule_with_unknown_prices(
 ):
     auth_token = None
     with app.test_client() as client:
-        sensor = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
+        sensor = add_battery_assets["Test battery"].sensors[0]
 
         # trigger a schedule through the /sensors/<id>/schedules/trigger [POST] api endpoint
         auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
@@ -176,7 +177,6 @@ def test_trigger_and_get_schedule(
     message,
     asset_name,
 ):
-
     # Include the price sensor in the flex-context explicitly, to test deserialization
     price_sensor_id = add_market_prices["epex_da"].id
     message["flex-context"] = {
@@ -187,7 +187,13 @@ def test_trigger_and_get_schedule(
     # trigger a schedule through the /sensors/<id>/schedules/trigger [POST] api endpoint
     assert len(app.queues["scheduling"]) == 0
 
-    sensor = Sensor.query.filter(Sensor.name == asset_name).one_or_none()
+    sensor = (
+        Sensor.query.filter(Sensor.name == "power")
+        .join(GenericAsset)
+        .filter(GenericAsset.id == Sensor.generic_asset_id)
+        .filter(GenericAsset.name == asset_name)
+        .one_or_none()
+    )
     with app.test_client() as client:
         auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
         trigger_schedule_response = client.post(

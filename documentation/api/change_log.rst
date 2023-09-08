@@ -3,7 +3,15 @@
 API change log
 ===============
 
-.. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL, allowing developers to upgrade at their own pace.
+.. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
+
+v3.0-11 | 2023-08-02
+""""""""""""""""""""
+
+- Added REST endpoint for fetching one sensor: `/sensors/<id>` (GET)
+- Added REST endpoint for adding a sensor: `/sensors` (POST)
+- Added REST endpoint for patching a sensor: `/sensors/<id>` (PATCH)
+- Added REST endpoint for deleting a sensor: `/sensors/<id>` (DELETE)
 
 v3.0-10 | 2023-06-12
 """"""""""""""""""""

@@ -5,6 +5,7 @@ Starting point of the Flask application.
 from __future__ import annotations
 
 import time
+from copy import copy
 import os
 from pathlib import Path
 from datetime import date
@@ -123,8 +124,26 @@ def create(  # noqa C901
     from flexmeasures.utils.coding_utils import get_classes_module
     from flexmeasures.data.models import reporting, planning
 
-    app.reporters = get_classes_module("flexmeasures.data.models", reporting.Reporter)
-    app.schedulers = get_classes_module("flexmeasures.data.models", planning.Scheduler)
+    reporters = get_classes_module("flexmeasures.data.models", reporting.Reporter)
+    schedulers = get_classes_module("flexmeasures.data.models", planning.Scheduler)
+
+    app.data_generators = dict()
+    app.data_generators["reporter"] = copy(
+        reporters
+    )  # use copy to avoid mutating app.reporters
+    app.data_generators["scheduler"] = schedulers
+
+    # deprecated: app.reporters and app.schedulers
+    app.reporters = reporters
+    app.schedulers = schedulers
+
+    def get_reporters():
+        app.logger.warning(
+            '`app.reporters` is deprecated. Use `app.data_generators["reporter"]` instead.'
+        )
+        return app.data_generators["reporter"]
+
+    setattr(app, "reporters", get_reporters())
 
     # add auth policy
 
@@ -169,7 +188,7 @@ def create(  # noqa C901
             try:
                 import pyinstrument  # noqa F401
 
-                g.profiler = pyinstrument.Profiler()
+                g.profiler = pyinstrument.Profiler(async_mode="disabled")
                 g.profiler.start()
             except ImportError:
                 pass

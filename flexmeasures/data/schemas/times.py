@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta
 
 from flask import current_app
-from marshmallow import fields
+from marshmallow import fields, Schema
+from marshmallow.exceptions import ValidationError
 import isodate
 from isodate.isoerror import ISO8601Error
 import pandas as pd
@@ -27,11 +29,16 @@ class DurationField(MarshmallowClickMixin, fields.Str):
         This method throws a ValidationError if the string is not ISO norm.
         """
         try:
-            return isodate.parse_duration(value)
+            duration_value = isodate.parse_duration(value)
         except ISO8601Error as iso_err:
             raise DurationValidationError(
                 f"Cannot parse {value} as ISO8601 duration: {iso_err}"
             )
+        if duration_value.seconds % 60 != 0 or duration_value.microseconds != 0:
+            raise DurationValidationError(
+                "FlexMeasures only support multiples of 1 minute."
+            )
+        return duration_value
 
     def _serialize(self, value, attr, data, **kwargs):
         """
@@ -84,3 +91,20 @@ class AwareDateTimeField(MarshmallowClickMixin, fields.AwareDateTime):
         """
         value = value.replace(" ", "+")
         return fields.AwareDateTime._deserialize(self, value, attr, obj, **kwargs)
+
+
+class TimeIntervalSchema(Schema):
+    start = AwareDateTimeField(required=True)
+    duration = DurationField(required=True)
+
+
+class TimeIntervalField(MarshmallowClickMixin, fields.Dict):
+    """Field that de-serializes to a TimeInverval defined with start and duration."""
+
+    def _deserialize(self, value: str, attr, obj, **kwargs) -> dict:
+        try:
+            v = json.loads(value)
+        except json.JSONDecodeError:
+            raise ValidationError()
+
+        return TimeIntervalSchema().load(v)

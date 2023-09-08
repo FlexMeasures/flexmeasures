@@ -1,3 +1,7 @@
+# Check Python major and minor version
+# For more information, see https://stackoverflow.com/a/22105036
+PYV = $(shell python -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_info[:2]));sys.stdout.write(t)")
+
 # Note: use tabs
 # actions which are virtual, i.e. not a script
 .PHONY: install install-for-dev install-for-test install-deps install-flexmeasures run-local test freeze-deps upgrade-deps update-docs update-docs-pdf show-file-space show-data-model clean-db cli-autocomplete
@@ -35,14 +39,15 @@ install: install-deps install-flexmeasures
 
 install-for-dev:
 	make freeze-deps
-	pip-sync requirements/app.txt requirements/dev.txt requirements/test.txt
+	make ensure-deps-folder
+	pip-sync requirements/${PYV}/app.txt requirements/${PYV}/dev.txt requirements/${PYV}/test.txt
 	make install-flexmeasures
 
 install-for-test:
 	make install-pip-tools
 # Pass pinned=no if you want to test against latest stable packages, default is our pinned dependency set
 ifneq ($(pinned), no)
-	pip-sync requirements/app.txt requirements/test.txt
+	pip-sync requirements/${PYV}/app.txt requirements/${PYV}/test.txt
 else
 	# cutting off the -c inter-layer dependency (that's pip-tools specific)
 	tail -n +3 requirements/test.in >> temp-test.in
@@ -56,7 +61,7 @@ install-deps:
 	make freeze-deps
 # Pass pinned=no if you want to test against latest stable packages, default is our pinned dependency set
 ifneq ($(pinned), no)
-	pip-sync requirements/app.txt
+	pip-sync requirements/${PYV}/app.txt
 else
 	pip install --upgrade -r requirements/app.in
 endif
@@ -65,26 +70,38 @@ install-flexmeasures:
 	pip install -e .
 
 install-pip-tools:
-	pip3 install -q "pip-tools>=6.4"
+	pip3 install -q "pip-tools>=7.0"
 
 install-docs-dependencies:
-	pip install -r requirements/docs.txt
+	pip install -r requirements/${PYV}/docs.txt
 
 freeze-deps:
+	make ensure-deps-folder
 	make install-pip-tools
-	pip-compile -o requirements/app.txt requirements/app.in
-	pip-compile -o requirements/test.txt requirements/test.in
-	pip-compile -o requirements/dev.txt requirements/dev.in
-	pip-compile -o requirements/docs.txt requirements/docs.in
+	pip-compile -o requirements/${PYV}/app.txt requirements/app.in
+	# Create app.txt to create constraints for test.txt and dev.txt
+	cat requirements/${PYV}/app.txt > requirements/app.txt
+	pip-compile -o requirements/${PYV}/test.txt requirements/test.in
+	cat requirements/${PYV}/test.txt > requirements/test.txt
+	pip-compile -o requirements/${PYV}/dev.txt requirements/dev.in
+	pip-compile -o requirements/${PYV}/docs.txt requirements/docs.in
+	rm requirements/app.txt
+	rm requirements/test.txt
 
 upgrade-deps:
+	make ensure-deps-folder
 	make install-pip-tools
-	pip-compile --upgrade -o requirements/app.txt requirements/app.in
-	pip-compile --upgrade -o requirements/test.txt requirements/test.in
-	pip-compile --upgrade -o requirements/dev.txt requirements/dev.in
-	pip-compile --upgrade -o requirements/docs.txt requirements/docs.in
-	make test
+	pip-compile --upgrade -o requirements/${PYV}/app.txt requirements/app.in
+	# Create app.txt to create constraints for test.txt and dev.txt
+	cat requirements/${PYV}/app.txt > requirements/app.txt
+	pip-compile --upgrade -o requirements/${PYV}/test.txt requirements/test.in
+	cat requirements/${PYV}/test.txt > requirements/test.txt
+	pip-compile --upgrade -o requirements/${PYV}/dev.txt requirements/dev.in
+	pip-compile --upgrade -o requirements/${PYV}/docs.txt requirements/docs.in
+	rm requirements/app.txt
+	rm requirements/test.txt
 
+	make test
 
 # ---- Data ----
 
@@ -104,9 +121,11 @@ show-data-model:
 	# Use --help to learn more. 
 	./flexmeasures/data/scripts/visualize_data_model.py --uml
 
+ensure-deps-folder:
+	mkdir -p requirements/${PYV}
+
 clean-db:
 	./flexmeasures/data/scripts/clean_database.sh ${db_name} ${db_user}
-
 
 cli-autocomplete:
 	./flexmeasures/data/scripts/add_scripts_path.sh ${extension}
