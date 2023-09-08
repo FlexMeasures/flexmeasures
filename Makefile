@@ -4,7 +4,7 @@ PYV = $(shell python -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_
 
 # Note: use tabs
 # actions which are virtual, i.e. not a script
-.PHONY: install install-for-dev install-for-test install-deps install-flexmeasures run-local test freeze-deps upgrade-deps update-docs update-docs-pdf show-file-space show-data-model clean-db
+.PHONY: install install-for-dev install-for-test install-deps install-flexmeasures run-local test freeze-deps upgrade-deps update-docs update-docs-pdf show-file-space show-data-model clean-db cli-autocomplete
 
 
 # ---- Development ---
@@ -126,3 +126,6 @@ ensure-deps-folder:
 
 clean-db:
 	./flexmeasures/data/scripts/clean_database.sh ${db_name} ${db_user}
+
+cli-autocomplete:
+	./flexmeasures/cli/scripts/add_scripts_path.sh ${extension}
