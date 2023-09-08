@@ -17,6 +17,7 @@ Infrastructure / Support
 
 * Allow additional datetime conversions to quantitative time units, specifically, from timezone-naive and/or dayfirst datetimes, which can be useful when importing data [see `PR #831 <https://github.com/FlexMeasures/flexmeasures/pull/831>`_]
 * Add a new tutorial to explain the use of the `AggregatorReporter` to compute the headroom and the `ProfitOrLossReporter` to compute the cost of running a process [see `PR #825 <https://github.com/FlexMeasures/flexmeasures/pull/825>`_]
+* Updated admin dashboard for inspecting asynchronous tasks (scheduling, forecasting, reporting, etc.), and improved performance and security of the server by upgrading Flask and Flask extensions [see `PR #838 <https://github.com/FlexMeasures/flexmeasures/pull/838>`_]
 
 v0.15.1 | August 28, 2023
 ============================
