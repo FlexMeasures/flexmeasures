@@ -128,4 +128,4 @@ clean-db:
 	./flexmeasures/data/scripts/clean_database.sh ${db_name} ${db_user}
 
 cli-autocomplete:
-	./flexmeasures/data/scripts/add_scripts_path.sh ${extension}
+	./flexmeasures/cli/scripts/add_scripts_path.sh ${extension}

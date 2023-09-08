@@ -39,7 +39,7 @@ function find_file() {
 }
 
 function main() {
- script_path="$current_dir/flexmeasures/data/scripts"
+ script_path="$current_dir/flexmeasures/cli/scripts"
  extension="$1"
 
  if [[ "$extension" != "bash" && "$extension" != "fish" && "$extension" != "zsh" ]]; then
