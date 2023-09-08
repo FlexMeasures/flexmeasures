@@ -75,7 +75,7 @@ flask==2.2.5
     #   flask-wtf
     #   rq-dashboard
     #   sentry-sdk
-flask-classful @ git+https://github.com/pallets-eco/flask-classful@ba315822eb0a11d4be15a56f029a0107830bc6c8
+flask-classful==0.16.0
     # via -r requirements/app.in
 flask-cors==4.0.0
     # via -r requirements/app.in
