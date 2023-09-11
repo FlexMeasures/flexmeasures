@@ -1,4 +1,4 @@
-FROM ubuntu:22.04
+FROM ubuntu:focal
  
 ENV DEBIAN_FRONTEND noninteractive
 ENV LC_ALL C.UTF-8
