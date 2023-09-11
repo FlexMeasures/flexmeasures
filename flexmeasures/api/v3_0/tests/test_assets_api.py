@@ -296,8 +296,7 @@ def test_post_an_asset_with_invalid_data(client, setup_api_test_data, requesting
     Add an asset with some fields having invalid data and one field missing.
     The right error messages should be in the response and the number of assets has not increased.
     """
-    with UserContext("test_admin_user@seita.nl") as prosumer:
-        num_assets_before = len(prosumer.account.generic_assets)
+    num_assets_before = len(requesting_user.account.generic_assets)
 
     post_data = get_asset_post_data()
     post_data["name"] = "Something new"
