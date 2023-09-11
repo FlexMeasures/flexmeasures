@@ -93,7 +93,7 @@ def test_get_one_user(client, setup_api_test_data, requesting_user, status_code)
     ],
     indirect=["requesting_user"],
 )
-def test_edit_user_as_user2(
+def test_edit_user(
     requesting_user, requested_user, status_code, client, setup_api_test_data
 ):
     with UserContext(requested_user) as u:
