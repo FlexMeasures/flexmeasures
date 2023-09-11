@@ -249,24 +249,27 @@ def create_test_markets(db) -> dict[str, Sensor]:
         name="epex",
         generic_asset_type=day_ahead,
     )
-    epex_da = Sensor(
-        name="epex_da",
-        generic_asset=epex,
-        event_resolution=timedelta(hours=1),
-        unit="EUR/MWh",
-        knowledge_horizon=(
-            x_days_ago_at_y_oclock,
-            {"x": 1, "y": 12, "z": "Europe/Paris"},
-        ),
-        attributes=dict(
-            daily_seasonality=True,
-            weekly_seasonality=True,
-            yearly_seasonality=True,
-        ),
-    )
-    db.session.add(epex_da)
-    db.session.flush()  # assign an id, so it can be used to set a market_id attribute on a GenericAsset or Sensor
-    return {"epex_da": epex_da}
+    price_sensors = {}
+    for sensor_name in ("epex_da", "epex_da_production"):
+        price_sensor = Sensor(
+            name=sensor_name,
+            generic_asset=epex,
+            event_resolution=timedelta(hours=1),
+            unit="EUR/MWh",
+            knowledge_horizon=(
+                x_days_ago_at_y_oclock,
+                {"x": 1, "y": 12, "z": "Europe/Paris"},
+            ),
+            attributes=dict(
+                daily_seasonality=True,
+                weekly_seasonality=True,
+                yearly_seasonality=True,
+            ),
+        )
+        db.session.add(price_sensor)
+        price_sensors[sensor_name] = price_sensor
+    db.session.flush()  # assign an id, so the markets can be used to set a market_id attribute on a GenericAsset or Sensor
+    return price_sensors
 
 
 @pytest.fixture(scope="module")
@@ -526,7 +529,25 @@ def create_beliefs(db: SQLAlchemy, setup_markets, setup_sources) -> int:
 def add_market_prices(
     db: SQLAlchemy, setup_assets, setup_markets, setup_sources
 ) -> dict[str, Sensor]:
-    """Add two days of market prices for the EPEX day-ahead market."""
+    return add_market_prices_common(db, setup_assets, setup_markets, setup_sources)
+
+
+@pytest.fixture(scope="function")
+def add_market_prices_fresh_db(
+    fresh_db: SQLAlchemy,
+    setup_assets_fresh_db,
+    setup_markets_fresh_db,
+    setup_sources_fresh_db,
+) -> dict[str, Sensor]:
+    return add_market_prices_common(
+        fresh_db, setup_assets_fresh_db, setup_markets_fresh_db, setup_sources_fresh_db
+    )
+
+
+def add_market_prices_common(
+    db: SQLAlchemy, setup_assets, setup_markets, setup_sources
+) -> dict[str, Sensor]:
+    """Add three days of market prices for the EPEX day-ahead market."""
 
     # one day of test data (one complete sine curve)
     time_slots = initialize_index(
@@ -568,7 +589,46 @@ def add_market_prices(
         for dt, val in zip(time_slots, values)
     ]
     db.session.add_all(day2_beliefs)
-    return {"epex_da": setup_markets["epex_da"]}
+
+    # the third day of test data (8 hours with negative prices, followed by 16 expensive hours)
+    time_slots = initialize_index(
+        start=pd.Timestamp("2015-01-03").tz_localize("Europe/Amsterdam"),
+        end=pd.Timestamp("2015-01-04").tz_localize("Europe/Amsterdam"),
+        resolution="1H",
+    )
+
+    # consumption prices
+    values = [-10] * 8 + [100] * 16
+    day3_beliefs = [
+        TimedBelief(
+            event_start=dt,
+            belief_horizon=timedelta(hours=0),
+            event_value=val,
+            source=setup_sources["Seita"],
+            sensor=setup_markets["epex_da"],
+        )
+        for dt, val in zip(time_slots, values)
+    ]
+    db.session.add_all(day3_beliefs)
+
+    # production prices = consumption prices - 40
+    values = [-50] * 8 + [60] * 16
+    day3_beliefs_production = [
+        TimedBelief(
+            event_start=dt,
+            belief_horizon=timedelta(hours=0),
+            event_value=val,
+            source=setup_sources["Seita"],
+            sensor=setup_markets["epex_da_production"],
+        )
+        for dt, val in zip(time_slots, values)
+    ]
+    db.session.add_all(day3_beliefs_production)
+
+    return {
+        "epex_da": setup_markets["epex_da"],
+        "epex_da_production": setup_markets["epex_da_production"],
+    }
 
 
 @pytest.fixture(scope="module")

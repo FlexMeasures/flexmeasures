@@ -46,6 +46,7 @@ def get_sensor_post_data(generic_asset_id: int = 2) -> dict:
         "event_resolution": "PT1H",
         "unit": "kWh",
         "generic_asset_id": generic_asset_id,
+        "attributes": '{"capacity_in_mw": 0.0074, "max_soc_in_mwh": 0.04, "min_soc_in_mwh": 0.008}',
     }
     return post_data
 

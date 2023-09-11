@@ -1,7 +1,9 @@
 import pytest
 import json
+import yaml
 import os
-
+from datetime import datetime
+import pytz
 
 from flexmeasures.cli.tests.utils import to_flags
 from flexmeasures.data.models.annotations import (
@@ -96,7 +98,7 @@ def test_cli_help(app):
 
 
 @pytest.mark.skip_github
-def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
+def test_add_reporter(app, fresh_db, setup_dummy_data):
     """
     The reporter aggregates input data from two sensors (both have 200 data points)
     to a two-hour resolution.
@@ -113,30 +115,57 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
 
     from flexmeasures.cli.data_add import add_report
 
-    sensor1, sensor2, report_sensor = setup_dummy_data
-    report_sensor_id = report_sensor.id
+    sensor1_id, sensor2_id, report_sensor_id, _ = setup_dummy_data
+
+    reporter_config = dict(
+        required_input=[{"name": "sensor_1"}, {"name": "sensor_2"}],
+        required_output=[{"name": "df_agg"}],
+        transformations=[
+            dict(
+                df_input="sensor_1",
+                method="add",
+                args=["@sensor_2"],
+                df_output="df_agg",
+            ),
+            dict(method="resample_events", args=["2h"]),
+        ],
+    )
 
     # Running the command with start and end values.
 
     runner = app.test_cli_runner()
 
     cli_input_params = {
-        "sensor-id": report_sensor_id,
-        "reporter-config": "reporter_config.json",
+        "config": "reporter_config.yaml",
+        "parameters": "parameters.json",
         "reporter": "PandasReporter",
         "start": "2023-04-10T00:00:00 00:00",
         "end": "2023-04-10T10:00:00 00:00",
         "output-file": "test.csv",
     }
 
+    parameters = dict(
+        input=[
+            dict(name="sensor_1", sensor=sensor1_id),
+            dict(name="sensor_2", sensor=sensor2_id),
+        ],
+        output=[dict(name="df_agg", sensor=report_sensor_id)],
+    )
+
     cli_input = to_flags(cli_input_params)
+
+    # store config into config
+    cli_input.append("--save-config")
 
     # run test in an isolated file system
     with runner.isolated_filesystem():
 
         # save reporter_config to a json file
-        with open("reporter_config.json", "w") as f:
-            json.dump(reporter_config_raw, f)
+        with open("reporter_config.yaml", "w") as f:
+            yaml.dump(reporter_config, f)
+
+        with open("parameters.json", "w") as f:
+            json.dump(parameters, f)
 
         # call command
         result = runner.invoke(add_report, cli_input)
@@ -145,15 +174,14 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
 
         assert result.exit_code == 0  # run command without errors
 
-        assert "Reporter PandasReporter found" in result.output
-        assert "Report computation done." in result.output
-
-        # Check report is saved to the database
-
         report_sensor = Sensor.query.get(
             report_sensor_id
         )  # get fresh report sensor instance
 
+        assert "Reporter PandasReporter found" in result.output
+        assert f"Report computation done for sensor `{report_sensor}`." in result.output
+
+        # Check report is saved to the database
         stored_report = report_sensor.search_beliefs(
             event_starts_after=cli_input_params.get("start").replace(" ", "+"),
             event_ends_before=cli_input_params.get("end").replace(" ", "+"),
@@ -175,9 +203,8 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
     previous_command_end = cli_input_params.get("end").replace(" ", "+")
 
     cli_input_params = {
-        "sensor-id": report_sensor_id,
-        "reporter-config": "reporter_config.json",
-        "reporter": "PandasReporter",
+        "source": stored_report.sources[0].id,
+        "parameters": "parameters.json",
         "output-file": "test.csv",
         "timezone": "UTC",
     }
@@ -188,7 +215,10 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
 
         # save reporter_config to a json file
         with open("reporter_config.json", "w") as f:
-            json.dump(reporter_config_raw, f)
+            json.dump(reporter_config, f)
+
+        with open("parameters.json", "w") as f:
+            json.dump(parameters, f)
 
         # call command
         result = runner.invoke(add_report, cli_input)
@@ -197,13 +227,16 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
 
         assert result.exit_code == 0  # run command without errors
 
-        assert "Reporter PandasReporter found" in result.output
-        assert "Report computation done." in result.output
-
         # Check if the report is saved to the database
         report_sensor = Sensor.query.get(
             report_sensor_id
         )  # get fresh report sensor instance
+
+        assert (
+            "Reporter `PandasReporter` fetched successfully from the database."
+            in result.output
+        )
+        assert f"Report computation done for sensor `{report_sensor}`." in result.output
 
         stored_report = report_sensor.search_beliefs(
             event_starts_after=previous_command_end,
@@ -214,8 +247,104 @@ def test_add_reporter(app, db, setup_dummy_data, reporter_config_raw):
 
 
 @pytest.mark.skip_github
+def test_add_multiple_output(app, fresh_db, setup_dummy_data):
+    """ """
+
+    from flexmeasures.cli.data_add import add_report
+
+    sensor_1_id, sensor_2_id, report_sensor_id, report_sensor_2_id = setup_dummy_data
+
+    reporter_config = dict(
+        required_input=[{"name": "sensor_1"}, {"name": "sensor_2"}],
+        required_output=[{"name": "df_agg"}, {"name": "df_sub"}],
+        transformations=[
+            dict(
+                df_input="sensor_1",
+                method="add",
+                args=["@sensor_2"],
+                df_output="df_agg",
+            ),
+            dict(method="resample_events", args=["2h"]),
+            dict(
+                df_input="sensor_1",
+                method="subtract",
+                args=["@sensor_2"],
+                df_output="df_sub",
+            ),
+            dict(method="resample_events", args=["2h"]),
+        ],
+    )
+
+    # Running the command with start and end values.
+
+    runner = app.test_cli_runner()
+
+    cli_input_params = {
+        "config": "reporter_config.yaml",
+        "parameters": "parameters.json",
+        "reporter": "PandasReporter",
+        "start": "2023-04-10T00:00:00+00:00",
+        "end": "2023-04-10T10:00:00+00:00",
+        "output-file": "test-$name.csv",
+    }
+
+    parameters = dict(
+        input=[
+            dict(name="sensor_1", sensor=sensor_1_id),
+            dict(name="sensor_2", sensor=sensor_2_id),
+        ],
+        output=[
+            dict(name="df_agg", sensor=report_sensor_id),
+            dict(name="df_sub", sensor=report_sensor_2_id),
+        ],
+    )
+
+    cli_input = to_flags(cli_input_params)
+
+    # run test in an isolated file system
+    with runner.isolated_filesystem():
+
+        # save reporter_config to a json file
+        with open("reporter_config.yaml", "w") as f:
+            yaml.dump(reporter_config, f)
+
+        with open("parameters.json", "w") as f:
+            json.dump(parameters, f)
+
+        # call command
+        result = runner.invoke(add_report, cli_input)
+
+        assert os.path.exists("test-df_agg.csv")
+        assert os.path.exists("test-df_sub.csv")
+
+        print(result)
+
+        assert result.exit_code == 0  # run command without errors
+
+        report_sensor = Sensor.query.get(report_sensor_id)
+        report_sensor_2 = Sensor.query.get(report_sensor_2_id)
+
+        assert "Reporter PandasReporter found" in result.output
+        assert f"Report computation done for sensor `{report_sensor}`." in result.output
+        assert (
+            f"Report computation done for sensor `{report_sensor_2}`." in result.output
+        )
+
+        # check that the reports are saved
+        assert all(
+            report_sensor.search_beliefs(
+                event_ends_before=datetime(2023, 4, 10, 10, tzinfo=pytz.UTC)
+            ).values.flatten()
+            == [1, 5, 9, 13, 17]
+        )
+        assert all(report_sensor_2.search_beliefs() == 0)
+
+
+@pytest.mark.skip_github
 @pytest.mark.parametrize("process_type", [("INFLEXIBLE"), ("SHIFTABLE"), ("BREAKABLE")])
-def test_add_process(app, process_power_sensor, process_type):
+def test_add_process(
+    app, process_power_sensor, process_type, add_market_prices_fresh_db
+):
     """
     Schedule a 4h of consumption block at a constant power of 400kW in a day using
     the three process policies: INFLEXIBLE, SHIFTABLE and BREAKABLE.

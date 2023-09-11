@@ -1,5 +1,7 @@
 from marshmallow import Schema, fields, validates, ValidationError
 
+import json
+
 from flexmeasures.data import ma
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
@@ -10,6 +12,17 @@ from flexmeasures.data.schemas.utils import (
 )
 from flexmeasures.utils.unit_utils import is_valid_unit
 from flexmeasures.data.schemas.times import DurationField
+
+
+class JSON(fields.Field):
+    def _deserialize(self, value, attr, data, **kwargs) -> dict:
+        try:
+            return json.loads(value)
+        except ValueError:
+            raise ValidationError("Not a valid JSON string.")
+
+    def _serialize(self, value, attr, data, **kwargs) -> str:
+        return json.dumps(value)
 
 
 class SensorSchemaMixin(Schema):
@@ -32,6 +45,7 @@ class SensorSchemaMixin(Schema):
     timezone = ma.auto_field()
     event_resolution = DurationField(required=True)
     entity_address = fields.String(dump_only=True)
+    attributes = JSON(required=False)
 
     @validates("unit")
     def validate_unit(self, unit: str):

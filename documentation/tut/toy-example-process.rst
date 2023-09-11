@@ -107,6 +107,8 @@ Finally, in the SHIFTABLE policy, the process is shifted to capture the best pri
 
 Let's list the power price the policies achieved for each of the four blocks they scheduled:
 
+.. _table-process:
+
 +-------------------------+------------+-----------+-----------+
 |          Block          | INFLEXIBLE | BREAKABLE | SHIFTABLE |
 +=========================+============+===========+===========+
@@ -124,3 +126,5 @@ Let's list the power price the policies achieved for each of the four blocks the
 +-------------------------+------------+-----------+-----------+
 
 Quantitatively, comparing the total cost of running the process under each policy, the BREAKABLE policy achieves the best results. This is because it can fit much more consumption blocks in the cheapest hours.
+
+This tutorial showed a quick way to optimize the activation of processes. In :ref:`tut_toy_schedule_reporter`, we'll turn to something different: using *reporters* to apply transformations to sensor data.

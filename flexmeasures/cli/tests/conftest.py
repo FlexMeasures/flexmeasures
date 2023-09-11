@@ -8,12 +8,15 @@ from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetTy
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 @pytest.mark.skip_github
-def setup_dummy_asset(db, app):
+def setup_dummy_asset(fresh_db, app):
     """
     Create an Asset to add sensors to and return the id.
     """
+
+    db = fresh_db
+
     dummy_asset_type = GenericAssetType(name="DummyGenericAssetType")
 
     db.session.add(dummy_asset_type)
@@ -27,13 +30,15 @@ def setup_dummy_asset(db, app):
     return dummy_asset.id
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 @pytest.mark.skip_github
-def setup_dummy_data(db, app, setup_dummy_asset):
+def setup_dummy_data(fresh_db, app, setup_dummy_asset):
     """
     Create an asset with two sensors (1 and 2), and add the same set of 200 beliefs with an hourly resolution to each of them.
     Return the two sensors and a result sensor (which has no data).
     """
+
+    db = fresh_db
 
     report_asset_type = GenericAssetType(name="ReportAssetType")
 
@@ -63,6 +68,13 @@ def setup_dummy_data(db, app, setup_dummy_asset):
     )
     db.session.add(report_sensor)
 
+    report_sensor_2 = Sensor(
+        "report sensor 2",
+        generic_asset=pandas_report,
+        event_resolution=timedelta(hours=2),
+    )
+    db.session.add(report_sensor_2)
+
     # Create 1 DataSources
     source = DataSource("source1")
 
@@ -83,45 +95,22 @@ def setup_dummy_data(db, app, setup_dummy_asset):
     db.session.add_all(beliefs)
     db.session.commit()
 
-    yield sensor1, sensor2, report_sensor
-
-
-@pytest.fixture(scope="module")
-@pytest.mark.skip_github
-def reporter_config_raw(app, db, setup_dummy_data):
-    """
-    This reporter_config defines the operations to add up the
-    values of the sensors 1 and 2 and resamples the result to a
-    two hour resolution.
-    """
-
-    sensor1, sensor2, report_sensor = setup_dummy_data
-
-    reporter_config_raw = dict(
-        beliefs_search_configs=[dict(sensor=sensor1.id), dict(sensor=sensor2.id)],
-        transformations=[
-            dict(
-                df_input="sensor_1",
-                method="add",
-                args=["@sensor_2"],
-                df_output="df_agg",
-            ),
-            dict(method="resample_events", args=["2h"]),
-        ],
-        final_df_output="df_agg",
-    )
-
-    return reporter_config_raw
+    yield sensor1.id, sensor2.id, report_sensor.id, report_sensor_2.id
 
 
 @pytest.mark.skip_github
-@pytest.fixture(scope="module")
-def process_power_sensor(db, app, add_market_prices):
+@pytest.fixture(scope="function")
+def process_power_sensor(
+    fresh_db,
+    app,
+):
     """
     Create an asset of type "process", power sensor to hold the result of
     the scheduler and price data consisting of 8 expensive hours, 8 cheap hours, and again 8 expensive hours-
 
     """
+
+    db = fresh_db
 
     process_asset_type = GenericAssetType(name="process")
 
