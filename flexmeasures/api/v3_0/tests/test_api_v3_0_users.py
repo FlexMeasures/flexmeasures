@@ -143,11 +143,10 @@ def test_edit_user_with_unexpected_fields(
         ("inactive_admin@seita.nl", 400),
     ],
 )
-#
 def test_login(client, setup_api_test_data, email, status_code):
     """Tries to log in."""
 
-    assert isinstance(current_user, AnonymousUser)
+    assert current_user.is_anonymous
 
     # log in
     login_response = client.post(
@@ -162,7 +161,7 @@ def test_login(client, setup_api_test_data, email, status_code):
     assert login_response.status_code == status_code
 
     if status_code == 200:
-        assert not isinstance(current_user, AnonymousUser)
+        assert not current_user.is_anonymous
         logout_user()
 
 
@@ -170,10 +169,10 @@ def test_login(client, setup_api_test_data, email, status_code):
 def test_logout(client, setup_api_test_data, requesting_user):
     """Tries to log out, which should succeed as a url direction."""
 
-    assert not isinstance(current_user, AnonymousUser)
+    assert not current_user.is_anonymous
 
     # log out
     logout_response = client.get(url_for("security.logout"))
     assert logout_response.status_code == 302
 
-    assert isinstance(current_user, AnonymousUser)
+    assert current_user.is_anonymous
