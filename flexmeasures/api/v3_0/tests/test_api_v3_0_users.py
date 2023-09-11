@@ -1,4 +1,6 @@
 from flask import url_for
+from flask_login import current_user, logout_user
+from flask_security.core import AnonymousUser
 import pytest
 
 from flexmeasures.data.services.users import find_user_by_email
@@ -134,14 +136,44 @@ def test_edit_user_with_unexpected_fields(
     assert user_edit_response.status_code == 422
 
 
-def test_logout(client, setup_api_test_data):
+@pytest.mark.parametrize(
+    "email, status_code",
+    [
+        ("test_admin_user@seita.nl", 200),
+        ("inactive_admin@seita.nl", 400),
+    ],
+)
+#
+def test_login(client, setup_api_test_data, email, status_code):
+    """Tries to log in."""
+
+    assert isinstance(current_user, AnonymousUser)
+
+    # log in
+    login_response = client.post(
+        url_for("security.login"),
+        json={
+            "email": email,
+            "password": "testtest",
+        },
+    )
+    print(login_response.json)
+
+    assert login_response.status_code == status_code
+
+    if status_code == 200:
+        assert not isinstance(current_user, AnonymousUser)
+        logout_user()
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_logout(client, setup_api_test_data, requesting_user):
     """Tries to log out, which should succeed as a url direction."""
 
+    assert not isinstance(current_user, AnonymousUser)
+
     # log out
-    with UserContext("test_admin_user@seita.nl") as admin:
-        auth_token = admin.get_auth_token()
-    logout_response = client.get(
-        url_for("security.logout"),
-        headers={"Authorization ": auth_token, "content-type": "application/json"},
-    )
+    logout_response = client.get(url_for("security.logout"))
     assert logout_response.status_code == 302
+
+    assert isinstance(current_user, AnonymousUser)
