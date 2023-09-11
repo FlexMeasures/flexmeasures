@@ -84,21 +84,11 @@
                             Tasks
                             <span class="caret"></span></a>
                         <ul class="dropdown-menu">
-                            <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
-                                    {% if not current_user.has_role('anonymous') %}href="/tasks/0/view/jobs/forecasting/started/10/1"
-                                    {% endif %}>Forecasts</a></li>
-                            <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
-                                    {% if not current_user.has_role('anonymous') %}href="/tasks/0/view/jobs/scheduling/started/10/1"
-                                    {% endif %}>Schedules</a></li>
-                            <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
-                                    {% if not current_user.has_role('anonymous') %}href="/tasks/0/view/jobs/reporting/started/10/1"
-                                    {% endif %}>Reports</a></li>
-                            <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
-                                    {% if not current_user.has_role('anonymous') %}href="/tasks/0/view/jobs/labelling/started/10/1"
-                                    {% endif %}>Labels</a></li>
-                            <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
-                                    {% if not current_user.has_role('anonymous') %}href="/tasks/0/view/jobs/alerting/started/10/1"
-                                    {% endif %}>Alerts</a></li>
+                            {% for queue in queues %}
+                                <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
+                                    {% if not current_user.has_role('anonymous') %}href="/tasks/0/view/jobs/{{ queue }}/started/10/1"
+                                    {% endif %}>{{ queue | capitalize }}</a></li>
+                            {% endfor %}
                             <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
                                     {% if not current_user.has_role('anonymous') %}href="/tasks/"
                                     {% endif %}>Overview</a></li>
