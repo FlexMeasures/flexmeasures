@@ -65,13 +65,6 @@ def test_fetch_one_sensor_no_auth(
         raise NotImplementedError(f"Test did not expect status code {status_code}")
 
 
-def make_headers_for(user_email: str | None, client) -> dict:
-    headers = {"content-type": "application/json"}
-    if user_email:
-        headers["Authorization"] = get_auth_token(client, user_email, "testtest")
-    return headers
-
-
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_post_a_sensor(client, setup_api_test_data, requesting_user):
     post_data = get_sensor_post_data()
