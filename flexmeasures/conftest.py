@@ -529,6 +529,24 @@ def create_beliefs(db: SQLAlchemy, setup_markets, setup_sources) -> int:
 def add_market_prices(
     db: SQLAlchemy, setup_assets, setup_markets, setup_sources
 ) -> dict[str, Sensor]:
+    return add_market_prices_common(db, setup_assets, setup_markets, setup_sources)
+
+
+@pytest.fixture(scope="function")
+def add_market_prices_fresh_db(
+    fresh_db: SQLAlchemy,
+    setup_assets_fresh_db,
+    setup_markets_fresh_db,
+    setup_sources_fresh_db,
+) -> dict[str, Sensor]:
+    return add_market_prices_common(
+        fresh_db, setup_assets_fresh_db, setup_markets_fresh_db, setup_sources_fresh_db
+    )
+
+
+def add_market_prices_common(
+    db: SQLAlchemy, setup_assets, setup_markets, setup_sources
+) -> dict[str, Sensor]:
     """Add three days of market prices for the EPEX day-ahead market."""
 
     # one day of test data (one complete sine curve)
@@ -607,7 +625,7 @@ def add_market_prices(
     ]
     db.session.add_all(day3_beliefs_production)
 
-    yield {
+    return {
         "epex_da": setup_markets["epex_da"],
         "epex_da_production": setup_markets["epex_da_production"],
     }
