@@ -320,7 +320,7 @@ def test_post_an_asset_with_invalid_data(client, setup_api_test_data, requesting
     )
 
     assert (
-        GenericAsset.query.filter_by(account_id=prosumer.id).count()
+        GenericAsset.query.filter_by(account_id=requesting_user.account.id).count()
         == num_assets_before
     )
 

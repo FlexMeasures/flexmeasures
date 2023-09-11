@@ -6,7 +6,7 @@ import pandas as pd
 from rq.job import Job
 
 from flexmeasures.api.common.responses import unknown_schedule, unrecognized_event
-from flexmeasures.api.tests.utils import check_deprecation, get_auth_token
+from flexmeasures.api.tests.utils import check_deprecation
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset
@@ -116,7 +116,6 @@ def test_trigger_and_get_schedule_with_unknown_prices(
     message,
     requesting_user,
 ):
-    auth_token = None
     sensor = add_battery_assets["Test battery"].sensors[0]
 
     # trigger a schedule through the /sensors/<id>/schedules/trigger [POST] api endpoint

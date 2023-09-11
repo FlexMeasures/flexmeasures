@@ -1,6 +1,5 @@
 from flask import url_for
 from flask_login import current_user, logout_user
-from flask_security.core import AnonymousUser
 import pytest
 
 from flexmeasures.data.services.users import find_user_by_email

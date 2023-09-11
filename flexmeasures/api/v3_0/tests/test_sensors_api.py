@@ -6,7 +6,6 @@ from flask import url_for
 
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures import Sensor
-from flexmeasures.api.tests.utils import get_auth_token
 from flexmeasures.api.v3_0.tests.utils import get_sensor_post_data
 from flexmeasures.data.schemas.sensors import SensorSchema
 
