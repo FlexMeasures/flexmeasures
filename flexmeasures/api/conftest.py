@@ -31,7 +31,7 @@ def requesting_user(request):
     """
     email = request.param
     if email is not None:
-        with UserContext(request.param) as user:
+        with UserContext(email) as user:
             login_user(user)
             yield user
             logout_user()
