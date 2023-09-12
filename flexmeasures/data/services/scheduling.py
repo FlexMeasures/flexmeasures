@@ -278,21 +278,17 @@ def handle_scheduling_exception(job, exc_type, exc_value, traceback):
     job.save_meta()
 
 
-def get_data_source_for_job(job: Job | None) -> DataSource | None:
+def get_data_source_for_job(job: Job) -> DataSource | None:
     """
     Try to find the data source linked by this scheduling job.
 
     We expect that enough info on the source was placed in the meta dict.
     This only happened with v0.12. For a transition period, we might have to support older jobs who haven't got that info.
-    TODO: We should expect a job, once API v1.3 is deprecated.
     """
-    data_source_info = None
-    if job:
-        data_source_info = job.meta.get("data_source_info")
-        if (
-            data_source_info and "id" in data_source_info
-        ):  # this is the expected outcome
-            return DataSource.query.get(data_source_info["id"])
+    data_source_info = job.meta.get("data_source_info")
+    if data_source_info and "id" in data_source_info:
+        # this is the expected outcome
+        return DataSource.query.get(data_source_info["id"])
     if data_source_info is None:
         raise ValueError("Cannot look up scheduling data without knowing the full data_source_info (version).")
     scheduler_sources = (
