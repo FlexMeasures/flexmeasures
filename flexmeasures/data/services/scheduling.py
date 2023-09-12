@@ -154,8 +154,8 @@ def make_schedule(
     )
 
     # saving info on the job, so the API for a job can look the data up
-    data_source_info["id"] = data_source.id
     if rq_job:
+        data_source_info["id"] = data_source.id
         rq_job.meta["data_source_info"] = data_source_info
         rq_job.save_meta()
 
