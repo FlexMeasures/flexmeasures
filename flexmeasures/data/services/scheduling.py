@@ -294,11 +294,7 @@ def get_data_source_for_job(job: Job | None) -> DataSource | None:
         ):  # this is the expected outcome
             return DataSource.query.get(data_source_info["id"])
     if data_source_info is None:
-        data_source_info = dict(name="Seita", model="StorageScheduler")
-        # TODO: change to raise later (v0.13) - all scheduling jobs now get full info
-        current_app.logger.warning(
-            "Looking up scheduling data without knowing full data_source_info (version). This is deprecated soon. Please specify a job id as event or switch to API v3."
-        )
+        raise ValueError("Cannot look up scheduling data without knowing the full data_source_info (version).")
     scheduler_sources = (
         DataSource.query.filter_by(
             type="scheduler",
