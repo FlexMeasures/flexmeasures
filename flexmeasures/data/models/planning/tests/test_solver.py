@@ -990,3 +990,77 @@ def get_sensors_from_db(battery_assets):
     assert battery.get_attribute("market_id") == epex_da.id
 
     return epex_da, battery
+
+
+@pytest.mark.parametrize("solver", ["appsi_highs", "cbc"])
+def test_numerical_errors(app, setup_planning_test_data, solver):
+    """Test that a soc-target = soc-max can exceed this value due to numerical errors in the operations
+    to compute the device constraint DataFrame.
+    In the case of HiGHS, the tiny difference creates an infeasible constraint.
+    """
+
+    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    charging_station = setup_planning_test_data[
+        "Test charging station (bidirectional)"
+    ].sensors[0]
+    assert charging_station.get_attribute("capacity_in_mw") == 2
+    assert charging_station.get_attribute("market_id") == epex_da.id
+
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 2))
+    end = tz.localize(datetime(2015, 1, 3))
+    resolution = timedelta(minutes=5)
+
+    duration_until_next_target = timedelta(hours=1)
+    target_soc_datetime_1 = pd.Timestamp(start + duration_until_next_target).isoformat()
+    target_soc_datetime_2 = pd.Timestamp(
+        start + 2 * duration_until_next_target
+    ).isoformat()
+
+    # select which solver to use
+    app.config["FLEXMEASURES_LP_SOLVER"] = solver
+
+    scheduler = StorageScheduler(
+        charging_station,
+        start,
+        end,
+        resolution,
+        flex_model={
+            "soc-at-start": 0.01456,
+            "soc-min": 0.01295,
+            "soc-max": 0.056,
+            "roundtrip-efficiency": 0.85,
+            "storage-efficiency": 1,
+            "soc-targets": [
+                {"value": 0.01295, "datetime": target_soc_datetime_1},
+                {"value": 0.056, "datetime": target_soc_datetime_2},
+            ],
+            "soc-unit": "MWh",
+        },
+    )
+
+    (
+        sensor,
+        start,
+        end,
+        resolution,
+        soc_at_start,
+        device_constraints,
+        ems_constraints,
+        commitment_quantities,
+        commitment_downwards_deviation_price,
+        commitment_upwards_deviation_price,
+    ) = scheduler._prepare(skip_validation=True)
+
+    _, _, results, model = device_scheduler(
+        device_constraints,
+        ems_constraints,
+        commitment_quantities,
+        commitment_downwards_deviation_price,
+        commitment_upwards_deviation_price,
+        initial_stock=soc_at_start * (timedelta(hours=1) / resolution),
+    )
+
+    assert device_constraints[0]["equals"].max() > device_constraints[0]["max"].max()
+    assert device_constraints[0]["equals"].min() < device_constraints[0]["min"].min()
+    assert results.solver.status == "ok"

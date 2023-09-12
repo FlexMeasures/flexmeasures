@@ -2,6 +2,10 @@ from flexmeasures.data.schemas.reporting.pandas_reporter import (
     PandasReporterConfigSchema,
     PandasReporterParametersSchema,
 )
+from flexmeasures.data.schemas.reporting.profit import (
+    ProfitOrLossReporterConfigSchema,
+    ProfitOrLossReporterParametersSchema,
+)
 from marshmallow.exceptions import ValidationError
 
 import pytest
@@ -123,6 +127,101 @@ def test_pandas_reporter_parameters_schema(
 ):
 
     schema = PandasReporterParametersSchema()
+
+    if is_valid:
+        schema.load(parameters)
+    else:
+        with pytest.raises(ValidationError):
+            schema.load(parameters)
+
+
+@pytest.mark.parametrize(
+    "config, is_valid",
+    [
+        (  # missing start and end
+            {
+                "consumption_price_sensor": 2,
+                "production_price_sensor": 2,
+            },
+            True,
+        ),
+        (
+            {
+                "consumption_price_sensor": 2,
+            },
+            True,
+        ),
+        (
+            {
+                "production_price_sensor": 2,
+            },
+            True,
+        ),
+        (
+            {},
+            False,
+        ),
+    ],
+)
+def test_profit_reporter_config_schema(config, is_valid, db, app, setup_dummy_sensors):
+    schema = ProfitOrLossReporterConfigSchema()
+
+    if is_valid:
+        schema.load(config)
+    else:
+        with pytest.raises(ValidationError):
+            schema.load(config)
+
+
+start = "2023-01-01T00:00:00+01:00"
+end = "2023-01-02T00:00:00+01:00"
+
+
+@pytest.mark.parametrize(
+    "parameters, is_valid",
+    [
+        (
+            {
+                "input": [{"sensor": 1}],  # unit: MWh
+                "output": [{"sensor": 3}],  # unit : EUR
+                "start": start,
+                "end": end,
+            },
+            True,
+        ),
+        (
+            {
+                "input": [{"sensor": 4}],  # unit: MW
+                "output": [{"sensor": 3}],  # unit : EUR
+                "start": start,
+                "end": end,
+            },
+            True,
+        ),
+        (  # wrong output unit
+            {
+                "input": [{"sensor": 4}],  # unit: MW
+                "output": [{"sensor": 4}],  # unit : MW
+                "start": start,
+                "end": end,
+            },
+            False,
+        ),
+        (  # wrong input unit
+            {
+                "input": [{"sensor": 3}],  # unit: EUR
+                "output": [{"sensor": 3}],  # unit : EUR
+                "start": start,
+                "end": end,
+            },
+            False,
+        ),
+    ],
+)
+def test_profit_reporter_parameters_schema(
+    parameters, is_valid, db, app, setup_dummy_sensors
+):
+    schema = ProfitOrLossReporterParametersSchema()
 
     if is_valid:
         schema.load(parameters)
