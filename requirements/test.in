@@ -1,6 +1,3 @@
--c app.txt
-# we are not using app.in and test.in, because we want to develop against exactly what is being packaged and tested
-
 pytest
 pytest-flask
 pytest-sugar
