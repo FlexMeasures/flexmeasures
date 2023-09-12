@@ -122,7 +122,9 @@ importlib-metadata==6.8.0
     #   flask
     #   timely-beliefs
 importlib-resources==6.0.1
-    # via matplotlib
+    # via
+    #   flask-security-too
+    #   matplotlib
 inflect==6.0.2
     # via -r requirements/app.in
 inflection==0.5.1
@@ -172,7 +174,7 @@ marshmallow-polyfield==5.11
     # via -r requirements/app.in
 marshmallow-sqlalchemy==0.29.0
     # via -r requirements/app.in
-matplotlib==3.7.2
+matplotlib==3.7.3
     # via timetomodel
 numpy==1.24.4
     # via
@@ -242,7 +244,7 @@ pymeeus==0.5.12
     # via convertdate
 pyomo==6.6.2
     # via -r requirements/app.in
-pyparsing==3.0.9
+pyparsing==3.1.1
     # via matplotlib
 python-dateutil==2.8.2
     # via
