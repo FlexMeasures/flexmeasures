@@ -72,7 +72,8 @@ class ProfitOrLossReporter(Reporter):
         loss_is_positive: bool = self._config.get("loss_is_positive", False)
 
         input_sensor: Sensor = input[0]["sensor"]  # power or energy sensor
-        input_source: Sensor = input[0].get("source", None)
+        input_source: Sensor = input[0].get("sources", None)
+
         timezone = input_sensor.timezone
 
         if belief_time is None:
@@ -85,6 +86,8 @@ class ProfitOrLossReporter(Reporter):
                 event_ends_before=end,
                 beliefs_before=belief_time,
                 resolution=input_sensor.event_resolution,
+                most_recent_beliefs_only=True,
+                one_deterministic_belief_per_event=True,
             )
         )
         production_price = production_price.tz_convert(timezone)
@@ -94,6 +97,8 @@ class ProfitOrLossReporter(Reporter):
                 event_ends_before=end,
                 beliefs_before=belief_time,
                 resolution=input_sensor.event_resolution,
+                most_recent_beliefs_only=True,
+                one_deterministic_belief_per_event=True,
             )
         )
         consumption_price = consumption_price.tz_convert(timezone)
@@ -105,6 +110,8 @@ class ProfitOrLossReporter(Reporter):
                 event_ends_before=end,
                 beliefs_before=belief_time,
                 source=input_source,
+                most_recent_beliefs_only=True,
+                one_deterministic_belief_per_event=True,
             )
         )
 
