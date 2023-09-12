@@ -103,7 +103,6 @@ def make_schedule(
     flex_context: dict | None = None,
     flex_config_has_been_deserialized: bool = False,
 ) -> bool:
-
     """
     This function computes a schedule. It returns True if it ran successfully.
 
@@ -291,7 +290,9 @@ def get_data_source_for_job(job: Job) -> DataSource | None:
         # this is the expected outcome
         return DataSource.query.get(data_source_info["id"])
     if data_source_info is None:
-        raise ValueError("Cannot look up scheduling data without knowing the full data_source_info (version).")
+        raise ValueError(
+            "Cannot look up scheduling data without knowing the full data_source_info (version)."
+        )
     scheduler_sources = (
         DataSource.query.filter_by(
             type="scheduler",
