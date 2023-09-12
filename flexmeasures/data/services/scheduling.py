@@ -282,8 +282,9 @@ def get_data_source_for_job(job: Job) -> DataSource | None:
     """
     Try to find the data source linked by this scheduling job.
 
-    We expect that enough info on the source was placed in the meta dict.
-    This only happened with v0.12. For a transition period, we might have to support older jobs who haven't got that info.
+    We expect that enough info on the source was placed in the meta dict, either:
+    - the DataSource ID itself (i.e. the normal situation), or
+    - enough info to facilitate a DataSource query (as a fallback).
     """
     data_source_info = job.meta.get("data_source_info")
     if data_source_info and "id" in data_source_info:
