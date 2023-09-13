@@ -101,7 +101,7 @@ upgrade-deps:
 	rm requirements/app.txt
 	rm requirements/test.txt
 
-ifneq ($(docker), yes)
+ifneq ($(skip-test), yes)
 # Run tests only if not in docker
 	make test
 endif
