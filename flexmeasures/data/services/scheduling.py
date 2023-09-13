@@ -12,19 +12,43 @@ from importlib.abc import Loader
 
 from flask import current_app
 import click
-from rq import get_current_job
+from rq import get_current_job, Callback
 from rq.job import Job
 import timely_beliefs as tb
 
 from flexmeasures.data import db
 from flexmeasures.data.models.planning import Scheduler
 from flexmeasures.data.models.planning.storage import StorageScheduler
+from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
 from flexmeasures.data.models.planning.process import ProcessScheduler
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.utils import get_data_source, save_to_db
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.data.services.utils import job_cache
+
+
+def trigger_fallback_callback(job, connection, type, value, traceback):
+    """Create a fallback schedule job when the error is of type InfeasibleProblemException"""
+
+    job.meta["exception"] = value
+    job.save_meta()
+
+    if type is InfeasibleProblemException:
+        sensor = Sensor.query.get(job.meta["sensor_id"])
+        scheduler_kwargs = job.meta["scheduler_kwargs"]
+
+        fallback_job = create_scheduling_job(
+            sensor,
+            force_new_job_creation=True,
+            enqueue=False,
+            is_fallback=True,
+            **scheduler_kwargs,
+        )
+
+        job.meta["fallback_job_id"] = fallback_job.id
+        job.save_meta()
+        current_app.queues["scheduling"].enqueue_job(fallback_job)
 
 
 @job_cache("scheduling")
@@ -34,6 +58,7 @@ def create_scheduling_job(
     enqueue: bool = True,
     requeue: bool = False,
     force_new_job_creation: bool = False,
+    is_fallback: bool = False,
     **scheduler_kwargs,
 ) -> Job:
     """
@@ -66,9 +91,13 @@ def create_scheduling_job(
     scheduler = find_scheduler_class(sensor)(sensor=sensor, **scheduler_kwargs)
     scheduler.deserialize_config()
 
+    on_failure_cb = None
+    if (scheduler.fallback_scheduler_class is not None) and not is_fallback:
+        on_failure_cb = Callback(trigger_fallback_callback)
+
     job = Job.create(
         make_schedule,
-        kwargs=dict(sensor_id=sensor.id, **scheduler_kwargs),
+        kwargs=dict(sensor_id=sensor.id, is_fallback=is_fallback, **scheduler_kwargs),
         id=job_id,
         connection=current_app.queues["scheduling"].connection,
         ttl=int(
@@ -81,7 +110,12 @@ def create_scheduling_job(
                 "FLEXMEASURES_PLANNING_TTL", timedelta(-1)
             ).total_seconds()
         ),  # NB job.cleanup docs says a negative number of seconds means persisting forever
+        on_failure=on_failure_cb,
     )
+
+    job.meta["sensor_id"] = sensor.id
+    job.meta["scheduler_kwargs"] = scheduler_kwargs
+    job.save_meta()
 
     # in case the function enqueues it
     job_status = job.get_status(refresh=True)
@@ -102,6 +136,7 @@ def make_schedule(
     flex_model: dict | None = None,
     flex_context: dict | None = None,
     flex_config_has_been_deserialized: bool = False,
+    is_fallback: bool = False,
 ) -> bool:
     """
     This function computes a schedule. It returns True if it ran successfully.
@@ -126,7 +161,8 @@ def make_schedule(
             % (rq_job.id, sensor, start, end)
         )
 
-    scheduler_class = find_scheduler_class(sensor)
+    scheduler_class: Scheduler = find_scheduler_class(sensor)
+
     data_source_info = scheduler_class.get_data_source_info()
 
     if belief_time is None:
@@ -140,9 +176,17 @@ def make_schedule(
         flex_model=flex_model,
         flex_context=flex_context,
     )
+
+    if is_fallback:
+        scheduler: Scheduler | None = scheduler.fallback_scheduler
+
+    data_source_info = scheduler_class.get_data_source_info()
+
     if flex_config_has_been_deserialized:
         scheduler.config_deserialized = True
+
     consumption_schedule = scheduler.compute()
+
     if rq_job:
         click.echo("Job %s made schedule." % rq_job.id)
 

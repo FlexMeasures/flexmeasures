@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from flask import current_app
+from flask import current_app, redirect, url_for, make_response
 from flask_classful import FlaskView, route
 from flask_json import as_json
 from flask_security import auth_required
@@ -432,8 +432,22 @@ class SensorAPI(FlaskView):
             job = Job.fetch(job_id, connection=connection)
         except NoSuchJobError:
             return unrecognized_event(job_id, "job")
+
+        fallback_job_id = job.meta.get("fallback_job_id")
+
+        # redirect to the fallback schedule endpoint if the fallback_job_id
+        # is defined in the metadata of the original job
+        if fallback_job_id is not None:
+            response = redirect(
+                url_for("SensorAPI:get_schedule", uuid=fallback_job_id, id=sensor.id),
+                code=303,
+            )
+            response.mimetype = "application/json"
+            return make_response(response)
+
         if job.is_finished:
             error_message = "A scheduling job has been processed with your job ID, but "
+
         elif job.is_failed:  # Try to inform the user on why the job failed
             e = job.meta.get(
                 "exception",
@@ -443,6 +457,7 @@ class SensorAPI(FlaskView):
                     "or its exception handler is not storing the exception as job meta data."
                 ),
             )
+
             return unknown_schedule(
                 f"Scheduling job failed with {type(e).__name__}: {e}"
             )
@@ -469,6 +484,7 @@ class SensorAPI(FlaskView):
             return unknown_schedule(
                 error_message + f"no data source could be found for {data_source}."
             )
+
         power_values = sensor.search_beliefs(
             event_starts_after=schedule_start,
             event_ends_before=schedule_start + planning_horizon,

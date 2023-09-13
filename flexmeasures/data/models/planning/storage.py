@@ -18,13 +18,16 @@ from flexmeasures.data.models.planning.utils import (
     get_power_values,
     fallback_charging_policy,
 )
+from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
 from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
 from flexmeasures.data.schemas.scheduling import FlexContextSchema
 from flexmeasures.utils.time_utils import get_max_planning_horizon
 from flexmeasures.utils.coding_utils import deprecated
 
 
-class StorageScheduler(Scheduler):
+class MetaStorageScheduler(Scheduler):
+    """This class defines the constraints of a schedule for a storage device from the
+    flex-model, flex-context, and sensor and asset attributes"""
 
     __version__ = "2"
     __author__ = "Seita"
@@ -217,49 +220,6 @@ class StorageScheduler(Scheduler):
             commitment_upwards_deviation_price,
         )
 
-    def compute(self, skip_validation: bool = False) -> pd.Series | None:
-        """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
-        For the resulting consumption schedule, consumption is defined as positive values.
-
-        :param skip_validation: If True, skip validation of constraints specified in the data.
-        :returns:               The computed schedule.
-        """
-
-        (
-            sensor,
-            start,
-            end,
-            resolution,
-            soc_at_start,
-            device_constraints,
-            ems_constraints,
-            commitment_quantities,
-            commitment_downwards_deviation_price,
-            commitment_upwards_deviation_price,
-        ) = self._prepare(skip_validation=skip_validation)
-
-        ems_schedule, expected_costs, scheduler_results, _ = device_scheduler(
-            device_constraints,
-            ems_constraints,
-            commitment_quantities,
-            commitment_downwards_deviation_price,
-            commitment_upwards_deviation_price,
-            initial_stock=soc_at_start * (timedelta(hours=1) / resolution),
-        )
-        if scheduler_results.solver.termination_condition == "infeasible":
-            # Fallback policy if the problem was unsolvable
-            battery_schedule = fallback_charging_policy(
-                sensor, device_constraints[0], start, end, resolution
-            )
-        else:
-            battery_schedule = ems_schedule[0]
-
-        # Round schedule
-        if self.round_to_decimals:
-            battery_schedule = battery_schedule.round(self.round_to_decimals)
-
-        return battery_schedule
-
     def persist_flex_model(self):
         """Store new soc info as GenericAsset attributes"""
         self.sensor.generic_asset.set_attribute("soc_datetime", self.start.isoformat())
@@ -421,6 +381,111 @@ class StorageScheduler(Scheduler):
                     raise ValueError(
                         "Need maximal permitted state of charge, please specify soc-max or some soc-targets."
                     )
+
+
+class StorageFallbackScheduler(MetaStorageScheduler):
+
+    __version__ = "1"
+    __author__ = "Seita"
+
+    def compute(self, skip_validation: bool = False) -> pd.Series | None:
+        """Schedule a battery or Charge Point by just starting to charge, discharge, or do neither,
+           depending on the first target state of charge and the capabilities of the Charge Point.
+           Note that this ignores any cause of the infeasibility.
+
+        :param skip_validation: If True, skip validation of constraints specified in the data.
+        :returns:               The computed schedule.
+        """
+
+        (
+            sensor,
+            start,
+            end,
+            resolution,
+            soc_at_start,
+            device_constraints,
+            ems_constraints,
+            commitment_quantities,
+            commitment_downwards_deviation_price,
+            commitment_upwards_deviation_price,
+        ) = self._prepare(skip_validation=skip_validation)
+
+        # Fallback policy if the problem was unsolvable
+        battery_schedule = fallback_charging_policy(
+            sensor, device_constraints[0], start, end, resolution
+        )
+
+        # Round schedule
+        if self.round_to_decimals:
+            battery_schedule = battery_schedule.round(self.round_to_decimals)
+
+        return battery_schedule
+
+
+class StorageScheduler(MetaStorageScheduler):
+    """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
+    For the resulting consumption schedule, consumption is defined as positive values
+    """
+
+    __version__ = "2"
+    __author__ = "Seita"
+
+    fallback_scheduler_class: Scheduler = StorageFallbackScheduler
+
+    @property
+    def fallback_scheduler(self):
+        _fallback_scheduler = self.fallback_scheduler_class(
+            self.sensor,
+            self.start,
+            self.end,
+            self.resolution,
+            self.belief_time,
+            self.round_to_decimals,
+            self.flex_model,
+            self.flex_context,
+        )
+        _fallback_scheduler.config_deserialized = self.config_deserialized
+        return _fallback_scheduler
+
+    def compute(self, skip_validation: bool = False) -> pd.Series | None:
+        """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
+        For the resulting consumption schedule, consumption is defined as positive values.
+
+        :param skip_validation: If True, skip validation of constraints specified in the data.
+        :returns:               The computed schedule.
+        """
+
+        (
+            sensor,
+            start,
+            end,
+            resolution,
+            soc_at_start,
+            device_constraints,
+            ems_constraints,
+            commitment_quantities,
+            commitment_downwards_deviation_price,
+            commitment_upwards_deviation_price,
+        ) = self._prepare(skip_validation=skip_validation)
+
+        ems_schedule, expected_costs, scheduler_results, _ = device_scheduler(
+            device_constraints,
+            ems_constraints,
+            commitment_quantities,
+            commitment_downwards_deviation_price,
+            commitment_upwards_deviation_price,
+            initial_stock=soc_at_start * (timedelta(hours=1) / resolution),
+        )
+        if scheduler_results.solver.termination_condition == "infeasible":
+            raise InfeasibleProblemException()
+        else:
+            battery_schedule = ems_schedule[0]
+
+        # Round schedule
+        if self.round_to_decimals:
+            battery_schedule = battery_schedule.round(self.round_to_decimals)
+
+        return battery_schedule
 
 
 def create_constraint_violations_message(constraint_violations: list) -> str:

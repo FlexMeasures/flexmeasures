@@ -8,6 +8,7 @@ from pandas.tseries.frequencies import to_offset
 
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.planning import Scheduler
+from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
 from flexmeasures.data.models.planning.storage import (
     StorageScheduler,
     add_storage_constraints,
@@ -424,6 +425,9 @@ def test_fallback_to_unsolvable_problem(
     Here we test target states of charge outside that range, ones that we should be able
     to get as close to as 1 kWh difference.
     We want our scheduler to handle unsolvable problems like these with a sensible fallback policy.
+
+    The StorageScheduler raises an Exception and its fallback scheduler can be retreived using the
+    fallback_scheduler property and called directly.
     """
     soc_at_start = 10
     duration_until_target = timedelta(hours=2)
@@ -463,7 +467,14 @@ def test_fallback_to_unsolvable_problem(
     scheduler.config_deserialized = (
         True  # soc targets are already a DataFrame, names get underscore
     )
-    consumption_schedule = scheduler.compute(skip_validation=True)
+
+    # calling the scheduler with an unfeasible problem raises an Exception
+    with pytest.raises(InfeasibleProblemException):
+        consumption_schedule = scheduler.compute(skip_validation=True)
+
+    # check that the fallback scheduler provides a sensible fallback policy
+    consumption_schedule = scheduler.fallback_scheduler.compute(skip_validation=True)
+
     soc_schedule = integrate_time_series(
         consumption_schedule, soc_at_start, decimal_precision=6
     )

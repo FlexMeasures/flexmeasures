@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Type
 
 import pandas as pd
 from flask import current_app
@@ -37,6 +37,7 @@ class Scheduler:
     round_to_decimals: int
     flex_model: Optional[dict] = None
     flex_context: Optional[dict] = None
+    fallback_scheduler_class: "Type[Scheduler] | None" = None
 
     config_deserialized = False  # This flag allows you to let the scheduler skip checking config, like timing, flex_model and flex_context
 
@@ -86,6 +87,13 @@ class Scheduler:
     def compute(self) -> Optional[pd.Series]:
         """
         Overwrite with the actual computation of your schedule.
+        """
+
+        return None
+
+    def compute_fallback(Self) -> Optional[pd.Series]:
+        """
+        Overwrite with the actual call of the fallback schedule.
         """
 
         return None
