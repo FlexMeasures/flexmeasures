@@ -86,7 +86,18 @@ class StorageScheduler(Scheduler):
         )
 
         # Check for required Sensor attributes
-        self.sensor.check_required_attributes([("capacity_in_mw", (float, int))])
+        storage_power_capacity_in_mw = self.flex_model.get(
+            "storage_power_capacity_in_mw",
+            self.sensor.get_attribute("capacity_in_mw", None),
+        )
+
+        if not (
+            isinstance(storage_power_capacity_in_mw, float)
+            or isinstance(storage_power_capacity_in_mw, int)
+        ):
+            raise ValueError(
+                "Storage power capacity not defined in the sensor attributes or the flex-model"
+            )
 
         # Check for known prices or price forecasts, trimming planning window accordingly
         up_deviation_prices, (start, end) = get_prices(
@@ -158,15 +169,11 @@ class StorageScheduler(Scheduler):
         if sensor.get_attribute("is_strictly_non_positive"):
             device_constraints[0]["derivative min"] = 0
         else:
-            device_constraints[0]["derivative min"] = (
-                sensor.get_attribute("capacity_in_mw") * -1
-            )
+            device_constraints[0]["derivative min"] = storage_power_capacity_in_mw * -1
         if sensor.get_attribute("is_strictly_non_negative"):
             device_constraints[0]["derivative max"] = 0
         else:
-            device_constraints[0]["derivative max"] = sensor.get_attribute(
-                "capacity_in_mw"
-            )
+            device_constraints[0]["derivative max"] = storage_power_capacity_in_mw
 
         # Apply round-trip efficiency evenly to charging and discharging
         device_constraints[0]["derivative down efficiency"] = (
@@ -199,10 +206,23 @@ class StorageScheduler(Scheduler):
         ems_constraints = initialize_df(
             StorageScheduler.COLUMNS, start, end, resolution
         )
-        ems_capacity = sensor.generic_asset.get_attribute("capacity_in_mw")
-        if ems_capacity is not None:
-            ems_constraints["derivative min"] = ems_capacity * -1
-            ems_constraints["derivative max"] = ems_capacity
+
+        ems_power_capacity_in_mw = self.flex_model.get(
+            "ems_power_capacity_in_mw",
+            self.sensor.get_attribute("capacity_in_mw", None),
+        )
+
+        if ems_power_capacity_in_mw is not None:
+            if not (
+                isinstance(ems_power_capacity_in_mw, float)
+                or isinstance(ems_power_capacity_in_mw, int)
+            ):
+                raise ValueError(
+                    "EMS power capacity not defined in the sensor attributes or the flex-model"
+                )
+
+            ems_constraints["derivative min"] = ems_power_capacity_in_mw * -1
+            ems_constraints["derivative max"] = ems_power_capacity_in_mw
 
         return (
             sensor,
