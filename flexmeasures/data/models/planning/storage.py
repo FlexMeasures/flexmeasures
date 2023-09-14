@@ -29,7 +29,7 @@ class MetaStorageScheduler(Scheduler):
     """This class defines the constraints of a schedule for a storage device from the
     flex-model, flex-context, and sensor and asset attributes"""
 
-    __version__ = "2"
+    __version__ = "1"
     __author__ = "Seita"
 
     COLUMNS = [
@@ -427,7 +427,7 @@ class StorageScheduler(MetaStorageScheduler):
     For the resulting consumption schedule, consumption is defined as positive values
     """
 
-    __version__ = "2"
+    __version__ = "3"
     __author__ = "Seita"
 
     fallback_scheduler_class: Scheduler = StorageFallbackScheduler

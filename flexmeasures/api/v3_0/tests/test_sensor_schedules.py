@@ -411,10 +411,9 @@ def test_get_schedule_fallback(
         )
 
         # check that the job is failing
-        assert (
-            Job.fetch(job_id, connection=app.queues["scheduling"].connection).is_failed
-            is True
-        )
+        assert Job.fetch(
+            job_id, connection=app.queues["scheduling"].connection
+        ).is_failed
 
         # the callback creates the fallback job which is still pending
         assert len(app.queues["scheduling"]) == 1
@@ -423,7 +422,7 @@ def test_get_schedule_fallback(
         ).meta.get("fallback_job_id")
 
         # check that the fallback_job_id is stored on the metadata of the original job
-        assert app.queues["scheduling"].get_job_ids() != fallback_job_id
+        assert app.queues["scheduling"].get_job_ids()[0] == fallback_job_id
         assert fallback_job_id != job_id
 
         get_schedule_response = client.get(
@@ -434,6 +433,12 @@ def test_get_schedule_fallback(
         assert (
             get_schedule_response.status_code == 303
         )  # Status code for redirect ("See other")
+        assert (
+            get_schedule_response.json["message"]
+            == "Scheduling job failed with InfeasibleProblemException: "
+        )
+        assert get_schedule_response.json["status"] == "UNKNOWN_SCHEDULE"
+        assert get_schedule_response.json["result"] == "Rejected"
 
         # check that the redirection location points to the fallback job
         assert (

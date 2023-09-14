@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import List, Optional, Tuple, Union, Sequence
 import inflect
 from functools import wraps
@@ -8,7 +9,9 @@ p = inflect.engine()
 
 
 # Type annotation for responses: information and a response type
-ResponseTuple = Tuple[dict, int]
+ResponseTuple = (
+    Tuple[dict, int] | Tuple[dict, int, dict]
+)  # (message, status_code) or (message, status_code, header)
 
 
 def is_response_tuple(value) -> bool:
@@ -262,6 +265,14 @@ def unknown_prices(message: str) -> ResponseTuple:
 @BaseMessage("No known schedule for this time period.")
 def unknown_schedule(message: str) -> ResponseTuple:
     return dict(result="Rejected", status="UNKNOWN_SCHEDULE", message=message), 400
+
+
+def fallback_schedule_redirect(message: str, location: str) -> ResponseTuple:
+    return (
+        dict(result="Rejected", status="UNKNOWN_SCHEDULE", message=message),
+        303,
+        dict(location=location),
+    )
 
 
 def invalid_flex_config(message: str) -> ResponseTuple:

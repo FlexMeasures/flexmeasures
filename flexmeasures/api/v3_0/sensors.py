@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from flask import current_app, redirect, url_for, make_response
+from flask import current_app, url_for
 from flask_classful import FlaskView, route
 from flask_json import as_json
 from flask_security import auth_required
@@ -18,6 +18,7 @@ from flexmeasures.api.common.responses import (
     unrecognized_event,
     unknown_schedule,
     invalid_flex_config,
+    fallback_schedule_redirect,
 )
 from flexmeasures.api.common.utils.validators import (
     optional_duration_accepted,
@@ -433,18 +434,6 @@ class SensorAPI(FlaskView):
         except NoSuchJobError:
             return unrecognized_event(job_id, "job")
 
-        fallback_job_id = job.meta.get("fallback_job_id")
-
-        # redirect to the fallback schedule endpoint if the fallback_job_id
-        # is defined in the metadata of the original job
-        if fallback_job_id is not None:
-            response = redirect(
-                url_for("SensorAPI:get_schedule", uuid=fallback_job_id, id=sensor.id),
-                code=303,
-            )
-            response.mimetype = "application/json"
-            return make_response(response)
-
         if job.is_finished:
             error_message = "A scheduling job has been processed with your job ID, but "
 
@@ -457,10 +446,22 @@ class SensorAPI(FlaskView):
                     "or its exception handler is not storing the exception as job meta data."
                 ),
             )
+            message = f"Scheduling job failed with {type(e).__name__}: {e}"
 
-            return unknown_schedule(
-                f"Scheduling job failed with {type(e).__name__}: {e}"
-            )
+            fallback_job_id = job.meta.get("fallback_job_id")
+
+            # redirect to the fallback schedule endpoint if the fallback_job_id
+            # is defined in the metadata of the original job
+            if fallback_job_id is not None:
+                return fallback_schedule_redirect(
+                    message,
+                    url_for(
+                        "SensorAPI:get_schedule", uuid=fallback_job_id, id=sensor.id
+                    ),
+                )
+            else:
+                return unknown_schedule(message)
+
         elif job.is_started:
             return unknown_schedule("Scheduling job in progress.")
         elif job.is_queued:
