@@ -285,17 +285,17 @@
 
             // Create a custom menu item for exporting to CSV
             const exportToCSVAction = document.createElement('a');
-            exportToCSVAction.textContent = "Export to CSV";
-            exportToCSVAction.onclick = () => {
+            exportToCSVAction.id = 'exportToCSVAction';
+            exportToCSVAction.href = '#';
+            exportToCSVAction.download = datasetName + '.csv';
+            exportToCSVAction.textContent = 'Save as CSV';
+            exportToCSVAction.addEventListener('mousedown', async function (event) {
+                event.preventDefault();
                 const chartData = vegaView.data(datasetName);
                 const csvContent = convertToCSV(chartData);
                 const encodedUri = encodeURI(csvContent);
-                const link = document.createElement("a");
-                link.setAttribute("href", encodedUri);
-                link.setAttribute("download", "chart_data.csv");
-                document.body.appendChild(link);
-                link.click();
-            };
+                exportToCSVAction.href = encodedUri;
+            });
 
             // Append menu item to chart actions (hamburger menu)
             const vegaActions = document.querySelector('.vega-actions');
