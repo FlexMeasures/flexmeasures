@@ -23,7 +23,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        py_version: [ '3.9' ]
+        py_version: [ "3.8", "3.9", "3.10", "3.11" ]
         include:
           - python-version: "3.9"
             coverage: yes
