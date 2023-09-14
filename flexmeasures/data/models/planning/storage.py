@@ -209,7 +209,7 @@ class StorageScheduler(Scheduler):
 
         ems_power_capacity_in_mw = self.flex_model.get(
             "ems_power_capacity_in_mw",
-            self.sensor.get_attribute("capacity_in_mw", None),
+            self.sensor.generic_asset.get_attribute("capacity_in_mw", None),
         )
 
         if ems_power_capacity_in_mw is not None:
