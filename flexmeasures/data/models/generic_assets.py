@@ -215,6 +215,8 @@ class GenericAsset(db.Model, AuthModelMixin):
     ) -> Union[List[Annotation], pd.DataFrame]:
         """Return annotations assigned to this asset, and optionally, also those assigned to the asset's account.
 
+        The returned annotations do not include any annotations on public accounts.
+
         :param annotations_after: only return annotations that end after this datetime (exclusive)
         :param annotations_before: only return annotations that start before this datetime (exclusive)
         """
@@ -226,7 +228,7 @@ class GenericAsset(db.Model, AuthModelMixin):
             sources=parsed_sources,
             annotation_type=annotation_type,
         ).all()
-        if include_account_annotations:
+        if include_account_annotations and self.owner is not None:
             annotations += self.owner.search_annotations(
                 annotations_after=annotations_after,
                 annotations_before=annotations_before,
@@ -459,7 +461,7 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         # Only allow showing sensors from assets owned by the user's organization,
         # except in play mode, where any sensor may be shown
-        accounts = [self.owner]
+        accounts = [self.owner] if self.owner is not None else None
         if current_app.config.get("FLEXMEASURES_MODE") == "play":
             from flexmeasures.data.models.user import Account
 

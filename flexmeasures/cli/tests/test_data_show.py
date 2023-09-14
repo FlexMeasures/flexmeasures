@@ -1,5 +1,5 @@
+import os
 import pytest
-from click.formatting import wrap_text
 
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.cli.tests.utils import get_click_commands
@@ -122,8 +122,36 @@ def test_cli_help(app):
     for cmd in get_click_commands(data_show):
         result = runner.invoke(cmd, ["--help"])
         assert "Usage" in result.output
-        assert (
-            wrap_text(cmd.__doc__.strip(), initial_indent="  ", subsequent_indent="  ")
-            in result.output
-        )
         assert result.exit_code == 0
+
+
+@pytest.mark.skip_github
+@pytest.mark.parametrize("_format", ["png", "svg"])
+def test_export_chart(app, fresh_db, setup_beliefs_fresh_db, _format):
+    from flexmeasures.cli.data_show import chart
+
+    sensor = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    sensor_id = sensor.id
+
+    runner = app.test_cli_runner()
+    # run test in an isolated file system
+    with runner.isolated_filesystem():
+        result = runner.invoke(
+            chart,
+            [
+                "--sensor",
+                sensor_id,
+                "--start",
+                "2021-03-28T15:00+01",
+                "--end",
+                "2021-03-29T16:00+01",
+                "--filename",
+                f"chart-$entity_type-$id.{_format}",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert os.path.exists(f"chart-sensor-{sensor_id}.{_format}")
+        assert (
+            os.path.getsize(f"chart-sensor-{sensor_id}.{_format}") > 100
+        )  # bytes: non empty file

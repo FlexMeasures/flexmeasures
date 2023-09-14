@@ -43,6 +43,7 @@ from flexmeasures.data.models.time_series import (
     Sensor,
     TimedBelief,
 )
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.validation_utils import (
     check_required_attributes,
     MissingAttributeException,
@@ -56,6 +57,7 @@ from flexmeasures.data.schemas import (
     SensorIdField,
     TimeIntervalField,
 )
+from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.schemas.times import TimeIntervalSchema
 from flexmeasures.data.schemas.scheduling.storage import EfficiencyField
 from flexmeasures.data.schemas.sensors import SensorSchema
@@ -76,12 +78,51 @@ from flexmeasures.utils.time_utils import server_now, apply_offset_chain
 from flexmeasures.utils.unit_utils import convert_units, ur
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.data.models.reporting import Reporter
+from flexmeasures.data.models.reporting.profit import ProfitOrLossReporter
 from timely_beliefs import BeliefsDataFrame
 
 
 @click.group("add")
 def fm_add_data():
     """FlexMeasures: Add data."""
+
+
+@fm_add_data.command("sources")
+@click.option(
+    "--kind",
+    default=["reporter"],
+    type=click.Choice(["reporter", "scheduler", "forecaster"]),
+    multiple=True,
+    help="What kind of data generators to consider in the creation of the basic DataSources. Defaults to `reporter`.",
+)
+@with_appcontext
+def add_sources(kind: List[str]):
+    """Create data sources for the data generators found registered in the
+    application and the plugins. Currently, this command only registers the
+    sources for the Reporters.
+    """
+
+    for k in kind:
+        # todo: add other data-generators when adapted (and remove this check when all listed under our click.Choice are represented)
+        if k not in ("reporter",):
+            click.secho(f"Oh no, we don't support kind '{k}' yet.", **MsgStyle.WARN)
+            continue
+        click.echo(f"Adding `DataSources` for the {k} data generators.")
+
+        for name, data_generator in app.data_generators[k].items():
+            ds_info = data_generator.get_data_source_info()
+
+            # add empty data_generator configuration
+            ds_info["attributes"] = {"data_generator": {"config": {}, "parameters": {}}}
+
+            source = get_or_create_source(**ds_info)
+
+            click.secho(
+                f"Done. DataSource for data generator `{name}` is `{source}`.",
+                **MsgStyle.SUCCESS,
+            )
+
+    db.session.commit()
 
 
 @fm_add_data.command("account-role")
@@ -1026,7 +1067,7 @@ def create_schedule(ctx):
     ),
     multiple=True,
     required=False,
-    help="Target state of charge (e.g 100%, or 1) at some datetime. Follow up with a float value and a timezone-aware datetime in ISO 6081 format."
+    help="Target state of charge (e.g 100%, or 1) at some datetime. Follow up with a float value and a timezone-aware datetime in ISO 8601 format."
     " This argument can be given multiple times."
     " For example: --soc-target 100% 2022-02-23T13:40:52+00:00",
 )
@@ -1123,15 +1164,17 @@ def add_schedule_for_storage(
     soc_at_start = convert_units(soc_at_start.magnitude, soc_at_start.units, "MWh", capacity=capacity_str)  # type: ignore
     soc_targets = []
     for soc_target_tuple in soc_target_strings:
-        soc_target_value_str, soc_target_dt_str = soc_target_tuple
+        soc_target_value_str, soc_target_datetime_str = soc_target_tuple
         soc_target_value = convert_units(
             soc_target_value_str.magnitude,
             str(soc_target_value_str.units),
             "MWh",
             capacity=capacity_str,
         )
-        soc_target_datetime = pd.Timestamp(soc_target_dt_str)
-        soc_targets.append(dict(value=soc_target_value, datetime=soc_target_datetime))
+        soc_targets.append(
+            dict(value=soc_target_value, datetime=soc_target_datetime_str)
+        )
+
     if soc_min is not None:
         soc_min = convert_units(soc_min.magnitude, str(soc_min.units), "MWh", capacity=capacity_str)  # type: ignore
     if soc_max is not None:
@@ -1315,6 +1358,13 @@ def add_schedule_process(
     help="Path to the JSON or YAML file with the configuration of the reporter.",
 )
 @click.option(
+    "--source",
+    "source",
+    required=False,
+    type=DataSourceIdField(),
+    help="DataSource ID of the `Reporter`.",
+)
+@click.option(
     "--parameters",
     "parameters_file",
     required=False,
@@ -1407,6 +1457,7 @@ def add_schedule_process(
 )
 def add_report(  # noqa: C901
     reporter_class: str,
+    source: DataSource | None = None,
     config_file: TextIOBase | None = None,
     parameters_file: TextIOBase | None = None,
     start: datetime | None = None,
@@ -1508,29 +1559,51 @@ def add_report(  # noqa: C901
 
     click.echo(f"Report scope:\n\tstart: {start}\n\tend:   {end}")
 
-    click.echo(
-        f"Looking for the Reporter {reporter_class} among all the registered reporters...",
-    )
+    if source is None:
 
-    # get reporter class
-    ReporterClass: Type[Reporter] = app.data_generators.get("reporter").get(
-        reporter_class
-    )
-
-    # check if it exists
-    if ReporterClass is None:
-        click.secho(
-            f"Reporter class `{reporter_class}` not available.",
-            **MsgStyle.ERROR,
+        click.echo(
+            f"Looking for the Reporter {reporter_class} among all the registered reporters...",
         )
-        raise click.Abort()
 
-    click.secho(f"Reporter {reporter_class} found.", **MsgStyle.SUCCESS)
+        # get reporter class
+        ReporterClass: Type[Reporter] = app.data_generators.get("reporter").get(
+            reporter_class
+        )
 
-    # initialize reporter class with the reporter sensor and reporter config
-    reporter: Reporter = ReporterClass(config=config, save_config=save_config)
+        # check if it exists
+        if ReporterClass is None:
+            click.secho(
+                f"Reporter class `{reporter_class}` not available.",
+                **MsgStyle.ERROR,
+            )
+            raise click.Abort()
 
-    click.echo("Report computation is running...")
+        click.secho(f"Reporter {reporter_class} found.", **MsgStyle.SUCCESS)
+
+        # initialize reporter class with the reporter sensor and reporter config
+        reporter: Reporter = ReporterClass(config=config, save_config=save_config)
+
+    else:
+        try:
+            reporter: Reporter = source.data_generator  # type: ignore
+
+            if not isinstance(reporter, Reporter):
+                raise NotImplementedError(
+                    f"DataGenerator `{reporter}` is not of the type `Reporter`"
+                )
+
+            click.secho(
+                f"Reporter `{reporter.__class__.__name__}` fetched successfully from the database.",
+                **MsgStyle.SUCCESS,
+            )
+
+        except NotImplementedError:
+            click.secho(
+                f"Error! DataSource `{source}` not storing a valid Reporter.",
+                **MsgStyle.ERROR,
+            )
+
+        reporter._save_config = save_config
 
     if ("start" not in parameters) and (start is not None):
         parameters["start"] = start.isoformat()
@@ -1538,6 +1611,8 @@ def add_report(  # noqa: C901
         parameters["end"] = end.isoformat()
     if ("resolution" not in parameters) and (resolution is not None):
         parameters["resolution"] = pd.Timedelta(resolution).isoformat()
+
+    click.echo("Report computation is running...")
 
     # compute the report
     results: BeliefsDataFrame = reporter.compute(parameters=parameters)
@@ -1630,7 +1705,7 @@ def launch_editor(filename: str) -> dict:
 @click.option(
     "--kind",
     default="battery",
-    type=click.Choice(["battery", "process"]),
+    type=click.Choice(["battery", "process", "reporter"]),
     help="What kind of toy account. Defaults to a battery.",
 )
 @click.option("--name", type=str, default="Toy Account", help="Name of the account")
@@ -1692,34 +1767,42 @@ def add_toy_account(kind: str, name: str):
         **MsgStyle.SUCCESS,
     )
 
-    def create_power_asset(
-        asset_name: str, asset_type: str, sensor_name: str, **attributes
+    account_id = user.account_id
+
+    def create_asset_with_one_sensor(
+        asset_name: str,
+        asset_type: str,
+        sensor_name: str,
+        unit: str = "MW",
+        **asset_attributes,
     ):
         asset = get_or_create_model(
             GenericAsset,
             name=asset_name,
             generic_asset_type=asset_types[asset_type],
-            owner=user.account,
+            owner=Account.query.get(account_id),
             latitude=location[0],
             longitude=location[1],
         )
-        asset.attributes = attributes
-        power_sensor_specs = dict(
+        if len(asset_attributes) > 0:
+            asset.attributes = asset_attributes
+
+        sensor_specs = dict(
             generic_asset=asset,
-            unit="MW",
+            unit=unit,
             timezone="Europe/Amsterdam",
             event_resolution=timedelta(minutes=15),
         )
-        power_sensor = get_or_create_model(
+        sensor = get_or_create_model(
             Sensor,
             name=sensor_name,
-            **power_sensor_specs,
+            **sensor_specs,
         )
-        return power_sensor
+        return sensor
 
     if kind == "battery":
         # create battery
-        discharging_sensor = create_power_asset(
+        discharging_sensor = create_asset_with_one_sensor(
             "toy-battery",
             "battery",
             "discharging",
@@ -1729,7 +1812,7 @@ def add_toy_account(kind: str, name: str):
         )
 
         # create solar
-        production_sensor = create_power_asset(
+        production_sensor = create_asset_with_one_sensor(
             "toy-solar",
             "solar",
             "production",
@@ -1757,19 +1840,19 @@ def add_toy_account(kind: str, name: str):
             **MsgStyle.SUCCESS,
         )
     elif kind == "process":
-        inflexible_power = create_power_asset(
+        inflexible_power = create_asset_with_one_sensor(
             "toy-process",
             "process",
             "Power (Inflexible)",
         )
 
-        breakable_power = create_power_asset(
+        breakable_power = create_asset_with_one_sensor(
             "toy-process",
             "process",
             "Power (Breakable)",
         )
 
-        shiftable_power = create_power_asset(
+        shiftable_power = create_asset_with_one_sensor(
             "toy-process",
             "process",
             "Power (Shiftable)",
@@ -1797,6 +1880,72 @@ def add_toy_account(kind: str, name: str):
         )
         click.secho(
             f"The sensor recording the power of the shiftable load is {shiftable_power} (ID: {shiftable_power.id}).",
+            **MsgStyle.SUCCESS,
+        )
+    elif kind == "reporter":
+        # Part A) of tutorial IV
+        grid_connection_capacity = get_or_create_model(
+            Sensor,
+            name="grid connection capacity",
+            generic_asset=nl_zone,
+            timezone="Europe/Amsterdam",
+            event_resolution="P1Y",
+            unit="MW",
+        )
+        db.session.commit()
+
+        click.secho(
+            f"The sensor storing the grid connection capacity of the building is {grid_connection_capacity} (ID: {grid_connection_capacity.id}).",
+            **MsgStyle.SUCCESS,
+        )
+
+        tz = pytz.timezone(app.config.get("FLEXMEASURES_TIMEZONE", "Europe/Amsterdam"))
+        current_year = datetime.now().year
+        start_year = datetime(current_year, 1, 1)
+
+        belief = TimedBelief(
+            event_start=tz.localize(start_year),
+            belief_time=tz.localize(datetime.now()),
+            event_value=0.5,
+            source=DataSource.query.get(1),
+            sensor=grid_connection_capacity,
+        )
+
+        db.session.add(belief)
+        db.session.commit()
+
+        headroom = create_asset_with_one_sensor(
+            "toy-battery",
+            "battery",
+            "headroom",
+        )
+
+        db.session.commit()
+
+        click.secho(
+            f"The sensor storing the headroom is {headroom} (ID: {headroom.id}).",
+            **MsgStyle.SUCCESS,
+        )
+
+        for name in ["Inflexible", "Breakable", "Shiftable"]:
+            loss_sensor = create_asset_with_one_sensor(
+                "toy-process", "process", f"costs ({name})", unit="EUR"
+            )
+
+            db.session.commit()
+            click.secho(
+                f"The sensor storing the loss is {loss_sensor} (ID: {loss_sensor.id}).",
+                **MsgStyle.SUCCESS,
+            )
+
+        reporter = ProfitOrLossReporter(
+            consumption_price_sensor=day_ahead_sensor, loss_is_positive=True
+        )
+        ds = reporter.data_source
+        db.session.commit()
+
+        click.secho(
+            f"Reporter `ProfitOrLossReporter` saved with the day ahead price sensor in the `DataSource` (id={ds.id})",
             **MsgStyle.SUCCESS,
         )
 

@@ -140,19 +140,29 @@ def device_scheduler(  # noqa C901
         return commitment_quantities[c].iloc[j]
 
     def device_max_select(m, d, j):
+        min_v = device_constraints[d]["min"].iloc[j]
         max_v = device_constraints[d]["max"].iloc[j]
         equal_v = device_constraints[d]["equals"].iloc[j]
         if np.isnan(max_v) and np.isnan(equal_v):
             return infinity
         else:
+            if not np.isnan(equal_v):
+                # make min_v < equal_v
+                equal_v = np.nanmax([equal_v, min_v])
+
             return np.nanmin([max_v, equal_v])
 
     def device_min_select(m, d, j):
         min_v = device_constraints[d]["min"].iloc[j]
+        max_v = device_constraints[d]["max"].iloc[j]
         equal_v = device_constraints[d]["equals"].iloc[j]
         if np.isnan(min_v) and np.isnan(equal_v):
             return -infinity
         else:
+            if not np.isnan(equal_v):
+                # make equal_v <= max_v
+                equal_v = np.nanmin([equal_v, max_v])
+
             return np.nanmax([min_v, equal_v])
 
     def device_derivative_max_select(m, d, j):
@@ -364,11 +374,18 @@ def device_scheduler(  # noqa C901
     model.costs = Objective(rule=cost_function, sense=minimize)
 
     # Solve
+    solver_name = current_app.config.get("FLEXMEASURES_LP_SOLVER")
+
+    solver = SolverFactory(solver_name)
+
+    # disable logs for the HiGHS solver in case that LOGGING_LEVEL is INFO
+    if current_app.config["LOGGING_LEVEL"] == "INFO" and (
+        "highs" in solver_name.lower()
+    ):
+        solver.options["output_flag"] = "false"
 
     # load_solutions=False to avoid a RuntimeError exception in appsi solvers when solving an infeasible problem.
-    results = SolverFactory(current_app.config.get("FLEXMEASURES_LP_SOLVER")).solve(
-        model, load_solutions=False
-    )
+    results = solver.solve(model, load_solutions=False)
 
     # load the results only if a feasible solution has been found
     if len(results.solution) > 0:

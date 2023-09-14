@@ -25,7 +25,11 @@ from flexmeasures.utils.entity_address_utils import (
     EntityAddressException,
     build_entity_address,
 )
-from flexmeasures.utils.unit_utils import is_energy_unit, is_power_unit
+from flexmeasures.utils.unit_utils import (
+    is_energy_unit,
+    is_power_unit,
+    is_energy_price_unit,
+)
 from flexmeasures.data.models.annotations import (
     Annotation,
     SensorAnnotationRelationship,
@@ -137,6 +141,11 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
     def measures_energy(self) -> bool:
         """True if this sensor's unit is measuring energy"""
         return is_energy_unit(self.unit)
+
+    @property
+    def measures_energy_price(self) -> bool:
+        """True if this sensors' unit is measuring energy prices"""
+        return is_energy_price_unit(self.unit)
 
     @property
     def is_strictly_non_positive(self) -> bool:

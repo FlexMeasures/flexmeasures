@@ -98,7 +98,7 @@ def test_cli_help(app):
 
 
 @pytest.mark.skip_github
-def test_add_reporter(app, db, setup_dummy_data):
+def test_add_reporter(app, fresh_db, setup_dummy_data):
     """
     The reporter aggregates input data from two sensors (both have 200 data points)
     to a two-hour resolution.
@@ -154,6 +154,9 @@ def test_add_reporter(app, db, setup_dummy_data):
 
     cli_input = to_flags(cli_input_params)
 
+    # store config into config
+    cli_input.append("--save-config")
+
     # run test in an isolated file system
     with runner.isolated_filesystem():
 
@@ -200,9 +203,8 @@ def test_add_reporter(app, db, setup_dummy_data):
     previous_command_end = cli_input_params.get("end").replace(" ", "+")
 
     cli_input_params = {
-        "config": "reporter_config.json",
+        "source": stored_report.sources[0].id,
         "parameters": "parameters.json",
-        "reporter": "PandasReporter",
         "output-file": "test.csv",
         "timezone": "UTC",
     }
@@ -230,7 +232,10 @@ def test_add_reporter(app, db, setup_dummy_data):
             report_sensor_id
         )  # get fresh report sensor instance
 
-        assert "Reporter PandasReporter found" in result.output
+        assert (
+            "Reporter `PandasReporter` fetched successfully from the database."
+            in result.output
+        )
         assert f"Report computation done for sensor `{report_sensor}`." in result.output
 
         stored_report = report_sensor.search_beliefs(
@@ -242,7 +247,7 @@ def test_add_reporter(app, db, setup_dummy_data):
 
 
 @pytest.mark.skip_github
-def test_add_multiple_output(app, db, setup_dummy_data):
+def test_add_multiple_output(app, fresh_db, setup_dummy_data):
     """ """
 
     from flexmeasures.cli.data_add import add_report
@@ -337,7 +342,9 @@ def test_add_multiple_output(app, db, setup_dummy_data):
 
 @pytest.mark.skip_github
 @pytest.mark.parametrize("process_type", [("INFLEXIBLE"), ("SHIFTABLE"), ("BREAKABLE")])
-def test_add_process(app, process_power_sensor, process_type):
+def test_add_process(
+    app, process_power_sensor, process_type, add_market_prices_fresh_db
+):
     """
     Schedule a 4h of consumption block at a constant power of 400kW in a day using
     the three process policies: INFLEXIBLE, SHIFTABLE and BREAKABLE.

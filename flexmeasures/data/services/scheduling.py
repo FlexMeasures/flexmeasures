@@ -103,7 +103,6 @@ def make_schedule(
     flex_context: dict | None = None,
     flex_config_has_been_deserialized: bool = False,
 ) -> bool:
-
     """
     This function computes a schedule. It returns True if it ran successfully.
 
@@ -155,8 +154,8 @@ def make_schedule(
     )
 
     # saving info on the job, so the API for a job can look the data up
-    data_source_info["id"] = data_source.id
     if rq_job:
+        data_source_info["id"] = data_source.id
         rq_job.meta["data_source_info"] = data_source_info
         rq_job.save_meta()
 
@@ -278,26 +277,21 @@ def handle_scheduling_exception(job, exc_type, exc_value, traceback):
     job.save_meta()
 
 
-def get_data_source_for_job(job: Job | None) -> DataSource | None:
+def get_data_source_for_job(job: Job) -> DataSource | None:
     """
     Try to find the data source linked by this scheduling job.
 
-    We expect that enough info on the source was placed in the meta dict.
-    This only happened with v0.12. For a transition period, we might have to support older jobs who haven't got that info.
-    TODO: We should expect a job, once API v1.3 is deprecated.
+    We expect that enough info on the source was placed in the meta dict, either:
+    - the DataSource ID itself (i.e. the normal situation), or
+    - enough info to facilitate a DataSource query (as a fallback).
     """
-    data_source_info = None
-    if job:
-        data_source_info = job.meta.get("data_source_info")
-        if (
-            data_source_info and "id" in data_source_info
-        ):  # this is the expected outcome
-            return DataSource.query.get(data_source_info["id"])
+    data_source_info = job.meta.get("data_source_info")
+    if data_source_info and "id" in data_source_info:
+        # this is the expected outcome
+        return DataSource.query.get(data_source_info["id"])
     if data_source_info is None:
-        data_source_info = dict(name="Seita", model="StorageScheduler")
-        # TODO: change to raise later (v0.13) - all scheduling jobs now get full info
-        current_app.logger.warning(
-            "Looking up scheduling data without knowing full data_source_info (version). This is deprecated soon. Please specify a job id as event or switch to API v3."
+        raise ValueError(
+            "Cannot look up scheduling data without knowing the full data_source_info (version)."
         )
     scheduler_sources = (
         DataSource.query.filter_by(

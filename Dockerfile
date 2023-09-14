@@ -1,5 +1,5 @@
-FROM ubuntu:focal
- 
+FROM ubuntu:22.04
+
 ENV DEBIAN_FRONTEND noninteractive
 ENV LC_ALL C.UTF-8
 ENV LANG C.UTF-8
@@ -37,4 +37,4 @@ CMD [ \
     # another request is taking a long time to complete.
     "--workers", "2", "--threads", "4", \
     "wsgi:application" \
-]
+    ]
