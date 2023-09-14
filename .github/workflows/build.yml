@@ -1,0 +1,61 @@
+---
+name: build-docker-image
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        env:
+          POSTGRES_DB: flexmeasures_test
+          POSTGRES_PASSWORD: flexmeasures_test
+          POSTGRES_USER: flexmeasures_test
+        image: postgres:latest
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Build Docker Image
+        run: docker build -t flexmeasures:latest -f Dockerfile .
+      - name: Generate random secret key
+        run: echo "SECRET_KEY=$(python3 -c 'import secrets; print(secrets.token_hex(24))')"
+          >> .env
+      - name: Export SQLALCHEMY_DATABASE_URI
+        run: echo "SQLALCHEMY_DATABASE_URI=postgresql://flexmeasures_test:flexmeasures_test@127.0.0.1:5432/flexmeasures_test"
+          >> .env
+      - name: Keep running flexmeasures container in background
+        run: docker run -t -d --env-file .env --network=host --name fm-container flexmeasures:latest
+      - name: Execute database upgrade
+        run: docker exec --env-file .env fm-container flexmeasures
+          db upgrade
+      - name: Add toy user
+        run: docker exec --env-file .env fm-container flexmeasures
+          add toy-account
+      - name: Generate prices dummy data
+        run: .github/workflows/generate-dummy-price.sh
+      - name: Copy prices dummy data
+        run: docker cp prices-tomorrow.csv fm-container:/app/prices-tomorrow.csv
+      - name: Add beliefs
+        run: docker exec --env-file .env fm-container flexmeasures
+          add beliefs --sensor-id 1 --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam
+      - name: Export TOMORROW
+        run: echo "TOMORROW=$(date --date="next day" '+%Y-%m-%d')"
+          >> $GITHUB_ENV
+      - name: Add schedule
+        run: docker exec --env-file .env fm-container flexmeasures
+          add schedule for-storage --sensor-id 2 --consumption-price-sensor 1 
+          --start ${TOMORROW}T07:00+01:00 --duration PT12H 
+          --soc-at-start 50% --roundtrip-efficiency 90%
