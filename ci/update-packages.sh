@@ -42,6 +42,8 @@ do
     # Build the docker image
     docker build --build-arg=PYTHON_VERSION=$PYTHON_VERSION -t flexmeasures-update-packages:$PYTHON_VERSION . -f ci/Dockerfile.update
     # Build flexmeasures
+    # We are disabling running tests here, because we only want to update the packages. Running tests would require us to setup a postgres database,
+    # which is not necessary for updating packages.
     docker run --name flexmeasures-update-packages-$PYTHON_VERSION -it flexmeasures-update-packages:$PYTHON_VERSION make upgrade-deps skip-test=yes
     # Copy the requirements to the source directory
     docker cp flexmeasures-update-packages-$PYTHON_VERSION:/app/requirements/$PYTHON_VERSION $SOURCE_DIR/requirements/
