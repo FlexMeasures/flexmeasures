@@ -61,3 +61,87 @@ function getValueByNestedKey(obj, key) {
     return value;
 }
 
+// From https://stackoverflow.com/a/49332027/13775459
+function toISOLocal(d) {
+    var z  = n =>  ('0' + n).slice(-2);
+    var zz = n => ('00' + n).slice(-3);
+    var off = d.getTimezoneOffset();
+    var sign = off > 0? '-' : '+';
+    off = Math.abs(off);
+
+    return d.getFullYear() + '-' +
+    z(d.getMonth()+1) + '-' +
+    z(d.getDate()) + 'T' +
+    z(d.getHours()) + ':'  +
+    z(d.getMinutes()) + ':' +
+    z(d.getSeconds()) + '.' +
+    zz(d.getMilliseconds()) +
+    sign + z(off/60|0) + ':' + z(off%60);
+}
+
+// Create a function to convert data to CSV
+export function convertToCSV(data) {
+    if (data.length === 0) {
+        return "";
+    }
+
+    // Extract column names from the first object in the data array
+    const columns = Object.keys(data[0]);
+
+    // Create the header row
+    const headerRow = columns.join(',') + '\n';
+
+    // Create the data rows
+    const dataRows = data.map(row => {
+        const rowData = columns.map(col => {
+            const value = row[col];
+            if (typeof value === 'object' && value !== null) {
+                return value.description || '';
+            } else if (col === 'event_start' || col === 'belief_time') {
+                // Check if the column is a timestamp column
+                const timestamp = parseInt(value);
+                if (!isNaN(timestamp)) {
+                    const date = new Date(timestamp); // Convert to Date
+                    // Format the date in ISO8601 format and localize to the specified timezone
+                    // return date.toISOString();  // Use this instead of toISOLocal to get UTC instead
+                    return toISOLocal(date);
+                }
+            } else if (col === 'belief_horizon') {
+                // Check if the column is 'belief_horizon' (duration in ms)
+                const durationMs = parseInt(value);
+                if (!isNaN(durationMs)) {
+                    // Check if the duration is zero
+                    if (durationMs === 0) {
+                        return 'PT0H';
+                    }
+
+                    // Calculate duration in seconds
+                    const durationSeconds = durationMs / 1000;
+                    // Calculate hours, minutes, and seconds
+                    const hours = Math.floor(durationSeconds / 3600);
+                    const minutes = Math.floor((durationSeconds % 3600) / 60);
+                    const seconds = Math.floor(durationSeconds % 60);
+
+                    // Format the duration as ISO8601 duration
+                    let iso8601Duration = 'PT';
+                    if (hours > 0) {
+                        iso8601Duration += hours + 'H';
+                    }
+                    if (minutes > 0) {
+                        iso8601Duration += minutes + 'M';
+                    }
+                    if (seconds > 0) {
+                        iso8601Duration += seconds + 'S';
+                    }
+
+                    return iso8601Duration;
+                }
+            }
+            return value;
+        });
+        return rowData.join(',');
+    });
+
+    // Combine the header row and data rows
+    return "data:text/csv;charset=utf-8," + headerRow + dataRows.join('\n');
+}
