@@ -1,0 +1,17 @@
+ARG PYTHON_VERSION
+
+FROM python:${PYTHON_VERSION}-slim-bookworm as update
+
+# Install dependencies
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy the source code
+
+COPY . /app
+WORKDIR /app
+
+CMD ["python", "--version"]
