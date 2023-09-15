@@ -8,10 +8,8 @@ from flexmeasures.auth.error_handling import FORBIDDEN_MSG, FORBIDDEN_STATUS_COD
 p = inflect.engine()
 
 
-# Type annotation for responses: information and a response type
-ResponseTuple = (
-    Tuple[dict, int] | Tuple[dict, int, dict]
-)  # (message, status_code) or (message, status_code, header)
+# Type annotation for responses: (message, status_code) or (message, status_code, header)
+ResponseTuple = Union[Tuple[dict, int], Tuple[dict, int, dict]]
 
 
 def is_response_tuple(value) -> bool:
