@@ -247,6 +247,7 @@ The platform operator of FlexMeasures can be an Aggregator.
     dev/ci
     dev/auth
     dev/docker-compose
+    dev/dependency-management
 
 
 .. autosummary::
