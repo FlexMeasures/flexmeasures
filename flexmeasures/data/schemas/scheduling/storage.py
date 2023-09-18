@@ -77,11 +77,8 @@ class StorageFlexModelSchema(Schema):
     soc_min = fields.Float(validate=validate.Range(min=0), data_key="soc-min")
     soc_max = fields.Float(data_key="soc-max")
 
-    storage_power_capacity_in_mw = QuantityField(
-        "MW", required=False, data_key="storage-power-capacity-in-mw"
-    )
-    ems_power_capacity_in_mw = QuantityField(
-        "MW", required=False, data_key="ems-power-capacity-in-mw"
+    power_capacity_in_mw = QuantityField(
+        "MW", required=False, data_key="power-capacity"
     )
 
     soc_maxima = fields.List(fields.Nested(SOCValueSchema()), data_key="soc-maxima")

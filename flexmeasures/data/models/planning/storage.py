@@ -22,6 +22,7 @@ from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
 from flexmeasures.data.schemas.scheduling import FlexContextSchema
 from flexmeasures.utils.time_utils import get_max_planning_horizon
 from flexmeasures.utils.coding_utils import deprecated
+from flexmeasures.utils.unit_utils import ur
 
 
 class StorageScheduler(Scheduler):
@@ -86,14 +87,17 @@ class StorageScheduler(Scheduler):
         )
 
         # Check for required Sensor attributes
-        storage_power_capacity_in_mw = self.flex_model.get(
-            "storage_power_capacity_in_mw",
+        power_capacity_in_mw = self.flex_model.get(
+            "power_capacity_in_mw",
             self.sensor.get_attribute("capacity_in_mw", None),
         )
 
+        if isinstance(power_capacity_in_mw, ur.Quantity):
+            power_capacity_in_mw = power_capacity_in_mw.magnitude
+
         if not (
-            isinstance(storage_power_capacity_in_mw, float)
-            or isinstance(storage_power_capacity_in_mw, int)
+            isinstance(power_capacity_in_mw, float)
+            or isinstance(power_capacity_in_mw, int)
         ):
             raise ValueError(
                 "Storage power capacity not defined in the sensor attributes or the flex-model"
@@ -169,11 +173,11 @@ class StorageScheduler(Scheduler):
         if sensor.get_attribute("is_strictly_non_positive"):
             device_constraints[0]["derivative min"] = 0
         else:
-            device_constraints[0]["derivative min"] = storage_power_capacity_in_mw * -1
+            device_constraints[0]["derivative min"] = power_capacity_in_mw * -1
         if sensor.get_attribute("is_strictly_non_negative"):
             device_constraints[0]["derivative max"] = 0
         else:
-            device_constraints[0]["derivative max"] = storage_power_capacity_in_mw
+            device_constraints[0]["derivative max"] = power_capacity_in_mw
 
         # Apply round-trip efficiency evenly to charging and discharging
         device_constraints[0]["derivative down efficiency"] = (
@@ -207,12 +211,15 @@ class StorageScheduler(Scheduler):
             StorageScheduler.COLUMNS, start, end, resolution
         )
 
-        ems_power_capacity_in_mw = self.flex_model.get(
+        ems_power_capacity_in_mw = self.flex_context.get(
             "ems_power_capacity_in_mw",
             self.sensor.generic_asset.get_attribute("capacity_in_mw", None),
         )
 
         if ems_power_capacity_in_mw is not None:
+            if isinstance(ems_power_capacity_in_mw, ur.Quantity):
+                ems_power_capacity_in_mw = ems_power_capacity_in_mw.magnitude
+
             if not (
                 isinstance(ems_power_capacity_in_mw, float)
                 or isinstance(ems_power_capacity_in_mw, int)
