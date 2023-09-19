@@ -342,8 +342,8 @@ def test_get_schedule_fallback(
     app,
     target_soc,
     charging_station_name,
-    add_market_prices,
     add_battery_assets,
+    add_market_prices,
     battery_soc_sensor,
     add_charging_station_assets,
     keep_scheduling_queue_empty,
@@ -360,7 +360,7 @@ def test_get_schedule_fallback(
     assert charging_station.get_attribute("capacity_in_mw") == 2
     assert charging_station.get_attribute("market_id") == epex_da.id
 
-    # create a scenario that yields an unfeasible problem
+    # create a scenario that yields an infeasible problem
     message = {
         "start": start,
         "duration": "PT24H",
@@ -390,7 +390,7 @@ def test_get_schedule_fallback(
             headers={"Authorization": auth_token},
         )
 
-        # check that the call is successfull
+        # check that the call is successful
         assert trigger_schedule_response.status_code == 200
         job_id = trigger_schedule_response.json["schedule"]
 
@@ -458,7 +458,7 @@ def test_get_schedule_fallback(
 
         # get the fallback schedule
         fallback_schedule = client.get(
-            f"/api/v3_0/sensors/{charging_station.id}/schedules/{fallback_job_id}",
+            get_schedule_response.headers["location"],
             json={"duration": "PT24H"},
             headers={"Authorization": auth_token},
         ).json
@@ -466,3 +466,9 @@ def test_get_schedule_fallback(
         # check that the fallback schedule has the right status and start dates
         assert fallback_schedule["status"] == "PROCESSED"
         assert parse_datetime(fallback_schedule["start"]) == parse_datetime(start)
+
+        models = [
+            source.model
+            for source in charging_station.search_beliefs().sources.unique()
+        ]
+        assert "StorageFallbackScheduler" in models

@@ -91,13 +91,6 @@ class Scheduler:
 
         return None
 
-    def compute_fallback(Self) -> Optional[pd.Series]:
-        """
-        Overwrite with the actual call of the fallback schedule.
-        """
-
-        return None
-
     @classmethod
     def get_data_source_info(cls: type) -> dict:
         """

@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import copy
 from datetime import datetime, timedelta
+from typing import Type
 
 import pandas as pd
 import numpy as np
@@ -29,7 +30,7 @@ class MetaStorageScheduler(Scheduler):
     """This class defines the constraints of a schedule for a storage device from the
     flex-model, flex-context, and sensor and asset attributes"""
 
-    __version__ = "1"
+    __version__ = None
     __author__ = "Seita"
 
     COLUMNS = [
@@ -48,7 +49,7 @@ class MetaStorageScheduler(Scheduler):
         """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
         For the resulting consumption schedule, consumption is defined as positive values.
 
-        Deprecated method in v0.14. As an alternative, use StorageScheduler.compute().
+        Deprecated method in v0.14. As an alternative, use MetaStorageScheduler.compute().
         """
 
         return self.compute()
@@ -391,6 +392,8 @@ class StorageFallbackScheduler(MetaStorageScheduler):
     def compute(self, skip_validation: bool = False) -> pd.Series | None:
         """Schedule a battery or Charge Point by just starting to charge, discharge, or do neither,
            depending on the first target state of charge and the capabilities of the Charge Point.
+           For the resulting consumption schedule, consumption is defined as positive values.
+
            Note that this ignores any cause of the infeasibility.
 
         :param skip_validation: If True, skip validation of constraints specified in the data.
@@ -411,41 +414,22 @@ class StorageFallbackScheduler(MetaStorageScheduler):
         ) = self._prepare(skip_validation=skip_validation)
 
         # Fallback policy if the problem was unsolvable
-        battery_schedule = fallback_charging_policy(
+        storage_schedule = fallback_charging_policy(
             sensor, device_constraints[0], start, end, resolution
         )
 
         # Round schedule
         if self.round_to_decimals:
-            battery_schedule = battery_schedule.round(self.round_to_decimals)
+            storage_schedule = storage_schedule.round(self.round_to_decimals)
 
-        return battery_schedule
+        return storage_schedule
 
 
 class StorageScheduler(MetaStorageScheduler):
-    """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
-    For the resulting consumption schedule, consumption is defined as positive values
-    """
-
     __version__ = "3"
     __author__ = "Seita"
 
-    fallback_scheduler_class: Scheduler = StorageFallbackScheduler
-
-    @property
-    def fallback_scheduler(self):
-        _fallback_scheduler = self.fallback_scheduler_class(
-            self.sensor,
-            self.start,
-            self.end,
-            self.resolution,
-            self.belief_time,
-            self.round_to_decimals,
-            self.flex_model,
-            self.flex_context,
-        )
-        _fallback_scheduler.config_deserialized = self.config_deserialized
-        return _fallback_scheduler
+    fallback_scheduler_class: Type[Scheduler] = StorageFallbackScheduler
 
     def compute(self, skip_validation: bool = False) -> pd.Series | None:
         """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
@@ -478,14 +462,15 @@ class StorageScheduler(MetaStorageScheduler):
         )
         if scheduler_results.solver.termination_condition == "infeasible":
             raise InfeasibleProblemException()
-        else:
-            battery_schedule = ems_schedule[0]
+
+        # Obtain the storage schedule from all device schedules within the EMS
+        storage_schedule = ems_schedule[0]
 
         # Round schedule
         if self.round_to_decimals:
-            battery_schedule = battery_schedule.round(self.round_to_decimals)
+            storage_schedule = storage_schedule.round(self.round_to_decimals)
 
-        return battery_schedule
+        return storage_schedule
 
 
 def create_constraint_violations_message(constraint_violations: list) -> str:

@@ -9,6 +9,8 @@ import os
 import sys
 import importlib.util
 from importlib.abc import Loader
+from typing import Type
+import inspect
 
 from flask import current_app
 import click
@@ -28,7 +30,67 @@ from flexmeasures.utils.time_utils import server_now
 from flexmeasures.data.services.utils import job_cache
 
 
-def trigger_fallback_callback(job, connection, type, value, traceback):
+def load_custom_scheduler(scheduler_specs: dict) -> type:
+    """
+    Read in custom scheduling spec.
+    Attempt to load the Scheduler class to use.
+
+    The scheduler class should be derived from flexmeasures.data.models.planning.Scheduler.
+    The Callable is assumed to be named "schedule".
+
+    Example specs:
+
+    {
+        "module": "/path/to/module.py",  # or sthg importable, e.g. "package.module"
+        "class": "NameOfSchedulerClass",
+    }
+
+    """
+    assert isinstance(
+        scheduler_specs, dict
+    ), f"Scheduler specs is {type(scheduler_specs)}, should be a dict"
+    assert "module" in scheduler_specs, "scheduler specs have no 'module'."
+    assert "class" in scheduler_specs, "scheduler specs have no 'class'"
+
+    scheduler_name = scheduler_specs["class"]
+
+    # import module
+    module_descr = scheduler_specs["module"]
+    if os.path.exists(module_descr):
+        spec = importlib.util.spec_from_file_location(scheduler_name, module_descr)
+        assert spec, f"Could not load specs for scheduling module at {module_descr}."
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[scheduler_name] = module
+        assert isinstance(spec.loader, Loader)
+        spec.loader.exec_module(module)
+    else:  # assume importable module
+        try:
+            module = importlib.import_module(module_descr)
+        except TypeError as te:
+            current_app.logger.error(f"Cannot load {module_descr}: {te}.")
+            raise
+        except ModuleNotFoundError:
+            current_app.logger.error(
+                f"Attempted to import module {module_descr} (as it is not a valid file path), but it is not installed."
+            )
+            raise
+        assert module, f"Module {module_descr} could not be loaded."
+
+    # get scheduling function
+    assert hasattr(
+        module, scheduler_specs["class"]
+    ), f"Module at {module_descr} has no class {scheduler_specs['class']}"
+
+    scheduler_class = getattr(module, scheduler_specs["class"])
+    schedule_function_name = "compute"
+    if not hasattr(scheduler_class, schedule_function_name):
+        raise NotImplementedError(
+            f"No function {schedule_function_name} in {scheduler_class}. Cannot load custom scheduler."
+        )
+    return scheduler_class
+
+
+def trigger_fallback(job, connection, type, value, traceback):
     """Create a fallback schedule job when the error is of type InfeasibleProblemException"""
 
     job.meta["exception"] = value
@@ -38,17 +100,35 @@ def trigger_fallback_callback(job, connection, type, value, traceback):
         sensor = Sensor.query.get(job.meta["sensor_id"])
         scheduler_kwargs = job.meta["scheduler_kwargs"]
 
-        fallback_job = create_scheduling_job(
-            sensor,
-            force_new_job_creation=True,
-            enqueue=False,
-            is_fallback=True,
-            **scheduler_kwargs,
-        )
+        if ("scheduler_specs" in job.kwargs) and (
+            job.kwargs["scheduler_specs"] is not None
+        ):
+            scheduler_class: Type[Scheduler] = load_custom_scheduler(
+                job.kwargs["scheduler_specs"]
+            )
+        else:
+            scheduler_class: Type[Scheduler] = find_scheduler_class(sensor)
 
-        job.meta["fallback_job_id"] = fallback_job.id
-        job.save_meta()
-        current_app.queues["scheduling"].enqueue_job(fallback_job)
+        # only schedule a fallback schedule job if the original job has a fallback
+        # mechanism
+        if scheduler_class.fallback_scheduler_class is not None:
+            scheduler_class = scheduler_class.fallback_scheduler_class
+            scheduler_specs = {
+                "class": scheduler_class.__name__,
+                "module": inspect.getmodule(scheduler_class).__name__,
+            }
+
+            fallback_job = create_scheduling_job(
+                sensor,
+                force_new_job_creation=True,
+                enqueue=False,
+                scheduler_specs=scheduler_specs,
+                **scheduler_kwargs,
+            )
+
+            job.meta["fallback_job_id"] = fallback_job.id
+            job.save_meta()
+            current_app.queues["scheduling"].enqueue_job(fallback_job)
 
 
 @job_cache("scheduling")
@@ -58,7 +138,7 @@ def create_scheduling_job(
     enqueue: bool = True,
     requeue: bool = False,
     force_new_job_creation: bool = False,
-    is_fallback: bool = False,
+    scheduler_specs: dict | None = None,
     **scheduler_kwargs,
 ) -> Job:
     """
@@ -88,16 +168,20 @@ def create_scheduling_job(
     # We first create a scheduler and check if deserializing works, so the flex config is checked
     # and errors are raised before the job is enqueued (so users get a meaningful response right away).
     # Note: We are putting still serialized scheduler_kwargs into the job!
-    scheduler = find_scheduler_class(sensor)(sensor=sensor, **scheduler_kwargs)
-    scheduler.deserialize_config()
 
-    on_failure_cb = None
-    if (scheduler.fallback_scheduler_class is not None) and not is_fallback:
-        on_failure_cb = Callback(trigger_fallback_callback)
+    if scheduler_specs:
+        scheduler_class: Type[Scheduler] = load_custom_scheduler(scheduler_specs)
+    else:
+        scheduler_class: Type[Scheduler] = find_scheduler_class(sensor)
+
+    scheduler = scheduler_class(sensor=sensor, **scheduler_kwargs)
+    scheduler.deserialize_config()
 
     job = Job.create(
         make_schedule,
-        kwargs=dict(sensor_id=sensor.id, is_fallback=is_fallback, **scheduler_kwargs),
+        kwargs=dict(
+            sensor_id=sensor.id, scheduler_specs=scheduler_specs, **scheduler_kwargs
+        ),
         id=job_id,
         connection=current_app.queues["scheduling"].connection,
         ttl=int(
@@ -110,7 +194,7 @@ def create_scheduling_job(
                 "FLEXMEASURES_PLANNING_TTL", timedelta(-1)
             ).total_seconds()
         ),  # NB job.cleanup docs says a negative number of seconds means persisting forever
-        on_failure=on_failure_cb,
+        on_failure=Callback(trigger_fallback),
     )
 
     job.meta["sensor_id"] = sensor.id
@@ -136,7 +220,7 @@ def make_schedule(
     flex_model: dict | None = None,
     flex_context: dict | None = None,
     flex_config_has_been_deserialized: bool = False,
-    is_fallback: bool = False,
+    scheduler_specs: dict | None = None,
 ) -> bool:
     """
     This function computes a schedule. It returns True if it ran successfully.
@@ -161,7 +245,10 @@ def make_schedule(
             % (rq_job.id, sensor, start, end)
         )
 
-    scheduler_class: Scheduler = find_scheduler_class(sensor)
+    if scheduler_specs:
+        scheduler_class: Scheduler = load_custom_scheduler(scheduler_specs)
+    else:
+        scheduler_class: Scheduler = find_scheduler_class(sensor)
 
     data_source_info = scheduler_class.get_data_source_info()
 
@@ -176,11 +263,6 @@ def make_schedule(
         flex_model=flex_model,
         flex_context=flex_context,
     )
-
-    if is_fallback:
-        scheduler: Scheduler | None = scheduler.fallback_scheduler
-
-    data_source_info = scheduler_class.get_data_source_info()
 
     if flex_config_has_been_deserialized:
         scheduler.config_deserialized = True
@@ -244,66 +326,6 @@ def find_scheduler_class(sensor: Sensor) -> type:
         raise ValueError(
             "Scheduling is not (yet) supported for asset type %s."
             % sensor.generic_asset.generic_asset_type
-        )
-    return scheduler_class
-
-
-def load_custom_scheduler(scheduler_specs: dict) -> type:
-    """
-    Read in custom scheduling spec.
-    Attempt to load the Scheduler class to use.
-
-    The scheduler class should be derived from flexmeasures.data.models.planning.Scheduler.
-    The Callable is assumed to be named "schedule".
-
-    Example specs:
-
-    {
-        "module": "/path/to/module.py",  # or sthg importable, e.g. "package.module"
-        "class": "NameOfSchedulerClass",
-    }
-
-    """
-    assert isinstance(
-        scheduler_specs, dict
-    ), f"Scheduler specs is {type(scheduler_specs)}, should be a dict"
-    assert "module" in scheduler_specs, "scheduler specs have no 'module'."
-    assert "class" in scheduler_specs, "scheduler specs have no 'class'"
-
-    scheduler_name = scheduler_specs["class"]
-
-    # import module
-    module_descr = scheduler_specs["module"]
-    if os.path.exists(module_descr):
-        spec = importlib.util.spec_from_file_location(scheduler_name, module_descr)
-        assert spec, f"Could not load specs for scheduling module at {module_descr}."
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[scheduler_name] = module
-        assert isinstance(spec.loader, Loader)
-        spec.loader.exec_module(module)
-    else:  # assume importable module
-        try:
-            module = importlib.import_module(module_descr)
-        except TypeError as te:
-            current_app.logger.error(f"Cannot load {module_descr}: {te}.")
-            raise
-        except ModuleNotFoundError:
-            current_app.logger.error(
-                f"Attempted to import module {module_descr} (as it is not a valid file path), but it is not installed."
-            )
-            raise
-        assert module, f"Module {module_descr} could not be loaded."
-
-    # get scheduling function
-    assert hasattr(
-        module, scheduler_specs["class"]
-    ), f"Module at {module_descr} has no class {scheduler_specs['class']}"
-
-    scheduler_class = getattr(module, scheduler_specs["class"])
-    schedule_function_name = "compute"
-    if not hasattr(scheduler_class, schedule_function_name):
-        raise NotImplementedError(
-            f"No function {schedule_function_name} in {scheduler_class}. Cannot load custom scheduler."
         )
     return scheduler_class
 

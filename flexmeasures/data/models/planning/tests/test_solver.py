@@ -426,8 +426,8 @@ def test_fallback_to_unsolvable_problem(
     to get as close to as 1 kWh difference.
     We want our scheduler to handle unsolvable problems like these with a sensible fallback policy.
 
-    The StorageScheduler raises an Exception and its fallback scheduler can be retreived using the
-    fallback_scheduler property and called directly.
+    The StorageScheduler raises an Exception which triggers the creation of a new job to compute a fallback
+    schedule.
     """
     soc_at_start = 10
     duration_until_target = timedelta(hours=2)
@@ -444,12 +444,12 @@ def test_fallback_to_unsolvable_problem(
     target_soc_datetime = start + duration_until_target
     soc_targets = initialize_series(np.nan, start, end, resolution, inclusive="right")
     soc_targets.loc[target_soc_datetime] = target_soc
-    scheduler = StorageScheduler(
-        charging_station,
-        start,
-        end,
-        resolution,
-        flex_model={
+    kwargs = {
+        "sensor": charging_station,
+        "start": start,
+        "end": end,
+        "resolution": resolution,
+        "flex_model": {
             "soc_at_start": soc_at_start,
             "soc_min": charging_station.get_attribute("min_soc_in_mwh", 0),
             "soc_max": charging_station.get_attribute(
@@ -463,17 +463,20 @@ def test_fallback_to_unsolvable_problem(
             ),
             "soc_targets": soc_targets,
         },
-    )
+    }
+    scheduler = StorageScheduler(**kwargs)
     scheduler.config_deserialized = (
         True  # soc targets are already a DataFrame, names get underscore
     )
 
-    # calling the scheduler with an unfeasible problem raises an Exception
+    # calling the scheduler with an infeasible problem raises an Exception
     with pytest.raises(InfeasibleProblemException):
         consumption_schedule = scheduler.compute(skip_validation=True)
 
     # check that the fallback scheduler provides a sensible fallback policy
-    consumption_schedule = scheduler.fallback_scheduler.compute(skip_validation=True)
+    fallback_scheduler = scheduler.fallback_scheduler_class(**kwargs)
+    fallback_scheduler.config_deserialized = True
+    consumption_schedule = fallback_scheduler.compute(skip_validation=True)
 
     soc_schedule = integrate_time_series(
         consumption_schedule, soc_at_start, decimal_precision=6
