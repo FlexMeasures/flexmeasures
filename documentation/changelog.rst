@@ -11,14 +11,16 @@ New features
 
 * Introduce new reporter to compute profit/loss due to electricity flows: `ProfitOrLossReporter` [see `PR #808 <https://github.com/FlexMeasures/flexmeasures/pull/808>`_ and `PR #844 <https://github.com/FlexMeasures/flexmeasures/pull/844>`_]
 * Charts visible in the UI can be exported to PNG or SVG formats in a more automated fashion, using the new CLI command flexmeasures show chart [see `PR #833 <https://github.com/FlexMeasures/flexmeasures/pull/833>`_]
+* Sensor charts showing instantaneous observations can be interpolated by setting the ``interpolate`` sensor attribute to one of the `supported Vega-Lite interpolation methods <https://vega.github.io/vega-lite/docs/area.html#properties>`_ [see `PR #851 <https://github.com/FlexMeasures/flexmeasures/pull/851>`_]
 
 Infrastructure / Support
 ----------------------
 
 * Allow additional datetime conversions to quantitative time units, specifically, from timezone-naive and/or dayfirst datetimes, which can be useful when importing data [see `PR #831 <https://github.com/FlexMeasures/flexmeasures/pull/831>`_]
 * Add a new tutorial to explain the use of the `AggregatorReporter` to compute the headroom and the `ProfitOrLossReporter` to compute the cost of running a process [see `PR #825 <https://github.com/FlexMeasures/flexmeasures/pull/825>`_]
-* Have our CI pipeline (GitHub Actions) build the Docker image and make a schedule [see `PR #800 <https://github.com/FlexMeasures/flexmeasures/pull/800>`_]
+* Script to update dependencies across supported Python versions [see `PR #843 <https://github.com/FlexMeasures/flexmeasures/pull/843>`_]
 * Test all supported Python versions in our CI pipeline (GitHub Actions) [see `PR #847 <https://github.com/FlexMeasures/flexmeasures/pull/847>`_]
+* Have our CI pipeline (GitHub Actions) build the Docker image and make a schedule [see `PR #800 <https://github.com/FlexMeasures/flexmeasures/pull/800>`_]
 
 v0.15.1 | August 28, 2023
 ============================
