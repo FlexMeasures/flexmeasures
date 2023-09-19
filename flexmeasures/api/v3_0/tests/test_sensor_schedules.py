@@ -360,7 +360,7 @@ def test_get_schedule_fallback(
     assert charging_station.get_attribute("capacity_in_mw") == 2
     assert charging_station.get_attribute("market_id") == epex_da.id
 
-    # create a scenario that yields an infeasible problem
+    # create a scenario that yields an infeasible problem (unreachable target SOC at 2am)
     message = {
         "start": start,
         "duration": "PT24H",
