@@ -54,10 +54,17 @@ class GenericAsset(db.Model, AuthModelMixin):
     latitude = db.Column(db.Float, nullable=True)
     longitude = db.Column(db.Float, nullable=True)
     attributes = db.Column(MutableDict.as_mutable(db.JSON), nullable=False, default={})
+    parent_generic_asset_id = db.Column(
+        db.Integer, db.ForeignKey("generic_asset.id"), nullable=True
+    )
+    parent_generic_asset = db.relationship(
+        "GenericAsset", remote_side=[id], backref="child_generic_assets"
+    )
 
     generic_asset_type_id = db.Column(
         db.Integer, db.ForeignKey("generic_asset_type.id"), nullable=False
     )
+
     generic_asset_type = db.relationship(
         "GenericAssetType",
         foreign_keys=[generic_asset_type_id],
