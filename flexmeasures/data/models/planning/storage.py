@@ -51,7 +51,7 @@ class StorageScheduler(Scheduler):
 
         return self.compute()
 
-    def _prepare(self, skip_validation: bool = False) -> tuple:
+    def _prepare(self, skip_validation: bool = False) -> tuple:  # noqa: C901
         """This function prepares the required data to compute the schedule:
             - price data
             - device constraint
@@ -92,6 +92,11 @@ class StorageScheduler(Scheduler):
             self.sensor.get_attribute("capacity_in_mw", None),
         )
 
+        if power_capacity_in_mw is None:
+            raise ValueError(
+                "Storage power capacity not defined in the sensor attributes or the flex-model."
+            )
+
         if isinstance(power_capacity_in_mw, ur.Quantity):
             power_capacity_in_mw = power_capacity_in_mw.magnitude
 
@@ -100,7 +105,7 @@ class StorageScheduler(Scheduler):
             or isinstance(power_capacity_in_mw, int)
         ):
             raise ValueError(
-                "Storage power capacity not defined in the sensor attributes or the flex-model"
+                "The only supported types for the storage power capacity are int and float."
             )
 
         # Check for known prices or price forecasts, trimming planning window accordingly
@@ -225,7 +230,7 @@ class StorageScheduler(Scheduler):
                 or isinstance(ems_power_capacity_in_mw, int)
             ):
                 raise ValueError(
-                    "EMS power capacity not defined in the sensor attributes or the flex-model"
+                    "The only supported types for the ems power capacity are int and float."
                 )
 
             ems_constraints["derivative min"] = ems_power_capacity_in_mw * -1
