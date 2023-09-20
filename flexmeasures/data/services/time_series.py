@@ -117,10 +117,6 @@ def query_time_series_data(
     * Note that we convert string resolutions to datetime.timedelta objects.
     """
 
-    # On demo, we query older data as if it's the current year's data (we convert back below)
-    if current_app.config.get("FLEXMEASURES_MODE", "") == "demo":
-        query_window = convert_query_window_for_demo(query_window)
-
     query = make_query(
         old_sensor_names=old_sensor_names,
         query_window=query_window,
@@ -179,10 +175,6 @@ def query_time_series_data(
         if not df.empty:
             df.index = df.index.tz_convert(time_utils.get_timezone())
 
-        # On demo, we query older data as if it's the current year's data (we converted above)
-        if current_app.config.get("FLEXMEASURES_MODE", "") == "demo":
-            df.index = df.index.map(lambda t: t.replace(year=datetime.now().year))
-
         sensor = find_sensor_by_name(name=old_sensor_model_name)
         bdf = tb.BeliefsDataFrame(df.reset_index(), sensor=sensor)
 
@@ -230,34 +222,6 @@ def drop_non_unique_ids(a: int | list[int], b: int | list[int]) -> list[int]:
     a_l = a if type(a) == list else [a]
     b_l = b if type(b) == list else [b]
     return list(set(b_l).difference(a_l))  # just the unique ones
-
-
-def convert_query_window_for_demo(
-    query_window: tuple[datetime, datetime]
-) -> tuple[datetime, datetime]:
-    demo_year = current_app.config.get("FLEXMEASURES_DEMO_YEAR", None)
-    if demo_year is None:
-        return query_window
-    try:
-        start = query_window[0].replace(year=demo_year)
-    except ValueError as e:
-        # Expand the query_window in case a leap day was selected
-        if "day is out of range for month" in str(e):
-            start = (query_window[0] - timedelta(days=1)).replace(year=demo_year)
-        else:
-            start = query_window[0]
-    try:
-        end = query_window[-1].replace(year=demo_year)
-    except ValueError as e:
-        # Expand the query_window in case a leap day was selected
-        if "day is out of range for month" in str(e):
-            end = (query_window[-1] + timedelta(days=1)).replace(year=demo_year)
-        else:
-            end = query_window[-1]
-
-    if start > end:
-        start, end = (end, start)
-    return start, end
 
 
 def aggregate_values(bdf_dict: dict[Any, tb.BeliefsDataFrame]) -> tb.BeliefsDataFrame:

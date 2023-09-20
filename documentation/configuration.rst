@@ -620,16 +620,6 @@ When ``FLEXMEASURES_MODE=demo``\ , this can hold login credentials (demo user em
 
 Default: ``None``
 
-.. _demo-year-config:
-
-FLEXMEASURES_DEMO_YEAR
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-When ``FLEXMEASURES_MODE=demo``\ , this setting can be used to make the FlexMeasures platform select data from a specific year (e.g. 2015),
-so that old imported data can be demoed as if it were current.
-
-Default: ``None``
-
 .. _sunset-config:
 
 Sunset
