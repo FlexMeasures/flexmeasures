@@ -246,13 +246,16 @@ class StorageScheduler(Scheduler):
             commitment_upwards_deviation_price,
             initial_stock=soc_at_start * (timedelta(hours=1) / resolution),
         )
+
         if scheduler_results.solver.termination_condition == "infeasible":
             # Fallback policy if the problem was unsolvable
             battery_schedule = fallback_charging_policy(
                 sensor, device_constraints[0], start, end, resolution
             )
+            self.info["scheduler"] = "fallback_charging_policy"
         else:
             battery_schedule = ems_schedule[0]
+            self.info["scheduler"] = "device_scheduler"
 
         # Round schedule
         if self.round_to_decimals:

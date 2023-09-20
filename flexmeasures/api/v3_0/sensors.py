@@ -432,6 +432,9 @@ class SensorAPI(FlaskView):
             job = Job.fetch(job_id, connection=connection)
         except NoSuchJobError:
             return unrecognized_event(job_id, "job")
+
+        scheduler_info = job.meta.get("scheduler_info", dict())
+
         if job.is_finished:
             error_message = "A scheduling job has been processed with your job ID, but "
         elif job.is_failed:  # Try to inform the user on why the job failed
@@ -444,7 +447,8 @@ class SensorAPI(FlaskView):
                 ),
             )
             return unknown_schedule(
-                f"Scheduling job failed with {type(e).__name__}: {e}"
+                f"Scheduling job failed with {type(e).__name__}: {e}",
+                scheduler_info=scheduler_info,
             )
         elif job.is_started:
             return unknown_schedule("Scheduling job in progress.")
@@ -498,7 +502,7 @@ class SensorAPI(FlaskView):
         )
 
         d, s = request_processed()
-        return dict(**response, **d), s
+        return dict(scheduler_info=scheduler_info, **response, **d), s
 
     @route("/<id>", methods=["GET"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")

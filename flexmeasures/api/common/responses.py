@@ -1,4 +1,5 @@
-from typing import List, Optional, Tuple, Union, Sequence
+from typing import List, Optional, Tuple, Union, Sequence, Any
+import json
 import inflect
 from functools import wraps
 
@@ -260,8 +261,15 @@ def unknown_prices(message: str) -> ResponseTuple:
 
 
 @BaseMessage("No known schedule for this time period.")
-def unknown_schedule(message: str) -> ResponseTuple:
-    return dict(result="Rejected", status="UNKNOWN_SCHEDULE", message=message), 400
+def unknown_schedule(
+    message: str, scheduler_info: dict[str, Any] | None = None
+) -> ResponseTuple:
+    response = dict(result="Rejected", status="UNKNOWN_SCHEDULE", message=message)
+
+    if scheduler_info is not None:
+        response["scheduler_info"] = json.dumps(scheduler_info)
+
+    return response, 400
 
 
 def invalid_flex_config(message: str) -> ResponseTuple:
