@@ -11,9 +11,9 @@ from flexmeasures.api.tests.utils import UserContext
 def patched_check_token():
     """
     The _check_token function in Flask-Security is successfully getting the user,
-    but it fails to to stick with flask_login.
+    but it fails to stick with flask_login.
     This happens only when testing, so our test setup might not be 100% compatible
-    with Flask >2.2 eco-system.
+    with Flask >2.2 ecosystem.
 
     See for details:
     https://github.com/FlexMeasures/flexmeasures/pull/838#discussion_r1321692937
