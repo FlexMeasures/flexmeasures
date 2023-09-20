@@ -8,7 +8,7 @@ from flask import url_for, current_app, request
 from flexmeasures.api.tests.utils import UserContext
 
 
-def patched_check_token():
+def patched_check_token() -> bool:
     """
     The _check_token function in Flask-Security is successfully getting the user,
     but it fails to stick with flask_login.
@@ -25,7 +25,7 @@ def patched_check_token():
         identity_changed.send(app, identity=Identity(user.fs_uniquifier))
 
         login_user(user)  # THIS LINE ADDED BY US
-    return True
+        return True
 
     return False
 
