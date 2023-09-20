@@ -22,6 +22,7 @@ from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
 from flexmeasures.data.schemas.scheduling import FlexContextSchema
 from flexmeasures.utils.time_utils import get_max_planning_horizon
 from flexmeasures.utils.coding_utils import deprecated
+from flexmeasures.utils.unit_utils import ur
 
 
 class StorageScheduler(Scheduler):
@@ -50,7 +51,7 @@ class StorageScheduler(Scheduler):
 
         return self.compute()
 
-    def _prepare(self, skip_validation: bool = False) -> tuple:
+    def _prepare(self, skip_validation: bool = False) -> tuple:  # noqa: C901
         """This function prepares the required data to compute the schedule:
             - price data
             - device constraint
@@ -86,7 +87,26 @@ class StorageScheduler(Scheduler):
         )
 
         # Check for required Sensor attributes
-        self.sensor.check_required_attributes([("capacity_in_mw", (float, int))])
+        power_capacity_in_mw = self.flex_model.get(
+            "power_capacity_in_mw",
+            self.sensor.get_attribute("capacity_in_mw", None),
+        )
+
+        if power_capacity_in_mw is None:
+            raise ValueError(
+                "Power capacity is not defined in the sensor attributes or the flex-model."
+            )
+
+        if isinstance(power_capacity_in_mw, ur.Quantity):
+            power_capacity_in_mw = power_capacity_in_mw.magnitude
+
+        if not (
+            isinstance(power_capacity_in_mw, float)
+            or isinstance(power_capacity_in_mw, int)
+        ):
+            raise ValueError(
+                "The only supported types for the power capacity are int and float."
+            )
 
         # Check for known prices or price forecasts, trimming planning window accordingly
         up_deviation_prices, (start, end) = get_prices(
@@ -158,15 +178,11 @@ class StorageScheduler(Scheduler):
         if sensor.get_attribute("is_strictly_non_positive"):
             device_constraints[0]["derivative min"] = 0
         else:
-            device_constraints[0]["derivative min"] = (
-                sensor.get_attribute("capacity_in_mw") * -1
-            )
+            device_constraints[0]["derivative min"] = power_capacity_in_mw * -1
         if sensor.get_attribute("is_strictly_non_negative"):
             device_constraints[0]["derivative max"] = 0
         else:
-            device_constraints[0]["derivative max"] = sensor.get_attribute(
-                "capacity_in_mw"
-            )
+            device_constraints[0]["derivative max"] = power_capacity_in_mw
 
         # Apply round-trip efficiency evenly to charging and discharging
         device_constraints[0]["derivative down efficiency"] = (
@@ -199,10 +215,26 @@ class StorageScheduler(Scheduler):
         ems_constraints = initialize_df(
             StorageScheduler.COLUMNS, start, end, resolution
         )
-        ems_capacity = sensor.generic_asset.get_attribute("capacity_in_mw")
-        if ems_capacity is not None:
-            ems_constraints["derivative min"] = ems_capacity * -1
-            ems_constraints["derivative max"] = ems_capacity
+
+        ems_power_capacity_in_mw = self.flex_context.get(
+            "ems_power_capacity_in_mw",
+            self.sensor.generic_asset.get_attribute("capacity_in_mw", None),
+        )
+
+        if ems_power_capacity_in_mw is not None:
+            if isinstance(ems_power_capacity_in_mw, ur.Quantity):
+                ems_power_capacity_in_mw = ems_power_capacity_in_mw.magnitude
+
+            if not (
+                isinstance(ems_power_capacity_in_mw, float)
+                or isinstance(ems_power_capacity_in_mw, int)
+            ):
+                raise ValueError(
+                    "The only supported types for the ems power capacity are int and float."
+                )
+
+            ems_constraints["derivative min"] = ems_power_capacity_in_mw * -1
+            ems_constraints["derivative max"] = ems_power_capacity_in_mw
 
         return (
             sensor,
