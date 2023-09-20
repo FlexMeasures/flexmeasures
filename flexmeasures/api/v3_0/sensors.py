@@ -225,128 +225,128 @@ class SensorAPI(FlaskView):
         **kwargs,
     ):
         """
-                Trigger FlexMeasures to create a schedule.
+        Trigger FlexMeasures to create a schedule.
 
-                .. :quickref: Schedule; Trigger scheduling job
+        .. :quickref: Schedule; Trigger scheduling job
 
-                Trigger FlexMeasures to create a schedule for this sensor.
-                The assumption is that this sensor is the power sensor on a flexible asset.
+        Trigger FlexMeasures to create a schedule for this sensor.
+        The assumption is that this sensor is the power sensor on a flexible asset.
 
-                In this request, you can describe:
+        In this request, you can describe:
 
-                - the schedule's main features (when does it start, what unit should it report, prior to what time can we assume knowledge)
-                - the flexibility model for the sensor (state and constraint variables, e.g. current state of charge of a battery, or connection capacity)
-                - the flexibility context which the sensor operates in (other sensors under the same EMS which are relevant, e.g. prices)
+        - the schedule's main features (when does it start, what unit should it report, prior to what time can we assume knowledge)
+        - the flexibility model for the sensor (state and constraint variables, e.g. current state of charge of a battery, or connection capacity)
+        - the flexibility context which the sensor operates in (other sensors under the same EMS which are relevant, e.g. prices)
 
-                For details on flexibility model and context, see :ref:`describing_flexibility`.
-                Below, we'll also list some examples.
+        For details on flexibility model and context, see :ref:`describing_flexibility`.
+        Below, we'll also list some examples.
 
-                .. note:: This endpoint does not support to schedule an EMS with multiple flexible sensors at once. This will happen in another endpoint.
-                          See https://github.com/FlexMeasures/flexmeasures/issues/485. Until then, it is possible to call this endpoint for one flexible endpoint at a time
-                          (considering already scheduled sensors as inflexible).
+        .. note:: This endpoint does not support to schedule an EMS with multiple flexible sensors at once. This will happen in another endpoint.
+                    See https://github.com/FlexMeasures/flexmeasures/issues/485. Until then, it is possible to call this endpoint for one flexible endpoint at a time
+                    (considering already scheduled sensors as inflexible).
 
-                The length of the schedule can be set explicitly through the 'duration' field.
-                Otherwise, it is set by the config setting :ref:`planning_horizon_config`, which defaults to 48 hours.
-                If the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.
-                Finally, the schedule length is limited by :ref:`max_planning_horizon_config`, which defaults to 2520 steps of the sensor's resolution.
-                Targets that exceed the max planning horizon are not accepted.
+        The length of the schedule can be set explicitly through the 'duration' field.
+        Otherwise, it is set by the config setting :ref:`planning_horizon_config`, which defaults to 48 hours.
+        If the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.
+        Finally, the schedule length is limited by :ref:`max_planning_horizon_config`, which defaults to 2520 steps of the sensor's resolution.
+        Targets that exceed the max planning horizon are not accepted.
 
-                The appropriate algorithm is chosen by FlexMeasures (based on asset type).
-                It's also possible to use custom schedulers and custom flexibility models, see :ref:`plugin_customization`.
+        The appropriate algorithm is chosen by FlexMeasures (based on asset type).
+        It's also possible to use custom schedulers and custom flexibility models, see :ref:`plugin_customization`.
 
-                If you have ideas for algorithms that should be part of FlexMeasures, let us know: https://flexmeasures.io/get-in-touch/
+        If you have ideas for algorithms that should be part of FlexMeasures, let us know: https://flexmeasures.io/get-in-touch/
 
-                **Example request A**
+        **Example request A**
 
-                This message triggers a schedule for a storage asset, starting at 10.00am, at which the state of charge (soc) is 12.1 kWh.
+        This message triggers a schedule for a storage asset, starting at 10.00am, at which the state of charge (soc) is 12.1 kWh.
 
-                .. code-block:: json
+        .. code-block:: json
 
-                    {
-                        "start": "2015-06-02T10:00:00+00:00",
-                        "flex-model": {
-                            "soc-at-start": 12.1,
-                            "soc-unit": "kWh"
-                        }
-                    }
+            {
+                "start": "2015-06-02T10:00:00+00:00",
+                "flex-model": {
+                    "soc-at-start": 12.1,
+                    "soc-unit": "kWh"
+                }
+            }
 
-                **Example request B**
+        **Example request B**
 
-                This message triggers a 24-hour schedule for a storage asset, starting at 10.00am,
-                at which the state of charge (soc) is 12.1 kWh, with a target state of charge of 25 kWh at 4.00pm.
-                The global minimum and maximum soc are set to 10 and 25 kWh, respectively.
-                To guarantee a minimum SOC in the period prior to 4.00pm, local minima constraints are imposed (via soc-minima)
-                at 2.00pm and 3.00pm, for 15kWh and 20kWh, respectively.
-                Roundtrip efficiency for use in scheduling is set to 98%.
-                Storage efficiency is set to 99.99%, denoting the state of charge left after each time step equal to the sensor's resolution.
-                Aggregate consumption (of all devices within this EMS) should be priced by sensor 9,
-                and aggregate production should be priced by sensor 10,
-                where the aggregate power flow in the EMS is described by the sum over sensors 13, 14 and 15
-                (plus the flexible sensor being optimized, of course).
-                Note that, if forecasts for sensors 13, 14 and 15 are not available, a schedule cannot be computed.
+        This message triggers a 24-hour schedule for a storage asset, starting at 10.00am,
+        at which the state of charge (soc) is 12.1 kWh, with a target state of charge of 25 kWh at 4.00pm.
+        The global minimum and maximum soc are set to 10 and 25 kWh, respectively.
+        To guarantee a minimum SOC in the period prior to 4.00pm, local minima constraints are imposed (via soc-minima)
+        at 2.00pm and 3.00pm, for 15kWh and 20kWh, respectively.
+        Roundtrip efficiency for use in scheduling is set to 98%.
+        Storage efficiency is set to 99.99%, denoting the state of charge left after each time step equal to the sensor's resolution.
+        Aggregate consumption (of all devices within this EMS) should be priced by sensor 9,
+        and aggregate production should be priced by sensor 10,
+        where the aggregate power flow in the EMS is described by the sum over sensors 13, 14 and 15
+        (plus the flexible sensor being optimized, of course).
+        Note that, if forecasts for sensors 13, 14 and 15 are not available, a schedule cannot be computed.
 
-                .. code-block:: json
+        .. code-block:: json
 
-                    {
-                        "start": "2015-06-02T10:00:00+00:00",
-                        "duration": "PT24H",
-                        "flex-model": {
-                            "soc-at-start": 12.1,
-                            "soc-unit": "kWh",
-                            "soc-targets": [
-                                {
-                                    "value": 25,
-                                    "datetime": "2015-06-02T16:00:00+00:00"
-                                },
-                            ],
-                            "soc-minima" : [
-                                {
-                                    "value": 15,
-                                    "datetime" : "2015-06-02T14:00:00+00:00"
-                                },
-                                {
-                                    "value": 20,
-                                    "datetime" : "2015-06-02T15:00:00+00:00"
-                                }
-                            ],
-                            "soc-min": 10,
-                            "soc-max": 25,
-                            "roundtrip-efficiency": 0.98,
-        ç                   "storage-efficiency": 0.9999,
-                            "power-capacity" : "25kW"
+            {
+                "start": "2015-06-02T10:00:00+00:00",
+                "duration": "PT24H",
+                "flex-model": {
+                    "soc-at-start": 12.1,
+                    "soc-unit": "kWh",
+                    "soc-targets": [
+                        {
+                            "value": 25,
+                            "datetime": "2015-06-02T16:00:00+00:00"
                         },
-                        "flex-context": {
-                            "consumption-price-sensor": 9,
-                            "production-price-sensor": 10,
-                            "inflexible-device-sensors": [13, 14, 15]
-                            "site-power-capacity": "100kW"
+                    ],
+                    "soc-minima" : [
+                        {
+                            "value": 15,
+                            "datetime" : "2015-06-02T14:00:00+00:00"
+                        },
+                        {
+                            "value": 20,
+                            "datetime" : "2015-06-02T15:00:00+00:00"
                         }
-                    }
+                    ],
+                    "soc-min": 10,
+                    "soc-max": 25,
+                    "roundtrip-efficiency": 0.98,
+                    "storage-efficiency": 0.9999,
+                    "power-capacity" : "25kW"
+                },
+                "flex-context": {
+                    "consumption-price-sensor": 9,
+                    "production-price-sensor": 10,
+                    "inflexible-device-sensors": [13, 14, 15]
+                    "site-power-capacity": "100kW"
+                }
+            }
 
-                **Example response**
+        **Example response**
 
-                This message indicates that the scheduling request has been processed without any error.
-                A scheduling job has been created with some Universally Unique Identifier (UUID),
-                which will be picked up by a worker.
-                The given UUID may be used to obtain the resulting schedule: see /sensors/<id>/schedules/<uuid>.
+        This message indicates that the scheduling request has been processed without any error.
+        A scheduling job has been created with some Universally Unique Identifier (UUID),
+        which will be picked up by a worker.
+        The given UUID may be used to obtain the resulting schedule: see /sensors/<id>/schedules/<uuid>.
 
-                .. sourcecode:: json
+        .. sourcecode:: json
 
-                    {
-                        "status": "PROCESSED",
-                        "schedule": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
-                        "message": "Request has been processed."
-                    }
+            {
+                "status": "PROCESSED",
+                "schedule": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
+                "message": "Request has been processed."
+            }
 
-                :reqheader Authorization: The authentication token
-                :reqheader Content-Type: application/json
-                :resheader Content-Type: application/json
-                :status 200: PROCESSED
-                :status 400: INVALID_DATA
-                :status 401: UNAUTHORIZED
-                :status 403: INVALID_SENDER
-                :status 405: INVALID_METHOD
-                :status 422: UNPROCESSABLE_ENTITY
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 200: PROCESSED
+        :status 400: INVALID_DATA
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 405: INVALID_METHOD
+        :status 422: UNPROCESSABLE_ENTITY
         """
         end_of_schedule = start_of_schedule + duration
         scheduler_kwargs = dict(
