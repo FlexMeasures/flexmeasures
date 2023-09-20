@@ -116,7 +116,7 @@ Load asset information
 
 Similarly, we can load asset information. Say we have a variable ``accountId`` and we want to show which assets FlexMeasures administrates for that account.
 
-For the example below, we've used the Id of the account from our toy tutorial, see :ref:`toy tutorial<tut_toy_schedule>`.
+For the example below, we've used the ID of the account from our toy tutorial, see :ref:`toy tutorial<tut_toy_schedule>`.
 
 
 .. code-block:: html
@@ -135,7 +135,7 @@ For the example below, we've used the Id of the account from our toy tutorial, s
         <thead>
           <tr>
             <th>Asset name</th>
-            <th>Id</th>
+            <th>ID</th>
             <th>Latitude</th>
             <th>Longitude</th>
           </tr>
@@ -278,13 +278,13 @@ Now let's call this function when the HTML page is opened, to embed our chart:
 
                 var params = new URLSearchParams();
                 params.append("event_starts_after", '2022-01-01T00:00+01');
-                embedChart(params, authToken, 3, '#sensor-chart');
+                embedChart(params, authToken, 1, '#sensor-chart');
             })
         }
     }
 
 The parameters we pass in describe what we want to see: all data for sensor 3 since 2022.
-If you followed our :ref:`toy tutorial<tut_toy_schedule>` on a fresh FlexMeasures installation, sensor 3 contains market prices (authenticate with the toy-user to gain access).
+If you followed our :ref:`toy tutorial<tut_toy_schedule>` on a fresh FlexMeasures installation, sensor 1 contains market prices (authenticate with the toy-user to gain access).
 
            
 The result looks like this in your browser:
