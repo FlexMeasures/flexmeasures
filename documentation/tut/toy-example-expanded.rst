@@ -109,9 +109,9 @@ Moreover, we can use reporters to compute the capacity headroom (see :ref:`tut_t
     :align: center
 |
 
-In the case of the scheduler that we run in the previous tutorial, the PV is not taken into consideration and the discharge power exceeds the headroom:
+In the case of the scheduler that we ran in the previous tutorial, which did not yet consider the PV, the discharge power would have exceeded the headroom:
 
-.. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-headroom-pv.png
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-headroom-nopv.png
     :align: center
 |
 
@@ -120,14 +120,3 @@ In the case of the scheduler that we run in the previous tutorial, the PV is not
 We hope this part of the tutorial shows how to incorporate a limited grid connection rather easily with FlexMeasures. There are more ways to model such settings, but this is a straightforward one.
 
 This tutorial showed a quick way to add an inflexible load (like solar power) and a grid connection. In :ref:`tut_toy_schedule_process`, we'll turn to something different: the optimal timing of processes with fixed energy work and duration.
-
-
-
-
-
-
-
-
-.. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-headroom-nopv.png
-    :align: center
-|
