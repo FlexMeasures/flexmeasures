@@ -2,7 +2,7 @@ from flask_classful import FlaskView, route
 from marshmallow import fields
 from sqlalchemy.exc import IntegrityError
 from webargs.flaskparser import use_kwargs
-from flask_security import current_user
+from flask_security import current_user, auth_required
 from flask_security.recoverable import send_reset_password_instructions
 from flask_json import as_json
 from werkzeug.exceptions import Forbidden
@@ -35,6 +35,7 @@ class UserAPI(FlaskView):
     trailing_slash = False
 
     @route("", methods=["GET"])
+    @auth_required()
     @use_kwargs(
         {
             "account": AccountIdField(
@@ -89,6 +90,7 @@ class UserAPI(FlaskView):
         return users_schema.dump(users), 200
 
     @route("/<id>")
+    @auth_required()
     @use_kwargs({"user": UserIdField(data_key="id")}, location="path")
     @permission_required_for_context("read", ctx_arg_name="user")
     @as_json
@@ -126,6 +128,7 @@ class UserAPI(FlaskView):
         return user_schema.dump(user), 200
 
     @route("/<id>", methods=["PATCH"])
+    @auth_required()
     @use_kwargs(partial_user_schema)
     @use_kwargs({"user": UserIdField(data_key="id")}, location="path")
     @permission_required_for_context("update", ctx_arg_name="user")
@@ -203,6 +206,7 @@ class UserAPI(FlaskView):
         return user_schema.dump(user), 200
 
     @route("/<id>/password-reset", methods=["PATCH"])
+    @auth_required()
     @use_kwargs({"user": UserIdField(data_key="id")}, location="path")
     @permission_required_for_context("update", ctx_arg_name="user")
     @as_json

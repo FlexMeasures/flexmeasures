@@ -2,7 +2,7 @@ import json
 
 from flask import current_app
 from flask_classful import FlaskView, route
-from flask_security import auth_token_required
+from flask_security import auth_required
 from flask_json import as_json
 from marshmallow import fields
 from webargs.flaskparser import use_kwargs, use_args
@@ -34,6 +34,7 @@ class AssetAPI(FlaskView):
     trailing_slash = False
 
     @route("", methods=["GET"])
+    @auth_required()
     @use_kwargs(
         {
             "account": AccountIdField(
@@ -81,7 +82,7 @@ class AssetAPI(FlaskView):
         return assets_schema.dump(account.generic_assets), 200
 
     @route("/public", methods=["GET"])
-    @auth_token_required  # todo: consider changing this to @auth_required(), then simplify test_get_public_assets
+    @auth_required()
     @as_json
     def public(self):
         """Return all public assets.
@@ -102,6 +103,7 @@ class AssetAPI(FlaskView):
         return assets_schema.dump(assets), 200
 
     @route("", methods=["POST"])
+    @auth_required()
     @permission_required_for_context(
         "create-children", ctx_loader=AccountIdField.load_current
     )
@@ -143,6 +145,7 @@ class AssetAPI(FlaskView):
         return asset_schema.dump(asset), 201
 
     @route("/<id>", methods=["GET"])
+    @auth_required()
     @use_kwargs({"asset": AssetIdField(data_key="id")}, location="path")
     @permission_required_for_context("read", ctx_arg_name="asset")
     @as_json
@@ -178,6 +181,7 @@ class AssetAPI(FlaskView):
         return asset_schema.dump(asset), 200
 
     @route("/<id>", methods=["PATCH"])
+    @auth_required()
     @use_args(partial_asset_schema)
     @use_kwargs({"db_asset": AssetIdField(data_key="id")}, location="path")
     @permission_required_for_context("update", ctx_arg_name="db_asset")
@@ -235,6 +239,7 @@ class AssetAPI(FlaskView):
         return asset_schema.dump(db_asset), 200
 
     @route("/<id>", methods=["DELETE"])
+    @auth_required()
     @use_kwargs({"asset": AssetIdField(data_key="id")}, location="path")
     @permission_required_for_context("delete", ctx_arg_name="asset")
     @as_json
@@ -261,6 +266,7 @@ class AssetAPI(FlaskView):
         return {}, 204
 
     @route("/<id>/chart/")
+    @auth_required()
     @use_kwargs(
         {"asset": AssetIdField(data_key="id")},
         location="path",
@@ -289,6 +295,7 @@ class AssetAPI(FlaskView):
         return json.dumps(asset.chart(**kwargs))
 
     @route("/<id>/chart_data/")
+    @auth_required()
     @use_kwargs(
         {"asset": AssetIdField(data_key="id")},
         location="path",
