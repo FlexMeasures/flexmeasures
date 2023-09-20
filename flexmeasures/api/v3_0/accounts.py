@@ -26,9 +26,9 @@ partial_account_schema = AccountSchema(partial=True)
 class AccountAPI(FlaskView):
     route_base = "/accounts"
     trailing_slash = False
+    decorators = [auth_required()]
 
     @route("", methods=["GET"])
-    @auth_required()
     @as_json
     def index(self):
         """API endpoint to list all accounts accessible to the current user.
@@ -69,7 +69,6 @@ class AccountAPI(FlaskView):
         return accounts_schema.dump(accounts), 200
 
     @route("/<id>", methods=["GET"])
-    @auth_required()
     @use_kwargs({"account": AccountIdField(data_key="id")}, location="path")
     @permission_required_for_context("read", ctx_arg_name="account")
     @as_json

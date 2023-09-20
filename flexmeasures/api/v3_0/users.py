@@ -33,9 +33,9 @@ partial_user_schema = UserSchema(partial=True)
 class UserAPI(FlaskView):
     route_base = "/users"
     trailing_slash = False
+    decorators = [auth_required()]
 
     @route("", methods=["GET"])
-    @auth_required()
     @use_kwargs(
         {
             "account": AccountIdField(
@@ -90,7 +90,6 @@ class UserAPI(FlaskView):
         return users_schema.dump(users), 200
 
     @route("/<id>")
-    @auth_required()
     @use_kwargs({"user": UserIdField(data_key="id")}, location="path")
     @permission_required_for_context("read", ctx_arg_name="user")
     @as_json
@@ -128,7 +127,6 @@ class UserAPI(FlaskView):
         return user_schema.dump(user), 200
 
     @route("/<id>", methods=["PATCH"])
-    @auth_required()
     @use_kwargs(partial_user_schema)
     @use_kwargs({"user": UserIdField(data_key="id")}, location="path")
     @permission_required_for_context("update", ctx_arg_name="user")
@@ -206,7 +204,6 @@ class UserAPI(FlaskView):
         return user_schema.dump(user), 200
 
     @route("/<id>/password-reset", methods=["PATCH"])
-    @auth_required()
     @use_kwargs({"user": UserIdField(data_key="id")}, location="path")
     @permission_required_for_context("update", ctx_arg_name="user")
     @as_json

@@ -59,7 +59,6 @@ class SensorAPI(FlaskView):
     decorators = [auth_required()]
 
     @route("", methods=["GET"])
-    @auth_required()
     @use_kwargs(
         {
             "account": AccountIdField(
@@ -110,7 +109,6 @@ class SensorAPI(FlaskView):
         return sensors_schema.dump(sensors), 200
 
     @route("/data", methods=["POST"])
-    @auth_required()
     @use_args(
         post_sensor_schema,
         location="json",
@@ -118,7 +116,7 @@ class SensorAPI(FlaskView):
     @permission_required_for_context(
         "create-children",
         ctx_arg_pos=1,
-        ctx_loader=lambda abdf: abdf.sensor,
+        ctx_loader=lambda bdf: bdf.sensor,
         pass_ctx_to_loader=True,
     )
     def post_data(self, bdf: BeliefsDataFrame):
@@ -161,7 +159,6 @@ class SensorAPI(FlaskView):
         return response, code
 
     @route("/data", methods=["GET"])
-    @auth_required()
     @use_args(
         get_sensor_schema,
         location="query",
@@ -209,7 +206,6 @@ class SensorAPI(FlaskView):
         return dict(**response, **d), s
 
     @route("/<id>/schedules/trigger", methods=["POST"])
-    @auth_required()
     @use_kwargs(
         {"sensor": SensorIdField(data_key="id")},
         location="path",
@@ -389,7 +385,6 @@ class SensorAPI(FlaskView):
         return dict(**response, **d), s
 
     @route("/<id>/schedules/<uuid>", methods=["GET"])
-    @auth_required()
     @use_kwargs(
         {
             "sensor": SensorIdField(data_key="id"),
@@ -518,7 +513,6 @@ class SensorAPI(FlaskView):
         return dict(**response, **d), s
 
     @route("/<id>", methods=["GET"])
-    @auth_required()
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
     @permission_required_for_context("read", ctx_arg_name="sensor")
     @as_json
@@ -556,7 +550,6 @@ class SensorAPI(FlaskView):
         return sensor_schema.dump(sensor), 200
 
     @route("", methods=["POST"])
-    @auth_required()
     @use_args(sensor_schema)
     @permission_required_for_context(
         "create-children",
@@ -614,7 +607,6 @@ class SensorAPI(FlaskView):
         return sensor_schema.dump(sensor), 201
 
     @route("/<id>", methods=["PATCH"])
-    @auth_required()
     @use_args(partial_sensor_schema)
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
     @permission_required_for_context("update", ctx_arg_name="sensor")
@@ -674,7 +666,6 @@ class SensorAPI(FlaskView):
         return sensor_schema.dump(sensor), 200
 
     @route("/<id>", methods=["DELETE"])
-    @auth_required()
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
     @permission_required_for_context("delete", ctx_arg_name="sensor")
     @as_json
