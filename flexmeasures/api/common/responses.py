@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import List, Optional, Tuple, Union, Sequence, Any
 import json
 import inflect
