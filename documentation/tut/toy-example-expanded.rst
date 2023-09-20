@@ -115,7 +115,7 @@ In the case of the scheduler that we ran in the previous tutorial, which did not
     :align: center
 |
 
-.. note:: You can add arbitrary sensors to a chart using the attribute ``sensors_to_show``. See :ref: `view_asset-data` for more.
+.. note:: You can add arbitrary sensors to a chart using the attribute ``sensors_to_show``. See :ref:`view_asset-data` for more.
 
 We hope this part of the tutorial shows how to incorporate a limited grid connection rather easily with FlexMeasures. There are more ways to model such settings, but this is a straightforward one.
 
