@@ -115,15 +115,19 @@ export function convertToCSV(data) {
                         return 'PT0H';
                     }
 
-                    // Calculate duration in seconds
-                    const durationSeconds = durationMs / 1000;
+                    // Check if the duration is negative
+                    const isNegative = durationMs < 0;
+
+                    // Calculate absolute duration in seconds
+                    const absDurationSeconds = Math.abs(durationMs) / 1000;
+
                     // Calculate hours, minutes, and seconds
-                    const hours = Math.floor(durationSeconds / 3600);
-                    const minutes = Math.floor((durationSeconds % 3600) / 60);
-                    const seconds = Math.floor(durationSeconds % 60);
+                    const hours = Math.floor(absDurationSeconds / 3600);
+                    const minutes = Math.floor((absDurationSeconds % 3600) / 60);
+                    const seconds = Math.floor(absDurationSeconds % 60);
 
                     // Format the duration as ISO8601 duration
-                    let iso8601Duration = 'PT';
+                    let iso8601Duration = isNegative ? '-PT' : 'PT';
                     if (hours > 0) {
                         iso8601Duration += hours + 'H';
                     }
