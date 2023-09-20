@@ -94,7 +94,7 @@ class StorageScheduler(Scheduler):
 
         if power_capacity_in_mw is None:
             raise ValueError(
-                "Storage power capacity not defined in the sensor attributes or the flex-model."
+                "Power capacity is not defined in the sensor attributes or the flex-model."
             )
 
         if isinstance(power_capacity_in_mw, ur.Quantity):
@@ -105,7 +105,7 @@ class StorageScheduler(Scheduler):
             or isinstance(power_capacity_in_mw, int)
         ):
             raise ValueError(
-                "The only supported types for the storage power capacity are int and float."
+                "The only supported types for the power capacity are int and float."
             )
 
         # Check for known prices or price forecasts, trimming planning window accordingly
