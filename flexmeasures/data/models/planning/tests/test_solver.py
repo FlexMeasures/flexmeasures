@@ -1067,7 +1067,8 @@ def test_numerical_errors(app, setup_planning_test_data, solver):
 
 
 @pytest.mark.parametrize(
-    "capacity,site_capacity", [("100kW", "300kW"), ("0.1MW", "0.3MW"), (None, None)]
+    "capacity,site_capacity",
+    [("100kW", "300kW"), ("0.1MW", "0.3MW"), ("0.1 MW", "0.3 MW"), (None, None)],
 )
 def test_capacity(app, setup_planning_test_data, capacity, site_capacity):
     """Test that the power limits of the site and storage device are set properly using the
