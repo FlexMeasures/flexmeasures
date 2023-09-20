@@ -91,7 +91,9 @@ upgrade-deps:
 	pip-compile --upgrade -c requirements/${PYV}/app.txt -c requirements/${PYV}/test.txt -o requirements/${PYV}/dev.txt requirements/dev.in
 	pip-compile --upgrade -c requirements/${PYV}/app.txt -o requirements/${PYV}/docs.txt requirements/docs.in
 
+ifneq ($(skip-test), yes)
 	make test
+endif
 
 # ---- Data ----
 

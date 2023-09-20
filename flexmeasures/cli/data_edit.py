@@ -14,6 +14,7 @@ import json
 
 from flexmeasures import Sensor
 from flexmeasures.data import db
+from flexmeasures.data.schemas.attributes import validate_special_attributes
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.models.generic_assets import GenericAsset
@@ -128,6 +129,9 @@ def edit_attribute(
         attribute_dict_value=attribute_dict_value,
         attribute_null_value=attribute_null_value,
     )
+
+    # Some attributes with special in meaning in FlexMeasures must pass validation
+    validate_special_attributes(attribute_key, attribute_value)
 
     # Set attribute
     for asset in assets:
