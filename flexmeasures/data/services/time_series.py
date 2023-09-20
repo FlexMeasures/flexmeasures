@@ -10,31 +10,9 @@ import timely_beliefs as tb
 from timely_beliefs.beliefs import utils as belief_utils
 
 from flexmeasures.data.queries.utils import simplify_index
-from flexmeasures.data.models.data_sources import DataSource
 
 
 p = inflect.engine()
-
-
-def find_sensor_by_name(name: str):
-    """
-    Helper function: Find a sensor by name.
-    TODO: make obsolete when we switched to collecting sensor data by sensor id rather than name
-    """
-    # importing here to avoid circular imports, deemed okay for temp. solution
-    from flexmeasures.data.models.time_series import Sensor
-
-    sensor = Sensor.query.filter(Sensor.name == name).one_or_none()
-    if sensor is None:
-        raise Exception("Unknown sensor: %s" % name)
-    return sensor
-
-
-def drop_non_unique_ids(a: int | list[int], b: int | list[int]) -> list[int]:
-    """Removes all elements from B that are already in A."""
-    a_l = a if type(a) == list else [a]
-    b_l = b if type(b) == list else [b]
-    return list(set(b_l).difference(a_l))  # just the unique ones
 
 
 def aggregate_values(bdf_dict: dict[Any, tb.BeliefsDataFrame]) -> tb.BeliefsDataFrame:
@@ -76,18 +54,6 @@ def aggregate_values(bdf_dict: dict[Any, tb.BeliefsDataFrame]) -> tb.BeliefsData
                 level="event_start",
             )  # we only look at the event_start index level and sum up duplicates that level
     return data_as_bdf
-
-
-def set_bdf_source(bdf: tb.BeliefsDataFrame, source_name: str) -> tb.BeliefsDataFrame:
-    """
-    Set the source of the BeliefsDataFrame.
-    We do this by re-setting the index (as source probably is part of the BeliefsDataFrame multi index),
-    setting the source, then restoring the (multi) index.
-    """
-    index_cols = bdf.index.names
-    bdf = bdf.reset_index()
-    bdf["source"] = DataSource(source_name)
-    return bdf.set_index(index_cols)
 
 
 def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
