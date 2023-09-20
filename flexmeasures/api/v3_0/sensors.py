@@ -115,6 +115,12 @@ class SensorAPI(FlaskView):
         post_sensor_schema,
         location="json",
     )
+    @permission_required_for_context(
+        "create-children",
+        ctx_arg_pos=1,
+        ctx_loader=lambda abdf: abdf.sensor,
+        pass_ctx_to_loader=True,
+    )
     def post_data(self, bdf: BeliefsDataFrame):
         """
         Post sensor data to FlexMeasures.
@@ -160,7 +166,8 @@ class SensorAPI(FlaskView):
         get_sensor_schema,
         location="query",
     )
-    def get_data(self, response: dict):
+    @permission_required_for_context("read", ctx_arg_pos=1, ctx_arg_name="sensor")
+    def get_data(self, sensor_data_description: dict):
         """Get sensor data from FlexMeasures.
 
         .. :quickref: Data; Download sensor data
@@ -195,6 +202,9 @@ class SensorAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
+        response = GetSensorDataSchema.load_data_and_make_response(
+            sensor_data_description
+        )
         d, s = request_processed()
         return dict(**response, **d), s
 
