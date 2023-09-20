@@ -155,7 +155,7 @@ def test_assigning_custom_scheduler(db, app, add_battery_assets, is_path: bool):
     )
 
 
-def create_failing_schedule_class(name, compute_fails=False, fallback_class=None):
+def create_test_scheduler(name, compute_fails=False, fallback_class=None):
     def compute(self):
         """
         This is a schedule that fails
@@ -186,13 +186,11 @@ def create_failing_schedule_class(name, compute_fails=False, fallback_class=None
     )
 
 
-SuccessfulScheduler = create_failing_schedule_class(
-    "SuccessfulScheduler", compute_fails=False
-)
-FailingScheduler2 = create_failing_schedule_class(
+SuccessfulScheduler = create_test_scheduler("SuccessfulScheduler", compute_fails=False)
+FailingScheduler2 = create_test_scheduler(
     "FailingScheduler2", compute_fails=True, fallback_class=SuccessfulScheduler
 )
-FailingScheduler1 = create_failing_schedule_class(
+FailingScheduler1 = create_test_scheduler(
     "FailingScheduler1", compute_fails=True, fallback_class=FailingScheduler2
 )
 
@@ -201,6 +199,11 @@ def test_fallback_chain(
     app,
     add_battery_assets,
 ):
+    """
+    Check that the chaining fallback schedules works.
+
+        FailingScheduler1 -> FailingScheduler2 -> SuccessfulScheduler
+    """
 
     battery = add_battery_assets["Test battery"].sensors[0]
     app.db.session.flush()

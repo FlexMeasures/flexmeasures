@@ -36,7 +36,7 @@ def load_custom_scheduler(scheduler_specs: dict) -> type:
     Attempt to load the Scheduler class to use.
 
     The scheduler class should be derived from flexmeasures.data.models.planning.Scheduler.
-    The Callable is assumed to be named "schedule".
+    The scheduler class should have a class method named "compute".
 
     Example specs:
 
@@ -90,7 +90,7 @@ def load_custom_scheduler(scheduler_specs: dict) -> type:
     return scheduler_class
 
 
-def trigger_fallback(job, connection, type, value, traceback):
+def trigger_optional_fallback(job, connection, type, value, traceback):
     """Create a fallback schedule job when the error is of type InfeasibleProblemException"""
 
     job.meta["exception"] = value
@@ -194,7 +194,7 @@ def create_scheduling_job(
                 "FLEXMEASURES_PLANNING_TTL", timedelta(-1)
             ).total_seconds()
         ),  # NB job.cleanup docs says a negative number of seconds means persisting forever
-        on_failure=Callback(trigger_fallback),
+        on_failure=Callback(trigger_optional_fallback),
     )
 
     job.meta["sensor_id"] = sensor.id
@@ -246,9 +246,9 @@ def make_schedule(
         )
 
     if scheduler_specs:
-        scheduler_class: Scheduler = load_custom_scheduler(scheduler_specs)
+        scheduler_class: Type[Scheduler] = load_custom_scheduler(scheduler_specs)
     else:
-        scheduler_class: Scheduler = find_scheduler_class(sensor)
+        scheduler_class: Type[Scheduler] = find_scheduler_class(sensor)
 
     data_source_info = scheduler_class.get_data_source_info()
 

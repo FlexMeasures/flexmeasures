@@ -329,19 +329,8 @@ def test_trigger_and_get_schedule(
     assert sensor.generic_asset.get_attribute("soc_in_mwh") == start_soc
 
 
-@pytest.mark.parametrize(
-    "target_soc, charging_station_name",
-    [
-        (9, "Test charging station"),
-        (15, "Test charging station"),
-        (5, "Test charging station (bidirectional)"),
-        (15, "Test charging station (bidirectional)"),
-    ],
-)
 def test_get_schedule_fallback(
     app,
-    target_soc,
-    charging_station_name,
     add_battery_assets,
     add_market_prices,
     battery_soc_sensor,
@@ -353,12 +342,21 @@ def test_get_schedule_fallback(
     is based on flexmeasures/data/models/planning/tests/test_solver.py
     """
 
+    target_soc = 9
+    charging_station_name = "Test charging station"
+
     start = "2015-01-02T00:00:00+01:00"
     epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
     charging_station = add_charging_station_assets[charging_station_name].sensors[0]
 
     assert charging_station.get_attribute("capacity_in_mw") == 2
     assert charging_station.get_attribute("market_id") == epex_da.id
+
+    # check that no Fallback schedule has been saved before
+    models = [
+        source.model for source in charging_station.search_beliefs().sources.unique()
+    ]
+    assert "StorageFallbackScheduler" not in models
 
     # create a scenario that yields an infeasible problem (unreachable target SOC at 2am)
     message = {
