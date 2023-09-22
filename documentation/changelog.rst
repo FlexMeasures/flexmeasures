@@ -13,7 +13,7 @@ New features
 * Charts visible in the UI can be exported to PNG or SVG formats in a more automated fashion, using the new CLI command flexmeasures show chart [see `PR #833 <https://github.com/FlexMeasures/flexmeasures/pull/833>`_]
 * Chart data visible in the UI can be exported to CSV format [see `PR #849 <https://github.com/FlexMeasures/flexmeasures/pull/849>`_]
 * Sensor charts showing instantaneous observations can be interpolated by setting the ``interpolate`` sensor attribute to one of the `supported Vega-Lite interpolation methods <https://vega.github.io/vega-lite/docs/area.html#properties>`_ [see `PR #851 <https://github.com/FlexMeasures/flexmeasures/pull/851>`_]
-* Scheduling data better distinguishes (e.g. in chart tooltips) when a schedule was the result of a fallback mechanism, by splitting of the fallback mechanism from the main scheduler (as a separate job) [see `PR #846 <https://github.com/FlexMeasures/flexmeasures/pull/846>`_]
+* Scheduling data better distinguishes (e.g. in chart tooltips) when a schedule was the result of a fallback mechanism, by splitting off the fallback mechanism from the main scheduler (as a separate job) [see `PR #846 <https://github.com/FlexMeasures/flexmeasures/pull/846>`_]
 * API users can ask for a schedule to take into account an explicit ``power-capacity`` (flex-model) and/or ``site-power-capacity`` (flex-context), thereby overriding any existing defaults for their asset [see `PR #850 <https://github.com/FlexMeasures/flexmeasures/pull/850>`_]
 
 Infrastructure / Support
