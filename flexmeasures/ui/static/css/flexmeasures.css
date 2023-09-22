@@ -1829,3 +1829,7 @@ div.heading-group {
   height: 50px;
   border-width: 0 0 0 16.6666666667px;
 }
+
+#exportToCSVAction {
+  cursor: pointer;
+}

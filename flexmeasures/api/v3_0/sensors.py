@@ -324,11 +324,13 @@ class SensorAPI(FlaskView):
                     "soc-max": 25,
                     "roundtrip-efficiency": 0.98,
                     "storage-efficiency": 0.9999,
+                    "power-capacity" : "25kW"
                 },
                 "flex-context": {
                     "consumption-price-sensor": 9,
                     "production-price-sensor": 10,
-                    "inflexible-device-sensors": [13, 14, 15]
+                    "inflexible-device-sensors": [13, 14, 15],
+                    "site-power-capacity": "100kW"
                 }
             }
 

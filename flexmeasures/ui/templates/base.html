@@ -193,7 +193,7 @@
     <!-- Render Charts -->
     <script type="module" type="text/javascript">
 
-    import { getUniqueValues } from "{{ url_for('flexmeasures_ui.static', filename='js/data-utils.js') }}";
+    import { getUniqueValues, convertToCSV } from "{{ url_for('flexmeasures_ui.static', filename='js/data-utils.js') }}";
     import { subtract, thisMonth, lastNMonths, countDSTTransitions, getOffsetBetweenTimezonesForDate } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}";
     import { partition, updateBeliefs, beliefTimedelta, setAbortableTimeout} from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}";
 
@@ -275,6 +275,29 @@
 
         await vegaEmbed('#'+elementId, chartSpecsPath + 'dataset_name=' + datasetName + '&width=container&include_sensor_annotations=false&include_asset_annotations=false&chart_type=' + chartType, {{ chart_options | safe }})
         .then(function (result) {
+
+            // Create a custom menu item for exporting to CSV
+            const exportToCSVAction = document.createElement('a');
+            exportToCSVAction.id = 'exportToCSVAction';
+            exportToCSVAction.href = '#';
+            exportToCSVAction.download = datasetName + '.csv';
+            exportToCSVAction.textContent = 'Save as CSV';
+            exportToCSVAction.addEventListener('mousedown', async function (event) {
+                event.preventDefault();
+                const chartData = vegaView.data(datasetName);
+                const csvContent = convertToCSV(chartData);
+                const encodedUri = encodeURI(csvContent);
+                exportToCSVAction.href = encodedUri;
+            });
+
+            // Append menu item to chart actions (hamburger menu)
+            const vegaActions = document.querySelector('.vega-actions');
+            if (vegaActions) {
+                vegaActions.appendChild(exportToCSVAction);
+            } else {
+                console.log('Warning: CSV export functionality is not available, because no div with class=vega-actions was found to append export action to');
+            }
+
             // result.view is the Vega View, chartSpecsPath is the original Vega-Lite specification
             vegaView = result.view;
             if (previousResult) {

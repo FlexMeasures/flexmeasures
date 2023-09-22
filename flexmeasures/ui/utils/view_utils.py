@@ -68,7 +68,15 @@ def render_flexmeasures_template(html_filename: str, **variables):
         current_user.is_authenticated and current_user.username or ""
     )
     variables["js_versions"] = current_app.config.get("FLEXMEASURES_JS_VERSIONS")
-    variables["chart_options"] = json.dumps(chart_options)
+
+    # Chart options passed to vega-embed
+    options = chart_options.copy()
+    if "sensor_id" in variables:
+        options["downloadFileName"] = f"sensor-{variables['sensor_id']}"
+    elif "asset" in variables:
+        asset = variables["asset"]
+        options["downloadFileName"] = f"asset-{asset.id}-{asset.name}"
+    variables["chart_options"] = json.dumps(options)
 
     variables["menu_logo"] = current_app.config.get("FLEXMEASURES_MENU_LOGO_PATH")
     variables["extra_css"] = current_app.config.get("FLEXMEASURES_EXTRA_CSS_PATH")
