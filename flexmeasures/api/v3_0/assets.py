@@ -2,7 +2,7 @@ import json
 
 from flask import current_app
 from flask_classful import FlaskView, route
-from flask_security import auth_token_required
+from flask_security import auth_required
 from flask_json import as_json
 from marshmallow import fields
 from webargs.flaskparser import use_kwargs, use_args
@@ -32,6 +32,7 @@ class AssetAPI(FlaskView):
 
     route_base = "/assets"
     trailing_slash = False
+    decorators = [auth_required()]
 
     @route("", methods=["GET"])
     @use_kwargs(
@@ -81,7 +82,6 @@ class AssetAPI(FlaskView):
         return assets_schema.dump(account.generic_assets), 200
 
     @route("/public", methods=["GET"])
-    @auth_token_required
     @as_json
     def public(self):
         """Return all public assets.

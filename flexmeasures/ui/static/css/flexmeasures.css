@@ -220,12 +220,12 @@ p.error {
     z-index: 999991;
 }
 
-.navbar-default .navbar-nav>.active>a {
+.navbar-default .navbar-nav>.active>a, .btn-info.active {
     color: var(--nav-current-color) !important;
     background-color: var(--nav-current-background-color) !important;
 }
 .navbar-default .navbar-nav>.active>a:focus,
-.navbar-default .navbar-nav>.active>a:hover {
+.navbar-default .navbar-nav>.active>a:hover, .btn-info.active:focus, .btn-info.active:hover {
     color: var(--nav-current-hover-color) !important;
     background-color: var(--nav-current-hover-background-color) !important;
 }
@@ -1325,6 +1325,9 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     -moz-transition: .4s;
     -ms-transition: .4s;
     -o-transition: .4s;
+}
+.rq-style.header-action-button>div button {
+    padding: 15px 25px;
 }
 
 .header-action-button>div button:hover, .header-action-button>div button:focus {

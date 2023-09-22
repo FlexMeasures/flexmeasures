@@ -25,13 +25,7 @@ def render_flexmeasures_template(html_filename: str, **variables):
     ):
         variables["documentation_exists"] = True
 
-    variables["show_queues"] = False
-    if current_user.is_authenticated:
-        if (
-            user_has_admin_access(current_user, "update")
-            or current_app.config.get("FLEXMEASURES_MODE", "") == "demo"
-        ):
-            variables["show_queues"] = True
+    variables["queues"] = current_app.queues.keys()
 
     variables["event_starts_after"] = session.get("event_starts_after")
     variables["event_ends_before"] = session.get("event_ends_before")

@@ -28,7 +28,6 @@ from flexmeasures.utils.unit_utils import (
     units_are_convertible,
     is_energy_price_unit,
 )
-from flexmeasures.auth.policy import check_access
 
 
 class SingleValueField(fields.Float):
@@ -120,10 +119,6 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
     )
 
     @validates_schema
-    def check_user_may_read(self, data, **kwargs):
-        check_access(data["sensor"], "read")
-
-    @validates_schema
     def check_schema_unit_against_type(self, data, **kwargs):
         requested_unit = data["unit"]
         _type = data.get("type", None)
@@ -141,8 +136,8 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
                 f"The unit requested for this message type should be convertible from an energy price unit, got incompatible unit: {requested_unit}"
             )
 
-    @post_load
-    def dump_bdf(self, sensor_data_description: dict, **kwargs) -> dict:
+    @staticmethod
+    def load_data_and_make_response(sensor_data_description: dict) -> dict:
         """Turn the de-serialized and validated data description into a response.
 
         Specifically, this function:
@@ -248,10 +243,6 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         serialization_schema_selector=select_schema_to_ensure_list_of_floats,
         many=False,
     )
-
-    @validates_schema
-    def check_user_may_create(self, data, **kwargs):
-        check_access(data["sensor"], "create-children")
 
     @validates_schema
     def check_schema_unit_against_type(self, data, **kwargs):

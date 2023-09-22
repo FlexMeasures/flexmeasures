@@ -15,7 +15,7 @@
       <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
     {% endif %}
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" href="favicon.ico" type="image/x-icon" />
+    <link rel="icon" href="/favicon.ico" type="image/x-icon" />
     <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon" />
     {% block styles %}
     <!-- Leaflet -->
@@ -35,8 +35,8 @@
     <!-- Custom CSS -->
     <link href="{{ url_for('flexmeasures_ui.static', filename='css/flexmeasures.css') }}" rel="stylesheet" />
     {% if active_page == "tasks" %}
-    <link href="{{ url_for('flexmeasures_ui.static', filename='css/external/rq-dashboard-bootstrap.min.css') }}"
-        rel="stylesheet" />
+    <link href="{{ url_for('rq_dashboard.static', filename='css/main.css') }}" rel="stylesheet">
+    <link href="{{ url_for('flexmeasures_ui.static', filename='css/external/rq-dashboard-bootstrap.min.css') }}" rel="stylesheet" />
     {% elif active_page in ("assets", "users", "accounts") %}
     <link href="https://cdn.datatables.net/1.10.22/css/jquery.dataTables.min.css" rel="stylesheet" />
     {% endif %}
@@ -84,21 +84,14 @@
                             Tasks
                             <span class="caret"></span></a>
                         <ul class="dropdown-menu">
+                            {% for queue in queues %}
+                                <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
+                                    {% if not current_user.has_role('anonymous') %}href="/tasks/0/view/jobs/{{ queue }}/started/10/1"
+                                    {% endif %}>{{ queue | capitalize }}</a></li>
+                            {% endfor %}
                             <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
-                                    {% if not current_user.has_role('anonymous') %}href="/tasks/forecasting"
-                                    {% endif %}>Forecasts</a></li>
-                            <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
-                                    {% if not current_user.has_role('anonymous') %}href="/tasks/scheduling"
-                                    {% endif %}>Schedules</a></li>
-                            <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
-                                    {% if not current_user.has_role('anonymous') %}href="/tasks/labelling"
-                                    {% endif %}>Labels</a></li>
-                            <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
-                                    {% if not current_user.has_role('anonymous') %}href="/tasks/alerting"
-                                    {% endif %}>Alerts</a></li>
-                            <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
-                                    {% if not current_user.has_role('anonymous') %}href="/tasks/reporting"
-                                    {% endif %}>Reports</a></li>
+                                    {% if not current_user.has_role('anonymous') %}href="/tasks/"
+                                    {% endif %}>Overview</a></li>
                         </ul>
                     </li>
                     {% else %}
@@ -456,7 +449,7 @@
                 var offsetDifference = getOffsetBetweenTimezonesForDate(new Date(), data.timezone, jstz.determine().name());
                 if (offsetDifference != 0) {
                     document.getElementById('tzwarn').style.display = 'block';
-                    var offsetNotice = (offsetDifference > 0) ? 'which is currently ahead by ' + offsetDifference + 'minutes' : 'which is currently behind by ' + offsetDifference + ' minutes';
+                    var offsetNotice = (offsetDifference > 0) ? 'which is currently ahead by ' + offsetDifference + ' minutes' : 'which is currently behind by ' + offsetDifference + ' minutes';
                     document.getElementById('tzwarn').innerHTML = 'Please note that the sensor data you are viewing is located in a different timezone (' + offsetNotice + ').<br/>To view the data from a local perspective, set your locale timezone to ' + data.timezone + '.';
                 }
                 {% if active_page == "assets" %}
