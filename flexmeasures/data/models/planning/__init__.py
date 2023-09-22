@@ -79,7 +79,7 @@ class Scheduler:
         self.flex_context = flex_context
 
         if self.info is None:
-            self.info = dict()
+            self.info = dict(scheduler="")
 
     def compute_schedule(self) -> Optional[pd.Series]:
         """
