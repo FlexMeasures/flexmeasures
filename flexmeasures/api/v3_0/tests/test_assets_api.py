@@ -9,85 +9,85 @@ from flexmeasures.api.tests.utils import get_auth_token, UserContext, AccountCon
 from flexmeasures.api.v3_0.tests.utils import get_asset_post_data
 
 
-@pytest.mark.parametrize("use_auth", [False, True])
-def test_get_assets_badauth(client, setup_api_test_data, use_auth):
+@pytest.mark.parametrize(
+    "requesting_user, status_code",
+    [
+        (None, 401),  # the case without auth: authentication will fail
+        (
+            "test_dummy_user_3@seita.nl",
+            403,
+        ),  # fails authorization to get assets on another account
+    ],
+    indirect=["requesting_user"],
+)
+def test_get_assets_badauth(client, setup_api_test_data, requesting_user, status_code):
     """
     Attempt to get assets with wrong or missing auth.
     """
-    # the case without auth: authentication will fail
-    headers = {"content-type": "application/json"}
-    query = {}
-    if use_auth:
-        # in this case, we successfully authenticate, but fail authorization
-        headers["Authorization"] = get_auth_token(
-            client, "test_dummy_user_3@seita.nl", "testtest"
-        )
-        test_prosumer = find_user_by_email("test_prosumer_user@seita.nl")
-        query = {"account_id": test_prosumer.account.id}
+    test_prosumer = find_user_by_email("test_prosumer_user@seita.nl")
+    query = {"account_id": test_prosumer.account.id}
 
-    get_assets_response = client.get(
-        url_for("AssetAPI:index"), query_string=query, headers=headers
-    )
+    get_assets_response = client.get(url_for("AssetAPI:index"), query_string=query)
     print("Server responded with:\n%s" % get_assets_response.json)
-    if use_auth:
-        assert get_assets_response.status_code == 403
-    else:
-        assert get_assets_response.status_code == 401
+    assert get_assets_response.status_code == status_code
 
 
-def test_get_asset_nonaccount_access(client, setup_api_test_data):
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_get_asset_nonaccount_access(client, setup_api_test_data, requesting_user):
     """Without being on the same account, test correct responses when accessing one asset."""
     with UserContext("test_prosumer_user@seita.nl") as prosumer1:
         prosumer1_assets = prosumer1.account.generic_assets
     with UserContext("test_supplier_user_4@seita.nl") as supplieruser4:
         supplieruser4_assets = supplieruser4.account.generic_assets
-    headers = {
-        "content-type": "application/json",
-        "Authorization": get_auth_token(
-            client, "test_supplier_user_4@seita.nl", "testtest"
-        ),
-    }
 
     # okay to look at assets in own account
     asset_response = client.get(
         url_for("AssetAPI:fetch_one", id=supplieruser4_assets[0].id),
-        headers=headers,
         follow_redirects=True,
     )
     assert asset_response.status_code == 200
     # not okay to see assets owned by other accounts
     asset_response = client.get(
         url_for("AssetAPI:fetch_one", id=prosumer1_assets[0].id),
-        headers=headers,
         follow_redirects=True,
     )
     assert asset_response.status_code == 403
     # proper 404 for non-existing asset
     asset_response = client.get(
         url_for("AssetAPI:fetch_one", id=8171766575),
-        headers=headers,
         follow_redirects=True,
     )
     assert asset_response.status_code == 404
     assert "not found" in asset_response.json["message"]
 
 
-@pytest.mark.parametrize("account_name, num_assets", [("Prosumer", 1), ("Supplier", 2)])
+@pytest.mark.parametrize(
+    "requesting_user, account_name, num_assets",
+    [
+        ("test_admin_user@seita.nl", "Prosumer", 1),
+        ("test_admin_user@seita.nl", "Supplier", 2),
+    ],
+    indirect=["requesting_user"],
+)
 def test_get_assets(
-    client, setup_api_test_data, setup_accounts, account_name, num_assets
+    client,
+    setup_api_test_data,
+    setup_accounts,
+    account_name,
+    num_assets,
+    requesting_user,
 ):
     """
     Get assets per account.
     Our user here is admin, so is allowed to see all assets.
     """
-    auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
-
     query = {"account_id": setup_accounts[account_name].id}
 
     get_assets_response = client.get(
         url_for("AssetAPI:index"),
         query_string=query,
-        headers={"content-type": "application/json", "Authorization": auth_token},
     )
     print("Server responded with:\n%s" % get_assets_response.json)
     assert get_assets_response.status_code == 200
@@ -102,19 +102,22 @@ def test_get_assets(
         assert turbine["account_id"] == setup_accounts["Supplier"].id
 
 
-def test_get_public_assets_noauth(client, setup_api_test_data, setup_accounts):
-    get_assets_response = client.get(
-        url_for("AssetAPI:public"), headers={"content-type": "application/json"}
-    )
+@pytest.mark.parametrize("requesting_user", [None], indirect=True)
+def test_get_public_assets_noauth(
+    client, setup_api_test_data, setup_accounts, requesting_user
+):
+    get_assets_response = client.get(url_for("AssetAPI:public"))
     print("Server responded with:\n%s" % get_assets_response.json)
     assert get_assets_response.status_code == 401
 
 
-def test_get_public_assets(client, setup_api_test_data, setup_accounts):
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_public_assets(
+    client, setup_api_test_data, setup_accounts, requesting_user
+):
     auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
     get_assets_response = client.get(
-        url_for("AssetAPI:public"),
-        headers={"content-type": "application/json", "Authorization": auth_token},
+        url_for("AssetAPI:public"), headers={"Authorization": auth_token}
     )
     print("Server responded with:\n%s" % get_assets_response.json)
     assert get_assets_response.status_code == 200
@@ -122,15 +125,15 @@ def test_get_public_assets(client, setup_api_test_data, setup_accounts):
     assert get_assets_response.json[0]["name"] == "troposphere"
 
 
-def test_alter_an_asset(client, setup_api_test_data, setup_accounts):
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_alter_an_asset(client, setup_api_test_data, setup_accounts, requesting_user):
     # without being an account-admin, no asset can be created ...
-    with UserContext("test_prosumer_user@seita.nl") as prosumer1:
-        auth_token = prosumer1.get_auth_token()  # not an account admin
     with AccountContext("Test Prosumer Account") as prosumer:
         prosumer_asset = prosumer.generic_assets[0]
     asset_creation_response = client.post(
         url_for("AssetAPI:post"),
-        headers={"content-type": "application/json", "Authorization": auth_token},
         json={},
     )
     print(f"Creation Response: {asset_creation_response.json}")
@@ -138,7 +141,6 @@ def test_alter_an_asset(client, setup_api_test_data, setup_accounts):
     # ... or deleted ...
     asset_delete_response = client.delete(
         url_for("AssetAPI:delete", id=prosumer_asset.id),
-        headers={"content-type": "application/json", "Authorization": auth_token},
         json={},
     )
     print(f"Deletion Response: {asset_delete_response.json}")
@@ -146,7 +148,6 @@ def test_alter_an_asset(client, setup_api_test_data, setup_accounts):
     # ... but editing is allowed.
     asset_edit_response = client.patch(
         url_for("AssetAPI:patch", id=prosumer_asset.id),
-        headers={"content-type": "application/json", "Authorization": auth_token},
         json={
             "latitude": prosumer_asset.latitude,
         },  # we're not changing values to keep other tests clean here
@@ -173,17 +174,22 @@ def test_alter_an_asset(client, setup_api_test_data, setup_accounts):
         ),  # non-integer sensor ID
     ],
 )
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
 def test_alter_an_asset_with_bad_json_attributes(
-    client, setup_api_test_data, setup_accounts, bad_json_str, error_msg
+    client,
+    setup_api_test_data,
+    setup_accounts,
+    bad_json_str,
+    error_msg,
+    requesting_user,
 ):
     """Check whether updating an asset's attributes with a badly structured JSON fails."""
-    with UserContext("test_prosumer_user@seita.nl") as prosumer1:
-        auth_token = prosumer1.get_auth_token()
     with AccountContext("Test Prosumer Account") as prosumer:
         prosumer_asset = prosumer.generic_assets[0]
     asset_edit_response = client.patch(
         url_for("AssetAPI:patch", id=prosumer_asset.id),
-        headers={"content-type": "application/json", "Authorization": auth_token},
         json={"attributes": bad_json_str},
     )
     print(f"Editing Response: {asset_edit_response.json}")
@@ -191,12 +197,13 @@ def test_alter_an_asset_with_bad_json_attributes(
     assert error_msg in asset_edit_response.json["message"]["json"]["attributes"][0]
 
 
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
 def test_alter_an_asset_with_json_attributes(
-    client, setup_api_test_data, setup_accounts
+    client, setup_api_test_data, setup_accounts, requesting_user
 ):
     """Check whether updating an asset's attributes with a properly structured JSON succeeds."""
-    with UserContext("test_prosumer_user@seita.nl") as prosumer1:
-        auth_token = prosumer1.get_auth_token()
     with AccountContext("Test Prosumer Account") as prosumer:
         prosumer_asset = prosumer.generic_assets[0]
         assert prosumer_asset.attributes[
@@ -204,7 +211,6 @@ def test_alter_an_asset_with_json_attributes(
         ]  # make sure we run this test on an asset with a non-empty sensors_to_show attribute
     asset_edit_response = client.patch(
         url_for("AssetAPI:patch", id=prosumer_asset.id),
-        headers={"content-type": "application/json", "Authorization": auth_token},
         json={
             "attributes": json.dumps(prosumer_asset.attributes)
         },  # we're not changing values to keep other tests clean here
@@ -213,10 +219,9 @@ def test_alter_an_asset_with_json_attributes(
     assert asset_edit_response.status_code == 200
 
 
-def test_post_an_asset_with_existing_name(client, setup_api_test_data):
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_post_an_asset_with_existing_name(client, setup_api_test_data, requesting_user):
     """Catch DB error (Unique key violated) correctly"""
-    with UserContext("test_admin_user@seita.nl") as admin_user:
-        auth_token = admin_user.get_auth_token()
     with AccountContext("Test Prosumer Account") as prosumer:
         prosumer_id = prosumer.id
         existing_asset = prosumer.generic_assets[0]
@@ -226,7 +231,6 @@ def test_post_an_asset_with_existing_name(client, setup_api_test_data):
     asset_creation_response = client.post(
         url_for("AssetAPI:post"),
         json=post_data,
-        headers={"content-type": "application/json", "Authorization": auth_token},
     )
     print(f"Creation Response: {asset_creation_response.json}")
     assert asset_creation_response.status_code == 422
@@ -235,10 +239,11 @@ def test_post_an_asset_with_existing_name(client, setup_api_test_data):
     )
 
 
-def test_post_an_asset_with_other_account(client, setup_api_test_data):
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_post_an_asset_with_other_account(client, setup_api_test_data, requesting_user):
     """Catch auth error, when account-admin posts an asset for another account"""
-    with UserContext("test_prosumer_user_2@seita.nl") as account_admin_user:
-        auth_token = account_admin_user.get_auth_token()
     with AccountContext("Test Supplier Account") as supplier:
         supplier_id = supplier.id
     post_data = get_asset_post_data()
@@ -246,7 +251,6 @@ def test_post_an_asset_with_other_account(client, setup_api_test_data):
     asset_creation_response = client.post(
         url_for("AssetAPI:post"),
         json=post_data,
-        headers={"content-type": "application/json", "Authorization": auth_token},
     )
     print(f"Creation Response: {asset_creation_response.json}")
     assert asset_creation_response.status_code == 422
@@ -256,47 +260,43 @@ def test_post_an_asset_with_other_account(client, setup_api_test_data):
     )
 
 
-def test_post_an_asset_with_nonexisting_field(client, setup_api_test_data):
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_post_an_asset_with_nonexisting_field(
+    client, setup_api_test_data, requesting_user
+):
     """Posting a field that is unexpected leads to a 422"""
-    with UserContext("test_admin_user@seita.nl") as prosumer:
-        auth_token = prosumer.get_auth_token()
     post_data = get_asset_post_data()
     post_data["nnname"] = "This field does not exist"
     asset_creation = client.post(
         url_for("AssetAPI:post"),
         json=post_data,
-        headers={"content-type": "application/json", "Authorization": auth_token},
     )
     assert asset_creation.status_code == 422
     assert asset_creation.json["message"]["json"]["nnname"][0] == "Unknown field."
 
 
-def test_posting_multiple_assets(client, setup_api_test_data):
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_posting_multiple_assets(client, setup_api_test_data, requesting_user):
     """We can only send one at a time"""
-    with UserContext("test_admin_user@seita.nl") as prosumer:
-        auth_token = prosumer.get_auth_token()
     post_data1 = get_asset_post_data()
     post_data2 = get_asset_post_data()
     post_data2["name"] = "Test battery 3"
     asset_creation = client.post(
         url_for("AssetAPI:post"),
         json=[post_data1, post_data2],
-        headers={"content-type": "application/json", "Authorization": auth_token},
     )
     print(f"Response: {asset_creation.json}")
     assert asset_creation.status_code == 422
     assert asset_creation.json["message"]["json"]["_schema"][0] == "Invalid input type."
 
 
-def test_post_an_asset_with_invalid_data(client, setup_api_test_data):
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_post_an_asset_with_invalid_data(client, setup_api_test_data, requesting_user):
     """
     Add an asset with some fields having invalid data and one field missing.
     The right error messages should be in the response and the number of assets has not increased.
     """
-    with UserContext("test_admin_user@seita.nl") as prosumer:
-        num_assets_before = len(prosumer.account.generic_assets)
-
-    auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
+    num_assets_before = len(requesting_user.account.generic_assets)
 
     post_data = get_asset_post_data()
     post_data["name"] = "Something new"
@@ -306,7 +306,6 @@ def test_post_an_asset_with_invalid_data(client, setup_api_test_data):
     post_asset_response = client.post(
         url_for("AssetAPI:post"),
         json=post_data,
-        headers={"content-type": "application/json", "Authorization": auth_token},
     )
     print("Server responded with:\n%s" % post_asset_response.json)
     assert post_asset_response.status_code == 422
@@ -321,24 +320,23 @@ def test_post_an_asset_with_invalid_data(client, setup_api_test_data):
     )
 
     assert (
-        GenericAsset.query.filter_by(account_id=prosumer.id).count()
+        GenericAsset.query.filter_by(account_id=requesting_user.account.id).count()
         == num_assets_before
     )
 
 
-def test_post_an_asset(client, setup_api_test_data):
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_post_an_asset(client, setup_api_test_data, requesting_user):
     """
     Post one extra asset, as an admin user.
     TODO: Soon we'll allow creating assets on an account-basis, i.e. for users
           who have the user role "account-admin" or something similar. Then we'll
           test that here.
     """
-    auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
     post_data = get_asset_post_data()
     post_assets_response = client.post(
         url_for("AssetAPI:post"),
         json=post_data,
-        headers={"content-type": "application/json", "Authorization": auth_token},
     )
     print("Server responded with:\n%s" % post_assets_response.json)
     assert post_assets_response.status_code == 201
@@ -351,14 +349,12 @@ def test_post_an_asset(client, setup_api_test_data):
     assert asset.latitude == 30.1
 
 
-def test_delete_an_asset(client, setup_api_test_data):
-
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_delete_an_asset(client, setup_api_test_data, requesting_user):
     existing_asset_id = setup_api_test_data["some gas sensor"].generic_asset.id
 
-    auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
     delete_asset_response = client.delete(
         url_for("AssetAPI:delete", id=existing_asset_id),
-        headers={"content-type": "application/json", "Authorization": auth_token},
     )
     assert delete_asset_response.status_code == 204
     deleted_asset = GenericAsset.query.filter_by(id=existing_asset_id).one_or_none()

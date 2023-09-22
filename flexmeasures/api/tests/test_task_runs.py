@@ -1,3 +1,5 @@
+import pytest
+
 from datetime import datetime, timedelta
 
 from flask import url_for
@@ -12,7 +14,10 @@ from flexmeasures.auth.error_handling import (
 )
 
 
-def test_api_task_run_post_unauthorized_wrong_role(client):
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_api_task_run_post_unauthorized_wrong_role(client, requesting_user):
     url = url_for("flexmeasures_api_ops.post_task_run")
     auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
     post_req_params = dict(
@@ -21,12 +26,7 @@ def test_api_task_run_post_unauthorized_wrong_role(client):
     task_run = client.post(url, **post_req_params)
     assert task_run.status_code == FORBIDDEN_STATUS_CODE
     assert b"cannot be authorized" in task_run.data
-    # While we are on it, test if the unauth handler correctly returns json if we set the content-type
-    post_req_params.update(
-        headers={"Authorization": auth_token, "Content-Type": "application/json"}
-    )
-    task_run = client.post(url, **post_req_params)
-    assert task_run.status_code == FORBIDDEN_STATUS_CODE
+    # While we are on it, test if the unauth handler correctly returns json even if we don't explicitly set the content-type
     assert task_run.json["status"] == FORBIDDEN_ERROR_STATUS
 
 
@@ -58,7 +58,8 @@ def test_api_task_run_get_nonexistent_task(client):
     assert "has no last run time" in task_run.json["reason"]
 
 
-def test_api_task_run_post_no_name(client):
+@pytest.mark.parametrize("requesting_user", ["task_runner@seita.nl"], indirect=True)
+def test_api_task_run_post_no_name(client, requesting_user):
     task_run = post_task_run(client, "")
     assert task_run.status_code == 400
     assert task_run.json["status"] == "ERROR"
@@ -78,7 +79,8 @@ def test_api_task_run_get_recent_entry(client):
     assert task_run.json.get("status") == "ERROR"
 
 
-def test_api_task_run_get_older_entry_then_update(client):
+@pytest.mark.parametrize("requesting_user", ["task_runner@seita.nl"], indirect=True)
+def test_api_task_run_get_older_entry_then_update(client, requesting_user):
     task_run = get_task_run(client, "task-A")
     assert task_run.status_code == 200
     task_time = isodate.parse_datetime(task_run.json.get("lastrun"))
