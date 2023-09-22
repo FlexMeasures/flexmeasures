@@ -197,6 +197,7 @@ Here are the three types of flexibility models you can expect to be built-in:
    - ``roundtrip-efficiency`` (defaults to 100%)
    - ``storage-efficiency`` (defaults to 100%) [#]_
    - ``prefer-charging-sooner`` (defaults to True, also signals a preference to discharge later)
+   - ``power-capacity`` (defaults to the Sensor attribute ``capacity_in_mw``)
 
     .. [#] The storage efficiency (e.g. 95% or 0.95) to use for the schedule is applied over each time step equal to the sensor resolution. For example, a storage efficiency of 95 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of :math:`0.95^{1/24} = 0.997865`.
 
@@ -236,6 +237,7 @@ With the flexibility context, we aim to describe the system in which the flexibl
 - ``inflexible-device-sensors`` ― power sensors that are relevant, but not flexible, such as a sensor recording rooftop solar power connected behind the main meter, whose production falls under the same contract as the flexible device(s) being scheduled
 - ``consumption-price-sensor`` ― the sensor which defines costs/revenues of consuming energy
 - ``production-price-sensor`` ― the sensor which defines cost/revenues of producing energy
+- ``site-power-capacity`` (defaults to the Asset attribute ``capacity_in_mw``)
 
 These should be independent on the asset type and consequently also do not depend on which scheduling algorithm is being used.
 
