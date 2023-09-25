@@ -446,6 +446,11 @@ class SensorAPI(FlaskView):
             job = Job.fetch(job_id, connection=connection)
         except NoSuchJobError:
             return unrecognized_event(job_id, "job")
+
+        scheduler_info_msg = ""
+        scheduler_info = job.meta.get("scheduler_info", dict(scheduler=""))
+        scheduler_info_msg = f"{scheduler_info['scheduler']} was used."
+
         if job.is_finished:
             error_message = "A scheduling job has been processed with your job ID, but "
         elif job.is_failed:  # Try to inform the user on why the job failed
@@ -458,30 +463,35 @@ class SensorAPI(FlaskView):
                 ),
             )
             return unknown_schedule(
-                f"Scheduling job failed with {type(e).__name__}: {e}"
+                f"Scheduling job failed with {type(e).__name__}: {e}. {scheduler_info_msg}",
             )
         elif job.is_started:
-            return unknown_schedule("Scheduling job in progress.")
+            return unknown_schedule(f"Scheduling job in progress. {scheduler_info_msg}")
         elif job.is_queued:
-            return unknown_schedule("Scheduling job waiting to be processed.")
+            return unknown_schedule(
+                f"Scheduling job waiting to be processed. {scheduler_info_msg}"
+            )
         elif job.is_deferred:
             try:
                 preferred_job = job.dependency
             except NoSuchJobError:
                 return unknown_schedule(
-                    "Scheduling job waiting for unknown job to be processed."
+                    f"Scheduling job waiting for unknown job to be processed. {scheduler_info_msg}"
                 )
             return unknown_schedule(
-                f'Scheduling job waiting for {preferred_job.status} job "{preferred_job.id}" to be processed.'
+                f'Scheduling job waiting for {preferred_job.status} job "{preferred_job.id}" to be processed. {scheduler_info_msg}'
             )
         else:
-            return unknown_schedule("Scheduling job has an unknown status.")
+            return unknown_schedule(
+                f"Scheduling job has an unknown status. {scheduler_info_msg}"
+            )
         schedule_start = job.kwargs["start"]
 
         data_source = get_data_source_for_job(job)
         if data_source is None:
             return unknown_schedule(
-                error_message + f"no data source could be found for {data_source}."
+                error_message
+                + f"no data source could be found for {data_source}. {scheduler_info_msg}"
             )
         power_values = sensor.search_beliefs(
             event_starts_after=schedule_start,
@@ -494,7 +504,7 @@ class SensorAPI(FlaskView):
         consumption_schedule = -simplify_index(power_values)["event_value"]
         if consumption_schedule.empty:
             return unknown_schedule(
-                error_message + "the schedule was not found in the database."
+                f"{error_message} the schedule was not found in the database. {scheduler_info_msg}"
             )
 
         # Update the planning window
@@ -511,8 +521,8 @@ class SensorAPI(FlaskView):
             unit=sensor.unit,
         )
 
-        d, s = request_processed()
-        return dict(**response, **d), s
+        d, s = request_processed(scheduler_info_msg)
+        return dict(scheduler_info=scheduler_info, **response, **d), s
 
     @route("/<id>", methods=["GET"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")

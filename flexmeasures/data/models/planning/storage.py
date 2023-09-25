@@ -7,6 +7,8 @@ from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
 from flask import current_app
+from flask_login import current_user
+
 
 from flexmeasures.data.models.planning import Scheduler
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
@@ -278,13 +280,19 @@ class StorageScheduler(Scheduler):
             commitment_upwards_deviation_price,
             initial_stock=soc_at_start * (timedelta(hours=1) / resolution),
         )
+
         if scheduler_results.solver.termination_condition == "infeasible":
+            current_app.logger.warning(
+                f"StorageScheduler found an unsolvable problem for sensor id={sensor.id} and user `{current_user}`. Running fallback policy."
+            )
             # Fallback policy if the problem was unsolvable
             battery_schedule = fallback_charging_policy(
                 sensor, device_constraints[0], start, end, resolution
             )
+            self.info["scheduler"] = "fallback_charging_policy"
         else:
             battery_schedule = ems_schedule[0]
+            self.info["scheduler"] = "device_scheduler"
 
         # Round schedule
         if self.round_to_decimals:
