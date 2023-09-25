@@ -148,8 +148,9 @@ we are going to create share the same `config`. The `config` defines the price s
 that it will return costs as positive values and revenue as negative values.
 
 Still, we need to define the parameters. The three reports share the same structure for the parameters with the following fields:
-* `input`: sensor that stores the power/energy flow. The number of sensors is limited to 1.
-* `output`: sensor to store the report. We can provide sensors with different resolutions to store the same results at different time scales.
+
+    - `input`: sensor that stores the power/energy flow. The number of sensors is limited to 1.
+    - `output`: sensor to store the report. We can provide sensors with different resolutions to store the same results at different time scales.
 
 .. note::
     It's possible to define the `config` and `parameters` in JSON or YAML formats.
@@ -241,6 +242,7 @@ Check the results `here <http://localhost:5000/sensor/11/>`_. The image should b
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-shiftable.png
     :align: center
 |
+
 
 Now, we can compare the results of the reports to the ones we computed manually in :ref:`this table <table-process>`). Keep in mind that the
 report is showing the profit of each 15min period and adding them all shows that it matches with our previous results.

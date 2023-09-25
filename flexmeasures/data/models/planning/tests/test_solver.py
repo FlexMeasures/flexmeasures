@@ -1064,3 +1064,71 @@ def test_numerical_errors(app, setup_planning_test_data, solver):
     assert device_constraints[0]["equals"].max() > device_constraints[0]["max"].max()
     assert device_constraints[0]["equals"].min() < device_constraints[0]["min"].min()
     assert results.solver.status == "ok"
+
+
+@pytest.mark.parametrize(
+    "capacity,site_capacity",
+    [("100kW", "300kW"), ("0.1MW", "0.3MW"), ("0.1 MW", "0.3 MW"), (None, None)],
+)
+def test_capacity(app, setup_planning_test_data, capacity, site_capacity):
+    """Test that the power limits of the site and storage device are set properly using the
+    flex-model and flex-context.
+    """
+
+    expected_capacity = 2
+    expected_site_capacity = 2
+
+    flex_model = {
+        "soc-at-start": 0.01,
+    }
+
+    flex_context = {}
+
+    if capacity is not None:
+        flex_model["power-capacity"] = capacity
+        expected_capacity = 0.1
+
+    if site_capacity is not None:
+        flex_context["site-power-capacity"] = site_capacity
+        expected_site_capacity = 0.3
+
+    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    charging_station = setup_planning_test_data[
+        "Test charging station (bidirectional)"
+    ].sensors[0]
+
+    assert charging_station.generic_asset.get_attribute("capacity_in_mw") == 2
+    assert charging_station.get_attribute("market_id") == epex_da.id
+
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 2))
+    end = tz.localize(datetime(2015, 1, 3))
+    resolution = timedelta(minutes=5)
+
+    scheduler = StorageScheduler(
+        charging_station,
+        start,
+        end,
+        resolution,
+        flex_model=flex_model,
+        flex_context=flex_context,
+    )
+
+    (
+        sensor,
+        start,
+        end,
+        resolution,
+        soc_at_start,
+        device_constraints,
+        ems_constraints,
+        commitment_quantities,
+        commitment_downwards_deviation_price,
+        commitment_upwards_deviation_price,
+    ) = scheduler._prepare(skip_validation=True)
+
+    assert all(device_constraints[0]["derivative min"] == -expected_capacity)
+    assert all(device_constraints[0]["derivative max"] == expected_capacity)
+
+    assert all(ems_constraints["derivative min"] == -expected_site_capacity)
+    assert all(ems_constraints["derivative max"] == expected_site_capacity)

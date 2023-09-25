@@ -143,8 +143,10 @@ def make_schedule(
     if flex_config_has_been_deserialized:
         scheduler.config_deserialized = True
     consumption_schedule = scheduler.compute()
+
     if rq_job:
         click.echo("Job %s made schedule." % rq_job.id)
+        rq_job.meta["scheduler_info"] = scheduler.info
 
     data_source = get_data_source(
         data_source_name=data_source_info["name"],

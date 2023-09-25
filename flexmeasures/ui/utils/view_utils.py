@@ -25,13 +25,7 @@ def render_flexmeasures_template(html_filename: str, **variables):
     ):
         variables["documentation_exists"] = True
 
-    variables["show_queues"] = False
-    if current_user.is_authenticated:
-        if (
-            user_has_admin_access(current_user, "update")
-            or current_app.config.get("FLEXMEASURES_MODE", "") == "demo"
-        ):
-            variables["show_queues"] = True
+    variables["queues"] = current_app.queues.keys()
 
     variables["event_starts_after"] = session.get("event_starts_after")
     variables["event_ends_before"] = session.get("event_ends_before")
@@ -74,7 +68,15 @@ def render_flexmeasures_template(html_filename: str, **variables):
         current_user.is_authenticated and current_user.username or ""
     )
     variables["js_versions"] = current_app.config.get("FLEXMEASURES_JS_VERSIONS")
-    variables["chart_options"] = json.dumps(chart_options)
+
+    # Chart options passed to vega-embed
+    options = chart_options.copy()
+    if "sensor_id" in variables:
+        options["downloadFileName"] = f"sensor-{variables['sensor_id']}"
+    elif "asset" in variables:
+        asset = variables["asset"]
+        options["downloadFileName"] = f"asset-{asset.id}-{asset.name}"
+    variables["chart_options"] = json.dumps(options)
 
     variables["menu_logo"] = current_app.config.get("FLEXMEASURES_MENU_LOGO_PATH")
     variables["extra_css"] = current_app.config.get("FLEXMEASURES_EXTRA_CSS_PATH")

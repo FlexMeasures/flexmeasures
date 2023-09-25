@@ -93,6 +93,9 @@ def create(  # noqa C901
     app.queues = dict(
         forecasting=Queue(connection=redis_conn, name="forecasting"),
         scheduling=Queue(connection=redis_conn, name="scheduling"),
+        # reporting=Queue(connection=redis_conn, name="reporting"),
+        # labelling=Queue(connection=redis_conn, name="labelling"),
+        # alerting=Queue(connection=redis_conn, name="alerting"),
     )
 
     # Some basic security measures

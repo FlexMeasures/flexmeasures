@@ -1,22 +1,25 @@
 import pytest
 from flask import url_for, request
 
-from flexmeasures.api.tests.utils import UserContext, get_auth_token
+from flexmeasures.api.tests.utils import UserContext
 from flexmeasures.data.services.users import find_user_by_email
 
 
 @pytest.mark.parametrize(
-    "sender",
+    "requesting_user, status_code",
     [
-        "",
-        "test_prosumer_user@seita.nl",
-        "test_prosumer_user_2@seita.nl",
-        "test_admin_user@seita.nl",
-        "inactive_user@seita.nl",
-        "inactive_admin@seita.nl",
+        (None, 401),
+        ("test_prosumer_user@seita.nl", 403),
+        ("test_prosumer_user_2@seita.nl", 200),
+        ("test_admin_user@seita.nl", 200),
+        ("inactive_user@seita.nl", 401),
+        ("inactive_admin@seita.nl", 401),
     ],
+    indirect=["requesting_user"],
 )
-def test_user_reset_password(app, client, setup_inactive_user, sender):
+def test_user_reset_password(
+    app, client, setup_inactive_user, requesting_user, status_code
+):
     """
     Reset the password of User 2.
     Only the admin user and User 2 themselves are allowed to do that.
@@ -24,25 +27,16 @@ def test_user_reset_password(app, client, setup_inactive_user, sender):
     with UserContext("test_prosumer_user_2@seita.nl") as user2:
         user2_id = user2.id
         old_password = user2.password
-    headers = {"content-type": "application/json"}
-    if sender != "":
-        headers["Authorization"] = (get_auth_token(client, sender, "testtest"),)
     with app.mail.record_messages() as outbox:
         pwd_reset_response = client.patch(
             url_for("UserAPI:reset_user_password", id=user2_id),
             query_string={},
-            headers=headers,
         )
         print("Server responded with:\n%s" % pwd_reset_response.json)
 
-        if sender in ("", "inactive_user@seita.nl", "inactive_admin@seita.nl"):
-            assert pwd_reset_response.status_code == 401
+        assert pwd_reset_response.status_code == status_code
+        if status_code != 200:
             return
-        if sender == "test_prosumer_user@seita.nl":
-            assert pwd_reset_response.status_code == 403
-            return
-
-        assert pwd_reset_response.status_code == 200
 
         user2 = find_user_by_email("test_prosumer_user_2@seita.nl")
         assert len(outbox) == 2

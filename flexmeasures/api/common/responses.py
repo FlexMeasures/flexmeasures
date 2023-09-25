@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import List, Optional, Tuple, Union, Sequence
 import inflect
 from functools import wraps
