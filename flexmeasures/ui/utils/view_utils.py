@@ -25,8 +25,6 @@ def render_flexmeasures_template(html_filename: str, **variables):
     ):
         variables["documentation_exists"] = True
 
-    variables["queues"] = current_app.queues.keys()
-
     variables["event_starts_after"] = session.get("event_starts_after")
     variables["event_ends_before"] = session.get("event_ends_before")
     variables["chart_type"] = session.get("chart_type", "bar_chart")

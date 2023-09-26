@@ -84,10 +84,10 @@
                             Tasks
                             <span class="caret"></span></a>
                         <ul class="dropdown-menu">
-                            {% for queue in queues %}
+                            {% for queue in queue_names %}
                                 <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
                                     {% if not current_user.has_role('anonymous') %}href="/tasks/0/view/jobs/{{ queue }}/started/10/1"
-                                    {% endif %}>{{ queue | string | capitalize }}</a></li>
+                                    {% endif %}>{{ queue | capitalize }}</a></li>
                             {% endfor %}
                             <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
                                     {% if not current_user.has_role('anonymous') %}href="/tasks/"
