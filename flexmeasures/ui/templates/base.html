@@ -193,9 +193,10 @@
     <!-- Render Charts -->
     <script type="module" type="text/javascript">
 
-    import { getUniqueValues, convertToCSV } from "{{ url_for('flexmeasures_ui.static', filename='js/data-utils.js') }}";
-    import { subtract, thisMonth, lastNMonths, countDSTTransitions, getOffsetBetweenTimezonesForDate } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}";
-    import { partition, updateBeliefs, beliefTimedelta, setAbortableTimeout} from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}";
+    // Import local js (the FM version is used for cache-busting, causing the browser to fetch the updated version from the server)
+    import { getUniqueValues, convertToCSV } from "{{ url_for('flexmeasures_ui.static', filename='js/data-utils.js') }}?v={{ flexmeasures_version }}";
+    import { subtract, thisMonth, lastNMonths, countDSTTransitions, getOffsetBetweenTimezonesForDate } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
+    import { partition, updateBeliefs, beliefTimedelta, setAbortableTimeout} from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
 
     let vegaView;
     let previousResult;
