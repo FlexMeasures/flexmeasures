@@ -26,6 +26,7 @@ Infrastructure / Support
 * Test all supported Python versions in our CI pipeline (GitHub Actions) [see `PR #847 <https://github.com/FlexMeasures/flexmeasures/pull/847>`_]
 * Have our CI pipeline (GitHub Actions) build the Docker image and make a schedule [see `PR #800 <https://github.com/FlexMeasures/flexmeasures/pull/800>`_]
 * Updated documentation on the consequences of setting the `FLEXMEASURES_MODE` config setting [see `PR #857 <https://github.com/FlexMeasures/flexmeasures/pull/857>`_]
+* Implement cache-busting to avoid the need for users to hard refresh the browser when new JavaScript functionality is added to the :abbr:`UI (user interface)` in a new FlexMeasures version [see `PR #860 <https://github.com/FlexMeasures/flexmeasures/pull/860>`_]
 
 
 v0.15.1 | August 28, 2023
