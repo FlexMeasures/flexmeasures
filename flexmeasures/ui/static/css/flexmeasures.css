@@ -1833,3 +1833,9 @@ div.heading-group {
 #exportToCSVAction {
   cursor: pointer;
 }
+
+/* override rq-dashboard ellipsis styling to unhide important parts of the job kwargs */
+.ellipsify {
+  overflow: visible !important;
+  white-space: normal !important;
+}

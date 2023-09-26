@@ -182,6 +182,11 @@ def create(  # noqa C901
 
     register_ui_at(app)
 
+    # Global template variables for both our own templates and external templates
+    @app.context_processor
+    def set_global_template_variables():
+        return {"queue_names": app.queues.keys()}
+
     # Profile endpoints (if needed, e.g. during development)
 
     @app.before_request
