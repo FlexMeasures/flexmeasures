@@ -122,9 +122,7 @@ importlib-metadata==6.8.0
     #   flask
     #   timely-beliefs
 importlib-resources==6.0.1
-    # via
-    #   flask-security-too
-    #   matplotlib
+    # via matplotlib
 inflect==6.0.2
     # via -r requirements/app.in
 inflection==0.5.1

@@ -3,8 +3,10 @@
 FlexMeasures Changelog
 **********************
 
-v0.16.0 | September XX, 2023
+v0.16.0 | September 27, 2023
 ============================
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/016-profitloss-reporter/>`__.
 
 New features
 -------------
