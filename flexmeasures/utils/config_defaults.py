@@ -195,7 +195,6 @@ class TestingConfig(Config):
     SECURITY_HASHING_SCHEMES: list[str] = ["hex_md5"]
     SECURITY_DEPRECATED_HASHING_SCHEMES: list[str] = []
     FLEXMEASURES_MODE: str = "test"
-    FLEXMEASURES_LP_SOLVER: str = "appsi_highs"
     FLEXMEASURES_PLANNING_HORIZON: timedelta = timedelta(
         hours=2 * 24
     )  # if more than 2 days, consider setting up more days of price data for tests
