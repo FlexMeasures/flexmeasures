@@ -56,7 +56,7 @@ Solvers are used through `Pyomo <http://www.pyomo.org>`_\ , so in principle supp
 They need to be installed in addition to FlexMeasures. Here is advice on how to install the two solvers we test internally:
 
 
-.. note:: We default to HiGHS, as it seems more powerful, but during unit tests we currently run Cbc, as it works for us on Python3.8
+.. note:: We default to HiGHS, as it seems more powerful
 
 
 HiGHS can be installed using pip:
