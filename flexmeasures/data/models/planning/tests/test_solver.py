@@ -992,18 +992,6 @@ def get_sensors_from_db(battery_assets):
     return epex_da, battery
 
 
-@pytest.fixture(params=["appsi_highs", "cbc"])
-def app_with_each_solver(app, request):
-    """Set up the app config to run with a specific solver"""
-    original_solver = app.config["FLEXMEASURES_LP_SOLVER"]
-    app.config["FLEXMEASURES_LP_SOLVER"] = request.param
-
-    yield app
-
-    # Restore original config setting for the solver
-    app.config["FLEXMEASURES_LP_SOLVER"] = original_solver
-
-
 def test_numerical_errors(app_with_each_solver, setup_planning_test_data):
     """Test that a soc-target = soc-max can exceed this value due to numerical errors in the operations
     to compute the device constraint DataFrame.
