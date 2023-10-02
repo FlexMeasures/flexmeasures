@@ -1,11 +1,27 @@
 #!/bin/bash
 
 ######################################################################
-# This script sets up the docker environment for updating packages
+# This script sets up docker environments for supported Python versions
+# for updating packages in each of them.
+#
+# To upgrade, add "upgrade" as parameter.
+#
+# To execute this script, cd into the `ci` directory, then call from there.
 ######################################################################
 
 set -e
 set -x
+
+PYTHON_VERSIONS=(3.8 3.9 3.10 3.11)
+
+# check if we will upgrade or just freeze
+UPDATE_CMD=freeze-deps
+if [ "$1" == "upgrade" ]; then
+  UPDATE_CMD=upgrade-deps
+  echo "Going to upgrade dependencies with make $UPDATE_CMD ..."
+else
+  echo "Going to freeze dependencies with make $UPDATE_CMD..."
+fi
 
 # Check if docker is installed
 if ! [ -x "$(command -v docker)" ]; then
@@ -33,7 +49,6 @@ cp -r ../Makefile $TEMP_DIR
 
 cd $TEMP_DIR
 
-PYTHON_VERSIONS=(3.8 3.9 3.10 3.11)
 
 for PYTHON_VERSION in "${PYTHON_VERSIONS[@]}"
 do
@@ -44,7 +59,7 @@ do
     # Build flexmeasures
     # We are disabling running tests here, because we only want to update the packages. Running tests would require us to setup a postgres database,
     # which is not necessary for updating packages.
-    docker run --name flexmeasures-update-packages-$PYTHON_VERSION -it flexmeasures-update-packages:$PYTHON_VERSION make upgrade-deps skip-test=yes
+    docker run --name flexmeasures-update-packages-$PYTHON_VERSION -it flexmeasures-update-packages:$PYTHON_VERSION make $UPDATE_CMD skip-test=yes
     # Copy the requirements to the source directory
     docker cp flexmeasures-update-packages-$PYTHON_VERSION:/app/requirements/$PYTHON_VERSION $SOURCE_DIR/requirements/
     # Remove the container
