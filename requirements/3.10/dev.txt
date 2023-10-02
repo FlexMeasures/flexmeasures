@@ -71,6 +71,7 @@ tomli==2.0.1
 typing-extensions==4.7.1
     # via
     #   -c requirements/3.10/app.txt
+    #   filelock
     #   mypy
     #   setuptools-scm
 virtualenv==20.24.5
