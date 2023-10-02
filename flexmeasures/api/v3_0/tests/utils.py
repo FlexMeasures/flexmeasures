@@ -89,4 +89,11 @@ def message_for_trigger_schedule(
         message["flex-model"]["soc-targets"] = [
             {"value": target_value, "datetime": target_datetime}
         ]
+        # Also create some minima and maxima constraints to test correct deserialization using the soc-unit
+        message["flex-model"]["soc-minima"] = [
+            {"value": target_value - 1, "datetime": target_datetime}
+        ]
+        message["flex-model"]["soc-maxima"] = [
+            {"value": target_value + 1, "datetime": target_datetime}
+        ]
     return message
