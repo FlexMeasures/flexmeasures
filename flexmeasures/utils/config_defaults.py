@@ -88,7 +88,6 @@ class Config(object):
     FLEXMEASURES_TIMEZONE: str = "Asia/Seoul"
     FLEXMEASURES_HIDE_NAN_IN_UI: bool = False
     FLEXMEASURES_PUBLIC_DEMO_CREDENTIALS: tuple | None = None
-    FLEXMEASURES_DEMO_YEAR: int | None = None
     # Configuration used for entity addressing:
     # This setting contains the domain on which FlexMeasures runs
     # and the first month when the domain was under the current owner's administration

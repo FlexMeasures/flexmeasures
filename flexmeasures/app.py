@@ -93,6 +93,9 @@ def create(  # noqa C901
     app.queues = dict(
         forecasting=Queue(connection=redis_conn, name="forecasting"),
         scheduling=Queue(connection=redis_conn, name="scheduling"),
+        # reporting=Queue(connection=redis_conn, name="reporting"),
+        # labelling=Queue(connection=redis_conn, name="labelling"),
+        # alerting=Queue(connection=redis_conn, name="alerting"),
     )
 
     # Some basic security measures
@@ -178,6 +181,11 @@ def create(  # noqa C901
     from flexmeasures.ui import register_at as register_ui_at
 
     register_ui_at(app)
+
+    # Global template variables for both our own templates and external templates
+    @app.context_processor
+    def set_global_template_variables():
+        return {"queue_names": app.queues.keys()}
 
     # Profile endpoints (if needed, e.g. during development)
 

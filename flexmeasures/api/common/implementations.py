@@ -28,7 +28,7 @@ def get_task_run():
         return dict(
             status=status,
             reason=reason,
-            lastrun=last_run,
+            lastrun=last_run.isoformat(),
             frequency=current_app.config.get(
                 "MONITOR_FREQUENCY_%s" % task_name.upper(), 10
             ),

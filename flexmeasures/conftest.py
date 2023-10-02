@@ -64,13 +64,8 @@ def app():
     print("APP FIXTURE")
     test_app = create_app(env="testing")
 
-    # Establish an application context before running the tests.
-    ctx = test_app.app_context()
-    ctx.push()
-
-    yield test_app
-
-    ctx.pop()
+    with test_app.app_context():
+        yield test_app
 
     print("DONE WITH APP FIXTURE")
 
