@@ -3,6 +3,16 @@
 FlexMeasures Changelog
 **********************
 
+
+v0.14.3 | October 2, 2023
+============================
+
+Bugfixes
+-----------
+
+* Fix infeasible problem due to incorrect parsing of soc units of the ``soc-minima`` and ``soc-maxima`` fields within the ``flex-model`` field [see `PR #864 <https://github.com/FlexMeasures/flexmeasures/pull/864>`_]
+
+
 v0.14.2 | July 25, 2023
 ============================
 
