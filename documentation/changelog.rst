@@ -3,6 +3,16 @@
 FlexMeasures Changelog
 **********************
 
+
+v0.16.1 | October 2, 2023
+============================
+
+Bugfixes
+-----------
+
+* Fix infeasible problem due to incorrect parsing of soc units of the ``soc-minima`` and ``soc-maxima`` fields within the ``flex-model`` field [see `PR #864 <https://github.com/FlexMeasures/flexmeasures/pull/864>`_]
+
+
 v0.16.0 | September 27, 2023
 ============================
 
@@ -31,6 +41,15 @@ Infrastructure / Support
 * Implement cache-busting to avoid the need for users to hard refresh the browser when new JavaScript functionality is added to the :abbr:`UI (user interface)` in a new FlexMeasures version [see `PR #860 <https://github.com/FlexMeasures/flexmeasures/pull/860>`_]
 
 
+v0.15.2 | October 2, 2023
+============================
+
+Bugfixes
+-----------
+
+* Fix infeasible problem due to incorrect parsing of soc units of the ``soc-minima`` and ``soc-maxima`` fields within the ``flex-model`` field [see `PR #864 <https://github.com/FlexMeasures/flexmeasures/pull/864>`_]
+
+
 v0.15.1 | August 28, 2023
 ============================
 
@@ -42,6 +61,7 @@ Bugfixes
 * Disable HiGHS logs on the standard output when `LOGGING_LEVEL=INFO` [see `PR #824 <https://github.com/FlexMeasures/flexmeasures/pull/824>`_ and `PR #826 <https://github.com/FlexMeasures/flexmeasures/pull/826>`_]
 * Fix showing sensor data on the asset page of public assets, and searching for annotations on public assets [see `PR #830 <https://github.com/FlexMeasures/flexmeasures/pull/830>`_]
 * Make the command `flexmeasures add schedule for-storage` to pass the soc-target timestamp to the flex model as strings instead of `pd.Timestamp` [see `PR #834 <https://github.com/FlexMeasures/flexmeasures/pull/834>`_]
+
 
 v0.15.0 | August 9, 2023
 ============================
@@ -86,6 +106,16 @@ Infrastructure / Support
 * Add support for installing FlexMeasures under Python 3.11 [see `PR #771 <https://www.github.com/FlexMeasures/flexmeasures/pull/771>`_]
 * Start keeping sets of pinned requirements per supported Python version. Also fixes recent Docker build problem. [see `PR #776 <https://www.github.com/FlexMeasures/flexmeasures/pull/776>`_]
 * Removed obsolete code dealing with deprecated data models (e.g. assets, markets and weather sensors), and sunset the fm0 scheme for entity addresses [see `PR #695 <https://www.github.com/FlexMeasures/flexmeasures/pull/695>`_ and `project 11 <https://www.github.com/FlexMeasures/flexmeasures/projects/11>`_]
+
+
+v0.14.3 | October 2, 2023
+============================
+
+Bugfixes
+-----------
+
+* Fix infeasible problem due to incorrect parsing of soc units of the ``soc-minima`` and ``soc-maxima`` fields within the ``flex-model`` field [see `PR #864 <https://github.com/FlexMeasures/flexmeasures/pull/864>`_]
+
 
 v0.14.2 | July 25, 2023
 ============================
