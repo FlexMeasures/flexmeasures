@@ -48,7 +48,7 @@ class GenericAsset(db.Model, AuthModelMixin):
     Examples of intangible assets: a market, a country, a copyright.
     """
 
-    __table_args__ = db.CheckConstraint("parent_asset_id != id")
+    __table_args__ = (db.CheckConstraint("parent_asset_id != id"),)
 
     # No relationship
     id = db.Column(db.Integer, primary_key=True)
