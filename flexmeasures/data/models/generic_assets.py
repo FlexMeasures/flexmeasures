@@ -440,8 +440,9 @@ class GenericAsset(db.Model, AuthModelMixin):
                     append=True,
                 )
             df = df.reset_index()
-            df["source"] = df["source"].apply(lambda x: x.to_dict())
-            df["sensor"] = df["sensor"].apply(lambda x: x.to_dict())
+            if len(df) > 0:
+                df["source"] = df["source"].apply(lambda x: x.to_dict())
+                df["sensor"] = df["sensor"].apply(lambda x: x.to_dict())
             return df.to_json(orient="records")
         return bdf_dict
 
