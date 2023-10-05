@@ -11,7 +11,6 @@ from sqlalchemy.engine import Row
 from sqlalchemy.ext.hybrid import hybrid_method
 from sqlalchemy.sql.expression import func
 from sqlalchemy.ext.mutable import MutableDict
-from sqlalchemy.schema import UniqueConstraint
 from timely_beliefs import BeliefsDataFrame, utils as tb_utils
 
 from flexmeasures.data import db
@@ -79,14 +78,6 @@ class GenericAsset(db.Model, AuthModelMixin):
         "Annotation",
         secondary="annotations_assets",
         backref=db.backref("assets", lazy="dynamic"),
-    )
-
-    __table_args__ = (
-        UniqueConstraint(
-            "name",
-            "account_id",
-            name="generic_asset_name_account_id_key",
-        ),
     )
 
     def __acl__(self):

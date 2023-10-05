@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from marshmallow import validates, validates_schema, ValidationError, fields
+from marshmallow import validates, ValidationError, fields
 from flask_security import current_user
 
 from flexmeasures.data import ma
@@ -45,29 +45,6 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
 
     class Meta:
         model = GenericAsset
-
-    @validates_schema(skip_on_field_errors=False)
-    def validate_name_is_unique_in_account(self, data, **kwargs):
-        if "name" in data:
-            if data.get("account_id") is None:
-                asset = GenericAsset.query.filter(
-                    GenericAsset.name == data["name"], GenericAsset.account_id.is_(None)
-                ).first()
-                if asset:
-                    raise ValidationError(
-                        f"A public asset with the name {data['name']} already exists.",
-                        "name",
-                    )
-            else:
-                asset = GenericAsset.query.filter(
-                    GenericAsset.name == data["name"],
-                    GenericAsset.account_id == data["account_id"],
-                ).first()
-                if asset:
-                    raise ValidationError(
-                        f"An asset with the name {data['name']} already exists in this account.",
-                        "name",
-                    )
 
     @validates("generic_asset_type_id")
     def validate_generic_asset_type(self, generic_asset_type_id: int):
