@@ -49,20 +49,32 @@ class GenericAsset(db.Model, AuthModelMixin):
     Examples of intangible assets: a market, a country, a copyright.
     """
 
+    __table_args__ = db.CheckConstraint("parent_asset_id != id")
+
+    # No relationship
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(80), default="")
     latitude = db.Column(db.Float, nullable=True)
     longitude = db.Column(db.Float, nullable=True)
     attributes = db.Column(MutableDict.as_mutable(db.JSON), nullable=False, default={})
 
+    # One-to-many (or many-to-one?) relationships
+    parent_asset_id = db.Column(
+        db.Integer, db.ForeignKey("generic_asset.id"), nullable=True
+    )
     generic_asset_type_id = db.Column(
         db.Integer, db.ForeignKey("generic_asset_type.id"), nullable=False
+    )
+    parent_asset = db.relationship(
+        "GenericAsset", remote_side=[id], backref="child_assets"
     )
     generic_asset_type = db.relationship(
         "GenericAssetType",
         foreign_keys=[generic_asset_type_id],
         backref=db.backref("generic_assets", lazy=True),
     )
+
+    # Many-to-many relationships
     annotations = db.relationship(
         "Annotation",
         secondary="annotations_assets",
