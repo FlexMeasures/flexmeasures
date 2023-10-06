@@ -11,6 +11,21 @@ from flexmeasures.data.models.planning.utils import initialize_index
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 
 
+@pytest.fixture(params=["appsi_highs", "cbc"])
+def app_with_each_solver(app, request):
+    """Set up the app config to run with different solvers.
+
+    A test that uses this fixtures runs all of its test cases with HiGHS and then again with Cbc.
+    """
+    original_solver = app.config["FLEXMEASURES_LP_SOLVER"]
+    app.config["FLEXMEASURES_LP_SOLVER"] = request.param
+
+    yield app
+
+    # Restore original config setting for the solver
+    app.config["FLEXMEASURES_LP_SOLVER"] = original_solver
+
+
 @pytest.fixture(scope="module", autouse=True)
 def setup_planning_test_data(db, add_market_prices, add_charging_station_assets):
     """

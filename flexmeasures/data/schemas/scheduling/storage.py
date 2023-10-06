@@ -136,6 +136,12 @@ class StorageFlexModelSchema(Schema):
             if data.get("soc_targets"):
                 for target in data["soc_targets"]:
                     target["value"] /= 1000.0
+            if data.get("soc_minima"):
+                for minimum in data["soc_minima"]:
+                    minimum["value"] /= 1000.0
+            if data.get("soc_maxima"):
+                for maximum in data["soc_maxima"]:
+                    maximum["value"] /= 1000.0
             data["soc_unit"] = "MWh"
 
         # Convert efficiencies to dimensionless (to the (0,1] range)

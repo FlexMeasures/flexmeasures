@@ -3,17 +3,36 @@
 FlexMeasures Changelog
 **********************
 
+
 v0.17.0 | November XX, 2023
-===========================
+============================
+
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
 
 New features
 -------------
 
-* Scheduling data better distinguishes (e.g. in chart tooltips) when a schedule was the result of a fallback mechanism, by splitting off the fallback mechanism from the main scheduler (as a separate job) [see `PR #846 <https://github.com/FlexMeasures/flexmeasures/pull/846>`_]
+- Scheduling data better distinguishes (e.g. in chart tooltips) when a schedule was the result of a fallback mechanism, by splitting off the fallback mechanism from the main scheduler (as a separate job) [see `PR #846 <https://github.com/FlexMeasures/flexmeasures/pull/846>`_]
+
+Infrastructure / Support
+----------------------
+
+- Introduces a new one-to-many relation between assets, allowing the definition of an asset's parent (which is also an asset). This hierarchical relationship enables assets to be related in a structured manner. [see `PR #855 <https://github.com/FlexMeasures/flexmeasures/pull/855>`_]
 
 
-v0.16.0 | September XX, 2023
+v0.16.1 | October 2, 2023
 ============================
+
+Bugfixes
+-----------
+
+* Fix infeasible problem due to incorrect parsing of soc units of the ``soc-minima`` and ``soc-maxima`` fields within the ``flex-model`` field [see `PR #864 <https://github.com/FlexMeasures/flexmeasures/pull/864>`_]
+
+
+v0.16.0 | September 27, 2023
+============================
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/016-profitloss-reporter/>`__.
 
 New features
 -------------
@@ -23,15 +42,29 @@ New features
 * Chart data visible in the UI can be exported to CSV format [see `PR #849 <https://github.com/FlexMeasures/flexmeasures/pull/849>`_]
 * Sensor charts showing instantaneous observations can be interpolated by setting the ``interpolate`` sensor attribute to one of the `supported Vega-Lite interpolation methods <https://vega.github.io/vega-lite/docs/area.html#properties>`_ [see `PR #851 <https://github.com/FlexMeasures/flexmeasures/pull/851>`_]
 * API users can ask for a schedule to take into account an explicit ``power-capacity`` (flex-model) and/or ``site-power-capacity`` (flex-context), thereby overriding any existing defaults for their asset [see `PR #850 <https://github.com/FlexMeasures/flexmeasures/pull/850>`_]
+* API users (and hosts) are warned in case a fallback scheduling policy has been used to create their schedule (as part of the the `/sensors/<id>/schedules/<uuid>` (GET) response message) [see `PR #859 <https://github.com/FlexMeasures/flexmeasures/pull/859>`_]
 
 Infrastructure / Support
 ----------------------
 
 * Allow additional datetime conversions to quantitative time units, specifically, from timezone-naive and/or dayfirst datetimes, which can be useful when importing data [see `PR #831 <https://github.com/FlexMeasures/flexmeasures/pull/831>`_]
 * Add a new tutorial to explain the use of the `AggregatorReporter` to compute the headroom and the `ProfitOrLossReporter` to compute the cost of running a process [see `PR #825 <https://github.com/FlexMeasures/flexmeasures/pull/825>`_ and `PR #856 <https://github.com/FlexMeasures/flexmeasures/pull/856>`_]
+* Updated admin dashboard for inspecting asynchronous tasks (scheduling, forecasting, reporting, etc.), and improved performance and security of the server by upgrading Flask and Flask extensions [see `PR #838 <https://github.com/FlexMeasures/flexmeasures/pull/838>`_]
 * Script to update dependencies across supported Python versions [see `PR #843 <https://github.com/FlexMeasures/flexmeasures/pull/843>`_]
 * Test all supported Python versions in our CI pipeline (GitHub Actions) [see `PR #847 <https://github.com/FlexMeasures/flexmeasures/pull/847>`_]
 * Have our CI pipeline (GitHub Actions) build the Docker image and make a schedule [see `PR #800 <https://github.com/FlexMeasures/flexmeasures/pull/800>`_]
+* Updated documentation on the consequences of setting the `FLEXMEASURES_MODE` config setting [see `PR #857 <https://github.com/FlexMeasures/flexmeasures/pull/857>`_]
+* Implement cache-busting to avoid the need for users to hard refresh the browser when new JavaScript functionality is added to the :abbr:`UI (user interface)` in a new FlexMeasures version [see `PR #860 <https://github.com/FlexMeasures/flexmeasures/pull/860>`_]
+
+
+v0.15.2 | October 2, 2023
+============================
+
+Bugfixes
+-----------
+
+* Fix infeasible problem due to incorrect parsing of soc units of the ``soc-minima`` and ``soc-maxima`` fields within the ``flex-model`` field [see `PR #864 <https://github.com/FlexMeasures/flexmeasures/pull/864>`_]
+
 
 v0.15.1 | August 28, 2023
 ============================
@@ -44,6 +77,7 @@ Bugfixes
 * Disable HiGHS logs on the standard output when `LOGGING_LEVEL=INFO` [see `PR #824 <https://github.com/FlexMeasures/flexmeasures/pull/824>`_ and `PR #826 <https://github.com/FlexMeasures/flexmeasures/pull/826>`_]
 * Fix showing sensor data on the asset page of public assets, and searching for annotations on public assets [see `PR #830 <https://github.com/FlexMeasures/flexmeasures/pull/830>`_]
 * Make the command `flexmeasures add schedule for-storage` to pass the soc-target timestamp to the flex model as strings instead of `pd.Timestamp` [see `PR #834 <https://github.com/FlexMeasures/flexmeasures/pull/834>`_]
+
 
 v0.15.0 | August 9, 2023
 ============================
@@ -88,6 +122,16 @@ Infrastructure / Support
 * Add support for installing FlexMeasures under Python 3.11 [see `PR #771 <https://www.github.com/FlexMeasures/flexmeasures/pull/771>`_]
 * Start keeping sets of pinned requirements per supported Python version. Also fixes recent Docker build problem. [see `PR #776 <https://www.github.com/FlexMeasures/flexmeasures/pull/776>`_]
 * Removed obsolete code dealing with deprecated data models (e.g. assets, markets and weather sensors), and sunset the fm0 scheme for entity addresses [see `PR #695 <https://www.github.com/FlexMeasures/flexmeasures/pull/695>`_ and `project 11 <https://www.github.com/FlexMeasures/flexmeasures/projects/11>`_]
+
+
+v0.14.3 | October 2, 2023
+============================
+
+Bugfixes
+-----------
+
+* Fix infeasible problem due to incorrect parsing of soc units of the ``soc-minima`` and ``soc-maxima`` fields within the ``flex-model`` field [see `PR #864 <https://github.com/FlexMeasures/flexmeasures/pull/864>`_]
+
 
 v0.14.2 | July 25, 2023
 ============================

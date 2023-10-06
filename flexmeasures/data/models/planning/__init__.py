@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime, timedelta
 from typing import Optional, Type
 
@@ -38,6 +40,7 @@ class Scheduler:
     flex_model: Optional[dict] = None
     flex_context: Optional[dict] = None
     fallback_scheduler_class: "Type[Scheduler] | None" = None
+    info: dict | None = None
 
     config_deserialized = False  # This flag allows you to let the scheduler skip checking config, like timing, flex_model and flex_context
 
@@ -75,6 +78,9 @@ class Scheduler:
         if flex_context is None:
             flex_context = {}
         self.flex_context = flex_context
+
+        if self.info is None:
+            self.info = dict(scheduler="")
 
     def compute_schedule(self) -> Optional[pd.Series]:
         """

@@ -4,7 +4,7 @@
 FlexMeasures CLI Changelog
 **********************
 
-since v0.16.0 | September XX, 2023
+since v0.16.0 | September 29, 2023
 =======================================
 * Add command ``flexmeasures add sources`` to add the base `DataSources` for the `DataGenerators`.
 * Add command ``flexmeasures show chart`` to export sensor and asset charts in PNG or SVG formats.

@@ -24,7 +24,6 @@ click
 click-default-group
 email_validator
 rq
-# rq-dashboard-compatible # use this if compatibility with Flask 2.3 is not done
 rq-dashboard
 # the following uses environment markers (see PEP 496)
 rq-win; os_name == 'nt' or os_name == 'win'
@@ -47,16 +46,10 @@ Flask-Migrate
 Flask-WTF
 Flask-Mail
 # <5.2: https://github.com/Parallels/rq-dashboard/issues/417 as 5.2 requires Flask 2.3
-Flask-Security-Too>=5.0, <5.2
-# This pin is tough to debug, but logging in (in API) stops working at 0.6.2.
-# On repeated call to API with auth token, user is anonymous.
-# See test_get_one_user or test_api_task_run_post_unauthorized_wrong_role for a good example
-# The breaking code is introduced in https://github.com/maxcountryman/flask-login/issues/690
-# Moving to Flask>=2.2 should resolve this issue.
-Flask-Login<0.6.2
-Flask-Classful
-# <0.15: https://github.com/marshmallow-code/flask-marshmallow/issues/262
-Flask-Marshmallow<0.15
+Flask-Security-Too>=5.0
+Flask-Login
+Flask-Classful>=0.16
+Flask-Marshmallow
 Flask-Cors
 sentry-sdk[flask]
 marshmallow>=3
@@ -65,10 +58,10 @@ marshmallow-sqlalchemy>=0.23.1
 webargs
 # Minimum version that correctly aligns time series that include NaN values
 uniplot>=0.7.0
-# Maximum constraints here due to Flask-Classful not supporting Werkzeug 2.2.0 yet, see GH#595 and https://github.com/teracyhq/flask-classful/pull/145
-Flask-SQLAlchemy>=2.4.3,<3
+# >=2.5.2: https://github.com/marshmallow-code/flask-marshmallow/issues/262
+Flask-SQLAlchemy>=2.5.2
 # flask should be after all the flask plugins, because setup might find they ARE flask
-# <2.3: https://github.com/Parallels/rq-dashboard/issues/417 and https://github.com/FlexMeasures/flexmeasures/issues/754 and flask-login 0.6.1 not compatible
-flask>=1.0, <=2.1.2
-werkzeug<=2.1
+# <2.3: https://github.com/FlexMeasures/flexmeasures/issues/754
+flask>=1.0, <2.3
+werkzeug<=2.2.3
 vl-convert-python

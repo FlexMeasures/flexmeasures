@@ -271,6 +271,7 @@ def make_schedule(
 
     if rq_job:
         click.echo("Job %s made schedule." % rq_job.id)
+        rq_job.meta["scheduler_info"] = scheduler.info
 
     data_source = get_data_source(
         data_source_name=data_source_info["name"],

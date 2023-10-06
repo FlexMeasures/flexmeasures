@@ -59,7 +59,7 @@ The command to run the scheduling solver. This is the executable command which F
 We have tested FlexMeasures with `HiGHS <https://highs.dev/>`_ and `Cbc <https://coin-or.github.io/Cbc/intro>`_.
 Note that you need to install the solver, read more at :ref:`installing-a-solver`.
 
-Default: ``"appsi_highs"``  (in unit testing, we use ``cbc`` as it runs well for us in Python3.8)
+Default: ``"appsi_highs"``
 
 
 
@@ -617,16 +617,6 @@ FLEXMEASURES_PUBLIC_DEMO_CREDENTIALS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 When ``FLEXMEASURES_MODE=demo``\ , this can hold login credentials (demo user email and password, e.g. ``("demo at seita.nl", "flexdemo")``\ ), so anyone can log in and try out the platform.
-
-Default: ``None``
-
-.. _demo-year-config:
-
-FLEXMEASURES_DEMO_YEAR
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-When ``FLEXMEASURES_MODE=demo``\ , this setting can be used to make the FlexMeasures platform select data from a specific year (e.g. 2015),
-so that old imported data can be demoed as if it were current.
 
 Default: ``None``
 

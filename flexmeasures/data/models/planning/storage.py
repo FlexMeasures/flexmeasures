@@ -9,6 +9,7 @@ import pandas as pd
 import numpy as np
 from flask import current_app
 
+
 from flexmeasures.data.models.planning import Scheduler
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.planning.utils import (

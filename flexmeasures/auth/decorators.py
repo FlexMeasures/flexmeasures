@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from typing import Callable
 from functools import wraps
+import inspect
 from flask import current_app
 from flask_json import as_json
 from flask_security import (
@@ -184,7 +185,9 @@ def permission_required_for_context(
             # if a loader is given, use that, otherwise fall back to context_from_args
             if ctx_loader is not None:
                 if pass_ctx_to_loader:
-                    if issubclass(ctx_loader, AuthModelMixin):
+                    if inspect.isclass(ctx_loader) and issubclass(
+                        ctx_loader, AuthModelMixin
+                    ):
                         context = ctx_loader.query.get(context_from_args)
                     else:
                         context = ctx_loader(context_from_args)

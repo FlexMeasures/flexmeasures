@@ -2,7 +2,7 @@ from flask_classful import FlaskView, route
 from marshmallow import fields
 from sqlalchemy.exc import IntegrityError
 from webargs.flaskparser import use_kwargs
-from flask_security import current_user
+from flask_security import current_user, auth_required
 from flask_security.recoverable import send_reset_password_instructions
 from flask_json import as_json
 from werkzeug.exceptions import Forbidden
@@ -33,6 +33,7 @@ partial_user_schema = UserSchema(partial=True)
 class UserAPI(FlaskView):
     route_base = "/users"
     trailing_slash = False
+    decorators = [auth_required()]
 
     @route("", methods=["GET"])
     @use_kwargs(

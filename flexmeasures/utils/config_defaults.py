@@ -88,7 +88,6 @@ class Config(object):
     FLEXMEASURES_TIMEZONE: str = "Asia/Seoul"
     FLEXMEASURES_HIDE_NAN_IN_UI: bool = False
     FLEXMEASURES_PUBLIC_DEMO_CREDENTIALS: tuple | None = None
-    FLEXMEASURES_DEMO_YEAR: int | None = None
     # Configuration used for entity addressing:
     # This setting contains the domain on which FlexMeasures runs
     # and the first month when the domain was under the current owner's administration
@@ -196,9 +195,6 @@ class TestingConfig(Config):
     SECURITY_HASHING_SCHEMES: list[str] = ["hex_md5"]
     SECURITY_DEPRECATED_HASHING_SCHEMES: list[str] = []
     FLEXMEASURES_MODE: str = "test"
-    FLEXMEASURES_LP_SOLVER: str = (
-        "cbc"  # this solver is currently the one we know is working in Python3.8
-    )
     FLEXMEASURES_PLANNING_HORIZON: timedelta = timedelta(
         hours=2 * 24
     )  # if more than 2 days, consider setting up more days of price data for tests
