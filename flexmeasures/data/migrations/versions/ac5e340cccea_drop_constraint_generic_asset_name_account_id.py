@@ -16,6 +16,12 @@ depends_on = None
 
 
 def upgrade():
+    op.create_unique_constraint(
+        "generic_asset_name_parent_asset_id_key",
+        "generic_asset",
+        ["name", "parent_asset_id"],
+    )
+
     op.drop_constraint(
         "generic_asset_name_account_id_key", "generic_asset", type_="unique"
     )
@@ -24,4 +30,7 @@ def upgrade():
 def downgrade():
     op.create_unique_constraint(
         "generic_asset_name_account_id_key", "generic_asset", ["name", "account_id"]
+    )
+    op.drop_constraint(
+        "generic_asset_name_parent_asset_id_key", "generic_asset", type_="unique"
     )

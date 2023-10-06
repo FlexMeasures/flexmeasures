@@ -52,6 +52,11 @@ class GenericAsset(db.Model, AuthModelMixin):
         db.CheckConstraint(
             "parent_asset_id != id", name="generic_asset_self_reference_ck"
         ),
+        db.UniqueConstraint(
+            "name",
+            "parent_asset_id",
+            name="generic_asset_name_parent_asset_id_key",
+        ),
     )
 
     # No relationship
