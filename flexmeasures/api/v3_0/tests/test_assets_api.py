@@ -219,6 +219,26 @@ def test_alter_an_asset_with_json_attributes(
     assert asset_edit_response.status_code == 200
 
 
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_post_an_asset_with_existing_name(client, setup_api_test_data, requesting_user):
+    """Catch DB error (Unique key violated) correctly"""
+    with AccountContext("Test Prosumer Account") as prosumer:
+        prosumer_id = prosumer.id
+        existing_asset = prosumer.generic_assets[0]
+    post_data = get_asset_post_data()
+    post_data["name"] = existing_asset.name
+    post_data["account_id"] = prosumer_id
+    asset_creation_response = client.post(
+        url_for("AssetAPI:post"),
+        json=post_data,
+    )
+    print(f"Creation Response: {asset_creation_response.json}")
+    assert asset_creation_response.status_code == 422
+    assert (
+        "already exists" in asset_creation_response.json["message"]["json"]["name"][0]
+    )
+
+
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
 )
