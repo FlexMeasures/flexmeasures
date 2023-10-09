@@ -4,10 +4,15 @@ FlexMeasures Changelog
 **********************
 
 
-v0.17.0 | October XX, 2023
+v0.17.0 | November XX, 2023
 ============================
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+
+New features
+-------------
+
+- Scheduling data better distinguishes (e.g. in chart tooltips) when a schedule was the result of a fallback mechanism, by splitting off the fallback mechanism from the main scheduler (as a separate job) [see `PR #846 <https://github.com/FlexMeasures/flexmeasures/pull/846>`_]
 
 Infrastructure / Support
 ----------------------
