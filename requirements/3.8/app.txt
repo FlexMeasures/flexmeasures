@@ -221,8 +221,10 @@ passlib==1.7.4
     # via flask-security-too
 patsy==0.5.3
     # via statsmodels
-pillow==10.0.0
-    # via matplotlib
+pillow==10.0.1
+    # via
+    #   -r requirements/app.in
+    #   matplotlib
 pint==0.21.1
     # via -r requirements/app.in
 pkgutil-resolve-name==1.3.10
