@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from flask import current_app
+from flask import current_app, url_for
 from flask_classful import FlaskView, route
 from flask_json import as_json
 from flask_security import auth_required
@@ -18,6 +18,7 @@ from flexmeasures.api.common.responses import (
     unrecognized_event,
     unknown_schedule,
     invalid_flex_config,
+    fallback_schedule_redirect,
 )
 from flexmeasures.api.common.utils.validators import (
     optional_duration_accepted,
@@ -453,6 +454,7 @@ class SensorAPI(FlaskView):
 
         if job.is_finished:
             error_message = "A scheduling job has been processed with your job ID, but "
+
         elif job.is_failed:  # Try to inform the user on why the job failed
             e = job.meta.get(
                 "exception",
@@ -462,6 +464,22 @@ class SensorAPI(FlaskView):
                     "or its exception handler is not storing the exception as job meta data."
                 ),
             )
+            message = f"Scheduling job failed with {type(e).__name__}: {e}"
+
+            fallback_job_id = job.meta.get("fallback_job_id")
+
+            # redirect to the fallback schedule endpoint if the fallback_job_id
+            # is defined in the metadata of the original job
+            if fallback_job_id is not None:
+                return fallback_schedule_redirect(
+                    message,
+                    url_for(
+                        "SensorAPI:get_schedule", uuid=fallback_job_id, id=sensor.id
+                    ),
+                )
+            else:
+                return unknown_schedule(message)
+
             return unknown_schedule(
                 f"Scheduling job failed with {type(e).__name__}: {e}. {scheduler_info_msg}",
             )
@@ -493,6 +511,7 @@ class SensorAPI(FlaskView):
                 error_message
                 + f"no data source could be found for {data_source}. {scheduler_info_msg}"
             )
+
         power_values = sensor.search_beliefs(
             event_starts_after=schedule_start,
             event_ends_before=schedule_start + planning_horizon,

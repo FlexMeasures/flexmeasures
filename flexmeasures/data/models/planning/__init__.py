@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Type
 
 import pandas as pd
 from flask import current_app
@@ -39,6 +39,7 @@ class Scheduler:
     round_to_decimals: int
     flex_model: Optional[dict] = None
     flex_context: Optional[dict] = None
+    fallback_scheduler_class: "Type[Scheduler] | None" = None
     info: dict | None = None
 
     config_deserialized = False  # This flag allows you to let the scheduler skip checking config, like timing, flex_model and flex_context
