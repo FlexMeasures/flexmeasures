@@ -105,8 +105,8 @@ def dump():
         click.secho(f"db dump successful: saved to {dump_filename}", **MsgStyle.SUCCESS)
 
     except Exception as e:
-        click.echo(f"Exception happened during dump: {e}", **MsgStyle.ERROR)
-        click.echo("db dump unsuccessful", **MsgStyle.ERROR)
+        click.secho(f"Exception happened during dump: {e}", **MsgStyle.ERROR)
+        click.secho("db dump unsuccessful", **MsgStyle.ERROR)
 
 
 @fm_db_ops.command()
