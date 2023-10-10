@@ -74,3 +74,7 @@ echo "docker builder prune --all -f"
 
 # Remove the temp directory
 rm -rf $TEMP_DIR
+
+# Return to the ci directory (in case you want to rerun this script)
+cd $SOURCE_DIR
+cd ci
