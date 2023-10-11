@@ -68,14 +68,18 @@ class GenericAsset(db.Model, AuthModelMixin):
 
     # One-to-many (or many-to-one?) relationships
     parent_asset_id = db.Column(
-        db.Integer, db.ForeignKey("generic_asset.id", ondelete="CASCADE"), nullable=True
+        db.Integer, db.ForeignKey("generic_asset.id"), nullable=True
     )
     generic_asset_type_id = db.Column(
         db.Integer, db.ForeignKey("generic_asset_type.id"), nullable=False
     )
-    parent_asset = db.relationship(
-        "GenericAsset", remote_side=[id], backref="child_assets"
+
+    child_assets = db.relationship(
+        "GenericAsset",
+        cascade="all",
+        backref=db.backref("parent_asset", remote_side="GenericAsset.id"),
     )
+
     generic_asset_type = db.relationship(
         "GenericAssetType",
         foreign_keys=[generic_asset_type_id],
