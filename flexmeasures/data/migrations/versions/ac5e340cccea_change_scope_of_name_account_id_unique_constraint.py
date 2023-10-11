@@ -1,4 +1,7 @@
-"""Drop generic_asset_name_account_id_key constraint
+"""Change the scope of the unique (name, account_id) constraint to
+restricts the name to be unique among the assets "belonging" to the same parent.
+
+Drop generic_asset_name_account_id_key constraint
 
 Revision ID: ac5e340cccea
 Revises: 40d6c8e4be94
