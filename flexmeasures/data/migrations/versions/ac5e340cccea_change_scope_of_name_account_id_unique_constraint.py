@@ -1,5 +1,5 @@
 """Change the scope of the unique (name, account_id) constraint to
-restricts the name to be unique among the assets "belonging" to the same parent.
+restricts the name to be unique among the sibling assets.
 
 Drop generic_asset_name_account_id_key constraint
 
