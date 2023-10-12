@@ -65,6 +65,9 @@ class Account(db.Model, AuthModelMixin):
         secondary="annotations_accounts",
         backref=db.backref("accounts", lazy="dynamic"),
     )
+    consultancy_account_id = Column(
+        Integer, db.ForeignKey("account.id"), defaults=None, nullable=True
+    )
 
     def __repr__(self):
         return "<Account %s (ID:%s)>" % (self.name, self.id)

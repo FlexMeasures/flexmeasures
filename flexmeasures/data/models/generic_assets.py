@@ -97,7 +97,10 @@ class GenericAsset(db.Model, AuthModelMixin):
         """
         return {
             "create-children": f"account:{self.account_id}",
-            "read": f"account:{self.account_id}"
+            "read": (
+                f"account:{self.account_id}",
+                f"account:{self.consultancy_account_id}",
+            )
             if self.account_id is not None
             else EVERY_LOGGED_IN_USER,
             "update": f"account:{self.account_id}",
