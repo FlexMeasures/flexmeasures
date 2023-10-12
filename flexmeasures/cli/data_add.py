@@ -38,7 +38,8 @@ from flexmeasures.data.services.data_sources import get_or_create_source
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.data.services.scheduling import make_schedule, create_scheduling_job
 from flexmeasures.data.services.users import create_user
-from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts
+from flexmeasures.data.services.accounts import create_account
+from flexmeasures.data.models.user import Account, AccountRole
 from flexmeasures.data.models.time_series import (
     Sensor,
     TimedBelief,
@@ -154,22 +155,30 @@ def new_account(name: str, roles: str):
     """
     Create an account for a tenant in the FlexMeasures platform.
     """
-    account = db.session.query(Account).filter_by(name=name).one_or_none()
-    if account is not None:
+    roles_list = roles.split(",")
+    try:
+        account, messages = create_account(name=name, roles=roles_list)
+        for message in messages:
+            click.secho(message, **MsgStyle.ERROR)
+    except ValueError:
         click.secho(f"Account '{name}' already exists.", **MsgStyle.ERROR)
-        raise click.Abort()
-    account = Account(name=name)
-    db.session.add(account)
-    if roles:
-        for role_name in roles.split(","):
-            role = AccountRole.query.filter_by(name=role_name).one_or_none()
-            if role is None:
-                click.secho(f"Adding account role {role_name} ...", **MsgStyle.ERROR)
-                role = AccountRole(name=role_name)
-                db.session.add(role)
-            db.session.flush()
-            db.session.add(RolesAccounts(role_id=role.id, account_id=account.id))
-    db.session.commit()
+
+    # account = db.session.query(Account).filter_by(name=name).one_or_none()
+    # if account is not None:
+    #     click.secho(f"Account '{name}' already exists.", **MsgStyle.ERROR)
+    #     raise click.Abort()
+    # account = Account(name=name)
+    # db.session.add(account)
+    # if roles:
+    #     for role_name in roles.split(","):
+    #         role = AccountRole.query.filter_by(name=role_name).one_or_none()
+    #         if role is None:
+    #             click.secho(f"Adding account role {role_name} ...", **MsgStyle.ERROR)
+    #             role = AccountRole(name=role_name)
+    #             db.session.add(role)
+    #         db.session.flush()
+    #         db.session.add(RolesAccounts(role_id=role.id, account_id=account.id))
+    # db.session.commit()
     click.secho(
         f"Account '{name}' (ID: {account.id}) successfully created.",
         **MsgStyle.SUCCESS,

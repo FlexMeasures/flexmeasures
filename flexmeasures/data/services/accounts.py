@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from flexmeasures.data.models.user import Account, AccountRole
+from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data import db
 
 
 def get_accounts(
@@ -35,3 +36,26 @@ def get_account_roles(account_id: int) -> list[AccountRole]:
     if account is None:
         return []
     return account.account_roles
+
+
+def create_account(name: str, roles: list):
+    """
+    Create an account for a tenant in the FlexMeasures platform.
+    """
+    messages = []
+    account = db.session.query(Account).filter_by(name=name).one_or_none()
+    if account is not None:
+        raise ValueError(f"Account '{name}' already exists.")
+    account = Account(name=name)
+    db.session.add(account)
+    if roles:
+        for role_name in roles:
+            role = AccountRole.query.filter_by(name=role_name).one_or_none()
+            if role is None:
+                messages |= f"Adding account role {role_name} ..."
+                role = AccountRole(name=role_name)
+                db.session.add(role)
+            db.session.flush()
+            db.session.add(RolesAccounts(role_id=role.id, account_id=account.id))
+    db.session.commit()
+    return account, messages
