@@ -66,7 +66,7 @@ class Account(db.Model, AuthModelMixin):
         backref=db.backref("accounts", lazy="dynamic"),
     )
     consultancy_account_id = Column(
-        Integer, db.ForeignKey("account.id"), defaults=None, nullable=True
+        Integer, db.ForeignKey("account.id"), default=None, nullable=True
     )
 
     def __repr__(self):
