@@ -14,6 +14,8 @@ from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.schema import UniqueConstraint
 from timely_beliefs import BeliefsDataFrame, utils as tb_utils
 
+from flexmeasures.data.models.user import Account
+
 from flexmeasures.data import db
 from flexmeasures.data.models.annotations import Annotation, to_annotation_frame
 from flexmeasures.data.models.charts import chart_type_to_chart_specs
@@ -95,12 +97,18 @@ class GenericAsset(db.Model, AuthModelMixin):
         Within same account, everyone can create, read and update.
         Deletion is left to account admins.
         """
+        account = Account.query.filter_by(id=self.account_id).one_or_none()
+
+        read_access_list = [f"account:{self.account_id}"]
+        if account.consultancy_account_id is not None:
+            read_access_list.append(f"account:{account.consultancy_account_id}")
+
+        read_access = tuple(read_access_list)
+        print(read_access)
+
         return {
             "create-children": f"account:{self.account_id}",
-            "read": (
-                f"account:{self.account_id}",
-                f"account:{self.consultancy_account_id}",
-            )
+            "read": read_access
             if self.account_id is not None
             else EVERY_LOGGED_IN_USER,
             "update": f"account:{self.account_id}",
