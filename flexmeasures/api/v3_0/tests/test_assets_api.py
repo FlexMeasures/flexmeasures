@@ -219,6 +219,30 @@ def test_alter_an_asset_with_json_attributes(
     assert asset_edit_response.status_code == 200
 
 
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_post_an_asset_with_existing_name(
+    client, add_asset_with_children, requesting_user
+):
+    """Catch DB error (Unique key violated) correctly"""
+
+    post_data = get_asset_post_data()
+
+    post_data["name"] = add_asset_with_children["child_1"].name
+    post_data["account_id"] = add_asset_with_children["child_1"].account_id
+    post_data["parent_asset_id"] = add_asset_with_children["child_1"].account_id
+
+    asset_creation_response = client.post(
+        url_for("AssetAPI:post"),
+        json=post_data,
+    )
+
+    print(f"Creation Response: {asset_creation_response.json}")
+    assert asset_creation_response.status_code == 422
+    assert (
+        "already exists" in asset_creation_response.json["message"]["json"]["name"][0]
+    )
+
+
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
 )
@@ -339,27 +363,3 @@ def test_delete_an_asset(client, setup_api_test_data, requesting_user):
     assert delete_asset_response.status_code == 204
     deleted_asset = GenericAsset.query.filter_by(id=existing_asset_id).one_or_none()
     assert deleted_asset is None
-
-
-@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
-def test_post_an_asset_with_existing_name(
-    client, add_asset_with_children, requesting_user
-):
-    """Catch DB error (Unique key violated) correctly"""
-
-    post_data = get_asset_post_data()
-
-    post_data["name"] = add_asset_with_children["child_1"].name
-    post_data["account_id"] = add_asset_with_children["child_1"].account_id
-    post_data["parent_asset_id"] = add_asset_with_children["child_1"].account_id
-
-    asset_creation_response = client.post(
-        url_for("AssetAPI:post"),
-        json=post_data,
-    )
-
-    print(f"Creation Response: {asset_creation_response.json}")
-    assert asset_creation_response.status_code == 422
-    assert (
-        "already exists" in asset_creation_response.json["message"]["json"]["name"][0]
-    )
