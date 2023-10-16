@@ -78,9 +78,15 @@ class Account(db.Model, AuthModelMixin):
         Within same account, everyone can read and update.
         Creation and deletion of accounts are left to site admins in CLI.
         """
+        account = Account.query.filter_by(consultancy_account_id=1).one_or_none()
+
+        read_access_list = [f"account:{1}"]
+        if account is not None:
+            read_access_list.append(f"account:{1}")
+        read_access = tuple(read_access_list)
         return {
             "create-children": (f"account:{self.id}", "role:account-admin"),
-            "read": f"account:{self.id}",
+            "read": read_access,
             "update": f"account:{self.id}",
         }
 

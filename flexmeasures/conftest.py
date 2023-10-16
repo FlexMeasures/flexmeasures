@@ -109,7 +109,9 @@ def create_test_db(app):
 
 @pytest.fixture(scope="module")
 def setup_accounts(db) -> dict[str, Account]:
-    return create_test_accounts(db)
+    test_accounts = create_test_accounts(db)
+    test_accounts |= add_consult_account_access_to_prosumer_account(db, test_accounts)
+    return test_accounts
 
 
 @pytest.fixture(scope="function")
@@ -154,6 +156,21 @@ def create_test_accounts(db) -> dict[str, Account]:
         Dummy=dummy_account,
         Multi=multi_role_account,
     )
+
+
+def add_consult_account_access_to_prosumer_account(db, test_accounts):
+    # account_id = test_accounts["Prosumer"].id
+    consultant_account_role = AccountRole(
+        name="Consultant",
+        description="Consultant account with access to customer accounts",
+    )
+    consultant_account = Account(
+        name="Test Consultant Account",
+        account_roles=[consultant_account_role],
+        consultancy_account_id=1,
+    )
+    db.session.add(consultant_account)
+    return dict(Consultant=consultant_account)
 
 
 @pytest.fixture(scope="module")
@@ -219,6 +236,16 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
             user_roles=dict(
                 name=ADMIN_ROLE, description="A user who can do everything."
             ),
+        )
+    )
+    new_users.append(
+        create_user(
+            username="Test Consultancy User",
+            email="test_consultant_user@seita.nl",
+            account_name=test_accounts["Consultant"].name,
+            password="testtest",
+            # TODO: test some normal user roles later in our auth progress
+            # user_roles=dict(name="", description=""),
         )
     )
     return {user.username: user.id for user in new_users}

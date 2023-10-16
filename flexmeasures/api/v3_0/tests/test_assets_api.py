@@ -4,6 +4,7 @@ from flask import url_for
 import pytest
 
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.user import Account
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.api.tests.utils import get_auth_token, UserContext, AccountContext
 from flexmeasures.api.v3_0.tests.utils import get_asset_post_data
@@ -68,6 +69,7 @@ def test_get_asset_nonaccount_access(client, setup_api_test_data, requesting_use
     [
         ("test_admin_user@seita.nl", "Prosumer", 1),
         ("test_admin_user@seita.nl", "Supplier", 2),
+        ("test_consultant_user@seita.nl", "Prosumer", 1),
     ],
     indirect=["requesting_user"],
 )
@@ -359,3 +361,42 @@ def test_delete_an_asset(client, setup_api_test_data, requesting_user):
     assert delete_asset_response.status_code == 204
     deleted_asset = GenericAsset.query.filter_by(id=existing_asset_id).one_or_none()
     assert deleted_asset is None
+
+
+@pytest.mark.parametrize(
+    "requesting_user",
+    ["test_prosumer_user@seita.nl"],
+    indirect=True,
+)
+def test_get_assets_new(
+    client,
+    setup_api_test_data,
+    setup_accounts,
+    requesting_user,
+):
+    """
+    Get assets per account.
+    Our user here is admin, so is allowed to see all assets.
+    """
+    account: Account = Account.query.filter_by(name="Consultant").one_or_none()
+    print(account)
+    account_name = "Consultant"
+    num_assets = 12
+    query = {"account_id": setup_accounts[account_name].id}
+    print(query)
+
+    get_assets_response = client.get(
+        url_for("AssetAPI:index"),
+        query_string=query,
+    )
+    print("Server responded with:\n%s" % get_assets_response.json)
+    assert get_assets_response.status_code == 200
+    assert len(get_assets_response.json) == num_assets
+
+    # if account_name == "Supplier":  # one deep dive
+    #     turbine = {}
+    #     for asset in get_assets_response.json:
+    #         if asset["name"] == "Test wind turbine":
+    #             turbine = asset
+    #     assert turbine
+    #     assert turbine["account_id"] == setup_accounts["Supplier"].id
