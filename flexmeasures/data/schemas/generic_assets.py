@@ -47,14 +47,6 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
     class Meta:
         model = GenericAsset
 
-    @validates("generic_asset_type_id")
-    def validate_generic_asset_type(self, generic_asset_type_id: int):
-        generic_asset_type = GenericAssetType.query.get(generic_asset_type_id)
-        if not generic_asset_type:
-            raise ValidationError(
-                f"GenericAssetType with id {generic_asset_type_id} doesn't exist."
-            )
-
     @validates_schema(skip_on_field_errors=False)
     def validate_name_is_unique_under_parent(self, data, **kwargs):
         if "name" in data:
@@ -69,6 +61,14 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
                     f"An asset with the name '{data['name']}' already exists under parent asset with id={data.get('parent_asset_id')}.",
                     "name",
                 )
+
+    @validates("generic_asset_type_id")
+    def validate_generic_asset_type(self, generic_asset_type_id: int):
+        generic_asset_type = GenericAssetType.query.get(generic_asset_type_id)
+        if not generic_asset_type:
+            raise ValidationError(
+                f"GenericAssetType with id {generic_asset_type_id} doesn't exist."
+            )
 
     @validates("account_id")
     def validate_account(self, account_id: int | None):
