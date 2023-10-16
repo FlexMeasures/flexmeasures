@@ -57,15 +57,16 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
 
     @validates_schema(skip_on_field_errors=False)
     def validate_name_is_unique_under_parent(self, data, **kwargs):
-        if "name" in data and data.get("parent_asset_id") is not None:
+        if "name" in data:
+
             asset = GenericAsset.query.filter(
                 GenericAsset.name == data["name"],
-                GenericAsset.parent_asset_id == data["parent_asset_id"],
-            )
+                GenericAsset.parent_asset_id == data.get("parent_asset_id"),
+            ).first()
 
             if asset:
                 raise ValidationError(
-                    f"An asset with the name '{data['name']}' already exists under parent asset with id={data['parent_asset_id']}.",
+                    f"An asset with the name '{data['name']}' already exists under parent asset with id={data.get('parent_asset_id')}.",
                     "name",
                 )
 
