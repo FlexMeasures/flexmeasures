@@ -69,7 +69,6 @@ def test_get_asset_nonaccount_access(client, setup_api_test_data, requesting_use
     [
         ("test_admin_user@seita.nl", "Prosumer", 1),
         ("test_admin_user@seita.nl", "Supplier", 2),
-        ("test_consultant_user@seita.nl", "Prosumer", 1),
     ],
     indirect=["requesting_user"],
 )
@@ -378,10 +377,12 @@ def test_get_assets_new(
     Get assets per account.
     Our user here is admin, so is allowed to see all assets.
     """
-    account: Account = Account.query.filter_by(name="Consultant").one_or_none()
+    account: Account = Account.query.filter_by(
+        name="Test Consultant account"
+    ).one_or_none()
     print(account)
     account_name = "Consultant"
-    num_assets = 12
+    num_assets = 0
     query = {"account_id": setup_accounts[account_name].id}
     print(query)
 

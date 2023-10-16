@@ -99,11 +99,10 @@ class GenericAsset(db.Model, AuthModelMixin):
         """
         account = Account.query.filter_by(id=self.account_id).one_or_none()
 
-        read_access_list = [f"account:{self.account_id}"]
+        read_access = [f"account:{self.account_id}"]
         if account.consultancy_account_id is not None:
-            read_access_list.append(f"account:{account.consultancy_account_id}")
+            read_access.append(f"account:{account.consultancy_account_id}")
 
-        read_access = tuple(read_access_list)
         print(read_access)
 
         return {
