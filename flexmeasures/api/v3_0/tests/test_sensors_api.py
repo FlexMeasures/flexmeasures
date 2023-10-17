@@ -28,7 +28,6 @@ def test_fetch_one_sensor(
     assert response.status_code == 200
     assert response.json["name"] == "some gas sensor"
     assert response.json["unit"] == "m³/h"
-    assert response.json["generic_asset_id"] == 4
     assert response.json["timezone"] == "UTC"
     assert response.json["event_resolution"] == "PT10M"
 

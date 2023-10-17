@@ -116,7 +116,11 @@ def setup_accounts(db) -> dict[str, Account]:
 
 @pytest.fixture(scope="function")
 def setup_accounts_fresh_db(fresh_db) -> dict[str, Account]:
-    return create_test_accounts(fresh_db)
+    test_accounts = create_test_accounts(fresh_db)
+    test_accounts |= add_consult_account_access_to_prosumer_account(
+        fresh_db, test_accounts
+    )
+    return test_accounts
 
 
 def create_test_accounts(db) -> dict[str, Account]:
@@ -170,7 +174,9 @@ def add_consult_account_access_to_prosumer_account(db, test_accounts):
         consultancy_account_id=account.id,
     )
     db.session.add(consultant_account)
-    return dict(Consultant=consultant_account)
+    return dict(
+        Consultant=consultant_account,
+    )
 
 
 @pytest.fixture(scope="module")
