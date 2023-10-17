@@ -159,15 +159,15 @@ def create_test_accounts(db) -> dict[str, Account]:
 
 
 def add_consult_account_access_to_prosumer_account(db, test_accounts):
-    # account_id = test_accounts["Prosumer"].id
+    account = Account.query.filter_by(name="Test Prosumer Account").one_or_none()
     consultant_account_role = AccountRole(
         name="Consultant",
-        description="Consultant account with access to customer accounts",
+        description="Account that prosumer can access",
     )
     consultant_account = Account(
         name="Test Consultant Account",
         account_roles=[consultant_account_role],
-        consultancy_account_id=1,
+        consultancy_account_id=account.id,
     )
     db.session.add(consultant_account)
     return dict(Consultant=consultant_account)
