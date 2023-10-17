@@ -103,8 +103,6 @@ class GenericAsset(db.Model, AuthModelMixin):
         if account.consultancy_account_id is not None:
             read_access.append(f"account:{account.consultancy_account_id}")
 
-        print(read_access)
-
         return {
             "create-children": f"account:{self.account_id}",
             "read": read_access

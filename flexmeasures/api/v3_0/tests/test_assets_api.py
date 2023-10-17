@@ -4,7 +4,6 @@ from flask import url_for
 import pytest
 
 from flexmeasures.data.models.generic_assets import GenericAsset
-from flexmeasures.data.models.user import Account
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.api.tests.utils import get_auth_token, UserContext, AccountContext
 from flexmeasures.api.v3_0.tests.utils import get_asset_post_data
@@ -374,17 +373,11 @@ def test_get_assets_new(
     requesting_user,
 ):
     """
-    Get assets per account.
-    Our user here is admin, so is allowed to see all assets.
+    Get assets in the account the Prosumer account is in the
+    consultancy account of
     """
-    account: Account = Account.query.filter_by(
-        name="Test Consultant account"
-    ).one_or_none()
-    print(account)
     account_name = "Consultant"
-    num_assets = 0
     query = {"account_id": setup_accounts[account_name].id}
-    print(query)
 
     get_assets_response = client.get(
         url_for("AssetAPI:index"),
@@ -392,12 +385,4 @@ def test_get_assets_new(
     )
     print("Server responded with:\n%s" % get_assets_response.json)
     assert get_assets_response.status_code == 200
-    assert len(get_assets_response.json) == num_assets
-
-    # if account_name == "Supplier":  # one deep dive
-    #     turbine = {}
-    #     for asset in get_assets_response.json:
-    #         if asset["name"] == "Test wind turbine":
-    #             turbine = asset
-    #     assert turbine
-    #     assert turbine["account_id"] == setup_accounts["Supplier"].id
+    assert len(get_assets_response.json) == 1

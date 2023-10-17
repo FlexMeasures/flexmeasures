@@ -350,11 +350,18 @@ def create_generic_assets(
         owner=setup_accounts["Supplier"],
     )
     db.session.add(test_wind_turbine)
+    test_consultant_asset = GenericAsset(
+        name="Test consultant asset",
+        generic_asset_type=setup_generic_asset_types["wind"],
+        owner=setup_accounts["Consultant"],
+    )
+    db.session.add(test_consultant_asset)
 
     return dict(
         troposphere=troposphere,
         test_battery=test_battery,
         test_wind_turbine=test_wind_turbine,
+        test_consultant_asset=test_consultant_asset,
     )
 
 
