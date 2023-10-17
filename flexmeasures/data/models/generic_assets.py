@@ -14,7 +14,6 @@ from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.schema import UniqueConstraint
 from timely_beliefs import BeliefsDataFrame, utils as tb_utils
 
-
 from flexmeasures.data import db
 from flexmeasures.data.models.annotations import Annotation, to_annotation_frame
 from flexmeasures.data.models.charts import chart_type_to_chart_specs
