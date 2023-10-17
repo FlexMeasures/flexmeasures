@@ -54,6 +54,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
             asset = GenericAsset.query.filter(
                 GenericAsset.name == data["name"],
                 GenericAsset.parent_asset_id == data.get("parent_asset_id"),
+                GenericAsset.account_id == data.get("account_id"),
             ).first()
 
             if asset:
