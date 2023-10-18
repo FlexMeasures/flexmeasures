@@ -11,7 +11,6 @@ from sqlalchemy.engine import Row
 from sqlalchemy.ext.hybrid import hybrid_method
 from sqlalchemy.sql.expression import func
 from sqlalchemy.ext.mutable import MutableDict
-from sqlalchemy.schema import UniqueConstraint
 from timely_beliefs import BeliefsDataFrame, utils as tb_utils
 
 from flexmeasures.data import db
@@ -49,32 +48,49 @@ class GenericAsset(db.Model, AuthModelMixin):
     Examples of intangible assets: a market, a country, a copyright.
     """
 
+    __table_args__ = (
+        db.CheckConstraint(
+            "parent_asset_id != id", name="generic_asset_self_reference_ck"
+        ),
+        db.UniqueConstraint(
+            "name",
+            "parent_asset_id",
+            name="generic_asset_name_parent_asset_id_key",
+        ),
+    )
+
+    # No relationship
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(80), default="")
     latitude = db.Column(db.Float, nullable=True)
     longitude = db.Column(db.Float, nullable=True)
     attributes = db.Column(MutableDict.as_mutable(db.JSON), nullable=False, default={})
 
+    # One-to-many (or many-to-one?) relationships
+    parent_asset_id = db.Column(
+        db.Integer, db.ForeignKey("generic_asset.id", ondelete="CASCADE"), nullable=True
+    )
     generic_asset_type_id = db.Column(
         db.Integer, db.ForeignKey("generic_asset_type.id"), nullable=False
     )
+
+    child_assets = db.relationship(
+        "GenericAsset",
+        cascade="all",
+        backref=db.backref("parent_asset", remote_side="GenericAsset.id"),
+    )
+
     generic_asset_type = db.relationship(
         "GenericAssetType",
         foreign_keys=[generic_asset_type_id],
         backref=db.backref("generic_assets", lazy=True),
     )
+
+    # Many-to-many relationships
     annotations = db.relationship(
         "Annotation",
         secondary="annotations_assets",
         backref=db.backref("assets", lazy="dynamic"),
-    )
-
-    __table_args__ = (
-        UniqueConstraint(
-            "name",
-            "account_id",
-            name="generic_asset_name_account_id_key",
-        ),
     )
 
     def __acl__(self):
@@ -215,6 +231,8 @@ class GenericAsset(db.Model, AuthModelMixin):
     ) -> Union[List[Annotation], pd.DataFrame]:
         """Return annotations assigned to this asset, and optionally, also those assigned to the asset's account.
 
+        The returned annotations do not include any annotations on public accounts.
+
         :param annotations_after: only return annotations that end after this datetime (exclusive)
         :param annotations_before: only return annotations that start before this datetime (exclusive)
         """
@@ -226,7 +244,7 @@ class GenericAsset(db.Model, AuthModelMixin):
             sources=parsed_sources,
             annotation_type=annotation_type,
         ).all()
-        if include_account_annotations:
+        if include_account_annotations and self.owner is not None:
             annotations += self.owner.search_annotations(
                 annotations_after=annotations_after,
                 annotations_before=annotations_before,
@@ -425,6 +443,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                     else ["belief_time", "source"],
                     append=True,
                 )
+                df["sensor"] = {}  # ensure the same columns as a non-empty frame
             df = df.reset_index()
             df["source"] = df["source"].apply(lambda x: x.to_dict())
             df["sensor"] = df["sensor"].apply(lambda x: x.to_dict())
@@ -459,7 +478,7 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         # Only allow showing sensors from assets owned by the user's organization,
         # except in play mode, where any sensor may be shown
-        accounts = [self.owner]
+        accounts = [self.owner] if self.owner is not None else None
         if current_app.config.get("FLEXMEASURES_MODE") == "play":
             from flexmeasures.data.models.user import Account
 
@@ -581,6 +600,7 @@ def create_generic_asset(generic_asset_type: str, **kwargs) -> GenericAsset:
     ).one_or_none()
     if generic_asset_type is None:
         raise ValueError(f"Cannot find GenericAssetType {asset_type_name} in database.")
+
     new_generic_asset = GenericAsset(
         name=kwargs["name"],
         generic_asset_type_id=generic_asset_type.id,
@@ -591,6 +611,7 @@ def create_generic_asset(generic_asset_type: str, **kwargs) -> GenericAsset:
             setattr(new_generic_asset, arg, kwargs[arg])
     db.session.add(new_generic_asset)
     db.session.flush()  # generates the pkey for new_generic_asset
+
     return new_generic_asset
 
 

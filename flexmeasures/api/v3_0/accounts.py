@@ -26,9 +26,9 @@ partial_account_schema = AccountSchema(partial=True)
 class AccountAPI(FlaskView):
     route_base = "/accounts"
     trailing_slash = False
+    decorators = [auth_required()]
 
     @route("", methods=["GET"])
-    @auth_required("token", "session")
     @as_json
     def index(self):
         """API endpoint to list all accounts accessible to the current user.

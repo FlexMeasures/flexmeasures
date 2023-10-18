@@ -46,6 +46,7 @@ def get_sensor_post_data(generic_asset_id: int = 2) -> dict:
         "event_resolution": "PT1H",
         "unit": "kWh",
         "generic_asset_id": generic_asset_id,
+        "attributes": '{"capacity_in_mw": 0.0074, "max_soc_in_mwh": 0.04, "min_soc_in_mwh": 0.008}',
     }
     return post_data
 
@@ -72,6 +73,7 @@ def message_for_trigger_schedule(
         "soc-unit": "kWh",
         "roundtrip-efficiency": "98%",
         "storage-efficiency": "99.99%",
+        "power-capacity": "2 MW",  # same as capacity_in_mw attribute of test battery and test charging station
     }
     if with_targets:
         if realistic_targets:
@@ -87,5 +89,12 @@ def message_for_trigger_schedule(
             target_datetime = "2015-01-02T23:00:00+01:00"
         message["flex-model"]["soc-targets"] = [
             {"value": target_value, "datetime": target_datetime}
+        ]
+        # Also create some minima and maxima constraints to test correct deserialization using the soc-unit
+        message["flex-model"]["soc-minima"] = [
+            {"value": target_value - 1, "datetime": target_datetime}
+        ]
+        message["flex-model"]["soc-maxima"] = [
+            {"value": target_value + 1, "datetime": target_datetime}
         ]
     return message

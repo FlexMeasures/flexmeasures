@@ -1,3 +1,4 @@
+from __future__ import annotations
 import pytest
 
 from flexmeasures.data.models.reporting.pandas_reporter import PandasReporter
@@ -67,70 +68,37 @@ tibber_app_price = [
 ]  # cents/kWh
 
 
-class TibberReporter(PandasReporter):
-    def __init__(self, sensor) -> None:
-        """This class calculates the price of energy of a tariff indexed to the Day Ahead prices.
-        Energy Price = (1 + VAT) x ( EnergyTax + Tiber + DA Prices)
-        """
-
-        # search the sensors
-        EnergyTax = Sensor.query.filter(Sensor.name == "EnergyTax").one_or_none()
-        VAT = Sensor.query.filter(Sensor.name == "VAT").one_or_none()
-        tibber_tariff = Sensor.query.filter(
-            Sensor.name == "Tibber Tariff"
-        ).one_or_none()
-
-        da_prices = Sensor.query.filter(Sensor.name == "DA prices").one_or_none()
-
-        # create the PandasReporter reporter config
-        reporter_config = dict(
-            beliefs_search_configs=[
-                dict(sensor=EnergyTax.id, alias="energy_tax_df"),
-                dict(sensor=VAT.id),
-                dict(sensor=tibber_tariff.id),
-                dict(sensor=da_prices.id),
-            ],
-            transformations=[
-                dict(
-                    df_input="sensor_1",
-                    df_output="VAT",
-                    method="droplevel",
-                    args=[[1, 2, 3]],
-                ),
-                dict(method="add", args=[1]),  # this is to get 1 + VAT
-                dict(
-                    df_input="energy_tax_df",
-                    df_output="EnergyTax",
-                    method="droplevel",
-                    args=[[1, 2, 3]],
-                ),
-                dict(
-                    df_input="sensor_3",
-                    df_output="tibber_tariff",
-                    method="droplevel",
-                    args=[[1, 2, 3]],
-                ),
-                dict(
-                    df_input="sensor_4",
-                    df_output="da_prices",
-                    method="droplevel",
-                    args=[[1, 2, 3]],
-                ),
-                dict(
-                    method="add", args=["@tibber_tariff"]
-                ),  # da_prices = da_prices + tibber_tariff
-                dict(
-                    method="add", args=["@EnergyTax"]
-                ),  # da_prices = da_prices + EnergyTax
-                dict(
-                    method="multiply", args=["@VAT"]
-                ),  # da_prices = da_price * VAT, VAT
-                dict(method="round"),
-            ],
-            final_df_output="da_prices",
-        )
-
-        super().__init__(sensor, reporter_config)
+pandas_reporter_config = dict(
+    required_input=[{"name": v} for v in ["energy_tax", "VAT", "tariff", "da_prices"]],
+    required_output=[{"name": "da_prices"}],
+    transformations=[
+        dict(
+            df_input="VAT",
+            method="droplevel",
+            args=[[1, 2, 3]],
+        ),
+        dict(method="add", args=[1]),  # this is to get 1 + VAT
+        dict(
+            df_input="energy_tax",
+            method="droplevel",
+            args=[[1, 2, 3]],
+        ),
+        dict(
+            df_input="tariff",
+            method="droplevel",
+            args=[[1, 2, 3]],
+        ),
+        dict(
+            df_input="da_prices",
+            method="droplevel",
+            args=[[1, 2, 3]],
+        ),
+        dict(method="add", args=["@tariff"]),  # da_prices = da_prices + tibber_tariff
+        dict(method="add", args=["@energy_tax"]),  # da_prices = da_prices + energy_tax
+        dict(method="multiply", args=["@VAT"]),  # da_prices = da_price * VAT, VAT
+        dict(method="round"),
+    ],
+)
 
 
 def beliefs_from_timeseries(index, values, sensor, source):
@@ -234,7 +202,9 @@ def tibber_test_data(fresh_db, app):
     )
     db.session.add(tibber_report_sensor)
 
-    return tibber_report_sensor
+    db.session.commit()
+
+    return tibber_report_sensor, EnergyTax, VAT, tibber_tariff, da_prices
 
 
 def test_tibber_reporter(tibber_test_data):
@@ -243,14 +213,21 @@ def test_tibber_reporter(tibber_test_data):
     displayed in Tibber's App.
     """
 
-    tibber_report_sensor = tibber_test_data
+    tibber_report_sensor, EnergyTax, VAT, tibber_tariff, da_prices = tibber_test_data
 
-    tibber_reporter = TibberReporter(tibber_report_sensor)
+    tibber_reporter = PandasReporter(config=pandas_reporter_config)
 
     result = tibber_reporter.compute(
+        input=[
+            {"name": "energy_tax", "sensor": EnergyTax},
+            {"name": "VAT", "sensor": VAT},
+            {"name": "tariff", "sensor": tibber_tariff},
+            {"name": "da_prices", "sensor": da_prices},
+        ],
+        output=[dict(sensor=tibber_report_sensor, name="da_prices")],
         start=datetime(2023, 4, 13, tzinfo=utc),
         end=datetime(2023, 4, 14, tzinfo=utc),
-    )
+    )[0]["data"]
 
     # check that we got a result for 24 hours
     assert len(result) == 24

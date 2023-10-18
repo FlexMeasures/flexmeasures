@@ -4,6 +4,7 @@ import pint.errors
 import pytest
 
 import pandas as pd
+import timely_beliefs as tb
 
 from flexmeasures.utils.unit_utils import (
     convert_units,
@@ -61,6 +62,115 @@ def test_convert_unit(
         expected_data = data * expected_multiplier
     else:
         expected_data = pd.Series(expected_values)
+    pd.testing.assert_series_equal(converted_data, expected_data)
+
+
+@pytest.mark.parametrize(
+    "from_unit, to_unit, timezone, input_values, expected_values",
+    [
+        # datetimes are converted to seconds since UNIX epoch
+        (
+            "datetime",
+            "s",
+            None,
+            ["1970-01-01", "1970-01-02", "1970-01-03"],
+            [0, 60 * 60 * 24, 60 * 60 * 48],
+        ),
+        # nothing overflows for the next 100 years
+        (
+            "datetime",
+            "s",
+            None,
+            ["2123-05-02", "2123-05-03", "2123-05-04"],
+            [4838659200, 4838659200 + 60 * 60 * 24, 4838659200 + 60 * 60 * 48],
+        ),
+        # Same as above, but day precedes month in input
+        (
+            "dayfirst datetime",
+            "s",
+            None,
+            ["02-05-2123", "03-05-2123", "04-05-2123"],
+            [4838659200, 4838659200 + 60 * 60 * 24, 4838659200 + 60 * 60 * 48],
+        ),
+        # Localize timezone-naive datetimes to UTC in case there is no sensor information available
+        (
+            "datetime",
+            "s",
+            None,
+            ["2023-05-02 00:00:01", "2023-05-02 00:00:02", "2023-05-02 00:00:03"],
+            [1682985601, 1682985602, 1682985603],
+        ),
+        # Localize timezone-naive datetimes to sensor's timezone in case that is available
+        (
+            "datetime",
+            "s",
+            "Europe/Amsterdam",
+            ["2023-05-02 00:00:01", "2023-05-02 00:00:02", "2023-05-02 00:00:03"],
+            [
+                1682985601 - 60 * 60 * 2,
+                1682985602 - 60 * 60 * 2,
+                1682985603 - 60 * 60 * 2,
+            ],
+        ),
+        # Timezone-aware datetimes work don't require localization
+        (
+            "datetime",
+            "s",
+            None,
+            [
+                "2023-05-02 00:00:01 +02:00",
+                "2023-05-02 00:00:02 +02:00",
+                "2023-05-02 00:00:03 +02:00",
+            ],
+            [
+                1682985601 - 60 * 60 * 2,
+                1682985602 - 60 * 60 * 2,
+                1682985603 - 60 * 60 * 2,
+            ],
+        ),
+        # Timezone-aware datetimes also means that the sensor timezone is irrelevant
+        (
+            "datetime",
+            "s",
+            "Asia/Seoul",
+            [
+                "2023-05-02 00:00:01 +02:00",
+                "2023-05-02 00:00:02 +02:00",
+                "2023-05-02 00:00:03 +02:00",
+            ],
+            [
+                1682985601 - 60 * 60 * 2,
+                1682985602 - 60 * 60 * 2,
+                1682985603 - 60 * 60 * 2,
+            ],
+        ),
+        # Timedeltas can be converted to units of time
+        ("timedelta", "s", None, ["1 minute", "1 minute 2 seconds"], [60.0, 62.0]),
+        # Convertible timedeltas include absolute days of 24 hours
+        ("timedelta", "d", None, ["1 day", "1 day 12 hours"], [1.0, 1.5]),
+        # Convertible timedeltas exclude nominal durations like month or year, which cannot be represented as a datetime.timedelta object
+        # ("timedelta", "d", None, ["1 month", "1 year"], [30., 365.]),  # fails
+    ],
+)
+def test_convert_special_unit(
+    from_unit,
+    to_unit,
+    timezone,
+    input_values,
+    expected_values,
+):
+    """Check some special unit conversions."""
+    data = pd.Series(input_values)
+    if timezone:
+        data.sensor = tb.Sensor("test", timezone=timezone)
+    converted_data: pd.Series = convert_units(
+        data=data,
+        from_unit=from_unit,
+        to_unit=to_unit,
+    )
+    print(converted_data)
+    expected_data = pd.Series(expected_values)
+    print(expected_data)
     pd.testing.assert_series_equal(converted_data, expected_data)
 
 

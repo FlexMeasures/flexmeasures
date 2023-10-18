@@ -1,5 +1,5 @@
-FROM ubuntu:focal
- 
+FROM ubuntu:22.04
+
 ENV DEBIAN_FRONTEND noninteractive
 ENV LC_ALL C.UTF-8
 ENV LANG C.UTF-8
@@ -12,7 +12,10 @@ WORKDIR /app
 COPY requirements /app/requirements
 
 # py dev tooling
-RUN python3 -m pip install --no-cache-dir  --upgrade pip && python3 --version && pip3 install --no-cache-dir --upgrade setuptools && pip3 install highspy && pip3 install --no-cache-dir -r requirements/app.txt -r requirements/dev.txt -r requirements/test.txt
+RUN python3 -m pip install --no-cache-dir --upgrade pip && python3 --version && \
+    pip3 install --no-cache-dir --upgrade setuptools && pip3 install highspy && \
+    PYV=$(python3 -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_info[:2]));sys.stdout.write(t)") && \
+    pip3 install --no-cache-dir -r requirements/$PYV/app.txt -r requirements/$PYV/dev.txt -r requirements/$PYV/test.txt
 
 # Copy code and meta/config data
 COPY setup.* .flaskenv wsgi.py /app/
@@ -34,4 +37,4 @@ CMD [ \
     # another request is taking a long time to complete.
     "--workers", "2", "--threads", "4", \
     "wsgi:application" \
-]
+    ]

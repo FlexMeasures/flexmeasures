@@ -5,6 +5,7 @@ Starting point of the Flask application.
 from __future__ import annotations
 
 import time
+from copy import copy
 import os
 from pathlib import Path
 from datetime import date
@@ -92,6 +93,9 @@ def create(  # noqa C901
     app.queues = dict(
         forecasting=Queue(connection=redis_conn, name="forecasting"),
         scheduling=Queue(connection=redis_conn, name="scheduling"),
+        # reporting=Queue(connection=redis_conn, name="reporting"),
+        # labelling=Queue(connection=redis_conn, name="labelling"),
+        # alerting=Queue(connection=redis_conn, name="alerting"),
     )
 
     # Some basic security measures
@@ -123,8 +127,26 @@ def create(  # noqa C901
     from flexmeasures.utils.coding_utils import get_classes_module
     from flexmeasures.data.models import reporting, planning
 
-    app.reporters = get_classes_module("flexmeasures.data.models", reporting.Reporter)
-    app.schedulers = get_classes_module("flexmeasures.data.models", planning.Scheduler)
+    reporters = get_classes_module("flexmeasures.data.models", reporting.Reporter)
+    schedulers = get_classes_module("flexmeasures.data.models", planning.Scheduler)
+
+    app.data_generators = dict()
+    app.data_generators["reporter"] = copy(
+        reporters
+    )  # use copy to avoid mutating app.reporters
+    app.data_generators["scheduler"] = schedulers
+
+    # deprecated: app.reporters and app.schedulers
+    app.reporters = reporters
+    app.schedulers = schedulers
+
+    def get_reporters():
+        app.logger.warning(
+            '`app.reporters` is deprecated. Use `app.data_generators["reporter"]` instead.'
+        )
+        return app.data_generators["reporter"]
+
+    setattr(app, "reporters", get_reporters())
 
     # add auth policy
 
@@ -160,6 +182,11 @@ def create(  # noqa C901
 
     register_ui_at(app)
 
+    # Global template variables for both our own templates and external templates
+    @app.context_processor
+    def set_global_template_variables():
+        return {"queue_names": app.queues.keys()}
+
     # Profile endpoints (if needed, e.g. during development)
 
     @app.before_request
@@ -169,7 +196,7 @@ def create(  # noqa C901
             try:
                 import pyinstrument  # noqa F401
 
-                g.profiler = pyinstrument.Profiler()
+                g.profiler = pyinstrument.Profiler(async_mode="disabled")
                 g.profiler.start()
             except ImportError:
                 pass

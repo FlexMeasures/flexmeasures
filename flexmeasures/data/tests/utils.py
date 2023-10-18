@@ -3,7 +3,7 @@ import os
 import click
 
 
-def work_on_rq(redis_queue, exc_handler=None):
+def work_on_rq(redis_queue, exc_handler=None, max_jobs=None):
 
     #  we only want this import distinction to matter when we actually are testing
     if os.name == "nt":
@@ -20,7 +20,7 @@ def work_on_rq(redis_queue, exc_handler=None):
         connection=redis_queue.connection,
         exception_handlers=exc_handlers,
     )
-    worker.work(burst=True)
+    worker.work(burst=True, max_jobs=max_jobs)
 
 
 def exception_reporter(job, exc_type, exc_value, traceback):

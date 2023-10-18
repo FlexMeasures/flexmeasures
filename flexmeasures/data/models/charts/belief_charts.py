@@ -45,14 +45,20 @@ def bar_chart(
                 event_ends_before.timestamp() * 10**3,
             ]
         }
+    mark_type = "bar"
+    mark_interpolate = None
+    if sensor.event_resolution == timedelta(0) and sensor.has_attribute("interpolate"):
+        mark_type = "area"
+        mark_interpolate = sensor.get_attribute("interpolate")
     chart_specs = {
-        "description": "A simple bar chart showing sensor data.",
+        "description": f"A simple {mark_type} chart showing sensor data.",
         # the sensor type is already shown as the y-axis title (avoid redundant info)
         "title": capitalize(sensor.name) if sensor.name != sensor.sensor_type else None,
         "layer": [
             {
                 "mark": {
-                    "type": "bar",
+                    "type": mark_type,
+                    "interpolate": mark_interpolate,
                     "clip": True,
                     "width": {"band": 0.999},
                 },

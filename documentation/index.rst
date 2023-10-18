@@ -184,6 +184,7 @@ The platform operator of FlexMeasures can be an Aggregator.
     tut/toy-example-from-scratch
     tut/toy-example-expanded
     tut/toy-example-process
+    tut/toy-example-reporter
     tut/installation
     tut/posting_data
     tut/forecasting_scheduling
@@ -222,6 +223,7 @@ The platform operator of FlexMeasures can be an Aggregator.
     host/docker
     host/data
     host/deployment
+    configuration
     host/queues
     host/error-monitoring
     host/modes
@@ -241,11 +243,11 @@ The platform operator of FlexMeasures can be an Aggregator.
     :maxdepth: 1
 
     dev/introduction
-    configuration
     dev/api
     dev/ci
     dev/auth
     dev/docker-compose
+    dev/dependency-management
 
 
 .. autosummary::

@@ -3,10 +3,12 @@ from __future__ import annotations
 import re
 import copy
 from datetime import datetime, timedelta
+from typing import Type
 
 import pandas as pd
 import numpy as np
 from flask import current_app
+
 
 from flexmeasures.data.models.planning import Scheduler
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
@@ -18,15 +20,19 @@ from flexmeasures.data.models.planning.utils import (
     get_power_values,
     fallback_charging_policy,
 )
+from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
 from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
 from flexmeasures.data.schemas.scheduling import FlexContextSchema
 from flexmeasures.utils.time_utils import get_max_planning_horizon
 from flexmeasures.utils.coding_utils import deprecated
+from flexmeasures.utils.unit_utils import ur
 
 
-class StorageScheduler(Scheduler):
+class MetaStorageScheduler(Scheduler):
+    """This class defines the constraints of a schedule for a storage device from the
+    flex-model, flex-context, and sensor and asset attributes"""
 
-    __version__ = "1"
+    __version__ = None
     __author__ = "Seita"
 
     COLUMNS = [
@@ -45,18 +51,21 @@ class StorageScheduler(Scheduler):
         """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
         For the resulting consumption schedule, consumption is defined as positive values.
 
-        Deprecated method in v0.14. As an alternative, use StorageScheduler.compute().
+        Deprecated method in v0.14. As an alternative, use MetaStorageScheduler.compute().
         """
 
         return self.compute()
 
-    def compute(self, skip_validation: bool = False) -> pd.Series | None:
-        """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
-        For the resulting consumption schedule, consumption is defined as positive values.
+    def _prepare(self, skip_validation: bool = False) -> tuple:  # noqa: C901
+        """This function prepares the required data to compute the schedule:
+            - price data
+            - device constraint
+            - ems constraints
 
         :param skip_validation: If True, skip validation of constraints specified in the data.
-        :returns:               The computed schedule.
+        :returns:               Input data for the scheduler
         """
+
         if not self.config_deserialized:
             self.deserialize_config()
 
@@ -83,7 +92,26 @@ class StorageScheduler(Scheduler):
         )
 
         # Check for required Sensor attributes
-        self.sensor.check_required_attributes([("capacity_in_mw", (float, int))])
+        power_capacity_in_mw = self.flex_model.get(
+            "power_capacity_in_mw",
+            self.sensor.get_attribute("capacity_in_mw", None),
+        )
+
+        if power_capacity_in_mw is None:
+            raise ValueError(
+                "Power capacity is not defined in the sensor attributes or the flex-model."
+            )
+
+        if isinstance(power_capacity_in_mw, ur.Quantity):
+            power_capacity_in_mw = power_capacity_in_mw.magnitude
+
+        if not (
+            isinstance(power_capacity_in_mw, float)
+            or isinstance(power_capacity_in_mw, int)
+        ):
+            raise ValueError(
+                "The only supported types for the power capacity are int and float."
+            )
 
         # Check for known prices or price forecasts, trimming planning window accordingly
         up_deviation_prices, (start, end) = get_prices(
@@ -155,15 +183,11 @@ class StorageScheduler(Scheduler):
         if sensor.get_attribute("is_strictly_non_positive"):
             device_constraints[0]["derivative min"] = 0
         else:
-            device_constraints[0]["derivative min"] = (
-                sensor.get_attribute("capacity_in_mw") * -1
-            )
+            device_constraints[0]["derivative min"] = power_capacity_in_mw * -1
         if sensor.get_attribute("is_strictly_non_negative"):
             device_constraints[0]["derivative max"] = 0
         else:
-            device_constraints[0]["derivative max"] = sensor.get_attribute(
-                "capacity_in_mw"
-            )
+            device_constraints[0]["derivative max"] = power_capacity_in_mw
 
         # Apply round-trip efficiency evenly to charging and discharging
         device_constraints[0]["derivative down efficiency"] = (
@@ -196,32 +220,39 @@ class StorageScheduler(Scheduler):
         ems_constraints = initialize_df(
             StorageScheduler.COLUMNS, start, end, resolution
         )
-        ems_capacity = sensor.generic_asset.get_attribute("capacity_in_mw")
-        if ems_capacity is not None:
-            ems_constraints["derivative min"] = ems_capacity * -1
-            ems_constraints["derivative max"] = ems_capacity
 
-        ems_schedule, expected_costs, scheduler_results = device_scheduler(
+        ems_power_capacity_in_mw = self.flex_context.get(
+            "ems_power_capacity_in_mw",
+            self.sensor.generic_asset.get_attribute("capacity_in_mw", None),
+        )
+
+        if ems_power_capacity_in_mw is not None:
+            if isinstance(ems_power_capacity_in_mw, ur.Quantity):
+                ems_power_capacity_in_mw = ems_power_capacity_in_mw.magnitude
+
+            if not (
+                isinstance(ems_power_capacity_in_mw, float)
+                or isinstance(ems_power_capacity_in_mw, int)
+            ):
+                raise ValueError(
+                    "The only supported types for the ems power capacity are int and float."
+                )
+
+            ems_constraints["derivative min"] = ems_power_capacity_in_mw * -1
+            ems_constraints["derivative max"] = ems_power_capacity_in_mw
+
+        return (
+            sensor,
+            start,
+            end,
+            resolution,
+            soc_at_start,
             device_constraints,
             ems_constraints,
             commitment_quantities,
             commitment_downwards_deviation_price,
             commitment_upwards_deviation_price,
-            initial_stock=soc_at_start * (timedelta(hours=1) / resolution),
         )
-        if scheduler_results.solver.termination_condition == "infeasible":
-            # Fallback policy if the problem was unsolvable
-            battery_schedule = fallback_charging_policy(
-                sensor, device_constraints[0], start, end, resolution
-            )
-        else:
-            battery_schedule = ems_schedule[0]
-
-        # Round schedule
-        if self.round_to_decimals:
-            battery_schedule = battery_schedule.round(self.round_to_decimals)
-
-        return battery_schedule
 
     def persist_flex_model(self):
         """Store new soc info as GenericAsset attributes"""
@@ -384,6 +415,95 @@ class StorageScheduler(Scheduler):
                     raise ValueError(
                         "Need maximal permitted state of charge, please specify soc-max or some soc-targets."
                     )
+
+
+class StorageFallbackScheduler(MetaStorageScheduler):
+
+    __version__ = "1"
+    __author__ = "Seita"
+
+    def compute(self, skip_validation: bool = False) -> pd.Series | None:
+        """Schedule a battery or Charge Point by just starting to charge, discharge, or do neither,
+           depending on the first target state of charge and the capabilities of the Charge Point.
+           For the resulting consumption schedule, consumption is defined as positive values.
+
+           Note that this ignores any cause of the infeasibility.
+
+        :param skip_validation: If True, skip validation of constraints specified in the data.
+        :returns:               The computed schedule.
+        """
+
+        (
+            sensor,
+            start,
+            end,
+            resolution,
+            soc_at_start,
+            device_constraints,
+            ems_constraints,
+            commitment_quantities,
+            commitment_downwards_deviation_price,
+            commitment_upwards_deviation_price,
+        ) = self._prepare(skip_validation=skip_validation)
+
+        # Fallback policy if the problem was unsolvable
+        storage_schedule = fallback_charging_policy(
+            sensor, device_constraints[0], start, end, resolution
+        )
+
+        # Round schedule
+        if self.round_to_decimals:
+            storage_schedule = storage_schedule.round(self.round_to_decimals)
+
+        return storage_schedule
+
+
+class StorageScheduler(MetaStorageScheduler):
+    __version__ = "3"
+    __author__ = "Seita"
+
+    fallback_scheduler_class: Type[Scheduler] = StorageFallbackScheduler
+
+    def compute(self, skip_validation: bool = False) -> pd.Series | None:
+        """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
+        For the resulting consumption schedule, consumption is defined as positive values.
+
+        :param skip_validation: If True, skip validation of constraints specified in the data.
+        :returns:               The computed schedule.
+        """
+
+        (
+            sensor,
+            start,
+            end,
+            resolution,
+            soc_at_start,
+            device_constraints,
+            ems_constraints,
+            commitment_quantities,
+            commitment_downwards_deviation_price,
+            commitment_upwards_deviation_price,
+        ) = self._prepare(skip_validation=skip_validation)
+
+        ems_schedule, expected_costs, scheduler_results, _ = device_scheduler(
+            device_constraints,
+            ems_constraints,
+            commitment_quantities,
+            commitment_downwards_deviation_price,
+            commitment_upwards_deviation_price,
+            initial_stock=soc_at_start * (timedelta(hours=1) / resolution),
+        )
+        if scheduler_results.solver.termination_condition == "infeasible":
+            raise InfeasibleProblemException()
+
+        # Obtain the storage schedule from all device schedules within the EMS
+        storage_schedule = ems_schedule[0]
+
+        # Round schedule
+        if self.round_to_decimals:
+            storage_schedule = storage_schedule.round(self.round_to_decimals)
+
+        return storage_schedule
 
 
 def create_constraint_violations_message(constraint_violations: list) -> str:

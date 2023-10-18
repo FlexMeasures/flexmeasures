@@ -15,7 +15,7 @@
       <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
     {% endif %}
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" href="favicon.ico" type="image/x-icon" />
+    <link rel="icon" href="/favicon.ico" type="image/x-icon" />
     <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon" />
     {% block styles %}
     <!-- Leaflet -->
@@ -35,8 +35,8 @@
     <!-- Custom CSS -->
     <link href="{{ url_for('flexmeasures_ui.static', filename='css/flexmeasures.css') }}" rel="stylesheet" />
     {% if active_page == "tasks" %}
-    <link href="{{ url_for('flexmeasures_ui.static', filename='css/external/rq-dashboard-bootstrap.min.css') }}"
-        rel="stylesheet" />
+    <link href="{{ url_for('rq_dashboard.static', filename='css/main.css') }}" rel="stylesheet">
+    <link href="{{ url_for('flexmeasures_ui.static', filename='css/external/rq-dashboard-bootstrap.min.css') }}" rel="stylesheet" />
     {% elif active_page in ("assets", "users", "accounts") %}
     <link href="https://cdn.datatables.net/1.10.22/css/jquery.dataTables.min.css" rel="stylesheet" />
     {% endif %}
@@ -84,21 +84,14 @@
                             Tasks
                             <span class="caret"></span></a>
                         <ul class="dropdown-menu">
+                            {% for queue in queue_names %}
+                                <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
+                                    {% if not current_user.has_role('anonymous') %}href="/tasks/0/view/jobs/{{ queue }}/started/10/1"
+                                    {% endif %}>{{ queue | capitalize }}</a></li>
+                            {% endfor %}
                             <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
-                                    {% if not current_user.has_role('anonymous') %}href="/tasks/forecasting"
-                                    {% endif %}>Forecasts</a></li>
-                            <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
-                                    {% if not current_user.has_role('anonymous') %}href="/tasks/scheduling"
-                                    {% endif %}>Schedules</a></li>
-                            <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
-                                    {% if not current_user.has_role('anonymous') %}href="/tasks/labelling"
-                                    {% endif %}>Labels</a></li>
-                            <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
-                                    {% if not current_user.has_role('anonymous') %}href="/tasks/alerting"
-                                    {% endif %}>Alerts</a></li>
-                            <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
-                                    {% if not current_user.has_role('anonymous') %}href="/tasks/reporting"
-                                    {% endif %}>Reports</a></li>
+                                    {% if not current_user.has_role('anonymous') %}href="/tasks/"
+                                    {% endif %}>Overview</a></li>
                         </ul>
                     </li>
                     {% else %}
@@ -200,9 +193,10 @@
     <!-- Render Charts -->
     <script type="module" type="text/javascript">
 
-    import { getUniqueValues } from "{{ url_for('flexmeasures_ui.static', filename='js/data-utils.js') }}";
-    import { subtract, thisMonth, lastNMonths, countDSTTransitions, getOffsetBetweenTimezonesForDate } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}";
-    import { partition, updateBeliefs, beliefTimedelta, setAbortableTimeout} from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}";
+    // Import local js (the FM version is used for cache-busting, causing the browser to fetch the updated version from the server)
+    import { getUniqueValues, convertToCSV } from "{{ url_for('flexmeasures_ui.static', filename='js/data-utils.js') }}?v={{ flexmeasures_version }}";
+    import { subtract, thisMonth, lastNMonths, countDSTTransitions, getOffsetBetweenTimezonesForDate } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
+    import { partition, updateBeliefs, beliefTimedelta, setAbortableTimeout} from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
 
     let vegaView;
     let previousResult;
@@ -265,13 +259,16 @@
     }
 
     function checkSourceMasking(data) {
+        var sourceWarn = document.getElementById("sourcewarn");
+        if (sourceWarn == null)
+            return
         var uniqueSourceIds = getUniqueValues(data, 'source.id');
         if (chartType == 'daily_heatmap' && uniqueSourceIds.length > 1) {
-            document.getElementById('sourcewarn').style.display = 'block';
-            document.getElementById('sourcewarn').innerHTML = 'Please note that only data from the most prevalent source is shown.';
+            sourceWarn.style.display = 'block';
+            sourceWarn.innerHTML = 'Please note that only data from the most prevalent source is shown.';
         }
         else {
-            document.getElementById('sourcewarn').style.display = 'none';
+            sourceWarn.style.display = 'none';
         }
     }
 
@@ -279,6 +276,29 @@
 
         await vegaEmbed('#'+elementId, chartSpecsPath + 'dataset_name=' + datasetName + '&width=container&include_sensor_annotations=false&include_asset_annotations=false&chart_type=' + chartType, {{ chart_options | safe }})
         .then(function (result) {
+
+            // Create a custom menu item for exporting to CSV
+            const exportToCSVAction = document.createElement('a');
+            exportToCSVAction.id = 'exportToCSVAction';
+            exportToCSVAction.href = '#';
+            exportToCSVAction.download = datasetName + '.csv';
+            exportToCSVAction.textContent = 'Save as CSV';
+            exportToCSVAction.addEventListener('mousedown', async function (event) {
+                event.preventDefault();
+                const chartData = vegaView.data(datasetName);
+                const csvContent = convertToCSV(chartData);
+                const encodedUri = encodeURI(csvContent);
+                exportToCSVAction.href = encodedUri;
+            });
+
+            // Append menu item to chart actions (hamburger menu)
+            const vegaActions = document.querySelector('.vega-actions');
+            if (vegaActions) {
+                vegaActions.appendChild(exportToCSVAction);
+            } else {
+                console.log('Warning: CSV export functionality is not available, because no div with class=vega-actions was found to append export action to');
+            }
+
             // result.view is the Vega View, chartSpecsPath is the original Vega-Lite specification
             vegaView = result.view;
             if (previousResult) {
@@ -430,7 +450,7 @@
                 var offsetDifference = getOffsetBetweenTimezonesForDate(new Date(), data.timezone, jstz.determine().name());
                 if (offsetDifference != 0) {
                     document.getElementById('tzwarn').style.display = 'block';
-                    var offsetNotice = (offsetDifference > 0) ? 'which is currently ahead by ' + offsetDifference + 'minutes' : 'which is currently behind by ' + offsetDifference + ' minutes';
+                    var offsetNotice = (offsetDifference > 0) ? 'which is currently ahead by ' + offsetDifference + ' minutes' : 'which is currently behind by ' + offsetDifference + ' minutes';
                     document.getElementById('tzwarn').innerHTML = 'Please note that the sensor data you are viewing is located in a different timezone (' + offsetNotice + ').<br/>To view the data from a local perspective, set your locale timezone to ' + data.timezone + '.';
                 }
                 {% if active_page == "assets" %}

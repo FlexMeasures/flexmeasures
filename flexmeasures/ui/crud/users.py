@@ -23,8 +23,6 @@ from flexmeasures.ui.crud.api_wrapper import InternalApi
 """
 User Crud views for admins.
 
-Note: This uses the internal API 2.0 ― if these endpoints get updated in a later version,
-      we should change the version here.
 """
 
 

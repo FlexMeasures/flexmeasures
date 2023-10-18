@@ -9,6 +9,24 @@ import pkgutil
 from flask import current_app
 
 
+def delete_key_recursive(value, key):
+    """Delete key in a multilevel dictionary"""
+    if isinstance(value, dict):
+
+        if key in value:
+            del value[key]
+
+        for k, v in value.items():
+            value[k] = delete_key_recursive(v, key)
+
+        # value.pop(key, None)
+    elif isinstance(value, list):
+        for i, v in enumerate(value):
+            value[i] = delete_key_recursive(v, key)
+
+    return value
+
+
 def optional_arg_decorator(fn):
     """
     A decorator which _optionally_ accepts arguments.
