@@ -170,6 +170,7 @@ def create_test_accounts(db) -> dict[str, Account]:
         Prosumer=prosumer_account,
         Supplier=supplier_account,
         Dummy=dummy_account,
+        Empty=empty_account,
         Multi=multi_role_account,
         Consultant=consultant_account,
         ConsultantClient=consultant_client_account,

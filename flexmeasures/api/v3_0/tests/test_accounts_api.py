@@ -26,7 +26,7 @@ def test_get_accounts_missing_auth(client, requesting_user, status_code):
 @pytest.mark.parametrize(
     "requesting_user, num_accounts",
     [
-        ("test_admin_user@seita.nl", 6),
+        ("test_admin_user@seita.nl", 7),
         ("test_prosumer_user@seita.nl", 1),
     ],
     indirect=["requesting_user"],
