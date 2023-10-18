@@ -109,18 +109,12 @@ def create_test_db(app):
 
 @pytest.fixture(scope="module")
 def setup_accounts(db) -> dict[str, Account]:
-    test_accounts = create_test_accounts(db)
-    test_accounts |= add_consult_account_access_to_prosumer_account(db, test_accounts)
-    return test_accounts
+    return create_test_accounts(db)
 
 
 @pytest.fixture(scope="function")
 def setup_accounts_fresh_db(fresh_db) -> dict[str, Account]:
-    test_accounts = create_test_accounts(fresh_db)
-    test_accounts |= add_consult_account_access_to_prosumer_account(
-        fresh_db, test_accounts
-    )
-    return test_accounts
+    return create_test_accounts(fresh_db)
 
 
 def create_test_accounts(db) -> dict[str, Account]:
@@ -154,20 +148,11 @@ def create_test_accounts(db) -> dict[str, Account]:
         ],
     )
     db.session.add(multi_role_account)
-    return dict(
-        Prosumer=prosumer_account,
-        Supplier=supplier_account,
-        Dummy=dummy_account,
-        Multi=multi_role_account,
-    )
-
-
-def add_consult_account_access_to_prosumer_account(db, test_accounts):
-    account = Account.query.filter_by(name="Test Prosumer Account").one_or_none()
     consultant_account_role = AccountRole(
         name="Consultant",
         description="Account that prosumer can access",
     )
+    account = Account.query.filter_by(name="Test Prosumer Account").one_or_none()
     consultant_account = Account(
         name="Test Consultant Account",
         account_roles=[consultant_account_role],
@@ -175,6 +160,10 @@ def add_consult_account_access_to_prosumer_account(db, test_accounts):
     )
     db.session.add(consultant_account)
     return dict(
+        Prosumer=prosumer_account,
+        Supplier=supplier_account,
+        Dummy=dummy_account,
+        Multi=multi_role_account,
         Consultant=consultant_account,
     )
 
