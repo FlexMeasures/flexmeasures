@@ -386,3 +386,29 @@ def test_consultant_can_read(
     print("Server responded with:\n%s" % get_assets_response.json)
     assert get_assets_response.status_code == 200
     assert len(get_assets_response.json) == 1
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_consultant_can_not_patch(
+    client,
+    setup_api_test_data,
+    setup_accounts,
+    requesting_user,
+):
+    """Try to edit an asset belonging to the Consultant account with the
+    Prosumer account"""
+    prosumer_asset = GenericAsset.query.filter_by(
+        name="Test consultant asset"
+    ).one_or_none()
+    print(prosumer_asset)
+
+    asset_edit_response = client.patch(
+        url_for("AssetAPI:patch", id=prosumer_asset.id),
+        json={
+            "latitude": prosumer_asset.latitude,
+        },
+    )
+    print(f"Editing Response: {asset_edit_response.json}")
+    assert asset_edit_response.status_code == 403
