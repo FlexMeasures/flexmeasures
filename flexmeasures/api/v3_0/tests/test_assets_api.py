@@ -366,7 +366,7 @@ def test_delete_an_asset(client, setup_api_test_data, requesting_user):
     ["test_prosumer_user@seita.nl"],
     indirect=True,
 )
-def test_get_assets_new(
+def test_consultant_can_read(
     client,
     setup_api_test_data,
     setup_accounts,
