@@ -363,7 +363,7 @@ def test_delete_an_asset(client, setup_api_test_data, requesting_user):
 
 @pytest.mark.parametrize(
     "requesting_user",
-    ["test_prosumer_user@seita.nl"],
+    ["test_consultant_user@seita.nl"],
     indirect=True,
 )
 def test_consultant_can_read(
@@ -373,10 +373,9 @@ def test_consultant_can_read(
     requesting_user,
 ):
     """
-    Get assets in the account the Prosumer account is in the
-    consultancy account of
+    The Consultant Account reads the asset from the ConsultantClient Account.
     """
-    account_name = "Consultant"
+    account_name = "ConsultantClient"
     query = {"account_id": setup_accounts[account_name].id}
 
     get_assets_response = client.get(
@@ -389,7 +388,7 @@ def test_consultant_can_read(
 
 
 @pytest.mark.parametrize(
-    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+    "requesting_user", ["test_consultant_user@seita.nl"], indirect=True
 )
 def test_consultant_can_not_patch(
     client,
@@ -397,17 +396,19 @@ def test_consultant_can_not_patch(
     setup_accounts,
     requesting_user,
 ):
-    """Try to edit an asset belonging to the Consultant account with the
-    Prosumer account"""
-    prosumer_asset = GenericAsset.query.filter_by(
-        name="Test consultant asset"
+    """
+    Try to edit an asset belonging to the ConsultantClient account with the Consultant account.
+    The Consultant account only has read access.
+    """
+    consultant_client_asset = GenericAsset.query.filter_by(
+        name="Test ConsultantClient Asset"
     ).one_or_none()
-    print(prosumer_asset)
+    print(consultant_client_asset)
 
     asset_edit_response = client.patch(
-        url_for("AssetAPI:patch", id=prosumer_asset.id),
+        url_for("AssetAPI:patch", id=consultant_client_asset.id),
         json={
-            "latitude": prosumer_asset.latitude,
+            "latitude": consultant_client_asset.latitude,
         },
     )
     print(f"Editing Response: {asset_edit_response.json}")

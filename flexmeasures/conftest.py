@@ -149,22 +149,30 @@ def create_test_accounts(db) -> dict[str, Account]:
     )
     db.session.add(multi_role_account)
     consultant_account_role = AccountRole(
-        name="Consultant",
-        description="Account that prosumer can access",
+        name="Consultant", description="A Consultant Account"
     )
-    account = Account.query.filter_by(name="Test Prosumer Account").one_or_none()
     consultant_account = Account(
-        name="Test Consultant Account",
-        account_roles=[consultant_account_role],
-        consultancy_account_id=account.id,
+        name="Test Consultant Account", account_roles=[consultant_account_role]
     )
     db.session.add(consultant_account)
+    consultant_client_account_role = AccountRole(
+        name="ConsultantClient",
+        description="A Client of a Consultant",
+    )
+    account = Account.query.filter_by(name="Test Consultant Account").one_or_none()
+    consultant_client_account = Account(
+        name="Test ConsultantClient Account",
+        account_roles=[consultant_client_account_role],
+        consultancy_account_id=account.id,
+    )
+    db.session.add(consultant_client_account)
     return dict(
         Prosumer=prosumer_account,
         Supplier=supplier_account,
         Dummy=dummy_account,
         Multi=multi_role_account,
         Consultant=consultant_account,
+        ConsultantClient=consultant_client_account,
     )
 
 
@@ -235,12 +243,18 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
     )
     new_users.append(
         create_user(
-            username="Test Consultancy User",
+            username="Test Consultant User",
             email="test_consultant_user@seita.nl",
             account_name=test_accounts["Consultant"].name,
             password="testtest",
-            # TODO: test some normal user roles later in our auth progress
-            # user_roles=dict(name="", description=""),
+        )
+    )
+    new_users.append(
+        create_user(
+            username="Test ConsultantClient User",
+            email="test_consultant_client_user@seita.nl",
+            account_name=test_accounts["ConsultantClient"].name,
+            password="testtest",
         )
     )
     return {user.username: user.id for user in new_users}
@@ -345,18 +359,18 @@ def create_generic_assets(
         owner=setup_accounts["Supplier"],
     )
     db.session.add(test_wind_turbine)
-    test_consultant_asset = GenericAsset(
-        name="Test consultant asset",
+    test_consultant_client_asset = GenericAsset(
+        name="Test ConsultantClient Asset",
         generic_asset_type=setup_generic_asset_types["wind"],
-        owner=setup_accounts["Consultant"],
+        owner=setup_accounts["ConsultantClient"],
     )
-    db.session.add(test_consultant_asset)
+    db.session.add(test_consultant_client_asset)
 
     return dict(
         troposphere=troposphere,
         test_battery=test_battery,
         test_wind_turbine=test_wind_turbine,
-        test_consultant_asset=test_consultant_asset,
+        test_consultant_client_asset=test_consultant_client_asset,
     )
 
 
