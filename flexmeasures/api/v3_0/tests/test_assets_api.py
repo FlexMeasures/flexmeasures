@@ -385,6 +385,7 @@ def test_consultant_can_read(
     print("Server responded with:\n%s" % get_assets_response.json)
     assert get_assets_response.status_code == 200
     assert len(get_assets_response.json) == 1
+    assert get_assets_response.json[0]["name"] == "Test ConsultantClient Asset"
 
 
 @pytest.mark.parametrize(
