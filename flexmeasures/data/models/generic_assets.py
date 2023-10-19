@@ -11,7 +11,6 @@ from sqlalchemy.engine import Row
 from sqlalchemy.ext.hybrid import hybrid_method
 from sqlalchemy.sql.expression import func
 from sqlalchemy.ext.mutable import MutableDict
-from sqlalchemy.schema import UniqueConstraint
 from timely_beliefs import BeliefsDataFrame, utils as tb_utils
 
 from flexmeasures.data import db
@@ -49,7 +48,16 @@ class GenericAsset(db.Model, AuthModelMixin):
     Examples of intangible assets: a market, a country, a copyright.
     """
 
-    __table_args__ = db.CheckConstraint("parent_asset_id != id")
+    __table_args__ = (
+        db.CheckConstraint(
+            "parent_asset_id != id", name="generic_asset_self_reference_ck"
+        ),
+        db.UniqueConstraint(
+            "name",
+            "parent_asset_id",
+            name="generic_asset_name_parent_asset_id_key",
+        ),
+    )
 
     # No relationship
     id = db.Column(db.Integer, primary_key=True)
@@ -60,14 +68,18 @@ class GenericAsset(db.Model, AuthModelMixin):
 
     # One-to-many (or many-to-one?) relationships
     parent_asset_id = db.Column(
-        db.Integer, db.ForeignKey("generic_asset.id"), nullable=True
+        db.Integer, db.ForeignKey("generic_asset.id", ondelete="CASCADE"), nullable=True
     )
     generic_asset_type_id = db.Column(
         db.Integer, db.ForeignKey("generic_asset_type.id"), nullable=False
     )
-    parent_asset = db.relationship(
-        "GenericAsset", remote_side=[id], backref="child_assets"
+
+    child_assets = db.relationship(
+        "GenericAsset",
+        cascade="all",
+        backref=db.backref("parent_asset", remote_side="GenericAsset.id"),
     )
+
     generic_asset_type = db.relationship(
         "GenericAssetType",
         foreign_keys=[generic_asset_type_id],
@@ -79,14 +91,6 @@ class GenericAsset(db.Model, AuthModelMixin):
         "Annotation",
         secondary="annotations_assets",
         backref=db.backref("assets", lazy="dynamic"),
-    )
-
-    __table_args__ = (
-        UniqueConstraint(
-            "name",
-            "account_id",
-            name="generic_asset_name_account_id_key",
-        ),
     )
 
     def __acl__(self):
