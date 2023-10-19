@@ -17,6 +17,7 @@ import click
 from rq import get_current_job, Callback
 from rq.job import Job
 import timely_beliefs as tb
+import pandas as pd
 
 from flexmeasures.data import db
 from flexmeasures.data.models.planning import Scheduler, SchedulerOutputType
