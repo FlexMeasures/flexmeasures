@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from marshmallow import validates, validates_schema, ValidationError, fields
+from marshmallow import validates, ValidationError, fields, validates_schema
 from flask_security import current_user
 
 from flexmeasures.data import ma
@@ -42,32 +42,26 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
     longitude = LongitudeField(allow_none=True)
     generic_asset_type_id = fields.Integer(required=True)
     attributes = JSON(required=False)
+    parent_asset_id = fields.Int(required=False, allow_none=True)
 
     class Meta:
         model = GenericAsset
 
     @validates_schema(skip_on_field_errors=False)
-    def validate_name_is_unique_in_account(self, data, **kwargs):
+    def validate_name_is_unique_under_parent(self, data, **kwargs):
         if "name" in data:
-            if data.get("account_id") is None:
-                asset = GenericAsset.query.filter(
-                    GenericAsset.name == data["name"], GenericAsset.account_id.is_(None)
-                ).first()
-                if asset:
-                    raise ValidationError(
-                        f"A public asset with the name {data['name']} already exists.",
-                        "name",
-                    )
-            else:
-                asset = GenericAsset.query.filter(
-                    GenericAsset.name == data["name"],
-                    GenericAsset.account_id == data["account_id"],
-                ).first()
-                if asset:
-                    raise ValidationError(
-                        f"An asset with the name {data['name']} already exists in this account.",
-                        "name",
-                    )
+
+            asset = GenericAsset.query.filter(
+                GenericAsset.name == data["name"],
+                GenericAsset.parent_asset_id == data.get("parent_asset_id"),
+                GenericAsset.account_id == data.get("account_id"),
+            ).first()
+
+            if asset:
+                raise ValidationError(
+                    f"An asset with the name '{data['name']}' already exists under parent asset with id={data.get('parent_asset_id')}.",
+                    "name",
+                )
 
     @validates("generic_asset_type_id")
     def validate_generic_asset_type(self, generic_asset_type_id: int):
