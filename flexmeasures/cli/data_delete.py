@@ -132,7 +132,9 @@ def delete_asset_and_data(asset: GenericAsset, force: bool):
     Delete an asset & also its sensors and data.
     """
     if not force:
-        prompt = f"Delete {asset.__repr__()}, including all its sensors and data?"
+        prompt = (
+            f"Delete {asset.__repr__()}, including all its sensors, data and children?"
+        )
         click.confirm(prompt, abort=True)
     db.session.delete(asset)
     db.session.commit()

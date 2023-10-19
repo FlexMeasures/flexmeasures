@@ -219,26 +219,6 @@ def test_alter_an_asset_with_json_attributes(
     assert asset_edit_response.status_code == 200
 
 
-@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
-def test_post_an_asset_with_existing_name(client, setup_api_test_data, requesting_user):
-    """Catch DB error (Unique key violated) correctly"""
-    with AccountContext("Test Prosumer Account") as prosumer:
-        prosumer_id = prosumer.id
-        existing_asset = prosumer.generic_assets[0]
-    post_data = get_asset_post_data()
-    post_data["name"] = existing_asset.name
-    post_data["account_id"] = prosumer_id
-    asset_creation_response = client.post(
-        url_for("AssetAPI:post"),
-        json=post_data,
-    )
-    print(f"Creation Response: {asset_creation_response.json}")
-    assert asset_creation_response.status_code == 422
-    assert (
-        "already exists" in asset_creation_response.json["message"]["json"]["name"][0]
-    )
-
-
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
 )
@@ -439,3 +419,59 @@ def test_consultant_without_customer_manager_role(
     )
     print("Server responded with:\n%s" % get_assets_response.json)
     assert get_assets_response.status_code == 403
+
+
+@pytest.mark.parametrize(
+    "parent_name, child_name, fails",
+    [
+        ("parent", "child_4", False),
+        (None, "child_1", False),
+        (None, "child_1", True),
+        ("parent", "child_1", True),
+    ],
+)
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_post_an_asset_with_existing_name(
+    client, add_asset_with_children, parent_name, child_name, fails, requesting_user
+):
+    """Catch DB error (Unique key violated) correctly.
+
+    Cases:
+        1) Create a child asset
+        2) Create an orphan asset with a name that already exists under a parent asset
+        3) Create an orphan asset with an existing name.
+        4) Create a child asset with a name that already exists among its siblings.
+    """
+
+    post_data = get_asset_post_data()
+
+    def get_asset_with_name(asset_name):
+        return GenericAsset.query.filter(GenericAsset.name == asset_name).one_or_none()
+
+    parent = get_asset_with_name(parent_name)
+
+    post_data["name"] = child_name
+    post_data["account_id"] = requesting_user.account_id
+
+    if parent:
+        post_data["parent_asset_id"] = parent.parent_asset_id
+
+    asset_creation_response = client.post(
+        url_for("AssetAPI:post"),
+        json=post_data,
+    )
+
+    if fails:
+        assert asset_creation_response.status_code == 422
+        assert (
+            "already exists"
+            in asset_creation_response.json["message"]["json"]["name"][0]
+        )
+    else:
+        assert asset_creation_response.status_code == 201
+
+        for key, val in post_data.items():
+            assert asset_creation_response.json[key] == val
+
+        # check that the asset exists
+        assert GenericAsset.query.get(asset_creation_response.json["id"]) is not None
