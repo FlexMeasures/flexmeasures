@@ -11,7 +11,6 @@ import importlib.util
 from importlib.abc import Loader
 from typing import Type
 import inspect
-import pandas as pd
 
 
 from flask import current_app
@@ -122,7 +121,7 @@ def trigger_optional_fallback(job, connection, type, value, traceback):
             )
         else:
             entity = sensor if asset is None else asset
-            scheduler_class: Type[Scheduler] = find_scheduler_class(sensor)
+            scheduler_class: Type[Scheduler] = find_scheduler_class(entity)
 
         # only schedule a fallback schedule job if the original job has a fallback
         # mechanism
@@ -134,8 +133,8 @@ def trigger_optional_fallback(job, connection, type, value, traceback):
             }
 
             fallback_job = create_scheduling_job(
-                sensor = sensor,
-                asset = asset,
+                sensor=sensor,
+                asset=asset,
                 force_new_job_creation=True,
                 enqueue=False,
                 scheduler_specs=scheduler_specs,
@@ -186,8 +185,10 @@ def create_scheduling_job(
     # We first create a scheduler and check if deserializing works, so the flex config is checked
     # and errors are raised before the job is enqueued (so users get a meaningful response right away).
     # Note: We are putting still serialized scheduler_kwargs into the job!
-    
-    assert (sensor is None) and (asset is None), "Either a sensor or asset should be provided."
+
+    assert not (
+        (sensor is None) and (asset is None)
+    ), "Either a sensor or asset should be provided."
 
     if scheduler_specs:
         scheduler_class: Type[Scheduler] = load_custom_scheduler(scheduler_specs)
@@ -209,7 +210,12 @@ def create_scheduling_job(
 
     job = Job.create(
         make_schedule,
-        kwargs=dict(sensor_id=sensor_id, asset_id=asset_id, scheduler_specs=scheduler_specs, **scheduler_kwargs),
+        kwargs=dict(
+            sensor_id=sensor_id,
+            asset_id=asset_id,
+            scheduler_specs=scheduler_specs,
+            **scheduler_kwargs,
+        ),
         id=job_id,
         connection=current_app.queues["scheduling"].connection,
         ttl=int(
@@ -244,8 +250,8 @@ def make_schedule(
     start: datetime,
     end: datetime,
     resolution: timedelta,
-    sensor_id : int | None = None,
-    asset_id : int | None = None,
+    sensor_id: int | None = None,
+    asset_id: int | None = None,
     belief_time: datetime | None = None,
     flex_model: dict | None = None,
     flex_context: dict | None = None,
