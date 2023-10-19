@@ -7,6 +7,7 @@ import pandas as pd
 from flask import current_app
 
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.generic_assets import GenericAsset as Asset
 from flexmeasures.utils.coding_utils import deprecated
 
 
@@ -35,13 +36,18 @@ class Scheduler:
     __author__ = None
 
     sensor: Sensor
+    asset: Asset
+
     start: datetime
     end: datetime
     resolution: timedelta
     belief_time: datetime
+
     round_to_decimals: int
+
     flex_model: Optional[dict] = None
     flex_context: Optional[dict] = None
+
     fallback_scheduler_class: "Type[Scheduler] | None" = None
     info: dict | None = None
 
@@ -54,6 +60,7 @@ class Scheduler:
         start,
         end,
         resolution,
+        asset: Optional[Asset] = None,
         belief_time: Optional[datetime] = None,
         round_to_decimals: Optional[int] = 6,
         flex_model: Optional[dict] = None,
@@ -72,6 +79,8 @@ class Scheduler:
               E.g. start and flex_model[soc_at_start] are intertwined.
         """
         self.sensor = sensor
+        self.asset = asset
+
         self.start = start
         self.end = end
         self.resolution = resolution
