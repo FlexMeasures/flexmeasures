@@ -10,7 +10,7 @@ from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.utils.coding_utils import deprecated
 
 
-SchedulerOutputType = pd.Series | List[Dict[str, Any]] | None
+SchedulerOutputType = Optional[pd.Series | List[Dict[str, Any]]]
 
 
 class Scheduler:
