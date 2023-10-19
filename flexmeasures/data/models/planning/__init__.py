@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Optional, Type, List, Dict, Any
+from typing import Optional, Type, List, Dict, Any, Union
 
 import pandas as pd
 from flask import current_app
@@ -11,7 +11,7 @@ from flexmeasures.data.models.generic_assets import GenericAsset as Asset
 from flexmeasures.utils.coding_utils import deprecated
 
 
-SchedulerOutputType = pd.Series | List[Dict[str, Any]] | None
+SchedulerOutputType = Union[pd.Series, List[Dict[str, Any]], None]
 
 
 class Scheduler:
