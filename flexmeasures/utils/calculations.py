@@ -109,6 +109,7 @@ def integrate_time_series(
     down_efficiency: float | pd.Series = 1,
     storage_efficiency: float | pd.Series = 1,
     decimal_precision: int | None = None,
+    power_inflow_is_positive=True,
 ) -> pd.Series:
     """Integrate time series of length n and inclusive="left" (representing a flow)
     to a time series of length n+1 and inclusive="both" (representing a stock),
@@ -134,6 +135,10 @@ def integrate_time_series(
         2001-01-01 07:00:00    15.0
         dtype: float64
     """
+
+    if not power_inflow_is_positive:
+        series *= -1
+
     resolution = pd.to_timedelta(series.index.freq)
     storage_efficiency = (
         storage_efficiency
@@ -142,6 +147,8 @@ def integrate_time_series(
     )
 
     # Convert from flow to stock change, applying conversion efficiencies
+
+    # flow into a device (stock increase : flow in)
     stock_change = pd.Series(data=np.NaN, index=series.index)
     stock_change.loc[series > 0] = (
         series[series > 0]
@@ -152,6 +159,8 @@ def integrate_time_series(
         )
         * (resolution / timedelta(hours=1))
     )
+
+    # flow out of a device (stock decreases : flow out)
     stock_change.loc[series <= 0] = (
         series[series <= 0]
         / (

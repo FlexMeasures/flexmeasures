@@ -11,6 +11,7 @@ def check_constraints(
     roundtrip_efficiency: float = 1,
     storage_efficiency: float = 1,
     tolerance: float = 0.00001,
+    power_inflow_is_positive=True,
 ) -> pd.Series:
     soc_schedule = integrate_time_series(
         schedule,
@@ -19,6 +20,7 @@ def check_constraints(
         down_efficiency=roundtrip_efficiency**0.5,
         storage_efficiency=storage_efficiency,
         decimal_precision=6,
+        power_inflow_is_positive=power_inflow_is_positive,
     )
     with pd.option_context("display.max_rows", None, "display.max_columns", 3):
         print(soc_schedule)

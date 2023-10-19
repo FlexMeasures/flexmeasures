@@ -89,6 +89,11 @@ class Scheduler:
 
         self.return_multiple = return_multiple
 
+        if not return_multiple:
+            current_app.logger.warning(
+                "Deprecation warning: compute method is expected to return the Scheduler results solely in the multi-output format."
+            )
+
     def compute_schedule(self) -> Optional[pd.Series]:
         """
         Overwrite with the actual computation of your schedule.

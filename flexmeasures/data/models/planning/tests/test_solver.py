@@ -80,11 +80,13 @@ def test_battery_solver_day_1(
             if use_inflexible_device
             else []
         },
+        return_multiple=True,
     )
     schedule = scheduler.compute()
+    schedule = schedule[0]["data"]
 
     # Check if constraints were met
-    check_constraints(battery, schedule, soc_at_start)
+    check_constraints(battery, schedule, soc_at_start, power_inflow_is_positive=False)
 
 
 @pytest.mark.parametrize(
@@ -130,12 +132,19 @@ def test_battery_solver_day_2(
             "roundtrip-efficiency": roundtrip_efficiency,
             "storage-efficiency": storage_efficiency,
         },
+        return_multiple=True,
     )
     schedule = scheduler.compute()
+    schedule = schedule[0]["data"]
 
     # Check if constraints were met
     soc_schedule = check_constraints(
-        battery, schedule, soc_at_start, roundtrip_efficiency, storage_efficiency
+        battery,
+        schedule,
+        soc_at_start,
+        roundtrip_efficiency,
+        storage_efficiency,
+        power_inflow_is_positive=False,
     )
 
     # Check whether the resulting soc schedule follows our expectations for 8 expensive, 8 cheap and 8 expensive hours
@@ -202,6 +211,7 @@ def run_test_charge_discharge_sign(
             "consumption-price-sensor": consumption_price_sensor_id,
             "production-price-sensor": production_price_sensor_id,
         },
+        return_multiple=True,
     )
 
     (
@@ -251,7 +261,12 @@ def run_test_charge_discharge_sign(
 
     # Check if constraints were met
     soc_schedule = check_constraints(
-        battery, schedule, soc_at_start, roundtrip_efficiency, storage_efficiency
+        battery,
+        schedule,
+        soc_at_start,
+        roundtrip_efficiency,
+        storage_efficiency,
+        power_inflow_is_positive=True,
     )
 
     return schedule.tz_convert(tz), soc_schedule.tz_convert(tz)
@@ -384,13 +399,18 @@ def test_charging_station_solver_day_2(
             ),
             "soc_targets": soc_targets,
         },
+        return_multiple=True,
     )
     scheduler.config_deserialized = (
         True  # soc targets are already a DataFrame, names get underscore
     )
     consumption_schedule = scheduler.compute()
+    consumption_schedule = consumption_schedule[0]["data"]
     soc_schedule = integrate_time_series(
-        consumption_schedule, soc_at_start, decimal_precision=6
+        consumption_schedule,
+        soc_at_start,
+        decimal_precision=6,
+        power_inflow_is_positive=False,
     )
 
     # Check if constraints were met
@@ -463,6 +483,7 @@ def test_fallback_to_unsolvable_problem(
             ),
             "soc_targets": soc_targets,
         },
+        "return_multiple": True,
     }
     scheduler = StorageScheduler(**kwargs)
     scheduler.config_deserialized = (
@@ -477,9 +498,13 @@ def test_fallback_to_unsolvable_problem(
     fallback_scheduler = scheduler.fallback_scheduler_class(**kwargs)
     fallback_scheduler.config_deserialized = True
     consumption_schedule = fallback_scheduler.compute(skip_validation=True)
+    consumption_schedule = consumption_schedule[0]["data"]
 
     soc_schedule = integrate_time_series(
-        consumption_schedule, soc_at_start, decimal_precision=6
+        consumption_schedule,
+        soc_at_start,
+        decimal_precision=6,
+        power_inflow_is_positive=False,
     )
 
     # Check if constraints were met
@@ -568,12 +593,16 @@ def test_building_solver_day_2(
             "production_price_sensor": production_price_sensor,
             "consumption_price_sensor": consumption_price_sensor,
         },
+        return_multiple=True,
     )
     scheduler.config_deserialized = (
         True  # inflexible device sensors are already objects, names get underscore
     )
     schedule = scheduler.compute()
-    soc_schedule = integrate_time_series(schedule, soc_at_start, decimal_precision=6)
+    schedule = schedule[0]["data"]
+    soc_schedule = integrate_time_series(
+        schedule, soc_at_start, decimal_precision=6, power_inflow_is_positive=False
+    )
 
     with pd.option_context("display.max_rows", None, "display.max_columns", 3):
         print(soc_schedule)
@@ -661,18 +690,13 @@ def test_soc_bounds_timeseries(add_battery_assets):
 
     def compute_schedule(flex_model):
         scheduler = StorageScheduler(
-            battery,
-            start,
-            end,
-            resolution,
-            flex_model=flex_model,
+            battery, start, end, resolution, flex_model=flex_model, return_multiple=True
         )
         schedule = scheduler.compute()
+        schedule = schedule[0]["data"]
 
         soc_schedule = integrate_time_series(
-            schedule,
-            soc_at_start,
-            decimal_precision=6,
+            schedule, soc_at_start, decimal_precision=6, power_inflow_is_positive=False
         )
 
         return soc_schedule
@@ -962,18 +986,12 @@ def test_infeasible_problem_error(add_battery_assets):
 
     def compute_schedule(flex_model):
         scheduler = StorageScheduler(
-            battery,
-            start,
-            end,
-            resolution,
-            flex_model=flex_model,
+            battery, start, end, resolution, flex_model=flex_model, return_multiple=True
         )
         schedule = scheduler.compute()
 
         soc_schedule = integrate_time_series(
-            schedule,
-            soc_at_start,
-            decimal_precision=1,
+            schedule, soc_at_start, decimal_precision=1, power_inflow_is_positive=False
         )
 
         return soc_schedule
@@ -1047,6 +1065,7 @@ def test_numerical_errors(app_with_each_solver, setup_planning_test_data):
             ],
             "soc-unit": "MWh",
         },
+        return_multiple=True,
     )
 
     (
@@ -1122,6 +1141,7 @@ def test_capacity(app, setup_planning_test_data, capacity, site_capacity):
         resolution,
         flex_model=flex_model,
         flex_context=flex_context,
+        return_multiple=True,
     )
 
     (
