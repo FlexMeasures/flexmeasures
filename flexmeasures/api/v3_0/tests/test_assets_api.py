@@ -414,3 +414,28 @@ def test_consultant_can_not_patch(
     )
     print(f"Editing Response: {asset_edit_response.json}")
     assert asset_edit_response.status_code == 403
+
+
+@pytest.mark.parametrize(
+    "requesting_user",
+    ["test_consultant_user_without_access@seita.nl"],
+    indirect=True,
+)
+def test_consultant_without_customer_manager_role(
+    client,
+    setup_api_test_data,
+    setup_accounts,
+    requesting_user,
+):
+    """
+    The Consultant Account user without customer manager role can not read.
+    """
+    account_name = "ConsultantClient"
+    query = {"account_id": setup_accounts[account_name].id}
+
+    get_assets_response = client.get(
+        url_for("AssetAPI:index"),
+        query_string=query,
+    )
+    print("Server responded with:\n%s" % get_assets_response.json)
+    assert get_assets_response.status_code == 403

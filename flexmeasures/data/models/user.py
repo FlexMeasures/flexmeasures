@@ -81,7 +81,9 @@ class Account(db.Model, AuthModelMixin):
 
         read_access = [f"account:{self.id}"]
         if self.consultancy_account_id is not None:
-            read_access.append(f"account:{self.consultancy_account_id}")
+            read_access.append(
+                (f"account:{self.consultancy_account_id}", "role:customer-manager")
+            )
         return {
             "create-children": (f"account:{self.id}", "role:account-admin"),
             "read": read_access,
