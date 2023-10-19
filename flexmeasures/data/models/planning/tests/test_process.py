@@ -42,8 +42,10 @@ def test_process_scheduler(add_battery_assets, process, process_type, optimal_st
         resolution,
         flex_model=flex_model,
         flex_context=flex_context,
+        return_multiple=True,
     )
     schedule = scheduler.compute()
+    schedule = schedule[0]["data"]
 
     optimal_start = tz.localize(optimal_start)
 
@@ -51,7 +53,7 @@ def test_process_scheduler(add_battery_assets, process, process_type, optimal_st
         schedule.index < optimal_start + timedelta(hours=4)
     )
 
-    assert (schedule[mask] == 4).all()
+    assert (schedule[mask] == -4).all()
     assert (schedule[~mask] == 0).all()
 
 
@@ -86,12 +88,14 @@ def test_duration_exceeds_planning_window(
         resolution,
         flex_model=flex_model,
         flex_context=flex_context,
+        return_multiple=True,
     )
     schedule = scheduler.compute()
+    schedule = schedule[0]["data"]
 
     optimal_start = tz.localize(optimal_start)
 
-    assert (schedule == 4).all()
+    assert (schedule == -4).all()
 
 
 def test_process_scheduler_time_restrictions(add_battery_assets, process):
@@ -124,8 +128,10 @@ def test_process_scheduler_time_restrictions(add_battery_assets, process):
         resolution,
         flex_model=flex_model,
         flex_context=flex_context,
+        return_multiple=True,
     )
     schedule = scheduler.compute()
+    schedule = schedule[0]["data"]
 
     optimal_start = tz.localize(datetime(2015, 1, 2, 10))
 
@@ -133,7 +139,7 @@ def test_process_scheduler_time_restrictions(add_battery_assets, process):
         schedule.index < optimal_start + timedelta(hours=4)
     )
 
-    assert (schedule[mask] == 4).all()
+    assert (schedule[mask] == -4).all()
     assert (schedule[~mask] == 0).all()
 
     # check that the time restrictions are fulfilled
@@ -179,10 +185,12 @@ def test_breakable_scheduler_time_restrictions(add_battery_assets, process):
         resolution,
         flex_model=flex_model,
         flex_context=flex_context,
+        return_multiple=True,
     )
     schedule = scheduler.compute()
+    schedule = schedule[0]["data"]
 
-    expected_schedule = [0] * 8 + [4, 0, 4, 0, 4, 0, 4, 0] + [0] * 8
+    expected_schedule = [0] * 8 + [-4, 0, -4, 0, -4, 0, -4, 0] + [0] * 8
 
     assert (schedule == expected_schedule).all()
 
@@ -229,6 +237,7 @@ def test_impossible_schedules(
         resolution,
         flex_model=flex_model,
         flex_context=flex_context,
+        return_multiple=True,
     )
 
     with pytest.raises(ValueError):
