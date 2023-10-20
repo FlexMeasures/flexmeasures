@@ -151,6 +151,8 @@ def create_test_accounts(db) -> dict[str, Account]:
     consultant_account_role = AccountRole(
         name="Consultant", description="A Consultant Account"
     )
+    # Create Consultant and ConsultantClient account.
+    # The ConsultantClient account needs the account id of the Consultant account so the order is important.
     consultant_account = Account(
         name="Test Consultant Account", account_roles=[consultant_account_role]
     )
@@ -159,11 +161,13 @@ def create_test_accounts(db) -> dict[str, Account]:
         name="ConsultantClient",
         description="A Client of a Consultant",
     )
-    account = Account.query.filter_by(name="Test Consultant Account").one_or_none()
+    consultant_account_id = (
+        Account.query.filter_by(name="Test Consultant Account").one_or_none().id
+    )
     consultant_client_account = Account(
         name="Test ConsultantClient Account",
         account_roles=[consultant_client_account_role],
-        consultancy_account_id=account.id,
+        consultancy_account_id=consultant_account_id,
     )
     db.session.add(consultant_client_account)
     return dict(
