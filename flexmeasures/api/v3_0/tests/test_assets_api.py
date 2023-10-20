@@ -389,7 +389,7 @@ def test_consultant_can_not_patch(
     asset_edit_response = client.patch(
         url_for("AssetAPI:patch", id=consultant_client_asset.id),
         json={
-            "latitude": consultant_client_asset.latitude,
+            "latitude": 0,
         },
     )
     print(f"Editing Response: {asset_edit_response.json}")
