@@ -7,6 +7,7 @@ from flexmeasures.ui.crud.api_wrapper import InternalApi
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.crud.assets import get_assets_by_account
 from flexmeasures.ui.crud.users import get_users_by_account
+from flexmeasures.data.models.user import Account
 
 
 def get_accounts() -> list[dict]:
@@ -46,6 +47,12 @@ class AccountCrudUI(FlaskView):
         """/accounts/<account_id>"""
         include_inactive = request.args.get("include_inactive", "0") != "0"
         account = get_account(account_id)
+        consultancy_account_name = (
+            Account.query.filter_by(id=account["consultancy_account_id"])
+            .one_or_none()
+            .name
+        )
+        account["consultancy_account_name"] = consultancy_account_name
         assets = get_assets_by_account(account_id)
         assets += get_assets_by_account(account_id=None)
         users = get_users_by_account(account_id, include_inactive=include_inactive)
