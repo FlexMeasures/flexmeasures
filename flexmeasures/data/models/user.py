@@ -65,8 +65,16 @@ class Account(db.Model, AuthModelMixin):
         secondary="annotations_accounts",
         backref=db.backref("accounts", lazy="dynamic"),
     )
+    # Setup self referential relationship between consultant account and consultant client account
     consultancy_account_id = Column(
         Integer, db.ForeignKey("account.id"), default=None, nullable=True
+    )
+
+    consultant_client_accounts = db.relationship(
+        "Account", back_populates="consultant_account"
+    )
+    consultant_account = db.relationship(
+        "Account", back_populates="consultant_client_accounts", remote_side=[id]
     )
 
     def __repr__(self):

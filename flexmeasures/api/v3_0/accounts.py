@@ -64,9 +64,18 @@ class AccountAPI(FlaskView):
         """
         if user_has_admin_access(current_user, "read"):
             accounts = get_accounts()
+            accounts_dump = accounts_schema.dump(accounts)
         else:
             accounts = [current_user.account]
-        return accounts_schema.dump(accounts), 200
+            if current_user.account.consultant_client_accounts:
+                accounts.extend(current_user.account.consultant_client_accounts)
+            accounts_dump = accounts_schema.dump(accounts)
+            if current_user.account.consultant_account:
+                accounts_dump[0][
+                    "consultant_name"
+                ] = current_user.account.consultant_account.name
+
+        return accounts_dump, 200
 
     @route("/<id>", methods=["GET"])
     @use_kwargs({"account": AccountIdField(data_key="id")}, location="path")
@@ -88,6 +97,7 @@ class AccountAPI(FlaskView):
                 'id': 1,
                 'name': 'Test Account'
                 'account_roles': [1, 3],
+                'consultancy_account_id':2,
             }
 
         :reqheader Authorization: The authentication token
