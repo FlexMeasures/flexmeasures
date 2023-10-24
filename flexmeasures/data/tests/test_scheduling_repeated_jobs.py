@@ -9,6 +9,7 @@ import pytest
 from rq.job import Job, JobStatus
 
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.tests.utils import work_on_rq, exception_reporter
 from flexmeasures.data.services.scheduling import create_scheduling_job
@@ -132,9 +133,15 @@ def test_hashing(db, app, add_charging_station_assets, setup_test_data):
     target_soc = 5
     duration_until_target = timedelta(hours=2)
 
-    charging_station = Sensor.query.filter(
-        Sensor.name == "Test charging station"
-    ).one_or_none()
+    # Here, we need to obtain the object through a db query, otherwise we run into session issues with deepcopy later on
+    # charging_station = add_charging_station_assets["Test charging station"].sensors[0]
+    charging_station = (
+        Sensor.query.filter(Sensor.name == "power")
+        .join(GenericAsset)
+        .filter(GenericAsset.id == Sensor.generic_asset_id)
+        .filter(GenericAsset.name == "Test charging stations")
+        .one_or_none()
+    )
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 2))
     end = tz.localize(datetime(2015, 1, 3))
@@ -156,7 +163,8 @@ def test_hashing(db, app, add_charging_station_assets, setup_test_data):
     print("RIGHT HASH: ", hash)
 
     # checks that hashes are consistent between different runtime calls
-    assert hash == "4ed0V9h247brxusBYk3ug9Cy7miPnynOeSNBT8hd5Mo="
+    # this test needs to be updated in case of a version upgrade
+    assert hash == "oAZ8tzzq50zl3I+7oFeabrj1QeH709mZdXWbpkn0krA="
 
     kwargs2 = copy.deepcopy(kwargs)
     args2 = copy.deepcopy(args)
@@ -180,9 +188,7 @@ def test_scheduling_multiple_triggers(
 
     duration_until_target = timedelta(hours=2)
 
-    charging_station = Sensor.query.filter(
-        Sensor.name == "Test charging station"
-    ).one_or_none()
+    charging_station = add_charging_station_assets["Test charging station"].sensors[0]
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 2))
     end = tz.localize(datetime(2015, 1, 3))

@@ -1,6 +1,3 @@
--c app.txt
-# we are not using app.in, because we want to test exactly what is being packaged
-
 pytest
 pytest-flask
 pytest-sugar
@@ -13,3 +10,5 @@ requests_mock
 fakeredis
 # required with fakeredis, maybe because we use rq
 lupa
+# LP solver required to test the function device_scheduler which is used by the StorageScheduler
+highspy

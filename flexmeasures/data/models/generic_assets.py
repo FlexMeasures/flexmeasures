@@ -4,13 +4,13 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, Optional, Tuple, List, Union
 import json
 
+from flask import current_app
 from flask_security import current_user
 import pandas as pd
 from sqlalchemy.engine import Row
 from sqlalchemy.ext.hybrid import hybrid_method
 from sqlalchemy.sql.expression import func
 from sqlalchemy.ext.mutable import MutableDict
-from sqlalchemy.schema import UniqueConstraint
 from timely_beliefs import BeliefsDataFrame, utils as tb_utils
 
 from flexmeasures.data import db
@@ -37,6 +37,9 @@ class GenericAssetType(db.Model):
     name = db.Column(db.String(80), default="", unique=True)
     description = db.Column(db.String(80), nullable=True, unique=False)
 
+    def __repr__(self):
+        return "<GenericAssetType %s: %r>" % (self.id, self.name)
+
 
 class GenericAsset(db.Model, AuthModelMixin):
     """An asset is something that has economic value.
@@ -45,32 +48,49 @@ class GenericAsset(db.Model, AuthModelMixin):
     Examples of intangible assets: a market, a country, a copyright.
     """
 
+    __table_args__ = (
+        db.CheckConstraint(
+            "parent_asset_id != id", name="generic_asset_self_reference_ck"
+        ),
+        db.UniqueConstraint(
+            "name",
+            "parent_asset_id",
+            name="generic_asset_name_parent_asset_id_key",
+        ),
+    )
+
+    # No relationship
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(80), default="")
     latitude = db.Column(db.Float, nullable=True)
     longitude = db.Column(db.Float, nullable=True)
     attributes = db.Column(MutableDict.as_mutable(db.JSON), nullable=False, default={})
 
+    # One-to-many (or many-to-one?) relationships
+    parent_asset_id = db.Column(
+        db.Integer, db.ForeignKey("generic_asset.id", ondelete="CASCADE"), nullable=True
+    )
     generic_asset_type_id = db.Column(
         db.Integer, db.ForeignKey("generic_asset_type.id"), nullable=False
     )
+
+    child_assets = db.relationship(
+        "GenericAsset",
+        cascade="all",
+        backref=db.backref("parent_asset", remote_side="GenericAsset.id"),
+    )
+
     generic_asset_type = db.relationship(
         "GenericAssetType",
         foreign_keys=[generic_asset_type_id],
         backref=db.backref("generic_assets", lazy=True),
     )
+
+    # Many-to-many relationships
     annotations = db.relationship(
         "Annotation",
         secondary="annotations_assets",
         backref=db.backref("assets", lazy="dynamic"),
-    )
-
-    __table_args__ = (
-        UniqueConstraint(
-            "name",
-            "account_id",
-            name="generic_asset_name_account_id_key",
-        ),
     )
 
     def __acl__(self):
@@ -211,6 +231,8 @@ class GenericAsset(db.Model, AuthModelMixin):
     ) -> Union[List[Annotation], pd.DataFrame]:
         """Return annotations assigned to this asset, and optionally, also those assigned to the asset's account.
 
+        The returned annotations do not include any annotations on public accounts.
+
         :param annotations_after: only return annotations that end after this datetime (exclusive)
         :param annotations_before: only return annotations that start before this datetime (exclusive)
         """
@@ -222,7 +244,7 @@ class GenericAsset(db.Model, AuthModelMixin):
             sources=parsed_sources,
             annotation_type=annotation_type,
         ).all()
-        if include_account_annotations:
+        if include_account_annotations and self.owner is not None:
             annotations += self.owner.search_annotations(
                 annotations_after=annotations_after,
                 annotations_before=annotations_before,
@@ -421,6 +443,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                     else ["belief_time", "source"],
                     append=True,
                 )
+                df["sensor"] = {}  # ensure the same columns as a non-empty frame
             df = df.reset_index()
             df["source"] = df["source"].apply(lambda x: x.to_dict())
             df["sensor"] = df["sensor"].apply(lambda x: x.to_dict())
@@ -434,7 +457,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         Sensors to show are defined as a list of sensor ids, which
         is set by the "sensors_to_show" field of the asset's "attributes" column.
         Valid sensors either belong to the asset itself, to other assets in the same account,
-        or to public assets.
+        or to public assets. In play mode, sensors from different accounts can be added.
         In case the field is missing, defaults to two of the asset's sensors.
 
         Sensor ids can be nested to denote that sensors should be 'shown together',
@@ -453,25 +476,52 @@ class GenericAsset(db.Model, AuthModelMixin):
         if not self.has_attribute("sensors_to_show"):
             return self.sensors[:2]
 
+        # Only allow showing sensors from assets owned by the user's organization,
+        # except in play mode, where any sensor may be shown
+        accounts = [self.owner] if self.owner is not None else None
+        if current_app.config.get("FLEXMEASURES_MODE") == "play":
+            from flexmeasures.data.models.user import Account
+
+            accounts = Account.query.all()
+
         from flexmeasures.data.services.sensors import get_sensors
 
         sensor_ids_to_show = self.get_attribute("sensors_to_show")
-        sensor_map = {
+        accessible_sensor_map = {
             sensor.id: sensor
             for sensor in get_sensors(
-                account=self.owner,
+                account=accounts,
                 include_public_assets=True,
                 sensor_id_allowlist=flatten_unique(sensor_ids_to_show),
             )
         }
 
-        # Return sensors in the order given by the sensors_to_show attribute, and with the same nesting
+        # Build list of sensor objects that are accessible
         sensors_to_show = []
+        missed_sensor_ids = []
+
+        # we make sure to build in the order given by the sensors_to_show attribute, and with the same nesting
         for s in sensor_ids_to_show:
             if isinstance(s, list):
-                sensors_to_show.append([sensor_map[sensor_id] for sensor_id in s])
+                inaccessible = [sid for sid in s if sid not in accessible_sensor_map]
+                missed_sensor_ids.extend(inaccessible)
+                if len(inaccessible) < len(s):
+                    sensors_to_show.append(
+                        [
+                            accessible_sensor_map[sensor_id]
+                            for sensor_id in s
+                            if sensor_id in accessible_sensor_map
+                        ]
+                    )
             else:
-                sensors_to_show.append(sensor_map[s])
+                if s not in accessible_sensor_map:
+                    missed_sensor_ids.append(s)
+                else:
+                    sensors_to_show.append(accessible_sensor_map[s])
+        if missed_sensor_ids:
+            current_app.logger.warning(
+                f"Cannot include sensor(s) {missed_sensor_ids} in sensors_to_show on asset {self}, as it is not accessible to user {current_user}."
+            )
         return sensors_to_show
 
     @property
@@ -550,6 +600,7 @@ def create_generic_asset(generic_asset_type: str, **kwargs) -> GenericAsset:
     ).one_or_none()
     if generic_asset_type is None:
         raise ValueError(f"Cannot find GenericAssetType {asset_type_name} in database.")
+
     new_generic_asset = GenericAsset(
         name=kwargs["name"],
         generic_asset_type_id=generic_asset_type.id,
@@ -560,6 +611,7 @@ def create_generic_asset(generic_asset_type: str, **kwargs) -> GenericAsset:
             setattr(new_generic_asset, arg, kwargs[arg])
     db.session.add(new_generic_asset)
     db.session.flush()  # generates the pkey for new_generic_asset
+
     return new_generic_asset
 
 

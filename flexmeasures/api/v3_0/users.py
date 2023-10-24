@@ -2,7 +2,7 @@ from flask_classful import FlaskView, route
 from marshmallow import fields
 from sqlalchemy.exc import IntegrityError
 from webargs.flaskparser import use_kwargs
-from flask_security import current_user
+from flask_security import current_user, auth_required
 from flask_security.recoverable import send_reset_password_instructions
 from flask_json import as_json
 from werkzeug.exceptions import Forbidden
@@ -33,6 +33,7 @@ partial_user_schema = UserSchema(partial=True)
 class UserAPI(FlaskView):
     route_base = "/users"
     trailing_slash = False
+    decorators = [auth_required()]
 
     @route("", methods=["GET"])
     @use_kwargs(
@@ -44,7 +45,7 @@ class UserAPI(FlaskView):
         },
         location="query",
     )
-    @permission_required_for_context("read", arg_name="account")
+    @permission_required_for_context("read", ctx_arg_name="account")
     @as_json
     def index(self, account: Account, include_inactive: bool = False):
         """API endpoint to list all users of an account.
@@ -90,7 +91,7 @@ class UserAPI(FlaskView):
 
     @route("/<id>")
     @use_kwargs({"user": UserIdField(data_key="id")}, location="path")
-    @permission_required_for_context("read", arg_name="user")
+    @permission_required_for_context("read", ctx_arg_name="user")
     @as_json
     def get(self, id: int, user: UserModel):
         """API endpoint to get a user.
@@ -128,7 +129,7 @@ class UserAPI(FlaskView):
     @route("/<id>", methods=["PATCH"])
     @use_kwargs(partial_user_schema)
     @use_kwargs({"user": UserIdField(data_key="id")}, location="path")
-    @permission_required_for_context("update", arg_name="user")
+    @permission_required_for_context("update", ctx_arg_name="user")
     @as_json
     def patch(self, id: int, user: UserModel, **user_data):
         """API endpoint to patch user data.
@@ -204,7 +205,7 @@ class UserAPI(FlaskView):
 
     @route("/<id>/password-reset", methods=["PATCH"])
     @use_kwargs({"user": UserIdField(data_key="id")}, location="path")
-    @permission_required_for_context("update", arg_name="user")
+    @permission_required_for_context("update", ctx_arg_name="user")
     @as_json
     def reset_user_password(self, id: int, user: UserModel):
         """API endpoint to reset the user's current password, cookies and auth tokens, and to email a password reset link to the user.

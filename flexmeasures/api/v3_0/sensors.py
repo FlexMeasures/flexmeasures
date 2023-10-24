@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+
 from datetime import datetime, timedelta
 
-from flask import current_app
+from flask import current_app, url_for
 from flask_classful import FlaskView, route
 from flask_json import as_json
 from flask_security import auth_required
@@ -17,6 +18,7 @@ from flexmeasures.api.common.responses import (
     unrecognized_event,
     unknown_schedule,
     invalid_flex_config,
+    fallback_schedule_redirect,
 )
 from flexmeasures.api.common.utils.validators import (
     optional_duration_accepted,
@@ -30,7 +32,8 @@ from flexmeasures.api.common.utils.api_utils import save_and_enqueue
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField
 from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
@@ -47,6 +50,7 @@ get_sensor_schema = GetSensorDataSchema()
 post_sensor_schema = PostSensorDataSchema()
 sensors_schema = SensorSchema(many=True)
 sensor_schema = SensorSchema()
+partial_sensor_schema = SensorSchema(partial=True, exclude=["generic_asset_id"])
 
 
 class SensorAPI(FlaskView):
@@ -64,7 +68,7 @@ class SensorAPI(FlaskView):
         },
         location="query",
     )
-    @permission_required_for_context("read", arg_name="account")
+    @permission_required_for_context("read", ctx_arg_name="account")
     @as_json
     def index(self, account: Account):
         """API endpoint to list all sensors of an account.
@@ -84,11 +88,12 @@ class SensorAPI(FlaskView):
             [
                 {
                     "entity_address": "ea1.2021-01.io.flexmeasures.company:fm1.42",
-                    "event_resolution": 15,
+                    "event_resolution": PT15M,
                     "generic_asset_id": 1,
                     "name": "Gas demand",
                     "timezone": "Europe/Amsterdam",
                     "unit": "m\u00b3/h"
+                    "id": 2
                 }
             ]
 
@@ -108,6 +113,12 @@ class SensorAPI(FlaskView):
     @use_args(
         post_sensor_schema,
         location="json",
+    )
+    @permission_required_for_context(
+        "create-children",
+        ctx_arg_pos=1,
+        ctx_loader=lambda bdf: bdf.sensor,
+        pass_ctx_to_loader=True,
     )
     def post_data(self, bdf: BeliefsDataFrame):
         """
@@ -153,7 +164,8 @@ class SensorAPI(FlaskView):
         get_sensor_schema,
         location="query",
     )
-    def get_data(self, response: dict):
+    @permission_required_for_context("read", ctx_arg_pos=1, ctx_arg_name="sensor")
+    def get_data(self, sensor_data_description: dict):
         """Get sensor data from FlexMeasures.
 
         .. :quickref: Data; Download sensor data
@@ -188,6 +200,9 @@ class SensorAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
+        response = GetSensorDataSchema.load_data_and_make_response(
+            sensor_data_description
+        )
         d, s = request_processed()
         return dict(**response, **d), s
 
@@ -210,6 +225,7 @@ class SensorAPI(FlaskView):
         },
         location="json",
     )
+    @permission_required_for_context("create-children", ctx_arg_name="sensor")
     def trigger_schedule(  # noqa: C901
         self,
         sensor: Sensor,
@@ -309,11 +325,13 @@ class SensorAPI(FlaskView):
                     "soc-max": 25,
                     "roundtrip-efficiency": 0.98,
                     "storage-efficiency": 0.9999,
+                    "power-capacity" : "25kW"
                 },
                 "flex-context": {
                     "consumption-price-sensor": 9,
                     "production-price-sensor": 10,
-                    "inflexible-device-sensors": [13, 14, 15]
+                    "inflexible-device-sensors": [13, 14, 15],
+                    "site-power-capacity": "100kW"
                 }
             }
 
@@ -380,6 +398,7 @@ class SensorAPI(FlaskView):
     @optional_duration_accepted(
         timedelta(hours=6)
     )  # todo: make this a Marshmallow field
+    @permission_required_for_context("read", ctx_arg_name="sensor")
     def get_schedule(self, sensor: Sensor, job_id: str, duration: timedelta, **kwargs):
         """Get a schedule from FlexMeasures.
 
@@ -428,8 +447,14 @@ class SensorAPI(FlaskView):
             job = Job.fetch(job_id, connection=connection)
         except NoSuchJobError:
             return unrecognized_event(job_id, "job")
+
+        scheduler_info_msg = ""
+        scheduler_info = job.meta.get("scheduler_info", dict(scheduler=""))
+        scheduler_info_msg = f"{scheduler_info['scheduler']} was used."
+
         if job.is_finished:
             error_message = "A scheduling job has been processed with your job ID, but "
+
         elif job.is_failed:  # Try to inform the user on why the job failed
             e = job.meta.get(
                 "exception",
@@ -439,32 +464,54 @@ class SensorAPI(FlaskView):
                     "or its exception handler is not storing the exception as job meta data."
                 ),
             )
+            message = f"Scheduling job failed with {type(e).__name__}: {e}"
+
+            fallback_job_id = job.meta.get("fallback_job_id")
+
+            # redirect to the fallback schedule endpoint if the fallback_job_id
+            # is defined in the metadata of the original job
+            if fallback_job_id is not None:
+                return fallback_schedule_redirect(
+                    message,
+                    url_for(
+                        "SensorAPI:get_schedule", uuid=fallback_job_id, id=sensor.id
+                    ),
+                )
+            else:
+                return unknown_schedule(message)
+
             return unknown_schedule(
-                f"Scheduling job failed with {type(e).__name__}: {e}"
+                f"Scheduling job failed with {type(e).__name__}: {e}. {scheduler_info_msg}",
             )
         elif job.is_started:
-            return unknown_schedule("Scheduling job in progress.")
+            return unknown_schedule(f"Scheduling job in progress. {scheduler_info_msg}")
         elif job.is_queued:
-            return unknown_schedule("Scheduling job waiting to be processed.")
+            return unknown_schedule(
+                f"Scheduling job waiting to be processed. {scheduler_info_msg}"
+            )
         elif job.is_deferred:
             try:
                 preferred_job = job.dependency
             except NoSuchJobError:
                 return unknown_schedule(
-                    "Scheduling job waiting for unknown job to be processed."
+                    f"Scheduling job waiting for unknown job to be processed. {scheduler_info_msg}"
                 )
             return unknown_schedule(
-                f'Scheduling job waiting for {preferred_job.status} job "{preferred_job.id}" to be processed.'
+                f'Scheduling job waiting for {preferred_job.status} job "{preferred_job.id}" to be processed. {scheduler_info_msg}'
             )
         else:
-            return unknown_schedule("Scheduling job has an unknown status.")
+            return unknown_schedule(
+                f"Scheduling job has an unknown status. {scheduler_info_msg}"
+            )
         schedule_start = job.kwargs["start"]
 
         data_source = get_data_source_for_job(job)
         if data_source is None:
             return unknown_schedule(
-                error_message + f"no data source could be found for {data_source}."
+                error_message
+                + f"no data source could be found for {data_source}. {scheduler_info_msg}"
             )
+
         power_values = sensor.search_beliefs(
             event_starts_after=schedule_start,
             event_ends_before=schedule_start + planning_horizon,
@@ -476,7 +523,7 @@ class SensorAPI(FlaskView):
         consumption_schedule = -simplify_index(power_values)["event_value"]
         if consumption_schedule.empty:
             return unknown_schedule(
-                error_message + "the schedule was not found in the database."
+                f"{error_message} the schedule was not found in the database. {scheduler_info_msg}"
             )
 
         # Update the planning window
@@ -493,12 +540,12 @@ class SensorAPI(FlaskView):
             unit=sensor.unit,
         )
 
-        d, s = request_processed()
-        return dict(**response, **d), s
+        d, s = request_processed(scheduler_info_msg)
+        return dict(scheduler_info=scheduler_info, **response, **d), s
 
     @route("/<id>", methods=["GET"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
-    @permission_required_for_context("read", arg_name="sensor")
+    @permission_required_for_context("read", ctx_arg_name="sensor")
     @as_json
     def fetch_one(self, id, sensor):
         """Fetch a given sensor.
@@ -515,9 +562,10 @@ class SensorAPI(FlaskView):
                 "name": "some gas sensor",
                 "unit": "m³/h",
                 "entity_address": "ea1.2023-08.localhost:fm1.1",
-                "event_resolution": 10,
+                "event_resolution": "PT10M",
                 "generic_asset_id": 4,
                 "timezone": "UTC",
+                "id": 2
             }
 
         :reqheader Authorization: The authentication token
@@ -529,4 +577,151 @@ class SensorAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
+
         return sensor_schema.dump(sensor), 200
+
+    @route("", methods=["POST"])
+    @use_args(sensor_schema)
+    @permission_required_for_context(
+        "create-children",
+        ctx_arg_pos=1,
+        ctx_arg_name="generic_asset_id",
+        ctx_loader=GenericAsset,
+        pass_ctx_to_loader=True,
+    )
+    def post(self, sensor_data: dict):
+        """Create new asset.
+
+        .. :quickref: Sensor; Create a new Sensor
+
+        This endpoint creates a new Sensor.
+
+        **Example request**
+
+        .. sourcecode:: json
+
+            {
+                "name": "power",
+                "event_resolution": "PT1H",
+                "unit": "kWh",
+                "generic_asset_id": 1,
+            }
+
+        **Example response**
+
+        The whole sensor is returned in the response:
+
+        .. sourcecode:: json
+
+            {
+                "name": "power",
+                "unit": "kWh",
+                "entity_address": "ea1.2023-08.localhost:fm1.1",
+                "event_resolution": "PT1H",
+                "generic_asset_id": 1,
+                "timezone": "UTC",
+                "id": 2
+            }
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 201: CREATED
+        :status 400: INVALID_REQUEST
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+        sensor = Sensor(**sensor_data)
+        db.session.add(sensor)
+        db.session.commit()
+        return sensor_schema.dump(sensor), 201
+
+    @route("/<id>", methods=["PATCH"])
+    @use_args(partial_sensor_schema)
+    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    @permission_required_for_context("update", ctx_arg_name="sensor")
+    @as_json
+    def patch(self, sensor_data: dict, id: int, sensor: Sensor):
+        """Update a sensor given its identifier.
+
+        .. :quickref: Sensor; Update a sensor
+
+        This endpoint updates the descriptive data of an existing sensor.
+
+        Any subset of sensor fields can be sent.
+        However, the following fields are not allowed to be updated:
+        - id
+        - generic_asset_id
+        - entity_address
+
+        Only admin users have rights to update the sensor fields. Be aware that changing unit, event resolution and knowledge horizon should currently only be done on sensors without existing belief data (to avoid a serious mismatch), or if you really know what you are doing.
+
+        **Example request**
+
+        .. sourcecode:: json
+
+            {
+                "name": "POWER",
+            }
+
+        **Example response**
+
+        The whole sensor is returned in the response:
+
+        .. sourcecode:: json
+
+            {
+                "name": "some gas sensor",
+                "unit": "m³/h",
+                "entity_address": "ea1.2023-08.localhost:fm1.1",
+                "event_resolution": "PT10M",
+                "generic_asset_id": 4,
+                "timezone": "UTC",
+                "id": 2
+            }
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 200: UPDATED
+        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+        for k, v in sensor_data.items():
+            setattr(sensor, k, v)
+        db.session.add(sensor)
+        db.session.commit()
+        return sensor_schema.dump(sensor), 200
+
+    @route("/<id>", methods=["DELETE"])
+    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    @permission_required_for_context("delete", ctx_arg_name="sensor")
+    @as_json
+    def delete(self, id: int, sensor: Sensor):
+        """Delete a sensor given its identifier.
+
+        .. :quickref: Sensor; Delete a sensor
+
+        This endpoint deletes an existing sensor, as well as all measurements recorded for it.
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 204: DELETED
+        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+
+        """Delete time series data."""
+        TimedBelief.query.filter(TimedBelief.sensor_id == sensor.id).delete()
+
+        sensor_name = sensor.name
+        db.session.delete(sensor)
+        db.session.commit()
+        current_app.logger.info("Deleted sensor '%s'." % sensor_name)
+        return {}, 204

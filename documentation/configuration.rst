@@ -55,9 +55,13 @@ Default: ``False``
 FLEXMEASURES_LP_SOLVER
 ^^^^^^^^^^^^^^^^^^^^^^
 
-The command to run the scheduling solver. This is the executable command which FlexMeasures calls via the `pyomo library <http://www.pyomo.org/>`_. Other values might be ``cplex``, ``glpk`` or ``appsi_highs`` for `HiGHS <https://highs.dev/>`_. Consult `their documentation <https://pyomo.readthedocs.io/en/stable/solving_pyomo_models.html#supported-solvers>`_ to learn more. 
+The command to run the scheduling solver. This is the executable command which FlexMeasures calls via the `pyomo library <http://www.pyomo.org/>`_. Potential values might be ``cbc``, ``cplex``, ``glpk`` or ``appsi_highs``. Consult `their documentation <https://pyomo.readthedocs.io/en/stable/solving_pyomo_models.html#supported-solvers>`_ to learn more. 
+We have tested FlexMeasures with `HiGHS <https://highs.dev/>`_ and `Cbc <https://coin-or.github.io/Cbc/intro>`_.
+Note that you need to install the solver, read more at :ref:`installing-a-solver`.
 
-Default: ``"cbc"``
+Default: ``"appsi_highs"``
+
+
 
 FLEXMEASURES_HOSTS_AND_AUTH_START
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -179,7 +183,7 @@ For more fine-grained control, the entries can also be tuples of view names and 
 
 .. note:: This fine-grained control requires FlexMeasures version 0.6.0
 
-Default: ``["dashboard", "analytics", "portfolio", "assets", "users"]``
+Default: ``["dashboard"]``
 
 
 FLEXMEASURES_MENU_LISTED_VIEW_ICONS
@@ -613,16 +617,6 @@ FLEXMEASURES_PUBLIC_DEMO_CREDENTIALS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 When ``FLEXMEASURES_MODE=demo``\ , this can hold login credentials (demo user email and password, e.g. ``("demo at seita.nl", "flexdemo")``\ ), so anyone can log in and try out the platform.
-
-Default: ``None``
-
-.. _demo-year-config:
-
-FLEXMEASURES_DEMO_YEAR
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-When ``FLEXMEASURES_MODE=demo``\ , this setting can be used to make the FlexMeasures platform select data from a specific year (e.g. 2015),
-so that old imported data can be demoed as if it were current.
 
 Default: ``None``
 

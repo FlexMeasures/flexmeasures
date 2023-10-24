@@ -1,15 +1,18 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Union, Dict, List
 from datetime import datetime, timedelta
+from copy import deepcopy, copy
 
 from flask import current_app
 import timely_beliefs as tb
-
+import pandas as pd
 from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.schemas.reporting.pandas_reporter import (
     PandasReporterConfigSchema,
+    PandasReporterParametersSchema,
 )
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.utils.time_utils import server_now
 
 
@@ -18,29 +21,80 @@ class PandasReporter(Reporter):
 
     __version__ = "1"
     __author__ = "Seita"
-    schema = PandasReporterConfigSchema()
+
+    _config_schema = PandasReporterConfigSchema()
+    _parameters_schema = PandasReporterParametersSchema()
+
+    input: list[str] = None
     transformations: list[dict[str, Any]] = None
     final_df_output: str = None
 
-    def deserialize_config(self):
-        # call super class deserialize_config
-        super().deserialize_config()
+    data: Dict[str, Union[tb.BeliefsDataFrame, pd.DataFrame]] = None
 
-        # extract PandasReporter specific fields
-        self.transformations = self.reporter_config.get("transformations")
-        self.final_df_output = self.reporter_config.get("final_df_output")
-
-    def _compute(
+    def fetch_data(
         self,
         start: datetime,
         end: datetime,
-        input_resolution: timedelta | None = None,
+        input: dict,
+        resolution: timedelta | None = None,
         belief_time: datetime | None = None,
-    ) -> tb.BeliefsDataFrame:
+    ):
+        """
+        Fetches the time_beliefs from the database
+        """
+
+        self.data = {}
+        for input_search_parameters in input:
+            _input_search_parameters = input_search_parameters.copy()
+
+            sensor: Sensor = _input_search_parameters.pop("sensor", None)
+
+            name = _input_search_parameters.pop("name", f"sensor_{sensor.id}")
+
+            # using start / end instead of event_starts_after/event_ends_before when not defined
+            event_starts_after = _input_search_parameters.pop(
+                "event_starts_after", start
+            )
+            event_ends_before = _input_search_parameters.pop("event_ends_before", end)
+            resolution = _input_search_parameters.pop("resolution", resolution)
+            belief_time = _input_search_parameters.pop("belief_time", belief_time)
+
+            bdf = sensor.search_beliefs(
+                event_starts_after=event_starts_after,
+                event_ends_before=event_ends_before,
+                resolution=resolution,
+                beliefs_before=belief_time,
+                **_input_search_parameters,
+            )
+
+            # store data source as local variable
+            for source in bdf.sources.unique():
+                self.data[f"source_{source.id}"] = source
+
+            # store BeliefsDataFrame as local variable
+            self.data[name] = bdf
+
+    def _compute_report(self, **kwargs) -> List[Dict[str, Any]]:
         """
         This method applies the transformations and outputs the dataframe
         defined in `final_df_output` field of the report_config.
         """
+
+        # report configuration
+        start: datetime = kwargs.get("start")
+        end: datetime = kwargs.get("end")
+        input: dict = kwargs.get("input")
+
+        resolution: timedelta | None = kwargs.get("resolution", None)
+        belief_time: datetime | None = kwargs.get("belief_time", None)
+        output: List[Dict[str, Any]] = kwargs.get("output")
+
+        # by default, use the minimum resolution among the output sensors
+        if resolution is None:
+            resolution = min([o["sensor"].event_resolution for o in output])
+
+        # fetch sensor data
+        self.fetch_data(start, end, input, resolution, belief_time)
 
         if belief_time is None:
             belief_time = server_now()
@@ -48,40 +102,66 @@ class PandasReporter(Reporter):
         # apply pandas transformations to the dataframes in `self.data`
         self._apply_transformations()
 
-        final_output = self.data[self.final_df_output]
+        results = []
 
-        if isinstance(final_output, tb.BeliefsDataFrame):
+        for output_description in output:
+            result = copy(output_description)
 
-            # filing the missing indexes with default values:
-            # belief_time=belief_time, cummulative_probability=0.5, source=data_source
-            if "belief_time" not in final_output.index.names:
-                final_output["belief_time"] = [belief_time] * len(final_output)
-                final_output = final_output.set_index("belief_time", append=True)
+            name = output_description["name"]
 
-            if "cumulative_probability" not in final_output.index.names:
-                final_output["cumulative_probability"] = [0.5] * len(final_output)
-                final_output = final_output.set_index(
-                    "cumulative_probability", append=True
-                )
+            output_data = self.data[name]
 
-            if "source" not in final_output.index.names:
-                final_output["source"] = [self.data_source] * len(final_output)
-                final_output = final_output.set_index("source", append=True)
+            if isinstance(output_data, tb.BeliefsDataFrame):
+                # if column is missing, use the first column
+                column = output_description.get("column", output_data.columns[0])
+                output_data = output_data.rename(columns={column: "event_value"})[
+                    ["event_value"]
+                ]
+                output_data = self._clean_belief_dataframe(output_data, belief_time)
 
-            final_output = final_output.reorder_levels(
-                tb.BeliefsDataFrame().index.names
-            )
+            elif isinstance(output_data, tb.BeliefsSeries):
+                output_data = self._clean_belief_series(output_data, belief_time)
 
-        elif isinstance(final_output, tb.BeliefsSeries):
-            final_output = final_output.to_frame("event_value")
-            final_output["belief_time"] = belief_time
-            final_output["cumulative_probability"] = 0.5
-            final_output["source"] = self.data_source
-            final_output = final_output.set_index(
-                ["belief_time", "source", "cumulative_probability"], append=True
-            )
+            result["data"] = output_data
 
-        return final_output
+            results.append(result)
+
+        return results
+
+    def _clean_belief_series(
+        self, belief_series: tb.BeliefsSeries, belief_time: datetime
+    ) -> tb.BeliefsDataFrame:
+        """Create a BeliefDataFrame from a BeliefsSeries creating the necessary indexes."""
+
+        belief_series = belief_series.to_frame("event_value")
+        belief_series["belief_time"] = belief_time
+        belief_series["cumulative_probability"] = 0.5
+        belief_series["source"] = self.data_source
+        belief_series = belief_series.set_index(
+            ["belief_time", "source", "cumulative_probability"], append=True
+        )
+
+        return belief_series
+
+    def _clean_belief_dataframe(
+        self, bdf: tb.BeliefsDataFrame, belief_time: datetime
+    ) -> tb.BeliefsDataFrame:
+        """Add missing indexes to build a proper BeliefDataFrame."""
+
+        # filing the missing indexes with default values:
+        if "belief_time" not in bdf.index.names:
+            bdf["belief_time"] = [belief_time] * len(bdf)
+            bdf = bdf.set_index("belief_time", append=True)
+
+        if "cumulative_probability" not in bdf.index.names:
+            bdf["cumulative_probability"] = [0.5] * len(bdf)
+            bdf = bdf.set_index("cumulative_probability", append=True)
+
+        if "source" not in bdf.index.names:
+            bdf["source"] = [self.data_source] * len(bdf)
+            bdf = bdf.set_index("source", append=True)
+
+        return bdf
 
     def get_object_or_literal(self, value: Any, method: str) -> Any:
         """This method allows using the dataframes as inputs of the Pandas methods that
@@ -154,7 +234,9 @@ class PandasReporter(Reporter):
 
         previous_df = None
 
-        for transformation in self.transformations:
+        for _transformation in self._config.get("transformations"):
+            transformation = deepcopy(_transformation)
+
             df_input = transformation.get(
                 "df_input", previous_df
             )  # default is using the previous transformation output

@@ -26,6 +26,7 @@ from flexmeasures.data.models.forecasting import lookup_model_specs_configurator
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
 from flexmeasures.utils.time_utils import ensure_local_timezone
 from flexmeasures.data.transactional import as_transaction
+from flexmeasures.cli.utils import MsgStyle
 
 
 BACKUP_PATH = app.config.get("FLEXMEASURES_DB_BACKUP_PATH")
@@ -61,15 +62,19 @@ def add_default_asset_types(db: SQLAlchemy) -> Dict[str, GenericAssetType]:
         ("two-way_evse", "bi-directional Electric Vehicle Supply Equipment"),
         ("battery", "stationary battery"),
         ("building", "building"),
+        ("process", "process"),
     ):
         _type = GenericAssetType.query.filter(
             GenericAssetType.name == type_name
         ).one_or_none()
-        if _type:
-            click.echo(f"Asset type {type_name} already exists.")
-        else:
+        if _type is None:
             _type = GenericAssetType(name=type_name, description=type_description)
             db.session.add(_type)
+            click.secho(
+                f"Generic asset type `{type_name}` created successfully.",
+                **MsgStyle.SUCCESS,
+            )
+
         types[type_name] = _type
     return types
 

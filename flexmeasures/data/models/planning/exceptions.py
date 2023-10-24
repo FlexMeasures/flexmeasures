@@ -16,3 +16,7 @@ class UnknownPricesException(Exception):
 
 class WrongTypeAttributeException(Exception):
     pass
+
+
+class InfeasibleProblemException(Exception):
+    pass

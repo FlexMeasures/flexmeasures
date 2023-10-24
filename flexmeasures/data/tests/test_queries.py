@@ -40,7 +40,8 @@ from flexmeasures.data.queries.utils import (
     ],
 )
 def test_collect_power(db, app, query_start, query_end, num_values, setup_test_data):
-    wind_device_1 = Sensor.query.filter_by(name="wind-asset-1").one_or_none()
+    # asset has only 1 power sensor
+    wind_device_1: Sensor = setup_test_data["wind-asset-1"].sensors[0]
     data = TimedBelief.query.filter(TimedBelief.sensor_id == wind_device_1.id).all()
     print(data)
     bdf: tb.BeliefsDataFrame = TimedBelief.search(
@@ -94,7 +95,8 @@ def test_collect_power(db, app, query_start, query_end, num_values, setup_test_d
 def test_collect_power_resampled(
     db, app, query_start, query_end, resolution, num_values, setup_test_data
 ):
-    wind_device_1 = Sensor.query.filter_by(name="wind-asset-1").one_or_none()
+    # asset has only 1 power sensor
+    wind_device_1: Sensor = setup_test_data["wind-asset-1"].sensors[0]
     bdf: tb.BeliefsDataFrame = TimedBelief.search(
         wind_device_1.name,
         event_starts_after=query_start,
@@ -207,7 +209,8 @@ def test_multiplication_with_both_empty_dataframe():
 @pytest.mark.parametrize("check_empty_frame", [True, False])
 def test_simplify_index(setup_test_data, check_empty_frame):
     """Check whether simplify_index retains the event resolution."""
-    wind_device_1 = Sensor.query.filter_by(name="wind-asset-1").one_or_none()
+    # asset has only 1 power sensor
+    wind_device_1: Sensor = setup_test_data["wind-asset-1"].sensors[0]
     bdf: tb.BeliefsDataFrame = TimedBelief.search(
         wind_device_1.name,
         event_starts_after=datetime(2015, 1, 1, tzinfo=pytz.utc),

@@ -24,8 +24,7 @@ Interactive map of assets
 =========================
 
 The map shows all of the user's assets with icons for each asset type.
-Clicking on an asset allows the user to see its current state (e.g. latest measurement of wind power production) and to navigate to the :ref:`analytics` page
-to see more details, for instance forecasts.
+Hovering over an asset allows users to see its name and ownership, and clicking on an asset allows the user to navigate to its page to see more details, for instance forecasts.
 
 
 .. _dashboard_summary:
@@ -34,7 +33,7 @@ Summary of asset types
 ======================
 
 The summary below the map lists all asset types that the user has hooked up to the platform and how many of each there are.
-Clicking on the asset type name leads to the :ref:`analytics` page, where data is shown aggregated for that asset type. 
+Clicking on the asset type name leads to the asset's page, where its data is shown.
 
 
 Grouping by accounts

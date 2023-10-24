@@ -77,6 +77,10 @@ class StorageFlexModelSchema(Schema):
     soc_min = fields.Float(validate=validate.Range(min=0), data_key="soc-min")
     soc_max = fields.Float(data_key="soc-max")
 
+    power_capacity_in_mw = QuantityField(
+        "MW", required=False, data_key="power-capacity"
+    )
+
     soc_maxima = fields.List(fields.Nested(SOCValueSchema()), data_key="soc-maxima")
     soc_minima = fields.List(
         fields.Nested(SOCValueSchema(value_validator=validate.Range(min=0))),
@@ -132,6 +136,12 @@ class StorageFlexModelSchema(Schema):
             if data.get("soc_targets"):
                 for target in data["soc_targets"]:
                     target["value"] /= 1000.0
+            if data.get("soc_minima"):
+                for minimum in data["soc_minima"]:
+                    minimum["value"] /= 1000.0
+            if data.get("soc_maxima"):
+                for maximum in data["soc_maxima"]:
+                    maximum["value"] /= 1000.0
             data["soc_unit"] = "MWh"
 
         # Convert efficiencies to dimensionless (to the (0,1] range)
