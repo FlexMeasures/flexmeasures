@@ -277,7 +277,7 @@ def make_schedule(
         consumption_schedule = [
             {
                 "name": "consumption_schedule",
-                "data": -consumption_schedule,
+                "data": consumption_schedule,
                 "sensor": sensor,
             }
         ]
@@ -300,11 +300,18 @@ def make_schedule(
         rq_job.save_meta()
 
     for result in consumption_schedule:
+        sign = 1
+
+        if result["sensor"].measures_power and result["sensor"].get_attribute(
+            "consumption_is_positive", True
+        ):
+            sign = -1
+
         ts_value_schedule = [
             TimedBelief(
                 event_start=dt,
                 belief_time=belief_time,
-                event_value=value,
+                event_value=sign * value,
                 sensor=result["sensor"],
                 source=data_source,
             )
