@@ -1205,14 +1205,16 @@ def add_schedule_for_storage(
         },
     )
     if as_job:
-        job = create_scheduling_job(sensor=power_sensor, **scheduling_kwargs)
+        job = create_scheduling_job(
+            asset_or_sensor_id=power_sensor, **scheduling_kwargs
+        )
         if job:
             click.secho(
                 f"New scheduling job {job.id} has been added to the queue.",
                 **MsgStyle.SUCCESS,
             )
     else:
-        success = make_schedule(sensor_id=power_sensor.id, **scheduling_kwargs)
+        success = make_schedule(asset_or_sensor_id=power_sensor.id, **scheduling_kwargs)
         if success:
             click.secho("New schedule is stored.", **MsgStyle.SUCCESS)
 
@@ -1336,14 +1338,20 @@ def add_schedule_process(
         }
 
     if as_job:
-        job = create_scheduling_job(sensor=power_sensor, **scheduling_kwargs)
+        job = create_scheduling_job(
+            asset_or_sensor_id=power_sensor, **scheduling_kwargs
+        )
         if job:
             click.secho(
                 f"New scheduling job {job.id} has been added to the queue.",
                 **MsgStyle.SUCCESS,
             )
     else:
-        success = make_schedule(sensor_id=power_sensor.id, **scheduling_kwargs)
+        success = make_schedule(
+            asset_or_sensor_id=power_sensor.id,
+            entity_type=Sensor.__name__,
+            **scheduling_kwargs,
+        )
         if success:
             click.secho("New schedule is stored.", **MsgStyle.SUCCESS)
 
