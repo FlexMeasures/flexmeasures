@@ -36,7 +36,7 @@ class AccountAPI(FlaskView):
         .. :quickref: Account; Download account list
 
         This endpoint returns all accessible accounts.
-        Accessible accounts are your own account, or all accounts for admins.
+        Accessible accounts are your own account, the account you are a consultant for, or all accounts for admins.
         When the super-account concept (GH#203) lands, then users in such accounts see all managed accounts.
 
         **Example response**
@@ -50,6 +50,7 @@ class AccountAPI(FlaskView):
                     'id': 1,
                     'name': 'Test Account'
                     'account_roles': [1, 3],
+                    'consultancy_account_id': 2,
                 }
             ]
 
