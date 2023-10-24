@@ -46,7 +46,7 @@ class Scheduler:
     info: dict | None = None
 
     config_deserialized = False  # This flag allows you to let the scheduler skip checking config, like timing, flex_model and flex_context
-    return_multiple = False
+    return_multiple: bool = False
 
     def __init__(
         self,
