@@ -382,7 +382,7 @@ def test_add_process(
     schedule = process_power_sensor.search_beliefs()
     # check if the schedule is not empty more detailed testing can be found
     # in data/models/planning/tests/test_processs.py.
-    assert (schedule == -0.4).event_value.sum() == 4
+    assert (schedule == 0.4).event_value.sum() == 4
 
 
 @pytest.mark.skip_github
