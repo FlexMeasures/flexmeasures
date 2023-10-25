@@ -221,25 +221,56 @@ class MetaStorageScheduler(Scheduler):
             StorageScheduler.COLUMNS, start, end, resolution
         )
 
+        capacity_in_mw = self.sensor.generic_asset.get_attribute("capacity_in_mw", None)
+
         ems_power_capacity_in_mw = self.flex_context.get(
-            "ems_power_capacity_in_mw",
-            self.sensor.generic_asset.get_attribute("capacity_in_mw", None),
+            "ems_power_capacity_in_mw", capacity_in_mw
         )
 
-        if ems_power_capacity_in_mw is not None:
-            if isinstance(ems_power_capacity_in_mw, ur.Quantity):
-                ems_power_capacity_in_mw = ems_power_capacity_in_mw.magnitude
+        ems_consumption_capacity_in_mw = self.flex_context.get(
+            "ems_consumption_capacity_in_mw",
+            self.sensor.generic_asset.get_attribute(
+                "consumption_capacity_in_mw", capacity_in_mw
+            ),
+        )
+        ems_production_capacity_in_mw = self.flex_context.get(
+            "ems_production_capacity_in_mw",
+            self.sensor.generic_asset.get_attribute(
+                "production_capacity_in_mw", capacity_in_mw
+            ),
+        )
 
-            if not (
-                isinstance(ems_power_capacity_in_mw, float)
-                or isinstance(ems_power_capacity_in_mw, int)
+        if "ems_power_capacity_in_mw" in self.flex_context:
+            ems_consumption_capacity_in_mw = ems_power_capacity_in_mw
+            ems_production_capacity_in_mw = ems_power_capacity_in_mw
+
+        assert (
+            ems_consumption_capacity_in_mw >= 0
+        ), "EMS consumption capacity needs to be nonnegative."
+        assert (
+            ems_production_capacity_in_mw >= 0
+        ), "EMS production capacity needs to be nonnegative."
+
+        def check_and_convert_power_capacity(power_capacity):
+            if isinstance(power_capacity, ur.Quantity):
+                return power_capacity.magnitude
+            elif not (
+                isinstance(power_capacity, float) or isinstance(power_capacity, int)
             ):
                 raise ValueError(
                     "The only supported types for the ems power capacity are int and float."
                 )
+            else:
+                return power_capacity
 
-            ems_constraints["derivative min"] = ems_power_capacity_in_mw * -1
-            ems_constraints["derivative max"] = ems_power_capacity_in_mw
+        if ems_consumption_capacity_in_mw is not None:
+            ems_constraints["derivative max"] = check_and_convert_power_capacity(
+                ems_consumption_capacity_in_mw
+            )
+        if ems_production_capacity_in_mw is not None:
+            ems_constraints["derivative min"] = -check_and_convert_power_capacity(
+                ems_production_capacity_in_mw
+            )
 
         return (
             sensor,

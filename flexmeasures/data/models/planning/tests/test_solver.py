@@ -1077,16 +1077,29 @@ def test_numerical_errors(app_with_each_solver, setup_planning_test_data):
 
 
 @pytest.mark.parametrize(
-    "capacity,site_capacity",
-    [("100kW", "300kW"), ("0.1MW", "0.3MW"), ("0.1 MW", "0.3 MW"), (None, None)],
+    "capacity,expected_capacity,site_capacity,site_consumption_capacity,site_production_capacity,expected_site_consumption_capacity, expected_site_production_capacity",
+    [
+        ("100kW", 0.1, "300kW", None, None, 0.3, -0.3),
+        ("0.2 MW", 0.2, "42 kW", None, None, 0.042, -0.042),
+        ("0.2 MW", 0.2, "42 kW", "10kW", "100kW", 0.042, -0.042),
+        ("0.2 MW", 0.2, None, "10kW", "100kW", 0.01, -0.1),
+        ("0.2 MW", 0.2, None, None, None, 0.9, -0.75),
+    ],
 )
-def test_capacity(app, setup_planning_test_data, capacity, site_capacity):
+def test_capacity(
+    app,
+    setup_planning_test_data,
+    capacity,
+    expected_capacity,
+    site_capacity,
+    site_consumption_capacity,
+    site_production_capacity,
+    expected_site_consumption_capacity,
+    expected_site_production_capacity,
+):
     """Test that the power limits of the site and storage device are set properly using the
     flex-model and flex-context.
     """
-
-    expected_capacity = 2
-    expected_site_capacity = 2
 
     flex_model = {
         "soc-at-start": 0.01,
@@ -1094,18 +1107,24 @@ def test_capacity(app, setup_planning_test_data, capacity, site_capacity):
 
     flex_context = {}
 
-    if capacity is not None:
-        flex_model["power-capacity"] = capacity
-        expected_capacity = 0.1
+    def set_if_not_none(dictionary, key, value):
+        if value:
+            dictionary[key] = value
 
-    if site_capacity is not None:
-        flex_context["site-power-capacity"] = site_capacity
-        expected_site_capacity = 0.3
+    set_if_not_none(flex_model, "power-capacity", capacity)
+    set_if_not_none(flex_context, "site-power-capacity", site_capacity)
+    set_if_not_none(
+        flex_context, "site-consumption-capacity", site_consumption_capacity
+    )
+    set_if_not_none(flex_context, "site-production-capacity", site_production_capacity)
 
     epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
     charging_station = setup_planning_test_data[
         "Test charging station (bidirectional)"
     ].sensors[0]
+
+    charging_station.generic_asset.attributes["consumption_capacity_in_mw"] = 0.9
+    charging_station.generic_asset.attributes["production_capacity_in_mw"] = 0.75
 
     assert charging_station.generic_asset.get_attribute("capacity_in_mw") == 2
     assert charging_station.get_attribute("market_id") == epex_da.id
@@ -1140,5 +1159,5 @@ def test_capacity(app, setup_planning_test_data, capacity, site_capacity):
     assert all(device_constraints[0]["derivative min"] == -expected_capacity)
     assert all(device_constraints[0]["derivative max"] == expected_capacity)
 
-    assert all(ems_constraints["derivative min"] == -expected_site_capacity)
-    assert all(ems_constraints["derivative max"] == expected_site_capacity)
+    assert all(ems_constraints["derivative min"] == expected_site_production_capacity)
+    assert all(ems_constraints["derivative max"] == expected_site_consumption_capacity)

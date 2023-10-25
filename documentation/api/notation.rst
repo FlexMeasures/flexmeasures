@@ -237,10 +237,13 @@ With the flexibility context, we aim to describe the system in which the flexibl
 - ``inflexible-device-sensors`` ― power sensors that are relevant, but not flexible, such as a sensor recording rooftop solar power connected behind the main meter, whose production falls under the same contract as the flexible device(s) being scheduled
 - ``consumption-price-sensor`` ― the sensor which defines costs/revenues of consuming energy
 - ``production-price-sensor`` ― the sensor which defines cost/revenues of producing energy
-- ``site-power-capacity`` (defaults to the Asset attribute ``capacity_in_mw``)
+- ``site-power-capacity`` ― defaults to the Asset attribute ``capacity_in_mw`` ― maximum/minimum achievable power at the grid connection point.
+- ``site-consumption-capacity`` ― defaults to the Asset attribute ``consumption_capacity_in_mw`` ― maximum consumption power at the grid connection point.
+- ``site-production-capacity`` ― defaults to ``site-power-capacity`` or the Asset attribute ``production_capacity_in_mw`` ― maximum production power at the grid connection point.
 
 These should be independent on the asset type and consequently also do not depend on which scheduling algorithm is being used.
 
+.. note:: ``consumption_capacity_in_mw`` and ``production_capacity_in_mw`` default to ``capacity_in_mw``
 
 .. _beliefs:
 
