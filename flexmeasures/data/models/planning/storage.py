@@ -244,13 +244,6 @@ class MetaStorageScheduler(Scheduler):
             ems_consumption_capacity_in_mw = ems_power_capacity_in_mw
             ems_production_capacity_in_mw = ems_power_capacity_in_mw
 
-        assert (
-            ems_consumption_capacity_in_mw >= 0
-        ), "EMS consumption capacity needs to be nonnegative."
-        assert (
-            ems_production_capacity_in_mw >= 0
-        ), "EMS production capacity needs to be nonnegative."
-
         def check_and_convert_power_capacity(power_capacity):
             if isinstance(power_capacity, ur.Quantity):
                 return power_capacity.magnitude
@@ -264,10 +257,16 @@ class MetaStorageScheduler(Scheduler):
                 return power_capacity
 
         if ems_consumption_capacity_in_mw is not None:
+            assert (
+                ems_consumption_capacity_in_mw >= 0
+            ), "EMS consumption capacity needs to be nonnegative."
             ems_constraints["derivative max"] = check_and_convert_power_capacity(
                 ems_consumption_capacity_in_mw
             )
         if ems_production_capacity_in_mw is not None:
+            assert (
+                ems_production_capacity_in_mw >= 0
+            ), "EMS production capacity needs to be nonnegative."
             ems_constraints["derivative min"] = -check_and_convert_power_capacity(
                 ems_production_capacity_in_mw
             )
