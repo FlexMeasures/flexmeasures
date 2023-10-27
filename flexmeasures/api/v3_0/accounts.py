@@ -105,9 +105,5 @@ class AccountAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        account_dump = account_schema.dump(account)
-        if account.consultant_account:
-            account_dump[
-                "consultant_name"
-            ] = current_user.account.consultant_account.name
-        return account_dump, 200
+
+        return account_schema.dump(account), 200

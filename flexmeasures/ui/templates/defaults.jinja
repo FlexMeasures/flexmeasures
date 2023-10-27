@@ -43,11 +43,8 @@
 {% set view = "non_admin" if current_user.is_authenticated and not (current_user.has_role('admin') or FLEXMEASURES_MODE == "demo" or current_user.has_role('customer-manager')) %}
 {% do navigation_bar.append(("accounts/{}".format(current_user.account.id), 'accounts', 'My Account', '', 'cubes')) if view == "non_admin" %}
 
-{% set view = "consultant" if current_user.is_authenticated and (current_user.has_role('customer-manager') or FLEXMEASURES_MODE == "demo") %}
+{% set view = "consultant" if current_user.is_authenticated and (current_user.has_role('customer-manager') and not (current_user.has_role('admin') or FLEXMEASURES_MODE == "demo")) %}
 {% do navigation_bar.append(('accounts', 'accounts', 'Accounts', '', 'cubes')) if view == "consultant" %}
-{% do navigation_bar.append(('assets', 'assets', 'Assets', '', 'list-ul')) if view == "consultant" %}
-{% do navigation_bar.append(('users', 'users', 'Users', '', 'users')) if view == "consultant" %}
-{% do navigation_bar.append(('tasks', 'tasks', 'Tasks', '', 'tasks')) if view == "consultant" %}
 
 {% do navigation_bar.append(('logged-in-user', 'logged-in-user', '', user_name, 'user')) if current_user.is_authenticated %}
 
