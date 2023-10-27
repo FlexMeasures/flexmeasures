@@ -70,6 +70,7 @@ To enable a target SoC above 85% (as shown above), it is necessary to set the ``
     }
 
 The maxima constraints should be relaxed—or withheld entirely—within some time window before any SoC target (as shown above).
+This time window should be at least wide enough to allow the target to be reached in time, and can be made wider to allow the scheduler to take advantage of favourable market prices along the way.
 
 
 .. _car_reservations:
