@@ -66,9 +66,9 @@ class AccountAPI(FlaskView):
         if user_has_admin_access(current_user, "read"):
             accounts = get_accounts()
         else:
-            accounts = [current_user.account]
-            if current_user.account.consultant_client_accounts:
-                accounts.extend(current_user.account.consultant_client_accounts)
+            accounts = [
+                current_user.account
+            ] + current_user.account.consultant_client_accounts
 
         return accounts_schema.dump(accounts), 200
 
