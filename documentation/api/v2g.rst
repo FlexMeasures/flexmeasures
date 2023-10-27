@@ -11,7 +11,7 @@ As a demonstration of how to construct a suitable flex model for a given use cas
 
 The following chart visualizes how constraints 1 and 2 can be formulated within a flex model, such that the resulting scheduling problem becomes feasible. A solid line shows a feasible solution, and a dashed line shows an infeasible solution.
 
-.. image:: https://github.com/FlexMeasures/screenshots/raw/Flix6x-patch-1/tut/v2g_minima_maxima.png
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/v2g_minima_maxima.png
     :align: center
 |
 
