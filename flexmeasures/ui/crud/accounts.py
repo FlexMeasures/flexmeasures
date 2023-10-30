@@ -48,12 +48,11 @@ class AccountCrudUI(FlaskView):
         include_inactive = request.args.get("include_inactive", "0") != "0"
         account = get_account(account_id)
         if account["consultancy_account_id"]:
-            consultancy_account_name = (
-                Account.query.filter_by(id=account["consultancy_account_id"])
-                .one_or_none()
-                .name
-            )
-            account["consultancy_account_name"] = consultancy_account_name
+            consultancy_account = Account.query.filter_by(
+                id=account["consultancy_account_id"]
+            ).one_or_none()
+            if consultancy_account:
+                account["consultancy_account_name"] = consultancy_account.name
         assets = get_assets_by_account(account_id)
         assets += get_assets_by_account(account_id=None)
         users = get_users_by_account(account_id, include_inactive=include_inactive)

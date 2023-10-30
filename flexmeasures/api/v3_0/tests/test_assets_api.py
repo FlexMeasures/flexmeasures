@@ -398,7 +398,7 @@ def test_consultant_can_not_patch(
 
 @pytest.mark.parametrize(
     "requesting_user",
-    ["test_consultant_user_without_access@seita.nl"],
+    ["test_consultant_user_without_customer_manager_access@seita.nl"],
     indirect=True,
 )
 def test_consultant_without_customer_manager_role(
