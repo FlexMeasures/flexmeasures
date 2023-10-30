@@ -10,8 +10,6 @@ def get_accounts(
     """Return a list of Account objects.
     The role_name parameter allows to filter by role.
     """
-    # account = Account
-
     if role_name is not None:
         role = AccountRole.query.filter(AccountRole.name == role_name).one_or_none()
         if role:
