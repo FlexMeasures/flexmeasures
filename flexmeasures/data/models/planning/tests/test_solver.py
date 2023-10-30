@@ -1138,7 +1138,7 @@ def test_numerical_errors(app_with_each_solver, setup_planning_test_data):
             None,
             0.9,
             -0.75,
-        ),
+        ),  # default from the asset attributes
         (
             "Battery (with asymmetric site limits)",
             "0.2 MW",
