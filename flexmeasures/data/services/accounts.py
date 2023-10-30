@@ -24,15 +24,6 @@ def get_accounts(
     return accounts
 
 
-# def get_consultant_client_accounts(account_id: int)-> list[Account]:
-#     consultancy_accounts = Account.query.filter(Account.consultancy_account_id == account_id).all()
-
-#     Account.consultancy_account
-#     Account.consultant_client_accounts
-
-#     return consultancy_accounts
-
-
 def get_number_of_assets_in_account(account_id: int) -> int:
     """Get the number of assets in an account."""
     number_of_assets_in_account = GenericAsset.query.filter(
