@@ -29,7 +29,7 @@ def test_get_accounts_missing_auth(client, requesting_user, status_code):
         ("test_admin_user@seita.nl", 7),
         ("test_prosumer_user@seita.nl", 1),
         ("test_consultant_user@seita.nl", 2),
-        ("test_consultant_user_without_access@seita.nl", 1),
+        ("test_consultant_user_without_customer_manager_access@seita.nl", 1),
         ("test_consultant_client_user@seita.nl", 1),
     ],
     indirect=["requesting_user"],
