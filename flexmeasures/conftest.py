@@ -829,6 +829,59 @@ def create_charging_station_assets(
 
 
 @pytest.fixture(scope="module")
+def add_assets_with_site_power_limits(
+    db: SQLAlchemy, setup_accounts, setup_generic_asset_types
+) -> dict[str, Sensor]:
+    """
+    Add two batteries with different site power constraints. The first defines a symmetric site-level power limit of 2 MW
+    by setting the capacity_in_mw asset attribute. The second defines a 900 kW consumption limit and 750 kW production limit.
+    In addition, the capacity_in_mw is also defined to check the fallback strategy.
+    """
+    battery_symmetric_site_power_limit = GenericAsset(
+        name="Battery (with symmetric site limits)",
+        owner=setup_accounts["Prosumer"],
+        generic_asset_type=setup_generic_asset_types["battery"],
+        attributes=dict(
+            capacity_in_mw=2,
+            max_soc_in_mwh=5,
+            min_soc_in_mwh=0,
+        ),
+    )
+    battery_symmetric_power_sensor = Sensor(
+        name="power",
+        generic_asset=battery_symmetric_site_power_limit,
+        unit="MW",
+    )
+
+    battery_asymmetric_site_power_limit = GenericAsset(
+        name="Battery (with asymmetric site limits)",
+        owner=setup_accounts["Prosumer"],
+        generic_asset_type=setup_generic_asset_types["battery"],
+        attributes=dict(
+            capacity_in_mw=2,
+            consumption_capacity_in_mw=0.9,
+            production_capacity_in_mw=0.75,
+            max_soc_in_mwh=5,
+            min_soc_in_mwh=0,
+        ),
+    )
+    battery_asymmetric_power_sensor = Sensor(
+        name="power",
+        generic_asset=battery_asymmetric_site_power_limit,
+        unit="MW",
+    )
+
+    db.session.add_all(
+        [battery_symmetric_power_sensor, battery_asymmetric_power_sensor]
+    )
+    db.session.flush()
+    return {
+        "Battery (with symmetric site limits)": battery_symmetric_power_sensor,
+        "Battery (with asymmetric site limits)": battery_asymmetric_power_sensor,
+    }
+
+
+@pytest.fixture(scope="module")
 def add_weather_sensors(db, setup_generic_asset_types) -> dict[str, Sensor]:
     return create_weather_sensors(db, setup_generic_asset_types)
 

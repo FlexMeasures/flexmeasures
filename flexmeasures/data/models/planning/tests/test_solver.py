@@ -1077,18 +1077,105 @@ def test_numerical_errors(app_with_each_solver, setup_planning_test_data):
 
 
 @pytest.mark.parametrize(
-    "capacity,expected_capacity,site_capacity,site_consumption_capacity,site_production_capacity,expected_site_consumption_capacity, expected_site_production_capacity",
+    "power_sensor_name,capacity,expected_capacity,site_capacity,site_consumption_capacity,site_production_capacity,expected_site_consumption_capacity, expected_site_production_capacity",
     [
-        ("100kW", 0.1, "300kW", None, None, 0.3, -0.3),
-        ("0.2 MW", 0.2, "42 kW", None, None, 0.042, -0.042),
-        ("0.2 MW", 0.2, "42 kW", "10kW", "100kW", 0.042, -0.042),
-        ("0.2 MW", 0.2, None, "10kW", "100kW", 0.01, -0.1),
-        ("0.2 MW", 0.2, None, None, None, 0.9, -0.75),
+        (
+            "Battery (with symmetric site limits)",
+            "100kW",
+            0.1,
+            "300kW",
+            None,
+            None,
+            0.3,
+            -0.3,
+        ),
+        (
+            "Battery (with symmetric site limits)",
+            "0.2 MW",
+            0.2,
+            "42 kW",
+            None,
+            None,
+            0.042,
+            -0.042,
+        ),
+        (
+            "Battery (with symmetric site limits)",
+            "0.2 MW",
+            0.2,
+            "42 kW",
+            "10kW",
+            "100kW",
+            0.01,
+            -0.1,
+        ),
+        (
+            "Battery (with symmetric site limits)",
+            "0.2 MW",
+            0.2,
+            None,
+            "10kW",
+            "100kW",
+            0.01,
+            -0.1,
+        ),
+        (
+            "Battery (with symmetric site limits)",
+            "0.2 MW",
+            0.2,
+            None,
+            None,
+            None,
+            2,
+            -2,
+        ),
+        (
+            "Battery (with asymmetric site limits)",
+            "0.2 MW",
+            0.2,
+            None,
+            None,
+            None,
+            0.9,
+            -0.75,
+        ),
+        (
+            "Battery (with asymmetric site limits)",
+            "0.2 MW",
+            0.2,
+            "42 kW",
+            None,
+            None,
+            0.042,
+            -0.042,
+        ),
+        (
+            "Battery (with asymmetric site limits)",
+            "0.2 MW",
+            0.2,
+            "42 kW",
+            "30kW",
+            None,
+            0.03,
+            -0.042,
+        ),
+        (
+            "Battery (with asymmetric site limits)",
+            "0.2 MW",
+            0.2,
+            "42 kW",
+            None,
+            "30kW",
+            0.042,
+            -0.03,
+        ),
     ],
 )
 def test_capacity(
     app,
-    setup_planning_test_data,
+    power_sensor_name,
+    add_assets_with_site_power_limits,
+    add_market_prices,
     capacity,
     expected_capacity,
     site_capacity,
@@ -1099,16 +1186,26 @@ def test_capacity(
 ):
     """Test that the power limits of the site and storage device are set properly using the
     flex-model and flex-context.
+
+    Priority for fetching the production and consumption capacity:
+
+    "site-{direction}-capacity" (flex-context) -> "site-power-capacity" (flex-context) ->
+    "{direction}_capacity_in_mw" (asset attribute) -> "capacity_in_mw" (asset attribute)
+
+    direction = "production" or "consumption"
     """
 
     flex_model = {
         "soc-at-start": 0.01,
     }
 
-    flex_context = {}
+    flex_context = {
+        "production-price-sensor": add_market_prices["epex_da_production"].id,
+        "consumption-price-sensor": add_market_prices["epex_da"].id,
+    }
 
     def set_if_not_none(dictionary, key, value):
-        if value:
+        if value is not None:
             dictionary[key] = value
 
     set_if_not_none(flex_model, "power-capacity", capacity)
@@ -1118,24 +1215,15 @@ def test_capacity(
     )
     set_if_not_none(flex_context, "site-production-capacity", site_production_capacity)
 
-    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
-    charging_station = setup_planning_test_data[
-        "Test charging station (bidirectional)"
-    ].sensors[0]
-
-    charging_station.generic_asset.attributes["consumption_capacity_in_mw"] = 0.9
-    charging_station.generic_asset.attributes["production_capacity_in_mw"] = 0.75
-
-    assert charging_station.generic_asset.get_attribute("capacity_in_mw") == 2
-    assert charging_station.get_attribute("market_id") == epex_da.id
+    device = add_assets_with_site_power_limits[power_sensor_name]
 
     tz = pytz.timezone("Europe/Amsterdam")
-    start = tz.localize(datetime(2015, 1, 2))
-    end = tz.localize(datetime(2015, 1, 3))
+    start = tz.localize(datetime(2015, 1, 3))
+    end = tz.localize(datetime(2015, 1, 4))
     resolution = timedelta(minutes=5)
 
     scheduler = StorageScheduler(
-        charging_station,
+        device,
         start,
         end,
         resolution,

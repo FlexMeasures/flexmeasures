@@ -223,38 +223,52 @@ class MetaStorageScheduler(Scheduler):
 
         capacity_in_mw = self.sensor.generic_asset.get_attribute("capacity_in_mw", None)
 
-        ems_power_capacity_in_mw = self.flex_context.get(
-            "ems_power_capacity_in_mw", capacity_in_mw
-        )
+        """
+        Priority order to fetch the site consumption power capacity:
 
+        "site-consumption-capacity" (flex-context) -> "site-power-capacity" (flex-context) ->
+        "consumption_capacity_in_mw" (asset attribute) -> "capacity_in_mw" (asset attribute)
+
+        where the flex-context is in its serialized form.
+        """
         ems_consumption_capacity_in_mw = self.flex_context.get(
             "ems_consumption_capacity_in_mw",
-            self.sensor.generic_asset.get_attribute(
-                "consumption_capacity_in_mw", capacity_in_mw
-            ),
-        )
-        ems_production_capacity_in_mw = self.flex_context.get(
-            "ems_production_capacity_in_mw",
-            self.sensor.generic_asset.get_attribute(
-                "production_capacity_in_mw", capacity_in_mw
+            self.flex_context.get(
+                "ems_power_capacity_in_mw",
+                self.sensor.generic_asset.get_attribute(
+                    "consumption_capacity_in_mw", capacity_in_mw
+                ),
             ),
         )
 
-        if "ems_power_capacity_in_mw" in self.flex_context:
-            ems_consumption_capacity_in_mw = ems_power_capacity_in_mw
-            ems_production_capacity_in_mw = ems_power_capacity_in_mw
+        """
+        Priority order to fetch the site production power capacity:
+
+        "site-production-capacity" (flex-context) -> "site-power-capacity" (flex-context) ->
+        "production_capacity_in_mw" (asset attribute) -> "capacity_in_mw" (asset attribute)
+
+        where the flex-context is in its serialized form.
+        """
+        ems_production_capacity_in_mw = self.flex_context.get(
+            "ems_production_capacity_in_mw",
+            self.flex_context.get(
+                "ems_power_capacity_in_mw",
+                self.sensor.generic_asset.get_attribute(
+                    "production_capacity_in_mw", capacity_in_mw
+                ),
+            ),
+        )
 
         def check_and_convert_power_capacity(power_capacity):
             if isinstance(power_capacity, ur.Quantity):
-                return power_capacity.magnitude
-            elif not (
-                isinstance(power_capacity, float) or isinstance(power_capacity, int)
-            ):
-                raise ValueError(
-                    "The only supported types for the ems power capacity are int and float."
-                )
-            else:
+                return power_capacity.to(ur.Quantity("MW")).magnitude
+
+            elif isinstance(power_capacity, float) or isinstance(power_capacity, int):
                 return power_capacity
+            else:
+                raise ValueError(
+                    "The only supported types for the ems power capacity are int, float and pint.Quantity."
+                )
 
         if ems_consumption_capacity_in_mw is not None:
             assert (
