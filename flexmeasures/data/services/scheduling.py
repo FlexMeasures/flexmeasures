@@ -267,6 +267,11 @@ def make_schedule(
     if flex_config_has_been_deserialized:
         scheduler.config_deserialized = True
 
+    # we get the default scheduler info in case it fails in the compute step
+    if rq_job:
+        click.echo("Job %s made schedule." % rq_job.id)
+        rq_job.meta["scheduler_info"] = scheduler.info
+
     consumption_schedule = scheduler.compute()
 
     if rq_job:
