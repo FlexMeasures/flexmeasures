@@ -30,7 +30,11 @@ from flexmeasures.data.models.generic_assets import GenericAsset as Asset
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.utils import get_data_source, save_to_db
 from flexmeasures.utils.time_utils import server_now
-from flexmeasures.data.services.utils import job_cache
+from flexmeasures.data.services.utils import (
+    job_cache,
+    get_asset_or_sensor_ref,
+    get_asset_or_sensor_from_ref,
+)
 
 
 def load_custom_scheduler(scheduler_specs: dict) -> type:
@@ -93,19 +97,6 @@ def load_custom_scheduler(scheduler_specs: dict) -> type:
     return scheduler_class
 
 
-def get_asset_or_sensor(id: int, entity_type):
-    if entity_type == Asset.__name__:
-        klass = Asset
-    elif entity_type == Sensor.__name__:
-        klass = Sensor
-    else:
-        raise ValueError(
-            f"Unregonized entity_type `{entity_type}`. Please, consider using GenericAsset or Sensor."
-        )
-
-    return klass.query.get(id)
-
-
 def trigger_optional_fallback(job, connection, type, value, traceback):
     """Create a fallback schedule job when the error is of type InfeasibleProblemException"""
 
@@ -113,9 +104,7 @@ def trigger_optional_fallback(job, connection, type, value, traceback):
     job.save_meta()
 
     if type is InfeasibleProblemException:
-        asset_or_sensor_id = job.meta.get("asset_or_sensor_id")
-        entity_type = job.meta.get("entity_type")
-        asset_or_sensor = get_asset_or_sensor(asset_or_sensor_id, entity_type)
+        asset_or_sensor = get_asset_or_sensor_from_ref(job.meta.get("asset_or_sensor"))
 
         scheduler_kwargs = job.meta["scheduler_kwargs"]
 
@@ -206,8 +195,7 @@ def create_scheduling_job(
     job = Job.create(
         make_schedule,
         kwargs=dict(
-            asset_or_sensor_id=asset_or_sensor.id,
-            entity_type=asset_or_sensor.__class__.__name__,
+            asset_or_sensor=get_asset_or_sensor_ref(asset_or_sensor),
             scheduler_specs=scheduler_specs,
             **scheduler_kwargs,
         ),
@@ -226,8 +214,7 @@ def create_scheduling_job(
         on_failure=Callback(trigger_optional_fallback),
     )
 
-    job.meta["asset_or_sensor_id"] = asset_or_sensor.id
-    job.meta["entity_type"] = asset_or_sensor.__class__.__name__
+    job.meta["asset_or_sensor"] = get_asset_or_sensor_ref(asset_or_sensor)
     job.meta["scheduler_kwargs"] = scheduler_kwargs
     job.save_meta()
 
@@ -242,10 +229,11 @@ def create_scheduling_job(
 
 
 def make_schedule(
-    start: datetime,
-    end: datetime,
-    resolution: timedelta,
-    asset_or_sensor_id: int | None = None,
+    sensor_id: int | None = None,
+    start: datetime | None = None,
+    end: datetime | None = None,
+    resolution: timedelta | None = None,
+    asset_or_sensor: dict | None = None,
     entity_type: str | None = None,
     belief_time: datetime | None = None,
     flex_model: dict | None = None,
@@ -267,7 +255,13 @@ def make_schedule(
     # https://docs.sqlalchemy.org/en/13/faq/connections.html#how-do-i-use-engines-connections-sessions-with-python-multiprocessing-or-os-fork
     db.engine.dispose()
 
-    asset_or_sensor = get_asset_or_sensor(asset_or_sensor_id, entity_type)
+    if sensor_id is not None:
+        current_app.logger.warning(
+            "The `sensor_id` keyword argument is deprecated. Please, consider using the argument `asset_or_sensor`."
+        )
+        asset_or_sensor = {"class": "Sensor", "id": sensor_id}
+
+    asset_or_sensor = get_asset_or_sensor_from_ref(asset_or_sensor)
 
     rq_job = get_current_job()
     if rq_job:
@@ -286,10 +280,10 @@ def make_schedule(
     if belief_time is None:
         belief_time = server_now()
     scheduler: Scheduler = scheduler_class(
-        asset_or_sensor,
-        start,
-        end,
-        resolution,
+        asset_or_sensor=asset_or_sensor,
+        start=start,
+        end=end,
+        resolution=resolution,
         belief_time=belief_time,
         flex_model=flex_model,
         flex_context=flex_context,
@@ -352,7 +346,7 @@ def make_schedule(
 
 def find_scheduler_class(asset_or_sensor: Asset | Sensor) -> type:
     """
-    Find out which scheduler to use, given a asset or sensor.
+    Find out which scheduler to use, given an asset or sensor.
     This will morph into a logic store utility, and schedulers should be registered for asset types there,
     instead of this fixed lookup logic.
     """

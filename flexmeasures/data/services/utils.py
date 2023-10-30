@@ -10,9 +10,47 @@ from sqlalchemy import JSON, String, cast, literal
 from flask import current_app
 from rq.job import Job
 
-from flexmeasures import Sensor
+from flexmeasures import Sensor, Asset
 from flexmeasures.data import db
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
+
+
+def get_asset_or_sensor_ref(asset_or_sensor: Asset | Sensor) -> dict:
+    if hasattr(asset_or_sensor, "id"):
+        return {"id": asset_or_sensor.id, "class": asset_or_sensor.__class__.__name__}
+    else:
+        return None
+
+
+def get_asset_or_sensor_from_ref(asset_or_sensor: dict):
+    """
+    Fetch Asset or Sensor object described by the asset_or_sensor dictionary.
+    This dictionary needs to contain the class name and row id.
+
+    We currently cannot simplify this by just passing around the object
+    instead of the class name: i.e. the function arguments need to
+    be serializable as job parameters.
+
+    Examples:
+
+    >> get_asset_or_sensor({"class" : "Asset", "id" : 1})
+
+    Asset(id=1)
+
+    >> get_asset_or_sensor({"class" : "Sensor", "id" : 2})
+
+    Sensor(id=2)
+    """
+    if asset_or_sensor["class"] == Asset.__name__:
+        klass = Asset
+    elif asset_or_sensor["class"] == Sensor.__name__:
+        klass = Sensor
+    else:
+        raise ValueError(
+            f"Unrecognized class `{asset_or_sensor['class']}`. Please, consider using GenericAsset or Sensor."
+        )
+
+    return klass.query.get(asset_or_sensor["id"])
 
 
 def get_or_create_model(

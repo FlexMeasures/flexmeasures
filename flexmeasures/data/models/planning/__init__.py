@@ -59,16 +59,16 @@ class Scheduler:
 
     # set to True if the Scheduler supports triggering on an Asset or False
     # if the Scheduler expects a Sensor
-    requires_asset = False
+    supports_scheduling_an_asset = False
 
     def __init__(
         self,
-        asset_or_sensor: Asset | Sensor | None = None,
+        sensor: Optional[Sensor] = None,  # deprecated
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
         resolution: Optional[timedelta] = None,
-        sensor: Optional[Sensor] = None,
         belief_time: Optional[datetime] = None,
+        asset_or_sensor: Asset | Sensor | None = None,
         round_to_decimals: Optional[int] = 6,
         flex_model: Optional[dict] = None,
         flex_context: Optional[dict] = None,
@@ -92,7 +92,7 @@ class Scheduler:
             )
             asset_or_sensor = sensor
 
-        if self.requires_asset and isinstance(asset_or_sensor, Asset):
+        if self.supports_scheduling_an_asset and isinstance(asset_or_sensor, Sensor):
             raise WrongEntityException(
                 f"The scheduler class {self.__class__.__name__} expects an Asset object but a Sensor was provided."
             )
@@ -109,6 +109,7 @@ class Scheduler:
                 f"The scheduler class {self.__class__.__name__} expects an Asset or Sensor objects but an object of class `{asset_or_sensor.__class__.__name__}` was provided."
             )
 
+        self.asset_or_sensor = asset_or_sensor
         self.start = start
         self.end = end
         self.resolution = resolution
