@@ -234,7 +234,6 @@ def make_schedule(
     end: datetime | None = None,
     resolution: timedelta | None = None,
     asset_or_sensor: dict | None = None,
-    entity_type: str | None = None,
     belief_time: datetime | None = None,
     flex_model: dict | None = None,
     flex_context: dict | None = None,
