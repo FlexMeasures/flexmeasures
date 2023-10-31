@@ -238,8 +238,8 @@ With the flexibility context, we aim to describe the system in which the flexibl
 - ``consumption-price-sensor`` ― the sensor which defines costs/revenues of consuming energy
 - ``production-price-sensor`` ― the sensor which defines cost/revenues of producing energy
 - ``site-power-capacity`` ― defaults to the Asset attribute ``capacity_in_mw`` ― maximum/minimum achievable power at the grid connection point.
-- ``site-consumption-capacity`` ― defaults to the Asset attribute ``consumption_capacity_in_mw`` ― maximum consumption power at the grid connection point.
-- ``site-production-capacity`` ― defaults to ``site-power-capacity`` or the Asset attribute ``production_capacity_in_mw`` ― maximum production power at the grid connection point.
+- ``site-consumption-capacity`` ― defaults to ``site-power-capacity`` or otherwise to the Asset attribute ``consumption_capacity_in_mw`` ― maximum consumption power at the grid connection point.
+- ``site-production-capacity`` ― defaults to ``site-power-capacity`` or otherwise to the Asset attribute ``production_capacity_in_mw`` ― maximum production power at the grid connection point.
 
 These should be independent on the asset type and consequently also do not depend on which scheduling algorithm is being used.
 
