@@ -10,7 +10,7 @@ import numpy as np
 from flask import current_app
 
 
-from flexmeasures.data.models.planning import Scheduler
+from flexmeasures.data.models.planning import Scheduler, SchedulerOutputType
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.planning.utils import (
     get_prices,
@@ -466,7 +466,7 @@ class StorageFallbackScheduler(MetaStorageScheduler):
     __version__ = "1"
     __author__ = "Seita"
 
-    def compute(self, skip_validation: bool = False) -> pd.Series | None:
+    def compute(self, skip_validation: bool = False) -> SchedulerOutputType:
         """Schedule a battery or Charge Point by just starting to charge, discharge, or do neither,
            depending on the first target state of charge and the capabilities of the Charge Point.
            For the resulting consumption schedule, consumption is defined as positive values.
@@ -499,7 +499,16 @@ class StorageFallbackScheduler(MetaStorageScheduler):
         if self.round_to_decimals:
             storage_schedule = storage_schedule.round(self.round_to_decimals)
 
-        return storage_schedule
+        if self.return_multiple:
+            return [
+                {
+                    "name": "storage_schedule",
+                    "sensor": sensor,
+                    "data": storage_schedule,
+                }
+            ]
+        else:
+            return storage_schedule
 
 
 class StorageScheduler(MetaStorageScheduler):
@@ -508,7 +517,7 @@ class StorageScheduler(MetaStorageScheduler):
 
     fallback_scheduler_class: Type[Scheduler] = StorageFallbackScheduler
 
-    def compute(self, skip_validation: bool = False) -> pd.Series | None:
+    def compute(self, skip_validation: bool = False) -> SchedulerOutputType:
         """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
         For the resulting consumption schedule, consumption is defined as positive values.
 
@@ -547,7 +556,16 @@ class StorageScheduler(MetaStorageScheduler):
         if self.round_to_decimals:
             storage_schedule = storage_schedule.round(self.round_to_decimals)
 
-        return storage_schedule
+        if self.return_multiple:
+            return [
+                {
+                    "name": "storage_schedule",
+                    "sensor": sensor,
+                    "data": storage_schedule,
+                }
+            ]
+        else:
+            return storage_schedule
 
 
 def create_constraint_violations_message(constraint_violations: list) -> str:
