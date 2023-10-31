@@ -435,7 +435,7 @@ def test_get_schedule_fallback(
         )  # Status code for redirect ("See other")
         assert (
             get_schedule_response.json["message"]
-            == "Scheduling job failed with InfeasibleProblemException: "
+            == "Scheduling job failed with InfeasibleProblemException: . StorageScheduler was used."
         )
         assert get_schedule_response.json["status"] == "UNKNOWN_SCHEDULE"
         assert get_schedule_response.json["result"] == "Rejected"
