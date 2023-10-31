@@ -183,7 +183,7 @@ def test_trigger_and_get_schedule(
     message,
     asset_name,
     requesting_user,
-):
+):  # noqa: C901
     # Include the price sensor and site-power-capacity in the flex-context explicitly, to test deserialization
     price_sensor_id = add_market_prices["epex_da"].id
     message["flex-context"] = {

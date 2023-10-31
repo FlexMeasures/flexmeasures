@@ -15,6 +15,9 @@ from .exceptions import WrongEntityException
 SchedulerOutputType = Union[pd.Series, List[Dict[str, Any]], None]
 
 
+SchedulerOutputType = Union[pd.Series, List[Dict[str, Any]], None]
+
+
 class Scheduler:
     """
     Superclass for all FlexMeasures Schedulers.
@@ -55,11 +58,12 @@ class Scheduler:
     info: dict | None = None
 
     config_deserialized = False  # This flag allows you to let the scheduler skip checking config, like timing, flex_model and flex_context
-    return_multiple = False
 
     # set to True if the Scheduler supports triggering on an Asset or False
     # if the Scheduler expects a Sensor
     supports_scheduling_an_asset = False
+
+    return_multiple: bool = False
 
     def __init__(
         self,

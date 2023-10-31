@@ -111,7 +111,7 @@ class ProcessScheduler(Scheduler):
                     {
                         "name": "process_schedule",
                         "sensor": sensor,
-                        "data": -1 * schedule,
+                        "data": schedule,
                     }
                 ]
             else:
@@ -160,7 +160,7 @@ class ProcessScheduler(Scheduler):
                 {
                     "name": "process_schedule",
                     "sensor": sensor,
-                    "data": -schedule.tz_convert(self.start.tzinfo),
+                    "data": schedule.tz_convert(self.start.tzinfo),
                 }
             ]
         else:

@@ -460,7 +460,7 @@ class StorageFallbackScheduler(MetaStorageScheduler):
                 {
                     "name": "storage_schedule",
                     "sensor": sensor,
-                    "data": -storage_schedule,
+                    "data": storage_schedule,
                 }
             ]
         else:
@@ -517,7 +517,7 @@ class StorageScheduler(MetaStorageScheduler):
                 {
                     "name": "storage_schedule",
                     "sensor": sensor,
-                    "data": -storage_schedule,
+                    "data": storage_schedule,
                 }
             ]
         else:
