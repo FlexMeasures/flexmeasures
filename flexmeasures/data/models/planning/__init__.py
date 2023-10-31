@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Optional, Type
+from typing import Optional, Type, List, Dict, Any, Union
 
 import pandas as pd
 from flask import current_app
 
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.utils.coding_utils import deprecated
+
+
+SchedulerOutputType = Union[pd.Series, List[Dict[str, Any]], None]
 
 
 class Scheduler:
@@ -43,6 +46,7 @@ class Scheduler:
     info: dict | None = None
 
     config_deserialized = False  # This flag allows you to let the scheduler skip checking config, like timing, flex_model and flex_context
+    return_multiple: bool = False
 
     def __init__(
         self,
@@ -54,6 +58,7 @@ class Scheduler:
         round_to_decimals: Optional[int] = 6,
         flex_model: Optional[dict] = None,
         flex_context: Optional[dict] = None,
+        return_multiple: bool = False,
     ):
         """
         Initialize a new Scheduler.
@@ -82,6 +87,8 @@ class Scheduler:
         if self.info is None:
             self.info = dict(scheduler=self.__class__.__name__)
 
+        self.return_multiple = return_multiple
+
     def compute_schedule(self) -> Optional[pd.Series]:
         """
         Overwrite with the actual computation of your schedule.
@@ -90,7 +97,7 @@ class Scheduler:
         """
         return self.compute()
 
-    def compute(self) -> Optional[pd.Series]:
+    def compute(self) -> SchedulerOutputType:
         """
         Overwrite with the actual computation of your schedule.
         """
