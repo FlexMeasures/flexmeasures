@@ -12,13 +12,12 @@ v0.17.0 | November XX, 2023
 New features
 -------------
 
+- Different site-level production and consumption limits can be defined for the storage scheduler via the API (``flex-context``) or the asset attributes [see `PR #884 <https://github.com/FlexMeasures/flexmeasures/pull/884>`_]
 - Scheduling data better distinguishes (e.g. in chart tooltips) when a schedule was the result of a fallback mechanism, by splitting off the fallback mechanism from the main scheduler (as a separate job) [see `PR #846 <https://github.com/FlexMeasures/flexmeasures/pull/846>`_]
 
 Infrastructure / Support
 ----------------------
-
 - Introduces a new one-to-many relation between assets, allowing the definition of an asset's parent (which is also an asset). This hierarchical relationship enables assets to be related in a structured manner. [see `PR #855 <https://github.com/FlexMeasures/flexmeasures/pull/855>`_ and `PR #874 <https://github.com/FlexMeasures/flexmeasures/pull/874>`_]
-
 
 v0.16.1 | October 2, 2023
 ============================
