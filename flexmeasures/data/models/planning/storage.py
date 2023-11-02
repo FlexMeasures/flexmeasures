@@ -28,6 +28,18 @@ from flexmeasures.utils.coding_utils import deprecated
 from flexmeasures.utils.unit_utils import ur
 
 
+def check_and_convert_power_capacity(power_capacity):
+    if isinstance(power_capacity, ur.Quantity):
+        return power_capacity.to(ur.Quantity("MW")).magnitude
+
+    elif isinstance(power_capacity, float) or isinstance(power_capacity, int):
+        return power_capacity
+    else:
+        raise ValueError(
+            "The only supported types for the ems power capacity are int, float and pint.Quantity."
+        )
+
+
 class MetaStorageScheduler(Scheduler):
     """This class defines the constraints of a schedule for a storage device from the
     flex-model, flex-context, and sensor and asset attributes"""
@@ -221,69 +233,69 @@ class MetaStorageScheduler(Scheduler):
             StorageScheduler.COLUMNS, start, end, resolution
         )
 
-        capacity_in_mw = self.sensor.generic_asset.get_attribute("capacity_in_mw", None)
+        capacity_in_mw = self.flex_context.get(
+            "ems_power_capacity_in_mw",
+            self.sensor.generic_asset.get_attribute("capacity_in_mw", np.nan),
+        )
+
+        if not np.isnan(capacity_in_mw):
+            assert capacity_in_mw >= 0, "EMS power capacity needs to be nonnegative."
+
+            capacity_in_mw = check_and_convert_power_capacity(capacity_in_mw)
 
         """
         Priority order to fetch the site consumption power capacity:
 
-        "site-consumption-capacity" (flex-context) -> "site-power-capacity" (flex-context) ->
-        "consumption_capacity_in_mw" (asset attribute) -> "capacity_in_mw" (asset attribute)
+        "site-consumption-capacity" (flex-context) -> "capacity_in_mw" (asset attribute)
 
         where the flex-context is in its serialized form.
         """
         ems_consumption_capacity_in_mw = self.flex_context.get(
             "ems_consumption_capacity_in_mw",
-            self.flex_context.get(
-                "ems_power_capacity_in_mw",
-                self.sensor.generic_asset.get_attribute(
-                    "consumption_capacity_in_mw", capacity_in_mw
-                ),
+            self.sensor.generic_asset.get_attribute(
+                "consumption_capacity_in_mw", np.nan
             ),
         )
 
         """
         Priority order to fetch the site production power capacity:
 
-        "site-production-capacity" (flex-context) -> "site-power-capacity" (flex-context) ->
-        "production_capacity_in_mw" (asset attribute) -> "capacity_in_mw" (asset attribute)
+        "site-production-capacity" (flex-context) -> "capacity_in_mw" (asset attribute)
 
         where the flex-context is in its serialized form.
         """
         ems_production_capacity_in_mw = self.flex_context.get(
             "ems_production_capacity_in_mw",
-            self.flex_context.get(
-                "ems_power_capacity_in_mw",
-                self.sensor.generic_asset.get_attribute(
-                    "production_capacity_in_mw", capacity_in_mw
-                ),
+            self.sensor.generic_asset.get_attribute(
+                "production_capacity_in_mw", np.nan
             ),
         )
 
-        def check_and_convert_power_capacity(power_capacity):
-            if isinstance(power_capacity, ur.Quantity):
-                return power_capacity.to(ur.Quantity("MW")).magnitude
-
-            elif isinstance(power_capacity, float) or isinstance(power_capacity, int):
-                return power_capacity
-            else:
-                raise ValueError(
-                    "The only supported types for the ems power capacity are int, float and pint.Quantity."
-                )
-
-        if ems_consumption_capacity_in_mw is not None:
+        if not np.isnan(ems_consumption_capacity_in_mw):
             assert (
                 ems_consumption_capacity_in_mw >= 0
             ), "EMS consumption capacity needs to be nonnegative."
-            ems_constraints["derivative max"] = check_and_convert_power_capacity(
+
+            ems_consumption_capacity_in_mw = check_and_convert_power_capacity(
                 ems_consumption_capacity_in_mw
             )
-        if ems_production_capacity_in_mw is not None:
+
+        if not np.isnan(ems_production_capacity_in_mw):
             assert (
                 ems_production_capacity_in_mw >= 0
             ), "EMS production capacity needs to be nonnegative."
-            ems_constraints["derivative min"] = -check_and_convert_power_capacity(
+            ems_production_capacity_in_mw = check_and_convert_power_capacity(
                 ems_production_capacity_in_mw
             )
+        else:
+            ems_production_capacity_in_mw = np.nan
+
+        ems_constraints["derivative min"] = -np.nanmin(
+            [ems_production_capacity_in_mw, capacity_in_mw]
+        )
+        ems_constraints["derivative max"] = np.nanmin(
+            [ems_consumption_capacity_in_mw, capacity_in_mw]
+        )
 
         return (
             sensor,

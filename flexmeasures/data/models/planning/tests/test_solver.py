@@ -1107,7 +1107,7 @@ def test_numerical_errors(app_with_each_solver, setup_planning_test_data):
             "10kW",
             "100kW",
             0.01,
-            -0.1,
+            -0.042,
         ),
         (
             "Battery (with symmetric site limits)",
