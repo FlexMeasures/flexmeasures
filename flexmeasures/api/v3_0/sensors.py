@@ -468,7 +468,7 @@ class SensorAPI(FlaskView):
                     "or its exception handler is not storing the exception as job meta data."
                 ),
             )
-            message = f"Scheduling job failed with {type(e).__name__}: {e}"
+            message = f"Scheduling job failed with {type(e).__name__}: {e}. {scheduler_info_msg}"
 
             fallback_job_id = job.meta.get("fallback_job_id")
 
@@ -478,15 +478,15 @@ class SensorAPI(FlaskView):
                 return fallback_schedule_redirect(
                     message,
                     url_for(
-                        "SensorAPI:get_schedule", uuid=fallback_job_id, id=sensor.id
+                        "SensorAPI:get_schedule",
+                        uuid=fallback_job_id,
+                        id=sensor.id,
+                        _external=True,
                     ),
                 )
             else:
                 return unknown_schedule(message)
 
-            return unknown_schedule(
-                f"Scheduling job failed with {type(e).__name__}: {e}. {scheduler_info_msg}",
-            )
         elif job.is_started:
             return unknown_schedule(f"Scheduling job in progress. {scheduler_info_msg}")
         elif job.is_queued:
