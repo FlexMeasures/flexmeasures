@@ -34,6 +34,7 @@ from flexmeasures.data.services.utils import (
     job_cache,
     get_asset_or_sensor_ref,
     get_asset_or_sensor_from_ref,
+    get_scheduler_instance,
 )
 
 
@@ -189,7 +190,11 @@ def create_scheduling_job(
     else:
         scheduler_class: Type[Scheduler] = find_scheduler_class(asset_or_sensor)
 
-    scheduler = scheduler_class(asset_or_sensor=asset_or_sensor, **scheduler_kwargs)
+    scheduler = get_scheduler_instance(
+        scheduler_class=scheduler_class,
+        asset_or_sensor=asset_or_sensor,
+        scheduler_params=scheduler_kwargs,
+    )
     scheduler.deserialize_config()
 
     job = Job.create(
@@ -260,7 +265,7 @@ def make_schedule(
         )
         asset_or_sensor = {"class": "Sensor", "id": sensor_id}
 
-    asset_or_sensor = get_asset_or_sensor_from_ref(asset_or_sensor)
+    asset_or_sensor: Asset | Sensor = get_asset_or_sensor_from_ref(asset_or_sensor)
 
     rq_job = get_current_job()
     if rq_job:
@@ -278,8 +283,8 @@ def make_schedule(
 
     if belief_time is None:
         belief_time = server_now()
-    scheduler: Scheduler = scheduler_class(
-        asset_or_sensor=asset_or_sensor,
+
+    scheduler_params = dict(
         start=start,
         end=end,
         resolution=resolution,
@@ -287,6 +292,12 @@ def make_schedule(
         flex_model=flex_model,
         flex_context=flex_context,
         return_multiple=True,
+    )
+
+    scheduler: Scheduler = get_scheduler_instance(
+        scheduler_class=scheduler_class,
+        asset_or_sensor=asset_or_sensor,
+        scheduler_params=scheduler_params,
     )
 
     if flex_config_has_been_deserialized:

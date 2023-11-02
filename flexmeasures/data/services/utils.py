@@ -4,6 +4,8 @@ import hashlib
 import base64
 from typing import Type
 import functools
+from copy import deepcopy
+import inspect
 
 import click
 from sqlalchemy import JSON, String, cast, literal
@@ -13,13 +15,29 @@ from rq.job import Job
 from flexmeasures import Sensor, Asset
 from flexmeasures.data import db
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
+from flexmeasures.data.models.planning import Scheduler
+
+
+def get_scheduler_instance(
+    scheduler_class: Type[Scheduler], asset_or_sensor: Asset | Sensor, scheduler_params
+) -> Scheduler:
+    """
+    Get an instance of a Scheduler adapting for the previous Scheduler signature,
+    where a sensor is passed, to the new one where the asset_or_sensor is introduced.
+    """
+
+    _scheduler_params = deepcopy(scheduler_params)
+
+    if "asset_or_sensor" not in inspect.signature(scheduler_class).parameters:
+        _scheduler_params["sensor"] = asset_or_sensor
+    else:
+        _scheduler_params["asset_or_sensor"] = asset_or_sensor
+
+    return scheduler_class(**_scheduler_params)
 
 
 def get_asset_or_sensor_ref(asset_or_sensor: Asset | Sensor) -> dict:
-    if hasattr(asset_or_sensor, "id"):
-        return {"id": asset_or_sensor.id, "class": asset_or_sensor.__class__.__name__}
-    else:
-        return None
+    return {"id": asset_or_sensor.id, "class": asset_or_sensor.__class__.__name__}
 
 
 def get_asset_or_sensor_from_ref(asset_or_sensor: dict):
