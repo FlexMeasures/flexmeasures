@@ -42,8 +42,6 @@ class Scheduler:
     sensor: Optional[Sensor] = None
     asset: Optional[Asset] = None
 
-    asset_or_sensor: Asset | Sensor
-
     start: datetime
     end: datetime
     resolution: timedelta
@@ -113,7 +111,6 @@ class Scheduler:
                 f"The scheduler class {self.__class__.__name__} expects an Asset or Sensor objects but an object of class `{asset_or_sensor.__class__.__name__}` was provided."
             )
 
-        self.asset_or_sensor = asset_or_sensor
         self.start = start
         self.end = end
         self.resolution = resolution
