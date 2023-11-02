@@ -476,7 +476,10 @@ class SensorAPI(FlaskView):
                 return fallback_schedule_redirect(
                     message,
                     url_for(
-                        "SensorAPI:get_schedule", uuid=fallback_job_id, id=sensor.id
+                        "SensorAPI:get_schedule",
+                        uuid=fallback_job_id,
+                        id=sensor.id,
+                        _external=True,
                     ),
                 )
             else:
