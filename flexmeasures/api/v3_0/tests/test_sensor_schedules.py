@@ -183,7 +183,7 @@ def test_trigger_and_get_schedule(
     message,
     asset_name,
     requesting_user,
-):
+):  # noqa: C901
     # Include the price sensor and site-power-capacity in the flex-context explicitly, to test deserialization
     price_sensor_id = add_market_prices["epex_da"].id
     message["flex-context"] = {
@@ -435,7 +435,7 @@ def test_get_schedule_fallback(
         )  # Status code for redirect ("See other")
         assert (
             get_schedule_response.json["message"]
-            == "Scheduling job failed with InfeasibleProblemException: "
+            == "Scheduling job failed with InfeasibleProblemException: . StorageScheduler was used."
         )
         assert get_schedule_response.json["status"] == "UNKNOWN_SCHEDULE"
         assert get_schedule_response.json["result"] == "Rejected"

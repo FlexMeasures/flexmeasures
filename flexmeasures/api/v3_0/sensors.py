@@ -226,7 +226,7 @@ class SensorAPI(FlaskView):
         location="json",
     )
     @permission_required_for_context("create-children", ctx_arg_name="sensor")
-    def trigger_schedule(  # noqa: C901
+    def trigger_schedule(
         self,
         sensor: Sensor,
         start_of_schedule: datetime,
@@ -399,7 +399,9 @@ class SensorAPI(FlaskView):
         timedelta(hours=6)
     )  # todo: make this a Marshmallow field
     @permission_required_for_context("read", ctx_arg_name="sensor")
-    def get_schedule(self, sensor: Sensor, job_id: str, duration: timedelta, **kwargs):
+    def get_schedule(  # noqa: C901
+        self, sensor: Sensor, job_id: str, duration: timedelta, **kwargs
+    ):
         """Get a schedule from FlexMeasures.
 
         .. :quickref: Schedule; Download schedule from the platform
@@ -464,7 +466,7 @@ class SensorAPI(FlaskView):
                     "or its exception handler is not storing the exception as job meta data."
                 ),
             )
-            message = f"Scheduling job failed with {type(e).__name__}: {e}"
+            message = f"Scheduling job failed with {type(e).__name__}: {e}. {scheduler_info_msg}"
 
             fallback_job_id = job.meta.get("fallback_job_id")
 
@@ -480,9 +482,6 @@ class SensorAPI(FlaskView):
             else:
                 return unknown_schedule(message)
 
-            return unknown_schedule(
-                f"Scheduling job failed with {type(e).__name__}: {e}. {scheduler_info_msg}",
-            )
         elif job.is_started:
             return unknown_schedule(f"Scheduling job in progress. {scheduler_info_msg}")
         elif job.is_queued:
@@ -519,8 +518,13 @@ class SensorAPI(FlaskView):
             most_recent_beliefs_only=True,
             one_deterministic_belief_per_event=True,
         )
+
+        sign = 1
+        if sensor.get_attribute("consumption_is_positive", True):
+            sign = -1
+
         # For consumption schedules, positive values denote consumption. For the db, consumption is negative
-        consumption_schedule = -simplify_index(power_values)["event_value"]
+        consumption_schedule = sign * simplify_index(power_values)["event_value"]
         if consumption_schedule.empty:
             return unknown_schedule(
                 f"{error_message} the schedule was not found in the database. {scheduler_info_msg}"
