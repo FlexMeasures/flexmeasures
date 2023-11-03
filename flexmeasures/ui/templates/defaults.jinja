@@ -33,20 +33,25 @@
     {% endif %}
 {% endfor %}
 
+{% set is_admin = True if current_user.is_authenticated and (current_user.has_role('admin') or FLEXMEASURES_MODE == "demo") %}
+{% set is_consultant = True if current_user.has_role('customer-manager') %}
 
-{% set view = "admin" if current_user.is_authenticated and (current_user.has_role('admin') or FLEXMEASURES_MODE == "demo") %}
-{% do navigation_bar.append(('accounts', 'accounts', 'Accounts', '', 'cubes')) if view == "admin" %}
-{% do navigation_bar.append(('assets', 'assets', 'Assets', '', 'list-ul')) if view == "admin" %}
-{% do navigation_bar.append(('users', 'users', 'Users', '', 'users')) if view == "admin" %}
-{% do navigation_bar.append(('tasks', 'tasks', 'Tasks', '', 'tasks')) if view == "admin" %}
 
-{% set view = "non_admin" if current_user.is_authenticated and not (current_user.has_role('admin') or FLEXMEASURES_MODE == "demo" or current_user.has_role('customer-manager')) %}
-{% do navigation_bar.append(("accounts/{}".format(current_user.account.id), 'accounts', 'My Account', '', 'cubes')) if view == "non_admin" %}
+{% if current_user.is_authenticated %}
+    {% if is_admin %}
+        {% do navigation_bar.append(('assets', 'assets', 'Assets', '', 'list-ul'))  %}
+        {% do navigation_bar.append(('users', 'users', 'Users', '', 'users')) %}
+        {% do navigation_bar.append(('tasks', 'tasks', 'Tasks', '', 'tasks')) %}
+    {% endif %}
 
-{% set view = "consultant" if current_user.is_authenticated and (current_user.has_role('customer-manager') and not (current_user.has_role('admin') or FLEXMEASURES_MODE == "demo")) %}
-{% do navigation_bar.append(('accounts', 'accounts', 'Accounts', '', 'cubes')) if view == "consultant" %}
+    {% if is_consultant or is_admin %}
+        {% do navigation_bar.append(('accounts', 'accounts', 'Accounts', '', 'cubes')) %}
+    {% else %}
+        {% do navigation_bar.append(("accounts/{}".format(current_user.account.id), 'accounts', 'My Account', '', 'cubes')) %}
+    {% endif %}
 
-{% do navigation_bar.append(('logged-in-user', 'logged-in-user', '', user_name, 'user')) if current_user.is_authenticated %}
+    {% do navigation_bar.append(('logged-in-user', 'logged-in-user', '', user_name, 'user')) %}
+{% endif %}
 
 {% do navigation_bar.append(('ui/static/documentation/html/index.html', 'docs', '', 'Documentation (new window)', 'question')) if documentation_exists and current_user.is_authenticated %}
 
