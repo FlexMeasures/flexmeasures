@@ -13,6 +13,7 @@ New features
 -------------
 
 - Scheduling data better distinguishes (e.g. in chart tooltips) when a schedule was the result of a fallback mechanism, by splitting off the fallback mechanism from the main scheduler (as a separate job) [see `PR #846 <https://github.com/FlexMeasures/flexmeasures/pull/846>`_]
+- A Consultancy account can be added to any account, with the effect that the customer-manager users in that account get read access. [see `PR #846 <https://github.com/FlexMeasures/flexmeasures/pull/877>`_]
 
 Infrastructure / Support
 ----------------------
