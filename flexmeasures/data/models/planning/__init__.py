@@ -124,7 +124,7 @@ class Scheduler:
         self.flex_context = flex_context
 
         if self.info is None:
-            self.info = dict(scheduler="")
+            self.info = dict(scheduler=self.__class__.__name__)
 
         self.return_multiple = return_multiple
 
