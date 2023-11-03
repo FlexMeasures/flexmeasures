@@ -68,6 +68,7 @@ def test_get_asset_nonaccount_access(client, setup_api_test_data, requesting_use
     [
         ("test_admin_user@seita.nl", "Prosumer", 1),
         ("test_admin_user@seita.nl", "Supplier", 2),
+        ("test_consultant_user@seita.nl", "ConsultantClient", 1),
     ],
     indirect=["requesting_user"],
 )
@@ -353,7 +354,7 @@ def test_consultant_can_read(
     requesting_user,
 ):
     """
-    The Consultant Account reads the asset from the ConsultantClient Account.
+    The Consultant Account reads the assets from the ConsultantClient Account.
     """
     account_name = "ConsultantClient"
     query = {"account_id": setup_accounts[account_name].id}
@@ -475,3 +476,29 @@ def test_post_an_asset_with_existing_name(
 
         # check that the asset exists
         assert GenericAsset.query.get(asset_creation_response.json["id"]) is not None
+
+
+@pytest.mark.parametrize(
+    "requesting_user",
+    ["test_consultant_user@seita.nl"],
+    indirect=True,
+)
+def test_consultant_get_asset(
+    client,
+    setup_api_test_data,
+    setup_accounts,
+    requesting_user,
+):
+    """
+    The Consultant Account reads an asset from the ConsultantClient Account.
+    """
+    asset_id = (
+        GenericAsset.query.filter(GenericAsset.name == "Test ConsultantClient Asset")
+        .one_or_none()
+        .id
+    )
+
+    get_asset_response = client.get(url_for("AssetAPI:get", id=asset_id))
+    print("Server responded with:\n%s" % get_asset_response.json)
+    assert get_asset_response.status_code == 200
+    assert get_asset_response.json["name"] == "Test ConsultantClient Asset"
