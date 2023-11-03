@@ -14,7 +14,7 @@ import timely_beliefs as tb
 from timely_beliefs.beliefs.probabilistic_utils import get_median_belief
 import timely_beliefs.utils as tb_utils
 
-from flexmeasures.auth.policy import AuthModelMixin, EVERY_LOGGED_IN_USER
+from flexmeasures.auth.policy import AuthModelMixin
 from flexmeasures.data import db
 from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.data.services.annotations import prepare_annotations_for_chart
