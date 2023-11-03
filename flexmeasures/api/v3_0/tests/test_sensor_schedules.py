@@ -443,7 +443,7 @@ def test_get_schedule_fallback(
         # check that the redirection location points to the fallback job
         assert (
             get_schedule_response.headers["location"]
-            == f"/api/v3_0/sensors/{charging_station.id}/schedules/{fallback_job_id}"
+            == f"http://localhost/api/v3_0/sensors/{charging_station.id}/schedules/{fallback_job_id}"
         )
 
         # run the fallback job
