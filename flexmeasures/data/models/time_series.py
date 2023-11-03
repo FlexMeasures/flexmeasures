@@ -103,9 +103,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         """
         return {
             "create-children": f"account:{self.generic_asset.account_id}",
-            "read": f"account:{self.generic_asset.account_id}"
-            if self.generic_asset.account_id is not None
-            else EVERY_LOGGED_IN_USER,
+            "read": self.generic_asset.__acl__()["read"],
             "update": (
                 f"account:{self.generic_asset.account_id}",
                 "role:account-admin",
