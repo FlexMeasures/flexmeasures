@@ -28,7 +28,13 @@ from flexmeasures.utils.coding_utils import deprecated
 from flexmeasures.utils.unit_utils import ur
 
 
-def check_and_convert_power_capacity(power_capacity):
+def check_and_convert_power_capacity(
+    power_capacity: ur.Quantity | float | int,
+) -> float:
+    """
+    Check if the power_capacity is of type ur.Quantity, float or int and converts the Quantity to
+    MW.
+    """
     if isinstance(power_capacity, ur.Quantity):
         return power_capacity.to(ur.Quantity("MW")).magnitude
 
@@ -246,7 +252,7 @@ class MetaStorageScheduler(Scheduler):
         """
         Priority order to fetch the site consumption power capacity:
 
-        "site-consumption-capacity" (flex-context) -> "capacity_in_mw" (asset attribute)
+        "site-consumption-capacity" (flex-context) -> "consumption_capacity_in_mw" (asset attribute)
 
         where the flex-context is in its serialized form.
         """
@@ -260,7 +266,7 @@ class MetaStorageScheduler(Scheduler):
         """
         Priority order to fetch the site production power capacity:
 
-        "site-production-capacity" (flex-context) -> "capacity_in_mw" (asset attribute)
+        "site-production-capacity" (flex-context) -> "production_capacity_in_mw" (asset attribute)
 
         where the flex-context is in its serialized form.
         """
