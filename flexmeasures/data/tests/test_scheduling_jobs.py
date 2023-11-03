@@ -204,6 +204,7 @@ def test_fallback_chain(
 
         FailingScheduler1 -> FailingScheduler2 -> SuccessfulScheduler
     """
+    app.config["FLEXMEASURES_FALLBACK_REDIRECT"] = True
 
     battery = add_battery_assets["Test battery"].sensors[0]
     app.db.session.flush()
@@ -254,3 +255,4 @@ def test_fallback_chain(
     assert success_job.kwargs["scheduler_specs"]["class"] == "SuccessfulScheduler"
 
     assert len(app.queues["scheduling"]) == 0
+    app.config["FLEXMEASURES_FALLBACK_REDIRECT"] = False

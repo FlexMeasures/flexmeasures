@@ -347,6 +347,7 @@ def test_get_schedule_fallback(
     Test if the fallback job is created after a failing StorageScheduler call. This test
     is based on flexmeasures/data/models/planning/tests/test_solver.py
     """
+    app.config["FLEXMEASURES_FALLBACK_REDIRECT"] = True
 
     target_soc = 9
     charging_station_name = "Test charging station"
@@ -471,3 +472,122 @@ def test_get_schedule_fallback(
             for source in charging_station.search_beliefs().sources.unique()
         ]
         assert "StorageFallbackScheduler" in models
+
+        app.config["FLEXMEASURES_FALLBACK_REDIRECT"] = False
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_get_schedule_fallback_not_redirect(
+    app,
+    add_battery_assets,
+    add_market_prices,
+    battery_soc_sensor,
+    add_charging_station_assets,
+    keep_scheduling_queue_empty,
+    requesting_user,
+):
+    """
+    Test if the fallback scheduler is returned directly after a failing StorageScheduler call. This test
+    is based on flexmeasures/data/models/planning/tests/test_solver.py
+    """
+    app.config["FLEXMEASURES_FALLBACK_REDIRECT"] = False
+
+    target_soc = 9
+    charging_station_name = "Test charging station"
+
+    start = "2015-01-02T00:00:00+01:00"
+    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    charging_station = add_charging_station_assets[charging_station_name].sensors[0]
+
+    assert charging_station.get_attribute("capacity_in_mw") == 2
+    assert charging_station.get_attribute("market_id") == epex_da.id
+
+    # create a scenario that yields an infeasible problem (unreachable target SOC at 2am)
+    message = {
+        "start": start,
+        "duration": "PT24H",
+        "flex-model": {
+            "soc-at-start": 10,
+            "soc-min": charging_station.get_attribute("min_soc_in_mwh", 0),
+            "soc-max": charging_station.get_attribute("max-soc-in-mwh", target_soc),
+            "roundtrip-efficiency": charging_station.get_attribute(
+                "roundtrip-efficiency", 1
+            ),
+            "storage-efficiency": charging_station.get_attribute(
+                "storage-efficiency", 1
+            ),
+            "soc-targets": [
+                {"value": target_soc, "datetime": "2015-01-02T02:00:00+01:00"}
+            ],
+        },
+    }
+
+    with app.test_client() as client:
+        # trigger storage scheduler
+        trigger_schedule_response = client.post(
+            url_for("SensorAPI:trigger_schedule", id=charging_station.id),
+            json=message,
+        )
+
+        # check that the call is successful
+        assert trigger_schedule_response.status_code == 200
+        job_id = trigger_schedule_response.json["schedule"]
+
+        # look for scheduling jobs in queue
+        assert (
+            len(app.queues["scheduling"]) == 1
+        )  # only 1 schedule should be made for 1 asset
+        job = app.queues["scheduling"].jobs[0]
+        assert job.kwargs["sensor_id"] == charging_station.id
+        assert job.kwargs["start"] == parse_datetime(message["start"])
+        assert job.id == job_id
+
+        # process only the job that runs the storage scheduler (max_jobs=1)
+        work_on_rq(
+            app.queues["scheduling"],
+            exc_handler=handle_scheduling_exception,
+            max_jobs=1,
+        )
+
+        # check that the job is failing
+        assert Job.fetch(
+            job_id, connection=app.queues["scheduling"].connection
+        ).is_failed
+
+        # the callback creates the fallback job which is still pending
+        assert len(app.queues["scheduling"]) == 1
+
+        fallback_job_id = Job.fetch(
+            job_id, connection=app.queues["scheduling"].connection
+        ).meta.get("fallback_job_id")
+
+        # check that the fallback_job_id is stored on the metadata of the original job
+        assert app.queues["scheduling"].get_job_ids()[0] == fallback_job_id
+        assert fallback_job_id != job_id
+
+        get_schedule_response = client.get(
+            url_for("SensorAPI:get_schedule", id=charging_station.id, uuid=job_id),
+        )
+
+        work_on_rq(
+            app.queues["scheduling"],
+            exc_handler=handle_scheduling_exception,
+            max_jobs=1,
+        )
+
+        get_schedule_response = client.get(
+            url_for("SensorAPI:get_schedule", id=charging_station.id, uuid=job_id),
+        )
+
+        assert get_schedule_response.status_code == 200
+
+        schedule = get_schedule_response.json
+
+        # check that the fallback schedule has the right status and start dates
+        assert schedule["status"] == "PROCESSED"
+        assert parse_datetime(schedule["start"]) == parse_datetime(start)
+        assert schedule["scheduler_info"]["scheduler"] == "StorageFallbackScheduler"
+
+        app.config["FLEXMEASURES_FALLBACK_REDIRECT"] = False

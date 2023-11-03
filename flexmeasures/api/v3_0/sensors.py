@@ -445,10 +445,21 @@ class SensorAPI(FlaskView):
 
         # Look up the scheduling job
         connection = current_app.queues["scheduling"].connection
+
         try:  # First try the scheduling queue
             job = Job.fetch(job_id, connection=connection)
         except NoSuchJobError:
             return unrecognized_event(job_id, "job")
+
+        if (
+            not current_app.config.get("FLEXMEASURES_FALLBACK_REDIRECT")
+            and job.is_failed
+            and ("fallback_job_id" in job.meta)
+        ):
+            try:  # First try the scheduling queue
+                job = Job.fetch(job.meta["fallback_job_id"], connection=connection)
+            except NoSuchJobError:
+                return unrecognized_event(job.meta["fallback_job_id"], "fallback-job")
 
         scheduler_info_msg = ""
         scheduler_info = job.meta.get("scheduler_info", dict(scheduler=""))
@@ -470,20 +481,23 @@ class SensorAPI(FlaskView):
 
             fallback_job_id = job.meta.get("fallback_job_id")
 
-            # redirect to the fallback schedule endpoint if the fallback_job_id
-            # is defined in the metadata of the original job
-            if fallback_job_id is not None:
-                return fallback_schedule_redirect(
-                    message,
-                    url_for(
-                        "SensorAPI:get_schedule",
-                        uuid=fallback_job_id,
-                        id=sensor.id,
-                        _external=True,
-                    ),
-                )
-            else:
-                return unknown_schedule(message)
+            if current_app.config.get("FLEXMEASURES_FALLBACK_REDIRECT"):
+                # redirect to the fallback schedule endpoint if the fallback_job_id
+                # is defined in the metadata of the original job
+                if fallback_job_id is not None:
+                    return fallback_schedule_redirect(
+                        message,
+                        url_for(
+                            "SensorAPI:get_schedule",
+                            uuid=fallback_job_id,
+                            id=sensor.id,
+                            _external=True,
+                        ),
+                    )
+                else:
+                    return unknown_schedule(message)
+            # case that the job failed or the fallback schedule job failed (FLEXMEASURES_FALLBACK_REDIRECT = False)
+            return unknown_schedule(message)
 
         elif job.is_started:
             return unknown_schedule(f"Scheduling job in progress. {scheduler_info_msg}")
