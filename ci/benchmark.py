@@ -15,8 +15,7 @@ import numpy as np
 import tqdm
 import click
 
-# TODO: do not use CLI, but the client (ask for credentials from input)
-# from flexmeasures_client import Client as FlexMeasuresClient
+# TODO: do not use CLI, but address the underlying functions directly
 
 from flexmeasures.data.schemas import DurationField, AwareDateTimeField
 
@@ -48,7 +47,7 @@ def benchmark(iterations, sensors, start, duration):
     sensor_ids = " ".join([f"--sensor-id {sensor_id}" for sensor_id in sensors])
     commands = [
         f"flexmeasures show beliefs {sensor_ids} --start {start_str} --duration {duration_str}",
-        # TODO: add a scheduling operation (wait for result)
+        # TODO: add a scheduling operation (wait for result, no queue)
     ]
 
     print("I'll be running:")
