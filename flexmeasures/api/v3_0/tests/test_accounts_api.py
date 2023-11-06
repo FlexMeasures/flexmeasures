@@ -26,14 +26,20 @@ def test_get_accounts_missing_auth(client, requesting_user, status_code):
 @pytest.mark.parametrize(
     "requesting_user, num_accounts",
     [
-        ("test_admin_user@seita.nl", 5),
+        ("test_admin_user@seita.nl", 7),
         ("test_prosumer_user@seita.nl", 1),
+        ("test_consultant_user@seita.nl", 2),
+        ("test_consultant_user_without_customer_manager_access@seita.nl", 1),
     ],
     indirect=["requesting_user"],
 )
 def test_get_accounts(client, setup_api_test_data, requesting_user, num_accounts):
     """
-    Get accounts
+    Get accounts for:
+    - A normal user.
+    - An admin user.
+    - A consultant account user with a customer-manager role and a linked consultant client account.
+    - A consultant account user without a customer-manager role.
     """
     get_accounts_response = client.get(
         url_for("AccountAPI:index"),

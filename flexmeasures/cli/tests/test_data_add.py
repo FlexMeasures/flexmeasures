@@ -10,6 +10,7 @@ from flexmeasures.data.models.annotations import (
     Annotation,
     AccountAnnotationRelationship,
 )
+from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor
 
@@ -413,3 +414,36 @@ def test_add_sensor(app, db, setup_dummy_asset, event_resolution, name, success)
     else:
         assert result.exit_code == 1
         assert sensor is None
+
+
+@pytest.mark.skip_github
+@pytest.mark.parametrize(
+    "name, consultancy_account_id, success",
+    [
+        ("Test ConsultantClient Account", 1, False),
+        ("Test CLIConsultantClient Account", 2, True),
+        ("Test Account", None, True),
+    ],
+)
+def test_add_account(
+    app, fresh_db, setup_accounts_fresh_db, name, consultancy_account_id, success
+):
+    from flexmeasures.cli.data_add import new_account
+
+    """Test add new account"""
+
+    cli_input = {
+        "name": name,
+        "roles": "TestRole",
+        "consultancy-account-id": consultancy_account_id,
+    }
+    runner = app.test_cli_runner()
+    result = runner.invoke(new_account, to_flags(cli_input))
+    if success:
+        assert "successfully created." in result.output
+        account = Account.query.filter(Account.name == cli_input["name"]).one_or_none()
+        assert account.consultancy_account_id == consultancy_account_id
+
+    else:
+        # fail because "Test ConsultantClient Account" already exists
+        assert result.exit_code == 1
