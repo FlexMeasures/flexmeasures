@@ -237,19 +237,17 @@ With the flexibility context, we aim to describe the system in which the flexibl
 - ``inflexible-device-sensors`` ― power sensors that are relevant, but not flexible, such as a sensor recording rooftop solar power connected behind the main meter, whose production falls under the same contract as the flexible device(s) being scheduled
 - ``consumption-price-sensor`` ― the sensor which defines costs/revenues of consuming energy
 - ``production-price-sensor`` ― the sensor which defines cost/revenues of producing energy
-- ``site-power-capacity`` ― defaults to the Asset attribute ``capacity_in_mw`` ― maximum/minimum achievable power at the grid connection point.
+- ``site-power-capacity`` ― defaults to the Asset attribute ``capacity_in_mw`` ― maximum/minimum achievable power at the grid connection point [#asymmetric]_.
 - ``site-consumption-capacity`` ― defaults to the Asset attribute ``consumption_capacity_in_mw`` ― maximum consumption power at the grid connection point [#consumption]_. If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-consumption-capacity`` will be used.
 - ``site-production-capacity`` ― defaults to the Asset attribute ``production_capacity_in_mw`` ― maximum production power at the grid connection point [#production]_.  If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-production-capacity`` will be used.
 
 These should be independent on the asset type and consequently also do not depend on which scheduling algorithm is being used.
 
-.. note::  ``site-consumption-capacity`` and ``site-production-capacity`` allow defining asymmetric contracted transport capacities for each direction (i.e. production and consumption).
-    
-.. warning:: If no (asymmetric, consumption and production) site capacity is defined (also not as defaults), the scheduler will not enforce any bound on the site power.
-
-
+.. [#asymmetric] ``site-consumption-capacity`` and ``site-production-capacity`` allow defining asymmetric contracted transport capacities for each direction (i.e. production and consumption).
 .. [#production] Example: with a connection capacity (``site-power-capacity``) of 1 MVA (apparent power) and a production capacity (``site-production-capacity``) of 400 kW (active power), the scheduler will make sure that the grid outflow doesn't exceed 400 kW.
 .. [#consumption] Example: with a connection capacity (``site-power-capacity``) of 1 MVA (apparent power) and a consumption capacity (``site-consumption-capacity``) of 800 kW (active power), the scheduler will make sure that the grid inflow doesn't exceed 800 kW.
+
+.. warning:: If no (symmetric, consumption and production) site capacity is defined (also not as defaults), the scheduler will not enforce any bound on the site power.
 
 
 .. _beliefs:
