@@ -84,7 +84,7 @@ class AccountAPI(FlaskView):
         .. :quickref: Account; Get an account
 
         This endpoint retrieves an account, given its id.
-        Only admins, consultant users or the user themselves can use this endpoint.
+        Only admins, consultants and users belonging to the account itself can use this endpoint.
 
         **Example response**
 
@@ -94,7 +94,7 @@ class AccountAPI(FlaskView):
                 'id': 1,
                 'name': 'Test Account'
                 'account_roles': [1, 3],
-                'consultancy_account_id':2,
+                'consultancy_account_id': 2,
                 'consultant_name':'Consultant',
             }
 
