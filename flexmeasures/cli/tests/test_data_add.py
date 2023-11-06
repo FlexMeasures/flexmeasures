@@ -428,9 +428,9 @@ def test_add_sensor(app, db, setup_dummy_asset, event_resolution, name, success)
 def test_add_account(
     app, fresh_db, setup_accounts_fresh_db, name, consultancy_account_id, success
 ):
-    from flexmeasures.cli.data_add import new_account
+    """Test adding a new account."""
 
-    """Test add new account"""
+    from flexmeasures.cli.data_add import new_account
 
     cli_input = {
         "name": name,
