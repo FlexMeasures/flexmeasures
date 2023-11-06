@@ -13,7 +13,7 @@ New features
 -------------
 
 - Scheduling data better distinguishes (e.g. in chart tooltips) when a schedule was the result of a fallback mechanism, by splitting off the fallback mechanism from the main scheduler (as a separate job) [see `PR #846 <https://github.com/FlexMeasures/flexmeasures/pull/846>`_]
-- New accounts can set a consultancy relationship with another account to give read access to its consultants. [see `PR #846 <https://github.com/FlexMeasures/flexmeasures/pull/877>`_]
+- New accounts can set a consultancy relationship with another account to give read access to its consultants. [see `PR #846 <https://github.com/FlexMeasures/flexmeasures/pull/877>`_ and `PR #892 <https://github.com/FlexMeasures/flexmeasures/pull/892>`_]
 
 Infrastructure / Support
 ----------------------
