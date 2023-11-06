@@ -2,6 +2,7 @@
 Data schemas (Marshmallow)
 """
 
+from .account import AccountIdField  # noqa F401
 from .generic_assets import GenericAssetIdField as AssetIdField  # noqa F401
 from .locations import LatitudeField, LongitudeField  # noqa F401
 from .sensors import SensorIdField  # noqa F401

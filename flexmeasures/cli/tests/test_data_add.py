@@ -435,7 +435,7 @@ def test_add_account(
     cli_input = {
         "name": name,
         "roles": "TestRole",
-        "consultancy-account-id": consultancy_account_id,
+        "consultancy": consultancy_account_id,
     }
     runner = app.test_cli_runner()
     result = runner.invoke(new_account, to_flags(cli_input))
