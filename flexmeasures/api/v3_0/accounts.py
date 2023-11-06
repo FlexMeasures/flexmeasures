@@ -95,7 +95,6 @@ class AccountAPI(FlaskView):
                 'name': 'Test Account'
                 'account_roles': [1, 3],
                 'consultancy_account_id': 2,
-                'consultant_name':'Consultant',
             }
 
         :reqheader Authorization: The authentication token
