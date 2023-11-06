@@ -369,9 +369,7 @@ def test_consultant_can_read(
     assert get_assets_response.json[0]["name"] == "Test ConsultancyClient Asset"
 
 
-@pytest.mark.parametrize(
-    "requesting_user", ["test_consultant@seita.nl"], indirect=True
-)
+@pytest.mark.parametrize("requesting_user", ["test_consultant@seita.nl"], indirect=True)
 def test_consultant_can_not_patch(
     client,
     setup_api_test_data,
