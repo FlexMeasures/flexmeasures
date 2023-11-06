@@ -151,7 +151,11 @@ def new_account_role(name: str, description: str):
 @with_appcontext
 @click.option("--name", required=True)
 @click.option("--roles", help="e.g. anonymous,Prosumer,CPO")
-def new_account(name: str, roles: str):
+@click.option(
+    "--consultancy-account-id",
+    help="id of account that will have read access to this account",
+)
+def new_account(name: str, roles: str, consultancy_account_id: int):
     """
     Create an account for a tenant in the FlexMeasures platform.
     """
@@ -159,7 +163,7 @@ def new_account(name: str, roles: str):
     if account is not None:
         click.secho(f"Account '{name}' already exists.", **MsgStyle.ERROR)
         raise click.Abort()
-    account = Account(name=name)
+    account = Account(name=name, consultancy_account_id=consultancy_account_id)
     db.session.add(account)
     if roles:
         for role_name in roles.split(","):

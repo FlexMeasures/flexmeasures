@@ -29,6 +29,7 @@ class AccountSchema(ma.SQLAlchemySchema):
     id = ma.auto_field(dump_only=True)
     name = ma.auto_field(required=True)
     account_roles = fields.Nested("AccountRoleSchema", exclude=("accounts",), many=True)
+    consultancy_account_id = ma.auto_field()
 
 
 class AccountIdField(fields.Int, MarshmallowClickMixin):

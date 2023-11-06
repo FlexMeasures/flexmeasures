@@ -66,18 +66,36 @@ class Account(db.Model, AuthModelMixin):
         backref=db.backref("accounts", lazy="dynamic"),
     )
 
+    # Setup self referential relationship between consultant account and consultant client account
+    consultancy_account_id = Column(
+        Integer, db.ForeignKey("account.id"), default=None, nullable=True
+    )
+    consultant_client_accounts = db.relationship(
+        "Account", back_populates="consultant_account"
+    )
+    consultant_account = db.relationship(
+        "Account", back_populates="consultant_client_accounts", remote_side=[id]
+    )
+
     def __repr__(self):
         return "<Account %s (ID:%s)>" % (self.name, self.id)
 
     def __acl__(self):
         """
         Only account admins can create things in the account (e.g. users or assets).
+        Consultant accounts can read in accounts they are consultants for.
         Within same account, everyone can read and update.
         Creation and deletion of accounts are left to site admins in CLI.
         """
+
+        read_access = [f"account:{self.id}"]
+        if self.consultancy_account_id is not None:
+            read_access.append(
+                (f"account:{self.consultancy_account_id}", "role:customer-manager")
+            )
         return {
             "create-children": (f"account:{self.id}", "role:account-admin"),
-            "read": f"account:{self.id}",
+            "read": read_access,
             "update": f"account:{self.id}",
         }
 
