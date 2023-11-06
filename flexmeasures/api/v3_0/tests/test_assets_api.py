@@ -382,13 +382,13 @@ def test_consultant_can_not_patch(
     Try to edit an asset belonging to the ConsultancyClient account with the Consultant account.
     The Consultant account only has read access.
     """
-    consultant_client_asset = GenericAsset.query.filter_by(
+    consultancy_client_asset = GenericAsset.query.filter_by(
         name="Test ConsultancyClient Asset"
     ).one_or_none()
-    print(consultant_client_asset)
+    print(consultancy_client_asset)
 
     asset_edit_response = client.patch(
-        url_for("AssetAPI:patch", id=consultant_client_asset.id),
+        url_for("AssetAPI:patch", id=consultancy_client_asset.id),
         json={
             "latitude": 0,
         },
