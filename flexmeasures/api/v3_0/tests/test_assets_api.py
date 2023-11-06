@@ -68,7 +68,7 @@ def test_get_asset_nonaccount_access(client, setup_api_test_data, requesting_use
     [
         ("test_admin_user@seita.nl", "Prosumer", 1),
         ("test_admin_user@seita.nl", "Supplier", 2),
-        ("test_consultant_user@seita.nl", "ConsultantClient", 1),
+        ("test_consultant@seita.nl", "ConsultancyClient", 1),
     ],
     indirect=["requesting_user"],
 )
@@ -344,7 +344,7 @@ def test_delete_an_asset(client, setup_api_test_data, requesting_user):
 
 @pytest.mark.parametrize(
     "requesting_user",
-    ["test_consultant_user@seita.nl"],
+    ["test_consultant@seita.nl"],
     indirect=True,
 )
 def test_consultant_can_read(
@@ -354,9 +354,9 @@ def test_consultant_can_read(
     requesting_user,
 ):
     """
-    The Consultant Account reads the assets from the ConsultantClient Account.
+    The Consultant Account reads the assets from the ConsultancyClient Account.
     """
-    account_name = "ConsultantClient"
+    account_name = "ConsultancyClient"
     query = {"account_id": setup_accounts[account_name].id}
 
     get_assets_response = client.get(
@@ -366,11 +366,11 @@ def test_consultant_can_read(
     print("Server responded with:\n%s" % get_assets_response.json)
     assert get_assets_response.status_code == 200
     assert len(get_assets_response.json) == 1
-    assert get_assets_response.json[0]["name"] == "Test ConsultantClient Asset"
+    assert get_assets_response.json[0]["name"] == "Test ConsultancyClient Asset"
 
 
 @pytest.mark.parametrize(
-    "requesting_user", ["test_consultant_user@seita.nl"], indirect=True
+    "requesting_user", ["test_consultant@seita.nl"], indirect=True
 )
 def test_consultant_can_not_patch(
     client,
@@ -379,11 +379,11 @@ def test_consultant_can_not_patch(
     requesting_user,
 ):
     """
-    Try to edit an asset belonging to the ConsultantClient account with the Consultant account.
+    Try to edit an asset belonging to the ConsultancyClient account with the Consultant account.
     The Consultant account only has read access.
     """
     consultant_client_asset = GenericAsset.query.filter_by(
-        name="Test ConsultantClient Asset"
+        name="Test ConsultancyClient Asset"
     ).one_or_none()
     print(consultant_client_asset)
 
@@ -399,10 +399,10 @@ def test_consultant_can_not_patch(
 
 @pytest.mark.parametrize(
     "requesting_user",
-    ["test_consultant_user_without_customer_manager_access@seita.nl"],
+    ["test_consultancy_user_without_consultant_access@seita.nl"],
     indirect=True,
 )
-def test_consultant_without_customer_manager_role(
+def test_consultancy_user_without_consultant_role(
     client,
     setup_api_test_data,
     setup_accounts,
@@ -411,7 +411,7 @@ def test_consultant_without_customer_manager_role(
     """
     The Consultant Account user without customer manager role can not read.
     """
-    account_name = "ConsultantClient"
+    account_name = "ConsultancyClient"
     query = {"account_id": setup_accounts[account_name].id}
 
     get_assets_response = client.get(
@@ -480,7 +480,7 @@ def test_post_an_asset_with_existing_name(
 
 @pytest.mark.parametrize(
     "requesting_user",
-    ["test_consultant_user@seita.nl"],
+    ["test_consultant@seita.nl"],
     indirect=True,
 )
 def test_consultant_get_asset(
@@ -490,10 +490,10 @@ def test_consultant_get_asset(
     requesting_user,
 ):
     """
-    The Consultant Account reads an asset from the ConsultantClient Account.
+    The Consultant Account reads an asset from the ConsultancyClient Account.
     """
     asset_id = (
-        GenericAsset.query.filter(GenericAsset.name == "Test ConsultantClient Asset")
+        GenericAsset.query.filter(GenericAsset.name == "Test ConsultancyClient Asset")
         .one_or_none()
         .id
     )
@@ -501,4 +501,4 @@ def test_consultant_get_asset(
     get_asset_response = client.get(url_for("AssetAPI:get", id=asset_id))
     print("Server responded with:\n%s" % get_asset_response.json)
     assert get_asset_response.status_code == 200
-    assert get_asset_response.json["name"] == "Test ConsultantClient Asset"
+    assert get_asset_response.json["name"] == "Test ConsultancyClient Asset"

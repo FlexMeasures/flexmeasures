@@ -67,8 +67,8 @@ class AccountAPI(FlaskView):
             accounts = get_accounts()
         else:
             accounts = [current_user.account] + (
-                current_user.account.consultant_client_accounts
-                if "customer-manager" in current_user.roles
+                current_user.account.consultancy_client_accounts
+                if "consultant" in current_user.roles
                 else []
             )
 

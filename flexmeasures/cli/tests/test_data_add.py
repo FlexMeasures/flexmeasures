@@ -420,8 +420,8 @@ def test_add_sensor(app, db, setup_dummy_asset, event_resolution, name, success)
 @pytest.mark.parametrize(
     "name, consultancy_account_id, success",
     [
-        ("Test ConsultantClient Account", 1, False),
-        ("Test CLIConsultantClient Account", 2, True),
+        ("Test ConsultancyClient Account", 1, False),
+        ("Test CLIConsultancyClient Account", 2, True),
         ("Test Account", None, True),
     ],
 )
@@ -445,5 +445,5 @@ def test_add_account(
         assert account.consultancy_account_id == consultancy_account_id
 
     else:
-        # fail because "Test ConsultantClient Account" already exists
+        # fail because "Test ConsultancyClient Account" already exists
         assert result.exit_code == 1

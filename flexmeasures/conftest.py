@@ -148,36 +148,36 @@ def create_test_accounts(db) -> dict[str, Account]:
         ],
     )
     db.session.add(multi_role_account)
-    consultant_account_role = AccountRole(
-        name="Consultant", description="A Consultant Account"
+    consultancy_account_role = AccountRole(
+        name="Consultancy", description="A consultancy account"
     )
-    # Create Consultant and ConsultantClient account.
-    # The ConsultantClient account needs the account id of the Consultant account so the order is important.
-    consultant_account = Account(
-        name="Test Consultant Account", account_roles=[consultant_account_role]
+    # Create Consultancy and ConsultancyClient account.
+    # The ConsultancyClient account needs the account id of the Consultancy account so the order is important.
+    consultancy_account = Account(
+        name="Test Consultancy Account", account_roles=[consultancy_account_role]
     )
-    db.session.add(consultant_account)
-    consultant_client_account_role = AccountRole(
-        name="ConsultantClient",
-        description="A Client of a Consultant",
+    db.session.add(consultancy_account)
+    consultancy_client_account_role = AccountRole(
+        name="ConsultancyClient",
+        description="A client of a consultancy",
     )
-    consultant_account_id = (
-        Account.query.filter_by(name="Test Consultant Account").one_or_none().id
+    consultancy_account_id = (
+        Account.query.filter_by(name="Test Consultancy Account").one_or_none().id
     )
-    consultant_client_account = Account(
-        name="Test ConsultantClient Account",
-        account_roles=[consultant_client_account_role],
-        consultancy_account_id=consultant_account_id,
+    consultancy_client_account = Account(
+        name="Test ConsultancyClient Account",
+        account_roles=[consultancy_client_account_role],
+        consultancy_account_id=consultancy_account_id,
     )
-    db.session.add(consultant_client_account)
+    db.session.add(consultancy_client_account)
     return dict(
         Prosumer=prosumer_account,
         Supplier=supplier_account,
         Dummy=dummy_account,
         Empty=empty_account,
         Multi=multi_role_account,
-        Consultant=consultant_account,
-        ConsultantClient=consultant_client_account,
+        Consultancy=consultancy_account,
+        ConsultancyClient=consultancy_client_account,
     )
 
 
@@ -249,17 +249,17 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
     new_users.append(
         create_user(
             username="Test Consultant User",
-            email="test_consultant_user@seita.nl",
-            account_name=test_accounts["Consultant"].name,
+            email="test_consultant@seita.nl",
+            account_name=test_accounts["Consultancy"].name,
             password="testtest",
-            user_roles=dict(name="customer-manager"),
+            user_roles=dict(name="consultant"),
         )
     )
     new_users.append(
         create_user(
-            username="Test Consultant User without customer-manager role",
-            email="test_consultant_user_without_customer_manager_access@seita.nl",
-            account_name=test_accounts["Consultant"].name,
+            username="Test Consultant User without consultant role",
+            email="test_consultancy_user_without_consultant_access@seita.nl",
+            account_name=test_accounts["Consultancy"].name,
             password="testtest",
         )
     )
@@ -365,18 +365,18 @@ def create_generic_assets(
         owner=setup_accounts["Supplier"],
     )
     db.session.add(test_wind_turbine)
-    test_consultant_client_asset = GenericAsset(
-        name="Test ConsultantClient Asset",
+    test_consultancy_client_asset = GenericAsset(
+        name="Test ConsultancyClient Asset",
         generic_asset_type=setup_generic_asset_types["wind"],
-        owner=setup_accounts["ConsultantClient"],
+        owner=setup_accounts["ConsultancyClient"],
     )
-    db.session.add(test_consultant_client_asset)
+    db.session.add(test_consultancy_client_asset)
 
     return dict(
         troposphere=troposphere,
         test_battery=test_battery,
         test_wind_turbine=test_wind_turbine,
-        test_consultant_client_asset=test_consultant_client_asset,
+        test_consultancy_client_asset=test_consultancy_client_asset,
     )
 
 
