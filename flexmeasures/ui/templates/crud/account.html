@@ -29,6 +29,16 @@
                                 {{ account.account_roles | map(attribute='name') | join(", ") }}
                             </td>
                         </tr>
+                        {% if account.consultancy_account_name %}
+                        <tr>
+                            <td>
+                               Consultant
+                            </td>
+                            <td>
+                                {{ account.consultancy_account_name }}
+                            </td>
+                        </tr>
+                        {% endif %}
                     </tbody>
                 </table>
             </div>

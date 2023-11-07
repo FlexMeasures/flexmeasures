@@ -148,11 +148,36 @@ def create_test_accounts(db) -> dict[str, Account]:
         ],
     )
     db.session.add(multi_role_account)
+    consultant_account_role = AccountRole(
+        name="Consultant", description="A Consultant Account"
+    )
+    # Create Consultant and ConsultantClient account.
+    # The ConsultantClient account needs the account id of the Consultant account so the order is important.
+    consultant_account = Account(
+        name="Test Consultant Account", account_roles=[consultant_account_role]
+    )
+    db.session.add(consultant_account)
+    consultant_client_account_role = AccountRole(
+        name="ConsultantClient",
+        description="A Client of a Consultant",
+    )
+    consultant_account_id = (
+        Account.query.filter_by(name="Test Consultant Account").one_or_none().id
+    )
+    consultant_client_account = Account(
+        name="Test ConsultantClient Account",
+        account_roles=[consultant_client_account_role],
+        consultancy_account_id=consultant_account_id,
+    )
+    db.session.add(consultant_client_account)
     return dict(
         Prosumer=prosumer_account,
         Supplier=supplier_account,
         Dummy=dummy_account,
+        Empty=empty_account,
         Multi=multi_role_account,
+        Consultant=consultant_account,
+        ConsultantClient=consultant_client_account,
     )
 
 
@@ -219,6 +244,23 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
             user_roles=dict(
                 name=ADMIN_ROLE, description="A user who can do everything."
             ),
+        )
+    )
+    new_users.append(
+        create_user(
+            username="Test Consultant User",
+            email="test_consultant_user@seita.nl",
+            account_name=test_accounts["Consultant"].name,
+            password="testtest",
+            user_roles=dict(name="customer-manager"),
+        )
+    )
+    new_users.append(
+        create_user(
+            username="Test Consultant User without customer-manager role",
+            email="test_consultant_user_without_customer_manager_access@seita.nl",
+            account_name=test_accounts["Consultant"].name,
+            password="testtest",
         )
     )
     return {user.username: user.id for user in new_users}
@@ -323,11 +365,18 @@ def create_generic_assets(
         owner=setup_accounts["Supplier"],
     )
     db.session.add(test_wind_turbine)
+    test_consultant_client_asset = GenericAsset(
+        name="Test ConsultantClient Asset",
+        generic_asset_type=setup_generic_asset_types["wind"],
+        owner=setup_accounts["ConsultantClient"],
+    )
+    db.session.add(test_consultant_client_asset)
 
     return dict(
         troposphere=troposphere,
         test_battery=test_battery,
         test_wind_turbine=test_wind_turbine,
+        test_consultant_client_asset=test_consultant_client_asset,
     )
 
 
@@ -825,6 +874,59 @@ def create_charging_station_assets(
     return {
         "Test charging station": charging_station,
         "Test charging station (bidirectional)": bidirectional_charging_station,
+    }
+
+
+@pytest.fixture(scope="module")
+def add_assets_with_site_power_limits(
+    db: SQLAlchemy, setup_accounts, setup_generic_asset_types
+) -> dict[str, Sensor]:
+    """
+    Add two batteries with different site power constraints. The first defines a symmetric site-level power limit of 2 MW
+    by setting the capacity_in_mw asset attribute. The second defines a 900 kW consumption limit and 750 kW production limit.
+    In addition, the capacity_in_mw is also defined to check the fallback strategy.
+    """
+    battery_symmetric_site_power_limit = GenericAsset(
+        name="Battery (with symmetric site limits)",
+        owner=setup_accounts["Prosumer"],
+        generic_asset_type=setup_generic_asset_types["battery"],
+        attributes=dict(
+            capacity_in_mw=2,
+            max_soc_in_mwh=5,
+            min_soc_in_mwh=0,
+        ),
+    )
+    battery_symmetric_power_sensor = Sensor(
+        name="power",
+        generic_asset=battery_symmetric_site_power_limit,
+        unit="MW",
+    )
+
+    battery_asymmetric_site_power_limit = GenericAsset(
+        name="Battery (with asymmetric site limits)",
+        owner=setup_accounts["Prosumer"],
+        generic_asset_type=setup_generic_asset_types["battery"],
+        attributes=dict(
+            capacity_in_mw=2,
+            consumption_capacity_in_mw=0.9,
+            production_capacity_in_mw=0.75,
+            max_soc_in_mwh=5,
+            min_soc_in_mwh=0,
+        ),
+    )
+    battery_asymmetric_power_sensor = Sensor(
+        name="power",
+        generic_asset=battery_asymmetric_site_power_limit,
+        unit="MW",
+    )
+
+    db.session.add_all(
+        [battery_symmetric_power_sensor, battery_asymmetric_power_sensor]
+    )
+    db.session.flush()
+    return {
+        "Battery (with symmetric site limits)": battery_symmetric_power_sensor,
+        "Battery (with asymmetric site limits)": battery_asymmetric_power_sensor,
     }
 
 
