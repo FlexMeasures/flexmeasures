@@ -347,6 +347,7 @@ def test_get_schedule_fallback(
     Test if the fallback job is created after a failing StorageScheduler call. This test
     is based on flexmeasures/data/models/planning/tests/test_solver.py
     """
+    assert app.config["FLEXMEASURES_FALLBACK_REDIRECT"] is False
     app.config["FLEXMEASURES_FALLBACK_REDIRECT"] = True
 
     target_soc = 9
