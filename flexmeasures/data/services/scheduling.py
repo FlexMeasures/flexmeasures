@@ -17,9 +17,10 @@ import click
 from rq import get_current_job, Callback
 from rq.job import Job
 import timely_beliefs as tb
+import pandas as pd
 
 from flexmeasures.data import db
-from flexmeasures.data.models.planning import Scheduler
+from flexmeasures.data.models.planning import Scheduler, SchedulerOutputType
 from flexmeasures.data.models.planning.storage import StorageScheduler
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
 from flexmeasures.data.models.planning.process import ProcessScheduler
@@ -262,12 +263,29 @@ def make_schedule(
         belief_time=belief_time,
         flex_model=flex_model,
         flex_context=flex_context,
+        return_multiple=True,
     )
 
     if flex_config_has_been_deserialized:
         scheduler.config_deserialized = True
 
-    consumption_schedule = scheduler.compute()
+    # we get the default scheduler info in case it fails in the compute step
+    if rq_job:
+        click.echo("Job %s made schedule." % rq_job.id)
+        rq_job.meta["scheduler_info"] = scheduler.info
+
+    consumption_schedule: SchedulerOutputType = scheduler.compute()
+
+    # in case we are getting a custom Scheduler that hasn't implement the multiple output return
+    # this should only be called whenever the Scheduler applies to the Sensor.
+    if isinstance(consumption_schedule, pd.Series):
+        consumption_schedule = [
+            {
+                "name": "consumption_schedule",
+                "data": consumption_schedule,
+                "sensor": sensor,
+            }
+        ]
 
     if rq_job:
         click.echo("Job %s made schedule." % rq_job.id)
@@ -286,18 +304,26 @@ def make_schedule(
         rq_job.meta["data_source_info"] = data_source_info
         rq_job.save_meta()
 
-    ts_value_schedule = [
-        TimedBelief(
-            event_start=dt,
-            belief_time=belief_time,
-            event_value=-value,
-            sensor=sensor,
-            source=data_source,
-        )
-        for dt, value in consumption_schedule.items()
-    ]  # For consumption schedules, positive values denote consumption. For the db, consumption is negative
-    bdf = tb.BeliefsDataFrame(ts_value_schedule)
-    save_to_db(bdf)
+    for result in consumption_schedule:
+        sign = 1
+
+        if result["sensor"].measures_power and result["sensor"].get_attribute(
+            "consumption_is_positive", True
+        ):
+            sign = -1
+
+        ts_value_schedule = [
+            TimedBelief(
+                event_start=dt,
+                belief_time=belief_time,
+                event_value=sign * value,
+                sensor=result["sensor"],
+                source=data_source,
+            )
+            for dt, value in result["data"].items()
+        ]  # For consumption schedules, positive values denote consumption. For the db, consumption is negative
+        bdf = tb.BeliefsDataFrame(ts_value_schedule)
+        save_to_db(bdf)
 
     scheduler.persist_flex_model()
     db.session.commit()

@@ -68,6 +68,7 @@ def test_get_asset_nonaccount_access(client, setup_api_test_data, requesting_use
     [
         ("test_admin_user@seita.nl", "Prosumer", 1),
         ("test_admin_user@seita.nl", "Supplier", 2),
+        ("test_consultant@seita.nl", "ConsultancyClient", 1),
     ],
     indirect=["requesting_user"],
 )
@@ -342,6 +343,84 @@ def test_delete_an_asset(client, setup_api_test_data, requesting_user):
 
 
 @pytest.mark.parametrize(
+    "requesting_user",
+    ["test_consultant@seita.nl"],
+    indirect=True,
+)
+def test_consultant_can_read(
+    client,
+    setup_api_test_data,
+    setup_accounts,
+    requesting_user,
+):
+    """
+    The Consultant Account reads the assets from the ConsultancyClient Account.
+    """
+    account_name = "ConsultancyClient"
+    query = {"account_id": setup_accounts[account_name].id}
+
+    get_assets_response = client.get(
+        url_for("AssetAPI:index"),
+        query_string=query,
+    )
+    print("Server responded with:\n%s" % get_assets_response.json)
+    assert get_assets_response.status_code == 200
+    assert len(get_assets_response.json) == 1
+    assert get_assets_response.json[0]["name"] == "Test ConsultancyClient Asset"
+
+
+@pytest.mark.parametrize("requesting_user", ["test_consultant@seita.nl"], indirect=True)
+def test_consultant_can_not_patch(
+    client,
+    setup_api_test_data,
+    setup_accounts,
+    requesting_user,
+):
+    """
+    Try to edit an asset belonging to the ConsultancyClient account with the Consultant account.
+    The Consultant account only has read access.
+    """
+    consultancy_client_asset = GenericAsset.query.filter_by(
+        name="Test ConsultancyClient Asset"
+    ).one_or_none()
+    print(consultancy_client_asset)
+
+    asset_edit_response = client.patch(
+        url_for("AssetAPI:patch", id=consultancy_client_asset.id),
+        json={
+            "latitude": 0,
+        },
+    )
+    print(f"Editing Response: {asset_edit_response.json}")
+    assert asset_edit_response.status_code == 403
+
+
+@pytest.mark.parametrize(
+    "requesting_user",
+    ["test_consultancy_user_without_consultant_access@seita.nl"],
+    indirect=True,
+)
+def test_consultancy_user_without_consultant_role(
+    client,
+    setup_api_test_data,
+    setup_accounts,
+    requesting_user,
+):
+    """
+    The Consultant Account user without customer manager role can not read.
+    """
+    account_name = "ConsultancyClient"
+    query = {"account_id": setup_accounts[account_name].id}
+
+    get_assets_response = client.get(
+        url_for("AssetAPI:index"),
+        query_string=query,
+    )
+    print("Server responded with:\n%s" % get_assets_response.json)
+    assert get_assets_response.status_code == 403
+
+
+@pytest.mark.parametrize(
     "parent_name, child_name, fails",
     [
         ("parent", "child_4", False),
@@ -395,3 +474,29 @@ def test_post_an_asset_with_existing_name(
 
         # check that the asset exists
         assert GenericAsset.query.get(asset_creation_response.json["id"]) is not None
+
+
+@pytest.mark.parametrize(
+    "requesting_user",
+    ["test_consultant@seita.nl"],
+    indirect=True,
+)
+def test_consultant_get_asset(
+    client,
+    setup_api_test_data,
+    setup_accounts,
+    requesting_user,
+):
+    """
+    The Consultant Account reads an asset from the ConsultancyClient Account.
+    """
+    asset_id = (
+        GenericAsset.query.filter(GenericAsset.name == "Test ConsultancyClient Asset")
+        .one_or_none()
+        .id
+    )
+
+    get_asset_response = client.get(url_for("AssetAPI:get", id=asset_id))
+    print("Server responded with:\n%s" % get_asset_response.json)
+    assert get_asset_response.status_code == 200
+    assert get_asset_response.json["name"] == "Test ConsultancyClient Asset"

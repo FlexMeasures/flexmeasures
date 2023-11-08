@@ -99,7 +99,73 @@ def daily_heatmap(
     event_ends_before: datetime | None = None,
     **override_chart_specs: dict,
 ):
+    return heatmap(
+        sensor,
+        event_starts_after,
+        event_ends_before,
+        split="daily",
+        **override_chart_specs,
+    )
+
+
+def weekly_heatmap(
+    sensor: "Sensor",  # noqa F821
+    event_starts_after: datetime | None = None,
+    event_ends_before: datetime | None = None,
+    **override_chart_specs: dict,
+):
+    return heatmap(
+        sensor,
+        event_starts_after,
+        event_ends_before,
+        split="weekly",
+        **override_chart_specs,
+    )
+
+
+def heatmap(
+    sensor: "Sensor",  # noqa F821
+    event_starts_after: datetime | None = None,
+    event_ends_before: datetime | None = None,
+    split: str = "weekly",
+    **override_chart_specs: dict,
+):
     unit = sensor.unit if sensor.unit else "a.u."
+
+    if split == "daily":
+        x_time_unit = "hoursminutesseconds"
+        y_time_unit = "yearmonthdate"
+        x_domain_max = 24
+        x_axis_label_expression = "timeFormat(datum.value, '%H:%M')"
+        x_axis_label_offset = None
+        y_axis_label_offset_expression = (
+            "(scale('y', 24 * 60 * 60 * 1000) - scale('y', 0)) / 2"
+        )
+        x_axis_tick_count = None
+        y_axis_tick_count = "day"
+        ruler_y_axis_label_offset_expression = (
+            "(scale('y', 24 * 60 * 60 * 1000) - scale('y', 0))"
+        )
+        x_axis_label_bound = False
+    elif split == "weekly":
+        x_time_unit = "dayhoursminutesseconds"
+        y_time_unit = "yearweek"
+        x_domain_max = 7 * 24
+        x_axis_tick_count = "day"
+        y_axis_tick_count = "week"
+        x_axis_label_expression = "timeFormat(datum.value, '%A')"
+        x_axis_label_offset = {
+            "expr": "(scale('x', 24 * 60 * 60 * 1000) - scale('x', 0)) / 2",
+        }
+        y_axis_label_offset_expression = (
+            "(scale('y', 7 * 24 * 60 * 60 * 1000) - scale('y', 0)) / 2"
+        )
+        ruler_y_axis_label_offset_expression = (
+            "(scale('y', 7 * 24 * 60 * 60 * 1000) - scale('y', 0))"
+        )
+        x_axis_label_bound = True
+    else:
+        raise NotImplementedError(f"Split '{split}' is not implemented.")
     event_value_field_definition = dict(
         title=f"{capitalize(sensor.sensor_type)} ({unit})",
         format=[".3~r", unit],
@@ -113,19 +179,22 @@ def daily_heatmap(
         type="temporal",
         title=None,
         timeUnit={
-            "unit": "hoursminutesseconds",
+            "unit": x_time_unit,
             "step": sensor.event_resolution.total_seconds(),
         },
         axis={
-            "labelExpr": "timeFormat(datum.value, '%H:%M')",
+            "tickCount": x_axis_tick_count,
+            "labelBound": x_axis_label_bound,
+            "labelExpr": x_axis_label_expression,
             "labelFlush": False,
+            "labelOffset": x_axis_label_offset,
             "labelOverlap": True,
             "labelSeparation": 1,
         },
         scale={
             "domain": [
                 {"hours": 0},
-                {"hours": 24},
+                {"hours": x_domain_max},
             ]
         },
     )
@@ -134,13 +203,13 @@ def daily_heatmap(
         type="temporal",
         title=None,
         timeUnit={
-            "unit": "yearmonthdate",
+            "unit": y_time_unit,
         },
         axis={
-            "tickCount": "day",
+            "tickCount": y_axis_tick_count,
             # Center align the date labels
             "labelOffset": {
-                "expr": "(scale('y', 24 * 60 * 60 * 1000) - scale('y', 0)) / 2"
+                "expr": y_axis_label_offset_expression,
             },
             "labelFlush": False,
             "labelBound": True,
@@ -164,7 +233,7 @@ def daily_heatmap(
         FIELD_DEFINITIONS["source_model"],
     ]
     chart_specs = {
-        "description": "A daily heatmap showing sensor data.",
+        "description": f"A {split} heatmap showing sensor data.",
         # the sensor type is already shown as the y-axis title (avoid redundant info)
         "title": capitalize(sensor.name) if sensor.name != sensor.sensor_type else None,
         "layer": [
@@ -221,16 +290,16 @@ def daily_heatmap(
                     "x": {
                         "field": "belief_time",
                         "type": "temporal",
-                        "timeUnit": "hoursminutesseconds",
+                        "timeUnit": x_time_unit,
                     },
                     "y": {
                         "field": "belief_time",
                         "type": "temporal",
-                        "timeUnit": "yearmonthdate",
+                        "timeUnit": y_time_unit,
                     },
                     "yOffset": {
                         "value": {
-                            "expr": "(scale('y', 24 * 60 * 60 * 1000) - scale('y', 0))"
+                            "expr": ruler_y_axis_label_offset_expression,
                         }
                     },
                 },
@@ -241,6 +310,7 @@ def daily_heatmap(
                 event_value_field_definition,
                 event_start_field_definition,
                 tooltip,
+                split=split,
             ),
         ],
     }
@@ -254,9 +324,26 @@ def daily_heatmap(
 
 
 def create_fall_dst_transition_layer(
-    timezone, mark, event_value_field_definition, event_start_field_definition, tooltip
+    timezone,
+    mark,
+    event_value_field_definition,
+    event_start_field_definition,
+    tooltip,
+    split: str,
 ) -> dict:
     """Special layer for showing data during the daylight savings time transition in fall."""
+    if split == "daily":
+        step = 12
+        calculate_second_bin = "timezoneoffset(datum.event_start + 60 * 60 * 1000) > timezoneoffset(datum.event_start) ? datum.event_start : datum.event_start + 12 * 60 * 60 * 1000"
+        calculate_next_bin = (
+            "datum.dst_transition_event_start + 12 * 60 * 60 * 1000 - 60 * 60 * 1000"
+        )
+    elif split == "weekly":
+        step = 7 * 12
+        calculate_second_bin = "timezoneoffset(datum.event_start + 60 * 60 * 1000) > timezoneoffset(datum.event_start) ? datum.event_start : datum.event_start + 7 * 12 * 60 * 60 * 1000"
+        calculate_next_bin = "datum.dst_transition_event_start + 7 * 12 * 60 * 60 * 1000 - 60 * 60 * 1000"
+    else:
+        raise NotImplementedError(f"Split '{split}' is not implemented.")
     return {
         "mark": mark,
         "encoding": {
@@ -265,11 +352,11 @@ def create_fall_dst_transition_layer(
                 "field": "dst_transition_event_start",
                 "type": "temporal",
                 "title": None,
-                "timeUnit": {"unit": "yearmonthdatehours", "step": 12},
+                "timeUnit": {"unit": "yearmonthdatehours", "step": step},
             },
             "y2": {
                 "field": "dst_transition_event_start_next",
-                "timeUnit": {"unit": "yearmonthdatehours", "step": 12},
+                "timeUnit": {"unit": "yearmonthdatehours", "step": step},
             },
             "color": event_value_field_definition,
             "detail": FIELD_DEFINITIONS["source"],
@@ -287,16 +374,16 @@ def create_fall_dst_transition_layer(
         },
         "transform": [
             {
-                "filter": "timezoneoffset(datum.event_start) < timezoneoffset(datum.event_start + 60 * 60 * 1000) || timezoneoffset(datum.event_start) > timezoneoffset(datum.event_start - 60 * 60 * 1000)"
+                "filter": "timezoneoffset(datum.event_start) < timezoneoffset(datum.event_start + 60 * 60 * 1000) || timezoneoffset(datum.event_start) > timezoneoffset(datum.event_start - 60 * 60 * 1000)",
             },
             {
                 # Push the more recent hour into the second 12-hour bin
-                "calculate": "timezoneoffset(datum.event_start + 60 * 60 * 1000) > timezoneoffset(datum.event_start) ? datum.event_start : datum.event_start + 12 * 60 * 60 * 1000",
+                "calculate": calculate_second_bin,
                 "as": "dst_transition_event_start",
             },
             {
                 # Calculate a time point in the next 12-hour bin
-                "calculate": "datum.dst_transition_event_start + 12 * 60 * 60 * 1000 - 60 * 60 * 1000",
+                "calculate": calculate_next_bin,
                 "as": "dst_transition_event_start_next",
             },
             {

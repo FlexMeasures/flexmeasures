@@ -14,7 +14,7 @@ import timely_beliefs as tb
 from timely_beliefs.beliefs.probabilistic_utils import get_median_belief
 import timely_beliefs.utils as tb_utils
 
-from flexmeasures.auth.policy import AuthModelMixin, EVERY_LOGGED_IN_USER
+from flexmeasures.auth.policy import AuthModelMixin
 from flexmeasures.data import db
 from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.data.services.annotations import prepare_annotations_for_chart
@@ -97,15 +97,12 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
 
     def __acl__(self):
         """
-        All logged-in users can read if the sensor belongs to a public asset.
-        Within same account, everyone can create, read and update.
-        Deletion is left to account admins.
+        We allow reading to whoever can read the asset.
+        Editing as well as deletion is left to account admins.
         """
         return {
             "create-children": f"account:{self.generic_asset.account_id}",
-            "read": f"account:{self.generic_asset.account_id}"
-            if self.generic_asset.account_id is not None
-            else EVERY_LOGGED_IN_USER,
+            "read": self.generic_asset.__acl__()["read"],
             "update": (
                 f"account:{self.generic_asset.account_id}",
                 "role:account-admin",

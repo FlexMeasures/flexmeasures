@@ -12,13 +12,16 @@ v0.17.0 | November XX, 2023
 New features
 -------------
 
+- Different site-level production and consumption limits can be defined for the storage scheduler via the API (``flex-context``) or via asset attributes [see `PR #884 <https://github.com/FlexMeasures/flexmeasures/pull/884>`_]
 - Scheduling data better distinguishes (e.g. in chart tooltips) when a schedule was the result of a fallback mechanism, by splitting off the fallback mechanism from the main scheduler (as a separate job) [see `PR #846 <https://github.com/FlexMeasures/flexmeasures/pull/846>`_]
+- New accounts can set a consultancy relationship with another account to give read access to external consultants. [see `PR #877 <https://github.com/FlexMeasures/flexmeasures/pull/877>`_ and `PR #892 <https://github.com/FlexMeasures/flexmeasures/pull/892>`_]
 
 Infrastructure / Support
 ----------------------
 
-- Introduces a new one-to-many relation between assets, allowing the definition of an asset's parent (which is also an asset). This hierarchical relationship enables assets to be related in a structured manner. [see `PR #855 <https://github.com/FlexMeasures/flexmeasures/pull/855>`_ and `PR #874 <https://github.com/FlexMeasures/flexmeasures/pull/874>`_]
 - Add benchmark script to test speed of the current code base, running some basic commands. [see `PR #787 <https://github.com/FlexMeasures/flexmeasures/pull/787>`_]
+- Introduce a new one-to-many relation between assets, allowing the definition of an asset's parent (which is also an asset). This hierarchical relationship enables assets to be related in a structured manner. [see `PR #855 <https://github.com/FlexMeasures/flexmeasures/pull/855>`_ and `PR #874 <https://github.com/FlexMeasures/flexmeasures/pull/874>`_]
+- Introduce a new format for the output of ``Scheduler`` to prepare for multiple outputs [see `PR #879 <https://github.com/FlexMeasures/flexmeasures/pull/879>`_].
 
 
 v0.16.1 | October 2, 2023

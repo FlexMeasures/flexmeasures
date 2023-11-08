@@ -50,6 +50,7 @@ from flexmeasures.data.models.validation_utils import (
 )
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.schemas import (
+    AccountIdField,
     AwareDateTimeField,
     DurationField,
     LatitudeField,
@@ -150,7 +151,13 @@ def new_account_role(name: str, description: str):
 @with_appcontext
 @click.option("--name", required=True)
 @click.option("--roles", help="e.g. anonymous,Prosumer,CPO")
-def new_account(name: str, roles: str):
+@click.option(
+    "--consultancy",
+    "consultancy_account",
+    type=AccountIdField(required=False),
+    help="ID of the consultancy account, whose consultants will have read access to this account",
+)
+def new_account(name: str, roles: str, consultancy_account: Account | None):
     """
     Create an account for a tenant in the FlexMeasures platform.
     """
@@ -158,7 +165,7 @@ def new_account(name: str, roles: str):
     if account is not None:
         click.secho(f"Account '{name}' already exists.", **MsgStyle.ERROR)
         raise click.Abort()
-    account = Account(name=name)
+    account = Account(name=name, consultancy_account=consultancy_account)
     db.session.add(account)
     if roles:
         for role_name in roles.split(","):

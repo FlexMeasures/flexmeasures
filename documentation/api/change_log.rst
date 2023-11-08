@@ -5,6 +5,13 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
+v3.0-13 | 2023-10-31
+""""""""""""""""""""
+
+- Read access to accounts, assets and sensors is given to external consultants (users with the *consultant* role who belong to a different organisation account) in case a consultancy relationship has been set up.
+- The `/accounts/<id>` (GET) endpoint includes the account ID of its consultancy.
+- Introduced the ``site-consumption-capacity`` and ``site-production-capacity`` to the ``flex-context`` field for `/sensors/<id>/schedules/trigger` (POST).
+
 v3.0-12 | 2023-09-20
 """"""""""""""""""""
 

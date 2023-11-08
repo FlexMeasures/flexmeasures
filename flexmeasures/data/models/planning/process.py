@@ -105,7 +105,17 @@ class ProcessScheduler(Scheduler):
                 )
 
             schedule[:] = power
-            return schedule
+
+            if self.return_multiple:
+                return [
+                    {
+                        "name": "process_schedule",
+                        "sensor": sensor,
+                        "data": schedule,
+                    }
+                ]
+            else:
+                return schedule
 
         if process_type in [ProcessType.INFLEXIBLE, ProcessType.SHIFTABLE]:
             start_time_restrictions = (
@@ -145,7 +155,16 @@ class ProcessScheduler(Scheduler):
         else:
             raise ValueError(f"Unknown process type '{process_type}'")
 
-        return schedule.tz_convert(self.start.tzinfo)
+        if self.return_multiple:
+            return [
+                {
+                    "name": "process_schedule",
+                    "sensor": sensor,
+                    "data": schedule.tz_convert(self.start.tzinfo),
+                }
+            ]
+        else:
+            return schedule.tz_convert(self.start.tzinfo)
 
     def block_invalid_starting_times_for_whole_process_scheduling(
         self,

@@ -226,7 +226,7 @@ class SensorAPI(FlaskView):
         location="json",
     )
     @permission_required_for_context("create-children", ctx_arg_name="sensor")
-    def trigger_schedule(  # noqa: C901
+    def trigger_schedule(
         self,
         sensor: Sensor,
         start_of_schedule: datetime,
@@ -331,7 +331,9 @@ class SensorAPI(FlaskView):
                     "consumption-price-sensor": 9,
                     "production-price-sensor": 10,
                     "inflexible-device-sensors": [13, 14, 15],
-                    "site-power-capacity": "100kW"
+                    "site-power-capacity": "100kW",
+                    "site-production-capacity": "80kW",
+                    "site-consumption-capacity": "100kW"
                 }
             }
 
@@ -399,7 +401,9 @@ class SensorAPI(FlaskView):
         timedelta(hours=6)
     )  # todo: make this a Marshmallow field
     @permission_required_for_context("read", ctx_arg_name="sensor")
-    def get_schedule(self, sensor: Sensor, job_id: str, duration: timedelta, **kwargs):
+    def get_schedule(  # noqa: C901
+        self, sensor: Sensor, job_id: str, duration: timedelta, **kwargs
+    ):
         """Get a schedule from FlexMeasures.
 
         .. :quickref: Schedule; Download schedule from the platform
@@ -443,10 +447,24 @@ class SensorAPI(FlaskView):
 
         # Look up the scheduling job
         connection = current_app.queues["scheduling"].connection
+
         try:  # First try the scheduling queue
             job = Job.fetch(job_id, connection=connection)
         except NoSuchJobError:
             return unrecognized_event(job_id, "job")
+
+        if (
+            not current_app.config.get("FLEXMEASURES_FALLBACK_REDIRECT")
+            and job.is_failed
+            and (job.meta.get("fallback_job_id") is not None)
+        ):
+            try:  # First try the scheduling queue
+                job = Job.fetch(job.meta["fallback_job_id"], connection=connection)
+            except NoSuchJobError:
+                current_app.logger.error(
+                    f"Fallback job with ID={job.meta['fallback_job_id']} (originator Job ID={job_id}) not found."
+                )
+                return unrecognized_event(job.meta["fallback_job_id"], "fallback-job")
 
         scheduler_info_msg = ""
         scheduler_info = job.meta.get("scheduler_info", dict(scheduler=""))
@@ -464,7 +482,7 @@ class SensorAPI(FlaskView):
                     "or its exception handler is not storing the exception as job meta data."
                 ),
             )
-            message = f"Scheduling job failed with {type(e).__name__}: {e}"
+            message = f"Scheduling job failed with {type(e).__name__}: {e}. {scheduler_info_msg}"
 
             fallback_job_id = job.meta.get("fallback_job_id")
 
@@ -474,15 +492,15 @@ class SensorAPI(FlaskView):
                 return fallback_schedule_redirect(
                     message,
                     url_for(
-                        "SensorAPI:get_schedule", uuid=fallback_job_id, id=sensor.id
+                        "SensorAPI:get_schedule",
+                        uuid=fallback_job_id,
+                        id=sensor.id,
+                        _external=True,
                     ),
                 )
             else:
                 return unknown_schedule(message)
 
-            return unknown_schedule(
-                f"Scheduling job failed with {type(e).__name__}: {e}. {scheduler_info_msg}",
-            )
         elif job.is_started:
             return unknown_schedule(f"Scheduling job in progress. {scheduler_info_msg}")
         elif job.is_queued:
@@ -519,8 +537,13 @@ class SensorAPI(FlaskView):
             most_recent_beliefs_only=True,
             one_deterministic_belief_per_event=True,
         )
+
+        sign = 1
+        if sensor.get_attribute("consumption_is_positive", True):
+            sign = -1
+
         # For consumption schedules, positive values denote consumption. For the db, consumption is negative
-        consumption_schedule = -simplify_index(power_values)["event_value"]
+        consumption_schedule = sign * simplify_index(power_values)["event_value"]
         if consumption_schedule.empty:
             return unknown_schedule(
                 f"{error_message} the schedule was not found in the database. {scheduler_info_msg}"
