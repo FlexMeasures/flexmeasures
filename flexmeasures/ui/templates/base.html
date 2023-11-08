@@ -11,9 +11,6 @@
     </title>
     {% endblock head %}
     <meta charset="windows-1252">
-    {% if flask_env != 'development' and flask_env != 'testing' %}
-      <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
-    {% endif %}
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="/favicon.ico" type="image/x-icon" />
     <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon" />
