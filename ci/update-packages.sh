@@ -1,4 +1,4 @@
-#!/bin/bash
+#! /bin/bash
 
 ######################################################################
 # This script sets up docker environments for supported Python versions

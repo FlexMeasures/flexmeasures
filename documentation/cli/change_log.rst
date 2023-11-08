@@ -4,7 +4,7 @@
 FlexMeasures CLI Changelog
 **********************
 
-since v0.17.0 | November XX, 2023
+since v0.17.0 | November 8, 2023
 =======================================
 
 * Add ``--consultancy`` option to ``flexmeasures add account`` to create a consultancy relationship with another account.
