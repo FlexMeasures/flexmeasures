@@ -168,6 +168,7 @@ If you want, you can inspect what you created:
     2  toy-battery  battery  (52.374, 4.88969)
     3  toy-solar    solar    (52.374, 4.88969)
 
+.. code-block:: bash
 
     $ flexmeasures show asset --id 2
 
