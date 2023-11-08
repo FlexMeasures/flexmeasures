@@ -420,22 +420,22 @@ def test_add_sensor(app, db, setup_dummy_asset, event_resolution, name, success)
 @pytest.mark.parametrize(
     "name, consultancy_account_id, success",
     [
-        ("Test ConsultantClient Account", 1, False),
-        ("Test CLIConsultantClient Account", 2, True),
+        ("Test ConsultancyClient Account", 1, False),
+        ("Test CLIConsultancyClient Account", 2, True),
         ("Test Account", None, True),
     ],
 )
 def test_add_account(
     app, fresh_db, setup_accounts_fresh_db, name, consultancy_account_id, success
 ):
-    from flexmeasures.cli.data_add import new_account
+    """Test adding a new account."""
 
-    """Test add new account"""
+    from flexmeasures.cli.data_add import new_account
 
     cli_input = {
         "name": name,
         "roles": "TestRole",
-        "consultancy-account-id": consultancy_account_id,
+        "consultancy": consultancy_account_id,
     }
     runner = app.test_cli_runner()
     result = runner.invoke(new_account, to_flags(cli_input))
@@ -445,5 +445,5 @@ def test_add_account(
         assert account.consultancy_account_id == consultancy_account_id
 
     else:
-        # fail because "Test ConsultantClient Account" already exists
+        # fail because "Test ConsultancyClient Account" already exists
         assert result.exit_code == 1
