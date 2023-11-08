@@ -87,7 +87,7 @@ def add_default_user_roles(db: SQLAlchemy):
         ("admin", "Super user"),
         ("admin-reader", "Can read everything"),
         ("account-admin", "Can post and edit sensors and assets in their account"),
-        ("customer-manager", "Consultant that manages another customer"),
+        ("consultant", "Can read everything in consultancy client accounts"),
     ):
         role = Role.query.filter(Role.name == role_name).one_or_none()
         if role:

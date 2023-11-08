@@ -4,8 +4,14 @@
 FlexMeasures CLI Changelog
 **********************
 
+since v0.17.0 | November 8, 2023
+=======================================
+
+* Add ``--consultancy`` option to ``flexmeasures add account`` to create a consultancy relationship with another account.
+
 since v0.16.0 | September 29, 2023
 =======================================
+
 * Add command ``flexmeasures add sources`` to add the base `DataSources` for the `DataGenerators`.
 * Add command ``flexmeasures show chart`` to export sensor and asset charts in PNG or SVG formats.
 * Add ``--kind reporter`` option to ``flexmeasures add toy-account`` to create the asset and sensors for the reporter tutorial.

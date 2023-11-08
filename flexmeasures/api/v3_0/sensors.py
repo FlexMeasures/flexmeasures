@@ -447,10 +447,24 @@ class SensorAPI(FlaskView):
 
         # Look up the scheduling job
         connection = current_app.queues["scheduling"].connection
+
         try:  # First try the scheduling queue
             job = Job.fetch(job_id, connection=connection)
         except NoSuchJobError:
             return unrecognized_event(job_id, "job")
+
+        if (
+            not current_app.config.get("FLEXMEASURES_FALLBACK_REDIRECT")
+            and job.is_failed
+            and (job.meta.get("fallback_job_id") is not None)
+        ):
+            try:  # First try the scheduling queue
+                job = Job.fetch(job.meta["fallback_job_id"], connection=connection)
+            except NoSuchJobError:
+                current_app.logger.error(
+                    f"Fallback job with ID={job.meta['fallback_job_id']} (originator Job ID={job_id}) not found."
+                )
+                return unrecognized_event(job.meta["fallback_job_id"], "fallback-job")
 
         scheduler_info_msg = ""
         scheduler_info = job.meta.get("scheduler_info", dict(scheduler=""))
