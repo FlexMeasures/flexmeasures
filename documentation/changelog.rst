@@ -3,9 +3,23 @@
 FlexMeasures Changelog
 **********************
 
+v0.18.0 | December XX, 2023
+============================
+
+New features
+-------------
+
+Infrastructure / Support
+----------------------
+
+Bugfixes
+-----------
+
 
 v0.17.0 | November 8, 2023
 ============================
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/017-consultancy/>`__.
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
 
@@ -21,6 +35,7 @@ Infrastructure / Support
 
 - Introduce a new one-to-many relation between assets, allowing the definition of an asset's parent (which is also an asset). This hierarchical relationship enables assets to be related in a structured manner. [see `PR #855 <https://github.com/FlexMeasures/flexmeasures/pull/855>`_ and `PR #874 <https://github.com/FlexMeasures/flexmeasures/pull/874>`_]
 - Introduce a new format for the output of ``Scheduler`` to prepare for multiple outputs [see `PR #879 <https://github.com/FlexMeasures/flexmeasures/pull/879>`_].
+
 
 v0.16.1 | October 2, 2023
 ============================
