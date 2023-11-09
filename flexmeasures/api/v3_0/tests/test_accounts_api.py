@@ -28,8 +28,8 @@ def test_get_accounts_missing_auth(client, requesting_user, status_code):
     [
         ("test_admin_user@seita.nl", 7),
         ("test_prosumer_user@seita.nl", 1),
-        ("test_consultant_user@seita.nl", 2),
-        ("test_consultant_user_without_customer_manager_access@seita.nl", 1),
+        ("test_consultant@seita.nl", 2),
+        ("test_consultancy_user_without_consultant_access@seita.nl", 1),
     ],
     indirect=["requesting_user"],
 )
@@ -38,8 +38,8 @@ def test_get_accounts(client, setup_api_test_data, requesting_user, num_accounts
     Get accounts for:
     - A normal user.
     - An admin user.
-    - A consultant account user with a customer-manager role and a linked consultant client account.
-    - A consultant account user without a customer-manager role.
+    - A user with a consultant role, belonging to a consultancy account with a linked consultancy client account.
+    - A user without a consultant role, belonging to a consultancy account with a linked consultancy client account.
     """
     get_accounts_response = client.get(
         url_for("AccountAPI:index"),

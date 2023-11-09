@@ -103,7 +103,7 @@ First, during the sunny hours of the day, when solar power is being send to the 
 
 Second, charging of the battery is also changed a bit (around 10am), as less can be discharged later.
 
-Moreover, we can use reporters to compute the capacity headroom (see :ref:`tut_toy_schedule_process` for more details). The image below shows that the scheduler is respecting the capacity limits.
+Moreover, we can use reporters to compute the capacity headroom (see :ref:`tut_toy_schedule_reporter` for more details). The image below shows that the scheduler is respecting the capacity limits.
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-headroom-pv.png
     :align: center
