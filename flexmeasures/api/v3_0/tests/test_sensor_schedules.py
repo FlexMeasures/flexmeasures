@@ -541,7 +541,7 @@ def test_get_schedule_fallback_not_redirect(
             len(app.queues["scheduling"]) == 1
         )  # only 1 schedule should be made for 1 asset
         job = app.queues["scheduling"].jobs[0]
-        assert job.kwargs["sensor_id"] == charging_station.id
+        assert job.kwargs["asset_or_sensor"]["id"] == charging_station.id
         assert job.kwargs["start"] == parse_datetime(message["start"])
         assert job.id == job_id
 
