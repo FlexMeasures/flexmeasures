@@ -165,7 +165,7 @@ def create_scheduling_job(
     3. If an error occurs (and the worker is configured accordingly), handle_scheduling_exception comes in.
 
     Arguments:
-    :param asset_or_sensor:                  asset or sensor for which the schedule is computed
+    :param asset_or_sensor:         asset or sensor for which the schedule is computed
     :param job_id:                  optionally, set a job id explicitly
     :param enqueue:                 if True, enqueues the job in case it is new
     :param requeue:                 if True, requeues the job in case it is not new and had previously failed
