@@ -16,6 +16,8 @@ from marshmallow.validate import OneOf
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.times import AwareDateTimeField
 from flexmeasures.data.schemas.units import QuantityField
+from flexmeasures.data.schemas.sensors import SensorIdField
+
 from flexmeasures.utils.unit_utils import ur
 
 
@@ -79,6 +81,13 @@ class StorageFlexModelSchema(Schema):
 
     power_capacity_in_mw = QuantityField(
         "MW", required=False, data_key="power-capacity"
+    )
+
+    consumption_capacity = SensorIdField(
+        required=False, data_key="consumption-capacity-sensor"
+    )
+    production_capacity = SensorIdField(
+        required=False, data_key="production-capacity-sensor"
     )
 
     soc_maxima = fields.List(fields.Nested(SOCValueSchema()), data_key="soc-maxima")

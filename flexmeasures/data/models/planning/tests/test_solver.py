@@ -1249,3 +1249,50 @@ def test_capacity(
 
     assert all(ems_constraints["derivative min"] == expected_site_production_capacity)
     assert all(ems_constraints["derivative max"] == expected_site_consumption_capacity)
+
+
+def test_battery_power_capacity_as_sensor(
+    db, add_battery_assets, add_inflexible_device_forecasts
+):
+    epex_da, battery = get_sensors_from_db(add_battery_assets)
+
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+    soc_at_start = battery.get_attribute("soc_in_mwh")
+
+    production_capacity_sensor = Sensor(
+        name="production capacity",
+        generic_asset=battery.generic_asset,
+        unit="MW",
+        event_resolution=resolution,
+        attributes={"consumption_is_positive": True},
+    )
+    consumption_capacity_sensor = Sensor(
+        name="consumption capacity",
+        generic_asset=battery.generic_asset,
+        unit="MW",
+        event_resolution=resolution,
+        attributes={"consumption_is_positive": True},
+    )
+
+    db.session.add_all([production_capacity_sensor, consumption_capacity_sensor])
+    db.session.flush()
+
+    scheduler: Scheduler = StorageScheduler(
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model={
+            "soc-at-start": soc_at_start,
+            "production-capacity-sensor": production_capacity_sensor.id,
+            "consumption-capacity-sensor": consumption_capacity_sensor.id,
+        },
+        flex_context={"inflexible-device-sensors": []},
+    )
+    schedule = scheduler.compute()
+
+    # Check if constraints were met
+    check_constraints(battery, schedule, soc_at_start)

@@ -578,6 +578,20 @@ class GenericAsset(db.Model, AuthModelMixin):
         start, end = get_timerange(sensor_ids)
         return dict(start=start, end=end)
 
+    def get_sensors_by_alias(self):
+
+        sensors_dict = {"None": []}
+
+        for sensor in self.sensors:
+            alias = sensor.alias if sensor.alias is not None else "None"
+
+            if alias == "None":
+                sensors_dict["None"].append(sensor)
+            else:
+                sensors_dict[alias] = sensor
+
+        return sensors_dict
+
 
 def create_generic_asset(generic_asset_type: str, **kwargs) -> GenericAsset:
     """Create a GenericAsset and assigns it an id.

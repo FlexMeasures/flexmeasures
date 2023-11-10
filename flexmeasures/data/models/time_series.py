@@ -66,6 +66,8 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         backref=db.backref("sensors", lazy="dynamic"),
     )
 
+    alias = db.Column(db.String(120), nullable=True)
+
     def __init__(
         self,
         name: str,
@@ -92,6 +94,11 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             "name",
             "generic_asset_id",
             name="sensor_name_generic_asset_id_key",
+        ),
+        UniqueConstraint(
+            "alias",
+            "generic_asset_id",
+            name="sensor_alias_generic_asset_id_key",
         ),
     )
 

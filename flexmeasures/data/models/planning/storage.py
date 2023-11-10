@@ -198,14 +198,42 @@ class MetaStorageScheduler(Scheduler):
             soc_min,
         )
 
+        storage_device_sensors = self.sensor.generic_asset.get_sensors_by_alias()
+
+        consumption_capacity_sensor = self.flex_model.get(
+            "consumption_capacity", storage_device_sensors.get("consumption_capacity")
+        )
+        production_capacity_sensor = self.flex_model.get(
+            "production_capacity", storage_device_sensors.get("production_capacity")
+        )
+
         if sensor.get_attribute("is_strictly_non_positive"):
             device_constraints[0]["derivative min"] = 0
         else:
-            device_constraints[0]["derivative min"] = power_capacity_in_mw * -1
+            if production_capacity_sensor is not None:
+                device_constraints[0]["derivative min"] = get_power_values(
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    sensor=production_capacity_sensor,
+                    default_value=power_capacity_in_mw * (-1),
+                )
+            else:
+                device_constraints[0]["derivative min"] = power_capacity_in_mw * -1
+
         if sensor.get_attribute("is_strictly_non_negative"):
             device_constraints[0]["derivative max"] = 0
         else:
-            device_constraints[0]["derivative max"] = power_capacity_in_mw
+            if consumption_capacity_sensor is not None:
+                device_constraints[0]["derivative max"] = get_power_values(
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    sensor=consumption_capacity_sensor,
+                    default_value=power_capacity_in_mw,
+                )
+            else:
+                device_constraints[0]["derivative max"] = power_capacity_in_mw
 
         # Apply round-trip efficiency evenly to charging and discharging
         device_constraints[0]["derivative down efficiency"] = (

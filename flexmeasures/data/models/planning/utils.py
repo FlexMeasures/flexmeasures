@@ -171,6 +171,7 @@ def get_power_values(
     resolution: timedelta,
     beliefs_before: Optional[datetime],
     sensor: Sensor,
+    default_value: float = 0.0,
 ) -> np.ndarray:
     """Get measurements or forecasts of an inflexible device represented by a power sensor.
 
@@ -182,6 +183,7 @@ def get_power_values(
     :param resolution:      timedelta used to resample the forecasts to the resolution of the schedule
     :param beliefs_before:  datetime used to indicate we are interested in the state of knowledge at that time
     :param sensor:          power sensor representing an energy flow out of the device
+    :param default_value:   value to fill in missing values
     :returns:               power measurements or forecasts (consumption is positive, production is negative)
     """
     bdf: tb.BeliefsDataFrame = TimedBelief.search(
@@ -200,7 +202,7 @@ def get_power_values(
         current_app.logger.warning(
             f"Assuming zero power values for (partially) unknown power values for planning window. (sensor {sensor.id})"
         )
-        df = df.fillna(0)
+        df = df.fillna(default_value)
     if sensor.get_attribute(
         "consumption_is_positive", False
     ):  # FlexMeasures default is to store consumption as negative power values
