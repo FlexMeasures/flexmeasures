@@ -25,7 +25,7 @@ from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
 from flexmeasures.data.schemas.scheduling import FlexContextSchema
 from flexmeasures.utils.time_utils import get_max_planning_horizon
 from flexmeasures.utils.coding_utils import deprecated
-from flexmeasures.utils.unit_utils import ur
+from flexmeasures.utils.unit_utils import ur, convert_units
 
 
 def check_and_convert_power_capacity(
@@ -197,7 +197,6 @@ class MetaStorageScheduler(Scheduler):
             soc_max,
             soc_min,
         )
-
         storage_device_sensors = self.sensor.generic_asset.get_sensors_by_alias()
 
         consumption_capacity_sensor = self.flex_model.get(
@@ -211,13 +210,17 @@ class MetaStorageScheduler(Scheduler):
             device_constraints[0]["derivative min"] = 0
         else:
             if production_capacity_sensor is not None:
-                device_constraints[0]["derivative min"] = get_power_values(
+                power_limit = get_power_values(
                     query_window=(start, end),
                     resolution=resolution,
                     beliefs_before=belief_time,
                     sensor=production_capacity_sensor,
                     default_value=power_capacity_in_mw * (-1),
                 )
+                power_limit = convert_units(
+                    power_limit, production_capacity_sensor.unit, sensor.unit
+                )
+                device_constraints[0]["derivative min"] = power_limit
             else:
                 device_constraints[0]["derivative min"] = power_capacity_in_mw * -1
 
@@ -225,13 +228,17 @@ class MetaStorageScheduler(Scheduler):
             device_constraints[0]["derivative max"] = 0
         else:
             if consumption_capacity_sensor is not None:
-                device_constraints[0]["derivative max"] = get_power_values(
+                power_limit = get_power_values(
                     query_window=(start, end),
                     resolution=resolution,
                     beliefs_before=belief_time,
                     sensor=consumption_capacity_sensor,
                     default_value=power_capacity_in_mw,
                 )
+                power_limit = convert_units(
+                    power_limit, consumption_capacity_sensor.unit, sensor.unit
+                )
+                device_constraints[0]["derivative max"] = power_limit
             else:
                 device_constraints[0]["derivative max"] = power_capacity_in_mw
 
