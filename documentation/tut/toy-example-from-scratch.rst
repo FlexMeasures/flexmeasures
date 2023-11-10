@@ -76,6 +76,8 @@ The `asset page for the battery <http://localhost:5000/assets/2/>`_ shows both p
     :align: center
 |
 
-.. note:: The ``flexmeasures add schedule for-storage`` command also accepts state-of-charge targets, so the schedule can be more sophisticated. But that is not the point of this tutorial. See ``flexmeasures add schedule for-storage --help``.
+.. note:: The ``flexmeasures add schedule for-storage`` command also accepts state-of-charge targets, so the schedule can be more sophisticated.
+   And even more control over schedules is possible through the ``flex-model`` in our API. But that is not the point of this tutorial.
+   See ``flexmeasures add schedule for-storage --help`` for available CLI options, or check out the :ref:`v2g` use case for a tangible example of modelling storage constraints.
 
 This tutorial showed the fastest way to a schedule. In :ref:`tut_toy_schedule_expanded`, we'll go further into settings with more realistic ingredients: solar panels and a limited grid connection.
