@@ -10,7 +10,7 @@ import numpy as np
 from flask import current_app
 
 
-from flexmeasures.data.models.planning import Scheduler
+from flexmeasures.data.models.planning import Scheduler, SchedulerOutputType
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.planning.utils import (
     get_prices,
@@ -26,6 +26,24 @@ from flexmeasures.data.schemas.scheduling import FlexContextSchema
 from flexmeasures.utils.time_utils import get_max_planning_horizon
 from flexmeasures.utils.coding_utils import deprecated
 from flexmeasures.utils.unit_utils import ur
+
+
+def check_and_convert_power_capacity(
+    power_capacity: ur.Quantity | float | int,
+) -> float:
+    """
+    Check if the power_capacity is of type ur.Quantity, float or int and converts the Quantity to
+    MW.
+    """
+    if isinstance(power_capacity, ur.Quantity):
+        return power_capacity.to(ur.Quantity("MW")).magnitude
+
+    elif isinstance(power_capacity, float) or isinstance(power_capacity, int):
+        return power_capacity
+    else:
+        raise ValueError(
+            "The only supported types for the ems power capacity are int, float and pint.Quantity."
+        )
 
 
 class MetaStorageScheduler(Scheduler):
@@ -221,25 +239,69 @@ class MetaStorageScheduler(Scheduler):
             StorageScheduler.COLUMNS, start, end, resolution
         )
 
-        ems_power_capacity_in_mw = self.flex_context.get(
+        capacity_in_mw = self.flex_context.get(
             "ems_power_capacity_in_mw",
-            self.sensor.generic_asset.get_attribute("capacity_in_mw", None),
+            self.sensor.generic_asset.get_attribute("capacity_in_mw", np.nan),
         )
 
-        if ems_power_capacity_in_mw is not None:
-            if isinstance(ems_power_capacity_in_mw, ur.Quantity):
-                ems_power_capacity_in_mw = ems_power_capacity_in_mw.magnitude
+        if not np.isnan(capacity_in_mw):
+            assert capacity_in_mw >= 0, "EMS power capacity needs to be nonnegative."
 
-            if not (
-                isinstance(ems_power_capacity_in_mw, float)
-                or isinstance(ems_power_capacity_in_mw, int)
-            ):
-                raise ValueError(
-                    "The only supported types for the ems power capacity are int and float."
-                )
+            capacity_in_mw = check_and_convert_power_capacity(capacity_in_mw)
 
-            ems_constraints["derivative min"] = ems_power_capacity_in_mw * -1
-            ems_constraints["derivative max"] = ems_power_capacity_in_mw
+        """
+        Priority order to fetch the site consumption power capacity:
+
+        "site-consumption-capacity" (flex-context) -> "consumption_capacity_in_mw" (asset attribute)
+
+        where the flex-context is in its serialized form.
+        """
+        ems_consumption_capacity_in_mw = self.flex_context.get(
+            "ems_consumption_capacity_in_mw",
+            self.sensor.generic_asset.get_attribute(
+                "consumption_capacity_in_mw", np.nan
+            ),
+        )
+
+        """
+        Priority order to fetch the site production power capacity:
+
+        "site-production-capacity" (flex-context) -> "production_capacity_in_mw" (asset attribute)
+
+        where the flex-context is in its serialized form.
+        """
+        ems_production_capacity_in_mw = self.flex_context.get(
+            "ems_production_capacity_in_mw",
+            self.sensor.generic_asset.get_attribute(
+                "production_capacity_in_mw", np.nan
+            ),
+        )
+
+        if not np.isnan(ems_consumption_capacity_in_mw):
+            assert (
+                ems_consumption_capacity_in_mw >= 0
+            ), "EMS consumption capacity needs to be nonnegative."
+
+            ems_consumption_capacity_in_mw = check_and_convert_power_capacity(
+                ems_consumption_capacity_in_mw
+            )
+
+        if not np.isnan(ems_production_capacity_in_mw):
+            assert (
+                ems_production_capacity_in_mw >= 0
+            ), "EMS production capacity needs to be nonnegative."
+            ems_production_capacity_in_mw = check_and_convert_power_capacity(
+                ems_production_capacity_in_mw
+            )
+        else:
+            ems_production_capacity_in_mw = np.nan
+
+        ems_constraints["derivative min"] = -np.nanmin(
+            [ems_production_capacity_in_mw, capacity_in_mw]
+        )
+        ems_constraints["derivative max"] = np.nanmin(
+            [ems_consumption_capacity_in_mw, capacity_in_mw]
+        )
 
         return (
             sensor,
@@ -422,7 +484,7 @@ class StorageFallbackScheduler(MetaStorageScheduler):
     __version__ = "1"
     __author__ = "Seita"
 
-    def compute(self, skip_validation: bool = False) -> pd.Series | None:
+    def compute(self, skip_validation: bool = False) -> SchedulerOutputType:
         """Schedule a battery or Charge Point by just starting to charge, discharge, or do neither,
            depending on the first target state of charge and the capabilities of the Charge Point.
            For the resulting consumption schedule, consumption is defined as positive values.
@@ -455,7 +517,16 @@ class StorageFallbackScheduler(MetaStorageScheduler):
         if self.round_to_decimals:
             storage_schedule = storage_schedule.round(self.round_to_decimals)
 
-        return storage_schedule
+        if self.return_multiple:
+            return [
+                {
+                    "name": "storage_schedule",
+                    "sensor": sensor,
+                    "data": storage_schedule,
+                }
+            ]
+        else:
+            return storage_schedule
 
 
 class StorageScheduler(MetaStorageScheduler):
@@ -464,7 +535,7 @@ class StorageScheduler(MetaStorageScheduler):
 
     fallback_scheduler_class: Type[Scheduler] = StorageFallbackScheduler
 
-    def compute(self, skip_validation: bool = False) -> pd.Series | None:
+    def compute(self, skip_validation: bool = False) -> SchedulerOutputType:
         """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
         For the resulting consumption schedule, consumption is defined as positive values.
 
@@ -503,7 +574,16 @@ class StorageScheduler(MetaStorageScheduler):
         if self.round_to_decimals:
             storage_schedule = storage_schedule.round(self.round_to_decimals)
 
-        return storage_schedule
+        if self.return_multiple:
+            return [
+                {
+                    "name": "storage_schedule",
+                    "sensor": sensor,
+                    "data": storage_schedule,
+                }
+            ]
+        else:
+            return storage_schedule
 
 
 def create_constraint_violations_message(constraint_violations: list) -> str:

@@ -44,8 +44,18 @@ Install Flexmeasures and the database
             $ docker pull lfenergy/flexmeasures:latest
             $ docker pull postgres
             $ docker network create flexmeasures_network
+
+        After running these commands, we can start the Postgres database and the FlexMeasures app with the following commands:
+
+        .. code-block:: bash
+
             $ docker run --rm --name flexmeasures-tutorial-db -e POSTGRES_PASSWORD=fm-db-passwd -e POSTGRES_DB=flexmeasures-db -d --network=flexmeasures_network postgres:latest
             $ docker run --rm --name flexmeasures-tutorial-fm --env SQLALCHEMY_DATABASE_URI=postgresql://postgres:fm-db-passwd@flexmeasures-tutorial-db:5432/flexmeasures-db --env SECRET_KEY=notsecret --env FLASK_ENV=development --env LOGGING_LEVEL=INFO -d --network=flexmeasures_network -p 5000:5000 lfenergy/flexmeasures
+
+        To upgrade the FlexMeasures database, execute:
+
+        .. code-block:: bash
+
             $ docker exec flexmeasures-tutorial-fm bash -c "flexmeasures db upgrade"
 
         .. note:: A tip on Linux/macOS ― You might have the ``docker`` command, but need `sudo` rights to execute it. ``alias docker='sudo docker'`` enables you to still run this tutorial.
@@ -168,6 +178,7 @@ If you want, you can inspect what you created:
     2  toy-battery  battery  (52.374, 4.88969)
     3  toy-solar    solar    (52.374, 4.88969)
 
+.. code-block:: bash
 
     $ flexmeasures show asset --id 2
 

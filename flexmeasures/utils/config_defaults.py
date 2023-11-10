@@ -128,6 +128,8 @@ class Config(object):
         # todo: expand with other js versions used in FlexMeasures
     )
 
+    FLEXMEASURES_FALLBACK_REDIRECT: bool = False
+
     # Custom sunset switches
     FLEXMEASURES_API_SUNSET_ACTIVE: bool = False  # if True, sunset endpoints return 410 (Gone) responses; if False, they return 404 (Not Found) responses or will work as before, depending on whether the current FlexMeasures version still contains the endpoint logic
     FLEXMEASURES_API_SUNSET_DATE: str | None = None  # e.g. 2023-05-01

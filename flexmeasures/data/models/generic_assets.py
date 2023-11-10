@@ -96,12 +96,13 @@ class GenericAsset(db.Model, AuthModelMixin):
     def __acl__(self):
         """
         All logged-in users can read if the asset is public.
-        Within same account, everyone can create, read and update.
+        For non-public assets, we allow reading to whoever can read the account,
+        and editing for every user in the account.
         Deletion is left to account admins.
         """
         return {
             "create-children": f"account:{self.account_id}",
-            "read": f"account:{self.account_id}"
+            "read": self.owner.__acl__()["read"]
             if self.account_id is not None
             else EVERY_LOGGED_IN_USER,
             "update": f"account:{self.account_id}",

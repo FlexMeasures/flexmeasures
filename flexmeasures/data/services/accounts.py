@@ -10,16 +10,16 @@ def get_accounts(
     """Return a list of Account objects.
     The role_name parameter allows to filter by role.
     """
-    account_query = Account.query
-
     if role_name is not None:
         role = AccountRole.query.filter(AccountRole.name == role_name).one_or_none()
         if role:
-            account_query = account_query.filter(Account.account_roles.contains(role))
+            accounts = Account.query.filter(Account.account_roles.contains(role)).all()
         else:
             return []
+    else:
+        accounts = Account.query.all()
 
-    return account_query.all()
+    return accounts
 
 
 def get_number_of_assets_in_account(account_id: int) -> int:

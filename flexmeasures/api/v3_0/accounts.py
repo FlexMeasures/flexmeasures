@@ -36,8 +36,7 @@ class AccountAPI(FlaskView):
         .. :quickref: Account; Download account list
 
         This endpoint returns all accessible accounts.
-        Accessible accounts are your own account, or all accounts for admins.
-        When the super-account concept (GH#203) lands, then users in such accounts see all managed accounts.
+        Accessible accounts are your own account and accounts you are a consultant for, or all accounts for admins.
 
         **Example response**
 
@@ -50,6 +49,7 @@ class AccountAPI(FlaskView):
                     'id': 1,
                     'name': 'Test Account'
                     'account_roles': [1, 3],
+                    'consultancy_account_id': 2,
                 }
             ]
 
@@ -65,7 +65,12 @@ class AccountAPI(FlaskView):
         if user_has_admin_access(current_user, "read"):
             accounts = get_accounts()
         else:
-            accounts = [current_user.account]
+            accounts = [current_user.account] + (
+                current_user.account.consultancy_client_accounts
+                if "consultant" in current_user.roles
+                else []
+            )
+
         return accounts_schema.dump(accounts), 200
 
     @route("/<id>", methods=["GET"])
@@ -78,7 +83,7 @@ class AccountAPI(FlaskView):
         .. :quickref: Account; Get an account
 
         This endpoint retrieves an account, given its id.
-        Only admins or the user themselves can use this endpoint.
+        Only admins, consultants and users belonging to the account itself can use this endpoint.
 
         **Example response**
 
@@ -88,6 +93,7 @@ class AccountAPI(FlaskView):
                 'id': 1,
                 'name': 'Test Account'
                 'account_roles': [1, 3],
+                'consultancy_account_id': 2,
             }
 
         :reqheader Authorization: The authentication token
@@ -99,4 +105,5 @@ class AccountAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
+
         return account_schema.dump(account), 200

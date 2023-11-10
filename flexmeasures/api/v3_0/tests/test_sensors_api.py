@@ -8,6 +8,7 @@ from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures import Sensor
 from flexmeasures.api.v3_0.tests.utils import get_sensor_post_data
 from flexmeasures.data.schemas.sensors import SensorSchema
+from flexmeasures.data.models.generic_assets import GenericAsset
 
 sensor_schema = SensorSchema()
 
@@ -28,9 +29,12 @@ def test_fetch_one_sensor(
     assert response.status_code == 200
     assert response.json["name"] == "some gas sensor"
     assert response.json["unit"] == "m³/h"
-    assert response.json["generic_asset_id"] == 4
     assert response.json["timezone"] == "UTC"
     assert response.json["event_resolution"] == "PT10M"
+    asset = GenericAsset.query.filter_by(
+        id=response.json["generic_asset_id"]
+    ).one_or_none()
+    assert asset.name == "incineration line"
 
 
 @pytest.mark.parametrize(
