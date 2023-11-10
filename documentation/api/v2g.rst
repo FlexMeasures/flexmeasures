@@ -38,7 +38,8 @@ A starting SoC below 15 kWh (25%) will lead to immediate charging to get within 
 Likewise, a starting SoC above 51 kWh (85%) would lead to immediate discharging.
 Setting a SoC target outside of the static range leads to an infeasible problem and will be rejected by the FlexMeasures API.
 
-To enable a target SoC above 85% (as shown above), it is necessary to set the ``soc-max`` field to 60 kWh (100%), and to instead use the ``soc-maxima`` field to convey the desired upper limit for regular cycling:
+The soc-min and soc-max settings are constant constraints.
+To enable a temporary target SoC of more than 85% (for car reservations, see the next section), it is necessary to relax the ``soc-max`` field to 60 kWh (100%), and to instead use the ``soc-maxima`` field to convey the desired upper limit for regular cycling:
 
 .. code-block:: json
 
@@ -78,7 +79,7 @@ This time window should be at least wide enough to allow the target to be reache
 Car reservations
 ================
 
-Given a reservation for 2 PM on February 5th, constraint 2 can be modelled through the following ``soc-minima`` constraint:
+Given a reservation for 2 PM on February 5th, constraint 2 can be modelled through the following (additional) ``soc-minima`` constraint:
 
 .. code-block:: json
 
