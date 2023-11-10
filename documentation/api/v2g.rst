@@ -3,7 +3,9 @@
 Vehicle-to-grid
 ---------------
 
-As a demonstration of how to construct a suitable flex model for a given use case, we consider a client using FlexMeasures to compute :abbr:`V2G (vehicle-to-grid)` schedules. In this example, the client is interested in the following:
+As a demonstration of how to construct a suitable flex model for a given use case, we consider a client using FlexMeasures to compute :abbr:`V2G (vehicle-to-grid)` schedules.
+For a more general introduction to flex modelling, see :ref:`describing_flexibility`.
+In this example, the client is interested in the following:
 
 1. :ref:`battery_protection`: Protect the battery from degradation by constraining any cycling between 25% and 85% of its available storage capacity.
 2. :ref:`car_reservations`: Ensure a minimum :abbr:`SoC (state of charge)` of 95% based on a reservation calendar for the car.
