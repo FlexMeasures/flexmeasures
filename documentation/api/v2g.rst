@@ -52,20 +52,20 @@ To enable a temporary target SoC of more than 85% (for car reservations, see the
             "soc-maxima": [
                 {
                     "value": 51,
-                    "datetime": "2024-02-05T12:00:00+01:00"
+                    "datetime": "2024-02-04T10:35:00+01:00"
                 },
                 {
                     "value": 51,
-                    "datetime": "2024-02-05T12:05:00+01:00"
+                    "datetime": "2024-02-04T10:40:00+01:00"
                 },
                 ...
                 {
                     "value": 51,
-                    "datetime": "2024-02-05T13:25:00+01:00"
+                    "datetime": "2024-02-05T04:20:00+01:00"
                 },
                 {
                     "value": 51,
-                    "datetime": "2024-02-05T13:30:00+01:00"
+                    "datetime": "2024-02-05T04:25:00+01:00"
                 }
             ],
             "soc-unit": "kWh"
@@ -81,7 +81,7 @@ This time window should be at least wide enough to allow the target to be reache
 Car reservations
 ================
 
-Given a reservation for 2 PM on February 5th, constraint 2 can be modelled through the following (additional) ``soc-minima`` constraint:
+Given a reservation for 8 AM on February 5th, constraint 2 can be modelled through the following (additional) ``soc-minima`` constraint:
 
 .. code-block:: json
 
@@ -90,14 +90,14 @@ Given a reservation for 2 PM on February 5th, constraint 2 can be modelled throu
             "soc-minima": [
                 {
                     "value": 57,
-                    "datetime": "2024-02-05T14:00:00+01:00"
+                    "datetime": "2024-02-05T08:00:00+01:00"
                 }
             ]
         }
     }
 
-This constraint also signals that if the car is not plugged out of the Charge Point at 2PM, the scheduler is in principle allowed to start discharging immediately afterwards.
-To make sure the car remains at 95% SoC for some time, additional soc-minima constraints should be set accordingly, taking into account the scheduling resolution (here, 5 minutes). For example, to keep it charged (nearly) fully until 2.15 PM:
+This constraint also signals that if the car is not plugged out of the Charge Point at 8 AM, the scheduler is in principle allowed to start discharging immediately afterwards.
+To make sure the car remains at 95% SoC for some time, additional soc-minima constraints should be set accordingly, taking into account the scheduling resolution (here, 5 minutes). For example, to keep it charged (nearly) fully until 8.15 AM:
 
 .. code-block:: json
 
@@ -106,19 +106,19 @@ To make sure the car remains at 95% SoC for some time, additional soc-minima con
             "soc-minima": [
                 {
                     "value": 57,
-                    "datetime": "2024-02-05T14:00:00+01:00"
+                    "datetime": "2024-02-05T08:00:00+01:00"
                 },
                 {
                     "value": 57,
-                    "datetime": "2024-02-05T14:05:00+01:00"
+                    "datetime": "2024-02-05T08:05:00+01:00"
                 },
                 {
                     "value": 57,
-                    "datetime": "2024-02-05T14:10:00+01:00"
+                    "datetime": "2024-02-05T08:10:00+01:00"
                 },
                 {
                     "value": 57,
-                    "datetime": "2024-02-05T14:15:00+01:00"
+                    "datetime": "2024-02-05T08:15:00+01:00"
                 }
             ]
         }
