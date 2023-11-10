@@ -1,6 +1,6 @@
 .. _tut_toy_schedule:
 
-Toy example: Scheduling a battery, from scratch
+Toy example I: Scheduling a battery, from scratch
 ===============================================
 
 Let's walk through an example from scratch! We'll optimize a 12h-schedule for a battery that is half full.
