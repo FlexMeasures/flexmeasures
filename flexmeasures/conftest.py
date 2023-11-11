@@ -983,6 +983,17 @@ def add_sensors(db: SQLAlchemy, setup_generic_assets):
 
 @pytest.fixture(scope="module")
 def battery_soc_sensor(db: SQLAlchemy, setup_generic_assets):
+    """Add a battery SOC sensor to the db."""
+    return create_battery_soc_sensor(db, setup_generic_assets)
+
+
+@pytest.fixture(scope="function")
+def battery_soc_sensor_fresh_db(fresh_db: SQLAlchemy, setup_generic_assets_fresh_db):
+    """Add a battery SOC sensor to the fresh db."""
+    return create_battery_soc_sensor(fresh_db, setup_generic_assets_fresh_db)
+
+
+def create_battery_soc_sensor(db: SQLAlchemy, setup_generic_assets):
     """Add a battery SOC sensor."""
     soc_sensor = Sensor(
         name="state of charge",
