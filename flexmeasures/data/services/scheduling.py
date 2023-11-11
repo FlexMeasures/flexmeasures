@@ -276,7 +276,7 @@ def make_schedule(
 
     consumption_schedule: SchedulerOutputType = scheduler.compute()
 
-    # in case we are getting a custom Scheduler that hasn't implement the multiple output return
+    # in case we are getting a custom Scheduler that hasn't implemented the multiple output return
     # this should only be called whenever the Scheduler applies to the Sensor.
     if isinstance(consumption_schedule, pd.Series):
         consumption_schedule = [

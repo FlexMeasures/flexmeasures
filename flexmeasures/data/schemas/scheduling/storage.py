@@ -12,9 +12,10 @@ from marshmallow import (
     validates,
 )
 from marshmallow.validate import OneOf
+from marshmallow import ValidationError
 
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.schemas.times import AwareDateTimeField
+from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.utils.unit_utils import ur
 
@@ -52,7 +53,10 @@ class SOCValueSchema(Schema):
     """
 
     value = fields.Float(required=True)
-    datetime = AwareDateTimeField(required=True)
+    datetime = AwareDateTimeField(required=False)
+    start = AwareDateTimeField(required=False)
+    end = AwareDateTimeField(required=False)
+    duration = DurationField(required=False)
 
     def __init__(self, *args, **kwargs):
         self.value_validator = kwargs.pop("value_validator", None)
@@ -63,6 +67,42 @@ class SOCValueSchema(Schema):
 
         if self.value_validator is not None:
             self.value_validator(_value)
+
+    @validates_schema
+    def check_time_window(self, data: dict, **kwargs):
+        dt = data.get("datetime")
+        start = data.get("start")
+        end = data.get("end")
+        duration = data.get("duration")
+
+        if dt is not None:
+            if any([p is not None for p in (start, end, duration)]):
+                raise ValidationError(
+                    "If using the 'datetime' field, no 'start', 'end' or 'duration' is expected."
+                )
+            data["start"] = dt
+            data["end"] = dt
+        elif duration is not None:
+            if all([p is None for p in (start, end)]) or all(
+                [p is not None for p in (start, end)]
+            ):
+                raise ValidationError(
+                    "If using the 'duration' field, either 'start' or 'end' is expected."
+                )
+            if start is not None:
+                data["start"] = start
+                data["end"] = start + duration
+            else:
+                data["start"] = end - duration
+                data["end"] = end
+        else:
+            if any([p is None for p in (start, end)]):
+                raise ValidationError(
+                    "Missing field(s) to describe timing: use the 'datetime' field, "
+                    "or a combination of 2 fields of 'start', 'end' and 'duration'."
+                )
+            data["start"] = start
+            data["end"] = end
 
 
 class StorageFlexModelSchema(Schema):
@@ -115,7 +155,7 @@ class StorageFlexModelSchema(Schema):
         max_server_horizon = current_app.config.get("FLEXMEASURES_MAX_PLANNING_HORIZON")
         if isinstance(max_server_horizon, int):
             max_server_horizon *= self.sensor.event_resolution
-        max_target_datetime = max([target["datetime"] for target in soc_targets])
+        max_target_datetime = max([target["end"] for target in soc_targets])
         max_server_datetime = self.start + max_server_horizon
         if max_target_datetime > max_server_datetime:
             current_app.logger.warning(
