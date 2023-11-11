@@ -1,10 +1,34 @@
+from datetime import datetime
+import pytz
+import pytest
+
+import pandas as pd
+
 from flexmeasures.data.schemas.scheduling.process import (
     ProcessSchedulerFlexModelSchema,
     ProcessType,
 )
+from flexmeasures.data.schemas.scheduling.storage import SOCValueSchema
 
-from datetime import datetime
-import pytz
+
+@pytest.mark.parametrize(
+    "timing_input",
+    [
+        {"datetime": "2023-03-27T00:00:00+00:00"},
+        {"start": "2023-03-26T00:00:00+00:00", "end": "2023-03-27T00:00:00+00:00"},
+        {"start": "2023-03-26T00:00:00+00:00", "duration": "PT24H"},
+        {"end": "2023-03-27T00:00:00+00:00", "duration": "PT24H"},
+    ],
+)
+def test_soc_value_field(timing_input):
+    data = SOCValueSchema().load(
+        {
+            "value": 3,
+            **timing_input,
+        }
+    )
+    print(data)
+    assert data["end"] == pd.Timestamp("2023-03-27T00:00:00+00:00")
 
 
 def test_process_scheduler_flex_model_load(db, app, setup_dummy_sensors):
