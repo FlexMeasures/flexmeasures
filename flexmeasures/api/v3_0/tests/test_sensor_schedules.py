@@ -1,22 +1,16 @@
 from flask import url_for
 import pytest
-from isodate import parse_datetime, parse_duration
+from isodate import parse_datetime
 
-import pandas as pd
 from rq.job import Job
 
 from flexmeasures.api.common.responses import unknown_schedule, unrecognized_event
 from flexmeasures.api.tests.utils import check_deprecation
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.models.generic_assets import GenericAsset
-from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.tests.utils import work_on_rq
-from flexmeasures.data.services.scheduling import (
-    handle_scheduling_exception,
-    get_data_source_for_job,
-)
-from flexmeasures.utils.calculations import integrate_time_series
+from flexmeasures.data.services.scheduling import handle_scheduling_exception
 
 
 @pytest.mark.parametrize(
