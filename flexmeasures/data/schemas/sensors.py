@@ -1,3 +1,4 @@
+from __future__ import annotations
 from marshmallow import Schema, fields, validates, ValidationError
 from pint import DimensionalityError
 
