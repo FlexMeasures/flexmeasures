@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from packaging import version
 from typing import List, Optional, Tuple, Union
 from datetime import date, datetime, timedelta
