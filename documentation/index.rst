@@ -203,6 +203,7 @@ The platform operator of FlexMeasures can be an Aggregator.
 
     api/introduction
     api/notation
+    api/v2g
     api/v3_0
     api/dev
     api/change_log

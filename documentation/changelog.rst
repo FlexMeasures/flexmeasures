@@ -12,6 +12,8 @@ New features
 Infrastructure / Support
 ----------------------
 
+# New documentation section on constructing a flex model for :abbr:`V2G (vehicle-to-grid)` [see `PR #885 <https://github.com/FlexMeasures/flexmeasures/pull/885>`_]
+
 Bugfixes
 -----------
 
