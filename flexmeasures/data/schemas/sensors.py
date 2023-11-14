@@ -117,7 +117,7 @@ class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
 
             if not units_are_convertible(sensor.unit, str(self.to_unit.units)):
                 raise ValidationError(
-                    "Cannot convert {sensor.unit} to {self.to_unit.units}"
+                    f"Cannot convert {sensor.unit} to {self.to_unit.units}"
                 )
 
             return sensor

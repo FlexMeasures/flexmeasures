@@ -15,6 +15,10 @@ from flexmeasures.data.models.planning.exceptions import (
 )
 from flexmeasures.data.queries.utils import simplify_index
 
+from flexmeasures import Asset
+from flexmeasures.utils.unit_utils import ur, convert_units
+from pint.errors import UndefinedUnitError, DimensionalityError
+
 
 def initialize_df(
     columns: List[str],
@@ -171,7 +175,6 @@ def get_power_values(
     resolution: timedelta,
     beliefs_before: Optional[datetime],
     sensor: Sensor,
-    default_value: float = 0.0,
 ) -> np.ndarray:
     """Get measurements or forecasts of an inflexible device represented by a power sensor.
 
@@ -183,7 +186,6 @@ def get_power_values(
     :param resolution:      timedelta used to resample the forecasts to the resolution of the schedule
     :param beliefs_before:  datetime used to indicate we are interested in the state of knowledge at that time
     :param sensor:          power sensor representing an energy flow out of the device
-    :param default_value:   value to fill in missing values
     :returns:               power measurements or forecasts (consumption is positive, production is negative)
     """
     bdf: tb.BeliefsDataFrame = TimedBelief.search(
@@ -202,11 +204,13 @@ def get_power_values(
         current_app.logger.warning(
             f"Assuming zero power values for (partially) unknown power values for planning window. (sensor {sensor.id})"
         )
-        df = df.fillna(default_value)
+        df = df.fillna(0)
+
     if sensor.get_attribute(
         "consumption_is_positive", False
     ):  # FlexMeasures default is to store consumption as negative power values
         return df.values
+
     return -df.values
 
 
@@ -285,3 +289,74 @@ def idle_after_reaching_target(
     else:
         schedule[schedule.cumsum() < first_target] = 0
     return schedule
+
+
+def get_series_from_sensor_or_quantity(
+    quantity_or_sensor: Sensor | ur.Quantity | None,
+    actuator: Sensor | Asset,
+    fallback_attribute: str,
+    query_window: tuple[datetime, datetime],
+    resolution: timedelta,
+    beliefs_before: datetime | None = None,
+) -> pd.Series:
+    """
+    Get a time series from a quantity or Sensor defined on a time window.
+
+    This function returns a pandas series using data from a sensor or a constant value defined by a pint Quantity.
+    Moreover, it looks for the attribute defined by `fallback_attribute` on the `actuator` entity.
+
+    :param quantity_or_sensor: input sensor or pint Quantity
+    :param actuator: power sensor of an actuator or an asset actuator.
+    :param fallback_attribute: which asset or sensor attribute to look for on the actuator to serve as default
+    :param query_window: tuple representing the start and end of the requested data
+    :param resolution: time resolution of the requested data
+    :param beliefs_before: datetime used to indicate we are interested in the state of knowledge at that time, defaults to None
+    :return: pandas Series with the requested time series data
+    """
+
+    start, end = query_window
+    time_series = initialize_series(np.nan, start=start, end=end, resolution=resolution)
+    constant_value = np.nan
+
+    # get fallback value
+    fallback_value: str | float | int | None = actuator.get_attribute(
+        fallback_attribute, None
+    )
+
+    # if it's a string, let's try to convert it to a unit
+    if isinstance(fallback_value, str):
+        try:
+            fallback_value = ur.Quantity(fallback_value)
+
+            # convert fallback value into the units of the actuator
+            fallback_value = fallback_value.to(actuator.unit)
+            constant_value = fallback_value.magnitude
+
+        except (UndefinedUnitError, DimensionalityError, ValueError, AssertionError):
+            current_app.logger.warning(
+                f"Couldn't convert {fallback_value} to `{actuator.unit}`"
+            )
+
+    # in this case, we will assume that the units match those of the actuator
+    elif isinstance(fallback_value, int) or isinstance(fallback_attribute, float):
+        time_series = fallback_value
+
+    if isinstance(quantity_or_sensor, ur.Quantity):
+        constant_value = quantity_or_sensor.to(actuator.unit).magnitude
+    elif isinstance(quantity_or_sensor, Sensor):
+        bdf: tb.BeliefsDataFrame = TimedBelief.search(
+            quantity_or_sensor,
+            event_starts_after=query_window[0],
+            event_ends_before=query_window[1],
+            resolution=to_offset(resolution).freqstr,
+            beliefs_before=beliefs_before,
+            most_recent_beliefs_only=True,
+            one_deterministic_belief_per_event=True,
+        )
+        df = simplify_index(bdf).reindex(time_series.index)
+        time_series[:] = df.values.squeeze()
+        time_series = convert_units(time_series, quantity_or_sensor.unit, actuator.unit)
+
+    time_series = time_series.fillna(constant_value)
+
+    return time_series

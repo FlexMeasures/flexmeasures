@@ -19,13 +19,14 @@ from flexmeasures.data.models.planning.utils import (
     initialize_df,
     get_power_values,
     fallback_charging_policy,
+    get_series_from_sensor_or_quantity,
 )
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
 from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
 from flexmeasures.data.schemas.scheduling import FlexContextSchema
 from flexmeasures.utils.time_utils import get_max_planning_horizon
 from flexmeasures.utils.coding_utils import deprecated
-from flexmeasures.utils.unit_utils import ur, convert_units
+from flexmeasures.utils.unit_utils import ur
 
 
 def check_and_convert_power_capacity(
@@ -197,50 +198,41 @@ class MetaStorageScheduler(Scheduler):
             soc_max,
             soc_min,
         )
-        storage_device_sensors = self.sensor.generic_asset.get_sensors_by_alias()
 
-        consumption_capacity_sensor = self.flex_model.get(
-            "consumption_capacity", storage_device_sensors.get("consumption_capacity")
-        )
-        production_capacity_sensor = self.flex_model.get(
-            "production_capacity", storage_device_sensors.get("production_capacity")
-        )
+        consumption_capacity = self.flex_model.get("consumption_capacity")
+        production_capacity = self.flex_model.get("production_capacity")
 
         if sensor.get_attribute("is_strictly_non_positive"):
             device_constraints[0]["derivative min"] = 0
         else:
-            if production_capacity_sensor is not None:
-                power_limit = get_power_values(
-                    query_window=(start, end),
-                    resolution=resolution,
-                    beliefs_before=belief_time,
-                    sensor=production_capacity_sensor,
-                    default_value=power_capacity_in_mw * (-1),
-                )
-                power_limit = convert_units(
-                    power_limit, production_capacity_sensor.unit, sensor.unit
-                )
-                device_constraints[0]["derivative min"] = power_limit
-            else:
-                device_constraints[0]["derivative min"] = power_capacity_in_mw * -1
+            device_constraints[0]["derivative min"] = (
+                -1
+            ) * get_series_from_sensor_or_quantity(
+                production_capacity,
+                sensor,
+                "production_capacity",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+            ).fillna(
+                power_capacity_in_mw
+            )
 
         if sensor.get_attribute("is_strictly_non_negative"):
             device_constraints[0]["derivative max"] = 0
         else:
-            if consumption_capacity_sensor is not None:
-                power_limit = get_power_values(
-                    query_window=(start, end),
-                    resolution=resolution,
-                    beliefs_before=belief_time,
-                    sensor=consumption_capacity_sensor,
-                    default_value=power_capacity_in_mw,
-                )
-                power_limit = convert_units(
-                    power_limit, consumption_capacity_sensor.unit, sensor.unit
-                )
-                device_constraints[0]["derivative max"] = power_limit
-            else:
-                device_constraints[0]["derivative max"] = power_capacity_in_mw
+            device_constraints[0][
+                "derivative max"
+            ] = get_series_from_sensor_or_quantity(
+                consumption_capacity,
+                sensor,
+                "consumption_capacity",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+            ).fillna(
+                power_capacity_in_mw
+            )
 
         # Apply round-trip efficiency evenly to charging and discharging
         device_constraints[0]["derivative down efficiency"] = (

@@ -777,9 +777,38 @@ def create_test_battery_assets(
         ),
     )
     db.session.add(test_battery_sensor_no_prices)
+
+    test_battery_dynamic_power_capacity = GenericAsset(
+        name="Test battery with dynamic power capacity",
+        owner=setup_accounts["Prosumer"],
+        generic_asset_type=battery_type,
+        latitude=10,
+        longitude=100,
+        attributes=dict(
+            capacity_in_mw=10,
+            max_soc_in_mwh=20,
+            min_soc_in_mwh=0,
+            soc_in_mwh=2.0,
+            market_id=setup_markets["epex_da"].id,
+        ),
+    )
+    test_battery_sensor_dynamic_power_capacity = Sensor(
+        name="power",
+        generic_asset=test_battery_dynamic_power_capacity,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+        attributes=dict(
+            capacity_in_mw=10,
+            production_capacity="8 MW",
+            consumption_capacity="0.5 MW",
+        ),
+    )
+    db.session.add(test_battery_sensor_dynamic_power_capacity)
+
     return {
         "Test battery": test_battery,
         "Test battery with no known prices": test_battery_no_prices,
+        "Test battery with dynamic power capacity": test_battery_dynamic_power_capacity,
     }
 
 
@@ -1038,3 +1067,67 @@ def error_endpoints(app):
     @roles_accepted(ADMIN_ROLE)
     def vips_only():
         return jsonify({"message": "Nothing bad happened."}), 200
+
+
+@pytest.fixture(scope="module")
+def capacity_sensors(db, add_battery_assets, setup_sources):
+    battery = add_battery_assets["Test battery with dynamic power capacity"]
+    production_capacity_sensor = Sensor(
+        name="production capacity",
+        generic_asset=battery,
+        unit="MW",
+        event_resolution="PT15M",
+        attributes={"consumption_is_positive": True},
+    )
+    consumption_capacity_sensor = Sensor(
+        name="consumption capacity",
+        generic_asset=battery,
+        unit="MW",
+        event_resolution="PT15M",
+        attributes={"consumption_is_positive": True},
+    )
+
+    db.session.add_all([production_capacity_sensor, consumption_capacity_sensor])
+    db.session.flush()
+
+    time_slots = pd.date_range(
+        datetime(2015, 1, 2), datetime(2015, 1, 2, 7, 45), freq="15T"
+    ).tz_localize("Europe/Amsterdam")
+
+    values = [0.2] * 4 * 4 + [0.3] * 4 * 4
+
+    beliefs = [
+        TimedBelief(
+            event_start=dt,
+            belief_horizon=parse_duration("PT0M"),
+            event_value=val,
+            sensor=production_capacity_sensor,
+            source=setup_sources["Seita"],
+        )
+        for dt, val in zip(time_slots, values)
+    ]
+    db.session.add_all(beliefs)
+    db.session.commit()
+
+    time_slots = pd.date_range(
+        datetime(2015, 1, 2), datetime(2015, 1, 2, 7, 45), freq="15T"
+    ).tz_localize("Europe/Amsterdam")
+
+    values = [0.25] * 4 * 4 + [0.15] * 4 * 4
+
+    beliefs = [
+        TimedBelief(
+            event_start=dt,
+            belief_horizon=parse_duration("PT0M"),
+            event_value=val,
+            sensor=consumption_capacity_sensor,
+            source=setup_sources["Seita"],
+        )
+        for dt, val in zip(time_slots, values)
+    ]
+    db.session.add_all(beliefs)
+    db.session.commit()
+
+    yield dict(
+        production=production_capacity_sensor, consumption=consumption_capacity_sensor
+    )
