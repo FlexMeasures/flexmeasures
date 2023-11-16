@@ -4,14 +4,17 @@ Backoffice user interface & charting support.
 
 import os
 
-from flask import current_app, Flask, Blueprint
-from flask import send_from_directory
+from flask import current_app, Flask, Blueprint, send_from_directory, request
 from flask_security import login_required, roles_accepted
+from flask_login import current_user
+
 import pandas as pd
 import rq_dashboard
 from humanize import naturaldelta
 
-from flexmeasures.auth.policy import ADMIN_ROLE
+from werkzeug.exceptions import Forbidden
+
+from flexmeasures.auth.policy import ADMIN_ROLE, ADMIN_READER_ROLE
 from flexmeasures.utils.flexmeasures_inflection import (
     capitalize,
     parameterize,
@@ -92,9 +95,15 @@ def register_rq_dashboard(app):
         return
 
     @login_required
-    @roles_accepted(ADMIN_ROLE)
+    @roles_accepted(ADMIN_ROLE, ADMIN_READER_ROLE)
     def basic_admin_auth():
         """Ensure basic admin authorization."""
+
+        if current_user.has_role(ADMIN_READER_ROLE) and request.method != "GET":
+            raise Forbidden(
+                f"User with `{ADMIN_READER_ROLE}` role is only allowed to list/inspect tasks, queues and workers. Edition or deletion operations are forbidden."
+            )
+
         return
 
     # Logged-in users can view queues on the demo server, but only admins can view them on other servers
