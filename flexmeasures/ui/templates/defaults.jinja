@@ -37,7 +37,7 @@
 
 
 {% if current_user.is_authenticated %}
-    {% set is_admin = True if (current_user.has_role('admin') or FLEXMEASURES_MODE == "demo") %}
+    {% set is_admin = True if (current_user.has_role('admin') or current_user.has_role('admin-reader') or FLEXMEASURES_MODE == "demo") %}
     {% set is_consultant = True if current_user.has_role('consultant') %}
     {% if is_admin %}
         {% do navigation_bar.append(('assets', 'assets', 'Assets', '', 'list-ul'))  %}
