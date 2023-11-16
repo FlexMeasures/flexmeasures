@@ -99,7 +99,11 @@ def register_rq_dashboard(app):
     def basic_admin_auth():
         """Ensure basic admin authorization."""
 
-        if current_user.has_role(ADMIN_READER_ROLE) and request.method != "GET":
+        if (
+            current_user.has_role(ADMIN_READER_ROLE)
+            and (request.method != "GET")
+            and ("requeue" not in request.path)
+        ):
             raise Forbidden(
                 f"User with `{ADMIN_READER_ROLE}` role is only allowed to list/inspect tasks, queues and workers. Edition or deletion operations are forbidden."
             )
