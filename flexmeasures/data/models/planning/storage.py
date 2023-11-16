@@ -210,6 +210,7 @@ class MetaStorageScheduler(Scheduler):
             ) * get_series_from_sensor_or_quantity(
                 production_capacity,
                 sensor,
+                sensor.unit,
                 "production_capacity",
                 query_window=(start, end),
                 resolution=resolution,
@@ -226,6 +227,7 @@ class MetaStorageScheduler(Scheduler):
             ] = get_series_from_sensor_or_quantity(
                 consumption_capacity,
                 sensor,
+                sensor.unit,
                 "consumption_capacity",
                 query_window=(start, end),
                 resolution=resolution,

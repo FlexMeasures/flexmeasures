@@ -17,7 +17,6 @@ from flexmeasures.data.models.planning.exceptions import (
 )
 from flexmeasures.data.queries.utils import simplify_index
 
-from flexmeasures import Asset
 from flexmeasures.utils.unit_utils import ur, convert_units
 from pint.errors import UndefinedUnitError, DimensionalityError
 
@@ -295,7 +294,8 @@ def idle_after_reaching_target(
 
 def get_series_from_sensor_or_quantity(
     quantity_or_sensor: Sensor | ur.Quantity | None,
-    actuator: Sensor | Asset,
+    actuator: Sensor,
+    target_unit: ur.Quantity,
     fallback_attribute: str,
     query_window: tuple[datetime, datetime],
     resolution: timedelta,
@@ -308,7 +308,8 @@ def get_series_from_sensor_or_quantity(
     Moreover, it looks for the attribute defined by `fallback_attribute` on the `actuator` entity.
 
     :param quantity_or_sensor: input sensor or pint Quantity
-    :param actuator: power sensor of an actuator or an asset actuator.
+    :param actuator: sensor of an actuator. This could be a power capacity sensor, efficiency, etc.
+    :param target_unit: unit of the output data.
     :param fallback_attribute: which asset or sensor attribute to look for on the actuator to serve as default
     :param query_window: tuple representing the start and end of the requested data
     :param resolution: time resolution of the requested data
@@ -331,12 +332,12 @@ def get_series_from_sensor_or_quantity(
             fallback_value = ur.Quantity(fallback_value)
 
             # convert fallback value into the units of the actuator
-            fallback_value = fallback_value.to(actuator.unit)
+            fallback_value = fallback_value.to(target_unit)
             constant_value = fallback_value.magnitude
 
         except (UndefinedUnitError, DimensionalityError, ValueError, AssertionError):
             current_app.logger.warning(
-                f"Couldn't convert {fallback_value} to `{actuator.unit}`"
+                f"Couldn't convert {fallback_value} to `{target_unit}`"
             )
 
     # in this case, we will assume that the units match those of the actuator
@@ -344,7 +345,7 @@ def get_series_from_sensor_or_quantity(
         time_series = fallback_value
 
     if isinstance(quantity_or_sensor, ur.Quantity):
-        constant_value = quantity_or_sensor.to(actuator.unit).magnitude
+        constant_value = quantity_or_sensor.to(target_unit).magnitude
     elif isinstance(quantity_or_sensor, Sensor):
         bdf: tb.BeliefsDataFrame = TimedBelief.search(
             quantity_or_sensor,
@@ -357,7 +358,7 @@ def get_series_from_sensor_or_quantity(
         )
         df = simplify_index(bdf).reindex(time_series.index)
         time_series[:] = df.values.squeeze()
-        time_series = convert_units(time_series, quantity_or_sensor.unit, actuator.unit)
+        time_series = convert_units(time_series, quantity_or_sensor.unit, target_unit)
 
     time_series = time_series.fillna(constant_value)
 
