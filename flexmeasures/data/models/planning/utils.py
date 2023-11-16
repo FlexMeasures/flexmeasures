@@ -15,6 +15,7 @@ from flexmeasures.data.models.planning.exceptions import (
     UnknownMarketException,
     UnknownPricesException,
 )
+from flexmeasures import Asset
 from flexmeasures.data.queries.utils import simplify_index
 
 from flexmeasures.utils.unit_utils import ur, convert_units
@@ -294,72 +295,70 @@ def idle_after_reaching_target(
 
 def get_series_from_sensor_or_quantity(
     quantity_or_sensor: Sensor | ur.Quantity | None,
-    actuator: Sensor,
-    target_unit: ur.Quantity,
-    fallback_attribute: str,
+    actuator: Sensor | Asset,
+    target_unit: ur.Quantity | str,
     query_window: tuple[datetime, datetime],
     resolution: timedelta,
+    default_value_attribute: str | None = None,
+    default_value: float | int | None = np.nan,
     beliefs_before: datetime | None = None,
 ) -> pd.Series:
     """
     Get a time series from a quantity or Sensor defined on a time window.
 
     This function returns a pandas series using data from a sensor or a constant value defined by a pint Quantity.
-    Moreover, it looks for the attribute defined by `fallback_attribute` on the `actuator` entity.
+    Moreover, it looks for the attribute defined by `default_value_attribute` on the `actuator` entity, else `default_value`.
 
     :param quantity_or_sensor: input sensor or pint Quantity
     :param actuator: sensor of an actuator. This could be a power capacity sensor, efficiency, etc.
     :param target_unit: unit of the output data.
-    :param fallback_attribute: which asset or sensor attribute to look for on the actuator to serve as default
     :param query_window: tuple representing the start and end of the requested data
     :param resolution: time resolution of the requested data
+    :param default_value_attribute: asset or sensor attribute to look for on the actuator to serve use as default, defaults to None
+    :param default_value: value to use as default in that case the attribute value is missing or not provided, defaults to np.nan
     :param beliefs_before: datetime used to indicate we are interested in the state of knowledge at that time, defaults to None
     :return: pandas Series with the requested time series data
     """
 
     start, end = query_window
     time_series = initialize_series(np.nan, start=start, end=end, resolution=resolution)
-    constant_value = np.nan
 
-    # get fallback value
-    fallback_value: str | float | int | None = actuator.get_attribute(
-        fallback_attribute, None
+    # get the default value from the actuator attribute. if missing, use default_value
+    _default_value: str | float | int | None = actuator.get_attribute(
+        default_value_attribute, default_value
     )
 
     # if it's a string, let's try to convert it to a unit
-    if isinstance(fallback_value, str):
+    if isinstance(_default_value, str):
         try:
-            fallback_value = ur.Quantity(fallback_value)
+            _default_value = ur.Quantity(_default_value)
 
-            # convert fallback value into the units of the actuator
-            fallback_value = fallback_value.to(target_unit)
-            constant_value = fallback_value.magnitude
+            # convert default value to the target units
+            _default_value = _default_value.to(target_unit).magnitude
 
         except (UndefinedUnitError, DimensionalityError, ValueError, AssertionError):
             current_app.logger.warning(
-                f"Couldn't convert {fallback_value} to `{target_unit}`"
+                f"Couldn't convert {_default_value} to `{target_unit}`"
             )
-
-    # in this case, we will assume that the units match those of the actuator
-    elif isinstance(fallback_value, int) or isinstance(fallback_attribute, float):
-        time_series = fallback_value
+            _default_value = default_value
 
     if isinstance(quantity_or_sensor, ur.Quantity):
-        constant_value = quantity_or_sensor.to(target_unit).magnitude
+        _default_value = quantity_or_sensor.to(target_unit).magnitude
     elif isinstance(quantity_or_sensor, Sensor):
         bdf: tb.BeliefsDataFrame = TimedBelief.search(
             quantity_or_sensor,
             event_starts_after=query_window[0],
             event_ends_before=query_window[1],
-            resolution=to_offset(resolution).freqstr,
+            resolution=resolution,
             beliefs_before=beliefs_before,
             most_recent_beliefs_only=True,
             one_deterministic_belief_per_event=True,
         )
         df = simplify_index(bdf).reindex(time_series.index)
-        time_series[:] = df.values.squeeze()
+        time_series[:] = df.values.squeeze()  # drop unused dimension (N,1) -> (N)
         time_series = convert_units(time_series, quantity_or_sensor.unit, target_unit)
 
-    time_series = time_series.fillna(constant_value)
+    # fill missing value with the
+    time_series = time_series.fillna(_default_value)
 
     return time_series

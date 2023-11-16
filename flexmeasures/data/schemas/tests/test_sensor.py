@@ -39,7 +39,15 @@ def test_quantity_or_sensor_deserialize(
 
 @pytest.mark.parametrize(
     "src_quantity, expected_magnitude",
-    [("1 kW", 0.001), ("10 kW", 0.01), ("100 kW", 0.1), ("1 MW", 1)],
+    [
+        ("1 kW", 0.001),
+        ("10 kW", 0.01),
+        ("100 kW", 0.1),
+        ("1 MW", 1),
+        ("1.2 GW", 1200),
+        ("2000 kVA", 2),
+        ("3600/4.184 cal/h", 1e-6),
+    ],
 )
 def test_quantity_or_sensor_conversion(
     setup_dummy_sensors, src_quantity, expected_magnitude

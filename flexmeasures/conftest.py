@@ -792,7 +792,7 @@ def create_test_battery_assets(
             market_id=setup_markets["epex_da"].id,
         ),
     )
-    test_battery_sensor_dynamic_power_capacity = Sensor(
+    test_battery_dynamic_capacity_power_sensor = Sensor(
         name="power",
         generic_asset=test_battery_dynamic_power_capacity,
         event_resolution=timedelta(minutes=15),
@@ -803,7 +803,7 @@ def create_test_battery_assets(
             consumption_capacity="0.5 MW",
         ),
     )
-    db.session.add(test_battery_sensor_dynamic_power_capacity)
+    db.session.add(test_battery_dynamic_capacity_power_sensor)
 
     return {
         "Test battery": test_battery,
@@ -1075,14 +1075,14 @@ def capacity_sensors(db, add_battery_assets, setup_sources):
     production_capacity_sensor = Sensor(
         name="production capacity",
         generic_asset=battery,
-        unit="MW",
+        unit="kW",
         event_resolution="PT15M",
         attributes={"consumption_is_positive": True},
     )
     consumption_capacity_sensor = Sensor(
         name="consumption capacity",
         generic_asset=battery,
-        unit="MW",
+        unit="kW",
         event_resolution="PT15M",
         attributes={"consumption_is_positive": True},
     )
@@ -1094,7 +1094,7 @@ def capacity_sensors(db, add_battery_assets, setup_sources):
         datetime(2015, 1, 2), datetime(2015, 1, 2, 7, 45), freq="15T"
     ).tz_localize("Europe/Amsterdam")
 
-    values = [0.2] * 4 * 4 + [0.3] * 4 * 4
+    values = [200] * 4 * 4 + [300] * 4 * 4
 
     beliefs = [
         TimedBelief(
@@ -1113,7 +1113,7 @@ def capacity_sensors(db, add_battery_assets, setup_sources):
         datetime(2015, 1, 2), datetime(2015, 1, 2, 7, 45), freq="15T"
     ).tz_localize("Europe/Amsterdam")
 
-    values = [0.25] * 4 * 4 + [0.15] * 4 * 4
+    values = [250] * 4 * 4 + [150] * 4 * 4
 
     beliefs = [
         TimedBelief(

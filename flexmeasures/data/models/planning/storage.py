@@ -26,7 +26,7 @@ from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
 from flexmeasures.data.schemas.scheduling import FlexContextSchema
 from flexmeasures.utils.time_utils import get_max_planning_horizon
 from flexmeasures.utils.coding_utils import deprecated
-from flexmeasures.utils.unit_utils import ur
+from flexmeasures.utils.unit_utils import ur, convert_units
 
 
 def check_and_convert_power_capacity(
@@ -208,32 +208,29 @@ class MetaStorageScheduler(Scheduler):
             device_constraints[0]["derivative min"] = (
                 -1
             ) * get_series_from_sensor_or_quantity(
-                production_capacity,
-                sensor,
-                sensor.unit,
-                "production_capacity",
+                quantity_or_sensor=production_capacity,
+                actuator=sensor,
+                target_unit=sensor.unit,
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
-            ).fillna(
-                power_capacity_in_mw
+                default_value_attribute="production_capacity",
+                default_value=convert_units(power_capacity_in_mw, "MW", sensor.unit),
             )
-
         if sensor.get_attribute("is_strictly_non_negative"):
             device_constraints[0]["derivative max"] = 0
         else:
             device_constraints[0][
                 "derivative max"
             ] = get_series_from_sensor_or_quantity(
-                consumption_capacity,
-                sensor,
-                sensor.unit,
-                "consumption_capacity",
+                quantity_or_sensor=consumption_capacity,
+                actuator=sensor,
+                target_unit=sensor.unit,
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
-            ).fillna(
-                power_capacity_in_mw
+                default_value_attribute="consumption_capacity",
+                default_value=convert_units(power_capacity_in_mw, "MW", sensor.unit),
             )
 
         # Apply round-trip efficiency evenly to charging and discharging
