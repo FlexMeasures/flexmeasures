@@ -104,7 +104,9 @@ class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
     ) -> ur.Quantity | Sensor:
         if isinstance(value, dict):
             if "sensor" not in value:
-                raise ValueError("Dictionary provided but `sensor` key not found.")
+                raise FMValidationError(
+                    "Dictionary provided but `sensor` key not found."
+                )
 
             sensor = Sensor.query.get(value["sensor"])
 
@@ -116,7 +118,7 @@ class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
             sensor.generic_asset.generic_asset_type
 
             if not units_are_convertible(sensor.unit, str(self.to_unit.units)):
-                raise ValidationError(
+                raise FMValidationError(
                     f"Cannot convert {sensor.unit} to {self.to_unit.units}"
                 )
 
@@ -126,11 +128,11 @@ class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
             try:
                 return ur.Quantity(value).to(self.to_unit)
             except DimensionalityError as e:
-                raise ValidationError(
+                raise FMValidationError(
                     f"Cannot convert value `{value}` to '{self.to_unit}'"
                 ) from e
         else:
-            raise ValueError(
+            raise FMValidationError(
                 f"Unsupported value type. `{type(value)}` was provided but only dict and str are supported."
             )
 
@@ -142,6 +144,6 @@ class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
         elif isinstance(value, Sensor):
             return dict(sensor=value.id)
         else:
-            raise ValidationError(
-                "Serialized QuantityOrSensor needs to be of type int, float or Sensor"
+            raise FMValidationError(
+                "Serialized Quantity Or Sensor needs to be of type int, float or Sensor"
             )
