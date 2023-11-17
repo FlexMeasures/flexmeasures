@@ -1297,7 +1297,7 @@ def test_capacity(
             "1 MW",
             "2 MW",
             [-1] * 24 * 4,
-            [2] * 24 * 4,
+            [0.5] * 24 * 4,
         ),
         (
             "Test battery",

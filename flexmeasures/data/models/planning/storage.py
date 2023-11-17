@@ -19,7 +19,7 @@ from flexmeasures.data.models.planning.utils import (
     initialize_df,
     get_power_values,
     fallback_charging_policy,
-    get_series_from_sensor_or_quantity,
+    get_continous_series_sensor_or_quantity,
 )
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
 from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
@@ -207,7 +207,7 @@ class MetaStorageScheduler(Scheduler):
         else:
             device_constraints[0]["derivative min"] = (
                 -1
-            ) * get_series_from_sensor_or_quantity(
+            ) * get_continous_series_sensor_or_quantity(
                 quantity_or_sensor=production_capacity,
                 actuator=sensor,
                 target_unit=sensor.unit,
@@ -216,13 +216,14 @@ class MetaStorageScheduler(Scheduler):
                 beliefs_before=belief_time,
                 default_value_attribute="production_capacity",
                 default_value=convert_units(power_capacity_in_mw, "MW", sensor.unit),
+                method="upper",
             )
         if sensor.get_attribute("is_strictly_non_negative"):
             device_constraints[0]["derivative max"] = 0
         else:
             device_constraints[0][
                 "derivative max"
-            ] = get_series_from_sensor_or_quantity(
+            ] = get_continous_series_sensor_or_quantity(
                 quantity_or_sensor=consumption_capacity,
                 actuator=sensor,
                 target_unit=sensor.unit,
@@ -231,6 +232,7 @@ class MetaStorageScheduler(Scheduler):
                 beliefs_before=belief_time,
                 default_value_attribute="consumption_capacity",
                 default_value=convert_units(power_capacity_in_mw, "MW", sensor.unit),
+                method="upper",
             )
 
         # Apply round-trip efficiency evenly to charging and discharging

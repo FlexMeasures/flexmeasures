@@ -3,6 +3,7 @@ from __future__ import annotations
 from packaging import version
 from typing import List, Optional, Tuple, Union
 from datetime import date, datetime, timedelta
+from typing import cast
 
 from flask import current_app
 import pandas as pd
@@ -293,29 +294,55 @@ def idle_after_reaching_target(
     return schedule
 
 
+def get_quantity_attribute(
+    actuator: Asset | Sensor,
+    attribute: str,
+    target_unit: str | ur.Quantity,
+    default: float = np.nan,
+):
+    """
+    Retrieves a quantity value an actuator attribute or returns a provided default.
+
+
+    :param actuator: The Asset or Sensor containing the attribute to retrieve the value from.
+    :param attribute: The attribute name to extract the value from.
+    :param target_unit: The unit in which the value should be returned.
+    :param default: The fallback value if the attribute is missing or conversion fails. Defaults to np.nan.
+    :return: The value retrieved or the provided default if not found or conversion fails.
+    """
+    # get the default value from the actuator attribute. if missing, use default_value
+    value: str | float | int | None = actuator.get_attribute(attribute, default)
+
+    # if it's a string, let's try to convert it to a unit
+    if isinstance(value, str):
+        try:
+            value = ur.Quantity(value)
+
+            # convert default value to the target units
+            value = value.to(target_unit).magnitude
+
+        except (UndefinedUnitError, DimensionalityError, ValueError, AssertionError):
+            current_app.logger.warning(f"Couldn't convert {value} to `{target_unit}`")
+            return default
+
+    return value
+
+
 def get_series_from_sensor_or_quantity(
     quantity_or_sensor: Sensor | ur.Quantity | None,
-    actuator: Sensor | Asset,
     target_unit: ur.Quantity | str,
     query_window: tuple[datetime, datetime],
     resolution: timedelta,
-    default_value_attribute: str | None = None,
-    default_value: float | int | None = np.nan,
     beliefs_before: datetime | None = None,
 ) -> pd.Series:
     """
     Get a time series from a quantity or Sensor defined on a time window.
-
-    This function returns a pandas series using data from a sensor or a constant value defined by a pint Quantity.
-    Moreover, it looks for the attribute defined by `default_value_attribute` on the `actuator` entity, else `default_value`.
 
     :param quantity_or_sensor: input sensor or pint Quantity
     :param actuator: sensor of an actuator. This could be a power capacity sensor, efficiency, etc.
     :param target_unit: unit of the output data.
     :param query_window: tuple representing the start and end of the requested data
     :param resolution: time resolution of the requested data
-    :param default_value_attribute: asset or sensor attribute to look for on the actuator to serve use as default, defaults to None
-    :param default_value: value to use as default in that case the attribute value is missing or not provided, defaults to np.nan
     :param beliefs_before: datetime used to indicate we are interested in the state of knowledge at that time, defaults to None
     :return: pandas Series with the requested time series data
     """
@@ -323,27 +350,8 @@ def get_series_from_sensor_or_quantity(
     start, end = query_window
     time_series = initialize_series(np.nan, start=start, end=end, resolution=resolution)
 
-    # get the default value from the actuator attribute. if missing, use default_value
-    _default_value: str | float | int | None = actuator.get_attribute(
-        default_value_attribute, default_value
-    )
-
-    # if it's a string, let's try to convert it to a unit
-    if isinstance(_default_value, str):
-        try:
-            _default_value = ur.Quantity(_default_value)
-
-            # convert default value to the target units
-            _default_value = _default_value.to(target_unit).magnitude
-
-        except (UndefinedUnitError, DimensionalityError, ValueError, AssertionError):
-            current_app.logger.warning(
-                f"Couldn't convert {_default_value} to `{target_unit}`"
-            )
-            _default_value = default_value
-
     if isinstance(quantity_or_sensor, ur.Quantity):
-        _default_value = quantity_or_sensor.to(target_unit).magnitude
+        time_series[:] = quantity_or_sensor.to(target_unit).magnitude
     elif isinstance(quantity_or_sensor, Sensor):
         bdf: tb.BeliefsDataFrame = TimedBelief.search(
             quantity_or_sensor,
@@ -357,8 +365,71 @@ def get_series_from_sensor_or_quantity(
         df = simplify_index(bdf).reindex(time_series.index)
         time_series[:] = df.values.squeeze()  # drop unused dimension (N,1) -> (N)
         time_series = convert_units(time_series, quantity_or_sensor.unit, target_unit)
+        time_series = cast(pd.Series, time_series)
 
-    # fill missing value with the
-    time_series = time_series.fillna(_default_value)
+    return time_series
+
+
+def get_continous_series_sensor_or_quantity(
+    quantity_or_sensor: Sensor | ur.Quantity | None,
+    actuator: Sensor | Asset,
+    target_unit: ur.Quantity | str,
+    query_window: tuple[datetime, datetime],
+    resolution: timedelta,
+    default_value_attribute: str | None = None,
+    default_value: float | int | None = np.nan,
+    beliefs_before: datetime | None = None,
+    method: str = "replace",
+) -> pd.Series:
+    """
+    Retrieves a continuous time series data from a sensor or quantity within a specified window, filling
+    the missing values from an attribute (`default_value_attribute`) or default value (`default_value`).
+
+    Methods to fill-in missing data:
+        - 'replace' missing values are filled with the default value.
+        - 'upper' clips missing values to the upper bound of the default value.
+        - 'lower' clips missing values to the lower bound of the default value.
+
+    :param quantity_or_sensor: The sensor or quantity data source.
+    :param actuator: The actuator associated with the data.
+    :param target_unit: The desired unit for the data.
+    :param query_window: The time window (start, end) to query the data.
+    :param resolution: The resolution or time interval for the data.
+    :param default_value_attribute: Attribute for a default value if data is missing.
+    :param default_value: Default value if no attribute or data found.
+    :param beliefs_before: Timestamp for prior beliefs or knowledge.
+    :param method: Method for handling missing data: 'replace', 'upper', 'lower', 'max', or 'min'.
+    :returns: time series data with missing values handled based on the chosen method.
+    :raises: NotImplementedError: If an unsupported method is provided.
+    """
+
+    _default_value = np.nan
+
+    if default_value_attribute is not None:
+        _default_value = get_quantity_attribute(
+            actuator=actuator,
+            attribute=default_value_attribute,
+            target_unit=target_unit,
+            default=default_value,
+        )
+
+    time_series = get_series_from_sensor_or_quantity(
+        quantity_or_sensor,
+        target_unit,
+        query_window,
+        resolution,
+        beliefs_before,
+    )
+
+    if method == "replace":
+        time_series = time_series.fillna(_default_value)
+    elif method == "upper":
+        time_series = time_series.fillna(_default_value).clip(upper=_default_value)
+    elif method == "lower":
+        time_series = time_series.fillna(_default_value).clip(lower=_default_value)
+    else:
+        raise NotImplementedError(
+            "Method `{method}` not supported. Please, try one of the following: `replace`, `max`, `min` "
+        )
 
     return time_series
