@@ -64,6 +64,7 @@ class MetaStorageScheduler(Scheduler):
         "derivative min",
         "derivative down efficiency",
         "derivative up efficiency",
+        "usage forecast",
     ]
 
     def compute_schedule(self) -> pd.Series | None:
@@ -233,6 +234,20 @@ class MetaStorageScheduler(Scheduler):
                 default_value_attribute="consumption_capacity",
                 default_value=convert_units(power_capacity_in_mw, "MW", sensor.unit),
                 method="upper",
+            )
+
+        usage_forecast = self.flex_model.get("usage_forecast", [])
+
+        for component in usage_forecast:
+            device_constraints[0][
+                "usage forecast"
+            ] += get_continous_series_sensor_or_quantity(
+                quantity_or_sensor=component,
+                actuator=sensor,
+                target_unit=sensor.unit,
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
             )
 
         # Apply round-trip efficiency evenly to charging and discharging
