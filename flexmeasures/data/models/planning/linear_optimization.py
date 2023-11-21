@@ -94,13 +94,8 @@ def device_scheduler(  # noqa C901
             )
 
     # Compute a good value for M
-    M = 0.1
-    for device_constraint in device_constraints:
-        M = max(
-            M,
-            device_constraint["derivative max"].max(),
-            -device_constraint["derivative min"].min(),
-        )
+    M = np.nanmax([np.nanmax(d.abs()) for d in device_constraints])
+    M = max(M, 1)
 
     # Turn prices per commitment into prices per commitment flow
     if len(commitment_downwards_deviation_price) != 0:
