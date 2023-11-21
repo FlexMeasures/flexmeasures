@@ -299,7 +299,7 @@ def get_quantity_attribute(
     attribute: str,
     target_unit: str | ur.Quantity,
     default: float = np.nan,
-):
+) -> float:
     """
     Retrieves a quantity value an actuator attribute or returns a provided default.
 
