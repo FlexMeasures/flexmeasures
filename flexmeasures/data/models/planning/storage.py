@@ -19,7 +19,7 @@ from flexmeasures.data.models.planning.utils import (
     initialize_df,
     get_power_values,
     fallback_charging_policy,
-    get_continous_series_sensor_or_quantity,
+    get_continuous_series_sensor_or_quantity,
 )
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
 from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
@@ -207,7 +207,7 @@ class MetaStorageScheduler(Scheduler):
         else:
             device_constraints[0]["derivative min"] = (
                 -1
-            ) * get_continous_series_sensor_or_quantity(
+            ) * get_continuous_series_sensor_or_quantity(
                 quantity_or_sensor=production_capacity,
                 actuator=sensor,
                 target_unit=sensor.unit,
@@ -223,7 +223,7 @@ class MetaStorageScheduler(Scheduler):
         else:
             device_constraints[0][
                 "derivative max"
-            ] = get_continous_series_sensor_or_quantity(
+            ] = get_continuous_series_sensor_or_quantity(
                 quantity_or_sensor=consumption_capacity,
                 actuator=sensor,
                 target_unit=sensor.unit,

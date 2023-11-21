@@ -370,7 +370,7 @@ def get_series_from_sensor_or_quantity(
     return time_series
 
 
-def get_continous_series_sensor_or_quantity(
+def get_continuous_series_sensor_or_quantity(
     quantity_or_sensor: Sensor | ur.Quantity | None,
     actuator: Sensor | Asset,
     target_unit: ur.Quantity | str,
