@@ -95,6 +95,8 @@ def device_scheduler(  # noqa C901
 
     # Compute a good value for M
     M = np.nanmax([np.nanmax(d.abs()) for d in device_constraints])
+
+    # M has to be 1 MW, at least
     M = max(M, 1)
 
     # Turn prices per commitment into prices per commitment flow
