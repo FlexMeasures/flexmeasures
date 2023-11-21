@@ -210,7 +210,7 @@ class MetaStorageScheduler(Scheduler):
             ) * get_continuous_series_sensor_or_quantity(
                 quantity_or_sensor=production_capacity,
                 actuator=sensor,
-                target_unit=sensor.unit,
+                unit=sensor.unit,
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
@@ -226,7 +226,7 @@ class MetaStorageScheduler(Scheduler):
             ] = get_continuous_series_sensor_or_quantity(
                 quantity_or_sensor=consumption_capacity,
                 actuator=sensor,
-                target_unit=sensor.unit,
+                unit=sensor.unit,
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
