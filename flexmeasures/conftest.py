@@ -812,6 +812,7 @@ def create_test_battery_assets(
     )
     db.session.add(test_battery_sensor_small)
 
+    db.session.flush()
     return {
         "Test battery": test_battery,
         "Test battery with no known prices": test_battery_no_prices,
