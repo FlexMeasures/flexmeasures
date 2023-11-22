@@ -1375,3 +1375,61 @@ def test_battery_power_capacity_as_sensor(
 
     assert all(device_constraints["derivative min"].values == expected_production)
     assert all(device_constraints["derivative max"].values == expected_consumption)
+
+
+def test_battery_usage_forecast_sensor(add_battery_assets, add_usage_forecast):
+    _, battery = get_sensors_from_db(add_battery_assets)
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+
+    scheduler: Scheduler = StorageScheduler(
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model={
+            "soc-max": 2,
+            "soc-min": 0,
+            "usage-forecast": [{"sensor": add_usage_forecast.id}],
+            "roundtrip-efficiency": 1,
+            "storage-efficiency": 1,
+        },
+    )
+    schedule = scheduler.compute()
+    assert all(schedule == 2)
+
+
+@pytest.mark.parametrize(
+    "usage_forecast,expected_usage_forecast",
+    [(["1 MWh", "-1MWh"], 0), (["1 MWh", "1MWh"], 2), (["100 kWh"], 0.1), ([], None)],
+)
+def test_battery_usage_forecast_quantity(
+    add_battery_assets, usage_forecast, expected_usage_forecast
+):
+    _, battery = get_sensors_from_db(add_battery_assets)
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+
+    scheduler: Scheduler = StorageScheduler(
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model={
+            "soc-max": 2,
+            "soc-min": 0,
+            "usage-forecast": usage_forecast,
+            "roundtrip-efficiency": 1,
+            "storage-efficiency": 1,
+        },
+    )
+    scheduler_info = scheduler._prepare()
+
+    if expected_usage_forecast is not None:
+        assert all(scheduler_info[5][0]["usage forecast"] == expected_usage_forecast)
+    else:
+        assert all(scheduler_info[5][0]["usage forecast"].isna())

@@ -281,6 +281,7 @@ def device_scheduler(  # noqa C901
             (
                 m.device_power_down[d, k] / m.device_derivative_down_efficiency[d, k]
                 + m.device_power_up[d, k] * m.device_derivative_up_efficiency[d, k]
+                + m.usage_forecast[d, k]
             )
             for k in range(0, j + 1)
         ]
@@ -288,7 +289,7 @@ def device_scheduler(  # noqa C901
         return (
             m.device_min[d, j],
             [
-                stock - initial_stock + m.usage_forecast[d, j]
+                stock - initial_stock
                 for stock in apply_stock_changes_and_losses(
                     initial_stock, stock_changes, efficiencies
                 )

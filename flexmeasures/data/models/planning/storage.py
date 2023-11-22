@@ -238,17 +238,23 @@ class MetaStorageScheduler(Scheduler):
 
         usage_forecast = self.flex_model.get("usage_forecast", [])
 
+        all_usage_forecast = []
+
         for component in usage_forecast:
-            device_constraints[0][
-                "usage forecast"
-            ] += get_continous_series_sensor_or_quantity(
-                quantity_or_sensor=component,
-                actuator=sensor,
-                target_unit=sensor.unit,
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
+            all_usage_forecast.append(
+                get_continous_series_sensor_or_quantity(
+                    quantity_or_sensor=component,
+                    actuator=sensor,
+                    target_unit="MWh",
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                )
             )
+        if len(all_usage_forecast) > 0:
+            all_usage_forecast = pd.concat(all_usage_forecast, axis=1)
+
+            device_constraints[0]["usage forecast"] = all_usage_forecast.sum(1)
 
         # Apply round-trip efficiency evenly to charging and discharging
         device_constraints[0]["derivative down efficiency"] = (
