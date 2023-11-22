@@ -93,8 +93,9 @@ def device_scheduler(  # noqa C901
                 % (resolution, resolution_c)
             )
 
+    bigM_columns = ["derivative max", "derivative min", "derivative equals"]
     # Compute a good value for M
-    M = np.nanmax([np.nanmax(d.abs()) for d in device_constraints])
+    M = np.nanmax([np.nanmax(d[bigM_columns].abs()) for d in device_constraints])
 
     # M has to be 1 MW, at least
     M = max(M, 1)

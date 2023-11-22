@@ -777,9 +777,45 @@ def create_test_battery_assets(
         ),
     )
     db.session.add(test_battery_sensor_no_prices)
+
+    test_small_battery = GenericAsset(
+        name="Test small battery",
+        owner=setup_accounts["Prosumer"],
+        generic_asset_type=battery_type,
+        latitude=10,
+        longitude=100,
+        attributes=dict(
+            capacity_in_mw=0.01,
+            max_soc_in_mwh=0.01,
+            min_soc_in_mwh=0,
+            soc_in_mwh=0.005,
+            soc_datetime="2040-01-01T00:00+01",
+            soc_udi_event_id=203,
+            market_id=setup_markets["epex_da"].id,
+            is_consumer=True,
+            is_producer=True,
+            can_curtail=True,
+            can_shift=True,
+        ),
+    )
+
+    test_battery_sensor_small = Sensor(
+        name="power",
+        generic_asset=test_small_battery,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+        attributes=dict(
+            daily_seasonality=True,
+            weekly_seasonality=True,
+            yearly_seasonality=True,
+        ),
+    )
+    db.session.add(test_battery_sensor_small)
+
     return {
         "Test battery": test_battery,
         "Test battery with no known prices": test_battery_no_prices,
+        "Test small battery": test_small_battery,
     }
 
 
