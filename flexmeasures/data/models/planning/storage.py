@@ -214,9 +214,8 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
-                default_value_attribute="production_capacity",
-                default_value=convert_units(power_capacity_in_mw, "MW", sensor.unit),
-                method="upper",
+                fallback_attribute="production_capacity",
+                max_value=convert_units(power_capacity_in_mw, "MW", sensor.unit),
             )
         if sensor.get_attribute("is_strictly_non_negative"):
             device_constraints[0]["derivative max"] = 0
@@ -230,9 +229,8 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
-                default_value_attribute="consumption_capacity",
-                default_value=convert_units(power_capacity_in_mw, "MW", sensor.unit),
-                method="upper",
+                fallback_attribute="consumption_capacity",
+                max_value=convert_units(power_capacity_in_mw, "MW", sensor.unit),
             )
 
         # Apply round-trip efficiency evenly to charging and discharging

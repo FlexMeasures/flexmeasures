@@ -373,41 +373,32 @@ def get_continuous_series_sensor_or_quantity(
     unit: ur.Quantity | str,
     query_window: tuple[datetime, datetime],
     resolution: timedelta,
-    default_value_attribute: str | None = None,
-    default_value: float | int | None = np.nan,
+    fallback_attribute: str | None = None,
+    max_value: float | int | None = np.nan,
     beliefs_before: datetime | None = None,
-    method: str = "replace",
 ) -> pd.Series:
     """
     Retrieves a continuous time series data from a sensor or quantity within a specified window, filling
-    the missing values from an attribute (`default_value_attribute`) or default value (`default_value`).
-
-    Methods to fill-in missing data:
-        - 'replace' missing values are filled with the default value.
-        - 'upper' clips missing values to the upper bound of the default value.
-        - 'lower' clips missing values to the lower bound of the default value.
+    the missing values from a given `fallback_attribute` and making sure no values exceed `max_value`.
 
     :param quantity_or_sensor:      The quantity or sensor containing the data.
     :param actuator:                The actuator from which relevant defaults are retrieved.
     :param unit:                    The desired unit of the data.
     :param query_window:            The time window (start, end) to query the data.
     :param resolution:              The resolution or time interval for the data.
-    :param default_value_attribute: Attribute for a default value if data is missing.
-    :param default_value:           Default value if no attribute or data found.
+    :param fallback_attribute:      Attribute serving as a fallback default in case of missing data.
+    :param max_value:               Maximum value (also replacing NaN values).
     :param beliefs_before:          Timestamp for prior beliefs or knowledge.
-    :param method:                  Method for handling missing data: 'replace', 'upper', 'lower', 'max', or 'min'.
     :returns:                       time series data with missing values handled based on the chosen method.
-    :raises: NotImplementedError:   If an unsupported method is provided.
     """
 
     _default_value = np.nan
 
-    if default_value_attribute is not None:
+    if fallback_attribute is not None:
         _default_value = get_quantity_from_attribute(
             entity=actuator,
-            attribute=default_value_attribute,
+            attribute=fallback_attribute,
             unit=unit,
-            default=default_value,
         )
 
     time_series = get_series_from_quantity_or_sensor(
@@ -418,15 +409,15 @@ def get_continuous_series_sensor_or_quantity(
         beliefs_before=beliefs_before,
     )
 
-    if method == "replace":
-        time_series = time_series.fillna(_default_value)
-    elif method == "upper":
-        time_series = time_series.fillna(_default_value).clip(upper=_default_value)
-    elif method == "lower":
-        time_series = time_series.fillna(_default_value).clip(lower=_default_value)
-    else:
-        raise NotImplementedError(
-            "Method `{method}` not supported. Please, try one of the following: `replace`, `max`, `min` "
-        )
+    # Use default as fallback
+    time_series = time_series.fillna(_default_value)
+
+    # Apply upper limit
+    time_series = nanmin_of_series_and_value(time_series, max_value)
 
     return time_series
+
+
+def nanmin_of_series_and_value(s: pd.Series, value: float) -> pd.Series:
+    """Perform a nanmin between a Series and a float."""
+    return s.fillna(value).clip(upper=value)

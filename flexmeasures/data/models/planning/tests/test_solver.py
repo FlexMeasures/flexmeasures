@@ -1305,7 +1305,7 @@ def test_capacity(
             # from the flex model field 'production-capacity' (a quantity)
             [-1] * 24 * 4,
             # from the power sensor attribute 'consumption_capacity' (a quantity)
-            [0.5] * 24 * 4,
+            [2] * 24 * 4,
         ),
         (
             "Test battery",
