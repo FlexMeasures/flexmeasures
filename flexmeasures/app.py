@@ -50,11 +50,11 @@ def create(  # noqa C901
     load_dotenv()
     app = Flask("flexmeasures")
 
-    if env is not None:  # overwrite
-        app.env = env
-    if app.env == "testing":
+    if env == "testing":
         app.testing = True
-    if app.env == "development":
+    if env is not None:  # overwrite
+        app.config["FLEXMEASURES_ENV"] = env
+    if app.config.get("FLEXMEASURES_ENV") == "development":
         app.debug = config_defaults.DevelopmentConfig.DEBUG
 
     # App configuration
@@ -63,7 +63,10 @@ def create(  # noqa C901
     if plugins:
         app.config["FLEXMEASURES_PLUGINS"] += plugins
     add_basic_error_handlers(app)
-    if app.env not in ("development", "documentation") and not app.testing:
+    if (
+        app.config.get("FLEXMEASURES_ENV") not in ("development", "documentation")
+        and not app.testing
+    ):
         init_sentry(app)
 
     app.mail = Mail(app)
@@ -103,7 +106,7 @@ def create(  # noqa C901
     set_secret_key(app)
     if app.config.get("SECURITY_PASSWORD_SALT", None) is None:
         app.config["SECURITY_PASSWORD_SALT"] = app.config["SECRET_KEY"]
-    if app.env not in ("documentation", "development"):
+    if app.config.get("FLEXMEASURES_ENV") not in ("documentation", "development"):
         SSLify(app)
 
     # Prepare profiling, if needed
