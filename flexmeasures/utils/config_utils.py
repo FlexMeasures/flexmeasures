@@ -72,11 +72,12 @@ def check_app_env(env: str | None):
 def read_config(app: Flask, custom_path_to_config: str | None):
     """Read configuration from various expected sources, complain if not setup correctly."""
 
-    check_app_env(app.env)
+    flexmeasures_env = os.getenv("FLEXMEASURES_ENV", None)
+    check_app_env(flexmeasures_env)
 
     # First, load default config settings
     app.config.from_object(
-        "flexmeasures.utils.config_defaults.%sConfig" % camelize(app.env)
+        "flexmeasures.utils.config_defaults.%sConfig" % camelize(flexmeasures_env)
     )
 
     # Now, potentially overwrite those from config file or environment variables
@@ -96,9 +97,13 @@ def read_config(app: Flask, custom_path_to_config: str | None):
         if custom_test_db_uri:
             app.config["SQLALCHEMY_DATABASE_URI"] = custom_test_db_uri
 
+    flexmeasures_env = app.config.get("FLEXMEASURES_ENV")
+
+    check_app_env(flexmeasures_env)
+
     # Check for missing values.
     # Documentation runs fine without them.
-    if not app.testing and app.env != "documentation":
+    if not app.testing and flexmeasures_env != "documentation":
         if not are_required_settings_complete(app):
             if not os.path.exists(used_path_to_config):
                 print(
