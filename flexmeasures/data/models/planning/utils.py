@@ -386,7 +386,7 @@ def get_continuous_series_sensor_or_quantity(
     :param unit:                    The desired unit of the data.
     :param query_window:            The time window (start, end) to query the data.
     :param resolution:              The resolution or time interval for the data.
-    :param fallback_attribute:      Attribute serving as a fallback default in case of missing data.
+    :param fallback_attribute:      Attribute serving as a fallback default in case no quantity or sensor is given.
     :param max_value:               Maximum value (also replacing NaN values).
     :param beliefs_before:          Timestamp for prior beliefs or knowledge.
     :returns:                       time series data with missing values handled based on the chosen method.
@@ -410,7 +410,8 @@ def get_continuous_series_sensor_or_quantity(
     )
 
     # Use default as fallback
-    time_series = time_series.fillna(_default_value)
+    if quantity_or_sensor is None:
+        time_series = time_series.fillna(_default_value)
 
     # Apply upper limit
     time_series = nanmin_of_series_and_value(time_series, max_value)
