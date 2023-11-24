@@ -1260,16 +1260,18 @@ def test_capacity(
             False,
             None,
             None,
-            [-8] * 24 * 4,
-            [0.5] * 24 * 4,
-        ),  # default to production_capacity and consumption_capacity sensor attribute
+            [-8] * 24 * 4,  # from the power sensor attribute 'production_capacity'
+            [0.5] * 24 * 4,  # from the power sensor attribute 'consumption_capacity'
+        ),
         (
             "Test battery with dynamic power capacity",
             True,
             False,
             None,
             None,
+            # from the flex model field 'production-capacity' (a sensor)
             [-0.2] * 4 * 4 + [-0.3] * 4 * 4 + [-8] * 16 * 4,
+            # from the power sensor attribute 'consumption_capacity'
             [0.5] * 24 * 4,
         ),
         (
@@ -1278,7 +1280,9 @@ def test_capacity(
             True,
             None,
             None,
+            # from the power sensor attribute 'consumption_capacity'
             [-8] * 24 * 4,
+            # from the flex model field 'consumption-capacity' (a sensor)
             [0.25] * 4 * 4 + [0.15] * 4 * 4 + [0.5] * 16 * 4,
         ),
         (
@@ -1287,7 +1291,9 @@ def test_capacity(
             False,
             "100 kW",
             "200 kW",
+            # from the flex model field 'production-capacity' (a quantity)
             [-0.1] * 24 * 4,
+            # from the flex model field 'consumption-capacity' (a quantity)
             [0.2] * 24 * 4,
         ),
         (
@@ -1296,7 +1302,9 @@ def test_capacity(
             False,
             "1 MW",
             "2 MW",
+            # from the flex model field 'production-capacity' (a quantity)
             [-1] * 24 * 4,
+            # from the power sensor attribute 'consumption_capacity' (a quantity)
             [0.5] * 24 * 4,
         ),
         (
@@ -1305,17 +1313,31 @@ def test_capacity(
             False,
             None,
             None,
+            # from the asset attribute 'capacity_in_mw'
             [-2] * 24 * 4,
+            # from the asset attribute 'capacity_in_mw'
             [2] * 24 * 4,
-        ),  # defaults to capacity_in_mw
-        ("Test battery", False, False, "10 kW", None, [-0.01] * 24 * 4, [2] * 24 * 4),
+        ),
+        (
+            "Test battery",
+            False,
+            False,
+            "10 kW",
+            None,
+            # from the flex model field 'production-capacity' (a quantity)
+            [-0.01] * 24 * 4,
+            # from the asset attribute 'capacity_in_mw'
+            [2] * 24 * 4,
+        ),
         (
             "Test battery",
             False,
             False,
             "10 kW",
             "100 kW",
+            # from the flex model field 'production-capacity' (a quantity)
             [-0.01] * 24 * 4,
+            # from the flex model field 'consumption-capacity' (a quantity)
             [0.1] * 24 * 4,
         ),
     ],
