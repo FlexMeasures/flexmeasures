@@ -227,54 +227,45 @@ def add_usage_forecast(db, add_battery_assets, setup_sources) -> dict[str, Senso
 
     battery = add_battery_assets["Test battery"]
 
-    # 1 days of test data
-    time_slots = initialize_index(
-        start=pd.Timestamp("2015-01-01").tz_localize("Europe/Amsterdam"),
-        end=pd.Timestamp("2015-01-02").tz_localize("Europe/Amsterdam"),
-        resolution="15T",
-    )
+    sensors = {}
+    sensor_specs = [
+        ("gain", timedelta(minutes=15), -battery.get_attribute("capacity_in_mw")),
+        (
+            "gain hourly",
+            timedelta(hours=1),
+            -battery.get_attribute("capacity_in_mw") * 4,
+        ),
+    ]
 
-    usage_forecast_sensor = Sensor(
-        name="gain",
-        unit="MWh",
-        event_resolution=timedelta(minutes=15),
-        generic_asset=battery,
-    )
-    db.session.add(usage_forecast_sensor)
-    db.session.flush()
+    for name, resolution, value in sensor_specs:
+        # 1 days of test data
+        time_slots = initialize_index(
+            start=pd.Timestamp("2015-01-01").tz_localize("Europe/Amsterdam"),
+            end=pd.Timestamp("2015-01-02").tz_localize("Europe/Amsterdam"),
+            resolution=resolution,
+        )
 
-    usage_forecast = [-battery.get_attribute("capacity_in_mw")] * len(time_slots)
+        usage_forecast_sensor = Sensor(
+            name=name,
+            unit="MWh",
+            event_resolution=resolution,
+            generic_asset=battery,
+        )
+        db.session.add(usage_forecast_sensor)
+        db.session.flush()
 
-    add_as_beliefs(
-        db, usage_forecast_sensor, usage_forecast, time_slots, setup_sources["Seita"]
-    )
+        usage_forecast = [value] * len(time_slots)
 
-    time_slots = initialize_index(
-        start=pd.Timestamp("2015-01-01").tz_localize("Europe/Amsterdam"),
-        end=pd.Timestamp("2015-01-02").tz_localize("Europe/Amsterdam"),
-        resolution="1H",
-    )
+        add_as_beliefs(
+            db,
+            usage_forecast_sensor,
+            usage_forecast,
+            time_slots,
+            setup_sources["Seita"],
+        )
+        sensors[name] = usage_forecast_sensor
 
-    usage_forecast_sensor_hourly = Sensor(
-        name="gain hourly",
-        unit="MWh",
-        event_resolution=timedelta(hours=1),
-        generic_asset=battery,
-    )
-    db.session.add(usage_forecast_sensor)
-    db.session.flush()
-
-    usage_forecast = [-battery.get_attribute("capacity_in_mw") * 4] * len(time_slots)
-
-    add_as_beliefs(
-        db,
-        usage_forecast_sensor_hourly,
-        usage_forecast,
-        time_slots,
-        setup_sources["Seita"],
-    )
-
-    return {"gain": usage_forecast_sensor, "gain hourly": usage_forecast_sensor_hourly}
+    return sensors
 
 
 def add_as_beliefs(db, sensor, values, time_slots, source):
