@@ -71,7 +71,7 @@ def check_app_env(env: str | None):
 
 def read_config(app: Flask, custom_path_to_config: str | None):
     """Read configuration from various expected sources, complain if not setup correctly."""
-
+    flexmeasures_env = "production"
     if app.testing:
         flexmeasures_env = "testing"
     elif os.getenv("FLEXMEASURES_ENV", None):
