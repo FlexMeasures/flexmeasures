@@ -52,7 +52,7 @@ def device_scheduler(  # noqa C901
         derivative equals: exact amount of flow (we do this by clamping derivative min and derivative max)
         derivative down efficiency: conversion efficiency of flow out of a device (flow out : stock decrease)
         derivative up efficiency: conversion efficiency of flow into a device (stock increase : flow in)
-        usage forecast: predefined stock delta to apply to the storage device. Positive quantity cause an increase and negative decrease (stock increase : flow in)
+        gain: predefined stock delta to apply to the storage device. Positive quantity cause an increase and negative decrease (stock increase : flow in)
     EMS constraints are on an EMS level. Handled constraints (listed by column name):
         derivative max: maximum flow
         derivative min: minimum flow
@@ -102,6 +102,11 @@ def device_scheduler(  # noqa C901
             device_constraint["derivative max"].max(),
             -device_constraint["derivative min"].min(),
         )
+
+    for i in range(len(device_constraints)):
+        if "gain" not in device_constraints[i].columns:
+            device_constraints[i]["gain"] = 0
+        device_constraints[i]["gain"] = device_constraints[i]["gain"].fillna(0)
 
     # Turn prices per commitment into prices per commitment flow
     if len(commitment_downwards_deviation_price) != 0:
@@ -227,13 +232,7 @@ def device_scheduler(  # noqa C901
         return eff
 
     def device_usage_forecast(m, d, j):
-        try:
-            usage_forecast = device_constraints[d]["usage forecast"].iloc[j]
-        except KeyError:
-            return 0
-        if np.isnan(usage_forecast):
-            return 0
-        return usage_forecast
+        return device_constraints[d]["gain"].iloc[j]
 
     model.up_price = Param(model.c, model.j, initialize=price_up_select)
     model.down_price = Param(model.c, model.j, initialize=price_down_select)

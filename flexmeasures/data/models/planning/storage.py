@@ -9,7 +9,7 @@ import pandas as pd
 import numpy as np
 from flask import current_app
 
-
+from flexmeasures import Sensor
 from flexmeasures.data.models.planning import Scheduler, SchedulerOutputType
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.planning.utils import (
@@ -64,7 +64,7 @@ class MetaStorageScheduler(Scheduler):
         "derivative min",
         "derivative down efficiency",
         "derivative up efficiency",
-        "usage forecast",
+        "gain",
     ]
 
     def compute_schedule(self) -> pd.Series | None:
@@ -241,20 +241,23 @@ class MetaStorageScheduler(Scheduler):
         all_usage_forecast = []
 
         for component in usage_forecast:
-            all_usage_forecast.append(
-                get_continous_series_sensor_or_quantity(
-                    quantity_or_sensor=component,
-                    actuator=sensor,
-                    target_unit="MWh",
-                    query_window=(start, end),
-                    resolution=resolution,
-                    beliefs_before=belief_time,
-                )
+            gain = get_continous_series_sensor_or_quantity(
+                quantity_or_sensor=component,
+                actuator=sensor,
+                target_unit="MWh",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
             )
+
+            if isinstance(component, Sensor):
+                gain *= resolution / component.event_resolution
+
+            all_usage_forecast.append(gain)
         if len(all_usage_forecast) > 0:
             all_usage_forecast = pd.concat(all_usage_forecast, axis=1)
 
-            device_constraints[0]["usage forecast"] = all_usage_forecast.sum(1)
+            device_constraints[0]["gain"] = all_usage_forecast.sum(1)
 
         # Apply round-trip efficiency evenly to charging and discharging
         device_constraints[0]["derivative down efficiency"] = (

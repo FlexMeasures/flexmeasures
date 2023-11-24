@@ -220,9 +220,9 @@ def process(db, building, setup_sources) -> dict[str, Sensor]:
 
 
 @pytest.fixture(scope="module")
-def add_usage_forecast(db, add_battery_assets, setup_sources) -> Sensor:
+def add_usage_forecast(db, add_battery_assets, setup_sources) -> dict[str, Sensor]:
     """
-    Set up a constant usage forecast
+    Set up a constant gain
     """
 
     battery = add_battery_assets["Test battery"]
@@ -235,7 +235,7 @@ def add_usage_forecast(db, add_battery_assets, setup_sources) -> Sensor:
     )
 
     usage_forecast_sensor = Sensor(
-        name="usage forecast",
+        name="gain",
         unit="MWh",
         event_resolution=timedelta(minutes=15),
         generic_asset=battery,
@@ -249,7 +249,32 @@ def add_usage_forecast(db, add_battery_assets, setup_sources) -> Sensor:
         db, usage_forecast_sensor, usage_forecast, time_slots, setup_sources["Seita"]
     )
 
-    return usage_forecast_sensor
+    time_slots = initialize_index(
+        start=pd.Timestamp("2015-01-01").tz_localize("Europe/Amsterdam"),
+        end=pd.Timestamp("2015-01-02").tz_localize("Europe/Amsterdam"),
+        resolution="1H",
+    )
+
+    usage_forecast_sensor_hourly = Sensor(
+        name="gain hourly",
+        unit="MWh",
+        event_resolution=timedelta(hours=1),
+        generic_asset=battery,
+    )
+    db.session.add(usage_forecast_sensor)
+    db.session.flush()
+
+    usage_forecast = [-battery.get_attribute("capacity_in_mw") * 4] * len(time_slots)
+
+    add_as_beliefs(
+        db,
+        usage_forecast_sensor_hourly,
+        usage_forecast,
+        time_slots,
+        setup_sources["Seita"],
+    )
+
+    return {"gain": usage_forecast_sensor, "gain hourly": usage_forecast_sensor_hourly}
 
 
 def add_as_beliefs(db, sensor, values, time_slots, source):
