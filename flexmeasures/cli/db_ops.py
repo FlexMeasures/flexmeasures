@@ -91,7 +91,11 @@ def load(name: str, dir: str = BACKUP_PATH, structure: bool = True, data: bool =
 
 @fm_db_ops.command()
 @with_appcontext
-def dump():
+@click.option(
+    "--pg-version",
+    help="Choose the server/cluster version, e.g. '15'. Useful if you have two versions of postgres installed. If not given, the internal choice is used (check pg_dump --version).",
+)
+def dump(pg_version: str | None = None):
     """Create a dump of all current data (using `pg_dump`)."""
     db_uri = app.config.get("SQLALCHEMY_DATABASE_URI")
     db_host_and_db_name = db_uri.split("@")[-1]
@@ -99,7 +103,7 @@ def dump():
     db_name = db_host_and_db_name.split("/")[-1]
     time_of_saving = datetime.now().strftime("%F-%H%M")
     dump_filename = f"pgbackup_{db_name}_{time_of_saving}.dump"
-    command_for_dumping = f"pg_dump --no-privileges --no-owner --data-only --format=c --file={dump_filename} {db_uri}"
+    command_for_dumping = f"pg_dump {pg_cluster_arg_from_version(pg_version)} --no-privileges --no-owner --data-only --format=c --file={dump_filename} {db_uri}"
     try:
         subprocess.check_output(command_for_dumping, shell=True)
         click.secho(f"db dump successful: saved to {dump_filename}", **MsgStyle.SUCCESS)
@@ -112,7 +116,11 @@ def dump():
 @fm_db_ops.command()
 @with_appcontext
 @click.argument("file", type=click.Path(exists=True))
-def restore(file: str):
+@click.option(
+    "--pg-version",
+    help="Choose the server/cluster version, e.g. '15'. Useful if you have two versions of postgres installed. If not given, the internal choice is used (check pg_restore --version).",
+)
+def restore(file: str, pg_version: str | None = None):
     """Restore the dump file, see `db-ops dump` (run `reset` first).
 
     From the command line:
@@ -122,11 +130,12 @@ def restore(file: str):
         % flexmeasures db-ops restore FILE
 
     """
-
     db_uri: str = app.config.get("SQLALCHEMY_DATABASE_URI")  # type: ignore
     db_host_and_db_name = db_uri.split("@")[-1]
     click.echo(f"Restoring {db_host_and_db_name} database from file {file}")
-    command_for_restoring = f"pg_restore -d {db_uri} {file}"
+    command_for_restoring = (
+        f"pg_restore {pg_cluster_arg_from_version(pg_version)} -d {db_uri} {file}"
+    )
     try:
         subprocess.check_output(command_for_restoring, shell=True)
         click.secho("db restore successful", **MsgStyle.SUCCESS)
@@ -134,6 +143,17 @@ def restore(file: str):
     except Exception as e:
         click.secho(f"Exception happened during restore: {e}", **MsgStyle.ERROR)
         click.secho("db restore unsuccessful", **MsgStyle.ERROR)
+
+
+def pg_cluster_arg_from_version(pg_version: str) -> str:
+    """
+    Small utility, turning the target postgres version into an arg for pg utils,
+    so that they know what they're supposed to work against.
+    More info (e.g. on the format) at https://manpages.ubuntu.com/manpages/trusty/man1/pg_wrapper.1.html
+    """
+    if pg_version:
+        return f"--cluster {pg_version}/main"
+    return ""
 
 
 app.cli.add_command(fm_db_ops)
