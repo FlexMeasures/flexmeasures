@@ -1,4 +1,5 @@
 """CLI commands for saving, resetting, etc of the database"""
+from __future__ import annotations
 
 from datetime import datetime
 import subprocess
