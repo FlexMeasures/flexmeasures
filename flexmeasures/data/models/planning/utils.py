@@ -3,7 +3,6 @@ from __future__ import annotations
 from packaging import version
 from typing import List, Optional, Tuple, Union
 from datetime import date, datetime, timedelta
-from typing import cast
 
 from flask import current_app
 import pandas as pd
@@ -356,7 +355,7 @@ def get_series_from_quantity_or_sensor(
         time_series = convert_units(time_series, quantity_or_sensor.unit, unit)
     else:
         raise TypeError(
-            f"time_series should be a pint Quantity or timely-beliefs Sensor"
+            f"quantity_or_sensor {quantity_or_sensor} should be a pint Quantity or timely-beliefs Sensor"
         )
 
     return time_series
