@@ -374,7 +374,7 @@ def get_continuous_series_sensor_or_quantity(
     query_window: tuple[datetime, datetime],
     resolution: timedelta,
     fallback_attribute: str | None = None,
-    max_value: float | int | None = np.nan,
+    max_value: float | int = np.nan,
     beliefs_before: datetime | None = None,
 ) -> pd.Series:
     """
