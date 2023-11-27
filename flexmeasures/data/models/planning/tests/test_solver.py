@@ -58,10 +58,16 @@ def test_storage_loss_function(
 
 
 @pytest.mark.parametrize("use_inflexible_device", [False, True])
+@pytest.mark.parametrize("battery_name", ["Test battery", "Test small battery"])
 def test_battery_solver_day_1(
-    add_battery_assets, add_inflexible_device_forecasts, use_inflexible_device
+    add_battery_assets,
+    add_inflexible_device_forecasts,
+    use_inflexible_device,
+    battery_name,
 ):
-    epex_da, battery = get_sensors_from_db(add_battery_assets)
+    epex_da, battery = get_sensors_from_db(
+        add_battery_assets, battery_name=battery_name
+    )
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 1))
     end = tz.localize(datetime(2015, 1, 2))
@@ -997,7 +1003,7 @@ def test_infeasible_problem_error(add_battery_assets):
         compute_schedule(flex_model)
 
 
-def get_sensors_from_db(battery_assets):
+def get_sensors_from_db(battery_assets, battery_name="Test battery"):
     # get the sensors from the database
     epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
     battery = battery_assets["Test battery"].sensors[0]
