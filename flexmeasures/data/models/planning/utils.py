@@ -3,7 +3,6 @@ from __future__ import annotations
 from packaging import version
 from typing import List, Optional, Tuple, Union
 from datetime import date, datetime, timedelta
-from typing import cast
 
 from flask import current_app
 import pandas as pd
@@ -298,36 +297,29 @@ def get_quantity_from_attribute(
     entity: Asset | Sensor,
     attribute: str,
     unit: str | ur.Quantity,
-    default: float = np.nan,
-) -> float:
+) -> ur.Quantity:
     """Get the value (in the given unit) of a quantity stored as an entity attribute.
 
     :param entity:      The entity (sensor or asset) containing the attribute to retrieve the value from.
     :param attribute:   The attribute name to extract the value from.
     :param unit:        The unit in which the value should be returned.
-    :param default:     The fallback value if the attribute is missing or conversion fails (defaults to np.nan).
-    :return:            The retrieved value or the provided default.
+    :return:            The retrieved quantity or the provided default.
     """
-    # get the default value from the entity attribute. if missing, use default_value
-    value: str | float | int | None = entity.get_attribute(attribute, default)
+    # Get the default value from the entity attribute
+    value: str | float | int = entity.get_attribute(attribute, np.nan)
 
-    # if it's a string, let's try to convert it to a unit
-    if isinstance(value, str):
-        try:
-            value = ur.Quantity(value)
-
-            # convert default value to the target units
-            value = value.to(unit).magnitude
-
-        except (UndefinedUnitError, DimensionalityError, ValueError, AssertionError):
-            current_app.logger.warning(f"Couldn't convert {value} to `{unit}`")
-            return default
-
-    return value
+    # Try to convert it to a quantity in the desired unit
+    try:
+        q = ur.Quantity(value)
+        q = q.to(unit)
+    except (UndefinedUnitError, DimensionalityError, ValueError, AssertionError):
+        current_app.logger.warning(f"Couldn't convert {value} to `{unit}`")
+        q = np.nan * ur.Quantity(unit)  # at least return result in the desired unit
+    return q
 
 
 def get_series_from_quantity_or_sensor(
-    quantity_or_sensor: Sensor | ur.Quantity | None,
+    quantity_or_sensor: Sensor | ur.Quantity,
     unit: ur.Quantity | str,
     query_window: tuple[datetime, datetime],
     resolution: timedelta,
@@ -345,10 +337,10 @@ def get_series_from_quantity_or_sensor(
     """
 
     start, end = query_window
-    time_series = initialize_series(np.nan, start=start, end=end, resolution=resolution)
+    index = initialize_index(start=start, end=end, resolution=resolution)
 
     if isinstance(quantity_or_sensor, ur.Quantity):
-        time_series[:] = quantity_or_sensor.to(unit).magnitude
+        time_series = pd.Series(quantity_or_sensor.to(unit).magnitude, index=index)
     elif isinstance(quantity_or_sensor, Sensor):
         bdf: tb.BeliefsDataFrame = TimedBelief.search(
             quantity_or_sensor,
@@ -359,10 +351,12 @@ def get_series_from_quantity_or_sensor(
             most_recent_beliefs_only=True,
             one_deterministic_belief_per_event=True,
         )
-        df = simplify_index(bdf).reindex(time_series.index)
-        time_series[:] = df.values.squeeze()  # drop unused dimension (N,1) -> (N)
+        time_series = simplify_index(bdf).reindex(index).squeeze()
         time_series = convert_units(time_series, quantity_or_sensor.unit, unit)
-        time_series = cast(pd.Series, time_series)
+    else:
+        raise TypeError(
+            f"quantity_or_sensor {quantity_or_sensor} should be a pint Quantity or timely-beliefs Sensor"
+        )
 
     return time_series
 
@@ -373,41 +367,28 @@ def get_continuous_series_sensor_or_quantity(
     unit: ur.Quantity | str,
     query_window: tuple[datetime, datetime],
     resolution: timedelta,
-    default_value_attribute: str | None = None,
-    default_value: float | int | None = np.nan,
     beliefs_before: datetime | None = None,
-    method: str = "replace",
+    fallback_attribute: str | None = None,
+    max_value: float | int = np.nan,
 ) -> pd.Series:
-    """
-    Retrieves a continuous time series data from a sensor or quantity within a specified window, filling
-    the missing values from an attribute (`default_value_attribute`) or default value (`default_value`).
-
-    Methods to fill-in missing data:
-        - 'replace' missing values are filled with the default value.
-        - 'upper' clips missing values to the upper bound of the default value.
-        - 'lower' clips missing values to the lower bound of the default value.
+    """Creates a time series from a quantity or sensor within a specified window,
+    falling back to a given `fallback_attribute` and making sure no values exceed `max_value`.
 
     :param quantity_or_sensor:      The quantity or sensor containing the data.
     :param actuator:                The actuator from which relevant defaults are retrieved.
     :param unit:                    The desired unit of the data.
     :param query_window:            The time window (start, end) to query the data.
     :param resolution:              The resolution or time interval for the data.
-    :param default_value_attribute: Attribute for a default value if data is missing.
-    :param default_value:           Default value if no attribute or data found.
     :param beliefs_before:          Timestamp for prior beliefs or knowledge.
-    :param method:                  Method for handling missing data: 'replace', 'upper', 'lower', 'max', or 'min'.
+    :param fallback_attribute:      Attribute serving as a fallback default in case no quantity or sensor is given.
+    :param max_value:               Maximum value (also replacing NaN values).
     :returns:                       time series data with missing values handled based on the chosen method.
-    :raises: NotImplementedError:   If an unsupported method is provided.
     """
-
-    _default_value = np.nan
-
-    if default_value_attribute is not None:
-        _default_value = get_quantity_from_attribute(
+    if quantity_or_sensor is None:
+        quantity_or_sensor = get_quantity_from_attribute(
             entity=actuator,
-            attribute=default_value_attribute,
+            attribute=fallback_attribute,
             unit=unit,
-            default=default_value,
         )
 
     time_series = get_series_from_quantity_or_sensor(
@@ -418,15 +399,12 @@ def get_continuous_series_sensor_or_quantity(
         beliefs_before=beliefs_before,
     )
 
-    if method == "replace":
-        time_series = time_series.fillna(_default_value)
-    elif method == "upper":
-        time_series = time_series.fillna(_default_value).clip(upper=_default_value)
-    elif method == "lower":
-        time_series = time_series.fillna(_default_value).clip(lower=_default_value)
-    else:
-        raise NotImplementedError(
-            "Method `{method}` not supported. Please, try one of the following: `replace`, `max`, `min` "
-        )
+    # Apply upper limit
+    time_series = nanmin_of_series_and_value(time_series, max_value)
 
     return time_series
+
+
+def nanmin_of_series_and_value(s: pd.Series, value: float) -> pd.Series:
+    """Perform a nanmin between a Series and a float."""
+    return s.fillna(value).clip(upper=value)

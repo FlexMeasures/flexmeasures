@@ -1269,8 +1269,9 @@ def test_capacity(
             False,
             None,
             None,
-            # from the flex model field 'production-capacity' (a sensor)
-            [-0.2] * 4 * 4 + [-0.3] * 4 * 4 + [-8] * 16 * 4,
+            # from the flex model field 'production-capacity' (a sensor),
+            # and when absent, defaulting to the max value from the power sensor attribute capacity_in_mw
+            [-0.2] * 4 * 4 + [-0.3] * 4 * 4 + [-10] * 16 * 4,
             # from the power sensor attribute 'consumption_capacity'
             [0.5] * 24 * 4,
         ),
@@ -1282,8 +1283,9 @@ def test_capacity(
             None,
             # from the power sensor attribute 'consumption_capacity'
             [-8] * 24 * 4,
-            # from the flex model field 'consumption-capacity' (a sensor)
-            [0.25] * 4 * 4 + [0.15] * 4 * 4 + [0.5] * 16 * 4,
+            # from the flex model field 'consumption-capacity' (a sensor),
+            # and when absent, defaulting to the max value from the power sensor attribute capacity_in_mw
+            [0.25] * 4 * 4 + [0.15] * 4 * 4 + [10] * 16 * 4,
         ),
         (
             "Test battery with dynamic power capacity",
@@ -1305,7 +1307,7 @@ def test_capacity(
             # from the flex model field 'production-capacity' (a quantity)
             [-1] * 24 * 4,
             # from the power sensor attribute 'consumption_capacity' (a quantity)
-            [0.5] * 24 * 4,
+            [2] * 24 * 4,
         ),
         (
             "Test battery",
