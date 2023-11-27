@@ -327,7 +327,7 @@ def get_quantity_from_attribute(
 
 
 def get_series_from_quantity_or_sensor(
-    quantity_or_sensor: Sensor | ur.Quantity | None,
+    quantity_or_sensor: Sensor | ur.Quantity,
     unit: ur.Quantity | str,
     query_window: tuple[datetime, datetime],
     resolution: timedelta,
@@ -345,10 +345,10 @@ def get_series_from_quantity_or_sensor(
     """
 
     start, end = query_window
-    time_series = initialize_series(np.nan, start=start, end=end, resolution=resolution)
+    index = initialize_index(start=start, end=end, resolution=resolution)
 
     if isinstance(quantity_or_sensor, ur.Quantity):
-        time_series[:] = quantity_or_sensor.to(unit).magnitude
+        time_series = pd.Series(quantity_or_sensor.to(unit).magnitude, index=index)
     elif isinstance(quantity_or_sensor, Sensor):
         bdf: tb.BeliefsDataFrame = TimedBelief.search(
             quantity_or_sensor,
@@ -359,10 +359,12 @@ def get_series_from_quantity_or_sensor(
             most_recent_beliefs_only=True,
             one_deterministic_belief_per_event=True,
         )
-        df = simplify_index(bdf).reindex(time_series.index)
-        time_series[:] = df.values.squeeze()  # drop unused dimension (N,1) -> (N)
+        time_series = simplify_index(bdf).reindex(index).squeeze()
         time_series = convert_units(time_series, quantity_or_sensor.unit, unit)
-        time_series = cast(pd.Series, time_series)
+    else:
+        raise TypeError(
+            f"time_series should be a pint Quantity or timely-beliefs Sensor"
+        )
 
     return time_series
 
@@ -391,27 +393,30 @@ def get_continuous_series_sensor_or_quantity(
     :param beliefs_before:          Timestamp for prior beliefs or knowledge.
     :returns:                       time series data with missing values handled based on the chosen method.
     """
-
-    _default_value = np.nan
-
-    if fallback_attribute is not None:
-        _default_value = get_quantity_from_attribute(
-            entity=actuator,
-            attribute=fallback_attribute,
+    if quantity_or_sensor is not None:
+        time_series = get_series_from_quantity_or_sensor(
+            quantity_or_sensor=quantity_or_sensor,
             unit=unit,
+            query_window=query_window,
+            resolution=resolution,
+            beliefs_before=beliefs_before,
         )
-
-    time_series = get_series_from_quantity_or_sensor(
-        quantity_or_sensor=quantity_or_sensor,
-        unit=unit,
-        query_window=query_window,
-        resolution=resolution,
-        beliefs_before=beliefs_before,
-    )
-
-    # Use default as fallback
-    if quantity_or_sensor is None:
-        time_series = time_series.fillna(_default_value)
+    else:
+        # Use default as fallback
+        if fallback_attribute is not None:
+            _default_value = get_quantity_from_attribute(
+                entity=actuator,
+                attribute=fallback_attribute,
+                unit=unit,
+            )
+        else:
+            _default_value = np.nan
+        time_series = initialize_series(
+            _default_value,
+            start=query_window[0],
+            end=query_window[1],
+            resolution=resolution,
+        )
 
     # Apply upper limit
     time_series = nanmin_of_series_and_value(time_series, max_value)
