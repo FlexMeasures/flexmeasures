@@ -12,10 +12,23 @@ New features
 Infrastructure / Support
 ----------------------
 
-# New documentation section on constructing a flex model for :abbr:`V2G (vehicle-to-grid)` [see `PR #885 <https://github.com/FlexMeasures/flexmeasures/pull/885>`_]
+* New documentation section on constructing a flex model for :abbr:`V2G (vehicle-to-grid)` [see `PR #885 <https://github.com/FlexMeasures/flexmeasures/pull/885>`_]
 
 Bugfixes
 -----------
+
+* Show `Assets`, `Users`, `Tasks` and `Accounts` pages in the navigation bar for the `admin-reader` role [see `PR #900 <https://github.com/FlexMeasures/flexmeasures/pull/900>`_]
+
+
+
+v0.17.1 | November 22, 2023
+============================
+
+Bugfixes
+-----------
+
+* Fix infeasible problem due to incorrect estimation of the big-M value [see `PR #905 <https://github.com/FlexMeasures/flexmeasures/pull/905>`_]
+
 
 
 v0.17.0 | November 8, 2023

@@ -2,6 +2,10 @@ class MissingAttributeException(Exception):
     pass
 
 
+class WrongEntityException(Exception):
+    pass
+
+
 class UnknownMarketException(Exception):
     pass
 
