@@ -372,8 +372,8 @@ def get_continuous_series_sensor_or_quantity(
     fallback_attribute: str | None = None,
     max_value: float | int = np.nan,
 ) -> pd.Series:
-    """Creates a time series from a quantity or sensor within a specified window, filling
-    missing values from a given `fallback_attribute` and making sure no values exceed `max_value`.
+    """Creates a time series from a quantity or sensor within a specified window,
+    falling back to a given `fallback_attribute` and making sure no values exceed `max_value`.
 
     :param quantity_or_sensor:      The quantity or sensor containing the data.
     :param actuator:                The actuator from which relevant defaults are retrieved.
