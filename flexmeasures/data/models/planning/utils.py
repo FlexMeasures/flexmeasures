@@ -298,32 +298,25 @@ def get_quantity_from_attribute(
     entity: Asset | Sensor,
     attribute: str,
     unit: str | ur.Quantity,
-    default: float = np.nan,
-) -> float:
+) -> ur.Quantity:
     """Get the value (in the given unit) of a quantity stored as an entity attribute.
 
     :param entity:      The entity (sensor or asset) containing the attribute to retrieve the value from.
     :param attribute:   The attribute name to extract the value from.
     :param unit:        The unit in which the value should be returned.
-    :param default:     The fallback value if the attribute is missing or conversion fails (defaults to np.nan).
-    :return:            The retrieved value or the provided default.
+    :return:            The retrieved quantity or the provided default.
     """
-    # get the default value from the entity attribute. if missing, use default_value
-    value: str | float | int | None = entity.get_attribute(attribute, default)
+    # Get the default value from the entity attribute
+    value: str | float | int = entity.get_attribute(attribute, np.nan)
 
-    # if it's a string, let's try to convert it to a unit
-    if isinstance(value, str):
-        try:
-            value = ur.Quantity(value)
-
-            # convert default value to the target units
-            value = value.to(unit).magnitude
-
-        except (UndefinedUnitError, DimensionalityError, ValueError, AssertionError):
-            current_app.logger.warning(f"Couldn't convert {value} to `{unit}`")
-            return default
-
-    return value
+    # Try to convert it to a quantity in the desired unit
+    try:
+        q = ur.Quantity(value)
+        q = q.to(unit)
+    except (UndefinedUnitError, DimensionalityError, ValueError, AssertionError):
+        current_app.logger.warning(f"Couldn't convert {value} to `{unit}`")
+        q = np.nan * ur.Quantity(unit)  # at least return result in the desired unit
+    return q
 
 
 def get_series_from_quantity_or_sensor(
@@ -379,9 +372,8 @@ def get_continuous_series_sensor_or_quantity(
     max_value: float | int = np.nan,
     beliefs_before: datetime | None = None,
 ) -> pd.Series:
-    """
-    Retrieves a continuous time series data from a sensor or quantity within a specified window, filling
-    the missing values from a given `fallback_attribute` and making sure no values exceed `max_value`.
+    """Creates a time series from a quantity or sensor within a specified window, filling
+    missing values from a given `fallback_attribute` and making sure no values exceed `max_value`.
 
     :param quantity_or_sensor:      The quantity or sensor containing the data.
     :param actuator:                The actuator from which relevant defaults are retrieved.
@@ -393,30 +385,20 @@ def get_continuous_series_sensor_or_quantity(
     :param beliefs_before:          Timestamp for prior beliefs or knowledge.
     :returns:                       time series data with missing values handled based on the chosen method.
     """
-    if quantity_or_sensor is not None:
-        time_series = get_series_from_quantity_or_sensor(
-            quantity_or_sensor=quantity_or_sensor,
+    if quantity_or_sensor is None:
+        quantity_or_sensor = get_quantity_from_attribute(
+            entity=actuator,
+            attribute=fallback_attribute,
             unit=unit,
-            query_window=query_window,
-            resolution=resolution,
-            beliefs_before=beliefs_before,
         )
-    else:
-        # Use default as fallback
-        if fallback_attribute is not None:
-            _default_value = get_quantity_from_attribute(
-                entity=actuator,
-                attribute=fallback_attribute,
-                unit=unit,
-            )
-        else:
-            _default_value = np.nan
-        time_series = initialize_series(
-            _default_value,
-            start=query_window[0],
-            end=query_window[1],
-            resolution=resolution,
-        )
+
+    time_series = get_series_from_quantity_or_sensor(
+        quantity_or_sensor=quantity_or_sensor,
+        unit=unit,
+        query_window=query_window,
+        resolution=resolution,
+        beliefs_before=beliefs_before,
+    )
 
     # Apply upper limit
     time_series = nanmin_of_series_and_value(time_series, max_value)
