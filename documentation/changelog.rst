@@ -6,12 +6,15 @@ FlexMeasures Changelog
 v0.18.0 | December XX, 2023
 ============================
 
+.. warning:: This version replaces FLASK_ENV with FLEXMEASURES_ENV (FLASK_ENV will still be used as a fallback).
+
 New features
 -------------
 
 Infrastructure / Support
 ----------------------
 
+- Deprecate use of flask's ``FLASK_ENV`` variable and replace it with ``FLEXMEASURES_ENV`` [see `PR #907 <https://github.com/FlexMeasures/flexmeasures/pull/907>`_]
 # New documentation section on constructing a flex model for :abbr:`V2G (vehicle-to-grid)` [see `PR #885 <https://github.com/FlexMeasures/flexmeasures/pull/885>`_]
 
 Bugfixes

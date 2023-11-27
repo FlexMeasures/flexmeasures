@@ -82,7 +82,7 @@ def read_config(app: Flask, custom_path_to_config: str | None):
         import warnings
 
         warnings.warn(
-            "'FLASK_ENV' is deprecated and will be removed in FlexMeasures X.X.X"
+            "'FLASK_ENV' is deprecated and replaced by FLEXMEASURES_ENV"
             " Change FLASK_ENV to FLEXMEASURES_ENV in the environment variables",
             DeprecationWarning,
             stacklevel=2,
