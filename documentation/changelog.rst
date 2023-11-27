@@ -18,6 +18,16 @@ Bugfixes
 -----------
 
 
+v0.17.1 | November 22, 2023
+============================
+
+Bugfixes
+-----------
+
+* Fix infeasible problem due to incorrect estimation of the big-M value [see `PR #905 <https://github.com/FlexMeasures/flexmeasures/pull/905>`_]
+
+
+
 v0.17.0 | November 8, 2023
 ============================
 
