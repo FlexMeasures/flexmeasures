@@ -69,9 +69,11 @@ def device_scheduler(  # noqa C901
     DataFrame. Later we could pass in a MultiIndex DataFrame directly.
     """
 
+    model = ConcreteModel()
+
     # If the EMS has no devices, don't bother
     if len(device_constraints) == 0:
-        return [], 0, SolverResults()
+        return [], 0, SolverResults(), model
 
     # Check if commitments have the same time window and resolution as the constraints
     start = device_constraints[0].index.to_pydatetime()[0]
@@ -117,8 +119,6 @@ def device_scheduler(  # noqa C901
                 initialize_series(price, start, end, resolution)
                 for price in commitment_upwards_deviation_price
             ]
-
-    model = ConcreteModel()
 
     # Add indices for devices (d), datetimes (j) and commitments (c)
     model.d = RangeSet(0, len(device_constraints) - 1, doc="Set of devices")
