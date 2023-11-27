@@ -368,9 +368,9 @@ def get_continuous_series_sensor_or_quantity(
     unit: ur.Quantity | str,
     query_window: tuple[datetime, datetime],
     resolution: timedelta,
+    beliefs_before: datetime | None = None,
     fallback_attribute: str | None = None,
     max_value: float | int = np.nan,
-    beliefs_before: datetime | None = None,
 ) -> pd.Series:
     """Creates a time series from a quantity or sensor within a specified window, filling
     missing values from a given `fallback_attribute` and making sure no values exceed `max_value`.
@@ -380,9 +380,9 @@ def get_continuous_series_sensor_or_quantity(
     :param unit:                    The desired unit of the data.
     :param query_window:            The time window (start, end) to query the data.
     :param resolution:              The resolution or time interval for the data.
+    :param beliefs_before:          Timestamp for prior beliefs or knowledge.
     :param fallback_attribute:      Attribute serving as a fallback default in case no quantity or sensor is given.
     :param max_value:               Maximum value (also replacing NaN values).
-    :param beliefs_before:          Timestamp for prior beliefs or knowledge.
     :returns:                       time series data with missing values handled based on the chosen method.
     """
     if quantity_or_sensor is None:
