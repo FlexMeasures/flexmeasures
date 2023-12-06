@@ -1,8 +1,6 @@
 from datetime import datetime, timedelta
 import pytest
 import pytz
-
-
 import logging
 
 import numpy as np
