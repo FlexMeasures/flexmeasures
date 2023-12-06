@@ -16,6 +16,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Reduce worker logs when datetime exceeds the end of the schedule [see `PR #918 <https://github.com/FlexMeasures/flexmeasures/pull/918>`_]
 
 * Show `Assets`, `Users`, `Tasks` and `Accounts` pages in the navigation bar for the `admin-reader` role [see `PR #900 <https://github.com/FlexMeasures/flexmeasures/pull/900>`_]
 * Give `admin-reader` role access to the RQ Scheduler dashboard [see `PR #901 <https://github.com/FlexMeasures/flexmeasures/pull/901>`_]
