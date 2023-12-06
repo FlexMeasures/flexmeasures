@@ -480,7 +480,6 @@ class MetaStorageScheduler(Scheduler):
 
 
 class StorageFallbackScheduler(MetaStorageScheduler):
-
     __version__ = "1"
     __author__ = "Seita"
 
@@ -630,6 +629,7 @@ def build_device_soc_values(
     if isinstance(soc_values, pd.Series):  # some tests prepare it this way
         device_values = soc_values
     else:
+        disregarded_datetimes = []
         device_values = initialize_series(
             np.nan,
             start=start_of_schedule,
@@ -645,13 +645,16 @@ def build_device_soc_values(
             )  # otherwise DST would be problematic
             if soc_datetime > end_of_schedule:
                 # Skip too-far-into-the-future target
+                disregarded_datetimes += [soc_datetime]
                 max_server_horizon = get_max_planning_horizon(resolution)
-                current_app.logger.warning(
-                    f"Disregarding target datetime {soc_datetime}, because it exceeds {end_of_schedule}. Maximum scheduling horizon is {max_server_horizon}."
-                )
                 continue
 
             device_values.loc[soc_datetime] = soc
+
+        if disregarded_datetimes:
+            current_app.logger.warning(
+                f"Disregarding {len(disregarded_datetimes)} target datetimes from {min(disregarded_datetimes)} until {max(disregarded_datetimes)}, because they exceeds {end_of_schedule}. Maximum scheduling horizon is {max_server_horizon}."
+            )
 
         # soc_values are at the end of each time slot, while prices are indexed by the start of each time slot
         device_values = device_values[start_of_schedule + resolution : end_of_schedule]
@@ -904,7 +907,6 @@ def sanitize_expression(expression: str, columns: list) -> tuple[str, list]:
     columns_involved = []
 
     for column in columns:
-
         if re.search(get_pattern_match_word(column), _expression):
             columns_involved.append(column)
 
