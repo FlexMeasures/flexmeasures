@@ -235,6 +235,12 @@ FLEXMEASURES_JS_VERSIONS
 
 Default: ``{"vega": "5.22.1", "vegaembed": "6.20.8", "vegalite": "5.2.0"}``
 
+FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+When ``FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY`` is set to ``true``, insecure ``http`` connections are automatically upgraded to secure ``https``.
+
+Default: ``False``
 
 Timing
 ------
@@ -647,10 +653,3 @@ FLEXMEASURES_API_SUNSET_LINK
 Allow to override the default sunset link for your clients.
 
 Default: ``None`` (defaults are set internally for each sunset API version, e.g. ``"https://flexmeasures.readthedocs.io/en/v0.13.0/api/v2_0.html"`` for v2.0)
-
-FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-When ``FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY`` is set to ``true``, insecure ``http`` connections are automatically upgraded to secure ``https``.
-
-Default: ``False``
