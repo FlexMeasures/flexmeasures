@@ -1262,13 +1262,14 @@ def test_capacity(
 def test_build_device_soc_values(caplog):
     caplog.set_level(logging.WARNING)
     soc_values = [
-        {"datetime": datetime(2023, 5, 20, tzinfo=pytz.utc), "value": 1.0},
+        {"datetime": datetime(2023, 5, 19, tzinfo=pytz.utc), "value": 1.0},
+        {"datetime": datetime(2023, 5, 22, tzinfo=pytz.utc), "value": 1.0},
         {"datetime": datetime(2023, 5, 23, tzinfo=pytz.utc), "value": 1.0},
         {"datetime": datetime(2023, 5, 21, tzinfo=pytz.utc), "value": 1.0},
     ]
     soc_at_start = 3.0
     start_of_schedule = datetime(2023, 5, 18, tzinfo=pytz.utc)
-    end_of_schedule = datetime(2023, 5, 19, tzinfo=pytz.utc)
+    end_of_schedule = datetime(2023, 5, 20, tzinfo=pytz.utc)
     resolution = timedelta(minutes=5)
 
     with caplog.at_level(logging.WARNING):
@@ -1281,6 +1282,6 @@ def test_build_device_soc_values(caplog):
         )
     print(device_values)
     assert (
-        "Disregarding 3 target datetimes from 2023-05-20 00:00:00+00:00 until 2023-05-23 00:00:00+00:00, because they exceed 2023-05-19 00:00:00+00:00"
+        "Disregarding 3 target datetimes from 2023-05-21 00:00:00+00:00 until 2023-05-23 00:00:00+00:00, because they exceed 2023-05-20 00:00:00+00:00"
         in caplog.text
     )
