@@ -135,6 +135,7 @@ class Config(object):
     FLEXMEASURES_API_SUNSET_DATE: str | None = None  # e.g. 2023-05-01
     FLEXMEASURES_API_SUNSET_LINK: str | None = None  # e.g. https://flexmeasures.readthedocs.io/en/latest/api/introduction.html#deprecation-and-sunset
 
+    FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY: bool = False    # if True, the content could be accessed via HTTPS.
 
 #  names of settings which cannot be None
 #  SECRET_KEY is also required but utils.app_utils.set_secret_key takes care of this better.
