@@ -10,13 +10,14 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 from flexmeasures.data.config import db
-from sqlalchemy.sql import text
 
 # revision identifiers, used by Alembic.
 revision = "ad98460751d9"
 down_revision = "5a9473a817cb"
 branch_labels = None
 depends_on = None
+
+"postgresql://flexmeasures:test@127.0.0.1/flexmeasures"
 
 
 def upgrade():
@@ -28,9 +29,15 @@ def upgrade():
         )
         return confirmation == "y"
 
-    result = db.engine.execute(
-        statement=text("select exists (select * from market_type) as has_data")
-    ).one_or_none()
+    # t_market_type = sa.Table(
+    #     "market_type",
+    #     sa.MetaData(),
+    #     sa.Column("name", sa.String(80)),
+    #     sa.Column("daily_seasonality", sa.Boolean),  # Copy to Sensor
+    #     sa.Column("weekly_seasonality", sa.Boolean),  # Copy to Sensor
+    #     sa.Column("yearly_seasonality", sa.Boolean),  # Copy to Sensor
+    # )
+    result = db.engine.execute("select * from market_type;")
     for i in result:
         print(i[0])
     if not confirm_upgrade():
