@@ -5,6 +5,11 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
+v3.0-14 | 2023-12-07
+""""""""""""""""""""
+
+- Fix API version listing (GET /api/v3_0) for hosts running on Python 3.8.
+
 v3.0-13 | 2023-10-31
 """"""""""""""""""""
 
