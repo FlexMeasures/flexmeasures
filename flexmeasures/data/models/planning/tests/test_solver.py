@@ -1281,6 +1281,6 @@ def test_build_device_soc_values(caplog):
         )
     print(device_values)
     assert (
-        "Disregarding 3 target datetimes from 2023-05-20 00:00:00+00:00 until 2023-05-23 00:00:00+00:00, because they exceeds 2023-05-19 00:00:00+00:00"
+        "Disregarding 3 target datetimes from 2023-05-20 00:00:00+00:00 until 2023-05-23 00:00:00+00:00, because they exceed 2023-05-19 00:00:00+00:00"
         in caplog.text
     )

@@ -653,7 +653,7 @@ def build_device_soc_values(
 
         if disregarded_datetimes:
             current_app.logger.warning(
-                f"Disregarding {len(disregarded_datetimes)} target datetimes from {min(disregarded_datetimes)} until {max(disregarded_datetimes)}, because they exceeds {end_of_schedule}. Maximum scheduling horizon is {max_server_horizon}."
+                f"Disregarding {len(disregarded_datetimes)} target datetimes from {min(disregarded_datetimes)} until {max(disregarded_datetimes)}, because they exceed {end_of_schedule}. Maximum scheduling horizon is {max_server_horizon}."
             )
 
         # soc_values are at the end of each time slot, while prices are indexed by the start of each time slot
