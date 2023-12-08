@@ -238,7 +238,7 @@ Default: ``{"vega": "5.22.1", "vegaembed": "6.20.8", "vegalite": "5.2.0"}``
 FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-When ``FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY`` is set to ``true``, insecure ``http`` connections are automatically upgraded to secure ``https``.
+When ``FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY`` is set to ``True``, the ``<meta>`` tag with the ``Content-Security-Policy`` directive, specifically ``upgrade-insecure-requests``, is included in the HTML head. This directive instructs the browser to upgrade insecure requests from ``http`` to ``https``, promoting a more secure browsing experience.
 
 Default: ``False``
 
