@@ -10,15 +10,12 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 from flexmeasures.data.config import db
-import logging
 
 # revision identifiers, used by Alembic.
 revision = "ad98460751d9"
 down_revision = "5a9473a817cb"
 branch_labels = None
 depends_on = None
-logger = logging.getLogger()
-"postgresql://flexmeasures:test@127.0.0.1/flexmeasures"
 
 
 def upgrade():
@@ -32,8 +29,10 @@ def upgrade():
         "asset",
         "weather_sensor",
     ]:
-        result = db.engine.execute(f"select * from {table};").first()
-        if result:
+        result = db.engine.execute(
+            f"SELECT EXISTS (SELECT 1 FROM {table});"
+        ).one_or_none()
+        if result[0]:
             tables_with_data += [table]
 
     if tables_with_data:
