@@ -104,7 +104,7 @@ FLEXMEASURES_PROFILE_REQUESTS
 
 If True, the processing time of requests are profiled.
 
-The overall time used by requests are logged to the console. In addiition, if `pyinstrument` is installed, then a profiling report is made (of time being spent in different function calls) for all Flask API endpoints.
+The overall time used by requests are logged to the console. In addition, if `pyinstrument` is installed, then a profiling report is made (of time being spent in different function calls) for all Flask API endpoints.
 
 The profiling results are stored in the ``profile_reports`` folder in the instance directory.
 
