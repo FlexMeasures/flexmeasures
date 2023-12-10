@@ -319,6 +319,10 @@ function submit_sensor_type() {
  *         'format': [<d3-format>, <sensor unit>, <optional preference to show currency symbol instead of currency code>],
  *         'formatType': 'quantityWithUnitFormat'
  *     }
+ * The use of currency symbols, such as the euro sign (€), should be reserved for use in graphics.
+ * See, for example, https://publications.europa.eu/code/en/en-370303.htm
+ * The rationale behind this is that they are often ambiguous.
+ * For example, both the Australian dollar (AUD) and the United States dollar (USD) map to the dollar sign ($).
  */
 vega.expressionFunction('quantityWithUnitFormat', function(datum, params) {
     const formatDef = {
