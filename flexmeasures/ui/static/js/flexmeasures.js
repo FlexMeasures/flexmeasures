@@ -316,12 +316,23 @@ function submit_sensor_type() {
 /* Quantities incl. units
  * Usage:
  *     {
- *         'format': [<d3-format>, <sensor unit>],
+ *         'format': [<d3-format>, <sensor unit>, <optional preference to show currency symbol instead of currency code>],
  *         'formatType': 'quantityWithUnitFormat'
  *     }
  */
 vega.expressionFunction('quantityWithUnitFormat', function(datum, params) {
-    return d3.format(params[0])(datum) + " " + params[1];
+    const formatDef = {
+        "decimal": ".",
+        "thousands": ",",
+        "grouping": [3],
+    };
+    const locale = d3.formatLocale(formatDef);
+    if (params.length > 2 && params[2] === true){
+        return locale.format(params[0])(datum) + " " + convertCurrencyCodeToSymbol(params[1]);
+    }
+    else {
+        return d3.format(params[0])(datum) + " " + params[1];
+    }
 });
 
 /*
@@ -359,3 +370,19 @@ vega.expressionFunction('timezoneFormat', function(date, params) {
     const tzDate = new Date(0,0,0,0,Math.abs(tzOffsetNumber));
     return `${ tzOffsetNumber > 0 ? '-' : '+'}${("" + tzDate.getHours()).padStart(2, '0')}:${("" + tzDate.getMinutes()).padStart(2, '0')}` + ' (' + timezoneString + ')';
 });
+
+/*
+ * Convert any currency codes in the unit to currency symbols.
+ * This relies on the currencyToSymbolMap imported from currency-symbol-map/map.js
+ */
+const convertCurrencyCodeToSymbol = (unit) => {
+    return replace_multiple(unit, currencySymbolMap);
+};
+
+/*
+ * Replace substrings according to some mapping
+ */
+function replace_multiple(str, mapObj){
+    let regex = new RegExp(Object.keys(mapObj).join("|"),"gi");
+    return str.replace(regex, matched => mapObj[matched]);
+}
