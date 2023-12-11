@@ -235,12 +235,6 @@ FLEXMEASURES_JS_VERSIONS
 
 Default: ``{"vega": "5.22.1", "vegaembed": "6.20.8", "vegalite": "5.2.0"}``
 
-FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-When ``FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY`` is set to ``True``, the ``<meta>`` tag with the ``Content-Security-Policy`` directive, specifically ``upgrade-insecure-requests``, is included in the HTML head. This directive instructs the browser to upgrade insecure requests from ``http`` to ``https``, promoting a more secure browsing experience.
-
-Default: ``False``
 
 Timing
 ------
@@ -390,7 +384,9 @@ You can use this setting to overwrite that URI and point the tests to an (empty)
 Security
 --------
 
-This is only a selection of the most important settings.
+Settings to ensure secure handling of credentials and data.
+
+For Flask-Security and Flask-Cors (setting names start with "SECURITY" or "CORS"), this is only a selection of the most important settings.
 See `the Flask-Security Docs <https://flask-security-too.readthedocs.io/en/stable/configuration.html>`_ as well as the `Flask-CORS docs <https://flask-cors.readthedocs.io/en/latest/configuration.html>`_ for all possibilities.
 
 SECRET_KEY (**)
@@ -458,6 +454,13 @@ Allows users to make authenticated requests. If true, injects the Access-Control
 
 Default: ``True``
 
+
+FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+When ``FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY`` is set to ``True``, the ``<meta>`` tag with the ``Content-Security-Policy`` directive, specifically ``upgrade-insecure-requests``, is included in the HTML head. This directive instructs the browser to upgrade insecure requests from ``http`` to ``https``. One example of a use case for this is if you have a load balancer in front of FlexMeasures, which is secured with a certificate and only accepts https.
+
+Default: ``False``
 
 
 .. _mail-config:
