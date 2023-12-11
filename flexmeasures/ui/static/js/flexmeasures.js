@@ -42,6 +42,30 @@ function defaultImage(action) {
 }
 
 
+function clickableTable(element, urlColumn) {
+    var table = $(element).DataTable();
+    var tbody = element.getElementsByTagName('tbody')[0];
+    $(tbody).on('click', 'tr', function (event) {
+        var columnIndex = table.column(':contains(' + urlColumn + ')').index();
+        var data = table.row(this).data();
+        var url = data[columnIndex]
+        handleClick(event, url);
+    });
+}
+
+
+function handleClick(event, url) {
+    // ignore clicks on <a href> elements
+    if (event.target.tagName.toLowerCase() === 'a') {
+        return
+    } else if (event.ctrlKey) {
+        window.open(url, "_blank");
+    } else {
+        window.open(url, "_self");
+    }
+}
+
+
 function ready() {
 
     console.log("ready...");
@@ -61,6 +85,10 @@ function ready() {
         }
     );
 
+    // Tables with the nav-on-click class
+
+    navTables = document.getElementsByClassName('nav-on-click');
+    Array.prototype.forEach.call(navTables, function(t) {clickableTable(t, 'URL')});
 
     // Table pagination
 

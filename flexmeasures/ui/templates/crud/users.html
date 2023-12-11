@@ -20,7 +20,7 @@
                             </label>
                     </div>
                 </form>
-                <table class="table table-striped table-responsive paginate">
+                <table class="table table-striped table-responsive paginate nav-on-click" title="View/edit this user">
                     <thead>
                         <tr>
                             <th>Username</th>
@@ -31,13 +31,14 @@
                             <th>Last Login</th>
                             <th>Last Seen</th>
                             <th>Active</th>
+                            <th class="hidden">URL</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for user in users %}
                         <tr>
                             <td>
-                                <a href="/users/{{ user.id }}" title="View/edit this user">{{ user.username }}</a>
+                                {{ user.username }}
                             </td>
                             <td>
                                 <a href="mailto:{{ user.email }}" title="Mail this user">{{ user.email }}</a>
@@ -61,7 +62,9 @@
                             <td>
                                 {{ user.active }}
                             </td>
-
+                            <td class="hidden">
+                                /users/{{ user.id }}
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
