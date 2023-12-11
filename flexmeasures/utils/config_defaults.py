@@ -22,6 +22,8 @@ class Config(object):
     LOGGING_LEVEL: int = logging.WARNING
     SECRET_KEY: str | None = None
 
+    FLEXMEASURES_ENV_DEFAULT = "production"
+
     SQLALCHEMY_DATABASE_URI: str | None = None
     # https://stackoverflow.com/questions/33738467/how-do-i-know-if-i-can-disable-sqlalchemy-track-modifications
     SQLALCHEMY_TRACK_MODIFICATIONS: bool = False
