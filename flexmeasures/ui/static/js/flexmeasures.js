@@ -74,8 +74,8 @@ function clickableTable(element, urlColumn) {
 
 
 function handleClick(event, url) {
-    // ignore clicks on <a href> elements
-    if (event.target.tagName.toLowerCase() === 'a') {
+    // ignore clicks on <a href> or <button> elements
+    if (['a', 'button'].includes(event.target.tagName.toLowerCase())) {
         return
     } else if (event.ctrlKey) {
         window.open(url, "_blank");
