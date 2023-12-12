@@ -223,13 +223,17 @@ def process(db, building, setup_sources) -> dict[str, Sensor]:
 def add_stock_gain(db, add_battery_assets, setup_sources) -> dict[str, Sensor]:
     """
     Set up the same constant gain (-capacity_in_mw) in different resolutions.
+
+    In 15 min event resolution, the maximum energy that the battery can produce/consume in period
+    is 0.25 * capacity_in_mw
     """
 
     battery = add_battery_assets["Test battery"]
     capacity = battery.get_attribute("capacity_in_mw")
     sensors = {}
     sensor_specs = [
-        ("gain", timedelta(minutes=15), capacity, True),
+        ("gain fails", timedelta(minutes=15), capacity, True),
+        ("gain", timedelta(minutes=15), capacity * 0.25, True),
         ("gain hourly", timedelta(hours=1), capacity, True),
         ("gain None", timedelta(hours=1), -capacity, None),
         ("gain consumption is negative", timedelta(hours=1), -capacity, False),

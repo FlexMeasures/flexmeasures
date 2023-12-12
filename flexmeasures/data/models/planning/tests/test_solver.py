@@ -1452,7 +1452,7 @@ def test_battery_power_capacity_as_sensor(
 
 @pytest.mark.parametrize(
     "stock_gain_sensor",
-    ["gain", "gain hourly", "gain None", "gain consumption is negative"],
+    ["gain fails", "gain", "gain hourly", "gain None", "gain consumption is negative"],
 )
 def test_battery_stock_gain_sensor(
     add_battery_assets, add_stock_gain, stock_gain_sensor
@@ -1489,13 +1489,13 @@ def test_battery_stock_gain_sensor(
             "soc-at-start": 0,
         },
     )
-    stock_gain_constraint = scheduler._prepare()[5][0]["stock gain"]
 
-    assert all(stock_gain_constraint == -capacity)
-
-    schedule = scheduler.compute()
-
-    assert all(schedule == capacity)
+    if "fails" in stock_gain_sensor:
+        with pytest.raises(InfeasibleProblemException):
+            schedule = scheduler.compute()
+    else:
+        schedule = scheduler.compute()
+        assert all(schedule == capacity)
 
 
 @pytest.mark.parametrize(
