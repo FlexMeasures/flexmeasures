@@ -43,6 +43,7 @@ function defaultImage(action) {
 
 
 function clickableTable(element, urlColumn) {
+    // This will keep actions like text selection or dragging functional
     var table = $(element).DataTable();
     var tbody = element.getElementsByTagName('tbody')[0];
     var startX, startY;
