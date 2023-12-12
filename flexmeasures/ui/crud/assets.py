@@ -8,7 +8,7 @@ from flask_classful import FlaskView
 from flask_wtf import FlaskForm
 from flask_security import login_required, current_user
 from wtforms import StringField, DecimalField, SelectField
-from wtforms.validators import DataRequired
+from wtforms.validators import DataRequired, optional
 from flexmeasures.auth.policy import user_has_admin_access
 
 from flexmeasures.data import db
@@ -40,11 +40,13 @@ class AssetForm(FlaskForm):
     name = StringField("Name")
     latitude = DecimalField(
         "Latitude",
+        validators=[optional()],
         places=None,
         render_kw={"placeholder": "--Click the map or enter a latitude--"},
     )
     longitude = DecimalField(
         "Longitude",
+        validators=[optional()],
         places=None,
         render_kw={"placeholder": "--Click the map or enter a longitude--"},
     )
