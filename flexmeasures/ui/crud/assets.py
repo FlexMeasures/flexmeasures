@@ -65,8 +65,10 @@ class AssetForm(FlaskForm):
     def to_json(self) -> dict:
         """turn form data into a JSON we can POST to our internal API"""
         data = copy.copy(self.data)
-        data["longitude"] = float(data["longitude"])
-        data["latitude"] = float(data["latitude"])
+        if data.get("longitude") is not None:
+            data["longitude"] = float(data["longitude"])
+        if data.get("latitude") is not None:
+            data["latitude"] = float(data["latitude"])
 
         if "csrf_token" in data:
             del data["csrf_token"]
