@@ -64,7 +64,7 @@ def check_app_env(env: str | None):
         "production",
     ):
         print(
-            f'Flask(flexmeasures) environment needs to be either "documentation", "development", "testing", "staging" or "production". It currently is "{env}".'
+            f'Flexmeasures environment needs to be either "documentation", "development", "testing", "staging" or "production". It currently is "{env}".'
         )
         sys.exit(2)
 
@@ -72,7 +72,7 @@ def check_app_env(env: str | None):
 def read_config(app: Flask, custom_path_to_config: str | None):
     """Read configuration from various expected sources, complain if not setup correctly."""
 
-    flexmeasures_env = "production"
+    flexmeasures_env = DefaultConfig.FLEXMEASURES_ENV_DEFAULT
     if app.testing:
         flexmeasures_env = "testing"
     elif os.getenv("FLEXMEASURES_ENV", None):

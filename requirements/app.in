@@ -46,7 +46,6 @@ Flask-Migrate
 Flask-WTF
 Flask-Mail
 # <5.2: https://github.com/Parallels/rq-dashboard/issues/417 as 5.2 requires Flask 2.3
-# Flask-Security-Too depends requires flask 2.3
 Flask-Security-Too>=5.0
 Flask-Login
 Flask-Classful>=0.16
