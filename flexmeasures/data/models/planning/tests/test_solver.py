@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 import pytest
 import pytz
+import logging
 
 import numpy as np
 import pandas as pd
@@ -13,6 +14,7 @@ from flexmeasures.data.models.planning.storage import (
     StorageScheduler,
     add_storage_constraints,
     validate_storage_constraints,
+    build_device_soc_values,
 )
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.planning.tests.utils import check_constraints
@@ -58,10 +60,16 @@ def test_storage_loss_function(
 
 
 @pytest.mark.parametrize("use_inflexible_device", [False, True])
+@pytest.mark.parametrize("battery_name", ["Test battery", "Test small battery"])
 def test_battery_solver_day_1(
-    add_battery_assets, add_inflexible_device_forecasts, use_inflexible_device
+    add_battery_assets,
+    add_inflexible_device_forecasts,
+    use_inflexible_device,
+    battery_name,
 ):
-    epex_da, battery = get_sensors_from_db(add_battery_assets)
+    epex_da, battery = get_sensors_from_db(
+        add_battery_assets, battery_name=battery_name
+    )
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 1))
     end = tz.localize(datetime(2015, 1, 2))
@@ -1249,6 +1257,46 @@ def test_capacity(
 
     assert all(ems_constraints["derivative min"] == expected_site_production_capacity)
     assert all(ems_constraints["derivative max"] == expected_site_consumption_capacity)
+
+
+@pytest.mark.parametrize(
+    ["soc_values", "log_message"],
+    [
+        (
+            [
+                {"datetime": datetime(2023, 5, 19, tzinfo=pytz.utc), "value": 1.0},
+                {"datetime": datetime(2023, 5, 22, tzinfo=pytz.utc), "value": 1.0},
+                {"datetime": datetime(2023, 5, 23, tzinfo=pytz.utc), "value": 1.0},
+                {"datetime": datetime(2023, 5, 21, tzinfo=pytz.utc), "value": 1.0},
+            ],
+            "Disregarding 3 target datetimes from 2023-05-21 00:00:00+00:00 until 2023-05-23 00:00:00+00:00, because they exceed 2023-05-20 00:00:00+00:00",
+        ),
+        (
+            [
+                {"datetime": datetime(2023, 5, 19, tzinfo=pytz.utc), "value": 1.0},
+                {"datetime": datetime(2023, 5, 23, tzinfo=pytz.utc), "value": 1.0},
+            ],
+            "Disregarding 1 target datetime 2023-05-23 00:00:00+00:00, because it exceeds 2023-05-20 00:00:00+00:00",
+        ),
+    ],
+)
+def test_build_device_soc_values(caplog, soc_values, log_message):
+    caplog.set_level(logging.WARNING)
+    soc_at_start = 3.0
+    start_of_schedule = datetime(2023, 5, 18, tzinfo=pytz.utc)
+    end_of_schedule = datetime(2023, 5, 20, tzinfo=pytz.utc)
+    resolution = timedelta(minutes=5)
+
+    with caplog.at_level(logging.WARNING):
+        device_values = build_device_soc_values(
+            soc_values=soc_values,
+            soc_at_start=soc_at_start,
+            start_of_schedule=start_of_schedule,
+            end_of_schedule=end_of_schedule,
+            resolution=resolution,
+        )
+    print(device_values)
+    assert log_message in caplog.text
 
 
 @pytest.mark.parametrize(

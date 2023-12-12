@@ -7,7 +7,12 @@ import pandas as pd
 from flask import current_app
 
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.generic_assets import GenericAsset as Asset
 from flexmeasures.utils.coding_utils import deprecated
+from .exceptions import WrongEntityException
+
+
+SchedulerOutputType = Union[pd.Series, List[Dict[str, Any]], None]
 
 
 SchedulerOutputType = Union[pd.Series, List[Dict[str, Any]], None]
@@ -34,27 +39,38 @@ class Scheduler:
     __version__ = None
     __author__ = None
 
-    sensor: Sensor
+    sensor: Optional[Sensor] = None
+    asset: Optional[Asset] = None
+
     start: datetime
     end: datetime
     resolution: timedelta
     belief_time: datetime
+
     round_to_decimals: int
+
     flex_model: Optional[dict] = None
     flex_context: Optional[dict] = None
+
     fallback_scheduler_class: "Type[Scheduler] | None" = None
     info: dict | None = None
 
     config_deserialized = False  # This flag allows you to let the scheduler skip checking config, like timing, flex_model and flex_context
+
+    # set to True if the Scheduler supports triggering on an Asset or False
+    # if the Scheduler expects a Sensor
+    supports_scheduling_an_asset = False
+
     return_multiple: bool = False
 
     def __init__(
         self,
-        sensor,
-        start,
-        end,
-        resolution,
+        sensor: Optional[Sensor] = None,  # deprecated
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        resolution: Optional[timedelta] = None,
         belief_time: Optional[datetime] = None,
+        asset_or_sensor: Asset | Sensor | None = None,
         round_to_decimals: Optional[int] = 6,
         flex_model: Optional[dict] = None,
         flex_context: Optional[dict] = None,
@@ -71,7 +87,30 @@ class Scheduler:
               For now, we don't see the best separation between config and state parameters (esp. within flex models)
               E.g. start and flex_model[soc_at_start] are intertwined.
         """
-        self.sensor = sensor
+
+        if sensor is not None:
+            current_app.logger.warning(
+                "The `sensor` keyword argument is deprecated. Please, consider using the argument `asset_or_sensor`."
+            )
+            asset_or_sensor = sensor
+
+        if self.supports_scheduling_an_asset and isinstance(asset_or_sensor, Sensor):
+            raise WrongEntityException(
+                f"The scheduler class {self.__class__.__name__} expects an Asset object but a Sensor was provided."
+            )
+
+        self.sensor = None
+        self.asset = None
+
+        if isinstance(asset_or_sensor, Sensor):
+            self.sensor = asset_or_sensor
+        elif isinstance(asset_or_sensor, Asset):
+            self.asset = asset_or_sensor
+        else:
+            raise WrongEntityException(
+                f"The scheduler class {self.__class__.__name__} expects an Asset or Sensor objects but an object of class `{asset_or_sensor.__class__.__name__}` was provided."
+            )
+
         self.start = start
         self.end = end
         self.resolution = resolution

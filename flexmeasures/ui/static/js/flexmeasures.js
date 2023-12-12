@@ -316,12 +316,28 @@ function submit_sensor_type() {
 /* Quantities incl. units
  * Usage:
  *     {
- *         'format': [<d3-format>, <sensor unit>],
+ *         'format': [<d3-format>, <sensor unit>, <optional preference to show currency symbol instead of currency code>],
  *         'formatType': 'quantityWithUnitFormat'
  *     }
+ * The use of currency symbols, such as the euro sign (€), should be reserved for use in graphics.
+ * See, for example, https://publications.europa.eu/code/en/en-370303.htm
+ * The rationale behind this is that they are often ambiguous.
+ * For example, both the Australian dollar (AUD) and the United States dollar (USD) map to the dollar sign ($).
  */
 vega.expressionFunction('quantityWithUnitFormat', function(datum, params) {
-    return d3.format(params[0])(datum) + " " + params[1];
+    const formatDef = {
+        "decimal": ".",
+        "thousands": ",",
+        "grouping": [3],
+    };
+    const locale = d3.formatLocale(formatDef);
+    //  The third element on param allows choosing to show the currency symbol (true) or the currency name (false)
+    if (params.length > 2 && params[2] === true){
+        return locale.format(params[0])(datum) + " " + convertCurrencyCodeToSymbol(params[1]);
+    }
+    else {
+        return d3.format(params[0])(datum) + " " + params[1];
+    }
 });
 
 /*
@@ -359,3 +375,33 @@ vega.expressionFunction('timezoneFormat', function(date, params) {
     const tzDate = new Date(0,0,0,0,Math.abs(tzOffsetNumber));
     return `${ tzOffsetNumber > 0 ? '-' : '+'}${("" + tzDate.getHours()).padStart(2, '0')}:${("" + tzDate.getMinutes()).padStart(2, '0')}` + ' (' + timezoneString + ')';
 });
+
+/*
+ * Convert any currency codes in the unit to currency symbols.
+ * This relies on the currencyToSymbolMap imported from currency-symbol-map/map.js
+ */
+const convertCurrencyCodeToSymbol = (unit) => {
+    return replaceMultiple(unit, currencySymbolMap);
+};
+
+/**
+ * Replaces multiple substrings in a given string based on a provided mapping object.
+ *
+ * @param {string} str - The input string in which replacements will be performed.
+ * @param {Object} mapObj - An object where keys are substrings to be replaced, and values are their corresponding replacements.
+ * @returns {string} - A new string with the specified substitutions applied.
+ *
+ * @example
+ * // Replace currency codes with symbols in the given string
+ * const inputString = "The price is 50 EUR/MWh, and 30 AUD/MWh.";
+ * const currencyMapping = { EUR: '€', AUD: '$' };
+ * const result = replace_multiple(inputString, currencyMapping);
+ * // The result will be "The price is 50 €/MWh, and 30 $/MWh."
+ */
+function replaceMultiple(str, mapObj){
+    // Create a regular expression pattern using the keys of the mapObj joined with "|" (OR) to match any of the substrings.
+    let regex = new RegExp(Object.keys(mapObj).join("|"),"g");
+    // Use the regular expression to replace matched substrings with their corresponding values from the mapObj.
+    // The "g" flag makes the replacement global (replaces all occurrences), and it is case-sensitive by default.
+    return str.replace(regex, matched => mapObj[matched]);
+}

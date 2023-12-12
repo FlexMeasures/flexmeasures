@@ -37,15 +37,15 @@
 
 
 {% if current_user.is_authenticated %}
-    {% set is_admin = True if (current_user.has_role('admin') or FLEXMEASURES_MODE == "demo") %}
+    {% set has_admin_reader_rights = True if (current_user.has_role('admin') or current_user.has_role('admin-reader') or FLEXMEASURES_MODE == "demo") %}
     {% set is_consultant = True if current_user.has_role('consultant') %}
-    {% if is_admin %}
+    {% if has_admin_reader_rights %}
         {% do navigation_bar.append(('assets', 'assets', 'Assets', '', 'list-ul'))  %}
         {% do navigation_bar.append(('users', 'users', 'Users', '', 'users')) %}
         {% do navigation_bar.append(('tasks', 'tasks', 'Tasks', '', 'tasks')) %}
     {% endif %}
 
-    {% if is_consultant or is_admin %}
+    {% if is_consultant or has_admin_reader_rights %}
         {% do navigation_bar.append(('accounts', 'accounts', 'Accounts', '', 'cubes')) %}
     {% else %}
         {% do navigation_bar.append(("accounts/{}".format(current_user.account.id), 'accounts', 'My Account', '', 'cubes')) %}
