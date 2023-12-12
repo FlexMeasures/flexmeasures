@@ -35,7 +35,7 @@ def test_scheduling_a_charging_station(
     )  # Make sure the scheduler data source isn't there
 
     job = create_scheduling_job(
-        sensor=charging_station,
+        asset_or_sensor=charging_station,
         start=start,
         end=end,
         belief_time=start,
