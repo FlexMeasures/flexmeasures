@@ -1537,6 +1537,9 @@ def test_battery_gain_quantity(add_battery_assets, gain, expected_gain):
     scheduler_info = scheduler._prepare()
 
     if expected_gain is not None:
-        assert all(scheduler_info[5][0]["stock gain"] == expected_gain)
+        assert all(
+            scheduler_info[5][0]["stock gain"]
+            == expected_gain * (timedelta(hours=1) / resolution)
+        )
     else:
         assert all(scheduler_info[5][0]["stock gain"].isna())

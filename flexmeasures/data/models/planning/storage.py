@@ -264,6 +264,7 @@ class MetaStorageScheduler(Scheduler):
             all_stock_gain = pd.concat(all_stock_gain, axis=1)
 
             device_constraints[0]["stock gain"] = all_stock_gain.sum(1)
+            device_constraints[0]["stock gain"] *= timedelta(hours=1) / resolution
 
         # Apply round-trip efficiency evenly to charging and discharging
         device_constraints[0]["derivative down efficiency"] = (

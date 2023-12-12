@@ -230,9 +230,9 @@ def add_stock_gain(db, add_battery_assets, setup_sources) -> dict[str, Sensor]:
     sensors = {}
     sensor_specs = [
         ("gain", timedelta(minutes=15), capacity, True),
-        ("gain hourly", timedelta(hours=1), capacity * 4, True),
-        ("gain None", timedelta(hours=1), -capacity * 4, None),
-        ("gain consumption is negative", timedelta(hours=1), -capacity * 4, False),
+        ("gain hourly", timedelta(hours=1), capacity, True),
+        ("gain None", timedelta(hours=1), -capacity, None),
+        ("gain consumption is negative", timedelta(hours=1), -capacity, False),
     ]
 
     for name, resolution, value, consumption_is_positive in sensor_specs:
