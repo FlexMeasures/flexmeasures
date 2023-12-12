@@ -86,7 +86,8 @@ def test_battery_solver_day_1(
                 s.id for s in add_inflexible_device_forecasts.keys()
             ]
             if use_inflexible_device
-            else []
+            else [],
+            "site-power-capacity": "2 MW",
         },
     )
     schedule = scheduler.compute()
