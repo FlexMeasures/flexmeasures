@@ -331,6 +331,7 @@ vega.expressionFunction('quantityWithUnitFormat', function(datum, params) {
         "grouping": [3],
     };
     const locale = d3.formatLocale(formatDef);
+    //  The third element on param allows choosing to show the currency symbol (true) or the currency name (false)
     if (params.length > 2 && params[2] === true){
         return locale.format(params[0])(datum) + " " + convertCurrencyCodeToSymbol(params[1]);
     }
@@ -380,13 +381,27 @@ vega.expressionFunction('timezoneFormat', function(date, params) {
  * This relies on the currencyToSymbolMap imported from currency-symbol-map/map.js
  */
 const convertCurrencyCodeToSymbol = (unit) => {
-    return replace_multiple(unit, currencySymbolMap);
+    return replaceMultiple(unit, currencySymbolMap);
 };
 
-/*
- * Replace substrings according to some mapping
+/**
+ * Replaces multiple substrings in a given string based on a provided mapping object.
+ *
+ * @param {string} str - The input string in which replacements will be performed.
+ * @param {Object} mapObj - An object where keys are substrings to be replaced, and values are their corresponding replacements.
+ * @returns {string} - A new string with the specified substitutions applied.
+ *
+ * @example
+ * // Replace currency codes with symbols in the given string
+ * const inputString = "The price is 50 EUR/MWh, and 30 AUD/MWh.";
+ * const currencyMapping = { EUR: '€', AUD: '$' };
+ * const result = replace_multiple(inputString, currencyMapping);
+ * // The result will be "The price is 50 €/MWh, and 30 $/MWh."
  */
-function replace_multiple(str, mapObj){
-    let regex = new RegExp(Object.keys(mapObj).join("|"),"gi");
+function replaceMultiple(str, mapObj){
+    // Create a regular expression pattern using the keys of the mapObj joined with "|" (OR) to match any of the substrings.
+    let regex = new RegExp(Object.keys(mapObj).join("|"),"g");
+    // Use the regular expression to replace matched substrings with their corresponding values from the mapObj.
+    // The "g" flag makes the replacement global (replaces all occurrences), and it is case-sensitive by default.
     return str.replace(regex, matched => mapObj[matched]);
 }
