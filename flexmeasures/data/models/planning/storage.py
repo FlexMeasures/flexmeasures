@@ -64,7 +64,7 @@ class MetaStorageScheduler(Scheduler):
         "derivative min",
         "derivative down efficiency",
         "derivative up efficiency",
-        "gain",
+        "stock gain",
     ]
 
     def compute_schedule(self) -> pd.Series | None:
@@ -234,28 +234,36 @@ class MetaStorageScheduler(Scheduler):
                 max_value=convert_units(power_capacity_in_mw, "MW", sensor.unit),
             )
 
-        usage_forecast = self.flex_model.get("usage_forecast", [])
+        stock_gain = self.flex_model.get("stock_gain", [])
 
-        all_usage_forecast = []
+        all_stock_gain = []
 
-        for component in usage_forecast:
-            gain = get_continous_series_sensor_or_quantity(
+        for component in stock_gain:
+            stock_gain = get_continuous_series_sensor_or_quantity(
                 quantity_or_sensor=component,
                 actuator=sensor,
-                target_unit="MWh",
+                unit="MWh",
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
             )
 
             if isinstance(component, Sensor):
-                gain *= resolution / component.event_resolution
+                from_unit = component.event_resolution
+                # By default, positive values for the gain sensor represent a stock
+                # gain and negative values stock losses.
+                # Invert the meaning by setting consumption_is_positive to True.
+                if component.get_attribute("consumption_is_positive", False):
+                    stock_gain *= -1
 
-            all_usage_forecast.append(gain)
-        if len(all_usage_forecast) > 0:
-            all_usage_forecast = pd.concat(all_usage_forecast, axis=1)
+                stock_gain *= resolution / from_unit
 
-            device_constraints[0]["gain"] = all_usage_forecast.sum(1)
+            all_stock_gain.append(stock_gain)
+
+        if len(all_stock_gain) > 0:
+            all_stock_gain = pd.concat(all_stock_gain, axis=1)
+
+            device_constraints[0]["stock gain"] = all_stock_gain.sum(1)
 
         # Apply round-trip efficiency evenly to charging and discharging
         device_constraints[0]["derivative down efficiency"] = (

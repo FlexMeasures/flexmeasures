@@ -220,24 +220,22 @@ def process(db, building, setup_sources) -> dict[str, Sensor]:
 
 
 @pytest.fixture(scope="module")
-def add_usage_forecast(db, add_battery_assets, setup_sources) -> dict[str, Sensor]:
+def add_stock_gain(db, add_battery_assets, setup_sources) -> dict[str, Sensor]:
     """
-    Set up a constant gain
+    Set up the same constant gain (-capacity_in_mw) in different resolutions.
     """
 
     battery = add_battery_assets["Test battery"]
-
+    capacity = battery.get_attribute("capacity_in_mw")
     sensors = {}
     sensor_specs = [
-        ("gain", timedelta(minutes=15), -battery.get_attribute("capacity_in_mw")),
-        (
-            "gain hourly",
-            timedelta(hours=1),
-            -battery.get_attribute("capacity_in_mw") * 4,
-        ),
+        ("gain", timedelta(minutes=15), capacity, True),
+        ("gain hourly", timedelta(hours=1), capacity * 4, True),
+        ("gain None", timedelta(hours=1), -capacity * 4, None),
+        ("gain consumption is negative", timedelta(hours=1), -capacity * 4, False),
     ]
 
-    for name, resolution, value in sensor_specs:
+    for name, resolution, value, consumption_is_positive in sensor_specs:
         # 1 days of test data
         time_slots = initialize_index(
             start=pd.Timestamp("2015-01-01").tz_localize("Europe/Amsterdam"),
@@ -245,25 +243,26 @@ def add_usage_forecast(db, add_battery_assets, setup_sources) -> dict[str, Senso
             resolution=resolution,
         )
 
-        usage_forecast_sensor = Sensor(
+        stock_gain_sensor = Sensor(
             name=name,
             unit="MWh",
             event_resolution=resolution,
             generic_asset=battery,
+            attributes={"consumption_is_positive": consumption_is_positive},
         )
-        db.session.add(usage_forecast_sensor)
+        db.session.add(stock_gain_sensor)
         db.session.flush()
 
-        usage_forecast = [value] * len(time_slots)
+        stock_gain = [value] * len(time_slots)
 
         add_as_beliefs(
             db,
-            usage_forecast_sensor,
-            usage_forecast,
+            stock_gain_sensor,
+            stock_gain,
             time_slots,
             setup_sources["Seita"],
         )
-        sensors[name] = usage_forecast_sensor
+        sensors[name] = stock_gain_sensor
 
     return sensors
 

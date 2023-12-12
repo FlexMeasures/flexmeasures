@@ -109,8 +109,8 @@ class StorageFlexModelSchema(Schema):
     storage_efficiency = EfficiencyField(data_key="storage-efficiency")
     prefer_charging_sooner = fields.Bool(data_key="prefer-charging-sooner")
 
-    usage_forecast = fields.List(
-        QuantityOrSensor("MWh"), data_key="usage-forecast", required=False
+    stock_gain = fields.List(
+        QuantityOrSensor("MWh"), data_key="stock-gain", required=False
     )
 
     def __init__(self, start: datetime, sensor: Sensor, *args, **kwargs):

@@ -1450,15 +1450,29 @@ def test_battery_power_capacity_as_sensor(
     assert all(device_constraints["derivative max"].values == expected_consumption)
 
 
-@pytest.mark.parametrize("usage_forecast_sensor", ["gain", "gain hourly"])
-def test_battery_usage_forecast_sensor(
-    add_battery_assets, add_usage_forecast, usage_forecast_sensor
+@pytest.mark.parametrize(
+    "stock_gain_sensor",
+    ["gain", "gain hourly", "gain None", "gain consumption is negative"],
+)
+def test_battery_stock_gain_sensor(
+    add_battery_assets, add_stock_gain, stock_gain_sensor
 ):
+    """
+    Test the stock gain feature using sensors.
+
+    An empty battery is made to fulfill a usage signal under a flat tariff.
+    The battery is only allowed to charge (production-capacity = 0).
+
+    We expect the storage to charge in every period to compensate for the usage.
+    """
+
     _, battery = get_sensors_from_db(add_battery_assets)
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 1))
     end = tz.localize(datetime(2015, 1, 2))
     resolution = timedelta(minutes=15)
+    stock_gain_sensor_obj = add_stock_gain[stock_gain_sensor]
+    capacity = stock_gain_sensor_obj.get_attribute("capacity_in_mw")
 
     scheduler: Scheduler = StorageScheduler(
         battery,
@@ -1468,24 +1482,39 @@ def test_battery_usage_forecast_sensor(
         flex_model={
             "soc-max": 2,
             "soc-min": 0,
-            "usage-forecast": [
-                {"sensor": add_usage_forecast[usage_forecast_sensor].id}
-            ],
+            "stock-gain": [{"sensor": stock_gain_sensor_obj.id}],
             "roundtrip-efficiency": 1,
             "storage-efficiency": 1,
+            "production-capacity": "0kW",
+            "soc-at-start": 0,
         },
     )
+    stock_gain_constraint = scheduler._prepare()[5][0]["stock gain"]
+
+    assert all(stock_gain_constraint == -capacity)
+
     schedule = scheduler.compute()
-    assert all(schedule == 2)
+
+    assert all(schedule == capacity)
 
 
 @pytest.mark.parametrize(
-    "usage_forecast,expected_usage_forecast",
-    [(["1 MWh", "-1MWh"], 0), (["1 MWh", "1MWh"], 2), (["100 kWh"], 0.1), ([], None)],
+    "gain,expected_gain",
+    [
+        (["1 MWh", "-1MWh"], 0),  # net zero stock gain
+        (["0.5 MWh", "0.5MWh"], 1),  # 1 MWh stock gain in every 15 min period
+        (["100 kWh"], 0.1),  # 100 kWh stock gain in every 15 min period
+        (["-100 kWh"], -0.1),  # 100 kWh stock loss in every 15 min period
+        ([], None),  # no gain defined -> no gain or loss happens
+    ],
 )
-def test_battery_usage_forecast_quantity(
-    add_battery_assets, usage_forecast, expected_usage_forecast
-):
+def test_battery_gain_quantity(add_battery_assets, gain, expected_gain):
+    """
+    Test the stock gain field when a constant value is provided.
+
+    We expect a constant gain/loss to happen in every time period equal to the energy
+    value provided.
+    """
     _, battery = get_sensors_from_db(add_battery_assets)
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 1))
@@ -1500,14 +1529,14 @@ def test_battery_usage_forecast_quantity(
         flex_model={
             "soc-max": 2,
             "soc-min": 0,
-            "usage-forecast": usage_forecast,
+            "stock-gain": gain,
             "roundtrip-efficiency": 1,
             "storage-efficiency": 1,
         },
     )
     scheduler_info = scheduler._prepare()
 
-    if expected_usage_forecast is not None:
-        assert all(scheduler_info[5][0]["gain"] == expected_usage_forecast)
+    if expected_gain is not None:
+        assert all(scheduler_info[5][0]["stock gain"] == expected_gain)
     else:
-        assert all(scheduler_info[5][0]["gain"].isna())
+        assert all(scheduler_info[5][0]["stock gain"].isna())
