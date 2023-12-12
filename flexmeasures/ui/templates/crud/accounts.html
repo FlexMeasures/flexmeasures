@@ -8,7 +8,7 @@ divs %}
             <div class="card">
             <h3>All Accounts
             </h3>
-            <table class="table table-striped table-responsive paginate">
+            <table class="table table-striped table-responsive paginate nav-on-click" title="View this account">
                 <thead>
                     <tr>
                         <th>Account</th>
@@ -16,14 +16,14 @@ divs %}
                         <th>Assets</th>
                         <th>Users</th>
                         <th>Roles</th>
-
+                        <th class="hidden">URL</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for account in accounts %}
                     <tr>
                         <td>
-                            <a href="/accounts/{{ account.id }}" title="View this account">{{ account.name }}</a>
+                            {{ account.name }}
                         </td>
                         <td>
                             {{ account.id }}
@@ -36,6 +36,9 @@ divs %}
                         </td>
                         <td>
                             {{ account.account_roles | map(attribute='name') | join(", ") }}
+                        </td>
+                        <td class="hidden">
+                            /accounts/{{ account.id }}
                         </td>
                     </tr>
                     {% endfor %}

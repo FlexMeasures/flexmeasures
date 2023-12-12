@@ -42,6 +42,50 @@ function defaultImage(action) {
 }
 
 
+function clickableTable(element, urlColumn) {
+    // This will keep actions like text selection or dragging functional
+    var table = $(element).DataTable();
+    var tbody = element.getElementsByTagName('tbody')[0];
+    var startX, startY;
+    var radiusLimit = 0;  // how much the mouse is allowed to move during clicking
+
+    $(tbody).on({
+        mousedown: function (event) {
+            startX = event.pageX;
+            startY = event.pageY;
+        },
+        mouseup: function (event) {
+            var endX = event.pageX;
+            var endY = event.pageY;
+
+            var deltaX = endX - startX;
+            var deltaY = endY - startY;
+
+            var euclidean = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+            if (euclidean <= radiusLimit) {
+                var columnIndex = table.column(':contains(' + urlColumn + ')').index();
+                var data = table.row(this).data();
+                var url = data[columnIndex];
+                handleClick(event, url);
+            }
+        }
+    }, 'tr');
+}
+
+
+function handleClick(event, url) {
+    // ignore clicks on <a href> or <button> elements
+    if (['a', 'button'].includes(event.target.tagName.toLowerCase())) {
+        return
+    } else if (event.ctrlKey) {
+        window.open(url, "_blank");
+    } else {
+        window.open(url, "_self");
+    }
+}
+
+
 function ready() {
 
     console.log("ready...");
@@ -60,7 +104,6 @@ function ready() {
             });
         }
     );
-
 
     // Table pagination
 
@@ -97,6 +140,11 @@ function ready() {
     // set default page lengths
     $('.paginate-5').dataTable().api().page.len(5).draw();
     $('.paginate-10').dataTable().api().page.len(10).draw();
+
+    // Tables with the nav-on-click class
+
+    navTables = document.getElementsByClassName('nav-on-click');
+    Array.prototype.forEach.call(navTables, function(t) {clickableTable(t, 'URL')});
 
 
     // Sliders

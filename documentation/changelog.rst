@@ -9,6 +9,8 @@ v0.18.0 | December XX, 2023
 New features
 -------------
 
+* Better navigation experience through listings (sensors / assets / users / accounts) in the :abbr:`UI (user interface)`, by heading to the selected entity upon a click (or CTRL + click) anywhere within a row [see `PR #923 <https://github.com/FlexMeasures/flexmeasures/pull/923>`_]
+
 Infrastructure / Support
 ----------------------
 
