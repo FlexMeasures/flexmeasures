@@ -45,12 +45,31 @@ function defaultImage(action) {
 function clickableTable(element, urlColumn) {
     var table = $(element).DataTable();
     var tbody = element.getElementsByTagName('tbody')[0];
-    $(tbody).on('click', 'tr', function (event) {
-        var columnIndex = table.column(':contains(' + urlColumn + ')').index();
-        var data = table.row(this).data();
-        var url = data[columnIndex]
-        handleClick(event, url);
-    });
+    var startX, startY;
+    var radiusLimit = 0;  // how much the mouse is allowed to move during clicking
+
+    $(tbody).on({
+        mousedown: function (event) {
+            startX = event.pageX;
+            startY = event.pageY;
+        },
+        mouseup: function (event) {
+            var endX = event.pageX;
+            var endY = event.pageY;
+
+            var deltaX = endX - startX;
+            var deltaY = endY - startY;
+
+            var euclidean = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+            if (euclidean <= radiusLimit) {
+                var columnIndex = table.column(':contains(' + urlColumn + ')').index();
+                var data = table.row(this).data();
+                var url = data[columnIndex];
+                handleClick(event, url);
+            }
+        }
+    }, 'tr');
 }
 
 
