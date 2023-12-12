@@ -104,11 +104,6 @@ function ready() {
         }
     );
 
-    // Tables with the nav-on-click class
-
-    navTables = document.getElementsByClassName('nav-on-click');
-    Array.prototype.forEach.call(navTables, function(t) {clickableTable(t, 'URL')});
-
     // Table pagination
 
     $.extend(true, $.fn.dataTable.defaults, {
@@ -144,6 +139,11 @@ function ready() {
     // set default page lengths
     $('.paginate-5').dataTable().api().page.len(5).draw();
     $('.paginate-10').dataTable().api().page.len(10).draw();
+
+    // Tables with the nav-on-click class
+
+    navTables = document.getElementsByClassName('nav-on-click');
+    Array.prototype.forEach.call(navTables, function(t) {clickableTable(t, 'URL')});
 
 
     // Sliders
