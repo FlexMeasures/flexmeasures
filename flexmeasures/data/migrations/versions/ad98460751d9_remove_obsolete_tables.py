@@ -8,6 +8,7 @@ Create Date: 2023-11-30 10:31:46.125670
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.exc import ProgrammingError
 import click
 
 
@@ -30,13 +31,16 @@ def upgrade():
         "weather",
         "asset",
         "weather_sensor",
-        "account",
     ]:
-        result = db.engine.execute(
-            f"SELECT EXISTS (SELECT 1 FROM {table});"
-        ).one_or_none()
-        if result[0]:
-            tables_with_data += [table]
+        try:
+            result = db.engine.execute(
+                f"SELECT EXISTS (SELECT 1 FROM {table});"
+            ).one_or_none()
+            if result[0]:
+                tables_with_data += [table]
+        except ProgrammingError as exception:
+            print(f"Table {table} not found, continuing...")
+            print(exception)
 
     if tables_with_data:
         click.confirm(
