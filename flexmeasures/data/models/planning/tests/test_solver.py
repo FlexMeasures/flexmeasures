@@ -1451,28 +1451,27 @@ def test_battery_power_capacity_as_sensor(
 
 
 @pytest.mark.parametrize(
-    "stock_gain_sensor",
-    ["gain fails", "gain", "gain hourly", "gain None", "gain consumption is negative"],
+    "stock_delta_sensor",
+    ["delta fails", "delta", "delta hourly"],
 )
-def test_battery_stock_gain_sensor(
-    add_battery_assets, add_stock_gain, stock_gain_sensor
+def test_battery_stock_delta_sensor(
+    add_battery_assets, add_stock_delta, stock_delta_sensor
 ):
     """
-    Test the stock gain feature using sensors.
+    Test the soc delta feature using sensors.
 
     An empty battery is made to fulfill a usage signal under a flat tariff.
     The battery is only allowed to charge (production-capacity = 0).
 
     We expect the storage to charge in every period to compensate for the usage.
     """
-
     _, battery = get_sensors_from_db(add_battery_assets)
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 1))
     end = tz.localize(datetime(2015, 1, 2))
     resolution = timedelta(minutes=15)
-    stock_gain_sensor_obj = add_stock_gain[stock_gain_sensor]
-    capacity = stock_gain_sensor_obj.get_attribute("capacity_in_mw")
+    stock_delta_sensor_obj = add_stock_delta[stock_delta_sensor]
+    capacity = stock_delta_sensor_obj.get_attribute("capacity_in_mw")
 
     scheduler: Scheduler = StorageScheduler(
         battery,
@@ -1482,7 +1481,7 @@ def test_battery_stock_gain_sensor(
         flex_model={
             "soc-max": 2,
             "soc-min": 0,
-            "stock-gain": [{"sensor": stock_gain_sensor_obj.id}],
+            "soc-usage": [{"sensor": stock_delta_sensor_obj.id}],
             "roundtrip-efficiency": 1,
             "storage-efficiency": 1,
             "production-capacity": "0kW",
@@ -1490,7 +1489,7 @@ def test_battery_stock_gain_sensor(
         },
     )
 
-    if "fails" in stock_gain_sensor:
+    if "fails" in stock_delta_sensor:
         with pytest.raises(InfeasibleProblemException):
             schedule = scheduler.compute()
     else:
@@ -1499,16 +1498,16 @@ def test_battery_stock_gain_sensor(
 
 
 @pytest.mark.parametrize(
-    "gain,expected_gain",
+    "gain,usage,expected_delta",
     [
-        (["1 MWh", "-1MWh"], 0),  # net zero stock gain
-        (["0.5 MWh", "0.5MWh"], 1),  # 1 MWh stock gain in every 15 min period
-        (["100 kWh"], 0.1),  # 100 kWh stock gain in every 15 min period
-        (["-100 kWh"], -0.1),  # 100 kWh stock loss in every 15 min period
-        ([], None),  # no gain defined -> no gain or loss happens
+        (["1 MWh"], ["1MWh"], 0),  # delta stock is 0 (1 MWh - 1 MWh)
+        (["0.5 MWh", "0.5MWh"], [], 1),  # 1 MWh stock gain in every 15 min period
+        (["100 kWh"], None, 0.1),  # 100 kWh stock gain in every 15 min period
+        (None, ["100 kWh"], -0.1),  # 100 kWh stock loss in every 15 min period
+        ([], [], None),  # no gain defined -> no gain or loss happens
     ],
 )
-def test_battery_gain_quantity(add_battery_assets, gain, expected_gain):
+def test_battery_stock_delta_quantity(add_battery_assets, gain, usage, expected_delta):
     """
     Test the stock gain field when a constant value is provided.
 
@@ -1520,26 +1519,27 @@ def test_battery_gain_quantity(add_battery_assets, gain, expected_gain):
     start = tz.localize(datetime(2015, 1, 1))
     end = tz.localize(datetime(2015, 1, 2))
     resolution = timedelta(minutes=15)
+    flex_model = {
+        "soc-max": 2,
+        "soc-min": 0,
+        "roundtrip-efficiency": 1,
+        "storage-efficiency": 1,
+    }
+
+    if gain is not None:
+        flex_model["soc-gain"] = gain
+    if usage is not None:
+        flex_model["soc-usage"] = usage
 
     scheduler: Scheduler = StorageScheduler(
-        battery,
-        start,
-        end,
-        resolution,
-        flex_model={
-            "soc-max": 2,
-            "soc-min": 0,
-            "stock-gain": gain,
-            "roundtrip-efficiency": 1,
-            "storage-efficiency": 1,
-        },
+        battery, start, end, resolution, flex_model=flex_model
     )
     scheduler_info = scheduler._prepare()
 
-    if expected_gain is not None:
+    if expected_delta is not None:
         assert all(
-            scheduler_info[5][0]["stock gain"]
-            == expected_gain * (timedelta(hours=1) / resolution)
+            scheduler_info[5][0]["stock delta"]
+            == expected_delta * (timedelta(hours=1) / resolution)
         )
     else:
-        assert all(scheduler_info[5][0]["stock gain"].isna())
+        assert all(scheduler_info[5][0]["stock delta"].isna())

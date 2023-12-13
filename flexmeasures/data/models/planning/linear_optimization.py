@@ -52,7 +52,7 @@ def device_scheduler(  # noqa C901
         derivative equals: exact amount of flow (we do this by clamping derivative min and derivative max)
         derivative down efficiency: conversion efficiency of flow out of a device (flow out : stock decrease)
         derivative up efficiency: conversion efficiency of flow into a device (stock increase : flow in)
-        stock gain: predefined stock delta to apply to the storage device. Positive quantity cause an increase and negative decrease (stock increase : flow in)
+        stock delta: predefined stock delta to apply to the storage device. Positive values cause an increase and negative values a decrease
     EMS constraints are on an EMS level. Handled constraints (listed by column name):
         derivative max: maximum flow
         derivative min: minimum flow
@@ -104,11 +104,11 @@ def device_scheduler(  # noqa C901
     M = max(M, 1)
 
     for d in range(len(device_constraints)):
-        if "stock gain" not in device_constraints[d].columns:
-            device_constraints[d]["stock gain"] = 0
+        if "stock delta" not in device_constraints[d].columns:
+            device_constraints[d]["stock delta"] = 0
         else:
-            device_constraints[d]["stock gain"] = device_constraints[d][
-                "stock gain"
+            device_constraints[d]["stock delta"] = device_constraints[d][
+                "stock delta"
             ].fillna(0)
 
     # Turn prices per commitment into prices per commitment flow
@@ -232,8 +232,8 @@ def device_scheduler(  # noqa C901
             return 1
         return eff
 
-    def device_stock_gain(m, d, j):
-        return device_constraints[d]["stock gain"].iloc[j]
+    def device_stock_delta(m, d, j):
+        return device_constraints[d]["stock delta"].iloc[j]
 
     model.up_price = Param(model.c, model.j, initialize=price_up_select)
     model.down_price = Param(model.c, model.j, initialize=price_down_select)
@@ -257,7 +257,7 @@ def device_scheduler(  # noqa C901
     model.device_derivative_up_efficiency = Param(
         model.d, model.j, initialize=device_derivative_up_efficiency
     )
-    model.stock_gain = Param(model.d, model.j, initialize=device_stock_gain)
+    model.stock_delta = Param(model.d, model.j, initialize=device_stock_delta)
 
     # Add variables
     model.ems_power = Var(model.d, model.j, domain=Reals, initialize=0)
@@ -281,7 +281,7 @@ def device_scheduler(  # noqa C901
             (
                 m.device_power_down[d, k] / m.device_derivative_down_efficiency[d, k]
                 + m.device_power_up[d, k] * m.device_derivative_up_efficiency[d, k]
-                + m.stock_gain[d, k]
+                + m.stock_delta[d, k]
             )
             for k in range(0, j + 1)
         ]

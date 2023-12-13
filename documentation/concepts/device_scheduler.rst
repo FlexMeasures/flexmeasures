@@ -49,7 +49,7 @@ Symbol                              Variable in the Code                        
 :math:`P^{ems}_{max}(j)`              ems_derivative_max                                 Maximum flow of the EMS during time period :math:`j`.
 :math:`Commitment(c,j)`               commitment_quantity                                Commitment c (at EMS level) over time step :math:`j`.
 :math:`M`                             M                                                  Large constant number, upper bound of :math:`Power_{up}(d,j)` and :math:`|Power_{down}(d,j)|`.
-:math:`G(d,j)`                        stock_gain                                         Explicit energy gain or loss of device :math:`d` during time period :math:`j`.
+:math:`D(d,j)`                        stock_delta                                        Explicit energy gain or loss of device :math:`d` during time period :math:`j`.
 ================================ ================================================ ==============================================================================================================  
 
 
@@ -87,8 +87,7 @@ change of :math:`Stock(d,j)`, taking into account conversion efficiencies but no
 .. math::
   :name: stock
 
-    \Delta Stock(d,j) = \frac{P_{down}(d,j)}{\eta_{down}(d,j) } + P_{up}(d,j)  \cdot \eta_{up}(d,j) + G(d,j)
-
+    \Delta Stock(d,j) = \frac{P_{down}(d,j)}{\eta_{down}(d,j) } + P_{up}(d,j)  \cdot \eta_{up}(d,j) + D(d,j)
 
 
 .. math:: 

@@ -220,9 +220,9 @@ def process(db, building, setup_sources) -> dict[str, Sensor]:
 
 
 @pytest.fixture(scope="module")
-def add_stock_gain(db, add_battery_assets, setup_sources) -> dict[str, Sensor]:
+def add_stock_delta(db, add_battery_assets, setup_sources) -> dict[str, Sensor]:
     """
-    Set up the same constant gain (-capacity_in_mw) in different resolutions.
+    Set up the same constant delta (capacity_in_mw) in different resolutions.
 
     In 15 min event resolution, the maximum energy that the battery can produce/consume in period
     is 0.25 * capacity_in_mw
@@ -232,14 +232,12 @@ def add_stock_gain(db, add_battery_assets, setup_sources) -> dict[str, Sensor]:
     capacity = battery.get_attribute("capacity_in_mw")
     sensors = {}
     sensor_specs = [
-        ("gain fails", timedelta(minutes=15), capacity, True),
-        ("gain", timedelta(minutes=15), capacity * 0.25, True),
-        ("gain hourly", timedelta(hours=1), capacity, True),
-        ("gain None", timedelta(hours=1), -capacity, None),
-        ("gain consumption is negative", timedelta(hours=1), -capacity, False),
+        ("delta fails", timedelta(minutes=15), capacity),
+        ("delta", timedelta(minutes=15), capacity * 0.25),
+        ("delta hourly", timedelta(hours=1), capacity),
     ]
 
-    for name, resolution, value, consumption_is_positive in sensor_specs:
+    for name, resolution, value in sensor_specs:
         # 1 days of test data
         time_slots = initialize_index(
             start=pd.Timestamp("2015-01-01").tz_localize("Europe/Amsterdam"),
@@ -247,26 +245,25 @@ def add_stock_gain(db, add_battery_assets, setup_sources) -> dict[str, Sensor]:
             resolution=resolution,
         )
 
-        stock_gain_sensor = Sensor(
+        stock_delta_sensor = Sensor(
             name=name,
             unit="MWh",
             event_resolution=resolution,
             generic_asset=battery,
-            attributes={"consumption_is_positive": consumption_is_positive},
         )
-        db.session.add(stock_gain_sensor)
+        db.session.add(stock_delta_sensor)
         db.session.flush()
 
         stock_gain = [value] * len(time_slots)
 
         add_as_beliefs(
             db,
-            stock_gain_sensor,
+            stock_delta_sensor,
             stock_gain,
             time_slots,
             setup_sources["Seita"],
         )
-        sensors[name] = stock_gain_sensor
+        sensors[name] = stock_delta_sensor
 
     return sensors
 
