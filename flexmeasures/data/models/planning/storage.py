@@ -9,7 +9,6 @@ import pandas as pd
 import numpy as np
 from flask import current_app
 
-from flexmeasures import Sensor
 from flexmeasures.data.models.planning import Scheduler, SchedulerOutputType
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.planning.utils import (
@@ -244,15 +243,13 @@ class MetaStorageScheduler(Scheduler):
                 stock_delta_series = get_continuous_series_sensor_or_quantity(
                     quantity_or_sensor=component,
                     actuator=sensor,
-                    unit="MWh",
+                    unit="MW",
                     query_window=(start, end),
                     resolution=resolution,
                     beliefs_before=belief_time,
                 )
 
-                if isinstance(component, Sensor):
-                    from_unit = component.event_resolution
-                    stock_delta_series *= resolution / from_unit
+                stock_delta_series *= resolution / timedelta(hours=1)  # MW -> MW
 
                 if is_usage:
                     stock_delta_series *= -1

@@ -1452,7 +1452,7 @@ def test_battery_power_capacity_as_sensor(
 
 @pytest.mark.parametrize(
     "stock_delta_sensor",
-    ["delta fails", "delta", "delta hourly"],
+    ["delta fails", "delta", "delta hourly", "delta 5min"],
 )
 def test_battery_stock_delta_sensor(
     add_battery_assets, add_stock_delta, stock_delta_sensor
@@ -1500,10 +1500,10 @@ def test_battery_stock_delta_sensor(
 @pytest.mark.parametrize(
     "gain,usage,expected_delta",
     [
-        (["1 MWh"], ["1MWh"], 0),  # delta stock is 0 (1 MWh - 1 MWh)
-        (["0.5 MWh", "0.5MWh"], [], 1),  # 1 MWh stock gain in every 15 min period
-        (["100 kWh"], None, 0.1),  # 100 kWh stock gain in every 15 min period
-        (None, ["100 kWh"], -0.1),  # 100 kWh stock loss in every 15 min period
+        (["1 MW"], ["1MW"], 0),  # delta stock is 0 (1 MW - 1 MW)
+        (["0.5 MW", "0.5 MW"], [], 1),  # 1 MW stock gain
+        (["100 kW"], None, 0.1),  # 100 MW stock gain
+        (None, ["100 kW"], -0.1),  # 100 kW stock loss
         ([], [], None),  # no gain defined -> no gain or loss happens
     ],
 )
@@ -1537,9 +1537,6 @@ def test_battery_stock_delta_quantity(add_battery_assets, gain, usage, expected_
     scheduler_info = scheduler._prepare()
 
     if expected_delta is not None:
-        assert all(
-            scheduler_info[5][0]["stock delta"]
-            == expected_delta * (timedelta(hours=1) / resolution)
-        )
+        assert all(scheduler_info[5][0]["stock delta"] == expected_delta)
     else:
         assert all(scheduler_info[5][0]["stock delta"].isna())

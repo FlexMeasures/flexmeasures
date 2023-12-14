@@ -232,9 +232,10 @@ def add_stock_delta(db, add_battery_assets, setup_sources) -> dict[str, Sensor]:
     capacity = battery.get_attribute("capacity_in_mw")
     sensors = {}
     sensor_specs = [
-        ("delta fails", timedelta(minutes=15), capacity),
-        ("delta", timedelta(minutes=15), capacity * 0.25),
+        ("delta fails", timedelta(minutes=15), capacity * 1.2),
+        ("delta", timedelta(minutes=15), capacity),
         ("delta hourly", timedelta(hours=1), capacity),
+        ("delta 5min", timedelta(minutes=5), capacity),
     ]
 
     for name, resolution, value in sensor_specs:
@@ -247,7 +248,7 @@ def add_stock_delta(db, add_battery_assets, setup_sources) -> dict[str, Sensor]:
 
         stock_delta_sensor = Sensor(
             name=name,
-            unit="MWh",
+            unit="MW",
             event_resolution=resolution,
             generic_asset=battery,
         )
