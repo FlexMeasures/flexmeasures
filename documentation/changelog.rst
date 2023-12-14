@@ -10,6 +10,7 @@ New features
 -------------
 
 * Better navigation experience through listings (sensors / assets / users / accounts) in the :abbr:`UI (user interface)`, by heading to the selected entity upon a click (or CTRL + click) anywhere within a row [see `PR #923 <https://github.com/FlexMeasures/flexmeasures/pull/923>`_]
+* New flexmeasures configuration setting `FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY` for upgrading insecure `http` requests to secured requests `https` [see `PR #920 <https://github.com/FlexMeasures/flexmeasures/pull/920>`_]
 
 Infrastructure / Support
 ----------------------
