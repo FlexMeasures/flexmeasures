@@ -4,7 +4,26 @@
 
 {% block title %} {{asset.name}} {% endblock %}
 
+
+
 {% block divs %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item">
+        {% if account_name is not none %}
+            <a href="{{account_url}}">{{ account_name }}</a>
+        {% else %}
+        PUBLIC
+        {% endif %}
+    </li>
+    <li class="breadcrumb-item">
+        {% if parent_asset is not none %}
+        <a href="{{ url_for('AssetCrudUI:get', id=parent_asset.id) }}">{{parent_asset.name}} ({{ parent_asset.generic_asset_type.name }})</a>
+        {% endif %}
+    </li>
+    <li class="breadcrumb-item active" aria-current="page">{{ asset.name }} ({{ asset.generic_asset_type.name }})</li>
+  </ol>
+</nav>
 
 <div class="container-fluid">
     <div class="row">

@@ -369,6 +369,13 @@ def add_asset_type(**args):
     type=int,
     help="Asset type to assign to this asset",
 )
+@click.option(
+    "--parent-asset",
+    "parent_asset_id",
+    required=False,
+    type=int,
+    help="Parent of this asset. The entity needs to exists on the database.",
+)
 def add_asset(**args):
     """Add an asset."""
     check_errors(GenericAssetSchema().validate(args))

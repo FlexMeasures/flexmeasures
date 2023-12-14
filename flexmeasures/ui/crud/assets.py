@@ -263,9 +263,24 @@ class AssetCrudUI(FlaskView):
         asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
         asset_form.process(data=process_internal_api_response(asset_dict))
 
+        account_id = asset.account_id
+        account_name = (
+            Account.query.get(account_id).name if account_id is not None else None
+        )
+        account_url = (
+            url_for("AccountCrudUI:get", account_id=account_id)
+            if account_id is not None
+            else None
+        )
+        parent_asset = GenericAsset.query.get(asset.id).parent_asset
+
         return render_flexmeasures_template(
             "crud/asset.html",
             asset=asset,
+            account_id=account_id,
+            parent_asset=parent_asset,
+            account_url=account_url,
+            account_name=account_name,
             asset_form=asset_form,
             msg="",
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
