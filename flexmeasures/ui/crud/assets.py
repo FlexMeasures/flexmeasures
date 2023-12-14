@@ -191,6 +191,20 @@ class AssetCrudUI(FlaskView):
 
     route_base = "/assets"
 
+    def get_asset_parent_and_account(self, asset: GenericAsset):
+        account_id = asset.account_id
+        account_name = (
+            Account.query.get(account_id).name if account_id is not None else None
+        )
+        account_url = (
+            url_for("AccountCrudUI:get", account_id=account_id)
+            if account_id is not None
+            else None
+        )
+        parent_asset = GenericAsset.query.get(asset.id).parent_asset
+
+        return account_id, account_name, parent_asset, account_url, account_name
+
     @login_required
     def index(self, msg=""):
         """GET from /assets
@@ -263,16 +277,12 @@ class AssetCrudUI(FlaskView):
         asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
         asset_form.process(data=process_internal_api_response(asset_dict))
 
-        account_id = asset.account_id
-        account_name = (
-            Account.query.get(account_id).name if account_id is not None else None
-        )
-        account_url = (
-            url_for("AccountCrudUI:get", account_id=account_id)
-            if account_id is not None
-            else None
-        )
-        parent_asset = GenericAsset.query.get(asset.id).parent_asset
+        (
+            account_id,
+            parent_asset,
+            account_url,
+            account_name,
+        ) = self.get_asset_parent_and_account(asset)
 
         return render_flexmeasures_template(
             "crud/asset.html",
@@ -360,10 +370,21 @@ class AssetCrudUI(FlaskView):
                 asset = process_internal_api_response(
                     asset_info, int(id), make_obj=True
                 )
+                (
+                    account_id,
+                    parent_asset,
+                    account_url,
+                    account_name,
+                ) = self.get_asset_parent_and_account(asset)
+
                 return render_flexmeasures_template(
                     "crud/asset.html",
                     asset_form=asset_form,
                     asset=asset,
+                    account_id=account_id,
+                    parent_asset=parent_asset,
+                    account_url=account_url,
+                    account_name=account_name,
                     msg="Cannot edit asset.",
                     mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
                     user_can_create_assets=user_can_create_assets(),
@@ -390,9 +411,20 @@ class AssetCrudUI(FlaskView):
                 )
                 asset = GenericAsset.query.get(id)
 
+        (
+            account_id,
+            parent_asset,
+            account_url,
+            account_name,
+        ) = self.get_asset_parent_and_account(asset)
+
         return render_flexmeasures_template(
             "crud/asset.html",
             asset=asset,
+            account_id=account_id,
+            parent_asset=parent_asset,
+            account_url=account_url,
+            account_name=account_name,
             asset_form=asset_form,
             msg=msg,
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
