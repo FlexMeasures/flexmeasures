@@ -14,6 +14,7 @@ New features
 Infrastructure / Support
 ----------------------
 
+* Align database and models of `annotations`, `data_sources`, and `timed_belief` [see `PR #929 <https://github.com/FlexMeasures/flexmeasures/pull/929>`_]
 * Remove obsolete database tables `price`, `power`, `market`, `market_type`, `weather`, `asset`, and `weather_sensor` [see `PR #921 <https://github.com/FlexMeasures/flexmeasures/pull/921>`_]
 * New documentation section on constructing a flex model for :abbr:`V2G (vehicle-to-grid)` [see `PR #885 <https://github.com/FlexMeasures/flexmeasures/pull/885>`_]
 
