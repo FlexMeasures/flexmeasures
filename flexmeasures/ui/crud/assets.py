@@ -191,8 +191,11 @@ class AssetCrudUI(FlaskView):
 
     route_base = "/assets"
 
-    def get_asset_parent_and_account(self, asset: GenericAsset):
+    def get_breadcrumb_info(self, asset: GenericAsset):
         account_id = asset.account_id
+        account = Account.query.get(account_id)
+        if account is None:
+            account_id = None
         account_name = (
             Account.query.get(account_id).name if account_id is not None else None
         )
@@ -277,12 +280,9 @@ class AssetCrudUI(FlaskView):
         asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
         asset_form.process(data=process_internal_api_response(asset_dict))
 
-        (
-            account_id,
-            parent_asset,
-            account_url,
-            account_name,
-        ) = self.get_asset_parent_and_account(asset)
+        account_id, account_name, parent_asset, account_url = self.get_breadcrumb_info(
+            asset
+        )
 
         return render_flexmeasures_template(
             "crud/asset.html",
@@ -372,10 +372,10 @@ class AssetCrudUI(FlaskView):
                 )
                 (
                     account_id,
+                    account_name,
                     parent_asset,
                     account_url,
-                    account_name,
-                ) = self.get_asset_parent_and_account(asset)
+                ) = self.get_breadcrumb_info(asset)
 
                 return render_flexmeasures_template(
                     "crud/asset.html",
@@ -411,12 +411,9 @@ class AssetCrudUI(FlaskView):
                 )
                 asset = GenericAsset.query.get(id)
 
-        (
-            account_id,
-            parent_asset,
-            account_url,
-            account_name,
-        ) = self.get_asset_parent_and_account(asset)
+        account_id, account_name, parent_asset, account_url = self.get_breadcrumb_info(
+            asset
+        )
 
         return render_flexmeasures_template(
             "crud/asset.html",
