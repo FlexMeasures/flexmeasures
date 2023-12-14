@@ -33,6 +33,7 @@ def upgrade():
             nullable=False,
         )
 
+    # This constraint is renamed to include the full name of the `data_source` table.
     with op.batch_alter_table("timed_belief", schema=None) as batch_op:
         batch_op.drop_constraint(
             "timed_belief_source_id_source_fkey", type_="foreignkey"
