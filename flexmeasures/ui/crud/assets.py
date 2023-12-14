@@ -203,7 +203,7 @@ class AssetCrudUI(FlaskView):
         )
         parent_asset = GenericAsset.query.get(asset.id).parent_asset
 
-        return account_id, account_name, parent_asset, account_url, account_name
+        return account_id, account_name, parent_asset, account_url
 
     @login_required
     def index(self, msg=""):
@@ -288,9 +288,9 @@ class AssetCrudUI(FlaskView):
             "crud/asset.html",
             asset=asset,
             account_id=account_id,
-            parent_asset=parent_asset,
-            account_url=account_url,
             account_name=account_name,
+            account_url=account_url,
+            parent_asset=parent_asset,
             asset_form=asset_form,
             msg="",
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
