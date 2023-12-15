@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from flexmeasures import Sensor, Asset, Account
 from flask import url_for
 
