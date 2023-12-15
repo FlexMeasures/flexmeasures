@@ -8,7 +8,7 @@ from flask_classful import FlaskView
 from flask_wtf import FlaskForm
 from flask_security import login_required, current_user
 from wtforms import StringField, DecimalField, SelectField
-from wtforms.validators import DataRequired
+from wtforms.validators import DataRequired, optional
 from flexmeasures.auth.policy import user_has_admin_access
 
 from flexmeasures.data import db
@@ -40,11 +40,13 @@ class AssetForm(FlaskForm):
     name = StringField("Name")
     latitude = DecimalField(
         "Latitude",
+        validators=[optional()],
         places=None,
         render_kw={"placeholder": "--Click the map or enter a latitude--"},
     )
     longitude = DecimalField(
         "Longitude",
+        validators=[optional()],
         places=None,
         render_kw={"placeholder": "--Click the map or enter a longitude--"},
     )
@@ -65,8 +67,10 @@ class AssetForm(FlaskForm):
     def to_json(self) -> dict:
         """turn form data into a JSON we can POST to our internal API"""
         data = copy.copy(self.data)
-        data["longitude"] = float(data["longitude"])
-        data["latitude"] = float(data["latitude"])
+        if data.get("longitude") is not None:
+            data["longitude"] = float(data["longitude"])
+        if data.get("latitude") is not None:
+            data["latitude"] = float(data["latitude"])
 
         if "csrf_token" in data:
             del data["csrf_token"]
