@@ -1458,12 +1458,20 @@ def test_battery_stock_delta_sensor(
     add_battery_assets, add_stock_delta, stock_delta_sensor
 ):
     """
-    Test the soc delta feature using sensors.
+    Test the SOC delta feature using sensors.
 
     An empty battery is made to fulfill a usage signal under a flat tariff.
     The battery is only allowed to charge (production-capacity = 0).
 
-    We expect the storage to charge in every period to compensate for the usage.
+    Set up the same constant delta (capacity_in_mw) in different resolutions.
+
+    The problem is defined with the following settings:
+        - Battery empty at the start of the schedule (soc-at-start = 0).
+        - Battery of size 2 MWh.
+        - Consumption capacity of the battery is 2 MW.
+        - The battery cannot discharge.
+    With these settings, the battery needs to charge at a power or greater than the usage forecast
+    to keep the SOC within bounds ([0, 2 MWh]).
     """
     _, battery = get_sensors_from_db(add_battery_assets)
     tz = pytz.timezone("Europe/Amsterdam")

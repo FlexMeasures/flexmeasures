@@ -222,10 +222,13 @@ def process(db, building, setup_sources) -> dict[str, Sensor]:
 @pytest.fixture(scope="module")
 def add_stock_delta(db, add_battery_assets, setup_sources) -> dict[str, Sensor]:
     """
-    Set up the same constant delta (capacity_in_mw) in different resolutions.
-
-    In 15 min event resolution, the maximum energy that the battery can produce/consume in period
-    is 0.25 * capacity_in_mw
+    Different usage forecast sensors are defined:
+        - "delta fails": the usage forecast exceeds the maximum power.
+        - "delta": the usage forecast can be fulfilled just right. This coincides with the schedule resolution.
+        - "delta hourly": the event resolution is changed to test that the schedule is still feasible.
+                          This has a greater resolution.
+        - "delta 5min": the event resolution is reduced even more. This sensor has a resolution smaller than the used
+                        for the scheduler.
     """
 
     battery = add_battery_assets["Test battery"]

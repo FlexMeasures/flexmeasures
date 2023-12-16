@@ -249,7 +249,10 @@ class MetaStorageScheduler(Scheduler):
                     beliefs_before=belief_time,
                 )
 
-                stock_delta_series *= resolution / timedelta(hours=1)  # MW -> MW
+                # example: 4 MW sustained over 15 minutes gives 1 MWh
+                stock_delta_series *= resolution / timedelta(
+                    hours=1
+                )  # MW -> MWh / resolution
 
                 if is_usage:
                     stock_delta_series *= -1
