@@ -152,7 +152,7 @@ def process_internal_api_response(
                 Sensor.generic_asset_id == asset_data["id"]
             ).all()
             expunge_asset()
-        if asset_data.get("parent_asset_id") is not None:
+        if asset_data.get("parent_asset_id", None) is not None:
             asset.parent_asset = GenericAsset.query.filter(
                 GenericAsset.id == asset_data["parent_asset_id"]
             ).one_or_none()

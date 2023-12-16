@@ -81,7 +81,7 @@ def render_flexmeasures_template(html_filename: str, **variables):
     variables["extra_css"] = current_app.config.get("FLEXMEASURES_EXTRA_CSS_PATH")
 
     if "asset" in variables:
-        variables["breadcrumb_info"] = (get_breadcrumb_info(asset),)
+        variables["breadcrumb_info"] = get_breadcrumb_info(asset)
 
     return render_template(html_filename, **variables)
 

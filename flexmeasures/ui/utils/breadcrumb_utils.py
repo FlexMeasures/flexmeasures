@@ -10,7 +10,7 @@ def get_breadcrumb_info(entity: Sensor | Asset | Account | None) -> dict:
     }
 
 
-def get_ancestry(entity: Sensor | Asset | Account | None) -> list:
+def get_ancestry(entity: Sensor | Asset | Account | None) -> list[dict]:
 
     # Public account
     if entity is None:
