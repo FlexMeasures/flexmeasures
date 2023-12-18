@@ -14,7 +14,7 @@ Infrastructure / Support
 
 * New documentation section on constructing a flex model for :abbr:`V2G (vehicle-to-grid)` [see `PR #885 <https://github.com/FlexMeasures/flexmeasures/pull/885>`_]
 * Allow charts in plugins to show currency codes (such as EUR) as currency symbols (€) [see `PR #922 <https://github.com/FlexMeasures/flexmeasures/pull/922>`_]
-* Expose device-level power constraints as sensors via de API [see `PR #897 <https://github.com/FlexMeasures/flexmeasures/pull/897>`_]
+* Define device-level power constraints as sensors to create schedules with changing power limits. [see `PR #897 <https://github.com/FlexMeasures/flexmeasures/pull/897>`_]
 * Allow to provide external storage usage or gain componentes using the ``soc-gain`` and ``soc-usage`` fields of the `flex-model` [see `PR #906 <https://github.com/FlexMeasures/flexmeasures/pull/906>`_]
 
 Bugfixes
