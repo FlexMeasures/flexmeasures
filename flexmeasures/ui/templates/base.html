@@ -11,6 +11,9 @@
     </title>
     {% endblock head %}
     <meta charset="windows-1252">
+    {% if FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY %}
+      <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+    {% endif %}
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="/favicon.ico" type="image/x-icon" />
     <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon" />
@@ -649,6 +652,10 @@
     <script src="https://cdn.jsdelivr.net/npm/vega@{{ js_versions.vega }}"></script>
     <script src="https://cdn.jsdelivr.net/npm/vega-lite@{{ js_versions.vegalite }}"></script>
     <script src="https://cdn.jsdelivr.net/npm/vega-embed@{{ js_versions.vegaembed }}"></script>
+    {# Workaround for loading a NodeJS module without NodeJS #}
+    <script>var module = { exports: {} };</script>
+    <script src="https://cdn.jsdelivr.net/npm/currency-symbol-map@{{ js_versions.currencysymbolmap }}/map.js"></script>
+    <script>const currencySymbolMap = module.exports;</script>
     {% endif %}
 
     <!-- Custom scripts -->

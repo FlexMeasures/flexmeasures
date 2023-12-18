@@ -60,7 +60,6 @@ class SOCValueSchema(Schema):
 
     @validates("value")
     def validate_value(self, _value):
-
         if self.value_validator is not None:
             self.value_validator(_value)
 

@@ -125,6 +125,7 @@ class Config(object):
         vega="5.22.1",
         vegaembed="6.21.0",
         vegalite="5.5.0",  # "5.6.0" has a problematic bar chart: see our sensor page and https://github.com/vega/vega-lite/issues/8496
+        currencysymbolmap="5.1.0",
         # todo: expand with other js versions used in FlexMeasures
     )
 
@@ -134,6 +135,9 @@ class Config(object):
     FLEXMEASURES_API_SUNSET_ACTIVE: bool = False  # if True, sunset endpoints return 410 (Gone) responses; if False, they return 404 (Not Found) responses or will work as before, depending on whether the current FlexMeasures version still contains the endpoint logic
     FLEXMEASURES_API_SUNSET_DATE: str | None = None  # e.g. 2023-05-01
     FLEXMEASURES_API_SUNSET_LINK: str | None = None  # e.g. https://flexmeasures.readthedocs.io/en/latest/api/introduction.html#deprecation-and-sunset
+
+    # if True, the content could be accessed via HTTPS.
+    FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY: bool = False
 
 
 #  names of settings which cannot be None
