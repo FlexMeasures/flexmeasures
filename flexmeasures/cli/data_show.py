@@ -57,7 +57,6 @@ def list_accounts():
         (
             account.id,
             account.name,
-            # GenericAsset.query.filter(GenericAsset.account_id == account.id).count(),
             db.session.scalars(
                 select(func.count())
                 .select_from(GenericAsset)
@@ -75,7 +74,6 @@ def list_roles():
     """
     Show available account and user roles
     """
-    # account_roles = AccountRole.query.order_by(AccountRole.name).all()
     account_roles = (
         db.session.execute(select(AccountRole).order_by(AccountRole.name))
         .scalars()
@@ -92,7 +90,6 @@ def list_roles():
         )
     )
     click.echo()
-    # user_roles = Role.query.order_by(Role.name).all()
     user_roles = db.session.execute(select(Role).order_by(Role.name)).scalars().all()
     if not user_roles:
         click.secho("No user roles created yet, not even admin.", **MsgStyle.WARN)
@@ -125,7 +122,6 @@ def show_account(account):
         click.secho("Account has no roles.", **MsgStyle.WARN)
     click.echo()
 
-    # users = User.query.filter_by(account_id=account.id).order_by(User.username).all()
     users = (
         db.session.execute(
             select(User).filter_by(account_id=account.id).order_by(User.username)
@@ -156,11 +152,6 @@ def show_account(account):
         )
 
     click.echo()
-    # assets = (
-    #     GenericAsset.query.filter_by(account_id=account.id)
-    #     .order_by(GenericAsset.name)
-    #     .all()
-    # )
     assets = (
         db.session.execute(
             select(GenericAsset)
@@ -187,7 +178,6 @@ def list_asset_types():
     """
     Show available asset types
     """
-    # asset_types = GenericAssetType.query.order_by(GenericAssetType.name).all()
     asset_types = (
         db.session.execute(select(GenericAssetType).order_by(GenericAssetType.name))
         .scalars()
@@ -225,9 +215,6 @@ def show_generic_asset(asset):
     click.echo(tabulate(asset_data, headers=["Type", "Location", "Attributes"]))
 
     click.echo()
-    # sensors = (
-    #     Sensor.query.filter_by(generic_asset_id=asset.id).order_by(Sensor.name).all()
-    # )
     sensors = (
         db.session.execute(
             select(Sensor).filter_by(generic_asset_id=asset.id).order_by(Sensor.name)
@@ -280,13 +267,6 @@ def list_data_sources(source: DataSource | None = None, show_attributes: bool = 
     Show available data sources
     """
     if source is None:
-        # sources = (
-        #     DataSource.query.order_by(DataSource.type)
-        #     .order_by(DataSource.name)
-        #     .order_by(DataSource.model)
-        #     .order_by(DataSource.version)
-        #     .all()
-        # )
         sources = (
             db.session.execute(
                 select(DataSource)
@@ -459,10 +439,8 @@ def chart(
         # need to fetch the entities as they get detached
         # and we get the (in)famous detached instance error.
         if entity_type == "asset":
-            # entity = GenericAsset.query.get(entity.id)
             entity = db.session.get(GenericAsset, entity.id)
         else:
-            # entity = Sensor.query.get(entity.id)
             entity = db.session.get(Sensor, entity.id)
 
         chart_description = entity.chart(
