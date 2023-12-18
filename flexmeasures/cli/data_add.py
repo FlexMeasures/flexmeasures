@@ -21,7 +21,7 @@ from flask.cli import with_appcontext
 import click
 import getpass
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import func
+from sqlalchemy import func, select
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
 import timely_beliefs as tb
 import timely_beliefs.utils as tb_utils
@@ -135,7 +135,9 @@ def new_account_role(name: str, description: str):
     """
     Create an account role.
     """
-    role = AccountRole.query.filter_by(name=name).one_or_none()
+    role = db.session.execute(
+        select(AccountRole).filter_by(name=name)
+    ).scalar_one_or_none()
     if role is not None:
         click.secho(f"Account role '{name}' already exists.", **MsgStyle.ERROR)
         raise click.Abort()
@@ -162,7 +164,9 @@ def new_account(name: str, roles: str, consultancy_account: Account | None):
     """
     Create an account for a tenant in the FlexMeasures platform.
     """
-    account = db.session.query(Account).filter_by(name=name).one_or_none()
+    account = db.session.execute(
+        select(Account).filter_by(name=name)
+    ).scalar_one_or_none()
     if account is not None:
         click.secho(f"Account '{name}' already exists.", **MsgStyle.ERROR)
         raise click.Abort()
@@ -170,7 +174,9 @@ def new_account(name: str, roles: str, consultancy_account: Account | None):
     db.session.add(account)
     if roles:
         for role_name in roles.split(","):
-            role = AccountRole.query.filter_by(name=role_name).one_or_none()
+            role = db.session.execute(
+                select(AccountRole).filter_by(name=role_name)
+            ).one_or_none()
             if role is None:
                 click.secho(f"Adding account role {role_name} ...", **MsgStyle.ERROR)
                 role = AccountRole(name=role_name)
@@ -226,7 +232,7 @@ def new_user(
     except pytz.UnknownTimeZoneError:
         click.secho(f"Timezone {timezone} is unknown!", **MsgStyle.ERROR)
         raise click.Abort()
-    account = db.session.query(Account).get(account_id)
+    account = db.session.get(Account, account_id)
     if account is None:
         click.secho(f"No account with ID {account_id} found!", **MsgStyle.ERROR)
         raise click.Abort()
@@ -758,23 +764,29 @@ def add_annotation(
         else start + pd.offsets.DateOffset(days=1)
     )
     accounts = (
-        db.session.query(Account).filter(Account.id.in_(account_ids)).all()
+        db.session.execute(select(Account).filter(Account.id.in_(account_ids)))
+        .scalars()
+        .all()
         if account_ids
         else []
     )
     assets = (
-        db.session.query(GenericAsset)
-        .filter(GenericAsset.id.in_(generic_asset_ids))
+        db.session.execute(
+            select(GenericAsset).filter(GenericAsset.id.in_(generic_asset_ids))
+        )
+        .scalars()
         .all()
         if generic_asset_ids
         else []
     )
     sensors = (
-        db.session.query(Sensor).filter(Sensor.id.in_(sensor_ids)).all()
+        db.session.execute(select(Sensor).filter(Sensor.id.in_(sensor_ids)))
+        .scalars()
+        .all()
         if sensor_ids
         else []
     )
-    user = db.session.query(User).get(user_id)
+    user = db.session.get(User, user_id)
     _source = get_or_create_source(user)
 
     # Create annotation
@@ -836,13 +848,18 @@ def add_holidays(
     num_holidays = {}
 
     accounts = (
-        db.session.query(Account).filter(Account.id.in_(account_ids)).all()
+        # db.session.query(Account).filter(Account.id.in_(account_ids)).all()
+        db.session.execute(select(Account).filter(Account.id.in_(account_ids)))
+        .scalars()
+        .all()
         if account_ids
         else []
     )
     assets = (
-        db.session.query(GenericAsset)
-        .filter(GenericAsset.id.in_(generic_asset_ids))
+        db.session.execute(
+            select(GenericAsset).filter(GenericAsset.id.in_(generic_asset_ids))
+        )
+        .scalars()
         .all()
         if generic_asset_ids
         else []
@@ -1550,7 +1567,6 @@ def add_report(  # noqa: C901
             .filter(TimedBelief.sensor_id == output[0]["sensor"].id)
             .one_or_none()
         )
-
         # If there's data saved to the reporter sensors
         if last_value_datetime[0] is not None:
             start = last_value_datetime[0]

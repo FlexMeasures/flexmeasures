@@ -4,6 +4,7 @@ import yaml
 import os
 from datetime import datetime
 import pytz
+from sqlalchemy import select
 
 from flexmeasures.cli.tests.utils import to_flags
 from flexmeasures.data.models.annotations import (
@@ -175,8 +176,8 @@ def test_add_reporter(app, fresh_db, setup_dummy_data):
 
         assert result.exit_code == 0  # run command without errors
 
-        report_sensor = Sensor.query.get(
-            report_sensor_id
+        report_sensor = fresh_db.session.get(
+            Sensor, report_sensor_id
         )  # get fresh report sensor instance
 
         assert "Reporter PandasReporter found" in result.output
@@ -229,8 +230,8 @@ def test_add_reporter(app, fresh_db, setup_dummy_data):
         assert result.exit_code == 0  # run command without errors
 
         # Check if the report is saved to the database
-        report_sensor = Sensor.query.get(
-            report_sensor_id
+        report_sensor = fresh_db.session.get(
+            Sensor, report_sensor_id
         )  # get fresh report sensor instance
 
         assert (
@@ -322,8 +323,8 @@ def test_add_multiple_output(app, fresh_db, setup_dummy_data):
 
         assert result.exit_code == 0  # run command without errors
 
-        report_sensor = Sensor.query.get(report_sensor_id)
-        report_sensor_2 = Sensor.query.get(report_sensor_2_id)
+        report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
+        report_sensor_2 = fresh_db.session.get(Sensor, report_sensor_2_id)
 
         assert "Reporter PandasReporter found" in result.output
         assert f"Report computation done for sensor `{report_sensor}`." in result.output
@@ -353,7 +354,9 @@ def test_add_process(
 
     from flexmeasures.cli.data_add import add_schedule_process
 
-    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    epex_da = app.db.session.execute(
+        select(Sensor).filter(Sensor.name == "epex_da")
+    ).scalar_one_or_none()
 
     process_power_sensor_id = process_power_sensor
 
@@ -378,8 +381,7 @@ def test_add_process(
 
     assert result.exit_code == 0  # run command without errors
 
-    process_power_sensor = Sensor.query.get(process_power_sensor_id)
-
+    process_power_sensor = app.db.session.get(Sensor, process_power_sensor_id)
     schedule = process_power_sensor.search_beliefs()
     # check if the schedule is not empty more detailed testing can be found
     # in data/models/planning/tests/test_processs.py.
@@ -407,7 +409,9 @@ def test_add_sensor(app, db, setup_dummy_asset, event_resolution, name, success)
     }
     runner = app.test_cli_runner()
     result = runner.invoke(add_sensor, to_flags(cli_input))
-    sensor: Sensor = Sensor.query.filter_by(name=name).one_or_none()
+    sensor: Sensor = db.session.execute(
+        select(Sensor).filter(Sensor.name == name)
+    ).scalar_one_or_none()
     if success:
         assert result.exit_code == 0
         sensor.unit == "kWh"
@@ -441,7 +445,9 @@ def test_add_account(
     result = runner.invoke(new_account, to_flags(cli_input))
     if success:
         assert "successfully created." in result.output
-        account = Account.query.filter(Account.name == cli_input["name"]).one_or_none()
+        account = fresh_db.session.execute(
+            select(Account).filter_by(name=cli_input["name"])
+        ).scalar_one_or_none()
         assert account.consultancy_account_id == consultancy_account_id
 
     else:
