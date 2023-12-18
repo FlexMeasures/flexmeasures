@@ -8,6 +8,7 @@ import subprocess
 from flask import render_template, request, session, current_app
 from flask_security.core import current_user
 
+from flexmeasures.data import db
 from flexmeasures import __version__ as flexmeasures_version
 from flexmeasures.auth.policy import user_has_admin_access
 from flexmeasures.utils import time_utils
@@ -179,7 +180,7 @@ def asset_icon_name(asset_type_name: str) -> str:
 
 
 def username(user_id) -> str:
-    user = User.query.get(user_id)
+    user = db.session.get(User, user_id)
     if user is None:
         current_app.logger.warning(f"Could not find user with id {user_id}")
         return ""
@@ -188,7 +189,7 @@ def username(user_id) -> str:
 
 
 def accountname(account_id) -> str:
-    account = Account.query.get(account_id)
+    account = db.session.get(Account, account_id)
     if account is None:
         current_app.logger.warning(f"Could not find account with id {account_id}")
         return ""

@@ -9,6 +9,7 @@ from flask_wtf import FlaskForm
 from flask_security import login_required, current_user
 from wtforms import StringField, DecimalField, SelectField
 from wtforms.validators import DataRequired, optional
+from sqlalchemy import select
 from flexmeasures.auth.policy import user_has_admin_access
 
 from flexmeasures.data import db
@@ -141,15 +142,15 @@ def process_internal_api_response(
                 **{"attributes": json.loads(asset_data.get("attributes", "{}"))},
             }
         )  # TODO: use schema?
-        asset.generic_asset_type = GenericAssetType.query.get(
-            asset.generic_asset_type_id
+        asset.generic_asset_type = db.session.get(
+            GenericAssetType, asset.generic_asset_type_id
         )
         expunge_asset()
-        asset.owner = Account.query.get(asset_data["account_id"])
+        asset.owner = db.session.get(Account, asset_data["account_id"])
         expunge_asset()
         if "id" in asset_data:
-            asset.sensors = Sensor.query.filter(
-                Sensor.generic_asset_id == asset_data["id"]
+            asset.sensors = db.session.scalars(
+                select(Sensor).filter_by(generic_asset_id=asset_data["id"])
             ).all()
             expunge_asset()
         return asset
@@ -236,7 +237,7 @@ class AssetCrudUI(FlaskView):
             ]
         return render_flexmeasures_template(
             "crud/assets.html",
-            account=Account.query.get(account_id),
+            account=db.session.get(Account, account_id),
             assets=assets,
             msg=msg,
             user_can_create_assets=user_can_create_assets(),
