@@ -1448,3 +1448,55 @@ def test_battery_power_capacity_as_sensor(
 
     assert all(device_constraints["derivative min"].values == expected_production)
     assert all(device_constraints["derivative max"].values == expected_consumption)
+
+
+@pytest.mark.parametrize(
+    "flex_model_field,device_constraint",
+    [
+        ("charging-efficiency", "derivative up efficiency"),
+        ("discharging-efficiency", "derivative down efficiency"),
+    ],
+)
+def test_dis_charging_efficiency_as_sensor(
+    db,
+    add_battery_assets,
+    add_inflexible_device_forecasts,
+    add_market_prices,
+    efficiency_sensors,
+    device_constraint,
+    flex_model_field,
+):
+    """
+    The efficiency sensor defined an efficiency of 90% for 23h of the 24h of the schedule. The last
+    hour should use the roundtrip-efficiency of 90% (charge and discharge efficiencies of 81%).
+    """
+
+    _, battery = get_sensors_from_db(add_battery_assets)
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+
+    scheduler: Scheduler = StorageScheduler(
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model={
+            "soc-max": 2,
+            "soc-min": 0,
+            flex_model_field: {"sensor": efficiency_sensors["efficiency"].id},
+            "roundtrip-efficiency": 0.9,
+        },
+    )
+
+    scheduler_data = scheduler._prepare()
+    device_constraints = scheduler_data[5][0]
+
+    assert all(
+        device_constraints[: end - timedelta(hours=1) - resolution][device_constraint]
+        == 0.9
+    )
+    assert all(
+        device_constraints[end - timedelta(hours=1) :][device_constraint] == 0.81
+    )

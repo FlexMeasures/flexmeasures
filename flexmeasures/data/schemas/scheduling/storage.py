@@ -105,7 +105,17 @@ class StorageFlexModelSchema(Schema):
         data_key="soc-unit",
     )  # todo: allow unit to be set per field, using QuantityField("%", validate=validate.Range(min=0, max=1))
     soc_targets = fields.List(fields.Nested(SOCValueSchema()), data_key="soc-targets")
+
     roundtrip_efficiency = EfficiencyField(data_key="roundtrip-efficiency")
+    charging_efficiency = QuantityOrSensor(
+        "%", data_key="charging-efficiency", required=False
+    )
+    discharging_efficiency = QuantityOrSensor(
+        "%", data_key="discharging-efficiency", required=False
+    )
+
+    roundtrip_efficiency = EfficiencyField(data_key="roundtrip-efficiency")
+
     storage_efficiency = EfficiencyField(data_key="storage-efficiency")
     prefer_charging_sooner = fields.Bool(data_key="prefer-charging-sooner")
 

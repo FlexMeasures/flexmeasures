@@ -234,10 +234,31 @@ class MetaStorageScheduler(Scheduler):
             )
 
         # Apply round-trip efficiency evenly to charging and discharging
-        device_constraints[0]["derivative down efficiency"] = (
+        charging_efficiency = get_continuous_series_sensor_or_quantity(
+            quantity_or_sensor=self.flex_model.get("charging_efficiency"),
+            actuator=sensor,
+            unit="%",
+            query_window=(start, end),
+            resolution=resolution,
+            beliefs_before=belief_time,
+            fallback_attribute="charging-efficiency",
+        )
+        discharging_efficiency = get_continuous_series_sensor_or_quantity(
+            quantity_or_sensor=self.flex_model.get("discharging_efficiency"),
+            actuator=sensor,
+            unit="%",
+            query_window=(start, end),
+            resolution=resolution,
+            beliefs_before=belief_time,
+            fallback_attribute="discharging-efficiency",
+        )
+
+        device_constraints[0][
+            "derivative down efficiency"
+        ] = discharging_efficiency.fillna(roundtrip_efficiency**0.5)
+        device_constraints[0]["derivative up efficiency"] = charging_efficiency.fillna(
             roundtrip_efficiency**0.5
         )
-        device_constraints[0]["derivative up efficiency"] = roundtrip_efficiency**0.5
 
         # Apply storage efficiency (accounts for losses over time)
         device_constraints[0]["efficiency"] = storage_efficiency
