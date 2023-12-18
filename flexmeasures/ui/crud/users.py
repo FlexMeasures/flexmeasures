@@ -9,6 +9,7 @@ from flask_security import login_required
 from flask_wtf import FlaskForm
 from wtforms import StringField, FloatField, DateTimeField, BooleanField
 from wtforms.validators import DataRequired
+from sqlalchemy import select
 
 from flexmeasures.auth.policy import ADMIN_READER_ROLE, ADMIN_ROLE
 from flexmeasures.auth.decorators import roles_required, roles_accepted
@@ -56,7 +57,11 @@ def process_internal_api_response(
     """
     with db.session.no_autoflush:
         role_ids = tuple(user_data.get("flexmeasures_roles", []))
-        user_data["flexmeasures_roles"] = Role.query.filter(Role.id.in_(role_ids)).all()
+        user_data["flexmeasures_roles"] = (
+            db.session.execute(select(Role).filter(Role.id.in_(role_ids)))
+            .scalars()
+            .all()
+        )
         user_data.pop("status", None)  # might have come from requests.response
         for date_field in ("last_login_at", "last_seen_at"):
             if date_field in user_data and user_data[date_field] is not None:
@@ -65,7 +70,7 @@ def process_internal_api_response(
             user_data["id"] = user_id
         if make_obj:
             user = User(**user_data)
-            user.account = Account.query.get(user_data.get("account_id", -1))
+            user.account = db.session.get(Account, user_data.get("account_id", -1))
             if user in db.session:
                 db.session.expunge(user)
             return user
