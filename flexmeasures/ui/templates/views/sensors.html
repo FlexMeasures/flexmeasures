@@ -9,13 +9,15 @@
 {% block divs %}
 <nav aria-label="breadcrumb">
   <ol class="breadcrumb">
-      {% for breadcrumb in breadcrumb_info["breadcrumb"] %}
-      <li class="breadcrumb-item">
-        {% if breadcrumb["url"] is not none %}
-        <a href="{{ breadcrumb['url'] }}"> {{ breadcrumb['name'] }}</a>
+    {% for breadcrumb in breadcrumb_info["breadcrumb"] %}
+      <li class="breadcrumb-item{% if loop.last %} active{% endif %}" {% if loop.last %}aria-current="page"{% endif %}>
+        {% if breadcrumb["url"] is not none and not loop.last %}
+          <a href="{{ breadcrumb['url'] }}">{{ breadcrumb['name'] }}</a>
+        {% else %}
+          {{ breadcrumb['name'] }}
         {% endif %}
-         </li>
-      {% endfor %}
+      </li>
+    {% endfor %}
   </ol>
 </nav>
       <div class="sensor-data charts text-center">
