@@ -6,7 +6,7 @@ from flask import url_for
 
 def get_breadcrumb_info(entity: Sensor | Asset | Account | None) -> dict:
     return {
-        "breadcrumb": get_ancestry(entity),
+        "ancestors": get_ancestry(entity),
     }
 
 

@@ -10,6 +10,7 @@ New features
 -------------
 
 * Better navigation experience through listings (sensors / assets / users / accounts) in the :abbr:`UI (user interface)`, by heading to the selected entity upon a click (or CTRL + click) anywhere within a row [see `PR #923 <https://github.com/FlexMeasures/flexmeasures/pull/923>`_]
+* Introduce a breadcrumb to navigate through assets and sensor pages using its child-parent relationship [see `PR #930 <https://github.com/FlexMeasures/flexmeasures/pull/930>`_]
 
 Infrastructure / Support
 ----------------------
