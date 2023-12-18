@@ -227,7 +227,7 @@ def add_stock_delta(db, add_battery_assets, setup_sources) -> dict[str, Sensor]:
         - "delta": the usage forecast can be fulfilled just right. This coincides with the schedule resolution.
         - "delta hourly": the event resolution is changed to test that the schedule is still feasible.
                           This has a greater resolution.
-        - "delta 5min": the event resolution is reduced even more. This sensor has a resolution smaller than the used
+        - "delta 5min": the event resolution is reduced even more. This sensor has a resolution smaller than that used
                         for the scheduler.
     """
 
