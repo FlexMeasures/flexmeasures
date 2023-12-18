@@ -9,7 +9,7 @@ from flask_security import current_user
 import pandas as pd
 from sqlalchemy.engine import Row
 from sqlalchemy.ext.hybrid import hybrid_method
-from sqlalchemy.sql.expression import func
+from sqlalchemy.sql.expression import func, text
 from sqlalchemy.ext.mutable import MutableDict
 from timely_beliefs import BeliefsDataFrame, utils as tb_utils
 
@@ -638,7 +638,7 @@ def get_center_location_of_assets(user: Optional[User]) -> Tuple[float, float]:
     if user is None:
         user = current_user
     query += f" where generic_asset.account_id = {user.account_id}"
-    locations: List[Row] = db.session.execute(query + ";").fetchall()
+    locations: List[Row] = db.session.execute(text(query + ";")).fetchall()
     if (
         len(locations) == 0
         or locations[0].latitude is None
