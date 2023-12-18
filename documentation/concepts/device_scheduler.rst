@@ -74,7 +74,7 @@ The cost function quantifies the total cost of upwards and downwards deviations 
 .. math:: 
     :name: cost_function
 
-    \min [\sum_{c,j} \Delta _{up}(c,j) \cdot Price_{up}(c,j) +  \Delta_{down}(c,j) \cdot Price_{down}(c,j)]
+    \min [\sum_{c,j} \Delta_{up}(c,j) \cdot Price_{up}(c,j) +  \Delta_{down}(c,j) \cdot Price_{down}(c,j)]
 
 
 State dynamics
@@ -191,5 +191,5 @@ Power coupling constraints
 .. math:: 
     :name: ems_flow_commitment_equalities
 
-    \sum_d P^{ems}(d,j) = \sum_c Commitment(c,j) + \Delta {up}(c,j) + \Delta {down}(c,j)
+    \sum_d P^{ems}(d,j) = \sum_c Commitment(c,j) + \Delta_{up}(c,j) + \Delta_{down}(c,j)
 
