@@ -1468,7 +1468,7 @@ def test_dis_charging_efficiency_as_sensor(
 ):
     """
     The efficiency sensor defined an efficiency of 90% for 23h of the 24h of the schedule. The last
-    hour should use the roundtrip-efficiency of 90% (charge and discharge efficiencies of 81%).
+    hour should use the roundtrip-efficiency of 92.16% (charge and discharge efficiencies of 96%).
     """
 
     _, battery = get_sensors_from_db(add_battery_assets)
@@ -1486,7 +1486,7 @@ def test_dis_charging_efficiency_as_sensor(
             "soc-max": 2,
             "soc-min": 0,
             flex_model_field: {"sensor": efficiency_sensors["efficiency"].id},
-            "roundtrip-efficiency": 0.9,
+            "roundtrip-efficiency": 0.9216,
         },
     )
 
@@ -1498,5 +1498,5 @@ def test_dis_charging_efficiency_as_sensor(
         == 0.9
     )
     assert all(
-        device_constraints[end - timedelta(hours=1) :][device_constraint] == 0.81
+        device_constraints[end - timedelta(hours=1) :][device_constraint] == 0.96
     )
