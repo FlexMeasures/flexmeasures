@@ -104,14 +104,18 @@ def dump(pg_version: str | None = None):
     db_name = db_host_and_db_name.split("/")[-1]
     time_of_saving = datetime.now().strftime("%F-%H%M")
     dump_filename = f"pgbackup_{db_name}_{time_of_saving}.dump"
+    if pg_version is None:
+        pg_version = try_getting_postgres_version(db_uri)
     command_for_dumping = f"pg_dump {pg_cluster_arg_from_version(pg_version)} --no-privileges --no-owner --data-only --format=c --file={dump_filename} {db_uri}"
     try:
-        subprocess.check_output(command_for_dumping, shell=True)
-        click.secho(f"db dump successful: saved to {dump_filename}", **MsgStyle.SUCCESS)
-
-    except Exception as e:
-        click.secho(f"Exception happened during dump: {e}", **MsgStyle.ERROR)
+        subprocess.check_output(
+            command_for_dumping, shell=True, stderr=subprocess.STDOUT, text=True
+        )
+    except subprocess.CalledProcessError as e:
+        click.secho(f"Exception happened during dump: {e.output}", **MsgStyle.ERROR)
         click.secho("db dump unsuccessful", **MsgStyle.ERROR)
+    else:
+        click.secho(f"db dump successful: saved to {dump_filename}", **MsgStyle.SUCCESS)
 
 
 @fm_db_ops.command()
@@ -134,19 +138,23 @@ def restore(file: str, pg_version: str | None = None):
     db_uri: str = app.config.get("SQLALCHEMY_DATABASE_URI")  # type: ignore
     db_host_and_db_name = db_uri.split("@")[-1]
     click.echo(f"Restoring {db_host_and_db_name} database from file {file}")
+    if pg_version is None:
+        pg_version = try_getting_postgres_version(db_uri)
     command_for_restoring = (
         f"pg_restore {pg_cluster_arg_from_version(pg_version)} -d {db_uri} {file}"
     )
     try:
-        subprocess.check_output(command_for_restoring, shell=True)
+        subprocess.check_output(
+            command_for_restoring, shell=True, stderr=subprocess.STDOUT, text=True
+        )
+    except subprocess.CalledProcessError as e:
+        click.secho(f"Exception happened during restore: {e.output}", **MsgStyle.ERROR)
+        click.secho("db restore unsuccessful", **MsgStyle.ERROR)
+    else:
         click.secho("db restore successful", **MsgStyle.SUCCESS)
 
-    except Exception as e:
-        click.secho(f"Exception happened during restore: {e}", **MsgStyle.ERROR)
-        click.secho("db restore unsuccessful", **MsgStyle.ERROR)
 
-
-def pg_cluster_arg_from_version(pg_version: str) -> str:
+def pg_cluster_arg_from_version(pg_version: str | None) -> str:
     """
     Small utility, turning the target postgres version into an arg for pg utils,
     so that they know what they're supposed to work against.
@@ -155,6 +163,19 @@ def pg_cluster_arg_from_version(pg_version: str) -> str:
     if pg_version:
         return f"--cluster {pg_version}/main"
     return ""
+
+
+def try_getting_postgres_version(db_uri) -> str | None:
+    import re
+
+    result = subprocess.check_output(
+        f"psql {db_uri} -c 'select version()' -tA",
+        shell=True,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    version_match = re.search(r"PostgreSQL (\d+\.\d+(\.\d+)?)", result)
+    return version_match.group(1) if version_match else None
 
 
 app.cli.add_command(fm_db_ops)
