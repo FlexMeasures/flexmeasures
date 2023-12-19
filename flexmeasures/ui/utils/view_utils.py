@@ -19,6 +19,9 @@ from flexmeasures.ui.utils.chart_defaults import chart_options
 def render_flexmeasures_template(html_filename: str, **variables):
     """Render template and add all expected template variables, plus the ones given as **variables."""
     variables["flask_env"] = current_app.env
+    variables["FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY"] = current_app.config.get(
+        "FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY"
+    )
     variables["documentation_exists"] = False
     if os.path.exists(
         "%s/static/documentation/html/index.html" % flexmeasures_ui.root_path

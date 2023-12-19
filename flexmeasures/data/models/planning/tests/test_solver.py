@@ -1548,3 +1548,4 @@ def test_battery_stock_delta_quantity(add_battery_assets, gain, usage, expected_
         assert all(scheduler_info[5][0]["stock delta"] == expected_delta)
     else:
         assert all(scheduler_info[5][0]["stock delta"].isna())
+
