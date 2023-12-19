@@ -64,6 +64,7 @@ class MetaStorageScheduler(Scheduler):
         "derivative min",
         "derivative down efficiency",
         "derivative up efficiency",
+        "stock delta",
     ]
 
     def compute_schedule(self) -> pd.Series | None:
@@ -232,6 +233,38 @@ class MetaStorageScheduler(Scheduler):
                 fallback_attribute="consumption_capacity",
                 max_value=convert_units(power_capacity_in_mw, "MW", sensor.unit),
             )
+
+        soc_gain = self.flex_model.get("soc_gain", [])
+        soc_usage = self.flex_model.get("soc_usage", [])
+
+        all_stock_delta = []
+
+        for is_usage, soc_delta in zip([False, True], [soc_gain, soc_usage]):
+            for component in soc_delta:
+                stock_delta_series = get_continuous_series_sensor_or_quantity(
+                    quantity_or_sensor=component,
+                    actuator=sensor,
+                    unit="MW",
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                )
+
+                # example: 4 MW sustained over 15 minutes gives 1 MWh
+                stock_delta_series *= resolution / timedelta(
+                    hours=1
+                )  # MW -> MWh / resolution
+
+                if is_usage:
+                    stock_delta_series *= -1
+
+                all_stock_delta.append(stock_delta_series)
+
+        if len(all_stock_delta) > 0:
+            all_stock_delta = pd.concat(all_stock_delta, axis=1)
+
+            device_constraints[0]["stock delta"] = all_stock_delta.sum(1)
+            device_constraints[0]["stock delta"] *= timedelta(hours=1) / resolution
 
         # Apply round-trip efficiency evenly to charging and discharging
         charging_efficiency = get_continuous_series_sensor_or_quantity(
