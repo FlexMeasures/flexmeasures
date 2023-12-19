@@ -4,7 +4,7 @@ import copy
 import json
 
 from flask import url_for, current_app
-from flask_classful import FlaskView
+from flask_classful import FlaskView, route
 from flask_wtf import FlaskForm
 from flask_security import login_required, current_user
 from wtforms import StringField, DecimalField, SelectField
@@ -275,6 +275,37 @@ class AssetCrudUI(FlaskView):
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
             user_can_create_assets=user_can_create_assets(),
             user_can_delete_asset=user_can_delete(asset),
+        )
+
+    @login_required
+    @route("/<id>/status/")
+    def status(self, id: str):
+        """GET from /assets/<id> where id can be 'new' (and thus the form for asset creation is shown)"""
+
+        get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_status", id=id))
+        asset_dict = get_asset_response.json()
+
+        asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
+        for sensor in asset.sensors:
+            sensor.event_resolution * 4
+
+            get_sensor_response = InternalApi().get(
+                url_for("SensorAPI:get_data"),
+                query={
+                    "sensor": sensor.entity_address,
+                    "start": "2021-06-07T00:00:00+02:00",
+                    "duration": "PT1H",
+                    "resolution": sensor.event_resolution,
+                    "unit": sensor.unit,
+                },
+            )
+            sensor_dict = get_sensor_response.json()
+            sensor = process_internal_api_response(sensor_dict, int(id), make_obj=True)
+        asset_dict = get_asset_response.json()
+
+        return render_flexmeasures_template(
+            "views/status.html",
+            asset=asset,
         )
 
     @login_required
