@@ -56,7 +56,7 @@ Set an environment variable to indicate in which environment you are operating (
 
 .. code-block:: bash
 
-   $ export FLASK_ENV=development
+   $ export FLEXMEASURES_ENV=development
 
 (on Windows, use ``set`` instead of ``export``\ )
 
