@@ -114,7 +114,9 @@ class StorageFlexModelSchema(Schema):
         "%", data_key="discharging-efficiency", required=False
     )
 
-    roundtrip_efficiency = EfficiencyField(data_key="roundtrip-efficiency")
+    roundtrip_efficiency = EfficiencyField(
+        data_key="roundtrip-efficiency", required=False
+    )
 
     storage_efficiency = EfficiencyField(data_key="storage-efficiency")
     prefer_charging_sooner = fields.Bool(data_key="prefer-charging-sooner")
@@ -146,18 +148,22 @@ class StorageFlexModelSchema(Schema):
             )
 
     @validates_schema
-    def check_whether_efficiency_pair_is_incomplete(self, data: dict, **kwargs):
+    def check_redundant_efficiencies(self, data: dict, **kwargs):
         """
-        Check if one of the efficiency fields is missing.
+        Check that none of the following cases occurs:
+            (1) flex-model contains both a round-trip efficiency and a charging efficiency
+            (2) flex-model contains both a round-trip efficiency and a discharging efficiency
+            (3) flex-model contains a round-trip efficiency, a charging efficiency and a discharging efficiency
+
 
         :raise: ValidationError
         """
-        fields = ["charging_efficiency", "discharging_efficiency"]
 
-        if any(fields[b] in data and fields[1 - b] not in data for b in [0, 1]):
-            raise ValidationError(
-                "`charging-efficiency` and `discharge-efficiency` need to be provided as a pair. Only one of them was povided"
-            )
+        for field in ["charging_efficiency", "discharging_efficiency"]:
+            if field in data and "roundtrip_efficiency" in data:
+                raise ValidationError(
+                    f"Fields `{field}` and `rountrip_efficiency` are mutually exclusive."
+                )
 
     @post_load
     def post_load_sequence(self, data: dict, **kwargs) -> dict:

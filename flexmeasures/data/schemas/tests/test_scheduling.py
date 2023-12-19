@@ -85,23 +85,30 @@ def test_process_scheduler_flex_model_process_type(db, app, setup_dummy_sensors)
             [
                 "charging-efficiency",
             ],
-            True,
+            False,
         ),
         (
             [
                 "discharging-efficiency",
             ],
-            True,
+            False,
         ),
         (["discharging-efficiency", "charging-efficiency"], False),
+        (
+            ["discharging-efficiency", "charging-efficiency", "roundtrip_efficiency"],
+            True,
+        ),
+        (["discharging-efficiency", "roundtrip-efficiency"], True),
+        (["charging-efficiency", "roundtrip-efficiency"], True),
+        (["roundtrip-efficiency"], False),
     ],
 )
 def test_efficiency_pair(
     db, app, setup_dummy_sensors, setup_efficiency_sensors, fields, fails
 ):
     """
-    Check that the fields `charging-efficiency` and `discharging-efficiency` always go together.
-    If one of them is missing, the validation should raise an error.
+    Check that the efficiency can only be defined by the roundtrip efficiency field
+    or by the (dis)charging efficiency fields.
     """
 
     sensor1, _ = setup_dummy_sensors
@@ -117,7 +124,7 @@ def test_efficiency_pair(
             "soc-at-start": 0,
         }
         for f in fields:
-            flex_model[f] = {"sensor": setup_efficiency_sensors.id}
+            flex_model[f] = "90%"
 
         schema.load(flex_model)
 
