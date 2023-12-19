@@ -14,7 +14,9 @@ from sentry_sdk import (
     capture_message as capture_message_for_sentry,
     set_context as set_sentry_context,
 )
+from sqlalchemy import select
 
+from flexmeasures.data import db
 from flexmeasures.data.models.task_runs import LatestTaskRun
 from flexmeasures.data.models.user import User
 from flexmeasures.utils.time_utils import server_now
@@ -247,10 +249,13 @@ def monitor_last_seen(
     last_seen_delta = timedelta(minutes=maximum_minutes_since_last_seen)
 
     # find users we haven't seen in the given time window
-    users: list[User] = User.query.filter(
-        User.last_seen_at < datetime.utcnow() - last_seen_delta
-    ).all()
-
+    users: list[User] = (
+        db.session.execute(
+            select(User).filter(User.last_seen_at < datetime.utcnow() - last_seen_delta)
+        )
+        .scalars()
+        .all()
+    )
     # role filters
     if account_role is not None:
         users = [user for user in users if user.account.has_role(account_role)]

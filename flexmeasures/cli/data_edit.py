@@ -191,7 +191,7 @@ def resample_sensor_data(
     event_starts_after = pd.Timestamp(start_str)  # note that "" or None becomes NaT
     event_ends_before = pd.Timestamp(end_str)
     for sensor_id in sensor_ids:
-        sensor = Sensor.query.get(sensor_id)
+        sensor = db.session.get(Sensor, sensor_id)
         if sensor.event_resolution == event_resolution:
             click.echo(f"{sensor} already has the desired event resolution.")
             continue

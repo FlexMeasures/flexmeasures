@@ -848,7 +848,6 @@ def add_holidays(
     num_holidays = {}
 
     accounts = (
-        # db.session.query(Account).filter(Account.id.in_(account_ids)).all()
         db.session.execute(select(Account).filter(Account.id.in_(account_ids)))
         .scalars()
         .all()
@@ -1747,7 +1746,9 @@ def add_toy_account(kind: str, name: str):
     location = (52.374, 4.88969)  # Amsterdam
 
     # make an account (if not exist)
-    account = Account.query.filter(Account.name == name).one_or_none()
+    account = db.session.execute(
+        select(Account).filter(Account.name == name)
+    ).scalar_one_or_none()
     if account:
         click.secho(
             f"Account '{account}' already exists. Skipping account creation. Use `flexmeasures delete account --id {account.id}` if you need to remove it.",
@@ -1756,7 +1757,9 @@ def add_toy_account(kind: str, name: str):
 
     # make an account user (account-admin?)
     email = "toy-user@flexmeasures.io"
-    user = User.query.filter_by(email=email).one_or_none()
+    user = db.session.execute(
+        select(User).filter(User.email == email)
+    ).scalar_one_or_none()
     if user is not None:
         click.secho(
             f"User with email {email} already exists in account {user.account.name}.",
@@ -1810,7 +1813,7 @@ def add_toy_account(kind: str, name: str):
             GenericAsset,
             name=asset_name,
             generic_asset_type=asset_types[asset_type],
-            owner=Account.query.get(account_id),
+            owner=db.session.get(Account, account_id),
             latitude=location[0],
             longitude=location[1],
         )
@@ -1937,7 +1940,7 @@ def add_toy_account(kind: str, name: str):
             event_start=tz.localize(start_year),
             belief_time=tz.localize(datetime.now()),
             event_value=0.5,
-            source=DataSource.query.get(1),
+            source=db.session.get(DataSource, 1),
             sensor=grid_connection_capacity,
         )
 

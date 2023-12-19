@@ -11,6 +11,7 @@ import click
 from flask import current_app as app
 from flask.cli import with_appcontext
 from timely_beliefs.beliefs.queries import query_unchanged_beliefs
+from sqlalchemy import select
 
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts, User
@@ -35,7 +36,9 @@ def delete_account_role(name: str):
     Delete an account role.
     If it has accounts connected, print them before deleting the connection.
     """
-    role: AccountRole = AccountRole.query.filter_by(name=name).one_or_none()
+    role: AccountRole = db.session.execute(
+        select(AccountRole).filter_by(name=name)
+    ).scalar_one_or_none()
     if role is None:
         click.secho(f"Account role '{name}' does not exist.", **MsgStyle.ERROR)
         raise click.Abort()
@@ -61,16 +64,22 @@ def delete_account(id: int, force: bool):
     """
     Delete an account, including their users & data.
     """
-    account: Account = db.session.query(Account).get(id)
+    account: Account = db.session.get(Account, id)
     if account is None:
         click.secho(f"Account with ID '{id}' does not exist.", **MsgStyle.ERROR)
         raise click.Abort()
     if not force:
         prompt = f"Delete account '{account.name}', including generic assets, users and all their data?\n"
-        users = User.query.filter(User.account_id == id).all()
+        users = (
+            db.session.execute(select(User).filter_by(account_id=id)).scalars().all()
+        )
         if users:
             prompt += "Affected users: " + ",".join([u.username for u in users]) + "\n"
-        generic_assets = GenericAsset.query.filter(GenericAsset.account_id == id).all()
+        generic_assets = (
+            db.session.execute(select(GenericAsset).filter_by(account_id=id))
+            .scalars()
+            .all()
+        )
         if generic_assets:
             prompt += (
                 "Affected generic assets: "
@@ -81,10 +90,12 @@ def delete_account(id: int, force: bool):
     for user in account.users:
         click.secho(f"Deleting user {user} ...")
         delete_user(user)
-    for role_account_association in RolesAccounts.query.filter_by(
-        account_id=account.id
-    ).all():
-        role = AccountRole.query.get(role_account_association.role_id)
+    for role_account_association in (
+        db.session.execute(select(RolesAccounts).filter_by(account_id=account.id))
+        .scalars()
+        .all()
+    ):
+        role = db.session.get(AccountRole, role_account_association.role_id)
         click.echo(
             f"Deleting association of account {account.name} and role {role.name} ...",
         )
@@ -231,7 +242,9 @@ def delete_unchanged_beliefs(
     """Delete unchanged beliefs (i.e. updated beliefs with a later belief time, but with the same event value)."""
     q = db.session.query(TimedBelief)
     if sensor_id:
-        sensor = Sensor.query.filter(Sensor.id == sensor_id).one_or_none()
+        sensor = db.session.execute(
+            select(Sensor).filter_by(id=sensor_id)
+        ).scalar_one_or_none()
         if sensor is None:
             click.secho(
                 f"Failed to delete any beliefs: no sensor found with id {sensor_id}.",
