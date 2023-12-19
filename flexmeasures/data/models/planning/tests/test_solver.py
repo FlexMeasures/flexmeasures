@@ -1448,3 +1448,103 @@ def test_battery_power_capacity_as_sensor(
 
     assert all(device_constraints["derivative min"].values == expected_production)
     assert all(device_constraints["derivative max"].values == expected_consumption)
+
+
+@pytest.mark.parametrize(
+    "stock_delta_sensor",
+    ["delta fails", "delta", "delta hourly", "delta 5min"],
+)
+def test_battery_stock_delta_sensor(
+    add_battery_assets, add_stock_delta, stock_delta_sensor
+):
+    """
+    Test the SOC delta feature using sensors.
+
+    An empty battery is made to fulfill a usage signal under a flat tariff.
+    The battery is only allowed to charge (production-capacity = 0).
+
+    Set up the same constant delta (capacity_in_mw) in different resolutions.
+
+    The problem is defined with the following settings:
+        - Battery empty at the start of the schedule (soc-at-start = 0).
+        - Battery of size 2 MWh.
+        - Consumption capacity of the battery is 2 MW.
+        - The battery cannot discharge.
+    With these settings, the battery needs to charge at a power or greater than the usage forecast
+    to keep the SOC within bounds ([0, 2 MWh]).
+    """
+    _, battery = get_sensors_from_db(add_battery_assets)
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+    stock_delta_sensor_obj = add_stock_delta[stock_delta_sensor]
+    capacity = stock_delta_sensor_obj.get_attribute("capacity_in_mw")
+
+    scheduler: Scheduler = StorageScheduler(
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model={
+            "soc-max": 2,
+            "soc-min": 0,
+            "soc-usage": [{"sensor": stock_delta_sensor_obj.id}],
+            "roundtrip-efficiency": 1,
+            "storage-efficiency": 1,
+            "production-capacity": "0kW",
+            "soc-at-start": 0,
+        },
+    )
+
+    if "fails" in stock_delta_sensor:
+        with pytest.raises(InfeasibleProblemException):
+            schedule = scheduler.compute()
+    else:
+        schedule = scheduler.compute()
+        assert all(schedule == capacity)
+
+
+@pytest.mark.parametrize(
+    "gain,usage,expected_delta",
+    [
+        (["1 MW"], ["1MW"], 0),  # delta stock is 0 (1 MW - 1 MW)
+        (["0.5 MW", "0.5 MW"], [], 1),  # 1 MW stock gain
+        (["100 kW"], None, 0.1),  # 100 MW stock gain
+        (None, ["100 kW"], -0.1),  # 100 kW stock loss
+        ([], [], None),  # no gain defined -> no gain or loss happens
+    ],
+)
+def test_battery_stock_delta_quantity(add_battery_assets, gain, usage, expected_delta):
+    """
+    Test the stock gain field when a constant value is provided.
+
+    We expect a constant gain/loss to happen in every time period equal to the energy
+    value provided.
+    """
+    _, battery = get_sensors_from_db(add_battery_assets)
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+    flex_model = {
+        "soc-max": 2,
+        "soc-min": 0,
+        "roundtrip-efficiency": 1,
+        "storage-efficiency": 1,
+    }
+
+    if gain is not None:
+        flex_model["soc-gain"] = gain
+    if usage is not None:
+        flex_model["soc-usage"] = usage
+
+    scheduler: Scheduler = StorageScheduler(
+        battery, start, end, resolution, flex_model=flex_model
+    )
+    scheduler_info = scheduler._prepare()
+
+    if expected_delta is not None:
+        assert all(scheduler_info[5][0]["stock delta"] == expected_delta)
+    else:
+        assert all(scheduler_info[5][0]["stock delta"].isna())
