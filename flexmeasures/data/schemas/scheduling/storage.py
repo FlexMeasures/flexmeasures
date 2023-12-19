@@ -109,6 +109,11 @@ class StorageFlexModelSchema(Schema):
     storage_efficiency = EfficiencyField(data_key="storage-efficiency")
     prefer_charging_sooner = fields.Bool(data_key="prefer-charging-sooner")
 
+    soc_gain = fields.List(QuantityOrSensor("MW"), data_key="soc-gain", required=False)
+    soc_usage = fields.List(
+        QuantityOrSensor("MW"), data_key="soc-usage", required=False
+    )
+
     def __init__(self, start: datetime, sensor: Sensor, *args, **kwargs):
         """Pass the schedule's start, so we can use it to validate soc-target datetimes."""
         self.start = start
