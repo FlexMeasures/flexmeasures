@@ -61,7 +61,7 @@ uniplot>=0.7.0
 # >=2.5.2: https://github.com/marshmallow-code/flask-marshmallow/issues/262
 Flask-SQLAlchemy>=2.5.2
 # flask should be after all the flask plugins, because setup might find they ARE flask
-flask>=1.0, <3.0
+flask>=1.0, <3.0 # <3.0 https://github.com/FlexMeasures/flexmeasures/issues/936
 werkzeug<=2.2.3
 vl-convert-python
 Pillow>=10.0.1  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/91
