@@ -295,6 +295,9 @@ class SensorAPI(FlaskView):
         and aggregate production should be priced by sensor 10,
         where the aggregate power flow in the EMS is described by the sum over sensors 13, 14 and 15
         (plus the flexible sensor being optimized, of course).
+
+        The battery consumption power capacity is limited by sensor 42 and the production capacity is constant (30 kW).
+
         Note that, if forecasts for sensors 13, 14 and 15 are not available, a schedule cannot be computed.
 
         .. code-block:: json
@@ -325,7 +328,9 @@ class SensorAPI(FlaskView):
                     "soc-max": 25,
                     "roundtrip-efficiency": 0.98,
                     "storage-efficiency": 0.9999,
-                    "power-capacity": "25kW"
+                    "power-capacity": "25kW",
+                    "consumption-capacity" : {"sensor" : 42},
+                    "production-capacity" : "30 kW"
                 },
                 "flex-context": {
                     "consumption-price-sensor": 9,

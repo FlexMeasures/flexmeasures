@@ -20,6 +20,7 @@ Infrastructure / Support
 * Remove obsolete database tables `price`, `power`, `market`, `market_type`, `weather`, `asset`, and `weather_sensor` [see `PR #921 <https://github.com/FlexMeasures/flexmeasures/pull/921>`_]
 * New documentation section on constructing a flex model for :abbr:`V2G (vehicle-to-grid)` [see `PR #885 <https://github.com/FlexMeasures/flexmeasures/pull/885>`_]
 * Allow charts in plugins to show currency codes (such as EUR) as currency symbols (€) [see `PR #922 <https://github.com/FlexMeasures/flexmeasures/pull/922>`_]
+* Define device-level power constraints as sensors to create schedules with changing power limits. [see `PR #897 <https://github.com/FlexMeasures/flexmeasures/pull/897>`_]
 
 Bugfixes
 -----------
