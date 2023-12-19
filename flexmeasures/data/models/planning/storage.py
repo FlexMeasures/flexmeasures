@@ -19,13 +19,14 @@ from flexmeasures.data.models.planning.utils import (
     initialize_df,
     get_power_values,
     fallback_charging_policy,
+    get_continuous_series_sensor_or_quantity,
 )
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
 from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
 from flexmeasures.data.schemas.scheduling import FlexContextSchema
 from flexmeasures.utils.time_utils import get_max_planning_horizon
 from flexmeasures.utils.coding_utils import deprecated
-from flexmeasures.utils.unit_utils import ur
+from flexmeasures.utils.unit_utils import ur, convert_units
 
 
 def check_and_convert_power_capacity(
@@ -198,14 +199,39 @@ class MetaStorageScheduler(Scheduler):
             soc_min,
         )
 
+        consumption_capacity = self.flex_model.get("consumption_capacity")
+        production_capacity = self.flex_model.get("production_capacity")
+
         if sensor.get_attribute("is_strictly_non_positive"):
             device_constraints[0]["derivative min"] = 0
         else:
-            device_constraints[0]["derivative min"] = power_capacity_in_mw * -1
+            device_constraints[0]["derivative min"] = (
+                -1
+            ) * get_continuous_series_sensor_or_quantity(
+                quantity_or_sensor=production_capacity,
+                actuator=sensor,
+                unit=sensor.unit,
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                fallback_attribute="production_capacity",
+                max_value=convert_units(power_capacity_in_mw, "MW", sensor.unit),
+            )
         if sensor.get_attribute("is_strictly_non_negative"):
             device_constraints[0]["derivative max"] = 0
         else:
-            device_constraints[0]["derivative max"] = power_capacity_in_mw
+            device_constraints[0][
+                "derivative max"
+            ] = get_continuous_series_sensor_or_quantity(
+                quantity_or_sensor=consumption_capacity,
+                actuator=sensor,
+                unit=sensor.unit,
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                fallback_attribute="consumption_capacity",
+                max_value=convert_units(power_capacity_in_mw, "MW", sensor.unit),
+            )
 
         # Apply round-trip efficiency evenly to charging and discharging
         device_constraints[0]["derivative down efficiency"] = (
