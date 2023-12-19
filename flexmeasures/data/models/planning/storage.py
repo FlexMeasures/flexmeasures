@@ -101,7 +101,6 @@ class MetaStorageScheduler(Scheduler):
         soc_max = self.flex_model.get("soc_max")
         soc_minima = self.flex_model.get("soc_minima")
         soc_maxima = self.flex_model.get("soc_maxima")
-        roundtrip_efficiency = self.flex_model.get("roundtrip_efficiency")
         storage_efficiency = self.flex_model.get("storage_efficiency")
         prefer_charging_sooner = self.flex_model.get("prefer_charging_sooner", True)
 
@@ -270,28 +269,36 @@ class MetaStorageScheduler(Scheduler):
         charging_efficiency = get_continuous_series_sensor_or_quantity(
             quantity_or_sensor=self.flex_model.get("charging_efficiency"),
             actuator=sensor,
-            unit="%",
+            unit="dimensionless",
             query_window=(start, end),
             resolution=resolution,
             beliefs_before=belief_time,
             fallback_attribute="charging-efficiency",
-        )
+        ).fillna(1)
         discharging_efficiency = get_continuous_series_sensor_or_quantity(
             quantity_or_sensor=self.flex_model.get("discharging_efficiency"),
             actuator=sensor,
-            unit="%",
+            unit="dimensionless",
             query_window=(start, end),
             resolution=resolution,
             beliefs_before=belief_time,
             fallback_attribute="discharging-efficiency",
+        ).fillna(1)
+
+        roundtrip_efficiency = self.flex_model.get(
+            "roundtrip_efficiency", self.sensor.get_attribute("roundtrip_efficiency", 1)
         )
 
-        device_constraints[0][
-            "derivative down efficiency"
-        ] = discharging_efficiency.fillna(roundtrip_efficiency**0.5)
-        device_constraints[0]["derivative up efficiency"] = charging_efficiency.fillna(
-            roundtrip_efficiency**0.5
-        )
+        # if dis/charging efficiency pair is not defined then the roundtrip efficiency is used
+        if not (
+            "charging_efficiency" in self.flex_model
+            or self.sensor.has_attribute("charging-efficiency")
+        ):
+            charging_efficiency = roundtrip_efficiency**0.5
+            discharging_efficiency = roundtrip_efficiency**0.5
+
+        device_constraints[0]["derivative down efficiency"] = discharging_efficiency
+        device_constraints[0]["derivative up efficiency"] = charging_efficiency
 
         # Apply storage efficiency (accounts for losses over time)
         device_constraints[0]["efficiency"] = storage_efficiency
@@ -461,16 +468,6 @@ class MetaStorageScheduler(Scheduler):
                 "storage_efficiency", 1
             )
 
-        # Check for round-trip efficiency
-        # todo: simplify to: `if self.flex_model.get("roundtrip-efficiency") is None:`
-        if (
-            "roundtrip-efficiency" not in self.flex_model
-            or self.flex_model["roundtrip-efficiency"] is None
-        ):
-            # Get default from sensor, or use 100% otherwise
-            self.flex_model["roundtrip-efficiency"] = self.sensor.get_attribute(
-                "roundtrip_efficiency", 1
-            )
         self.ensure_soc_min_max()
 
         # Now it's time to check if our flex configurations holds up to schemas

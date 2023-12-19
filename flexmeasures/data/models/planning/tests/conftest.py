@@ -223,7 +223,7 @@ def process(db, building, setup_sources) -> dict[str, Sensor]:
 def efficiency_sensors(db, add_battery_assets, setup_sources) -> dict[str, Sensor]:
     battery = add_battery_assets["Test battery"]
     sensors = {}
-    sensor_specs = [("efficiency", timedelta(minutes=15), 0.9)]
+    sensor_specs = [("efficiency", timedelta(minutes=15), 90)]
 
     for name, resolution, value in sensor_specs:
         # 1 days of test data

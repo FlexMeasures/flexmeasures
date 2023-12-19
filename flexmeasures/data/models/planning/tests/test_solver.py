@@ -1450,56 +1450,65 @@ def test_battery_power_capacity_as_sensor(
     assert all(device_constraints["derivative max"].values == expected_consumption)
 
 
-@pytest.mark.parametrize(
-    "flex_model_field,device_constraint",
-    [
-        ("charging-efficiency", "derivative up efficiency"),
-        ("discharging-efficiency", "derivative down efficiency"),
-    ],
-)
-def test_dis_charging_efficiency_as_sensor(
-    db,
-    add_battery_assets,
-    add_inflexible_device_forecasts,
-    add_market_prices,
-    efficiency_sensors,
-    device_constraint,
-    flex_model_field,
-):
-    """
-    The efficiency sensor defined an efficiency of 90% for 23h of the 24h of the schedule. The last
-    hour should use the roundtrip-efficiency of 92.16% (charge and discharge efficiencies of 96%).
-    """
+def get_efficiency_problem_device_constraints(
+    extra_flex_model, efficiency_sensors, add_battery_assets
+) -> pd.DataFrame:
 
     _, battery = get_sensors_from_db(add_battery_assets)
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 1))
     end = tz.localize(datetime(2015, 1, 2))
     resolution = timedelta(minutes=15)
-
+    base_flex_model = {
+        "soc-max": 2,
+        "soc-min": 0,
+    }
+    base_flex_model.update(extra_flex_model)
     scheduler: Scheduler = StorageScheduler(
-        battery,
-        start,
-        end,
-        resolution,
-        flex_model={
-            "soc-max": 2,
-            "soc-min": 0,
-            flex_model_field: {"sensor": efficiency_sensors["efficiency"].id},
-            "roundtrip-efficiency": 0.9216,
-        },
+        battery, start, end, resolution, flex_model=base_flex_model
     )
 
     scheduler_data = scheduler._prepare()
-    device_constraints = scheduler_data[5][0]
+    return scheduler_data[5][0]
+
+
+def test_dis_charging_efficiency_as_sensor(
+    db,
+    add_battery_assets,
+    add_inflexible_device_forecasts,
+    add_market_prices,
+    efficiency_sensors,
+):
+    """
+    Check that the charging and discharging efficiency can be defined in the flex-model.
+    For missing values, the fallback value is 100%.
+    """
+
+    tz = pytz.timezone("Europe/Amsterdam")
+
+    end = tz.localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+
+    extra_flex_model = {
+        "charging-efficiency": {"sensor": efficiency_sensors["efficiency"].id},
+        "discharging-efficiency": "200%",
+    }
+
+    device_constraints = get_efficiency_problem_device_constraints(
+        extra_flex_model, efficiency_sensors, add_battery_assets
+    )
 
     assert all(
-        device_constraints[: end - timedelta(hours=1) - resolution][device_constraint]
+        device_constraints[: end - timedelta(hours=1) - resolution][
+            "derivative up efficiency"
+        ]
         == 0.9
     )
     assert all(
-        device_constraints[end - timedelta(hours=1) :][device_constraint] == 0.96
+        device_constraints[end - timedelta(hours=1) :]["derivative up efficiency"] == 1
     )
+
+    assert all(device_constraints["derivative down efficiency"] == 2)
 
 
 @pytest.mark.parametrize(

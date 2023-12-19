@@ -11,7 +11,7 @@ from marshmallow import (
     fields,
     validates,
 )
-from marshmallow.validate import OneOf
+from marshmallow.validate import OneOf, ValidationError
 
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.times import AwareDateTimeField
@@ -143,6 +143,20 @@ class StorageFlexModelSchema(Schema):
         if max_target_datetime > max_server_datetime:
             current_app.logger.warning(
                 f"Target datetime exceeds {max_server_datetime}. Maximum scheduling horizon is {max_server_horizon}."
+            )
+
+    @validates_schema
+    def check_whether_efficiency_pair_is_incomplete(self, data: dict, **kwargs):
+        """
+        Check if one of the efficiency fields is missing.
+
+        :raise: ValidationError
+        """
+        fields = ["charging_efficiency", "discharging_efficiency"]
+
+        if any(fields[b] in data and fields[1 - b] not in data for b in [0, 1]):
+            raise ValidationError(
+                "`charging-efficiency` and `discharge-efficiency` need to be provided as a pair. Only one of them was povided"
             )
 
     @post_load
