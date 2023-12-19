@@ -7,7 +7,9 @@ from flask_security.utils import verify_password
 from flask_json import as_json
 from flask_login import current_user
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import select
 
+from flexmeasures.data import db
 from flexmeasures import __version__ as flexmeasures_version
 from flexmeasures.api.common.utils.api_utils import catch_timed_belief_replacements
 from flexmeasures.data.models.user import User
@@ -50,7 +52,9 @@ def request_auth_token():
         if current_user.is_authenticated and current_user.email == email:
             user = current_user
         else:
-            user = User.query.filter_by(email=email).one_or_none()
+            user = db.session.execute(
+                select(User).filter_by(email=email)
+            ).scalar_one_or_none()
             if not user:
                 return (
                     {"errors": ["User with email '%s' does not exist" % email]},
