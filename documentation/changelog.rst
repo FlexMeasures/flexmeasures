@@ -6,12 +6,18 @@ FlexMeasures Changelog
 v0.18.0 | December XX, 2023
 ============================
 
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+
 New features
 -------------
+
+* Better navigation experience through listings (sensors / assets / users / accounts) in the :abbr:`UI (user interface)`, by heading to the selected entity upon a click (or CTRL + click) anywhere within a row [see `PR #923 <https://github.com/FlexMeasures/flexmeasures/pull/923>`_]
+* New flexmeasures configuration setting `FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY` for upgrading insecure `http` requests to secured requests `https` [see `PR #920 <https://github.com/FlexMeasures/flexmeasures/pull/920>`_]
 
 Infrastructure / Support
 ----------------------
 
+* Remove obsolete database tables `price`, `power`, `market`, `market_type`, `weather`, `asset`, and `weather_sensor` [see `PR #921 <https://github.com/FlexMeasures/flexmeasures/pull/921>`_]
 * New documentation section on constructing a flex model for :abbr:`V2G (vehicle-to-grid)` [see `PR #885 <https://github.com/FlexMeasures/flexmeasures/pull/885>`_]
 * Allow charts in plugins to show currency codes (such as EUR) as currency symbols (€) [see `PR #922 <https://github.com/FlexMeasures/flexmeasures/pull/922>`_]
 * Define device-level power constraints as sensors to create schedules with changing power limits. [see `PR #897 <https://github.com/FlexMeasures/flexmeasures/pull/897>`_]
