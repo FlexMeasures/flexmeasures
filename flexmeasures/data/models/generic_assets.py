@@ -7,6 +7,7 @@ import json
 from flask import current_app
 from flask_security import current_user
 import pandas as pd
+from sqlalchemy import select
 from sqlalchemy.engine import Row
 from sqlalchemy.ext.hybrid import hybrid_method
 from sqlalchemy.sql.expression import func, text
@@ -483,7 +484,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         if current_app.config.get("FLEXMEASURES_MODE") == "play":
             from flexmeasures.data.models.user import Account
 
-            accounts = Account.query.all()
+            accounts = db.session.execute(select(Account)).scalars().all()
 
         from flexmeasures.data.services.sensors import get_sensors
 
@@ -596,9 +597,9 @@ def create_generic_asset(generic_asset_type: str, **kwargs) -> GenericAsset:
             asset_type_name = kwargs.pop(f"{generic_asset_type}_type").name
         else:
             asset_type_name = kwargs.pop("sensor_type").name
-    generic_asset_type = GenericAssetType.query.filter_by(
-        name=asset_type_name
-    ).one_or_none()
+    generic_asset_type = db.session.execute(
+        select(GenericAssetType).filter_by(name=asset_type_name)
+    ).scalar_one_or_none()
     if generic_asset_type is None:
         raise ValueError(f"Cannot find GenericAssetType {asset_type_name} in database.")
 

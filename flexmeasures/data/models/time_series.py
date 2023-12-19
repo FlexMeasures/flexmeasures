@@ -6,6 +6,7 @@ import json
 from flask import current_app
 
 import pandas as pd
+from sqlalchemy import select
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.schema import UniqueConstraint
@@ -257,9 +258,13 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         )
 
         parsed_sources = parse_source_arg(source)
-        query = Annotation.query.join(SensorAnnotationRelationship).filter(
-            SensorAnnotationRelationship.sensor_id == self.id,
-            SensorAnnotationRelationship.annotation_id == Annotation.id,
+        query = (
+            select(Annotation)
+            .join(SensorAnnotationRelationship)
+            .filter(
+                SensorAnnotationRelationship.sensor_id == self.id,
+                SensorAnnotationRelationship.annotation_id == Annotation.id,
+            )
         )
         if annotations_after is not None:
             query = query.filter(
@@ -273,7 +278,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             query = query.filter(
                 Annotation.source.in_(parsed_sources),
             )
-        annotations = query.all()
+        annotations = db.session.execute(query).scalars().all()
         if include_asset_annotations:
             annotations += self.generic_asset.search_annotations(
                 annotations_after=annotations_after,
@@ -577,7 +582,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         if (
             inspection_obj and inspection_obj.detached
         ):  # fetch Sensor only when it is detached
-            sensor = Sensor.query.get(sensor.id)
+            sensor = db.sesson.get(Sensor, sensor.id)
 
         tb.TimedBeliefDBMixin.__init__(self, sensor, source, **kwargs)
         tb_utils.remove_class_init_kwargs(tb.TimedBeliefDBMixin, kwargs)
@@ -664,9 +669,11 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         sensor_names = [s for s in sensors if isinstance(s, str)]
         if sensor_names:
             sensors = [s for s in sensors if not isinstance(s, str)]
-            sensors_from_names = Sensor.query.filter(
-                Sensor.name.in_(sensor_names)
-            ).all()
+            sensors_from_names = (
+                db.session.execute(select(Sensor).filter(Sensor.name.in_(sensor_names)))
+                .scalars()
+                .all()
+            )
             sensors.extend(sensors_from_names)
 
         parsed_sources = parse_source_arg(source)

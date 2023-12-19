@@ -54,8 +54,8 @@ def get_old_model_type(
     :returns: the old sensor's type
     """
     if old_sensor_type_name_key in kwargs:
-        old_sensor_type = db.session.query(old_sensor_type_class).get(
-            kwargs[old_sensor_type_name_key]
+        old_sensor_type = db.session.get(
+            old_sensor_type_class, kwargs[old_sensor_type_name_key]
         )
     else:
         old_sensor_type = kwargs[old_sensor_type_key]

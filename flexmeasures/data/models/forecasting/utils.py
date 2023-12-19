@@ -1,6 +1,8 @@
 from typing import Tuple, List, Union
 from datetime import datetime, timedelta
+from sqlalchemy import select
 
+from flexmeasures.data import db
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.utils.time_utils import as_server_time
@@ -18,11 +20,20 @@ def check_data_availability(
     for training window and lagged variables. Otherwise, suggest new forecast period.
     TODO: we could also check regressor data, if we get regressor specs passed in here.
     """
-    q = old_time_series_data_model.query.join(old_sensor_model.__class__).filter(
-        old_sensor_model.__class__.name == old_sensor_model.name
+    # q = old_time_series_data_model.query.join(old_sensor_model.__class__).filter(
+    #     old_sensor_model.__class__.name == old_sensor_model.name
+    # )
+    q = (
+        select(old_time_series_data_model)
+        .join(old_sensor_model.__class__)
+        .filter(old_sensor_model.__class__.name == old_sensor_model.name)
     )
-    first_value = q.order_by(old_time_series_data_model.event_start.asc()).first()
-    last_value = q.order_by(old_time_series_data_model.event_start.desc()).first()
+    first_value = db.session.scalars(
+        q.order_by(old_time_series_data_model.event_start.asc()).limit(1)
+    ).first()
+    last_value = db.session.scalars(
+        q.order_by(old_time_series_data_model.event_start.desc()).limit(1)
+    ).first()
     if first_value is None:
         raise NotEnoughDataException(
             "No data available at all. Forecasting impossible."

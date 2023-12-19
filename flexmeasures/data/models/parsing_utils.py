@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from sqlalchemy import select
 from flask import current_app
 from flexmeasures.data import db
 
@@ -31,9 +32,9 @@ def parse_source_arg(
     parsed_sources: list[DataSource] = []
     for source in sources:
         if isinstance(source, int):
-            parsed_source = (
-                db.session.query(DataSource).filter_by(id=source).one_or_none()
-            )
+            parsed_source = db.session.execute(
+                select(DataSource).filter_by(id=source)
+            ).scalar_one_or_none()
             if parsed_source is None:
                 current_app.logger.warning(
                     f"Beliefs searched for unknown source {source}"
@@ -41,7 +42,11 @@ def parse_source_arg(
             else:
                 parsed_sources.append(parsed_source)
         elif isinstance(source, str):
-            _parsed_sources = db.session.query(DataSource).filter_by(name=source).all()
+            _parsed_sources = (
+                db.session.execute(select(DataSource).filter_by(name=source))
+                .scalars()
+                .all()
+            )
             if _parsed_sources is []:
                 current_app.logger.warning(
                     f"Beliefs searched for unknown source {source}"
