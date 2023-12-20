@@ -42,7 +42,11 @@ from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
     get_data_source_for_job,
 )
-from flexmeasures.utils.time_utils import duration_isoformat
+from flexmeasures.utils.time_utils import (
+    duration_isoformat,
+    time_floor,
+    server_now,
+)
 
 
 # Instantiate schemas outside of endpoint logic to minimize response time
@@ -790,14 +794,20 @@ class SensorAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
+
+        duration = sensor.event_resolution * 4
         print(sensor.name)
+        print(server_now())
+        start = time_floor(server_now(), sensor.event_resolution) - duration
+        print(start)
+
+        print(duration)
         sensor_data_description = {
             "sensor": sensor,
-            "start": datetime.fromisoformat("2021-05-02T00:00:00+02:00"),
-            "duration": isodate.parse_duration("PT1H20M"),
-            "horizon": isodate.parse_duration("PT0H"),
+            "start": start,
+            "duration": duration,
             "unit": "m³/h",
-            "resolution": isodate.parse_duration("PT20M"),
+            "resolution": sensor.event_resolution,
         }
         response = GetSensorDataSchema.load_data_and_make_response(
             sensor_data_description

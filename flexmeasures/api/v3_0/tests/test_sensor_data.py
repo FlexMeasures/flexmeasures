@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import timedelta, datetime
 
 from flask import url_for
 import pytest
@@ -218,12 +218,12 @@ def test_post_sensor_data_twice(client, setup_api_test_data, requesting_user):
 )
 def test_get_sensor_status(
     client,
-    setup_api_test_data: dict[str, Sensor],
+    setup_api_test_data_now: tuple[dict[str, Sensor], datetime],
     setup_roles_users: dict[str, User],
     requesting_user,
 ):
     """Check the /sensors/data endpoint for fetching 1 hour of data of a 10-minute resolution sensor."""
-    sensor = setup_api_test_data["some gas sensor"]
+    sensor = setup_api_test_data_now[0]["some gas sensor now"]
     assert sensor.event_resolution == timedelta(minutes=10)
     # message = {
     #     "sensor": f"ea1.2021-01.io.flexmeasures:fm1.{sensor.id}",
@@ -242,4 +242,5 @@ def test_get_sensor_status(
     values = response.json["values"]
     # We expect two data points (from conftest) followed by 2 null values (which are converted to None by .json)
     # The first data point averages [91.3, 91.7], and the second data point averages [92.1, None].
+    assert response.json == 2
     assert all(a == b for a, b in zip(values, [91.5, 92.1, None, None]))
