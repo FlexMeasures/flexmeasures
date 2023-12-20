@@ -15,6 +15,7 @@ New features
 * Introduce a breadcrumb to navigate through assets and sensor pages using its child-parent relationship [see `PR #930 <https://github.com/FlexMeasures/flexmeasures/pull/930>`_]
 * Define device-level power constraints as sensors to create schedules with changing power limits. [see `PR #897 <https://github.com/FlexMeasures/flexmeasures/pull/897>`_]
 * Allow to provide external storage usage or gain components using the ``soc-usage`` and ``soc-gain`` fields of the `flex-model` [see `PR #906 <https://github.com/FlexMeasures/flexmeasures/pull/906>`_]
+* Define time-varying charging and discharging efficiencies as sensors or as constant values which allows to define the :COP:`Coefficient of Performance`  [see `PR #933 <https://github.com/FlexMeasures/flexmeasures/pull/933>`_].
 
 Infrastructure / Support
 ----------------------

@@ -106,7 +106,6 @@ class StorageFlexModelSchema(Schema):
     )  # todo: allow unit to be set per field, using QuantityField("%", validate=validate.Range(min=0, max=1))
     soc_targets = fields.List(fields.Nested(SOCValueSchema()), data_key="soc-targets")
 
-    roundtrip_efficiency = EfficiencyField(data_key="roundtrip-efficiency")
     charging_efficiency = QuantityOrSensor(
         "%", data_key="charging-efficiency", required=False
     )
@@ -162,7 +161,7 @@ class StorageFlexModelSchema(Schema):
         for field in ["charging_efficiency", "discharging_efficiency"]:
             if field in data and "roundtrip_efficiency" in data:
                 raise ValidationError(
-                    f"Fields `{field}` and `rountrip_efficiency` are mutually exclusive."
+                    f"Fields `{field}` and `roundtrip_efficiency` are mutually exclusive."
                 )
 
     @post_load
