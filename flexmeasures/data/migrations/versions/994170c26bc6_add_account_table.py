@@ -159,7 +159,7 @@ def upgrade_data():
     asset_ownership_db = _generic_asset_ownership()
     generic_asset_results = connection.execute(
         sa.select(
-            [
+            *[
                 t_generic_assets.c.id,
                 t_generic_assets.c.name,
                 t_generic_assets.c.generic_asset_type_id,
@@ -187,7 +187,7 @@ def upgrade_data():
                 )
                 continue
             asset_results = connection.execute(
-                sa.select([t_assets.c.owner_id]).where(
+                sa.select(*[t_assets.c.owner_id]).where(
                     t_assets.c.id == sensor_results[0]
                 )
             ).one_or_none()
@@ -286,7 +286,7 @@ def _generic_asset_ownership() -> List[Tuple[int, int]]:
     # Select all existing ids that need migrating, while keeping names intact
     asset_ownership_results = connection.execute(
         sa.select(
-            [
+            *[
                 t_asset_owners.c.id,
                 t_asset_owners.c.owner_id,
             ]

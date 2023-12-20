@@ -74,7 +74,7 @@ def upgrade_data():
     # Select all existing ids that need migrating, while keeping names intact
     asset_type_results = connection.execute(
         sa.select(
-            [
+            *[
                 t_asset_types.c.name,
                 t_asset_types.c.display_name,
             ]
@@ -82,7 +82,7 @@ def upgrade_data():
     ).fetchall()
     market_type_results = connection.execute(
         sa.select(
-            [
+            *[
                 t_market_types.c.name,
                 t_market_types.c.display_name,
             ]
@@ -90,7 +90,7 @@ def upgrade_data():
     ).fetchall()
     weather_sensor_type_results = connection.execute(
         sa.select(
-            [
+            *[
                 t_weather_sensor_types.c.name,
                 t_weather_sensor_types.c.display_name,
             ]
