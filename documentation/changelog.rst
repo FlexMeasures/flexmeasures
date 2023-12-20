@@ -12,15 +12,17 @@ New features
 -------------
 
 * Better navigation experience through listings (sensors / assets / users / accounts) in the :abbr:`UI (user interface)`, by heading to the selected entity upon a click (or CTRL + click) anywhere within a row [see `PR #923 <https://github.com/FlexMeasures/flexmeasures/pull/923>`_]
-* New flexmeasures configuration setting `FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY` for upgrading insecure `http` requests to secured requests `https` [see `PR #920 <https://github.com/FlexMeasures/flexmeasures/pull/920>`_]
+* Define device-level power constraints as sensors to create schedules with changing power limits. [see `PR #897 <https://github.com/FlexMeasures/flexmeasures/pull/897>`_]
+* Allow to provide external storage usage or gain components using the ``soc-usage`` and ``soc-gain`` fields of the `flex-model` [see `PR #906 <https://github.com/FlexMeasures/flexmeasures/pull/906>`_]
 
 Infrastructure / Support
 ----------------------
 
 * Align database and models of `annotations`, `data_sources`, and `timed_belief` [see `PR #929 <https://github.com/FlexMeasures/flexmeasures/pull/929>`_]
-* Remove obsolete database tables `price`, `power`, `market`, `market_type`, `weather`, `asset`, and `weather_sensor` [see `PR #921 <https://github.com/FlexMeasures/flexmeasures/pull/921>`_]
 * New documentation section on constructing a flex model for :abbr:`V2G (vehicle-to-grid)` [see `PR #885 <https://github.com/FlexMeasures/flexmeasures/pull/885>`_]
 * Allow charts in plugins to show currency codes (such as EUR) as currency symbols (€) [see `PR #922 <https://github.com/FlexMeasures/flexmeasures/pull/922>`_]
+* Remove obsolete database tables `price`, `power`, `market`, `market_type`, `weather`, `asset`, and `weather_sensor` [see `PR #921 <https://github.com/FlexMeasures/flexmeasures/pull/921>`_]
+* New flexmeasures configuration setting `FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY` for upgrading insecure `http` requests to secured requests `https` [see `PR #920 <https://github.com/FlexMeasures/flexmeasures/pull/920>`_]
 
 Bugfixes
 -----------
