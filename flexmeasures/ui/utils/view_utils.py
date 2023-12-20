@@ -10,6 +10,7 @@ from flask_security.core import current_user
 
 from flexmeasures import __version__ as flexmeasures_version
 from flexmeasures.auth.policy import user_has_admin_access
+from flexmeasures.ui.utils.breadcrumb_utils import get_breadcrumb_info
 from flexmeasures.utils import time_utils
 from flexmeasures.ui import flexmeasures_ui
 from flexmeasures.data.models.user import User, Account
@@ -81,6 +82,9 @@ def render_flexmeasures_template(html_filename: str, **variables):
 
     variables["menu_logo"] = current_app.config.get("FLEXMEASURES_MENU_LOGO_PATH")
     variables["extra_css"] = current_app.config.get("FLEXMEASURES_EXTRA_CSS_PATH")
+
+    if "asset" in variables:
+        variables["breadcrumb_info"] = get_breadcrumb_info(asset)
 
     return render_template(html_filename, **variables)
 
