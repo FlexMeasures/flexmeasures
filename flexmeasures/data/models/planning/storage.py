@@ -9,7 +9,6 @@ import pandas as pd
 import numpy as np
 from flask import current_app
 
-
 from flexmeasures.data.models.planning import Scheduler, SchedulerOutputType
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.planning.utils import (
@@ -19,13 +18,14 @@ from flexmeasures.data.models.planning.utils import (
     initialize_df,
     get_power_values,
     fallback_charging_policy,
+    get_continuous_series_sensor_or_quantity,
 )
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
 from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
 from flexmeasures.data.schemas.scheduling import FlexContextSchema
 from flexmeasures.utils.time_utils import get_max_planning_horizon
 from flexmeasures.utils.coding_utils import deprecated
-from flexmeasures.utils.unit_utils import ur
+from flexmeasures.utils.unit_utils import ur, convert_units
 
 
 def check_and_convert_power_capacity(
@@ -63,6 +63,7 @@ class MetaStorageScheduler(Scheduler):
         "derivative min",
         "derivative down efficiency",
         "derivative up efficiency",
+        "stock delta",
     ]
 
     def compute_schedule(self) -> pd.Series | None:
@@ -198,14 +199,71 @@ class MetaStorageScheduler(Scheduler):
             soc_min,
         )
 
+        consumption_capacity = self.flex_model.get("consumption_capacity")
+        production_capacity = self.flex_model.get("production_capacity")
+
         if sensor.get_attribute("is_strictly_non_positive"):
             device_constraints[0]["derivative min"] = 0
         else:
-            device_constraints[0]["derivative min"] = power_capacity_in_mw * -1
+            device_constraints[0]["derivative min"] = (
+                -1
+            ) * get_continuous_series_sensor_or_quantity(
+                quantity_or_sensor=production_capacity,
+                actuator=sensor,
+                unit=sensor.unit,
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                fallback_attribute="production_capacity",
+                max_value=convert_units(power_capacity_in_mw, "MW", sensor.unit),
+            )
         if sensor.get_attribute("is_strictly_non_negative"):
             device_constraints[0]["derivative max"] = 0
         else:
-            device_constraints[0]["derivative max"] = power_capacity_in_mw
+            device_constraints[0][
+                "derivative max"
+            ] = get_continuous_series_sensor_or_quantity(
+                quantity_or_sensor=consumption_capacity,
+                actuator=sensor,
+                unit=sensor.unit,
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                fallback_attribute="consumption_capacity",
+                max_value=convert_units(power_capacity_in_mw, "MW", sensor.unit),
+            )
+
+        soc_gain = self.flex_model.get("soc_gain", [])
+        soc_usage = self.flex_model.get("soc_usage", [])
+
+        all_stock_delta = []
+
+        for is_usage, soc_delta in zip([False, True], [soc_gain, soc_usage]):
+            for component in soc_delta:
+                stock_delta_series = get_continuous_series_sensor_or_quantity(
+                    quantity_or_sensor=component,
+                    actuator=sensor,
+                    unit="MW",
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                )
+
+                # example: 4 MW sustained over 15 minutes gives 1 MWh
+                stock_delta_series *= resolution / timedelta(
+                    hours=1
+                )  # MW -> MWh / resolution
+
+                if is_usage:
+                    stock_delta_series *= -1
+
+                all_stock_delta.append(stock_delta_series)
+
+        if len(all_stock_delta) > 0:
+            all_stock_delta = pd.concat(all_stock_delta, axis=1)
+
+            device_constraints[0]["stock delta"] = all_stock_delta.sum(1)
+            device_constraints[0]["stock delta"] *= timedelta(hours=1) / resolution
 
         # Apply round-trip efficiency evenly to charging and discharging
         device_constraints[0]["derivative down efficiency"] = (
