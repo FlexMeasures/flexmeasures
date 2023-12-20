@@ -54,7 +54,6 @@ partial_sensor_schema = SensorSchema(partial=True, exclude=["generic_asset_id"])
 
 
 class SensorAPI(FlaskView):
-
     route_base = "/sensors"
     trailing_slash = False
     decorators = [auth_required()]
@@ -753,3 +752,56 @@ class SensorAPI(FlaskView):
         db.session.commit()
         current_app.logger.info("Deleted sensor '%s'." % sensor_name)
         return {}, 204
+
+    @route("/<id>/status", methods=["GET"])
+    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    def get_status(self, id, sensor: Sensor):
+        """Get sensor data from FlexMeasures.
+
+        .. :quickref: Data; Download sensor data
+
+        **Example request**
+
+        .. code-block:: json
+
+            {
+                "sensor": "ea1.2021-01.io.flexmeasures:fm1.1",
+                "start": "2021-06-07T00:00:00+02:00",
+                "duration": "PT1H",
+                "resolution": "PT15M",
+                "unit": "m³/h"
+            }
+
+        The unit has to be convertible from the sensor's unit.
+
+        **Optional fields**
+
+        - "resolution" (see :ref:`frequency_and_resolution`)
+        - "horizon" (see :ref:`beliefs`)
+        - "prior" (see :ref:`beliefs`)
+        - "source" (see :ref:`sources`)
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 200: PROCESSED
+        :status 400: INVALID_REQUEST
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+        print(sensor.name)
+        sensor_data_description = {
+            "sensor": sensor,
+            "start": datetime.fromisoformat("2021-05-02T00:00:00+02:00"),
+            "duration": isodate.parse_duration("PT1H20M"),
+            "horizon": isodate.parse_duration("PT0H"),
+            "unit": "m³/h",
+            "resolution": isodate.parse_duration("PT20M"),
+        }
+        response = GetSensorDataSchema.load_data_and_make_response(
+            sensor_data_description
+        )
+        print(response)
+        d, s = request_processed()
+        return dict(**response, **d), s
