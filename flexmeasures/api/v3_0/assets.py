@@ -313,39 +313,3 @@ class AssetAPI(FlaskView):
         """
         sensors = flatten_unique(asset.sensors_to_show)
         return asset.search_beliefs(sensors=sensors, as_json=True, **kwargs)
-
-    @route("/<id>/status/", methods=["GET"])
-    @use_kwargs({"asset": AssetIdField(data_key="id")}, location="path")
-    @permission_required_for_context("read", ctx_arg_name="asset")
-    @as_json
-    def fetch_status(self, id, asset):
-        """Fetch a given asset.
-
-        .. :quickref: Asset; Get an asset
-
-        This endpoint gets an asset.
-
-        **Example response**
-
-        .. sourcecode:: json
-
-            {
-                "generic_asset_type_id": 2,
-                "name": "Test battery",
-                "id": 1,
-                "latitude": 10,
-                "longitude": 100,
-                "account_id": 1,
-            }
-
-        :reqheader Authorization: The authentication token
-        :reqheader Content-Type: application/json
-        :resheader Content-Type: application/json
-        :status 200: PROCESSED
-        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
-        :status 401: UNAUTHORIZED
-        :status 403: INVALID_SENDER
-        :status 422: UNPROCESSABLE_ENTITY
-        """
-
-        return asset_schema.dump(asset), 200

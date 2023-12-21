@@ -282,30 +282,30 @@ class AssetCrudUI(FlaskView):
     def status(self, id: str):
         """GET from /assets/<id> where id can be 'new' (and thus the form for asset creation is shown)"""
 
-        get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_status", id=id))
+        get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_one", id=id))
         asset_dict = get_asset_response.json()
 
         asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
+        sensors = []
         for sensor in asset.sensors:
-            sensor.event_resolution * 4
-
             get_sensor_response = InternalApi().get(
-                url_for("SensorAPI:get_data"),
-                query={
-                    "sensor": sensor.entity_address,
-                    "start": "2021-06-07T00:00:00+02:00",
-                    "duration": "PT1H",
-                    "resolution": sensor.event_resolution,
-                    "unit": sensor.unit,
-                },
+                url_for("SensorAPI:get_status", id=sensor.id)
             )
             sensor_dict = get_sensor_response.json()
-            sensor = process_internal_api_response(sensor_dict, int(id), make_obj=True)
-        asset_dict = get_asset_response.json()
+            sensor_dict["name"] = sensor.name
+            if all(sensor_dict["values"]):
+                sensor_dict["sensor_status"] = "complete"
+            elif any(sensor_dict["values"]):
+                sensor_dict["sensor_status"] = "partial"
+            elif not any(sensor_dict["values"]):
+                sensor_dict["sensor_status"] = "empty"
+
+            sensors += [sensor_dict]
+
+            # sensor = process_internal_api_response(sensor_dict, int(id), make_obj=True)
 
         return render_flexmeasures_template(
-            "views/status.html",
-            asset=asset,
+            "views/status.html", asset=asset, sensors=sensors
         )
 
     @login_required

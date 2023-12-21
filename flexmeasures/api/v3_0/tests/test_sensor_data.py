@@ -225,15 +225,7 @@ def test_get_sensor_status(
     """Check the /sensors/data endpoint for fetching 1 hour of data of a 10-minute resolution sensor."""
     sensor = setup_api_test_data_now[0]["some gas sensor now"]
     assert sensor.event_resolution == timedelta(minutes=10)
-    # message = {
-    #     "sensor": f"ea1.2021-01.io.flexmeasures:fm1.{sensor.id}",
-    #     "start": "2021-05-02T00:00:00+02:00",
-    #     "duration": "PT1H20M",
-    #     "horizon": "PT0H",
-    #     "unit": "m³/h",
-    #     "source": source.id,
-    #     "resolution": "PT20M",
-    # }
+
     response = client.get(
         url_for("SensorAPI:get_status", id=sensor.id),
     )
