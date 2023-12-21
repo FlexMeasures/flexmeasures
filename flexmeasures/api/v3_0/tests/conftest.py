@@ -221,6 +221,7 @@ def add_incineration_line_now(db, test_supplier_user, now) -> dict[str, Sensor]:
 
 def add_gas_measurements_now(db, source: Source, sensor: Sensor, now: datetime):
     event_starts = [now + timedelta(minutes=minutes) for minutes in range(0, 30, 10)]
+    print(event_starts)
     event_values = [50.3, 65.7, 44.1]
     beliefs = [
         TimedBelief(
@@ -232,6 +233,7 @@ def add_gas_measurements_now(db, source: Source, sensor: Sensor, now: datetime):
         )
         for event_start, event_value in zip(event_starts, event_values)
     ]
+    print(beliefs)
     db.session.add_all(beliefs)
 
 
