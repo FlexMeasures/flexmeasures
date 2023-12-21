@@ -67,7 +67,7 @@ def test_get_asset_nonaccount_access(client, setup_api_test_data, requesting_use
     "requesting_user, account_name, num_assets",
     [
         ("test_admin_user@seita.nl", "Prosumer", 1),
-        ("test_admin_user@seita.nl", "Supplier", 2),
+        ("test_admin_user@seita.nl", "Supplier", 3),
         ("test_consultant@seita.nl", "ConsultancyClient", 1),
     ],
     indirect=["requesting_user"],
