@@ -799,7 +799,9 @@ class SensorAPI(FlaskView):
         duration = sensor.event_resolution * 4
         print(sensor.name)
         print(server_now())
-        start = time_floor(server_now(), sensor.event_resolution) - duration
+        start = time_floor(server_now(), sensor.event_resolution) - (
+            sensor.event_resolution * 3
+        )
         print(start)
 
         print(duration)
@@ -807,7 +809,7 @@ class SensorAPI(FlaskView):
             "sensor": sensor,
             "start": start,
             "duration": duration,
-            "unit": "m³/h",
+            "unit": sensor.unit,
             "resolution": sensor.event_resolution,
         }
         response = GetSensorDataSchema.load_data_and_make_response(
