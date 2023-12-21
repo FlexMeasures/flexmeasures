@@ -24,7 +24,7 @@ def setup_api_test_data(
     sensors = add_incineration_line(db, supplier_user)
     print("Setting up data for API v3.0 tests on %s" % db.engine)
     now = time_floor(server_now(), delta=timedelta(minutes=10))
-    sensors |= add_incineration_line_now(db, supplier_user, now=now)
+    sensors.update(add_incineration_line_now(db, supplier_user, now=now))
     return sensors
 
 
