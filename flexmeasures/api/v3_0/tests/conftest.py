@@ -20,9 +20,11 @@ def setup_api_test_data(
     Set up data for API v3.0 tests.
     """
     print("Setting up data for API v3.0 tests on %s" % db.engine)
-    sensors = add_incineration_line(
-        db, User.query.get(setup_roles_users["Test Supplier User"])
-    )
+    supplier_user = User.query.get(setup_roles_users["Test Supplier User"])
+    sensors = add_incineration_line(db, supplier_user)
+    print("Setting up data for API v3.0 tests on %s" % db.engine)
+    now = time_floor(server_now(), delta=timedelta(minutes=10))
+    sensors |= add_incineration_line_now(db, supplier_user, now=now)
     return sensors
 
 
@@ -185,7 +187,7 @@ def add_gas_measurements(db, source: Source, sensor: Sensor):
 @pytest.fixture(scope="module")
 def setup_api_test_data_now(
     db, setup_roles_users, setup_generic_assets
-) -> tuple[dict[str, Sensor], datetime]:
+) -> dict[str, Sensor]:
     """
     Set up data for API v3.0 tests.
     """
@@ -194,7 +196,7 @@ def setup_api_test_data_now(
     sensors = add_incineration_line_now(
         db, User.query.get(setup_roles_users["Test Supplier User"]), now=now
     )
-    return sensors, now
+    return sensors
 
 
 def add_incineration_line_now(db, test_supplier_user, now) -> dict[str, Sensor]:

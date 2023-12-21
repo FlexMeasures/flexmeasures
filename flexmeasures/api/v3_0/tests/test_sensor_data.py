@@ -1,12 +1,35 @@
 from __future__ import annotations
 
-from datetime import timedelta, datetime
+from datetime import timedelta
 
 from flask import url_for
 import pytest
 
 from flexmeasures import Sensor, Source, User
 from flexmeasures.api.v3_0.tests.utils import make_sensor_data_request_for_gas_sensor
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_get_sensor_status(
+    client,
+    setup_api_test_data: dict[str, Sensor],
+    requesting_user,
+):
+    """Check the /sensors/data endpoint for fetching 1 hour of data of a 10-minute resolution sensor."""
+    sensor = setup_api_test_data["some gas sensor now"]
+    assert sensor.event_resolution == timedelta(minutes=10)
+
+    response = client.get(
+        url_for("SensorAPI:get_status", id=sensor.id),
+    )
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 200
+    values = response.json["values"]
+    # We expect two data points (from conftest) followed by 2 null values (which are converted to None by .json)
+    # The first data point averages [91.3, 91.7], and the second data point averages [92.1, None].
+    assert all(a == b for a, b in zip(values, [53.3, 44.1, 65.7, 50.3]))
 
 
 @pytest.mark.parametrize(
@@ -211,27 +234,3 @@ def test_post_sensor_data_twice(client, setup_api_test_data, requesting_user):
     print(response.json)
     assert response.status_code == 403
     assert "data represents a replacement" in response.json["message"]
-
-
-@pytest.mark.parametrize(
-    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
-)
-def test_get_sensor_status(
-    client,
-    setup_api_test_data_now: tuple[dict[str, Sensor], datetime],
-    setup_roles_users: dict[str, User],
-    requesting_user,
-):
-    """Check the /sensors/data endpoint for fetching 1 hour of data of a 10-minute resolution sensor."""
-    sensor = setup_api_test_data_now[0]["some gas sensor now"]
-    assert sensor.event_resolution == timedelta(minutes=10)
-
-    response = client.get(
-        url_for("SensorAPI:get_status", id=sensor.id),
-    )
-    print("Server responded with:\n%s" % response.json)
-    assert response.status_code == 200
-    values = response.json["values"]
-    # We expect two data points (from conftest) followed by 2 null values (which are converted to None by .json)
-    # The first data point averages [91.3, 91.7], and the second data point averages [92.1, None].
-    assert all(a == b for a, b in zip(values, [53.3, 44.1, 65.7, 50.3]))
