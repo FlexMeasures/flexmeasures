@@ -161,7 +161,7 @@ def pg_cluster_arg_from_version(pg_version: str | None) -> str:
     More info (e.g. on the format) at https://manpages.ubuntu.com/manpages/trusty/man1/pg_wrapper.1.html
     """
     if pg_version:
-        return f"--version {pg_version}"
+        return f"--cluster {pg_version}/main"
     return ""
 
 
