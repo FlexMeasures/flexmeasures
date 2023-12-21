@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% set active_page = "assets" %}
+
+{% block title %} {{asset.name}} {% endblock %}
+
+{% block divs %}
+
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="alert alert-info" id="tzwarn" style="display:none;"></div>
+        <div class="alert alert-info" id="dstwarn" style="display:none;"></div>
+    </div>
+    <div class="row">
+        <div class="col-sm-2"></div>
+        <div class="col-sm-8">
+            <div class="sensors-asset card">
+                <h3>All sensors for {{ asset.name }}</h3>
+                <table class="table table-striped table-responsive paginate nav-on-click" title="View data">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th class="text-right">Unit</th>
+                            <th class="text-right">Last values</th>
+                            <th class="text-right no-sort">Status</th>
+                            <th class="hidden">URL</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for sensor in sensors: %}
+                        <tr>
+                            <td>
+                                {{ sensor.name }}
+                            </td>
+                            <td class="text-right">
+                                {{ sensor.unit }}
+                            </td>
+                            <td class="text-right">
+                                {{ sensor["values"] }}
+                            </td>
+                            <td class="text-right">
+                                {% if sensor.sensor_status == "complete" %}
+                                🟢
+                                {% elif sensor.sensor_status == "partial" %}
+                                🟡
+                                {% elif sensor.sensor_status == "empty" %}
+                                🔴
+                                {% endif %}
+                            </td>
+                            <td class="hidden">
+                                /sensors/{{ sensor.id }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+
+</div>
+
+
+
+{% endblock %}
