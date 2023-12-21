@@ -11,7 +11,7 @@ from marshmallow import (
     fields,
     validates,
 )
-from marshmallow.validate import OneOf
+from marshmallow.validate import OneOf, ValidationError
 
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.times import AwareDateTimeField
@@ -105,7 +105,18 @@ class StorageFlexModelSchema(Schema):
         data_key="soc-unit",
     )  # todo: allow unit to be set per field, using QuantityField("%", validate=validate.Range(min=0, max=1))
     soc_targets = fields.List(fields.Nested(SOCValueSchema()), data_key="soc-targets")
-    roundtrip_efficiency = EfficiencyField(data_key="roundtrip-efficiency")
+
+    charging_efficiency = QuantityOrSensor(
+        "%", data_key="charging-efficiency", required=False
+    )
+    discharging_efficiency = QuantityOrSensor(
+        "%", data_key="discharging-efficiency", required=False
+    )
+
+    roundtrip_efficiency = EfficiencyField(
+        data_key="roundtrip-efficiency", required=False
+    )
+
     storage_efficiency = EfficiencyField(data_key="storage-efficiency")
     prefer_charging_sooner = fields.Bool(data_key="prefer-charging-sooner")
 
@@ -134,6 +145,24 @@ class StorageFlexModelSchema(Schema):
             current_app.logger.warning(
                 f"Target datetime exceeds {max_server_datetime}. Maximum scheduling horizon is {max_server_horizon}."
             )
+
+    @validates_schema
+    def check_redundant_efficiencies(self, data: dict, **kwargs):
+        """
+        Check that none of the following cases occurs:
+            (1) flex-model contains both a round-trip efficiency and a charging efficiency
+            (2) flex-model contains both a round-trip efficiency and a discharging efficiency
+            (3) flex-model contains a round-trip efficiency, a charging efficiency and a discharging efficiency
+
+
+        :raise: ValidationError
+        """
+
+        for field in ["charging_efficiency", "discharging_efficiency"]:
+            if field in data and "roundtrip_efficiency" in data:
+                raise ValidationError(
+                    f"Fields `{field}` and `roundtrip_efficiency` are mutually exclusive."
+                )
 
     @post_load
     def post_load_sequence(self, data: dict, **kwargs) -> dict:
