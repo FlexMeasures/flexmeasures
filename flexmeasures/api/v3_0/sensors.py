@@ -757,9 +757,9 @@ class SensorAPI(FlaskView):
         current_app.logger.info("Deleted sensor '%s'." % sensor_name)
         return {}, 204
 
-    # TODO: Add authentication
     @route("/<id>/status", methods=["GET"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    @permission_required_for_context("read", ctx_arg_name="sensor")
     def get_status(self, id, sensor: Sensor):
         """Get sensor data from FlexMeasures.
 
