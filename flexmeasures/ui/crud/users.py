@@ -106,7 +106,7 @@ class UserCrudUI(FlaskView):
         if current_user.has_role(ADMIN_ROLE) or current_user.has_role(
             ADMIN_READER_ROLE
         ):
-            accounts = Account.query.all()
+            accounts = db.session.scalars(select(Account)).all()
         else:
             accounts = [current_user.account]
         for account in accounts:

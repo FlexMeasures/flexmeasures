@@ -108,11 +108,13 @@ class NewAssetForm(AssetForm):
 def with_options(form: AssetForm | NewAssetForm) -> AssetForm | NewAssetForm:
     if "generic_asset_type_id" in form:
         form.generic_asset_type_id.choices = [(-1, "--Select type--")] + [
-            (atype.id, atype.name) for atype in GenericAssetType.query.all()
+            (atype.id, atype.name)
+            for atype in db.session.scalars(select(GenericAssetType)).all()
         ]
     if "account_id" in form:
         form.account_id.choices = [(-1, "--Select account--")] + [
-            (account.id, account.name) for account in Account.query.all()
+            (account.id, account.name)
+            for account in db.session.scalars(select(Account)).all()
         ]
     return form
 
@@ -205,7 +207,7 @@ class AssetCrudUI(FlaskView):
         assets = []
 
         if user_has_admin_access(current_user, "read"):
-            for account in Account.query.all():
+            for account in db.session.scalars(select(Account)).all():
                 assets += get_assets_by_account(account.id)
             assets += get_assets_by_account(account_id=None)
         else:
@@ -342,7 +344,7 @@ class AssetCrudUI(FlaskView):
         else:
             asset_form = with_options(AssetForm())
             if not asset_form.validate_on_submit():
-                asset = GenericAsset.query.get(id)
+                asset = db.session.get(GenericAsset, id)
                 # Display the form data, but set some extra data which the page wants to show.
                 asset_info = asset_form.to_json()
                 asset_info["id"] = id
@@ -378,7 +380,7 @@ class AssetCrudUI(FlaskView):
                 asset_form.process_api_validation_errors(
                     patch_asset_response.json().get("message")
                 )
-                asset = GenericAsset.query.get(id)
+                asset = db.session.get(GenericAsset, id)
 
         return render_flexmeasures_template(
             "crud/asset.html",
@@ -410,7 +412,9 @@ def _set_account(asset_form: NewAssetForm) -> tuple[Account | None, str | None]:
         else:
             account_error = "Please pick an existing account."
 
-    account = Account.query.filter_by(id=int(asset_form.account_id.data)).one_or_none()
+    account = db.session.execute(
+        select(Account).filter_by(id=int(asset_form.account_id.data))
+    ).scalar_one_or_none()
 
     if account:
         asset_form.account_id.data = account.id
@@ -430,9 +434,11 @@ def _set_asset_type(
     if int(asset_form.generic_asset_type_id.data) == -1:
         asset_type_error = "Pick an existing asset type."
     else:
-        asset_type = GenericAssetType.query.filter_by(
-            id=int(asset_form.generic_asset_type_id.data)
-        ).one_or_none()
+        asset_type = db.session.execute(
+            select(GenericAssetType).filter_by(
+                id=int(asset_form.generic_asset_type_id.data)
+            )
+        ).scalar_one_or_none()
 
     if asset_type:
         asset_form.generic_asset_type_id.data = asset_type.id
