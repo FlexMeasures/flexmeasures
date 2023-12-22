@@ -21,8 +21,7 @@
                     <thead>
                         <tr>
                             <th>Name</th>
-                            <th class="text-right">Unit</th>
-                            <th class="text-right">Last values</th>
+                            <th class="no-sort">Last values</th>
                             <th class="text-right no-sort">Status</th>
                             <th class="hidden">URL</th>
                         </tr>
@@ -33,10 +32,7 @@
                             <td>
                                 {{ sensor.name }}
                             </td>
-                            <td class="text-right">
-                                {{ sensor.unit }}
-                            </td>
-                            <td class="text-right">
+                            <td>
                                 {{ sensor["values"] }}
                             </td>
                             <td class="text-right">
