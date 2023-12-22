@@ -4,7 +4,7 @@ import time
 import pytz
 from flask import request, current_app
 from flask_json import as_json
-from sqlalchemy import exc as sqla_exc
+from sqlalchemy import exc as sqla_exc, select
 
 from flexmeasures.data import db
 from flexmeasures.data.models.task_runs import LatestTaskRun
@@ -58,14 +58,14 @@ def get_task_run():
         return make_response("ERROR", "No task name given.", datetime(1970, 1, 1)), 400
 
     try:
-        last_known_run = LatestTaskRun.query.filter(
-            LatestTaskRun.name == task_name
+        last_known_run = db.session.scalars(
+            select(LatestTaskRun).filter(LatestTaskRun.name == task_name).limit(1)
         ).first()
     except (sqla_exc.ResourceClosedError, sqla_exc.DatabaseError):
         # This is an attempt to make this more stable against some rare condition we encounter. Let's try once more.
         time.sleep(2)
-        last_known_run = LatestTaskRun.query.filter(
-            LatestTaskRun.name == task_name
+        last_known_run = db.session.scalars(
+            select(LatestTaskRun).filter(LatestTaskRun.name == task_name).limit(1)
         ).first()
 
     if not last_known_run:
@@ -94,9 +94,9 @@ def post_task_run():
     date_time = request.form.get("datetime", datetime.utcnow().replace(tzinfo=pytz.utc))
     status = request.form.get("status", "True") == "True"
     try:
-        task_run = LatestTaskRun.query.filter(
-            LatestTaskRun.name == task_name
-        ).one_or_none()
+        task_run = db.session.execute(
+            select(LatestTaskRun).filter(LatestTaskRun.name == task_name)
+        ).scalar_one_or_none()
         if task_run is None:
             task_run = LatestTaskRun(name=task_name)
             db.session.add(task_run)

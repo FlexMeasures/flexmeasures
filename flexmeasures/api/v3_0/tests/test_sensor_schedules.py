@@ -4,6 +4,7 @@ from isodate import parse_datetime, parse_duration
 
 import pandas as pd
 from rq.job import Job
+from sqlalchemy import select
 
 from flexmeasures.api.common.responses import unknown_schedule, unrecognized_event
 from flexmeasures.api.tests.utils import check_deprecation
@@ -115,6 +116,7 @@ def test_trigger_and_get_schedule_with_unknown_prices(
     keep_scheduling_queue_empty,
     message,
     requesting_user,
+    db,
 ):
     sensor = add_battery_assets["Test battery"].sensors[0]
 
@@ -145,9 +147,9 @@ def test_trigger_and_get_schedule_with_unknown_prices(
     )
 
     # check results are not in the database
-    scheduler_source = DataSource.query.filter_by(
-        name="Seita", type="scheduler"
-    ).one_or_none()
+    scheduler_source = db.session.execute(
+        select(DataSource).filter_by(name="Seita", type="scheduler")
+    ).scalar_one_or_none()
     assert (
         scheduler_source is None
     )  # Make sure the scheduler data source is still not there
@@ -183,6 +185,7 @@ def test_trigger_and_get_schedule(
     message,
     asset_name,
     requesting_user,
+    db,
 ):  # noqa: C901
     # Include the price sensor and site-power-capacity in the flex-context explicitly, to test deserialization
     price_sensor_id = add_market_prices["epex_da"].id
@@ -195,13 +198,13 @@ def test_trigger_and_get_schedule(
     # trigger a schedule through the /sensors/<id>/schedules/trigger [POST] api endpoint
     assert len(app.queues["scheduling"]) == 0
 
-    sensor = (
-        Sensor.query.filter(Sensor.name == "power")
+    sensor = db.session.execute(
+        select(Sensor)
+        .filter(Sensor.name == "power")
         .join(GenericAsset)
         .filter(GenericAsset.id == Sensor.generic_asset_id)
         .filter(GenericAsset.name == asset_name)
-        .one_or_none()
-    )
+    ).scalar_one_or_none()
     with app.test_client() as client:
         trigger_schedule_response = client.post(
             url_for("SensorAPI:trigger_schedule", id=sensor.id),
@@ -272,8 +275,12 @@ def test_trigger_and_get_schedule(
 
     # Then, check if the data was created
     power_values = (
-        TimedBelief.query.filter(TimedBelief.sensor_id == sensor.id)
-        .filter(TimedBelief.source_id == scheduler_source.id)
+        db.session.execute(
+            select(TimedBelief)
+            .filter(TimedBelief.sensor_id == sensor.id)
+            .filter(TimedBelief.source_id == scheduler_source.id)
+        )
+        .scalars()
         .all()
     )
     consumption_schedule = pd.Series(
@@ -342,6 +349,7 @@ def test_get_schedule_fallback(
     add_charging_station_assets,
     keep_scheduling_queue_empty,
     requesting_user,
+    db,
 ):
     """
     Test if the fallback job is created after a failing StorageScheduler call. This test
@@ -354,7 +362,9 @@ def test_get_schedule_fallback(
     charging_station_name = "Test charging station"
 
     start = "2015-01-02T00:00:00+01:00"
-    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    epex_da = db.session.execute(
+        select(Sensor).filter_by(name="epex_da")
+    ).scalar_one_or_none()
     charging_station = add_charging_station_assets[charging_station_name].sensors[0]
 
     assert charging_station.get_attribute("capacity_in_mw") == 2
@@ -488,6 +498,7 @@ def test_get_schedule_fallback_not_redirect(
     add_charging_station_assets,
     keep_scheduling_queue_empty,
     requesting_user,
+    db,
 ):
     """
     Test if the fallback scheduler is returned directly after a failing StorageScheduler call. This test
@@ -499,7 +510,9 @@ def test_get_schedule_fallback_not_redirect(
     charging_station_name = "Test charging station"
 
     start = "2015-01-02T00:00:00+01:00"
-    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    epex_da = db.session.execute(
+        select(Sensor).filter_by(name="epex_da")
+    ).scalar_one_or_none()
     charging_station = add_charging_station_assets[charging_station_name].sensors[0]
 
     assert charging_station.get_attribute("capacity_in_mw") == 2
