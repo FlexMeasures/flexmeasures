@@ -26,9 +26,11 @@ def test_get_sensor_status(
     sensor_values,
     sensor_name,
 ):
-    """Check the /sensor/<id>/status endpoint returns the correct status"""
+    """
+    Check the /sensor/<id>/status endpoint returns the correct status.
+    WARNING: This test might fail if it runs exactly on the hour. The time is set on the hour of the last full hour in the conftest and in the API endpoint separately. If the clock passes the hour between these actions the test will fail
+    """
     sensor = setup_api_test_data[sensor_name]
-    # assert sensor.event_resolution == timedelta(minutes=10)
 
     response = client.get(
         url_for("SensorAPI:get_status", id=sensor.id),

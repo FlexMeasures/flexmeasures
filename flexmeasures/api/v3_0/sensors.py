@@ -761,30 +761,25 @@ class SensorAPI(FlaskView):
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
     @permission_required_for_context("read", ctx_arg_name="sensor")
     def get_status(self, id, sensor: Sensor):
-        """Get sensor data from FlexMeasures.
+        """Fetch a given asset.
 
-        .. :quickref: Data; Download sensor data
+        .. :quickref: Sensor; Get sensor status
 
-        **Example request**
+        This endpoint gets the status of a sensor.
 
-        .. code-block:: json
+        **Example response**
+
+        .. sourcecode:: json
 
             {
-                "sensor": "ea1.2021-01.io.flexmeasures:fm1.1",
-                "start": "2021-06-07T00:00:00+02:00",
-                "duration": "PT1H",
-                "resolution": "PT15M",
-                "unit": "m³/h"
+                "duration": "PT40M",
+                "message": "Request has been processed.",
+                "resolution": "PT10M",
+                "start": "2023-12-21T17:00:00+09:00",
+                "status": "PROCESSED",
+                "unit": "m³/h",
+                "values": [30.0, 44.3, 32.2, 29.5],
             }
-
-        The unit has to be convertible from the sensor's unit.
-
-        **Optional fields**
-
-        - "resolution" (see :ref:`frequency_and_resolution`)
-        - "horizon" (see :ref:`beliefs`)
-        - "prior" (see :ref:`beliefs`)
-        - "source" (see :ref:`sources`)
 
         :reqheader Authorization: The authentication token
         :reqheader Content-Type: application/json
