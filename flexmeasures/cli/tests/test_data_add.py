@@ -4,7 +4,7 @@ import yaml
 import os
 from datetime import datetime
 import pytz
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from flexmeasures.cli.tests.utils import to_flags
 from flexmeasures.data.models.annotations import (
@@ -36,8 +36,9 @@ def test_add_annotation(app, db, setup_roles_users):
     assert "Successfully added annotation" in result.output
 
     # Check database for annotation entry
-    assert (
-        Annotation.query.filter(
+    assert db.session.execute(
+        select(Annotation)
+        .filter(
             Annotation.content == cli_input["content"],
             Annotation.start == cli_input["at"],
         )
@@ -51,8 +52,7 @@ def test_add_annotation(app, db, setup_roles_users):
             DataSource.id == Annotation.source_id,
             DataSource.user_id == cli_input["user-id"],
         )
-        .one_or_none()
-    )
+    ).scalar_one_or_none()
 
 
 @pytest.mark.skip_github
@@ -72,18 +72,21 @@ def test_add_holidays(app, db, setup_roles_users):
 
     # Check database for 11 annotation entries
     assert (
-        Annotation.query.join(AccountAnnotationRelationship)
-        .filter(
-            AccountAnnotationRelationship.account_id == cli_input["account-id"],
-            AccountAnnotationRelationship.annotation_id == Annotation.id,
+        db.session.scalar(
+            select(func.count())
+            .select_from(Annotation)
+            .join(AccountAnnotationRelationship)
+            .filter(
+                AccountAnnotationRelationship.account_id == cli_input["account-id"],
+                AccountAnnotationRelationship.annotation_id == Annotation.id,
+            )
+            .join(DataSource)
+            .filter(
+                DataSource.id == Annotation.source_id,
+                DataSource.name == "workalendar",
+                DataSource.model == cli_input["country"],
+            )
         )
-        .join(DataSource)
-        .filter(
-            DataSource.id == Annotation.source_id,
-            DataSource.name == "workalendar",
-            DataSource.model == cli_input["country"],
-        )
-        .count()
         == 11
     )
 

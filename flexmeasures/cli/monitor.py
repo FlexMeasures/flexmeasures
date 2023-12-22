@@ -117,7 +117,7 @@ def monitor_latest_run(task, custom_message):
     for t in task:
         task_name = t[0]
         app.logger.info(f"Checking latest run of task {task_name} ...")
-        latest_run: LatestTaskRun = LatestTaskRun.query.get(task_name)
+        latest_run: LatestTaskRun = db.session.get(LatestTaskRun, task_name)
         if latest_run is None:
             msg = f"Task {task_name} has no last run and thus cannot be monitored. Is it configured properly?"
             send_task_monitoring_alert(task_name, msg, custom_msg=custom_message)
