@@ -132,6 +132,7 @@
                             <th class="text-right">Unit</th>
                             <th class="text-right">Resolution</th>
                             <th class="text-right no-sort">Entity address</th>
+                            <th>Status</th>
                             <th class="hidden">URL</th>
                         </tr>
                     </thead>
@@ -149,6 +150,11 @@
                             </td>
                             <td class="text-right">
                                 {{ sensor.entity_address }}
+                            </td>
+                            <td>
+                                <a href="/assets/{{ asset.id }}/status">
+                                    <button type="button" class="btn">Status</button>
+                                </a>
                             </td>
                             <td class="hidden">
                                 /sensors/{{ sensor.id }}

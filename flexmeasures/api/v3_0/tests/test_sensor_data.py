@@ -12,13 +12,22 @@ from flexmeasures.api.v3_0.tests.utils import make_sensor_data_request_for_gas_s
 @pytest.mark.parametrize(
     "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
 )
+@pytest.mark.parametrize(
+    ["sensor_name", "sensor_values"],
+    [
+        ("some gas sensor now", [53.3, 44.1, 65.7, 50.3]),
+        ("some gas sensor", [None, None, None, None]),
+    ],
+)
 def test_get_sensor_status(
     client,
     setup_api_test_data: dict[str, Sensor],
     requesting_user,
+    sensor_values,
+    sensor_name,
 ):
-    """Check the /sensors/data endpoint for fetching 1 hour of data of a 10-minute resolution sensor."""
-    sensor = setup_api_test_data["some gas sensor now"]
+    """Check the /sensor/<id>/status endpoint returns the correct status"""
+    sensor = setup_api_test_data[sensor_name]
     assert sensor.event_resolution == timedelta(minutes=10)
 
     response = client.get(
@@ -29,7 +38,33 @@ def test_get_sensor_status(
     values = response.json["values"]
     # We expect two data points (from conftest) followed by 2 null values (which are converted to None by .json)
     # The first data point averages [91.3, 91.7], and the second data point averages [92.1, None].
-    assert all(a == b for a, b in zip(values, [53.3, 44.1, 65.7, 50.3]))
+    assert all(a == b for a, b in zip(values, sensor_values))
+
+
+@pytest.mark.parametrize(
+    "requesting_user, status_code",
+    [
+        (None, 401),  # the case without auth: authentication will fail
+        (
+            "test_dummy_user_3@seita.nl",
+            403,
+        ),  # in this case, we successfully authenticate, but fail authorization (not member of the account in which the sensor lies)
+    ],
+    indirect=["requesting_user"],
+)
+def test_get_sensor_status_bad_auth(
+    client, setup_api_test_data, requesting_user, status_code
+):
+    """
+    Attempt to get sensor status with insufficient or missing auth.
+    """
+    sensor = setup_api_test_data["some gas sensor"]
+
+    response = client.get(
+        url_for("SensorAPI:get_status", id=sensor.id),
+    )
+    print("Server responded with:\n%s" % response.data)
+    assert response.status_code == status_code
 
 
 @pytest.mark.parametrize(

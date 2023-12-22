@@ -796,15 +796,14 @@ class SensorAPI(FlaskView):
         :status 422: UNPROCESSABLE_ENTITY
         """
 
-        duration = sensor.event_resolution * 4
-        print(sensor.name)
-        print(server_now())
-        start = time_floor(server_now(), sensor.event_resolution) - (
-            sensor.event_resolution * 3
+        duration = sensor.event_resolution * current_app.config.get(
+            "FLEXMEASURES_STATUS_DEPTH"
         )
-        print(start)
+        start = time_floor(server_now(), sensor.event_resolution) - (
+            sensor.event_resolution
+            * (current_app.config.get("FLEXMEASURES_STATUS_DEPTH") - 1)
+        )
 
-        print(duration)
         sensor_data_description = {
             "sensor": sensor,
             "start": start,
@@ -815,6 +814,5 @@ class SensorAPI(FlaskView):
         response = GetSensorDataSchema.load_data_and_make_response(
             sensor_data_description
         )
-        print(response)
         d, s = request_processed()
         return dict(**response, **d), s

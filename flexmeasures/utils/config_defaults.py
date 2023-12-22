@@ -139,6 +139,8 @@ class Config(object):
     # if True, the content could be accessed via HTTPS.
     FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY: bool = False
 
+    FLEXMEASURES_STATUS_DEPTH: int = 4
+
 
 #  names of settings which cannot be None
 #  SECRET_KEY is also required but utils.app_utils.set_secret_key takes care of this better.

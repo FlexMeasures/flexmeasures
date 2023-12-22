@@ -12,9 +12,10 @@
             <div class="header-action-button">
                 <div>
                     {% if user_can_create_assets %}
-                        <form action="/assets/new" method="get">
-                            <button class="btn btn-sm btn-responsive btn-success create-button" type="submit">Create new asset</button>
-                        </form>
+                    <form action="/assets/new" method="get">
+                        <button class="btn btn-sm btn-responsive btn-success create-button" type="submit">Create new
+                            asset</button>
+                    </form>
                     {% endif %}
                 </div>
             </div>
@@ -35,14 +36,18 @@
                             <th>Asset id</th>
                             <th>Account</th>
                             <th class="no-sort">Sensors</th>
+                            <!-- Add column header so the buttons can be clicked -->
+                            <th>Status</th>
                             <th class="hidden">URL</th>
+
                         </tr>
                     </thead>
                     <tbody>
                         {% for asset in assets: %}
                         <tr>
                             <td>
-                                <i class="{{ asset.generic_asset_type.name | asset_icon }} left-icon">{{ asset.name }}</i>
+                                <i class="{{ asset.generic_asset_type.name | asset_icon }} left-icon">{{ asset.name
+                                    }}</i>
                             </td>
                             <td>
                                 {% if asset.latitude and asset.longitude %}
@@ -50,12 +55,14 @@
                                 {{ "{:,.4f}".format( asset.longitude ) }}
                                 {% endif %}
                             </td>
+
                             <td>
                                 {{ asset.id }}
                             </td>
                             <td>
                                 {% if asset.owner %}
-                                <a href="/accounts/{{ asset.owner.id }}" title="View this account">{{ asset.owner.name }}</a>
+                                <a href="/accounts/{{ asset.owner.id }}" title="View this account">{{ asset.owner.name
+                                    }}</a>
                                 {% else %}
                                 PUBLIC
                                 {% endif %}
@@ -63,10 +70,17 @@
                             <td>
                                 {{ asset.sensors | length }}
                             </td>
+                            <td>
+                                <a href="/assets/{{ asset.id }}/status">
+                                    <button type="button" class="btn">Status</button>
+                                </a>
+                            </td>
                             <td class="hidden">
                                 /assets/{{ asset.id }}
                             </td>
+
                         </tr>
+
                         {% endfor %}
                     </tbody>
                 </table>
