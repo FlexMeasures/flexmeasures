@@ -23,7 +23,7 @@ def setup_api_test_data(
     supplier_user = User.query.get(setup_roles_users["Test Supplier User"])
     sensors = add_incineration_line(db, supplier_user)
     print("Setting up data for API v3.0 tests on %s" % db.engine)
-    now = time_floor(server_now(), delta=timedelta(minutes=10))
+    now = time_floor(server_now(), delta=timedelta(minutes=60))
     sensors.update(add_incineration_line_now(db, supplier_user, now=now))
     return sensors
 
@@ -192,7 +192,7 @@ def setup_api_test_data_now(
     Set up data for API v3.0 tests.
     """
     print("Setting up data for API v3.0 tests on %s" % db.engine)
-    now = time_floor(server_now(), delta=timedelta(minutes=10))
+    now = time_floor(server_now(), delta=timedelta(minutes=60))
     sensors = add_incineration_line_now(
         db, User.query.get(setup_roles_users["Test Supplier User"]), now=now
     )
@@ -213,7 +213,7 @@ def add_incineration_line_now(db, test_supplier_user, now) -> dict[str, Sensor]:
     gas_sensor = Sensor(
         name="some gas sensor now",
         unit="m³/h",
-        event_resolution=timedelta(minutes=10),
+        event_resolution=timedelta(minutes=60),
         generic_asset=incineration_asset,
     )
     add_gas_measurements_now(db, test_supplier_user.data_source[0], gas_sensor, now=now)
@@ -222,8 +222,7 @@ def add_incineration_line_now(db, test_supplier_user, now) -> dict[str, Sensor]:
 
 
 def add_gas_measurements_now(db, source: Source, sensor: Sensor, now: datetime):
-    event_starts = [now - timedelta(minutes=minutes) for minutes in range(0, 40, 10)]
-    print(event_starts)
+    event_starts = [now - timedelta(minutes=minutes) for minutes in range(0, 240, 60)]
     event_values = [50.3, 65.7, 44.1, 53.3]
     beliefs = [
         TimedBelief(
@@ -235,7 +234,6 @@ def add_gas_measurements_now(db, source: Source, sensor: Sensor, now: datetime):
         )
         for event_start, event_value in zip(event_starts, event_values)
     ]
-    print(beliefs)
     db.session.add_all(beliefs)
 
 

@@ -803,7 +803,6 @@ class SensorAPI(FlaskView):
             sensor.event_resolution
             * (current_app.config.get("FLEXMEASURES_STATUS_DEPTH") - 1)
         )
-
         sensor_data_description = {
             "sensor": sensor,
             "start": start,
