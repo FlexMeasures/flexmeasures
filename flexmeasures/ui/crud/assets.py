@@ -293,6 +293,7 @@ class AssetCrudUI(FlaskView):
             )
             sensor_dict = get_sensor_response.json()
             sensor_dict["name"] = sensor.name
+            sensor_dict["id"] = sensor.id
             if all(sensor_dict["values"]):
                 sensor_dict["sensor_status"] = "complete"
             elif any(sensor_dict["values"]):
@@ -301,8 +302,6 @@ class AssetCrudUI(FlaskView):
                 sensor_dict["sensor_status"] = "empty"
 
             sensors += [sensor_dict]
-
-            # sensor = process_internal_api_response(sensor_dict, int(id), make_obj=True)
 
         return render_flexmeasures_template(
             "views/status.html", asset=asset, sensors=sensors
