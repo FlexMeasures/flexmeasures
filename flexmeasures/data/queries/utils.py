@@ -2,6 +2,7 @@ from typing import List, Optional, Type, Tuple, Union
 from datetime import datetime, timedelta
 
 from flask_security import current_user
+from sqlalchemy import Select
 from werkzeug.exceptions import Forbidden
 import pandas as pd
 import timely_beliefs as tb
@@ -43,9 +44,10 @@ def create_beliefs_query(
 
 
 def potentially_limit_assets_query_to_account(
-    query: Query,
+    query: Select[tuple[GenericAsset]],
+    # query: Query,
     account_id: Optional[int] = None,
-) -> Query:
+) -> Select[tuple[GenericAsset]]:
     """Filter out all assets that are not in the current user's account.
     For admins and CLI users, no assets are filtered out, unless an account_id is set.
 
@@ -54,7 +56,7 @@ def potentially_limit_assets_query_to_account(
     if not running_as_cli() and not current_user.is_authenticated:
         raise Forbidden("Unauthenticated user cannot list assets.")
     user_is_admin = running_as_cli() or user_has_admin_access(
-        current_user, permission="read" if query.statement.is_select else "update"
+        current_user, permission="read" if query.is_select else "update"
     )
     if account_id is None and user_is_admin:
         return query  # allow admins to query assets across all accounts

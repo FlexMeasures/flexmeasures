@@ -10,7 +10,7 @@ import pandas as pd
 from flask import current_app as app
 from flask_sqlalchemy import SQLAlchemy
 import click
-from sqlalchemy import func, and_
+from sqlalchemy import func, and_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.serializer import loads, dumps
 from timetomodel.forecasting import make_rolling_forecasts
@@ -41,9 +41,11 @@ def add_default_data_sources(db: SQLAlchemy):
         ("Seita", "forecaster"),
         ("Seita", "scheduler"),
     ):
-        source = DataSource.query.filter(
-            and_(DataSource.name == source_name, DataSource.type == source_type)
-        ).one_or_none()
+        source = db.session.execute(
+            select(DataSource).filter(
+                and_(DataSource.name == source_name, DataSource.type == source_type)
+            )
+        ).scalar_one_or_none()
         if source:
             click.echo(f"Source {source_name} ({source_type}) already exists.")
         else:
@@ -64,9 +66,9 @@ def add_default_asset_types(db: SQLAlchemy) -> Dict[str, GenericAssetType]:
         ("building", "building"),
         ("process", "process"),
     ):
-        _type = GenericAssetType.query.filter(
-            GenericAssetType.name == type_name
-        ).one_or_none()
+        _type = db.session.execute(
+            select(GenericAssetType).filter(GenericAssetType.name == type_name)
+        ).scalar_one_or_none()
         if _type is None:
             _type = GenericAssetType(name=type_name, description=type_description)
             db.session.add(_type)
@@ -89,7 +91,9 @@ def add_default_user_roles(db: SQLAlchemy):
         ("account-admin", "Can post and edit sensors and assets in their account"),
         ("consultant", "Can read everything in consultancy client accounts"),
     ):
-        role = Role.query.filter(Role.name == role_name).one_or_none()
+        role = db.session.execute(
+            select(Role).filter(Role.name == role_name)
+        ).scalar_one_or_none()
         if role:
             click.echo(f"Role {role_name} already exists.")
         else:
@@ -107,7 +111,9 @@ def add_default_account_roles(db: SQLAlchemy):
         ("Aggregator", "Aggregator of energy flexibility"),
         ("ESCO", "Energy Service Company"),
     ):
-        role = AccountRole.query.filter(AccountRole.name == role_name).one_or_none()
+        role = db.session.execute(
+            select(AccountRole).filter(AccountRole.name == role_name)
+        ).scalar_one_or_none()
         if role:
             click.echo(f"Account role {role_name} already exists.")
         else:
@@ -118,9 +124,9 @@ def add_transmission_zone_asset(country_code: str, db: SQLAlchemy) -> GenericAss
     """
     Ensure a GenericAsset exists to model a transmission zone for a country.
     """
-    transmission_zone_type = GenericAssetType.query.filter(
-        GenericAssetType.name == "transmission zone"
-    ).one_or_none()
+    transmission_zone_type = db.session.execute(
+        select(GenericAssetType).filter_by(name="transmission zone")
+    ).scalar_one_or_none()
     if not transmission_zone_type:
         click.echo("Adding transmission zone type ...")
         transmission_zone_type = GenericAssetType(
@@ -129,9 +135,9 @@ def add_transmission_zone_asset(country_code: str, db: SQLAlchemy) -> GenericAss
         )
         db.session.add(transmission_zone_type)
     ga_name = f"{country_code} transmission zone"
-    transmission_zone = GenericAsset.query.filter(
-        GenericAsset.name == ga_name
-    ).one_or_none()
+    transmission_zone = db.session.execute(
+        select(GenericAsset).filter_by(name=ga_name)
+    ).scalar_one_or_none()
     if not transmission_zone:
         click.echo(f"Adding {ga_name} ...")
         transmission_zone = GenericAsset(
@@ -181,12 +187,15 @@ def populate_time_series_forecasts(  # noqa: C901
     )
 
     # Set a data source for the forecasts
-    data_source = DataSource.query.filter_by(
-        name="Seita", type="demo script"
-    ).one_or_none()
-
+    data_source = db.session.execute(
+        select(DataSource).filter_by(name="Seita", type="demo script")
+    ).scalar_one_or_none()
     # List all sensors for which to forecast.
-    sensors = [Sensor.query.filter(Sensor.id.in_(sensor_ids)).one_or_none()]
+    sensors = [
+        db.session.execute(
+            select(Sensor).filter(Sensor.id.in_(sensor_ids))
+        ).scalar_one_or_none()
+    ]
     if not sensors:
         click.echo("No such sensors in db, so I will not add any forecasts.")
         return

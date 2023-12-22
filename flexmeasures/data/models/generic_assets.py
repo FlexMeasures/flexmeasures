@@ -239,13 +239,19 @@ class GenericAsset(db.Model, AuthModelMixin):
         :param annotations_before: only return annotations that start before this datetime (exclusive)
         """
         parsed_sources = parse_source_arg(source)
-        annotations = query_asset_annotations(
-            asset_id=self.id,
-            annotations_after=annotations_after,
-            annotations_before=annotations_before,
-            sources=parsed_sources,
-            annotation_type=annotation_type,
-        ).all()
+        annotations = (
+            db.session.execute(
+                query_asset_annotations(
+                    asset_id=self.id,
+                    annotations_after=annotations_after,
+                    annotations_before=annotations_before,
+                    sources=parsed_sources,
+                    annotation_type=annotation_type,
+                )
+            )
+            .scalars()
+            .all()
+        )
         if include_account_annotations and self.owner is not None:
             annotations += self.owner.search_annotations(
                 annotations_after=annotations_after,

@@ -7,8 +7,10 @@ from __future__ import annotations
 from typing import List, Optional, Dict
 import inflect
 
+from sqlalchemy import select
 from sqlalchemy.orm import Query
 
+from flexmeasures.data import db
 from flexmeasures.data.queries.generic_assets import (
     get_asset_group_queries as get_asset_group_queries_new,
 )
@@ -82,7 +84,9 @@ class AssetGroup:
         self.name = name
 
         if not asset_query:
-            asset_query = GenericAsset.query.filter_by(name=self.name)
+            asset_query = db.session.scalars(
+                select(GenericAsset).filter_by(name=self.name)
+            )
 
         # List unique asset types and asset type names represented by this group
         self.assets = asset_query.all()

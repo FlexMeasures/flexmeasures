@@ -12,6 +12,7 @@ from rq import get_current_job
 from rq.job import Job
 from timetomodel.forecasting import make_rolling_forecasts
 import timely_beliefs as tb
+from sqlalchemy import select
 
 from flexmeasures.data import db
 from flexmeasures.data.models.forecasting import lookup_model_specs_configurator
@@ -178,7 +179,9 @@ def make_rolling_viewpoint_forecasts(
     model_search_term = rq_job.meta.get("model_search_term", "linear-OLS")
 
     # find sensor
-    sensor = Sensor.query.filter_by(id=sensor_id).one_or_none()
+    sensor = db.session.execute(
+        select(Sensor).filter_by(id=sensor_id)
+    ).scalar_one_or_none()
 
     click.echo(
         "Running Forecasting Job %s: %s for %s on model '%s', from %s to %s"

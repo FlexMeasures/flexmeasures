@@ -531,9 +531,9 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             account_id=account_id_filter,
         )
         if n == 1:
-            return query.first()
+            return db.session.scalar(query.limit(1)).first()
         else:
-            return query.limit(n).all()
+            return db.session.scalars(query.limit(n)).all()
 
     def make_hashable(self) -> tuple:
         """Returns a tuple with the properties subject to change

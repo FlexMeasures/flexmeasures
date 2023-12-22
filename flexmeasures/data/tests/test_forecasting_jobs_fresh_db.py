@@ -19,7 +19,7 @@ from flexmeasures.utils.time_utils import as_server_time
 
 
 def test_forecasting_three_hours_of_wind(
-    app, run_as_cli, setup_fresh_test_data, clean_redis
+    app, run_as_cli, setup_fresh_test_data, clean_redis, db
 ):
     # asset has only 1 power sensor
     wind_device_2: Sensor = setup_fresh_test_data["wind-asset-2"].sensors[0]

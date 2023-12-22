@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 import pytest
 import pytz
+from sqlalchemy import select
 
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.planning.process import ProcessScheduler
@@ -16,14 +17,18 @@ resolution = timedelta(hours=1)
     "process_type, optimal_start",
     [("INFLEXIBLE", datetime(2015, 1, 2, 0)), ("SHIFTABLE", datetime(2015, 1, 2, 8))],
 )
-def test_process_scheduler(add_battery_assets, process, process_type, optimal_start):
+def test_process_scheduler(
+    add_battery_assets, process, process_type, optimal_start, db
+):
     """
     Test scheduling a process of 4kW of power that last 4h using the ProcessScheduler
     without time restrictions.
     """
 
     # get the sensors from the database
-    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    epex_da = db.session.execute(
+        select(Sensor).filter_by(name="epex_da")
+    ).scalar_one_or_none()
 
     flex_model = {
         "duration": "PT4H",
@@ -60,14 +65,16 @@ def test_process_scheduler(add_battery_assets, process, process_type, optimal_st
     [("INFLEXIBLE", datetime(2015, 1, 2, 0)), ("SHIFTABLE", datetime(2015, 1, 2, 8))],
 )
 def test_duration_exceeds_planning_window(
-    add_battery_assets, process, process_type, optimal_start
+    add_battery_assets, process, process_type, optimal_start, db
 ):
     """
     Test scheduling a process that last longer than the planning window.
     """
 
     # get the sensors from the database
-    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    epex_da = db.session.execute(
+        select(Sensor).filter_by(name="epex_da")
+    ).scalar_one_or_none()
 
     flex_model = {
         "duration": "PT48H",

@@ -2,7 +2,9 @@ from typing import List, Union, Optional, Dict
 from itertools import groupby
 from flask_login import current_user
 
+from sqlalchemy import select, Select
 from sqlalchemy.orm import Query
+from flexmeasures.data import db
 from flexmeasures.auth.policy import user_has_admin_access
 
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
@@ -36,7 +38,9 @@ def query_assets_by_type(
     return query
 
 
-def get_location_queries(account_id: Optional[int] = None) -> Dict[str, Query]:
+def get_location_queries(
+    account_id: Optional[int] = None,
+) -> dict[str, Select[tuple[GenericAsset]]]:
     """
     Make queries for grouping assets by location.
 
@@ -56,8 +60,8 @@ def get_location_queries(account_id: Optional[int] = None) -> Dict[str, Query]:
     :param account_id: Pass in an account ID if you want to query an account other than your own. This only works for admins. Public assets are always queried.
     """
     asset_queries = {}
-    all_assets = potentially_limit_assets_query_to_account(
-        GenericAsset.query, account_id
+    all_assets = db.session.scalars(
+        potentially_limit_assets_query_to_account(select(GenericAsset), account_id)
     ).all()
     loc_groups = group_assets_by_location(all_assets)
     for loc_group in loc_groups:
@@ -72,7 +76,7 @@ def get_location_queries(account_id: Optional[int] = None) -> Dict[str, Query]:
         ):
             location_type = "(Charge Point)"
         location_name = f"{loc_group[0].name.split(' -')[0]} {location_type}"
-        location_query = GenericAsset.query.filter(
+        location_query = select(GenericAsset).filter(
             GenericAsset.name.in_([asset.name for asset in loc_group])
         )
         asset_queries[location_name] = potentially_limit_assets_query_to_account(
@@ -129,9 +133,9 @@ def get_asset_group_queries(
 
     # 3. Include a group per account (admins only)  # TODO: we can later adjust this for accounts who admin certain others, not all
     if group_by_account and user_has_admin_access(current_user, "read"):
-        for account in Account.query.all():
-            asset_queries[account.name] = GenericAsset.query.filter(
-                GenericAsset.account_id == account.id
+        for account in db.session.scalars(select(Account)).all():
+            asset_queries[account.name] = select(GenericAsset).filter_by(
+                account_id=account.id
             )
 
     # 4. Finally, we can group assets by location

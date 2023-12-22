@@ -21,7 +21,7 @@ import pandas as pd
         ("median", 0),
     ],
 )
-def test_aggregator(setup_dummy_data, aggregation_method, expected_value):
+def test_aggregator(setup_dummy_data, aggregation_method, expected_value, db):
     """
     This test computes the aggregation of two sensors containing 24 entries
     with value 1 and -1, respectively, for sensors 1 and 2.
@@ -40,8 +40,8 @@ def test_aggregator(setup_dummy_data, aggregation_method, expected_value):
 
     agg_reporter = AggregatorReporter(method=aggregation_method)
 
-    source_1 = DataSource.query.get(1)
-    source_2 = DataSource.query.get(2)
+    source_1 = db.session.get(DataSource, 1)
+    source_2 = db.session.get(DataSource, 2)
 
     result = agg_reporter.compute(
         input=[dict(sensor=s1, source=source_1), dict(sensor=s2, source=source_2)],
@@ -62,14 +62,14 @@ def test_aggregator(setup_dummy_data, aggregation_method, expected_value):
     [(1, 1, 0), (1, -1, 2), (2, 0, 2), (0, 2, -2)],
 )
 def test_aggregator_reporter_weights(
-    setup_dummy_data, weight_1, weight_2, expected_result
+    setup_dummy_data, weight_1, weight_2, expected_result, db
 ):
     s1, s2, s3, report_sensor, daily_report_sensor = setup_dummy_data
 
     reporter_config = dict(method="sum", weights={"s1": weight_1, "sensor_2": weight_2})
 
-    source_1 = DataSource.query.get(1)
-    source_2 = DataSource.query.get(2)
+    source_1 = db.session.get(DataSource, 1)
+    source_2 = db.session.get(DataSource, 2)
 
     agg_reporter = AggregatorReporter(config=reporter_config)
 
@@ -90,7 +90,7 @@ def test_aggregator_reporter_weights(
     assert (result == expected_result).all().event_value
 
 
-def test_dst_transition(setup_dummy_data):
+def test_dst_transition(setup_dummy_data, db):
     s1, s2, s3, report_sensor, daily_report_sensor = setup_dummy_data
 
     agg_reporter = AggregatorReporter()
@@ -99,7 +99,7 @@ def test_dst_transition(setup_dummy_data):
 
     # transition from winter (CET) to summer (CEST)
     result = agg_reporter.compute(
-        input=[dict(sensor=s3, source=DataSource.query.get(1))],
+        input=[dict(sensor=s3, source=db.session.get(DataSource, 1))],
         output=[dict(sensor=report_sensor)],
         start=tz.localize(datetime(2023, 3, 26)),
         end=tz.localize(datetime(2023, 3, 27)),
@@ -110,7 +110,7 @@ def test_dst_transition(setup_dummy_data):
 
     # transition from summer (CEST) to winter (CET)
     result = agg_reporter.compute(
-        input=[dict(sensor=s3, source=DataSource.query.get(1))],
+        input=[dict(sensor=s3, source=db.session.get(DataSource, 1))],
         output=[dict(sensor=report_sensor)],
         start=tz.localize(datetime(2023, 10, 29)),
         end=tz.localize(datetime(2023, 10, 30)),
@@ -120,7 +120,7 @@ def test_dst_transition(setup_dummy_data):
     assert len(result) == 25
 
 
-def test_resampling(setup_dummy_data):
+def test_resampling(setup_dummy_data, db):
     s1, s2, s3, report_sensor, daily_report_sensor = setup_dummy_data
 
     agg_reporter = AggregatorReporter()
@@ -131,8 +131,8 @@ def test_resampling(setup_dummy_data):
     result = agg_reporter.compute(
         start=tz.localize(datetime(2023, 3, 27)),
         end=tz.localize(datetime(2023, 3, 28)),
-        input=[dict(sensor=s3, source=DataSource.query.get(1))],
-        output=[dict(sensor=daily_report_sensor, source=DataSource.query.get(1))],
+        input=[dict(sensor=s3, source=db.session.get(DataSource, 1))],
+        output=[dict(sensor=daily_report_sensor, source=db.session.get(DataSource, 1))],
         belief_time=tz.localize(datetime(2023, 12, 1)),
         resolution=pd.Timedelta("1D"),
     )[0]["data"]
@@ -145,8 +145,8 @@ def test_resampling(setup_dummy_data):
     result = agg_reporter.compute(
         start=tz.localize(datetime(2023, 10, 29)),
         end=tz.localize(datetime(2023, 10, 30)),
-        input=[dict(sensor=s3, source=DataSource.query.get(1))],
-        output=[dict(sensor=daily_report_sensor, source=DataSource.query.get(1))],
+        input=[dict(sensor=s3, source=db.session.get(DataSource, 1))],
+        output=[dict(sensor=daily_report_sensor, source=db.session.get(DataSource, 1))],
         belief_time=tz.localize(datetime(2023, 12, 1)),
         resolution=pd.Timedelta("1D"),
     )[0]["data"]
@@ -156,7 +156,7 @@ def test_resampling(setup_dummy_data):
     )
 
 
-def test_source_transition(setup_dummy_data):
+def test_source_transition(setup_dummy_data, db):
     """The first 13 hours of the time window "belong" to Source 1 and are filled with 1.0.
     From 12:00 to 24:00, there are events belonging to Source 2 with value -1.
 
@@ -171,8 +171,8 @@ def test_source_transition(setup_dummy_data):
 
     tz = timezone("UTC")
 
-    ds1 = DataSource.query.get(1)
-    ds2 = DataSource.query.get(2)
+    ds1 = db.session.get(DataSource, 1)
+    ds2 = db.session.get(DataSource, 2)
 
     # considering DataSource 1 and 2
     result = agg_reporter.compute(
