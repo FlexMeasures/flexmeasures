@@ -219,6 +219,97 @@ def process(db, building, setup_sources) -> dict[str, Sensor]:
     return _process
 
 
+@pytest.fixture(scope="module")
+def efficiency_sensors(db, add_battery_assets, setup_sources) -> dict[str, Sensor]:
+    battery = add_battery_assets["Test battery"]
+    sensors = {}
+    sensor_specs = [("efficiency", timedelta(minutes=15), 90)]
+
+    for name, resolution, value in sensor_specs:
+        # 1 days of test data
+        time_slots = initialize_index(
+            start=pd.Timestamp("2015-01-01").tz_localize("Europe/Amsterdam"),
+            end=pd.Timestamp("2015-01-02").tz_localize("Europe/Amsterdam"),
+            resolution=resolution,
+        )
+
+        efficiency_sensor = Sensor(
+            name=name,
+            unit="%",
+            event_resolution=resolution,
+            generic_asset=battery,
+        )
+        db.session.add(efficiency_sensor)
+        db.session.flush()
+
+        steps_in_hour = int(timedelta(hours=1) / resolution)
+        efficiency = [value] * len(time_slots)
+
+        add_as_beliefs(
+            db,
+            efficiency_sensor,
+            efficiency[:-steps_in_hour],
+            time_slots[:-steps_in_hour],
+            setup_sources["Seita"],
+        )
+        sensors[name] = efficiency_sensor
+
+    return sensors
+
+
+@pytest.fixture(scope="module")
+def add_stock_delta(db, add_battery_assets, setup_sources) -> dict[str, Sensor]:
+    """
+    Different usage forecast sensors are defined:
+        - "delta fails": the usage forecast exceeds the maximum power.
+        - "delta": the usage forecast can be fulfilled just right. This coincides with the schedule resolution.
+        - "delta hourly": the event resolution is changed to test that the schedule is still feasible.
+                          This has a greater resolution.
+        - "delta 5min": the event resolution is reduced even more. This sensor has a resolution smaller than that used
+                        for the scheduler.
+    """
+
+    battery = add_battery_assets["Test battery"]
+    capacity = battery.get_attribute("capacity_in_mw")
+    sensors = {}
+    sensor_specs = [
+        ("delta fails", timedelta(minutes=15), capacity * 1.2),
+        ("delta", timedelta(minutes=15), capacity),
+        ("delta hourly", timedelta(hours=1), capacity),
+        ("delta 5min", timedelta(minutes=5), capacity),
+    ]
+
+    for name, resolution, value in sensor_specs:
+        # 1 days of test data
+        time_slots = initialize_index(
+            start=pd.Timestamp("2015-01-01").tz_localize("Europe/Amsterdam"),
+            end=pd.Timestamp("2015-01-02").tz_localize("Europe/Amsterdam"),
+            resolution=resolution,
+        )
+
+        stock_delta_sensor = Sensor(
+            name=name,
+            unit="MW",
+            event_resolution=resolution,
+            generic_asset=battery,
+        )
+        db.session.add(stock_delta_sensor)
+        db.session.flush()
+
+        stock_gain = [value] * len(time_slots)
+
+        add_as_beliefs(
+            db,
+            stock_delta_sensor,
+            stock_gain,
+            time_slots,
+            setup_sources["Seita"],
+        )
+        sensors[name] = stock_delta_sensor
+
+    return sensors
+
+
 def add_as_beliefs(db, sensor, values, time_slots, source):
     beliefs = [
         TimedBelief(

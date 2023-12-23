@@ -195,6 +195,8 @@ Here are the three types of flexibility models you can expect to be built-in:
    - ``soc-maxima`` (defaults to NaN values)
    - ``soc-targets`` (defaults to NaN values)
    - ``roundtrip-efficiency`` (defaults to 100%)
+   - ``charging-efficiency`` (defaults to 100%)
+   - ``discharging-efficiency`` (defaults to 100%)
    - ``storage-efficiency`` (defaults to 100%) [#]_
    - ``prefer-charging-sooner`` (defaults to True, also signals a preference to discharge later)
    - ``power-capacity`` (defaults to the Sensor attribute ``capacity_in_mw``)
@@ -216,10 +218,9 @@ Here are the three types of flexibility models you can expect to be built-in:
 
    - Describe the thermal energy content in kWh or MWh.
    - Set ``soc-minima`` to the accumulative usage forecast.
-   - Set ``roundtrip-efficiency`` to the square of the conversion efficiency. [#]_
+   - Set ``charging-efficiency`` to the sensor describing the :abbr:`COP (coefficient of performance)` values.
    - Set ``storage-efficiency`` to a value below 100% to model (heat) loss.
 
-    .. [#] Setting a roundtrip efficiency of higher than 1 is not supported. We plan to implement a separate field for :abbr:`COP (coefficient of performance)` values.
 
 In addition, folks who write their own custom scheduler (see :ref:`plugin_customization`) might also require their custom flexibility model.
 That's no problem, FlexMeasures will let the scheduler decide which flexibility model is relevant and how it should be validated. 

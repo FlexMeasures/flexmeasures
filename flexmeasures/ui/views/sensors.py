@@ -9,8 +9,10 @@ from webargs.flaskparser import use_kwargs
 
 from flexmeasures.data.schemas.times import AwareDateTimeField
 from flexmeasures.api.dev.sensors import SensorAPI
+from flexmeasures import Sensor
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.utils.chart_defaults import chart_options
+from flexmeasures.ui.utils.breadcrumb_utils import get_breadcrumb_info
 
 
 class SensorUI(FlaskView):
@@ -70,4 +72,5 @@ class SensorUI(FlaskView):
             "views/sensors.html",
             sensor_id=id,
             msg="",
+            breadcrumb_info=get_breadcrumb_info(Sensor.query.get(id)),
         )

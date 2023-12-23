@@ -286,15 +286,21 @@ class SensorAPI(FlaskView):
 
         This message triggers a 24-hour schedule for a storage asset, starting at 10.00am,
         at which the state of charge (soc) is 12.1 kWh, with a target state of charge of 25 kWh at 4.00pm.
+
+        The charging efficiency is constant (120%) and the discharging efficiency is determined by the contents of sensor
+        with id 98. If just the ``roundtrip-efficiency`` is known, it can be described with its own field.
         The global minimum and maximum soc are set to 10 and 25 kWh, respectively.
         To guarantee a minimum SOC in the period prior to 4.00pm, local minima constraints are imposed (via soc-minima)
         at 2.00pm and 3.00pm, for 15kWh and 20kWh, respectively.
-        Roundtrip efficiency for use in scheduling is set to 98%.
         Storage efficiency is set to 99.99%, denoting the state of charge left after each time step equal to the sensor's resolution.
         Aggregate consumption (of all devices within this EMS) should be priced by sensor 9,
         and aggregate production should be priced by sensor 10,
         where the aggregate power flow in the EMS is described by the sum over sensors 13, 14 and 15
         (plus the flexible sensor being optimized, of course).
+
+
+        The battery consumption power capacity is limited by sensor 42 and the production capacity is constant (30 kW).
+
         Note that, if forecasts for sensors 13, 14 and 15 are not available, a schedule cannot be computed.
 
         .. code-block:: json
@@ -323,9 +329,12 @@ class SensorAPI(FlaskView):
                     ],
                     "soc-min": 10,
                     "soc-max": 25,
-                    "roundtrip-efficiency": 0.98,
+                    "charging-efficiency": "120%",
+                    "discharging-efficiency": {"sensor" : 98},
                     "storage-efficiency": 0.9999,
-                    "power-capacity": "25kW"
+                    "power-capacity": "25kW",
+                    "consumption-capacity" : {"sensor" : 42},
+                    "production-capacity" : "30 kW"
                 },
                 "flex-context": {
                     "consumption-price-sensor": 9,
