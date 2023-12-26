@@ -43,7 +43,8 @@ services:
       - 5000:5000
     depends_on:
       - dev-db
-      - test-db  # use -e SQLALCHEMY_TEST_DATABASE_URI=... to exec pytest
+      - test-db  # use -e SQLALCHEMY_TEST_DATABASE_URI=... to exec
+      - queue-db
     restart: on-failure
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/api/v3_0/health/ready"]
