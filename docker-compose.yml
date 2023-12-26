@@ -43,7 +43,7 @@ services:
       - 5000:5000
     depends_on:
       - dev-db
-      - test-db  # use -e SQLALCHEMY_TEST_DATABASE_URI=... to exec
+      - test-db  # use -e SQLALCHEMY_TEST_DATABASE_URI=... to exec pytest
       - queue-db
     restart: on-failure
     healthcheck:
