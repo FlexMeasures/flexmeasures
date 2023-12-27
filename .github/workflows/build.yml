@@ -50,12 +50,12 @@ jobs:
         run: docker cp prices-tomorrow.csv fm-container:/app/prices-tomorrow.csv
       - name: Add beliefs
         run: docker exec --env-file .env fm-container flexmeasures
-          add beliefs --sensor-id 1 --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam
+          add beliefs --sensor 1 --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam
       - name: Export TOMORROW
         run: echo "TOMORROW=$(date --date="next day" '+%Y-%m-%d')"
           >> $GITHUB_ENV
       - name: Add schedule
         run: docker exec --env-file .env fm-container flexmeasures
-          add schedule for-storage --sensor-id 2 --consumption-price-sensor 1 
+          add schedule for-storage --sensor 2 --consumption-price-sensor 1 
           --start ${TOMORROW}T07:00+01:00 --duration PT12H 
           --soc-at-start 50% --roundtrip-efficiency 90%
