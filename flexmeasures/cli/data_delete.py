@@ -163,7 +163,8 @@ def delete_structure(force):
 @fm_delete_data.command("measurements")
 @with_appcontext
 @click.option(
-    "--sensor-id",
+    "--sensor",
+    "sensor_id",
     type=int,
     help="Delete (time series) data for a single sensor only. Follow up with the sensor's ID.",
 )
@@ -188,7 +189,8 @@ def delete_measurements(
     "--force/--no-force", default=False, help="Skip warning about consequences."
 )
 @click.option(
-    "--sensor-id",
+    "--sensor",
+    "sensor_id",
     type=int,
     help="Delete (time series) data for a single sensor only. Follow up with the sensor's ID. ",
 )
@@ -288,7 +290,8 @@ def delete_unchanged_beliefs(
 @fm_delete_data.command("nan-beliefs")
 @with_appcontext
 @click.option(
-    "--sensor-id",
+    "--sensor",
+    "sensor_id",
     type=int,
     help="Delete NaN time series data for a single sensor only. Follow up with the sensor's ID.",
 )

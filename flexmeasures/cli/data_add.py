@@ -190,7 +190,8 @@ def new_account(name: str, roles: str, consultancy_account: Account | None):
 @click.option("--username", required=True)
 @click.option("--email", required=True)
 @click.option(
-    "--account-id",
+    "--account",
+    "account_id",
     type=int,
     required=True,
     help="Add user to this account. Follow up with the account's ID.",
@@ -265,7 +266,7 @@ def new_user(
     help="Timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'",
 )
 @click.option(
-    "--asset-id",
+    "--asset",
     "generic_asset_id",
     required=True,
     type=int,
@@ -358,13 +359,13 @@ def add_asset_type(**args):
     help="Longitude of the asset's location",
 )
 @click.option(
-    "--account-id",
+    "--account",
     type=int,
     required=False,
     help="Add asset to this account. Follow up with the account's ID. If not set, the asset will become public (which makes it accessible to all users).",
 )
 @click.option(
-    "--asset-type-id",
+    "--asset-type",
     "generic_asset_type_id",
     required=True,
     type=int,
@@ -443,7 +444,7 @@ def add_source(name: str, model: str, version: str, source_type: str):
 @with_appcontext
 @click.argument("file", type=click.Path(exists=True))
 @click.option(
-    "--sensor-id",
+    "--sensor",
     "sensor",
     required=True,
     type=SensorIdField(),
@@ -721,28 +722,29 @@ def add_beliefs(
     help="Annotation ends at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format. Defaults to one (nominal) day after the start of the annotation.",
 )
 @click.option(
-    "--account-id",
+    "--account",
     "account_ids",
     type=click.INT,
     multiple=True,
     help="Add annotation to this organisation account. Follow up with the account's ID. This argument can be given multiple times.",
 )
 @click.option(
-    "--asset-id",
+    "--asset",
     "generic_asset_ids",
     type=int,
     multiple=True,
     help="Add annotation to this asset. Follow up with the asset's ID. This argument can be given multiple times.",
 )
 @click.option(
-    "--sensor-id",
+    "--sensor",
     "sensor_ids",
     type=int,
     multiple=True,
     help="Add annotation to this sensor. Follow up with the sensor's ID. This argument can be given multiple times.",
 )
 @click.option(
-    "--user-id",
+    "--user",
+    "user_id",
     type=int,
     required=True,
     help="Attribute annotation to this user. Follow up with the user's ID.",
@@ -820,14 +822,14 @@ def add_annotation(
     help="The ISO 3166-1 country/region or ISO 3166-2 sub-region for which to look up holidays (such as US, BR and DE). This argument can be given multiple times.",
 )
 @click.option(
-    "--asset-id",
+    "--asset",
     "generic_asset_ids",
     type=click.INT,
     multiple=True,
     help="Add annotations to this asset. Follow up with the asset's ID. This argument can be given multiple times.",
 )
 @click.option(
-    "--account-id",
+    "--account",
     "account_ids",
     type=click.INT,
     multiple=True,
@@ -891,7 +893,7 @@ def add_holidays(
 @fm_add_data.command("forecasts")
 @with_appcontext
 @click.option(
-    "--sensor-id",
+    "--sensor",
     "sensor_ids",
     multiple=True,
     required=True,
@@ -1019,7 +1021,7 @@ def create_schedule(ctx):
 @create_schedule.command("for-storage")
 @with_appcontext
 @click.option(
-    "--sensor-id",
+    "--sensor",
     "power_sensor",
     type=SensorIdField(),
     required=True,
@@ -1040,7 +1042,7 @@ def create_schedule(ctx):
     help="Optimize production against this sensor. Defaults to the consumption price sensor. The sensor typically records an electricity price (e.g. in EUR/kWh), but this field can also be used to optimize against some emission intensity factor (e.g. in kg CO₂ eq./kWh). Follow up with the sensor's ID.",
 )
 @click.option(
-    "--optimization-context-id",
+    "--optimization-context",
     "optimization_context_sensor",
     type=SensorIdField(),
     required=False,
@@ -1239,7 +1241,7 @@ def add_schedule_for_storage(
 @create_schedule.command("for-process")
 @with_appcontext
 @click.option(
-    "--sensor-id",
+    "--sensor",
     "power_sensor",
     type=SensorIdField(),
     required=True,
