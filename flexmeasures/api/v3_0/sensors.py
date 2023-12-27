@@ -794,10 +794,15 @@ class SensorAPI(FlaskView):
         duration = sensor.event_resolution * current_app.config.get(
             "FLEXMEASURES_STATUS_DEPTH"
         )
+        print(sensor.knowledge_horizon_fnc)
+        print(sensor.knowledge_horizon_par)
+
         start = time_floor(server_now(), sensor.event_resolution) - (
             sensor.event_resolution
             * (current_app.config.get("FLEXMEASURES_STATUS_DEPTH") - 1)
         )
+        print(sensor.knowledge_horizon(start))
+        print(sensor.knowledge_time(start))
         sensor_data_description = {
             "sensor": sensor,
             "start": start,
@@ -808,5 +813,6 @@ class SensorAPI(FlaskView):
         response = GetSensorDataSchema.load_data_and_make_response(
             sensor_data_description
         )
+
         d, s = request_processed()
         return dict(**response, **d), s

@@ -42,6 +42,39 @@ def test_get_sensor_status(
 
 
 @pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+@pytest.mark.parametrize(
+    ["sensor_name", "sensor_values"],
+    [
+        ("epex_da", [None, None, None, None]),
+    ],
+)
+def test_get_price_sensor_status(
+    client,
+    setup_api_test_data: dict[str, Sensor],
+    requesting_user,
+    sensor_values,
+    sensor_name,
+    add_market_prices,
+):
+    """
+    Check the /sensor/<id>/status endpoint returns the correct status.
+    WARNING: This test might fail if it runs exactly on the hour. The time is set on the hour of the last full hour in the conftest and in the API endpoint separately. If the clock passes the hour between these actions the test will fail
+    """
+    sensor = add_market_prices["epex_da"]
+
+    response = client.get(
+        url_for("SensorAPI:get_status", id=sensor.id),
+    )
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 200
+    values = response.json["values"]
+    assert all(a == b for a, b in zip(values, sensor_values))
+    assert 1 == 2
+
+
+@pytest.mark.parametrize(
     "requesting_user, status_code",
     [
         (None, 401),  # the case without auth: authentication will fail
