@@ -29,7 +29,7 @@ from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
 from flexmeasures.data.services.time_series import simplify_index
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
-from flexmeasures.cli.utils import MsgStyle
+from flexmeasures.cli.utils import MsgStyle, validate_unique
 from flexmeasures.utils.coding_utils import delete_key_recursive
 
 
@@ -377,7 +377,6 @@ def chart(
         assets = []
 
     for entity in sensors + assets:
-
         entity_type = "sensor"
 
         if isinstance(entity, GenericAsset):
@@ -441,6 +440,7 @@ def chart(
     "sensors",
     required=True,
     multiple=True,
+    callback=validate_unique,
     type=SensorIdField(),
     help="ID of sensor(s). This argument can be given multiple times.",
 )
