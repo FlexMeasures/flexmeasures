@@ -493,6 +493,14 @@ def chart(
     type=str,
     help="Set a filepath to store the beliefs as a CSV file.",
 )
+@click.option(
+    "--include-ids/--exclude-ids",
+    "include_ids",
+    default=False,
+    type=bool,
+    help="Include sensor IDs in the plot's legend labels and the file's column headers. "
+    "NB non-unique sensor names will always show an ID.",
+)
 def plot_beliefs(
     sensors: list[Sensor],
     start: datetime,
@@ -502,6 +510,7 @@ def plot_beliefs(
     belief_time_before: datetime | None,
     source: DataSource | None,
     filepath: str | None,
+    include_ids: bool = False,
 ):
     """
     Show a simple plot of belief data directly in the terminal, and optionally, save the data to a CSV file.
@@ -523,20 +532,21 @@ def plot_beliefs(
         resolution=resolution,
         sum_multiple=False,
     )
-    # only keep non-empty
-    empty_sensors = []
+
+    # Only keep non-empty (and abort in case of no data)
     for s in sensors:
-        if beliefs_by_sensor[s.name].empty:
-            click.secho(
-                f"No data found for sensor '{s.name}' (ID: {s.id})", **MsgStyle.WARN
-            )
-            beliefs_by_sensor.pop(s.name)
-            empty_sensors.append(s)
-    for s in empty_sensors:
-        sensors.remove(s)
-    if len(beliefs_by_sensor.keys()) == 0:
+        if beliefs_by_sensor[s].empty:
+            click.secho(f"No data found for sensor {s.id} ({s.name})", **MsgStyle.WARN)
+            beliefs_by_sensor.pop(s)
+    if len(beliefs_by_sensor) == 0:
         click.secho("No data found!", **MsgStyle.WARN)
         raise click.Abort()
+    sensors = list(beliefs_by_sensor.keys())
+
+    # Concatenate data
+    df = pd.concat([simplify_index(df) for df in beliefs_by_sensor.values()], axis=1)
+
+    # Find out whether the Y-axis should show a shared unit
     if all(sensor.unit == sensors[0].unit for sensor in sensors):
         shared_unit = sensors[0].unit
     else:
@@ -545,8 +555,22 @@ def plot_beliefs(
             "The y-axis shows no unit, because the selected sensors do not share the same unit.",
             **MsgStyle.WARN,
         )
-    df = pd.concat([simplify_index(df) for df in beliefs_by_sensor.values()], axis=1)
-    df.columns = beliefs_by_sensor.keys()
+
+    # Decide whether to include sensor IDs (always include them in case of non-unique sensor names)
+    if include_ids:
+        df.columns = [f"{s.name} (ID {s.id})" for s in sensors]
+    else:
+        duplicates = find_duplicates(sensors, "name")
+        if duplicates:
+            df.columns = [
+                f"{s.name} (ID {s.id})" if s.name in duplicates else s for s in sensors
+            ]
+            click.secho(
+                f"The following sensor names are duplicated: {duplicates}. To distinguish them, their plot labels will include their IDs. To include IDs for all sensors, use the --include-ids flag.",
+                **MsgStyle.WARN,
+            )
+        else:
+            df.columns = [s.name for s in sensors]
 
     # Convert to the requested or default timezone
     if timezone is not None:
@@ -571,9 +595,9 @@ def plot_beliefs(
         color=True,
         lines=True,
         y_unit=shared_unit,
-        legend_labels=[s.name for s in sensors]
+        legend_labels=df.columns
         if shared_unit
-        else [s.name + f" (in {s.unit})" for s in sensors],
+        else [f"{col} in {s.unit}" for col in df.columns],
     )
     if filepath is not None:
         df.columns = pd.MultiIndex.from_arrays(
@@ -581,6 +605,19 @@ def plot_beliefs(
         )
         df.to_csv(filepath)
         click.secho("Data saved to file.", **MsgStyle.SUCCESS)
+
+
+def find_duplicates(_list: list, attr: str | None = None) -> list:
+    """Find duplicates in a list, optionally based on a specified attribute.
+
+    :param _list:   The input list to search for duplicates.
+    :param attr:    The attribute name to consider when identifying duplicates.
+                    If None, the function will check for duplicates based on the elements themselves.
+    :returns:       A list containing the duplicate elements found in the input list.
+    """
+    if attr:
+        _list = [getattr(item, attr) for item in _list]
+    return [item for item in set(_list) if _list.count(item) > 1]
 
 
 def list_items(item_type):
