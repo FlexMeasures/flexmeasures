@@ -36,6 +36,7 @@ def upgrade():
             result = db.session.execute(
                 sa.text(f"SELECT EXISTS (SELECT 1 FROM {table});")
             ).scalar_one_or_none()
+            db.session.close()  # https://stackoverflow.com/a/26346280/13775459
             if result:
                 tables_with_data += [table]
         except ProgrammingError as exception:
