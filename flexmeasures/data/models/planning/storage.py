@@ -9,6 +9,7 @@ import pandas as pd
 import numpy as np
 from flask import current_app
 
+
 from flexmeasures.data.models.planning import Scheduler, SchedulerOutputType
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.planning.utils import (
@@ -100,7 +101,6 @@ class MetaStorageScheduler(Scheduler):
         soc_max = self.flex_model.get("soc_max")
         soc_minima = self.flex_model.get("soc_minima")
         soc_maxima = self.flex_model.get("soc_maxima")
-        roundtrip_efficiency = self.flex_model.get("roundtrip_efficiency")
         storage_efficiency = self.flex_model.get("storage_efficiency")
         prefer_charging_sooner = self.flex_model.get("prefer_charging_sooner", True)
 
@@ -266,10 +266,38 @@ class MetaStorageScheduler(Scheduler):
             device_constraints[0]["stock delta"] *= timedelta(hours=1) / resolution
 
         # Apply round-trip efficiency evenly to charging and discharging
-        device_constraints[0]["derivative down efficiency"] = (
-            roundtrip_efficiency**0.5
+        charging_efficiency = get_continuous_series_sensor_or_quantity(
+            quantity_or_sensor=self.flex_model.get("charging_efficiency"),
+            actuator=sensor,
+            unit="dimensionless",
+            query_window=(start, end),
+            resolution=resolution,
+            beliefs_before=belief_time,
+            fallback_attribute="charging-efficiency",
+        ).fillna(1)
+        discharging_efficiency = get_continuous_series_sensor_or_quantity(
+            quantity_or_sensor=self.flex_model.get("discharging_efficiency"),
+            actuator=sensor,
+            unit="dimensionless",
+            query_window=(start, end),
+            resolution=resolution,
+            beliefs_before=belief_time,
+            fallback_attribute="discharging-efficiency",
+        ).fillna(1)
+
+        roundtrip_efficiency = self.flex_model.get(
+            "roundtrip_efficiency", self.sensor.get_attribute("roundtrip_efficiency", 1)
         )
-        device_constraints[0]["derivative up efficiency"] = roundtrip_efficiency**0.5
+
+        # if roundtrip efficiency is provided in the flex-model or defined as an asset attribute
+        if "roundtrip_efficiency" in self.flex_model or self.sensor.has_attribute(
+            "roundtrip-efficiency"
+        ):
+            charging_efficiency = roundtrip_efficiency**0.5
+            discharging_efficiency = roundtrip_efficiency**0.5
+
+        device_constraints[0]["derivative down efficiency"] = discharging_efficiency
+        device_constraints[0]["derivative up efficiency"] = charging_efficiency
 
         # Apply storage efficiency (accounts for losses over time)
         device_constraints[0]["efficiency"] = storage_efficiency
@@ -439,16 +467,6 @@ class MetaStorageScheduler(Scheduler):
                 "storage_efficiency", 1
             )
 
-        # Check for round-trip efficiency
-        # todo: simplify to: `if self.flex_model.get("roundtrip-efficiency") is None:`
-        if (
-            "roundtrip-efficiency" not in self.flex_model
-            or self.flex_model["roundtrip-efficiency"] is None
-        ):
-            # Get default from sensor, or use 100% otherwise
-            self.flex_model["roundtrip-efficiency"] = self.sensor.get_attribute(
-                "roundtrip_efficiency", 1
-            )
         self.ensure_soc_min_max()
 
         # Now it's time to check if our flex configurations holds up to schemas

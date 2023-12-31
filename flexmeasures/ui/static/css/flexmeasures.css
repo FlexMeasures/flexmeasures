@@ -1848,3 +1848,19 @@ div.heading-group {
   overflow: visible !important;
   white-space: normal !important;
 }
+
+/* Breadcrumb */
+.breadcrumb {
+  margin: 0px;
+  background: var(--light-gray);
+}
+.breadcrumb a {
+  color: var(--primary-color);
+}
+.breadcrumb a:hover {
+  color: var(--primary-hover-color);
+}
+.breadcrumb-item + .breadcrumb-item::before {
+  content: " > ";
+  color: var(--primary-color);
+}

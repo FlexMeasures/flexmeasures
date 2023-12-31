@@ -22,14 +22,15 @@ class Annotation(db.Model):
     start = db.Column(db.DateTime(timezone=True), nullable=False)
     end = db.Column(db.DateTime(timezone=True), nullable=False)
     belief_time = db.Column(db.DateTime(timezone=True), nullable=True)
-    source_id = db.Column(db.Integer, db.ForeignKey("data_source.id"))
+    source_id = db.Column(db.Integer, db.ForeignKey("data_source.id"), nullable=False)
     source = db.relationship(
         "DataSource",
         foreign_keys=[source_id],
         backref=db.backref("annotations", lazy=True),
     )
     type = db.Column(
-        db.Enum("alert", "holiday", "label", "feedback", name="annotation_type")
+        db.Enum("alert", "holiday", "label", "feedback", name="annotation_type"),
+        nullable=False,
     )
     content = db.Column(db.String(1024), nullable=False)
     __table_args__ = (
