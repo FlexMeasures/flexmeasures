@@ -3,10 +3,24 @@
 FlexMeasures Changelog
 **********************
 
+
+v0.19.0 | February xx, 2024
+============================
+
+New features
+-------------
+
+Infrastructure / Support
+----------------------
+
+Bugfixes
+-----------
+
+
 v0.18.0 | December 23, 2023
 ============================
 
-   .. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/018-better-use-of-future-knowledge/>`__.
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/018-better-use-of-future-knowledge/>`__.
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
 
