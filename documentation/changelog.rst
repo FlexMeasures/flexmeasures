@@ -16,6 +16,8 @@ Infrastructure / Support
 Bugfixes
 -----------
 
+* Added custom `removesuffix` function to support Python 3.8; consider transitioning to `str.removesuffix` after dropping support for Python 3.8. [see `PR #1001 <https://github.com/FlexMeasures/flexmeasures/pull/950>`_]
+
 
 v0.18.0 | December 23, 2023
 ============================
