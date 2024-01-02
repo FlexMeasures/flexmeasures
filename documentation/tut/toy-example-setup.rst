@@ -20,7 +20,7 @@ Below are the ``flexmeasures`` CLI commands we'll run, and which we'll explain s
     # setup an account with a user and an energy market (ID 1)
     $ flexmeasures add toy-account
     # load prices to optimise the schedule against
-    $ flexmeasures add beliefs --sensor-id 1 --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam
+    $ flexmeasures add beliefs --sensor 1 --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam
 
 
 Okay, let's get started!
@@ -255,7 +255,7 @@ This is time series data, in FlexMeasures we call *"beliefs"*. Beliefs can also 
 
 .. code-block:: bash
 
-    $ flexmeasures add beliefs --sensor-id 1 --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam
+    $ flexmeasures add beliefs --sensor 1 --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam
     Successfully created beliefs
 
 In FlexMeasures, all beliefs have a data source. Here, we use the username of the user we created earlier. We could also pass a user ID, or the name of a new data source we want to use for CLI scripts.
@@ -266,7 +266,7 @@ Let's look at the price data we just loaded:
 
 .. code-block:: bash
 
-    $ flexmeasures show beliefs --sensor-id 1 --start ${TOMORROW}T00:00:00+01:00 --duration PT24H
+    $ flexmeasures show beliefs --sensor 1 --start ${TOMORROW}T00:00:00+01:00 --duration PT24H
     
     Beliefs for Sensor 'day-ahead prices' (ID 1).
     Data spans a day and starts at 2022-03-03 00:00:00+01:00.
