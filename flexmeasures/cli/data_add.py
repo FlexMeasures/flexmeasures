@@ -27,7 +27,12 @@ import timely_beliefs as tb
 import timely_beliefs.utils as tb_utils
 from workalendar.registry import registry as workalendar_registry
 
-from flexmeasures.cli.utils import DeprecatedDefaultGroup, MsgStyle
+from flexmeasures.cli.utils import (
+    DeprecatedDefaultGroup,
+    MsgStyle,
+    DeprecatedOption,
+    DeprecatedOptionsCommand,
+)
 from flexmeasures.data import db
 from flexmeasures.data.scripts.data_gen import (
     add_transmission_zone_asset,
@@ -185,15 +190,19 @@ def new_account(name: str, roles: str, consultancy_account: Account | None):
     )
 
 
-@fm_add_data.command("user")
+@fm_add_data.command("user", cls=DeprecatedOptionsCommand)
 @with_appcontext
 @click.option("--username", required=True)
 @click.option("--email", required=True)
 @click.option(
+    "--account-id",
     "--account",
     "account_id",
     type=int,
     required=True,
+    cls=DeprecatedOption,
+    deprecated=["--account-id"],
+    preferred="--account",
     help="Add user to this account. Follow up with the account's ID.",
 )
 @click.option("--roles", help="e.g. anonymous,Prosumer,CPO")
@@ -250,7 +259,7 @@ def new_user(
     click.secho(f"Successfully created user {created_user}", **MsgStyle.SUCCESS)
 
 
-@fm_add_data.command("sensor")
+@fm_add_data.command("sensor", cls=DeprecatedOptionsCommand)
 @with_appcontext
 @click.option("--name", required=True)
 @click.option("--unit", required=True, help="e.g. °C, m/s, kW/m²")
@@ -266,10 +275,14 @@ def new_user(
     help="Timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'",
 )
 @click.option(
+    "--asset-id",
     "--asset",
     "generic_asset_id",
     required=True,
     type=int,
+    cls=DeprecatedOption,
+    deprecated=["--asset-id"],
+    preferred="--asset",
     help="Generic asset to assign this sensor to",
 )
 @click.option(
@@ -345,7 +358,7 @@ def add_asset_type(**args):
     click.secho("You can now assign assets to it.", **MsgStyle.SUCCESS)
 
 
-@fm_add_data.command("asset")
+@fm_add_data.command("asset", cls=DeprecatedOptionsCommand)
 @with_appcontext
 @click.option("--name", required=True)
 @click.option(
@@ -359,16 +372,23 @@ def add_asset_type(**args):
     help="Longitude of the asset's location",
 )
 @click.option(
-    "--account",
+    "--account-id" "--account",
     type=int,
     required=False,
+    cls=DeprecatedOption,
+    deprecated=["--account-id"],
+    preferred="--account",
     help="Add asset to this account. Follow up with the account's ID. If not set, the asset will become public (which makes it accessible to all users).",
 )
 @click.option(
+    "--asset-type-id",
     "--asset-type",
     "generic_asset_type_id",
     required=True,
     type=int,
+    cls=DeprecatedOption,
+    deprecated=["--asset-type-id"],
+    preferred="--asset-type",
     help="Asset type to assign to this asset",
 )
 @click.option(
@@ -702,7 +722,7 @@ def add_beliefs(
             )
 
 
-@fm_add_data.command("annotation")
+@fm_add_data.command("annotation", cls=DeprecatedOptionsCommand)
 @with_appcontext
 @click.option(
     "--content",
@@ -722,31 +742,47 @@ def add_beliefs(
     help="Annotation ends at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format. Defaults to one (nominal) day after the start of the annotation.",
 )
 @click.option(
+    "--account-id",
     "--account",
     "account_ids",
     type=click.INT,
     multiple=True,
+    cls=DeprecatedOption,
+    deprecated=["--account-id"],
+    preferred="--account",
     help="Add annotation to this organisation account. Follow up with the account's ID. This argument can be given multiple times.",
 )
 @click.option(
+    "--asset-it",
     "--asset",
     "generic_asset_ids",
     type=int,
     multiple=True,
+    cls=DeprecatedOption,
+    deprecated=["--asset-id"],
+    preferred="--asset",
     help="Add annotation to this asset. Follow up with the asset's ID. This argument can be given multiple times.",
 )
 @click.option(
+    "--sensor-id",
     "--sensor",
     "sensor_ids",
     type=int,
     multiple=True,
+    cls=DeprecatedOption,
+    deprecated=["--sensor-id"],
+    preferred="--sensor",
     help="Add annotation to this sensor. Follow up with the sensor's ID. This argument can be given multiple times.",
 )
 @click.option(
+    "--user-id",
     "--user",
     "user_id",
     type=int,
     required=True,
+    cls=DeprecatedOption,
+    deprecated=["--user-id"],
+    preferred="--user",
     help="Attribute annotation to this user. Follow up with the user's ID.",
 )
 def add_annotation(
@@ -807,7 +843,7 @@ def add_annotation(
     click.secho("Successfully added annotation.", **MsgStyle.SUCCESS)
 
 
-@fm_add_data.command("holidays")
+@fm_add_data.command("holidays", cls=DeprecatedOptionsCommand)
 @with_appcontext
 @click.option(
     "--year",
@@ -822,17 +858,24 @@ def add_annotation(
     help="The ISO 3166-1 country/region or ISO 3166-2 sub-region for which to look up holidays (such as US, BR and DE). This argument can be given multiple times.",
 )
 @click.option(
+    "--asset-id",
     "--asset",
     "generic_asset_ids",
     type=click.INT,
     multiple=True,
+    cls=DeprecatedOption,
+    deprecated=["--asset-id"],
+    preferred="--asset",
     help="Add annotations to this asset. Follow up with the asset's ID. This argument can be given multiple times.",
 )
 @click.option(
-    "--account",
+    "--account-id" "--account",
     "account_ids",
     type=click.INT,
     multiple=True,
+    cls=DeprecatedOption,
+    deprecated=["--account-id"],
+    preferred="--account",
     help="Add annotations to this account. Follow up with the account's ID. This argument can be given multiple times.",
 )
 def add_holidays(
@@ -890,13 +933,17 @@ def add_holidays(
     )
 
 
-@fm_add_data.command("forecasts")
+@fm_add_data.command("forecasts", cls=DeprecatedOptionsCommand)
 @with_appcontext
 @click.option(
+    "--sensor-id",
     "--sensor",
     "sensor_ids",
     multiple=True,
     required=True,
+    cls=DeprecatedOption,
+    deprecated=["--sensor-id"],
+    preferred="--sensor",
     help="Create forecasts for this sensor. Follow up with the sensor's ID. This argument can be given multiple times.",
 )
 @click.option(
@@ -1018,13 +1065,17 @@ def create_schedule(ctx):
     pass
 
 
-@create_schedule.command("for-storage")
+@create_schedule.command("for-storage", cls=DeprecatedOptionsCommand)
 @with_appcontext
 @click.option(
+    "--sensor-id",
     "--sensor",
     "power_sensor",
     type=SensorIdField(),
     required=True,
+    cls=DeprecatedOption,
+    deprecated=["--sensor-id"],
+    preferred="--sensor",
     help="Create schedule for this sensor. Should be a power sensor. Follow up with the sensor's ID.",
 )
 @click.option(
@@ -1042,7 +1093,7 @@ def create_schedule(ctx):
     help="Optimize production against this sensor. Defaults to the consumption price sensor. The sensor typically records an electricity price (e.g. in EUR/kWh), but this field can also be used to optimize against some emission intensity factor (e.g. in kg CO₂ eq./kWh). Follow up with the sensor's ID.",
 )
 @click.option(
-    "--optimization-context",
+    "--optimization-context-id",
     "optimization_context_sensor",
     type=SensorIdField(),
     required=False,
@@ -1238,13 +1289,17 @@ def add_schedule_for_storage(
             click.secho("New schedule is stored.", **MsgStyle.SUCCESS)
 
 
-@create_schedule.command("for-process")
+@create_schedule.command("for-process", cls=DeprecatedOptionsCommand)
 @with_appcontext
 @click.option(
+    "--sensor-id",
     "--sensor",
     "power_sensor",
     type=SensorIdField(),
     required=True,
+    cls=DeprecatedOption,
+    deprecated=["--sensor-id"],
+    preferred="--sensor",
     help="Create schedule for this sensor. Should be a power sensor. Follow up with the sensor's ID.",
 )
 @click.option(
