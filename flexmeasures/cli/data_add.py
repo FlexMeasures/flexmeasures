@@ -372,7 +372,8 @@ def add_asset_type(**args):
     help="Longitude of the asset's location",
 )
 @click.option(
-    "--account-id" "--account",
+    "--account-id",
+    "--account",
     type=int,
     required=False,
     cls=DeprecatedOption,
@@ -869,7 +870,8 @@ def add_annotation(
     help="Add annotations to this asset. Follow up with the asset's ID. This argument can be given multiple times.",
 )
 @click.option(
-    "--account-id" "--account",
+    "--account-id",
+    "--account",
     "account_ids",
     type=click.INT,
     multiple=True,
