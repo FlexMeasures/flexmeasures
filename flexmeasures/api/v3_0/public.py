@@ -33,7 +33,7 @@ class ServicesAPI(FlaskView):
                 )
                 stripped_url = removeprefix(url, self.route_base)
                 full_url = (
-                    request.url_root.removesuffix("/") + url
+                    removesuffix(request.url_root, "/") + url
                     if url.startswith("/")
                     else request.url_root + url
                 )
@@ -85,5 +85,17 @@ def removeprefix(text: str, prefix: str) -> str:
     """
     if text.startswith(prefix):
         return text[len(prefix) :]
+    else:
+        return text
+
+
+def removesuffix(text: str, suffix: str) -> str:
+    """Remove a suffix from a text.
+
+    todo: use text.removesuffix(suffix) instead of this method, after dropping support for Python 3.8
+        See https://docs.python.org/3.9/library/stdtypes.html#str.removesuffix
+    """
+    if text.endswith(suffix):
+        return text[: -len(suffix)]
     else:
         return text
