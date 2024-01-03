@@ -4,7 +4,7 @@ from flexmeasures.data.models.annotations import Annotation, get_or_create_annot
 from flexmeasures.data.models.data_sources import DataSource
 
 
-def test_get_or_create_annotation(db):
+def test_get_or_create_annotation(db, setup_sources):
     """Save an annotation, then get_or_create a new annotation with the same contents."""
     num_annotations_before = Annotation.query.count()
     source = DataSource.query.first()

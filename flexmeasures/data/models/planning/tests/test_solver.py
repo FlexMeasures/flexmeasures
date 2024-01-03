@@ -1450,6 +1450,67 @@ def test_battery_power_capacity_as_sensor(
     assert all(device_constraints["derivative max"].values == expected_consumption)
 
 
+def get_efficiency_problem_device_constraints(
+    extra_flex_model, efficiency_sensors, add_battery_assets
+) -> pd.DataFrame:
+
+    _, battery = get_sensors_from_db(add_battery_assets)
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+    base_flex_model = {
+        "soc-max": 2,
+        "soc-min": 0,
+    }
+    base_flex_model.update(extra_flex_model)
+    scheduler: Scheduler = StorageScheduler(
+        battery, start, end, resolution, flex_model=base_flex_model
+    )
+
+    scheduler_data = scheduler._prepare()
+    return scheduler_data[5][0]
+
+
+def test_dis_charging_efficiency_as_sensor(
+    db,
+    add_battery_assets,
+    add_inflexible_device_forecasts,
+    add_market_prices,
+    efficiency_sensors,
+):
+    """
+    Check that the charging and discharging efficiency can be defined in the flex-model.
+    For missing values, the fallback value is 100%.
+    """
+
+    tz = pytz.timezone("Europe/Amsterdam")
+
+    end = tz.localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+
+    extra_flex_model = {
+        "charging-efficiency": {"sensor": efficiency_sensors["efficiency"].id},
+        "discharging-efficiency": "200%",
+    }
+
+    device_constraints = get_efficiency_problem_device_constraints(
+        extra_flex_model, efficiency_sensors, add_battery_assets
+    )
+
+    assert all(
+        device_constraints[: end - timedelta(hours=1) - resolution][
+            "derivative up efficiency"
+        ]
+        == 0.9
+    )
+    assert all(
+        device_constraints[end - timedelta(hours=1) :]["derivative up efficiency"] == 1
+    )
+
+    assert all(device_constraints["derivative down efficiency"] == 2)
+
+
 @pytest.mark.parametrize(
     "stock_delta_sensor",
     ["delta fails", "delta", "delta hourly", "delta 5min"],
