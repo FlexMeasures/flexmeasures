@@ -74,15 +74,11 @@ def read_config(app: Flask, custom_path_to_config: str | None):
 
     flexmeasures_env = DefaultConfig.FLEXMEASURES_ENV_DEFAULT
     if app.testing:
-        print("A")
         flexmeasures_env = "testing"
     elif os.getenv("FLEXMEASURES_ENV", None):
-        print("B")
         flexmeasures_env = os.getenv("FLEXMEASURES_ENV", None)
     elif os.getenv("FLASK_ENV", None):
-        print("are we getting to this point")
         flexmeasures_env = os.getenv("FLASK_ENV", None)
-
         app.logger.warning(
             "'FLASK_ENV' is deprecated and replaced by FLEXMEASURES_ENV"
             " Change FLASK_ENV to FLEXMEASURES_ENV in the environment variables",
