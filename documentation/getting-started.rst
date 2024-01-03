@@ -3,11 +3,33 @@
 Getting started
 =================================
 
-FlexMeasures is useful from different perspectives. The documentation is quite vast, so we give you some pointers here what to read first, based on your perspective.
+FlexMeasures is useful from different perspectives. Read here how you can start engaging with this technology to make it work for you. 
+
+.. _start_using_flexmeasures_in_your_organization:
+
+For organizations
+------------------
+
+We make FlexMeasures, so that your software developers are as productive with energy optimization as possible. Because we are developers ourselves, we know that it takes a couple smaller steps to engage with new technology. 
+
+Your journey, from dipping your toes in the water towards being a productive energy optimization company, could look like this:
+
+1. Quickstart ― Find an optimized schedule for your flexible asset, like a battery, with standard FlexMeasures tooling. This is basically what the from-scratch tutorial above does. All you need are 10 minutes and a CSV file with prices to optimise against.
+2. Automate ― get the prices from an open API, for instance `ENTSO-E <https://transparency.entsoe.eu/>`_ (using a plugin like `flexmeasures-entsoe <https://github.com/SeitaBV/flexmeasures-entsoe>`_), and run the scheduler regularly in a cron job.
+3. Integrate ― Load the schedules via FlexMeasures' API, so you can directly control your assets and/or show them within your own frontend.
+4. Customize ― Load other data (e.g. your solar production or weather forecasts via `flexmeasures-openweathermap <https://github.com/SeitaBV/flexmeasures-openweathermap/>`_). Adapt the algorithms, e.g. do your own forecasting or tweak the standard scheduling algorithm so it optimizes what you care about. Or write a plugin for accessing a new kind of market. The opportunities are endless!
+
+
+
+
+For Individuals
+----------------
+
+The documentation is quite vast, so we give you some pointers here what to read first, based on your perspective.
 
 
 Using FlexMeasures
---------------------
+^^^^^^^^^^^^^^^^^^^
 
 You are connecting to a running FlexMeasures server, e.g. for sending data, getting schedules or administrate users and assets. 
 
@@ -19,7 +41,7 @@ First, you'll need an account from the party running the server. Also, you proba
 
 
 Hosting FlexMeasures
----------------------
+^^^^^^^^^^^^^^^^^^^^^^
 
 You want to run your own FlexMeasures instance, to offer services or for trying it out. You'll want to:
 
@@ -30,7 +52,7 @@ You want to run your own FlexMeasures instance, to offer services or for trying 
 
 
 Plugin developers
-------------------
+^^^^^^^^^^^^^^^^^^
 
 You want to extend the functionality of FlexMeasures, e.g. a custom integration or a custom algorithm:
 
@@ -42,7 +64,7 @@ You want to extend the functionality of FlexMeasures, e.g. a custom integration 
 
 
 Core developers
-----------------
+^^^^^^^^^^^^^^^^
 
 You want to help develop FlexMeasures, e.g. to fix a bug. We provide a getting-started guide to becoming a developer at :ref:`developing`.
 

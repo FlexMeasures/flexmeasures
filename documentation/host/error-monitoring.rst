@@ -1,4 +1,4 @@
-.. _dev_error_monitoring:
+.. _host_error_monitoring:
 
 Error monitoring
 =================
