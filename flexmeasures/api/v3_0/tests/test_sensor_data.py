@@ -15,8 +15,7 @@ from flexmeasures.api.v3_0.tests.utils import make_sensor_data_request_for_gas_s
 @pytest.mark.parametrize(
     ["sensor_name", "sensor_values"],
     [
-        ("some gas sensor now", [53.3, 44.1, 65.7, 50.3]),
-        ("some gas sensor", [None, None, None, None]),
+        ("some gas sensor", [53.3, 44.1, 65.7, 50.3]),
     ],
 )
 def test_get_sensor_status(
@@ -38,6 +37,7 @@ def test_get_sensor_status(
     print("Server responded with:\n%s" % response.json)
     assert response.status_code == 200
     values = response.json["values"]
+    print(values)
     assert all(a == b for a, b in zip(values, sensor_values))
 
 
@@ -47,7 +47,7 @@ def test_get_sensor_status(
 @pytest.mark.parametrize(
     ["sensor_name", "sensor_values"],
     [
-        ("epex_da", [None, None, None, None]),
+        ("epex_da", [None, None, None, 0.6394267984578837]),
     ],
 )
 def test_get_price_sensor_status(

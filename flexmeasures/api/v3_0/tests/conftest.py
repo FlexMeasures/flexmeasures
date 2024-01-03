@@ -182,6 +182,22 @@ def add_gas_measurements(db, source: Source, sensor: Sensor):
         for event_start, event_value in zip(event_starts, event_values)
     ]
     db.session.add_all(beliefs)
+    now = time_floor(server_now(), delta=timedelta(minutes=10))
+    event_starts_now = [
+        now - timedelta(minutes=minutes) for minutes in range(0, 40, 10)
+    ]
+    event_values_now = [50.3, 65.7, 44.1, 53.3]
+    beliefs_now = [
+        TimedBelief(
+            sensor=sensor,
+            source=source,
+            event_start=event_start,
+            belief_horizon=timedelta(0),
+            event_value=event_value,
+        )
+        for event_start, event_value in zip(event_starts_now, event_values_now)
+    ]
+    db.session.add_all(beliefs_now)
 
 
 @pytest.fixture(scope="module")

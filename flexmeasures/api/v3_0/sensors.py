@@ -761,7 +761,7 @@ class SensorAPI(FlaskView):
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
     @permission_required_for_context("read", ctx_arg_name="sensor")
     def get_status(self, id, sensor: Sensor):
-        """Fetch a given asset.
+        """Fetch a given sensor status.
 
         .. :quickref: Sensor; Get sensor status
 
@@ -796,16 +796,17 @@ class SensorAPI(FlaskView):
         )
         print(sensor.knowledge_horizon_fnc)
         print(sensor.knowledge_horizon_par)
+        print(sensor.event_resolution)
 
         start = time_floor(server_now(), sensor.event_resolution) - (
             sensor.event_resolution
             * (current_app.config.get("FLEXMEASURES_STATUS_DEPTH") - 1)
         )
-        print(sensor.knowledge_horizon(start))
+        print(sensor.knowledge_horizon(start))  # 23.00
         print(sensor.knowledge_time(start))
         sensor_data_description = {
             "sensor": sensor,
-            "start": start,
+            "start": start + sensor.knowledge_horizon(start),
             "duration": duration,
             "unit": sensor.unit,
             "resolution": sensor.event_resolution,

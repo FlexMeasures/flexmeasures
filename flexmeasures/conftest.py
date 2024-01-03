@@ -4,6 +4,10 @@ from contextlib import contextmanager
 import pytest
 from random import random, seed
 from datetime import datetime, timedelta
+from flexmeasures.utils.time_utils import (
+    time_floor,
+    server_now,
+)
 
 from isodate import parse_duration
 import pandas as pd
@@ -600,7 +604,7 @@ def add_market_prices_common(
         resolution="1H",
     )
     seed(42)  # ensure same results over different test runs
-    values = [
+    values_day_1 = [
         random() * (1 + np.sin(x * 2 * np.pi / 24)) for x in range(len(time_slots))
     ]
     day1_beliefs = [
@@ -611,7 +615,7 @@ def add_market_prices_common(
             source=setup_sources["Seita"],
             sensor=setup_markets["epex_da"],
         )
-        for dt, val in zip(time_slots, values)
+        for dt, val in zip(time_slots, values_day_1)
     ]
     db.session.add_all(day1_beliefs)
 
@@ -668,6 +672,24 @@ def add_market_prices_common(
         for dt, val in zip(time_slots, values)
     ]
     db.session.add_all(day3_beliefs_production)
+
+    # consumption prices tomorrow
+    time_slots = initialize_index(
+        start=time_floor(server_now(), delta=timedelta(hours=1)),
+        end=time_floor(server_now(), delta=timedelta(hours=1)) + timedelta(days=1),
+        resolution="1H",
+    )
+    today_beliefs = [
+        TimedBelief(
+            event_start=dt,
+            belief_horizon=timedelta(hours=0),
+            event_value=val,
+            source=setup_sources["Seita"],
+            sensor=setup_markets["epex_da"],
+        )
+        for dt, val in zip(time_slots, values_day_1)
+    ]
+    db.session.add_all(today_beliefs)
 
     return {
         "epex_da": setup_markets["epex_da"],

@@ -101,7 +101,6 @@ class SensorDataDescriptionSchema(ma.Schema):
 
 
 class GetSensorDataSchema(SensorDataDescriptionSchema):
-
     resolution = DurationField(required=False)
     source = SourceIdField(required=False)
 
@@ -175,21 +174,21 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
             else:
                 # If the horizon field is used, ensure we still respect the minimum horizon for prognoses
                 horizons_at_least = max(horizons_at_least, timedelta(0))
-
-        df = simplify_index(
-            sensor.search_beliefs(
-                event_starts_after=start,
-                event_ends_before=end,
-                horizons_at_least=horizons_at_least,
-                horizons_at_most=horizons_at_most,
-                source=source,
-                beliefs_before=sensor_data_description.get("prior", None),
-                one_deterministic_belief_per_event=True,
-                resolution=resolution,
-                as_json=False,
-            )
+        bdf = sensor.search_beliefs(
+            event_starts_after=start,
+            event_ends_before=end,
+            horizons_at_least=horizons_at_least,
+            horizons_at_most=horizons_at_most,
+            source=source,
+            beliefs_before=sensor_data_description.get("prior", None),
+            one_deterministic_belief_per_event=True,
+            resolution=resolution,
+            as_json=False,
         )
+        print(bdf)
+        df = simplify_index(bdf)
 
+        print(df)
         # Convert to desired time range
         index = initialize_index(start=start, end=end, resolution=resolution)
         df = df.reindex(index)
