@@ -78,7 +78,7 @@ Also, we add some env settings in an `.env` file. Create that file in the `flexm
 
 .. code-block:: bash
 
-    FLASK_ENV="development"
+    FLEXMEASURES_ENV="development"
     LOGGING_LEVEL="INFO"
 
 The development mode makes sure we don't need SSL to connect, among other things. 
