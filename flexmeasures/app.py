@@ -29,8 +29,8 @@ def create(  # noqa C901
     """
     Create a Flask app and configure it.
 
-    Set the environment by setting FLASK_ENV as environment variable (also possible in .env).
-    Or, overwrite any FLASK_ENV setting by passing an env in directly (useful for testing for instance).
+    Set the environment by setting FLEXMEASURES_ENV as environment variable (also possible in .env).
+    Or, overwrite any FLEXMEASURES_ENV setting by passing an env in directly (useful for testing for instance).
 
     A path to a config file can be passed in (otherwise a config file will be searched in the home or instance directories).
 
@@ -51,10 +51,10 @@ def create(  # noqa C901
     app = Flask("flexmeasures")
 
     if env is not None:  # overwrite
-        app.env = env
-    if app.env == "testing":
+        app.config["FLEXMEASURES_ENV"] = env
+    if app.config.get("FLEXMEASURES_ENV") == "testing":
         app.testing = True
-    if app.env == "development":
+    if app.config.get("FLEXMEASURES_ENV") == "development":
         app.debug = config_defaults.DevelopmentConfig.DEBUG
 
     # App configuration
@@ -63,7 +63,10 @@ def create(  # noqa C901
     if plugins:
         app.config["FLEXMEASURES_PLUGINS"] += plugins
     add_basic_error_handlers(app)
-    if app.env not in ("development", "documentation") and not app.testing:
+    if (
+        app.config.get("FLEXMEASURES_ENV") not in ("development", "documentation")
+        and not app.testing
+    ):
         init_sentry(app)
 
     app.mail = Mail(app)
@@ -103,7 +106,7 @@ def create(  # noqa C901
     set_secret_key(app)
     if app.config.get("SECURITY_PASSWORD_SALT", None) is None:
         app.config["SECURITY_PASSWORD_SALT"] = app.config["SECRET_KEY"]
-    if app.env not in ("documentation", "development"):
+    if app.config.get("FLEXMEASURES_ENV") not in ("documentation", "development"):
         SSLify(app)
 
     # Prepare profiling, if needed
