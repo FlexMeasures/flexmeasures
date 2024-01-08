@@ -3,7 +3,8 @@
 Getting started
 =================================
 
-FlexMeasures is useful from different perspectives. Read here how you can start engaging with this technology to make it work for you. 
+For a direct dive into running FlexMeasures, go to :ref:`installation`. However, FlexMeasures is useful from different perspectives.
+Below, we added helpful pointers to start reading the right sections of this documentation first, to start engaging with this technology in a way that makes sense to you personally.
 
 .. _start_using_flexmeasures_in_your_organization:
 
@@ -14,7 +15,7 @@ We make FlexMeasures, so that your software developers are as productive with en
 
 Your journey, from dipping your toes in the water towards being a productive energy optimization company, could look like this:
 
-1. Quickstart ― Find an optimized schedule for your flexible asset, like a battery, with standard FlexMeasures tooling. This is basically what the from-scratch tutorial above does. All you need are 10 minutes and a CSV file with prices to optimise against.
+1. Quickstart ― Find an optimized schedule for your flexible asset, like a battery, with standard FlexMeasures tooling. This is basically what we show in :ref:`tut_toy_schedule`. All you need are 10 minutes and a CSV file with prices to optimise against.
 2. Automate ― get the prices from an open API, for instance `ENTSO-E <https://transparency.entsoe.eu/>`_ (using a plugin like `flexmeasures-entsoe <https://github.com/SeitaBV/flexmeasures-entsoe>`_), and run the scheduler regularly in a cron job.
 3. Integrate ― Load the schedules via FlexMeasures' API, so you can directly control your assets and/or show them within your own frontend.
 4. Customize ― Load other data (e.g. your solar production or weather forecasts via `flexmeasures-openweathermap <https://github.com/SeitaBV/flexmeasures-openweathermap/>`_). Adapt the algorithms, e.g. do your own forecasting or tweak the standard scheduling algorithm so it optimizes what you care about. Or write a plugin for accessing a new kind of market. The opportunities are endless!
@@ -24,9 +25,6 @@ Your journey, from dipping your toes in the water towards being a productive ene
 
 For Individuals
 ----------------
-
-The documentation is quite vast, so we give you some pointers here what to read first, based on your perspective.
-
 
 Using FlexMeasures
 ^^^^^^^^^^^^^^^^^^^

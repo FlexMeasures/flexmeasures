@@ -43,11 +43,11 @@ A quick glance
                     :align: center
                 ..    :scale: 40%
 
-        A short explanation: This battery is optimized to buy power cheaply and sell it at expensive times - the red-dotted line is what FlexMeasures computed to be the best schedule, given all knowledge (in this case, the prices shown in blue). However, in the example on the right the battery has to store local solar power as well (orange line), which contrains how much it can do with its capacity.
+        A short explanation: This battery is optimized to buy power cheaply and sell it at expensive times - the red-dotted line is what FlexMeasures computed to be the best schedule, given all knowledge (in this case, the prices shown in blue). However, in the example on the right the battery has to store local solar power as well (orange line), which contrains how much it can do with its capacity (that's why the schedule is limited in capcity and thus cycling less energy overall than on the left).
 
     .. tab:: Example code
 
-        A tiny, but complete example: Let's install FlexMeasures from scratch. Then, using only the terminal (FlexMeasures of course also has APIs for all of this), load hourly prices and optimize a 12h-schedule for a battery that is half full at the beginning. Finally, look at our new schedule.
+        A tiny, but complete example: Let's install FlexMeasures from scratch. Then, using only the terminal (FlexMeasures of course also has APIs for all of this), load hourly prices and optimize a 12h-schedule for a battery that is half full at the beginning. Finally, we'll display our new schedule in the terminal.
 
         .. code-block:: console
 
@@ -62,7 +62,7 @@ A quick glance
                 --soc-at-start 50% --roundtrip-efficiency 90%  # this is also possible per API
             $ flexmeasures show beliefs --sensor-id 1 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H  # also visible per UI, of course
 
-    Want to read more about the examples shown above? We discuss this in more depth at :ref:`tut_toy_schedule` and the tutorials that build on that.
+Want to read more about the example case shown here? We discuss this in more depth at :ref:`tut_toy_schedule` and the tutorials that build on that.
 
 
 What FlexMeasures does
@@ -171,7 +171,6 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
     :caption: Tutorials
     :maxdepth: 1
     
-    tut/installation
     tut/toy-example-setup
     tut/toy-example-from-scratch
     tut/toy-example-expanded
@@ -212,6 +211,7 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
     :caption: Hosting FlexMeasures
     :maxdepth: 1
 
+    host/installation
     host/docker
     host/data
     host/deployment
