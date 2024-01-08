@@ -3,10 +3,28 @@
 FlexMeasures Changelog
 **********************
 
+
+v0.19.0 | February xx, 2024
+============================
+
+.. warning:: This version replaces FLASK_ENV with FLEXMEASURES_ENV (FLASK_ENV will still be used as a fallback).
+
+New features
+-------------
+
+Infrastructure / Support
+----------------------
+
+* Deprecate use of flask's ``FLASK_ENV`` variable and replace it with ``FLEXMEASURES_ENV`` [see `PR #907 <https://github.com/FlexMeasures/flexmeasures/pull/907>`_]
+
+Bugfixes
+-----------
+
+
 v0.18.0 | December 23, 2023
 ============================
 
-   .. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/018-better-use-of-future-knowledge/>`__.
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/018-better-use-of-future-knowledge/>`__.
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
 
