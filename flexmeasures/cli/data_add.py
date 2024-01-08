@@ -992,7 +992,7 @@ def create_forecasts(
 
     For example:
 
-        --from-date 2015-02-02 --to-date 2015-02-04 --horizon 6 --sensor-id 12 --sensor-id 14
+        --from-date 2015-02-02 --to-date 2015-02-04 --horizon 6 --sensor 12 --sensor 14
 
         This will create forecast values from 0am on May 2nd to 0am on May 5th,
         based on a 6-hour horizon, for sensors 12 and 14.
