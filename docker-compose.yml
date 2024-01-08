@@ -44,6 +44,7 @@ services:
     depends_on:
       - dev-db
       - test-db  # use -e SQLALCHEMY_TEST_DATABASE_URI=... to exec pytest
+      - queue-db
     restart: on-failure
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/api/v3_0/health/ready"]
@@ -55,7 +56,9 @@ services:
       SQLALCHEMY_DATABASE_URI: "postgresql://fm-dev-db-user:fm-dev-db-pass@dev-db:5432/fm-dev-db"
       SECRET_KEY: notsecret
       FLASK_ENV: development
-      LOGGING_LEVEL: INFO 
+      FLEXMEASURES_REDIS_URL: queue-db
+      FLEXMEASURES_REDIS_PASSWORD: fm-redis-pass
+      LOGGING_LEVEL: INFO
     volumes:
       # a place for config and plugin code - the mount point is for running the FlexMeasures CLI, the 2nd for gunicorn
       - ./flexmeasures-instance/:/usr/var/flexmeasures-instance/:ro
