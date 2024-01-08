@@ -45,7 +45,7 @@ def test_collect_power(db, app, query_start, query_end, num_values, setup_test_d
     data = TimedBelief.query.filter(TimedBelief.sensor_id == wind_device_1.id).all()
     print(data)
     bdf: tb.BeliefsDataFrame = TimedBelief.search(
-        wind_device_1.name,
+        wind_device_1,
         event_starts_after=query_start,
         event_ends_before=query_end,
     )
