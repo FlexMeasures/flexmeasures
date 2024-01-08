@@ -7,16 +7,30 @@ FlexMeasures Changelog
 v0.19.0 | February xx, 2024
 ============================
 
+.. warning:: This version replaces FLASK_ENV with FLEXMEASURES_ENV (FLASK_ENV will still be used as a fallback).
+
 New features
 -------------
 
 Infrastructure / Support
 ----------------------
 
+* Deprecate use of flask's ``FLASK_ENV`` variable and replace it with ``FLEXMEASURES_ENV`` [see `PR #907 <https://github.com/FlexMeasures/flexmeasures/pull/907>`_]
+
 Bugfixes
 -----------
 
 * Added custom `removesuffix` function to support Python 3.8; consider transitioning to `str.removesuffix` after dropping support for Python 3.8. [see `PR #1001 <https://github.com/FlexMeasures/flexmeasures/pull/950>`_]
+
+
+v0.18.1 | January XX, 2024
+============================
+
+Bugfixes
+-----------
+
+* Allow showing beliefs (plot and file export) via the CLI for sensors with non-unique names [see `PR #947 <https://github.com/FlexMeasures/flexmeasures/pull/947>`_]
+* Added Redis credentials to the Docker Compose configuration for the web server to ensure proper interaction with the Redis queue [see `PR #945 <https://github.com/FlexMeasures/flexmeasures/pull/945>`_]
 
 
 v0.18.0 | December 23, 2023
