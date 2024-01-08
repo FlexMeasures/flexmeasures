@@ -754,7 +754,7 @@ def add_beliefs(
     help="Add annotation to this organisation account. Follow up with the account's ID. This argument can be given multiple times.",
 )
 @click.option(
-    "--asset-it",
+    "--asset-id",
     "--asset",
     "generic_asset_ids",
     type=int,
