@@ -729,24 +729,25 @@ def build_device_soc_values(
 
             device_values.loc[soc_constraint_start:soc_constraint_end] = soc
 
-        if disregarded_periods:
-            if len(disregarded_periods) == 1:
-                soc_constraint_start, soc_constraint_end = disregarded_periods[0]
-                if soc_constraint_start == soc_constraint_end:
-                    current_app.logger.warning(
-                        f"Disregarding target datetime {soc_constraint_end}, because it exceeds {end_of_schedule}. Maximum scheduling horizon is {max_server_horizon}."
-                    )
-                else:
-                    current_app.logger.warning(
-                        f"Disregarding target datetimes that exceed {end_of_schedule} (within the window {soc_constraint_start} until {soc_constraint_end}). Maximum scheduling horizon is {max_server_horizon}."
-                    )
-            else:
-                # soc_constraint_starts = [p[0] for p in disregarded_periods]
-                # soc_constraint_ends = [p[1] for p in disregarded_periods]
-                soc_constraint_starts, soc_constraint_ends = zip(*disregarded_periods)
+        if not disregarded_periods:
+            pass
+        elif len(disregarded_periods) == 1:
+            soc_constraint_start, soc_constraint_end = disregarded_periods[0]
+            if soc_constraint_start == soc_constraint_end:
                 current_app.logger.warning(
-                    f"Disregarding target datetimes that exceed {end_of_schedule} (within the window {min(soc_constraint_starts)} until {max(soc_constraint_ends)} spanning {len(disregarded_periods)} targets). Maximum scheduling horizon is {max_server_horizon}."
+                    f"Disregarding target datetime {soc_constraint_end}, because it exceeds {end_of_schedule}. Maximum scheduling horizon is {max_server_horizon}."
                 )
+            else:
+                current_app.logger.warning(
+                    f"Disregarding target datetimes that exceed {end_of_schedule} (within the window {soc_constraint_start} until {soc_constraint_end}). Maximum scheduling horizon is {max_server_horizon}."
+                )
+        else:
+            # soc_constraint_starts = [p[0] for p in disregarded_periods]
+            # soc_constraint_ends = [p[1] for p in disregarded_periods]
+            soc_constraint_starts, soc_constraint_ends = zip(*disregarded_periods)
+            current_app.logger.warning(
+                f"Disregarding target datetimes that exceed {end_of_schedule} (within the window {min(soc_constraint_starts)} until {max(soc_constraint_ends)} spanning {len(disregarded_periods)} targets). Maximum scheduling horizon is {max_server_horizon}."
+            )
 
         # soc_values are at the end of each time slot, while prices are indexed by the start of each time slot
         device_values = device_values[start_of_schedule + resolution : end_of_schedule]
