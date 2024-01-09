@@ -9,7 +9,10 @@ from flexmeasures.data.schemas.scheduling.process import (
     ProcessSchedulerFlexModelSchema,
     ProcessType,
 )
-from flexmeasures.data.schemas.scheduling.storage import SOCValueSchema, StorageFlexModelSchema
+from flexmeasures.data.schemas.scheduling.storage import (
+    SOCValueSchema,
+    StorageFlexModelSchema,
+)
 
 
 @pytest.mark.parametrize(
@@ -33,7 +36,6 @@ def test_soc_value_field(timing_input):
 
 
 def test_process_scheduler_flex_model_load(db, app, setup_dummy_sensors):
-
     sensor1, _ = setup_dummy_sensors
 
     schema = ProcessSchedulerFlexModelSchema(
@@ -56,7 +58,6 @@ def test_process_scheduler_flex_model_load(db, app, setup_dummy_sensors):
 
 
 def test_process_scheduler_flex_model_process_type(db, app, setup_dummy_sensors):
-
     sensor1, _ = setup_dummy_sensors
 
     # checking default
