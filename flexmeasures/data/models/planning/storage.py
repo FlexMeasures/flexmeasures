@@ -742,8 +742,6 @@ def build_device_soc_values(
                     f"Disregarding target datetimes that exceed {end_of_schedule} (within the window {soc_constraint_start} until {soc_constraint_end}). Maximum scheduling horizon is {max_server_horizon}."
                 )
         else:
-            # soc_constraint_starts = [p[0] for p in disregarded_periods]
-            # soc_constraint_ends = [p[1] for p in disregarded_periods]
             soc_constraint_starts, soc_constraint_ends = zip(*disregarded_periods)
             current_app.logger.warning(
                 f"Disregarding target datetimes that exceed {end_of_schedule} (within the window {min(soc_constraint_starts)} until {max(soc_constraint_ends)} spanning {len(disregarded_periods)} targets). Maximum scheduling horizon is {max_server_horizon}."
