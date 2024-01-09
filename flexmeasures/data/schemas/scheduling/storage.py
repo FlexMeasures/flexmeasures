@@ -11,12 +11,13 @@ from marshmallow import (
     fields,
     validates,
 )
-from marshmallow.validate import OneOf
-from marshmallow import ValidationError
+from marshmallow.validate import OneOf, ValidationError
 
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
 from flexmeasures.data.schemas.units import QuantityField
+from flexmeasures.data.schemas.sensors import QuantityOrSensor
+
 from flexmeasures.utils.unit_utils import ur
 
 
@@ -64,7 +65,6 @@ class SOCValueSchema(Schema):
 
     @validates("value")
     def validate_value(self, _value):
-
         if self.value_validator is not None:
             self.value_validator(_value)
 
@@ -117,8 +117,15 @@ class StorageFlexModelSchema(Schema):
     soc_min = fields.Float(validate=validate.Range(min=0), data_key="soc-min")
     soc_max = fields.Float(data_key="soc-max")
 
-    power_capacity_in_mw = QuantityField(
+    power_capacity_in_mw = QuantityOrSensor(
         "MW", required=False, data_key="power-capacity"
+    )
+
+    consumption_capacity = QuantityOrSensor(
+        "MW", data_key="consumption-capacity", required=False
+    )
+    production_capacity = QuantityOrSensor(
+        "MW", data_key="production-capacity", required=False
     )
 
     soc_maxima = fields.List(fields.Nested(SOCValueSchema()), data_key="soc-maxima")
@@ -137,9 +144,25 @@ class StorageFlexModelSchema(Schema):
         data_key="soc-unit",
     )  # todo: allow unit to be set per field, using QuantityField("%", validate=validate.Range(min=0, max=1))
     soc_targets = fields.List(fields.Nested(SOCValueSchema()), data_key="soc-targets")
-    roundtrip_efficiency = EfficiencyField(data_key="roundtrip-efficiency")
+
+    charging_efficiency = QuantityOrSensor(
+        "%", data_key="charging-efficiency", required=False
+    )
+    discharging_efficiency = QuantityOrSensor(
+        "%", data_key="discharging-efficiency", required=False
+    )
+
+    roundtrip_efficiency = EfficiencyField(
+        data_key="roundtrip-efficiency", required=False
+    )
+
     storage_efficiency = EfficiencyField(data_key="storage-efficiency")
     prefer_charging_sooner = fields.Bool(data_key="prefer-charging-sooner")
+
+    soc_gain = fields.List(QuantityOrSensor("MW"), data_key="soc-gain", required=False)
+    soc_usage = fields.List(
+        QuantityOrSensor("MW"), data_key="soc-usage", required=False
+    )
 
     def __init__(self, start: datetime, sensor: Sensor, *args, **kwargs):
         """Pass the schedule's start, so we can use it to validate soc-target datetimes."""
@@ -161,6 +184,24 @@ class StorageFlexModelSchema(Schema):
             current_app.logger.warning(
                 f"Target datetime exceeds {max_server_datetime}. Maximum scheduling horizon is {max_server_horizon}."
             )
+
+    @validates_schema
+    def check_redundant_efficiencies(self, data: dict, **kwargs):
+        """
+        Check that none of the following cases occurs:
+            (1) flex-model contains both a round-trip efficiency and a charging efficiency
+            (2) flex-model contains both a round-trip efficiency and a discharging efficiency
+            (3) flex-model contains a round-trip efficiency, a charging efficiency and a discharging efficiency
+
+
+        :raise: ValidationError
+        """
+
+        for field in ["charging_efficiency", "discharging_efficiency"]:
+            if field in data and "roundtrip_efficiency" in data:
+                raise ValidationError(
+                    f"Fields `{field}` and `roundtrip_efficiency` are mutually exclusive."
+                )
 
     @post_load
     def post_load_sequence(self, data: dict, **kwargs) -> dict:

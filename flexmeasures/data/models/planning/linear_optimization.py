@@ -52,6 +52,7 @@ def device_scheduler(  # noqa C901
         derivative equals: exact amount of flow (we do this by clamping derivative min and derivative max)
         derivative down efficiency: conversion efficiency of flow out of a device (flow out : stock decrease)
         derivative up efficiency: conversion efficiency of flow into a device (stock increase : flow in)
+        stock delta: predefined stock delta to apply to the storage device. Positive values cause an increase and negative values a decrease
     EMS constraints are on an EMS level. Handled constraints (listed by column name):
         derivative max: maximum flow
         derivative min: minimum flow
@@ -69,9 +70,11 @@ def device_scheduler(  # noqa C901
     DataFrame. Later we could pass in a MultiIndex DataFrame directly.
     """
 
+    model = ConcreteModel()
+
     # If the EMS has no devices, don't bother
     if len(device_constraints) == 0:
-        return [], 0, SolverResults()
+        return [], 0, SolverResults(), model
 
     # Check if commitments have the same time window and resolution as the constraints
     start = device_constraints[0].index.to_pydatetime()[0]
@@ -93,14 +96,20 @@ def device_scheduler(  # noqa C901
                 % (resolution, resolution_c)
             )
 
+    bigM_columns = ["derivative max", "derivative min", "derivative equals"]
     # Compute a good value for M
-    M = 0.1
-    for device_constraint in device_constraints:
-        M = max(
-            M,
-            device_constraint["derivative max"].max(),
-            -device_constraint["derivative min"].min(),
-        )
+    M = np.nanmax([np.nanmax(d[bigM_columns].abs()) for d in device_constraints])
+
+    # M has to be 1 MW, at least
+    M = max(M, 1)
+
+    for d in range(len(device_constraints)):
+        if "stock delta" not in device_constraints[d].columns:
+            device_constraints[d]["stock delta"] = 0
+        else:
+            device_constraints[d]["stock delta"] = device_constraints[d][
+                "stock delta"
+            ].fillna(0)
 
     # Turn prices per commitment into prices per commitment flow
     if len(commitment_downwards_deviation_price) != 0:
@@ -119,8 +128,6 @@ def device_scheduler(  # noqa C901
                 initialize_series(price, start, end, resolution)
                 for price in commitment_upwards_deviation_price
             ]
-
-    model = ConcreteModel()
 
     # Add indices for devices (d), datetimes (j) and commitments (c)
     model.d = RangeSet(0, len(device_constraints) - 1, doc="Set of devices")
@@ -225,6 +232,9 @@ def device_scheduler(  # noqa C901
             return 1
         return eff
 
+    def device_stock_delta(m, d, j):
+        return device_constraints[d]["stock delta"].iloc[j]
+
     model.up_price = Param(model.c, model.j, initialize=price_up_select)
     model.down_price = Param(model.c, model.j, initialize=price_down_select)
     model.commitment_quantity = Param(
@@ -247,6 +257,7 @@ def device_scheduler(  # noqa C901
     model.device_derivative_up_efficiency = Param(
         model.d, model.j, initialize=device_derivative_up_efficiency
     )
+    model.stock_delta = Param(model.d, model.j, initialize=device_stock_delta)
 
     # Add variables
     model.ems_power = Var(model.d, model.j, domain=Reals, initialize=0)
@@ -270,6 +281,7 @@ def device_scheduler(  # noqa C901
             (
                 m.device_power_down[d, k] / m.device_derivative_down_efficiency[d, k]
                 + m.device_power_up[d, k] * m.device_derivative_up_efficiency[d, k]
+                + m.stock_delta[d, k]
             )
             for k in range(0, j + 1)
         ]

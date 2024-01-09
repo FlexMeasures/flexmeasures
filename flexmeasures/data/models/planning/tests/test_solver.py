@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 import pytest
 import pytz
+import logging
 
 import numpy as np
 import pandas as pd
@@ -13,10 +14,12 @@ from flexmeasures.data.models.planning.storage import (
     StorageScheduler,
     add_storage_constraints,
     validate_storage_constraints,
+    build_device_soc_values,
 )
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.planning.tests.utils import check_constraints
 from flexmeasures.data.models.planning.utils import initialize_series, initialize_df
+from flexmeasures.data.schemas.scheduling.storage import SOCValueSchema
 from flexmeasures.utils.calculations import (
     apply_stock_changes_and_losses,
     integrate_time_series,
@@ -58,10 +61,16 @@ def test_storage_loss_function(
 
 
 @pytest.mark.parametrize("use_inflexible_device", [False, True])
+@pytest.mark.parametrize("battery_name", ["Test battery", "Test small battery"])
 def test_battery_solver_day_1(
-    add_battery_assets, add_inflexible_device_forecasts, use_inflexible_device
+    add_battery_assets,
+    add_inflexible_device_forecasts,
+    use_inflexible_device,
+    battery_name,
 ):
-    epex_da, battery = get_sensors_from_db(add_battery_assets)
+    epex_da, battery = get_sensors_from_db(
+        add_battery_assets, battery_name=battery_name
+    )
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 1))
     end = tz.localize(datetime(2015, 1, 2))
@@ -78,7 +87,8 @@ def test_battery_solver_day_1(
                 s.id for s in add_inflexible_device_forecasts.keys()
             ]
             if use_inflexible_device
-            else []
+            else [],
+            "site-power-capacity": "2 MW",
         },
     )
     schedule = scheduler.compute()
@@ -997,10 +1007,10 @@ def test_infeasible_problem_error(add_battery_assets):
         compute_schedule(flex_model)
 
 
-def get_sensors_from_db(battery_assets):
+def get_sensors_from_db(battery_assets, battery_name="Test battery"):
     # get the sensors from the database
     epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
-    battery = battery_assets["Test battery"].sensors[0]
+    battery = battery_assets[battery_name].sensors[0]
     assert battery.get_attribute("market_id") == epex_da.id
 
     return epex_da, battery
@@ -1249,3 +1259,358 @@ def test_capacity(
 
     assert all(ems_constraints["derivative min"] == expected_site_production_capacity)
     assert all(ems_constraints["derivative max"] == expected_site_consumption_capacity)
+
+
+@pytest.mark.parametrize(
+    ["soc_values", "log_message"],
+    [
+        (
+            [
+                {"datetime": datetime(2023, 5, 19, tzinfo=pytz.utc), "value": 1.0},
+                {"datetime": datetime(2023, 5, 22, tzinfo=pytz.utc), "value": 1.0},
+                {"datetime": datetime(2023, 5, 23, tzinfo=pytz.utc), "value": 1.0},
+                {"datetime": datetime(2023, 5, 21, tzinfo=pytz.utc), "value": 1.0},
+            ],
+            "Disregarding target datetimes that exceed 2023-05-20 00:00:00+00:00 (within the window 2023-05-21 00:00:00+00:00 until 2023-05-23 00:00:00+00:00 spanning 3 targets).",
+        ),
+        (
+            [
+                {"datetime": datetime(2023, 5, 19, tzinfo=pytz.utc), "value": 1.0},
+                {"datetime": datetime(2023, 5, 23, tzinfo=pytz.utc), "value": 1.0},
+            ],
+            "Disregarding target datetime 2023-05-23 00:00:00+00:00, because it exceeds 2023-05-20 00:00:00+00:00.",
+        ),
+    ],
+)
+def test_build_device_soc_values(caplog, soc_values, log_message):
+    caplog.set_level(logging.WARNING)
+    soc_at_start = 3.0
+    start_of_schedule = datetime(2023, 5, 18, tzinfo=pytz.utc)
+    end_of_schedule = datetime(2023, 5, 20, tzinfo=pytz.utc)
+    resolution = timedelta(minutes=5)
+
+    # Convert SoC datetimes to periods with a start and end.
+    for soc in soc_values:
+        SOCValueSchema().check_time_window(soc)
+
+    with caplog.at_level(logging.WARNING):
+        device_values = build_device_soc_values(
+            soc_values=soc_values,
+            soc_at_start=soc_at_start,
+            start_of_schedule=start_of_schedule,
+            end_of_schedule=end_of_schedule,
+            resolution=resolution,
+        )
+    print(device_values)
+    assert log_message in caplog.text
+
+
+@pytest.mark.parametrize(
+    "battery_name, production_sensor, consumption_sensor, production_quantity, consumption_quantity, expected_production, expected_consumption",
+    [
+        (
+            "Test battery with dynamic power capacity",
+            False,
+            False,
+            None,
+            None,
+            [-8] * 24 * 4,  # from the power sensor attribute 'production_capacity'
+            [0.5] * 24 * 4,  # from the power sensor attribute 'consumption_capacity'
+        ),
+        (
+            "Test battery with dynamic power capacity",
+            True,
+            False,
+            None,
+            None,
+            # from the flex model field 'production-capacity' (a sensor),
+            # and when absent, defaulting to the max value from the power sensor attribute capacity_in_mw
+            [-0.2] * 4 * 4 + [-0.3] * 4 * 4 + [-10] * 16 * 4,
+            # from the power sensor attribute 'consumption_capacity'
+            [0.5] * 24 * 4,
+        ),
+        (
+            "Test battery with dynamic power capacity",
+            False,
+            True,
+            None,
+            None,
+            # from the power sensor attribute 'consumption_capacity'
+            [-8] * 24 * 4,
+            # from the flex model field 'consumption-capacity' (a sensor),
+            # and when absent, defaulting to the max value from the power sensor attribute capacity_in_mw
+            [0.25] * 4 * 4 + [0.15] * 4 * 4 + [10] * 16 * 4,
+        ),
+        (
+            "Test battery with dynamic power capacity",
+            False,
+            False,
+            "100 kW",
+            "200 kW",
+            # from the flex model field 'production-capacity' (a quantity)
+            [-0.1] * 24 * 4,
+            # from the flex model field 'consumption-capacity' (a quantity)
+            [0.2] * 24 * 4,
+        ),
+        (
+            "Test battery with dynamic power capacity",
+            False,
+            False,
+            "1 MW",
+            "2 MW",
+            # from the flex model field 'production-capacity' (a quantity)
+            [-1] * 24 * 4,
+            # from the power sensor attribute 'consumption_capacity' (a quantity)
+            [2] * 24 * 4,
+        ),
+        (
+            "Test battery",
+            False,
+            False,
+            None,
+            None,
+            # from the asset attribute 'capacity_in_mw'
+            [-2] * 24 * 4,
+            # from the asset attribute 'capacity_in_mw'
+            [2] * 24 * 4,
+        ),
+        (
+            "Test battery",
+            False,
+            False,
+            "10 kW",
+            None,
+            # from the flex model field 'production-capacity' (a quantity)
+            [-0.01] * 24 * 4,
+            # from the asset attribute 'capacity_in_mw'
+            [2] * 24 * 4,
+        ),
+        (
+            "Test battery",
+            False,
+            False,
+            "10 kW",
+            "100 kW",
+            # from the flex model field 'production-capacity' (a quantity)
+            [-0.01] * 24 * 4,
+            # from the flex model field 'consumption-capacity' (a quantity)
+            [0.1] * 24 * 4,
+        ),
+    ],
+)
+def test_battery_power_capacity_as_sensor(
+    db,
+    add_battery_assets,
+    add_inflexible_device_forecasts,
+    capacity_sensors,
+    battery_name,
+    production_sensor,
+    consumption_sensor,
+    production_quantity,
+    consumption_quantity,
+    expected_production,
+    expected_consumption,
+):
+
+    epex_da, battery = get_sensors_from_db(
+        add_battery_assets, battery_name=battery_name
+    )
+
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 2))
+    end = tz.localize(datetime(2015, 1, 3))
+    resolution = timedelta(minutes=15)
+    soc_at_start = 10
+
+    flex_model = {
+        "soc-at-start": soc_at_start,
+        "roundtrip-efficiency": "100%",
+        "prefer-charging-sooner": False,
+    }
+
+    if production_sensor:
+        flex_model["production-capacity"] = {
+            "sensor": capacity_sensors["production"].id
+        }
+
+    if consumption_sensor:
+        flex_model["consumption-capacity"] = {
+            "sensor": capacity_sensors["consumption"].id
+        }
+
+    if production_quantity is not None:
+        flex_model["production-capacity"] = production_quantity
+
+    if consumption_quantity is not None:
+        flex_model["consumption-capacity"] = consumption_quantity
+
+    scheduler: Scheduler = StorageScheduler(
+        battery, start, end, resolution, flex_model=flex_model
+    )
+
+    data_to_solver = scheduler._prepare()
+    device_constraints = data_to_solver[5][0]
+
+    assert all(device_constraints["derivative min"].values == expected_production)
+    assert all(device_constraints["derivative max"].values == expected_consumption)
+
+
+def get_efficiency_problem_device_constraints(
+    extra_flex_model, efficiency_sensors, add_battery_assets
+) -> pd.DataFrame:
+
+    _, battery = get_sensors_from_db(add_battery_assets)
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+    base_flex_model = {
+        "soc-max": 2,
+        "soc-min": 0,
+    }
+    base_flex_model.update(extra_flex_model)
+    scheduler: Scheduler = StorageScheduler(
+        battery, start, end, resolution, flex_model=base_flex_model
+    )
+
+    scheduler_data = scheduler._prepare()
+    return scheduler_data[5][0]
+
+
+def test_dis_charging_efficiency_as_sensor(
+    db,
+    add_battery_assets,
+    add_inflexible_device_forecasts,
+    add_market_prices,
+    efficiency_sensors,
+):
+    """
+    Check that the charging and discharging efficiency can be defined in the flex-model.
+    For missing values, the fallback value is 100%.
+    """
+
+    tz = pytz.timezone("Europe/Amsterdam")
+
+    end = tz.localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+
+    extra_flex_model = {
+        "charging-efficiency": {"sensor": efficiency_sensors["efficiency"].id},
+        "discharging-efficiency": "200%",
+    }
+
+    device_constraints = get_efficiency_problem_device_constraints(
+        extra_flex_model, efficiency_sensors, add_battery_assets
+    )
+
+    assert all(
+        device_constraints[: end - timedelta(hours=1) - resolution][
+            "derivative up efficiency"
+        ]
+        == 0.9
+    )
+    assert all(
+        device_constraints[end - timedelta(hours=1) :]["derivative up efficiency"] == 1
+    )
+
+    assert all(device_constraints["derivative down efficiency"] == 2)
+
+
+@pytest.mark.parametrize(
+    "stock_delta_sensor",
+    ["delta fails", "delta", "delta hourly", "delta 5min"],
+)
+def test_battery_stock_delta_sensor(
+    add_battery_assets, add_stock_delta, stock_delta_sensor
+):
+    """
+    Test the SOC delta feature using sensors.
+
+    An empty battery is made to fulfill a usage signal under a flat tariff.
+    The battery is only allowed to charge (production-capacity = 0).
+
+    Set up the same constant delta (capacity_in_mw) in different resolutions.
+
+    The problem is defined with the following settings:
+        - Battery empty at the start of the schedule (soc-at-start = 0).
+        - Battery of size 2 MWh.
+        - Consumption capacity of the battery is 2 MW.
+        - The battery cannot discharge.
+    With these settings, the battery needs to charge at a power or greater than the usage forecast
+    to keep the SOC within bounds ([0, 2 MWh]).
+    """
+    _, battery = get_sensors_from_db(add_battery_assets)
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+    stock_delta_sensor_obj = add_stock_delta[stock_delta_sensor]
+    capacity = stock_delta_sensor_obj.get_attribute("capacity_in_mw")
+
+    scheduler: Scheduler = StorageScheduler(
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model={
+            "soc-max": 2,
+            "soc-min": 0,
+            "soc-usage": [{"sensor": stock_delta_sensor_obj.id}],
+            "roundtrip-efficiency": 1,
+            "storage-efficiency": 1,
+            "production-capacity": "0kW",
+            "soc-at-start": 0,
+        },
+    )
+
+    if "fails" in stock_delta_sensor:
+        with pytest.raises(InfeasibleProblemException):
+            schedule = scheduler.compute()
+    else:
+        schedule = scheduler.compute()
+        assert all(schedule == capacity)
+
+
+@pytest.mark.parametrize(
+    "gain,usage,expected_delta",
+    [
+        (["1 MW"], ["1MW"], 0),  # delta stock is 0 (1 MW - 1 MW)
+        (["0.5 MW", "0.5 MW"], [], 1),  # 1 MW stock gain
+        (["100 kW"], None, 0.1),  # 100 MW stock gain
+        (None, ["100 kW"], -0.1),  # 100 kW stock loss
+        ([], [], None),  # no gain defined -> no gain or loss happens
+    ],
+)
+def test_battery_stock_delta_quantity(add_battery_assets, gain, usage, expected_delta):
+    """
+    Test the stock gain field when a constant value is provided.
+
+    We expect a constant gain/loss to happen in every time period equal to the energy
+    value provided.
+    """
+    _, battery = get_sensors_from_db(add_battery_assets)
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+    flex_model = {
+        "soc-max": 2,
+        "soc-min": 0,
+        "roundtrip-efficiency": 1,
+        "storage-efficiency": 1,
+    }
+
+    if gain is not None:
+        flex_model["soc-gain"] = gain
+    if usage is not None:
+        flex_model["soc-usage"] = usage
+
+    scheduler: Scheduler = StorageScheduler(
+        battery, start, end, resolution, flex_model=flex_model
+    )
+    scheduler_info = scheduler._prepare()
+
+    if expected_delta is not None:
+        assert all(scheduler_info[5][0]["stock delta"] == expected_delta)
+    else:
+        assert all(scheduler_info[5][0]["stock delta"].isna())

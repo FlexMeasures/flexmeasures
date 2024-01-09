@@ -67,6 +67,7 @@ from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema,
     GenericAssetTypeSchema,
+    GenericAssetIdField,
 )
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.user import User
@@ -78,6 +79,7 @@ from flexmeasures.utils import flexmeasures_inflection
 from flexmeasures.utils.time_utils import server_now, apply_offset_chain
 from flexmeasures.utils.unit_utils import convert_units, ur
 from flexmeasures.data.utils import save_to_db
+from flexmeasures.data.services.utils import get_asset_or_sensor_ref
 from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.models.reporting.profit import ProfitOrLossReporter
 from timely_beliefs import BeliefsDataFrame
@@ -367,6 +369,13 @@ def add_asset_type(**args):
     required=True,
     type=int,
     help="Asset type to assign to this asset",
+)
+@click.option(
+    "--parent-asset",
+    "parent_asset",
+    required=False,
+    type=GenericAssetIdField(),
+    help="Parent of this asset. The entity needs to exists on the database.",
 )
 def add_asset(**args):
     """Add an asset."""
@@ -1212,14 +1221,17 @@ def add_schedule_for_storage(
         },
     )
     if as_job:
-        job = create_scheduling_job(sensor=power_sensor, **scheduling_kwargs)
+        job = create_scheduling_job(asset_or_sensor=power_sensor, **scheduling_kwargs)
         if job:
             click.secho(
                 f"New scheduling job {job.id} has been added to the queue.",
                 **MsgStyle.SUCCESS,
             )
     else:
-        success = make_schedule(sensor_id=power_sensor.id, **scheduling_kwargs)
+        success = make_schedule(
+            asset_or_sensor=get_asset_or_sensor_ref(power_sensor),
+            **scheduling_kwargs,
+        )
         if success:
             click.secho("New schedule is stored.", **MsgStyle.SUCCESS)
 
@@ -1343,14 +1355,17 @@ def add_schedule_process(
         }
 
     if as_job:
-        job = create_scheduling_job(sensor=power_sensor, **scheduling_kwargs)
+        job = create_scheduling_job(asset_or_sensor=power_sensor, **scheduling_kwargs)
         if job:
             click.secho(
                 f"New scheduling job {job.id} has been added to the queue.",
                 **MsgStyle.SUCCESS,
             )
     else:
-        success = make_schedule(sensor_id=power_sensor.id, **scheduling_kwargs)
+        success = make_schedule(
+            asset_or_sensor=get_asset_or_sensor_ref(power_sensor),
+            **scheduling_kwargs,
+        )
         if success:
             click.secho("New schedule is stored.", **MsgStyle.SUCCESS)
 

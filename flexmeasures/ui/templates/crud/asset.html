@@ -4,7 +4,23 @@
 
 {% block title %} {{asset.name}} {% endblock %}
 
+
+
 {% block divs %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    {% for breadcrumb in breadcrumb_info["ancestors"] %}
+      <li class="breadcrumb-item{% if loop.last %} active{% endif %}" {% if loop.last %}aria-current="page"{% endif %}>
+        {% if breadcrumb["url"] is not none and not loop.last %}
+          <a href="{{ breadcrumb['url'] }}">{{ breadcrumb['name'] }}</a>
+        {% else %}
+          {{ breadcrumb['name'] }}
+        {% endif %}
+      </li>
+    {% endfor %}
+  </ol>
+</nav>
+
 
 <div class="container-fluid">
     <div class="row">
@@ -125,14 +141,14 @@
             <div id="sensorchart" class="card" style="width: 100%;"></div>
             <div class="sensors-asset card">
                 <h3>All sensors for {{ asset.name }}</h3>
-                <table class="table table-striped table-responsive paginate">
+                <table class="table table-striped table-responsive paginate nav-on-click" title="View data">
                     <thead>
                         <tr>
                             <th>Name</th>
                             <th class="text-right">Unit</th>
                             <th class="text-right">Resolution</th>
                             <th class="text-right no-sort">Entity address</th>
-                            <th class="text-right no-sort">Data</th>
+                            <th class="hidden">URL</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -150,8 +166,8 @@
                             <td class="text-right">
                                 {{ sensor.entity_address }}
                             </td>
-                            <td class="text-right">
-                                <a href="/sensors/{{ sensor.id }}">View plot</a>
+                            <td class="hidden">
+                                /sensors/{{ sensor.id }}
                             </td>
                         </tr>
                         {% endfor %}

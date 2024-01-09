@@ -3,8 +3,11 @@
 FlexMeasures Changelog
 **********************
 
-v0.18.0 | December XX, 2023
+
+v0.19.0 | February xx, 2024
 ============================
+
+.. warning:: This version replaces FLASK_ENV with FLEXMEASURES_ENV (FLASK_ENV will still be used as a fallback).
 
 New features
 -------------
@@ -12,8 +15,65 @@ New features
 Infrastructure / Support
 ----------------------
 
+* Deprecate use of flask's ``FLASK_ENV`` variable and replace it with ``FLEXMEASURES_ENV`` [see `PR #907 <https://github.com/FlexMeasures/flexmeasures/pull/907>`_]
+
 Bugfixes
 -----------
+
+
+v0.18.1 | January XX, 2024
+============================
+
+Bugfixes
+-----------
+
+* Allow showing beliefs (plot and file export) via the CLI for sensors with non-unique names [see `PR #947 <https://github.com/FlexMeasures/flexmeasures/pull/947>`_]
+* Added Redis credentials to the Docker Compose configuration for the web server to ensure proper interaction with the Redis queue [see `PR #945 <https://github.com/FlexMeasures/flexmeasures/pull/945>`_]
+* Fix API version listing (GET /api/v3_0) for hosts running on Python 3.8 [see `PR #917 <https://github.com/FlexMeasures/flexmeasures/pull/917>`_ and `PR #950 <https://github.com/FlexMeasures/flexmeasures/pull/950>`_]
+
+
+v0.18.0 | December 23, 2023
+============================
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/018-better-use-of-future-knowledge/>`__.
+
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+
+New features
+-------------
+
+* Better navigation experience through listings (sensors / assets / users / accounts) in the :abbr:`UI (user interface)`, by heading to the selected entity upon a click (or CTRL + click) anywhere within a row [see `PR #923 <https://github.com/FlexMeasures/flexmeasures/pull/923>`_]
+* Introduce a breadcrumb to navigate through assets and sensor pages using its child-parent relationship [see `PR #930 <https://github.com/FlexMeasures/flexmeasures/pull/930>`_]
+* Define device-level power constraints as sensors to create schedules with changing power limits. [see `PR #897 <https://github.com/FlexMeasures/flexmeasures/pull/897>`_]
+* Allow to provide external storage usage or gain components using the ``soc-usage`` and ``soc-gain`` fields of the `flex-model` [see `PR #906 <https://github.com/FlexMeasures/flexmeasures/pull/906>`_]
+* Define time-varying charging and discharging efficiencies as sensors or as constant values which allows to define the :COP:`Coefficient of Performance`  [see `PR #933 <https://github.com/FlexMeasures/flexmeasures/pull/933>`_].
+
+Infrastructure / Support
+----------------------
+
+* Align database and models of `annotations`, `data_sources`, and `timed_belief` [see `PR #929 <https://github.com/FlexMeasures/flexmeasures/pull/929>`_]
+* New documentation section on constructing a flex model for :abbr:`V2G (vehicle-to-grid)` [see `PR #885 <https://github.com/FlexMeasures/flexmeasures/pull/885>`_]
+* Allow charts in plugins to show currency codes (such as EUR) as currency symbols (€) [see `PR #922 <https://github.com/FlexMeasures/flexmeasures/pull/922>`_]
+* Remove obsolete database tables `price`, `power`, `market`, `market_type`, `weather`, `asset`, and `weather_sensor` [see `PR #921 <https://github.com/FlexMeasures/flexmeasures/pull/921>`_]
+* New flexmeasures configuration setting `FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY` for upgrading insecure `http` requests to secured requests `https` [see `PR #920 <https://github.com/FlexMeasures/flexmeasures/pull/920>`_]
+
+Bugfixes
+-----------
+
+* Give `admin-reader` role access to the RQ Scheduler dashboard [see `PR #901 <https://github.com/FlexMeasures/flexmeasures/pull/901>`_]
+* Assets without a geographical position (i.e. no lat/lng coordinates) can be edited through the UI [see `PR #924 <https://github.com/FlexMeasures/flexmeasures/pull/924>`_]
+
+
+v0.17.1 | December 7, 2023
+============================
+
+Bugfixes
+-----------
+
+* Show `Assets`, `Users`, `Tasks` and `Accounts` pages in the navigation bar for the `admin-reader` role [see `PR #900 <https://github.com/FlexMeasures/flexmeasures/pull/900>`_]
+* Reduce worker logs when datetime exceeds the end of the schedule [see `PR #918 <https://github.com/FlexMeasures/flexmeasures/pull/918>`_]
+* Fix infeasible problem due to incorrect estimation of the big-M value [see `PR #905 <https://github.com/FlexMeasures/flexmeasures/pull/905>`_]
+* [Incomplete fix; full fix in v0.18.1] Fix API version listing (GET /api/v3_0) for hosts running on Python 3.8 [see `PR #917 <https://github.com/FlexMeasures/flexmeasures/pull/917>`_]
 
 
 v0.17.0 | November 8, 2023

@@ -556,6 +556,8 @@ i:not(.supersize):before, i:not(.supersize):after {
 /* icon on the left (use left-icon class) */
 :not(.map-icon) > i.left-icon {
     left: 40px;
+    /* Prevent user agent stylesheets from treating this tag as an italics tag */
+    font-style: normal;
 }
 :not(.map-icon) > i.left-icon:after, :not(.map-icon) > i.left-icon:before {
     position: absolute;
@@ -817,6 +819,13 @@ i.icon-wind:hover:before {
 
 
 /* --- Tables ---- */
+
+/* Clickable list items */
+
+table.dataTable.nav-on-click tbody tr:hover {
+    background-color: var(--nav-current-hover-background-color) !important;
+    cursor: pointer;
+}
 
 /* scrolling */
 .floatThead-wrapper table {
@@ -1838,4 +1847,20 @@ div.heading-group {
 .ellipsify {
   overflow: visible !important;
   white-space: normal !important;
+}
+
+/* Breadcrumb */
+.breadcrumb {
+  margin: 0px;
+  background: var(--light-gray);
+}
+.breadcrumb a {
+  color: var(--primary-color);
+}
+.breadcrumb a:hover {
+  color: var(--primary-hover-color);
+}
+.breadcrumb-item + .breadcrumb-item::before {
+  content: " > ";
+  color: var(--primary-color);
 }
