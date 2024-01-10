@@ -70,5 +70,18 @@ To load a configuration file into the container when starting up, we make use of
 
 .. warning:: The location of the instance folder depends on how we serve FlexMeasures. The above works with gunicorn. See the compose file for an alternative (for the FlexMeasures CLI), and you can also read the above link about the instance folder.
 
-.. note:: This is also a way to add your custom logic (as described in :ref:`plugins`) to the container. We'll document that shortly. Plugins which should be installed (e.g. by ``pip``) are a bit more difficult to support (you'd need to add `pip install` before the actual entry point). Ideas welcome. 
+Installing plugins within the container
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+At this point, the FlexMeasures container is up and running without including the necessary plugins. To integrate a plugin into the container, follow these steps:
+
+1. Copy the plugin directory into your active FlexMeasures container by executing the following command:
+
+.. code-block:: bash
+
+    docker cp </path/to/plugin-directory> flexmeasures:<container-directory>
+
+
+2. Once the plugin is successfully copied, proceed to install it using ``docker exec -it <container-name> bash -c "pip ..."``. Additionally, ensure to update the :ref:`plugin-config` variable in ``flexmeasures.cfg`` to reflect the new plugin.
+
+3. Once these steps are finished, halt the container using the ``docker stop`` command, followed by restarting it using ``docker start``. This ensures that the changes take effect. Now, you can make use of the installed plugins within the FlexMeasures Docker container.
