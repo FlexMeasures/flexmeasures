@@ -82,6 +82,6 @@ At this point, the FlexMeasures container is up and running without including th
     docker cp </path/to/plugin-directory> flexmeasures:<container-directory>
 
 
-2. Once the plugin is successfully copied, proceed to install it using ``docker exec -it <flexmeasures-container-name> bash -c "pip ..."``. Additionally, ensure to update the :ref:`plugin-config` variable in ``flexmeasures.cfg`` to reflect the new plugin.
+2. Once the plugin is successfully copied, proceed to install it using ``docker exec -it <flexmeasures-container-name> bash -c "pip install <path/to/package>"``. Additionally, ensure to update the :ref:`plugin-config` variable in ``flexmeasures.cfg`` to reflect the new plugin.
 
 3. Once these steps are finished, halt the container using the ``docker stop <flexmeasures-container-name>`` command, followed by restarting it using ``docker start <flexmeasures-container-name>``. This ensures that the changes take effect. Now, you can make use of the installed plugins within the FlexMeasures Docker container.
