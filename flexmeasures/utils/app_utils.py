@@ -49,7 +49,7 @@ def init_sentry(app: Flask):
         debug=app.debug,
         release=f"flexmeasures@{get_distribution('flexmeasures').version}",
         send_default_pii=True,  # user data (current user id, email address, username) is attached to the event.
-        environment=app.env,
+        environment=app.config.get("FLEXMEASURES_ENV"),
         **app.config["FLEXMEASURES_SENTRY_CONFIG"],
     )
     sentry_sdk.set_tag("mode", app.config.get("FLEXMEASURES_MODE"))

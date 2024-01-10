@@ -37,11 +37,11 @@ Running the image (as a container) might work like this (remember to get the ima
 
 .. code-block:: bash
 
-    $ docker run --env SQLALCHEMY_DATABASE_URI=postgresql://user:pass@localhost:5432/dbname --env SECRET_KEY=blabla --env FLASK_ENV=development -d --net=host lfenergy/flexmeasures
+    $ docker run --env SQLALCHEMY_DATABASE_URI=postgresql://user:pass@localhost:5432/dbname --env SECRET_KEY=blabla --env FLEXMEASURES_ENV=development -d --net=host lfenergy/flexmeasures
 
 .. note:: Don't know what your image is called (its "tag")? We used ``lfenergy/flexmeasures`` here, as that should be the name when pulling it from Docker Hub. You can run ``docker images`` to see which images you have.
 
-The two minimal environment variables to run the container successfully are the database URI (``SQLALCHEMY_DATABASE_URI``) and the ``SECRET_KEY``), see :ref:`configuration`. ``FLASK_ENV=development`` is needed if you do not have an SSL certificate set up (the default mode is ``production``, and in that mode FlexMeasures requires https for security reasons). If you see too much output, you can also set ``LOGGING_LEVEL=INFO``.
+The two minimal environment variables to run the container successfully are ``SQLALCHEMY_DATABASE_URI`` and the ``SECRET_KEY``, see :ref:`configuration`. ``FLEXMEASURES_ENV=development`` is needed if you do not have an SSL certificate set up (the default mode is ``production``, and in that mode FlexMeasures requires https for security reasons). If you see too much output, you can also set ``LOGGING_LEVEL=INFO``.
 
 In this example, we connect to a postgres database running on our local computer, so we use the host network. In the docker-compose section below, we use a Docker container for the database, as well.
 
