@@ -84,8 +84,7 @@ from flexmeasures.data.schemas.scheduling.storage import (
     ],
 )
 def test_soc_value_field(timing_input, expected_start, expected_end):
-    sensor = Sensor("test sensor", timezone="Europe/Amsterdam")
-    data = SOCValueSchema(sensor=sensor).load(
+    data = SOCValueSchema(timezone="Europe/Amsterdam").load(
         {
             "value": 3,
             **timing_input,

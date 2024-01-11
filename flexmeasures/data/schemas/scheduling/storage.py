@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
+import isodate
 from flask import current_app
 from marshmallow import (
     Schema,
@@ -57,13 +58,17 @@ class SOCValueSchema(Schema):
     duration = DurationField(required=False)
 
     def __init__(
-        self, sensor: Sensor, value_validator: Validator | None = None, *args, **kwargs
+        self,
+        timezone: str | None = None,
+        value_validator: Validator | None = None,
+        *args,
+        **kwargs,
     ):
         """A time period (or single point) with a target value.
 
-        :param sensor:  Used to interpret nominal durations in the sensor's timezone.
+        :param timezone:  Optionally, set a timezone to be able to interpret nominal durations.
         """
-        self.sensor = sensor
+        self.timezone = timezone
         self.value_validator = value_validator
         super().__init__(*args, **kwargs)
 
@@ -83,14 +88,6 @@ class SOCValueSchema(Schema):
         end = data.get("end")
         duration = data.get("duration")
 
-        # Convert to timezone of the sensor
-        if dt is not None:
-            dt = pd.Timestamp(dt).tz_convert(self.sensor.timezone)
-        if start is not None:
-            start = pd.Timestamp(start).tz_convert(self.sensor.timezone)
-        if end is not None:
-            end = pd.Timestamp(end).tz_convert(self.sensor.timezone)
-
         if dt is not None:
             if any([p is not None for p in (start, end, duration)]):
                 raise ValidationError(
@@ -99,18 +96,26 @@ class SOCValueSchema(Schema):
             data["start"] = dt
             data["end"] = dt
         elif duration is not None:
-            if all([p is None for p in (start, end)]) or all(
+            if self.timezone is None and isinstance(duration, isodate.Duration):
+                raise ValidationError(
+                    "Cannot interpret nominal duration used in the 'duration' field without a known timezone."
+                )
+            elif all([p is None for p in (start, end)]) or all(
                 [p is not None for p in (start, end)]
             ):
                 raise ValidationError(
                     "If using the 'duration' field, either 'start' or 'end' is expected."
                 )
             if start is not None:
-                grounded = DurationField.ground_from(duration, start)
+                grounded = DurationField.ground_from(
+                    duration, pd.Timestamp(start).tz_convert(self.timezone)
+                )
                 data["start"] = start
                 data["end"] = start + grounded
             else:
-                grounded = DurationField.ground_from(-duration, end)
+                grounded = DurationField.ground_from(
+                    -duration, pd.Timestamp(end).tz_convert(self.timezone)
+                )
                 data["start"] = end + grounded
                 data["end"] = end
         else:
@@ -180,16 +185,20 @@ class StorageFlexModelSchema(Schema):
         self.start = start
         self.sensor = sensor
         self.soc_maxima = fields.List(
-            fields.Nested(SOCValueSchema(sensor=sensor)), data_key="soc-maxima"
+            fields.Nested(SOCValueSchema(timezone=sensor.timezone)),
+            data_key="soc-maxima",
         )
         self.soc_minima = fields.List(
             fields.Nested(
-                SOCValueSchema(sensor=sensor, value_validator=validate.Range(min=0))
+                SOCValueSchema(
+                    timezone=sensor.timezone, value_validator=validate.Range(min=0)
+                )
             ),
             data_key="soc-minima",
         )
         self.soc_targets = fields.List(
-            fields.Nested(SOCValueSchema(sensor=sensor)), data_key="soc-targets"
+            fields.Nested(SOCValueSchema(timezone=sensor.timezone)),
+            data_key="soc-targets",
         )
         super().__init__(*args, **kwargs)
 
