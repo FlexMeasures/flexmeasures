@@ -606,7 +606,7 @@ def add_market_prices_common(
         resolution="1H",
     )
     seed(42)  # ensure same results over different test runs
-    values_day_1 = [
+    values_day1 = [
         random() * (1 + np.sin(x * 2 * np.pi / 24)) for x in range(len(time_slots))
     ]
     day1_beliefs = [
@@ -617,7 +617,7 @@ def add_market_prices_common(
             source=setup_sources["Seita"],
             sensor=setup_markets["epex_da"],
         )
-        for dt, val in zip(time_slots, values_day_1)
+        for dt, val in zip(time_slots, values_day1)
     ]
     db.session.add_all(day1_beliefs)
 
@@ -694,7 +694,7 @@ def add_market_prices_common(
             source=setup_sources["Seita"],
             sensor=setup_markets["epex_da"],
         )
-        for dt, val in zip(time_slots, values_day_1)
+        for dt, val in zip(time_slots, values_day1)
     ]
     db.session.add_all(today_beliefs)
 
