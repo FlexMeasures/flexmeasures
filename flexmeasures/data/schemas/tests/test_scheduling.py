@@ -4,6 +4,7 @@ import pytest
 
 from marshmallow.validate import ValidationError
 import pandas as pd
+from timely_beliefs import Sensor
 
 from flexmeasures.data.schemas.scheduling.process import (
     ProcessSchedulerFlexModelSchema,
@@ -16,23 +17,83 @@ from flexmeasures.data.schemas.scheduling.storage import (
 
 
 @pytest.mark.parametrize(
-    "timing_input",
+    ["timing_input", "expected_start", "expected_end"],
     [
-        {"datetime": "2023-03-27T00:00:00+00:00"},
-        {"start": "2023-03-26T00:00:00+00:00", "end": "2023-03-27T00:00:00+00:00"},
-        {"start": "2023-03-26T00:00:00+00:00", "duration": "PT24H"},
-        {"end": "2023-03-27T00:00:00+00:00", "duration": "PT24H"},
+        (
+            {"datetime": "2023-03-27T00:00:00+02:00"},
+            "2023-03-27T00:00:00+02:00",
+            "2023-03-27T00:00:00+02:00",
+        ),
+        (
+            {"start": "2023-03-26T00:00:00+01:00", "end": "2023-03-27T00:00:00+02:00"},
+            "2023-03-26T00:00:00+01:00",
+            "2023-03-27T00:00:00+02:00",
+        ),
+        (
+            {"start": "2023-03-26T00:00:00+01:00", "duration": "PT24H"},
+            "2023-03-26T00:00:00+01:00",
+            "2023-03-27T01:00:00+02:00",
+        ),
+        # https://github.com/gweis/isodate/issues/74
+        # (
+        #     {"start": "2023-03-26T00:00:00+01:00", "duration": "P1D"},
+        #     "2023-03-26T00:00:00+01:00",
+        #     "2023-03-27T00:00:00+02:00",
+        # ),
+        # (
+        #     {"start": "2023-03-26T00:00:00+01:00", "duration": "P1W"},
+        #     "2023-03-26T00:00:00+01:00",
+        #     "2023-04-02T00:00:00+02:00",
+        # ),
+        (
+            {"start": "2023-03-26T00:00:00+01:00", "duration": "P1M"},
+            "2023-03-26T00:00:00+01:00",
+            "2023-04-26T00:00:00+02:00",
+        ),
+        (
+            {"end": "2023-03-27T00:00:00+02:00", "duration": "PT24H"},
+            "2023-03-25T23:00:00+01:00",
+            "2023-03-27T00:00:00+02:00",
+        ),
+        (
+            {"start": "2023-10-29T00:00:00+02:00", "duration": "PT24H"},
+            "2023-10-29T00:00:00+02:00",
+            "2023-10-29T23:00:00+01:00",
+        ),
+        # https://github.com/gweis/isodate/issues/74
+        # (
+        #     {"start": "2023-10-29T00:00:00+02:00", "duration": "P1D"},
+        #     "2023-10-29T00:00:00+02:00",
+        #     "2023-10-30T00:00:00+01:00",
+        # ),
+        # (
+        #     {"start": "2023-10-29T00:00:00+02:00", "duration": "P1W"},
+        #     "2023-10-29T00:00:00+02:00",
+        #     "2023-11-05T00:00:00+01:00",
+        # ),
+        (
+            {"start": "2023-10-29T00:00:00+02:00", "duration": "P1M"},
+            "2023-10-29T00:00:00+02:00",
+            "2023-11-29T00:00:00+01:00",
+        ),
+        (
+            {"end": "2023-11-29T00:00:00+01:00", "duration": "P1M"},
+            "2023-10-29T00:00:00+02:00",
+            "2023-11-29T00:00:00+01:00",
+        ),
     ],
 )
-def test_soc_value_field(timing_input):
-    data = SOCValueSchema().load(
+def test_soc_value_field(timing_input, expected_start, expected_end):
+    sensor = Sensor("test sensor", timezone="Europe/Amsterdam")
+    data = SOCValueSchema(sensor=sensor).load(
         {
             "value": 3,
             **timing_input,
         }
     )
     print(data)
-    assert data["end"] == pd.Timestamp("2023-03-27T00:00:00+00:00")
+    assert data["start"] == pd.Timestamp(expected_start)
+    assert data["end"] == pd.Timestamp(expected_end)
 
 
 def test_process_scheduler_flex_model_load(db, app, setup_dummy_sensors):

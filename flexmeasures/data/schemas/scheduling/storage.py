@@ -11,7 +11,8 @@ from marshmallow import (
     fields,
     validates,
 )
-from marshmallow.validate import OneOf, ValidationError
+from marshmallow.validate import OneOf, ValidationError, Validator
+import pandas as pd
 
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
@@ -49,18 +50,21 @@ class EfficiencyField(QuantityField):
 
 
 class SOCValueSchema(Schema):
-    """
-    A point in time with a target value.
-    """
-
     value = fields.Float(required=True)
     datetime = AwareDateTimeField(required=False)
     start = AwareDateTimeField(required=False)
     end = AwareDateTimeField(required=False)
     duration = DurationField(required=False)
 
-    def __init__(self, *args, **kwargs):
-        self.value_validator = kwargs.pop("value_validator", None)
+    def __init__(
+        self, sensor: Sensor, value_validator: Validator | None = None, *args, **kwargs
+    ):
+        """A time period (or single point) with a target value.
+
+        :param sensor:  Used to interpret nominal durations in the sensor's timezone.
+        """
+        self.sensor = sensor
+        self.value_validator = value_validator
         super().__init__(*args, **kwargs)
 
     @validates("value")
@@ -70,10 +74,22 @@ class SOCValueSchema(Schema):
 
     @validates_schema
     def check_time_window(self, data: dict, **kwargs):
+        """Checks whether a complete time interval can be derived from the timing fields.
+
+        The data is updated in-place, guaranteeing that the 'start' and 'end' fields are filled out.
+        """
         dt = data.get("datetime")
         start = data.get("start")
         end = data.get("end")
         duration = data.get("duration")
+
+        # Convert to timezone of the sensor
+        if dt is not None:
+            dt = pd.Timestamp(dt).tz_convert(self.sensor.timezone)
+        if start is not None:
+            start = pd.Timestamp(start).tz_convert(self.sensor.timezone)
+        if end is not None:
+            end = pd.Timestamp(end).tz_convert(self.sensor.timezone)
 
         if dt is not None:
             if any([p is not None for p in (start, end, duration)]):
@@ -90,10 +106,12 @@ class SOCValueSchema(Schema):
                     "If using the 'duration' field, either 'start' or 'end' is expected."
                 )
             if start is not None:
+                grounded = DurationField.ground_from(duration, start)
                 data["start"] = start
-                data["end"] = start + duration
+                data["end"] = start + grounded
             else:
-                data["start"] = end - duration
+                grounded = DurationField.ground_from(-duration, end)
+                data["start"] = end + grounded
                 data["end"] = end
         else:
             if any([p is None for p in (start, end)]):
@@ -128,12 +146,6 @@ class StorageFlexModelSchema(Schema):
         "MW", data_key="production-capacity", required=False
     )
 
-    soc_maxima = fields.List(fields.Nested(SOCValueSchema()), data_key="soc-maxima")
-    soc_minima = fields.List(
-        fields.Nested(SOCValueSchema(value_validator=validate.Range(min=0))),
-        data_key="soc-minima",
-    )
-
     soc_unit = fields.Str(
         validate=OneOf(
             [
@@ -143,7 +155,6 @@ class StorageFlexModelSchema(Schema):
         ),
         data_key="soc-unit",
     )  # todo: allow unit to be set per field, using QuantityField("%", validate=validate.Range(min=0, max=1))
-    soc_targets = fields.List(fields.Nested(SOCValueSchema()), data_key="soc-targets")
 
     charging_efficiency = QuantityOrSensor(
         "%", data_key="charging-efficiency", required=False
@@ -168,6 +179,18 @@ class StorageFlexModelSchema(Schema):
         """Pass the schedule's start, so we can use it to validate soc-target datetimes."""
         self.start = start
         self.sensor = sensor
+        self.soc_maxima = fields.List(
+            fields.Nested(SOCValueSchema(sensor=sensor)), data_key="soc-maxima"
+        )
+        self.soc_minima = fields.List(
+            fields.Nested(
+                SOCValueSchema(sensor=sensor, value_validator=validate.Range(min=0))
+            ),
+            data_key="soc-minima",
+        )
+        self.soc_targets = fields.List(
+            fields.Nested(SOCValueSchema(sensor=sensor)), data_key="soc-targets"
+        )
         super().__init__(*args, **kwargs)
 
     @validates_schema
