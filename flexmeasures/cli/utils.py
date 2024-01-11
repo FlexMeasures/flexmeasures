@@ -185,3 +185,12 @@ def get_timerange_from_flag(
         )  # get first day of previous year
 
     return start, end
+
+
+def validate_unique(ctx, param, value):
+    """Callback function to ensure multiple values are unique."""
+    if value is not None:
+        # Check if all values are unique
+        if len(value) != len(set(value)):
+            raise click.BadParameter("Values must be unique.")
+    return value
