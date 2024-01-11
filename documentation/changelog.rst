@@ -16,7 +16,7 @@ Infrastructure / Support
 ----------------------
 
 * Deprecate use of flask's ``FLASK_ENV`` variable and replace it with ``FLEXMEASURES_ENV`` [see `PR #907 <https://github.com/FlexMeasures/flexmeasures/pull/907>`_]
-* Deprecate ``--account-id``, ``--asset-id``, ``--asset-type-id``, ``--sensor-id``, ``--source-id`` and ``--user-id`` cli options. Instead use ``--account``, ``--asset``, ``--asset-type``, ``--sensor``, ``--source`` and ``--user`` options, respectively [see `PR #907 <https://github.com/FlexMeasures/flexmeasures/pull/946>`_]
+* Deprecate ``--account-id``, ``--asset-id``, ``--asset-type-id``, ``--sensor-id``, ``--source-id`` and ``--user-id`` cli options. Instead use ``--account``, ``--asset``, ``--asset-type``, ``--sensor``, ``--source`` and ``--user`` options, respectively [see `PR #946 <https://github.com/FlexMeasures/flexmeasures/pull/946>`_]
 
 
 Bugfixes
