@@ -7,7 +7,14 @@ FlexMeasures CLI Changelog
 since v0.19.0 | February xx, 2024
 =======================================
 
-* Deprecate ``--account-id``, ``--asset-id``, ``--asset-type-id``, ``--sensor-id``, ``--source-id`` and ``--user-id`` cli options. Instead use ``--account``, ``--asset``, ``--asset-type``, ``--sensor``, ``--source`` and ``--user`` options, respectively.
+* Streamline CLI option naming by favoring ``--<entity>`` over ``--<entity>-id``. This affects the following options:
+
+    * ``--account-id`` -> ``--account``
+    * ``--asset-id`` -> ``--asset``
+    * ``--asset-type-id`` -> ``--asset-type``
+    * ``--sensor-id`` -> ``--sensor``
+    * ``--source-id`` -> ``--source``
+    * ``--user-id`` -> ``--user`
 
 
 since v0.17.0 | November 8, 2023
