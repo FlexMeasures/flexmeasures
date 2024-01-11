@@ -353,7 +353,6 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             one_deterministic_belief_per_event_per_source=one_deterministic_belief_per_event_per_source,
             resolution=resolution,
         )
-
         if as_json:
             df = bdf.reset_index()
             df["sensor"] = self
