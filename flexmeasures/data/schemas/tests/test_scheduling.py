@@ -4,7 +4,6 @@ import pytest
 
 from marshmallow.validate import ValidationError
 import pandas as pd
-from timely_beliefs import Sensor
 
 from flexmeasures.data.schemas.scheduling.process import (
     ProcessSchedulerFlexModelSchema,
