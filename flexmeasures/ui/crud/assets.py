@@ -20,6 +20,7 @@ from flexmeasures.data.models.generic_assets import (
     get_center_location_of_assets,
 )
 from flexmeasures.data.models.user import Account
+from flexmeasures.api.common.schemas.sensor_data import GetSensorDataSchema
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.crud.api_wrapper import InternalApi
@@ -288,17 +289,17 @@ class AssetCrudUI(FlaskView):
         asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
         sensors = []
         for sensor in asset.sensors:
-            get_sensor_response = InternalApi().get(
-                url_for("SensorAPI:get_status", id=sensor.id)
-            )
-            sensor_dict = get_sensor_response.json()
+            status = GetSensorDataSchema.get_status(sensor=sensor)
+
+            sensor_dict = {}
             sensor_dict["name"] = sensor.name
             sensor_dict["id"] = sensor.id
-            if all(sensor_dict["values"]):
+            sensor_dict["event_starts"] = status.event_starts.to_list()
+            if len(status.event_starts) == 4:
                 sensor_dict["sensor_status"] = "complete"
-            elif any(sensor_dict["values"]):
+            elif len(status.event_starts) in [1, 2, 3]:
                 sensor_dict["sensor_status"] = "partial"
-            elif not any(sensor_dict["values"]):
+            elif len(status.event_starts) == 0:
                 sensor_dict["sensor_status"] = "empty"
 
             sensors += [sensor_dict]

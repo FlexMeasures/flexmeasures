@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+
 from datetime import timedelta
 
 from flask_login import current_user
@@ -21,6 +22,7 @@ from flexmeasures.data.services.time_series import simplify_index
 from flexmeasures.utils.time_utils import (
     decide_resolution,
     duration_isoformat,
+    get_most_recent_clocktime_window,
     server_now,
 )
 from flexmeasures.utils.unit_utils import (
@@ -213,6 +215,24 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
         )
 
         return response
+
+    @staticmethod
+    def get_status(sensor: Sensor):
+        end, _ = get_most_recent_clocktime_window(
+            int(sensor.event_resolution.total_seconds() / 60)
+        )
+        test_end = end + sensor.knowledge_horizon(end)
+        start = test_end - (sensor.event_resolution * 4)
+
+        bdf = sensor.search_beliefs(
+            event_starts_after=start,
+            event_ends_before=test_end,
+            one_deterministic_belief_per_event=True,
+            resolution=sensor.event_resolution,
+            as_json=False,
+        )
+
+        return bdf
 
 
 class PostSensorDataSchema(SensorDataDescriptionSchema):

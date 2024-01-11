@@ -5,9 +5,11 @@ import pytest
 from random import random, seed
 from datetime import datetime, timedelta
 from flexmeasures.utils.time_utils import (
-    time_floor,
+    get_most_recent_clocktime_window,
+    get_most_recent_quarter,
     server_now,
 )
+
 
 from isodate import parse_duration
 import pandas as pd
@@ -673,12 +675,17 @@ def add_market_prices_common(
     ]
     db.session.add_all(day3_beliefs_production)
 
-    # consumption prices tomorrow
-    time_slots = initialize_index(
-        start=time_floor(server_now(), delta=timedelta(hours=1)),
-        end=time_floor(server_now(), delta=timedelta(hours=1)) + timedelta(days=1),
-        resolution="1H",
+    start_now, _ = get_most_recent_clocktime_window(
+        window_size_in_minutes=int(timedelta(hours=1).total_seconds() / 60),
+        now=server_now(),
     )
+    end_now, _ = get_most_recent_clocktime_window(
+        window_size_in_minutes=int(timedelta(hours=1).total_seconds() / 60),
+        now=(server_now() + timedelta(days=2)),
+    )
+    # consumption prices tomorrow
+    time_slots = initialize_index(start=start_now, end=end_now, resolution="1H")
+
     today_beliefs = [
         TimedBelief(
             event_start=dt,
@@ -1179,6 +1186,27 @@ def capacity_sensors(db, add_battery_assets, setup_sources):
             belief_horizon=parse_duration("PT0M"),
             event_value=val,
             sensor=consumption_capacity_sensor,
+            source=setup_sources["Seita"],
+        )
+        for dt, val in zip(time_slots, values)
+    ]
+    db.session.add_all(beliefs)
+    db.session.commit()
+
+    time_slots = pd.date_range(
+        (get_most_recent_quarter() - timedelta(hours=2)),
+        get_most_recent_quarter(),
+        freq="15T",
+    )
+
+    values = [200] * 6
+
+    beliefs = [
+        TimedBelief(
+            event_start=dt,
+            belief_horizon=parse_duration("PT0M"),
+            event_value=val,
+            sensor=production_capacity_sensor,
             source=setup_sources["Seita"],
         )
         for dt, val in zip(time_slots, values)

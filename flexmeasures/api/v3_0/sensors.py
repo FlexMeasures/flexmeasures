@@ -42,11 +42,7 @@ from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
     get_data_source_for_job,
 )
-from flexmeasures.utils.time_utils import (
-    duration_isoformat,
-    time_floor,
-    server_now,
-)
+from flexmeasures.utils.time_utils import duration_isoformat
 
 
 # Instantiate schemas outside of endpoint logic to minimize response time
@@ -756,64 +752,3 @@ class SensorAPI(FlaskView):
         db.session.commit()
         current_app.logger.info("Deleted sensor '%s'." % sensor_name)
         return {}, 204
-
-    @route("/<id>/status", methods=["GET"])
-    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
-    @permission_required_for_context("read", ctx_arg_name="sensor")
-    def get_status(self, id, sensor: Sensor):
-        """Fetch a given sensor status.
-
-        .. :quickref: Sensor; Get sensor status
-
-        This endpoint gets the status of a sensor.
-
-        **Example response**
-
-        .. sourcecode:: json
-
-            {
-                "duration": "PT40M",
-                "message": "Request has been processed.",
-                "resolution": "PT10M",
-                "start": "2023-12-21T17:00:00+09:00",
-                "status": "PROCESSED",
-                "unit": "m³/h",
-                "values": [30.0, 44.3, 32.2, 29.5],
-            }
-
-        :reqheader Authorization: The authentication token
-        :reqheader Content-Type: application/json
-        :resheader Content-Type: application/json
-        :status 200: PROCESSED
-        :status 400: INVALID_REQUEST
-        :status 401: UNAUTHORIZED
-        :status 403: INVALID_SENDER
-        :status 422: UNPROCESSABLE_ENTITY
-        """
-
-        duration = sensor.event_resolution * current_app.config.get(
-            "FLEXMEASURES_STATUS_DEPTH"
-        )
-        print(sensor.knowledge_horizon_fnc)
-        print(sensor.knowledge_horizon_par)
-        print(sensor.event_resolution)
-
-        start = time_floor(server_now(), sensor.event_resolution) - (
-            sensor.event_resolution
-            * (current_app.config.get("FLEXMEASURES_STATUS_DEPTH") - 1)
-        )
-        print(sensor.knowledge_horizon(start))  # 23.00
-        print(sensor.knowledge_time(start))
-        sensor_data_description = {
-            "sensor": sensor,
-            "start": start + sensor.knowledge_horizon(start),
-            "duration": duration,
-            "unit": sensor.unit,
-            "resolution": sensor.event_resolution,
-        }
-        response = GetSensorDataSchema.load_data_and_make_response(
-            sensor_data_description
-        )
-
-        d, s = request_processed()
-        return dict(**response, **d), s

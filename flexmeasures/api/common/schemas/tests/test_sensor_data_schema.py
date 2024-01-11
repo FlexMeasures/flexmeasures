@@ -122,3 +122,13 @@ def test_value_field_invalid(deserialization_input, error_msg):
     with pytest.raises(ValidationError) as ve:
         sf.deserialize(deserialization_input)
     assert error_msg in str(ve)
+
+
+def test_get_status(add_market_prices, capacity_sensors):
+    market_sensor = add_market_prices["epex_da"]
+    market_beliefs = GetSensorDataSchema.get_status(sensor=market_sensor)
+    production_sensor = capacity_sensors["production"]
+    production_beliefs = GetSensorDataSchema.get_status(sensor=production_sensor)
+
+    assert len(market_beliefs.event_starts) == 4
+    assert len(production_beliefs.event_starts) == 4
