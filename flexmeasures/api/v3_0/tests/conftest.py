@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import timedelta, datetime
+from datetime import timedelta
 
 import pandas as pd
 import pytest
@@ -9,7 +9,6 @@ from flask_security import SQLAlchemySessionUserDatastore, hash_password
 from flexmeasures import Sensor, Source, User, UserRole
 from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
 from flexmeasures.data.models.time_series import TimedBelief
-from flexmeasures.utils.time_utils import server_now, time_floor
 
 
 @pytest.fixture(scope="module")
@@ -22,9 +21,6 @@ def setup_api_test_data(
     print("Setting up data for API v3.0 tests on %s" % db.engine)
     supplier_user = User.query.get(setup_roles_users["Test Supplier User"])
     sensors = add_incineration_line(db, supplier_user)
-    print("Setting up data for API v3.0 tests on %s" % db.engine)
-    now = time_floor(server_now(), delta=timedelta(minutes=60))
-    sensors.update(add_incineration_line_now(db, supplier_user, now=now))
     return sensors
 
 
@@ -171,75 +167,6 @@ def add_gas_measurements(db, source: Source, sensor: Sensor):
         for minutes in range(0, 30, 10)
     ]
     event_values = [91.3, 91.7, 92.1]
-    beliefs = [
-        TimedBelief(
-            sensor=sensor,
-            source=source,
-            event_start=event_start,
-            belief_horizon=timedelta(0),
-            event_value=event_value,
-        )
-        for event_start, event_value in zip(event_starts, event_values)
-    ]
-    db.session.add_all(beliefs)
-    now = time_floor(server_now(), delta=timedelta(minutes=10))
-    event_starts_now = [
-        now - timedelta(minutes=minutes) for minutes in range(0, 40, 10)
-    ]
-    event_values_now = [50.3, 65.7, 44.1, 53.3]
-    beliefs_now = [
-        TimedBelief(
-            sensor=sensor,
-            source=source,
-            event_start=event_start,
-            belief_horizon=timedelta(0),
-            event_value=event_value,
-        )
-        for event_start, event_value in zip(event_starts_now, event_values_now)
-    ]
-    db.session.add_all(beliefs_now)
-
-
-@pytest.fixture(scope="module")
-def setup_api_test_data_now(
-    db, setup_roles_users, setup_generic_assets
-) -> dict[str, Sensor]:
-    """
-    Set up data for API v3.0 tests.
-    """
-    print("Setting up data for API v3.0 tests on %s" % db.engine)
-    now = time_floor(server_now(), delta=timedelta(minutes=60))
-    sensors = add_incineration_line_now(
-        db, User.query.get(setup_roles_users["Test Supplier User"]), now=now
-    )
-    return sensors
-
-
-def add_incineration_line_now(db, test_supplier_user, now) -> dict[str, Sensor]:
-    incineration_type = GenericAssetType(
-        name="waste incinerator now",
-    )
-    db.session.add(incineration_type)
-    incineration_asset = GenericAsset(
-        name="incineration line now",
-        generic_asset_type=incineration_type,
-        owner=test_supplier_user.account,
-    )
-    db.session.add(incineration_asset)
-    gas_sensor = Sensor(
-        name="some gas sensor now",
-        unit="m³/h",
-        event_resolution=timedelta(minutes=60),
-        generic_asset=incineration_asset,
-    )
-    add_gas_measurements_now(db, test_supplier_user.data_source[0], gas_sensor, now=now)
-
-    return {gas_sensor.name: gas_sensor}
-
-
-def add_gas_measurements_now(db, source: Source, sensor: Sensor, now: datetime):
-    event_starts = [now - timedelta(minutes=minutes) for minutes in range(0, 240, 60)]
-    event_values = [50.3, 65.7, 44.1, 53.3]
     beliefs = [
         TimedBelief(
             sensor=sensor,
