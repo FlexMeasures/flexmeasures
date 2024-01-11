@@ -151,6 +151,24 @@ class StorageFlexModelSchema(Schema):
         "MW", data_key="production-capacity", required=False
     )
 
+    # Timezone placeholder is overridden in __init__
+    soc_maxima = fields.List(
+        fields.Nested(SOCValueSchema(timezone="placeholder")),
+        data_key="soc-maxima",
+    )
+    soc_minima = fields.List(
+        fields.Nested(
+            SOCValueSchema(
+                timezone="placeholder", value_validator=validate.Range(min=0)
+            )
+        ),
+        data_key="soc-minima",
+    )
+    soc_targets = fields.List(
+        fields.Nested(SOCValueSchema(timezone="placeholder")),
+        data_key="soc-targets",
+    )
+
     soc_unit = fields.Str(
         validate=OneOf(
             [
