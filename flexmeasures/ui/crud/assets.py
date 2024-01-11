@@ -281,7 +281,7 @@ class AssetCrudUI(FlaskView):
     @login_required
     @route("/<id>/status/")
     def status(self, id: str):
-        """GET from /assets/<id> where id can be 'new' (and thus the form for asset creation is shown)"""
+        """GET from /assets/<id>/status to show the last 4 sensor readings for each sensor of the asset"""
 
         get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_one", id=id))
         asset_dict = get_asset_response.json()
