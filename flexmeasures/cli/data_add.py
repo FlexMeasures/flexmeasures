@@ -67,7 +67,6 @@ from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema,
     GenericAssetTypeSchema,
-    GenericAssetIdField,
 )
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.user import User
@@ -331,10 +330,10 @@ def add_sensor(**args):
     type=str,
     help="Description (useful to explain acronyms, for example).",
 )
-def add_asset_type(**args):
+def add_asset_type(**kwargs):
     """Add an asset type."""
-    check_errors(GenericAssetTypeSchema().validate(args))
-    generic_asset_type = GenericAssetType(**args)
+    check_errors(GenericAssetTypeSchema().validate(kwargs))
+    generic_asset_type = GenericAssetType(**kwargs)
     db.session.add(generic_asset_type)
     db.session.commit()
     click.secho(
@@ -372,9 +371,9 @@ def add_asset_type(**args):
 )
 @click.option(
     "--parent-asset",
-    "parent_asset",
+    "parent_asset_id",
     required=False,
-    type=GenericAssetIdField(),
+    type=int,
     help="Parent of this asset. The entity needs to exists on the database.",
 )
 def add_asset(**args):
