@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import List, Union, Optional, Dict
 from itertools import groupby
 from flask_login import current_user
