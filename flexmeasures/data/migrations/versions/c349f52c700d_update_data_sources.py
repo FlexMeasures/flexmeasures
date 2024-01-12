@@ -50,7 +50,9 @@ def upgrade():
             )
     else:
         # already renamed
-        assert foreign_key_exists("timed_belief", "timed_belief_source_id_data_source_fkey")
+        assert foreign_key_exists(
+            "timed_belief", "timed_belief_source_id_data_source_fkey"
+        )
 
 
 def downgrade():
