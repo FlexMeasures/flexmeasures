@@ -330,10 +330,10 @@ def add_sensor(**args):
     type=str,
     help="Description (useful to explain acronyms, for example).",
 )
-def add_asset_type(**kargs):
+def add_asset_type(**kwargs):
     """Add an asset type."""
-    check_errors(GenericAssetTypeSchema().validate(kargs))
-    generic_asset_type = GenericAssetType(**kargs)
+    check_errors(GenericAssetTypeSchema().validate(kwargs))
+    generic_asset_type = GenericAssetType(**kwargs)
     db.session.add(generic_asset_type)
     db.session.commit()
     click.secho(
