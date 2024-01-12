@@ -24,9 +24,12 @@ Bugfixes
 v0.18.1 | January XX, 2024
 ============================
 
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+
 Bugfixes
 -----------
 
+* Fix database migrations meant to clean up deprecated tables [see `PR #960 <https://github.com/FlexMeasures/flexmeasures/pull/960>`_]
 * Allow showing beliefs (plot and file export) via the CLI for sensors with non-unique names [see `PR #947 <https://github.com/FlexMeasures/flexmeasures/pull/947>`_]
 * Added Redis credentials to the Docker Compose configuration for the web server to ensure proper interaction with the Redis queue [see `PR #945 <https://github.com/FlexMeasures/flexmeasures/pull/945>`_]
 * Fix API version listing (GET /api/v3_0) for hosts running on Python 3.8 [see `PR #917 <https://github.com/FlexMeasures/flexmeasures/pull/917>`_ and `PR #950 <https://github.com/FlexMeasures/flexmeasures/pull/950>`_]
@@ -37,7 +40,7 @@ v0.18.0 | December 23, 2023
 
 .. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/018-better-use-of-future-knowledge/>`__.
 
-.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``). If this fails, update to ``flexmeasures==0.18.1`` first (and then run ``flexmeasures db upgrade``).
 
 New features
 -------------
