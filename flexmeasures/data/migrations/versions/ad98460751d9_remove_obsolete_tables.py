@@ -41,6 +41,7 @@ def upgrade():
         except ProgrammingError as exception:
             print(f"Table {table} not found, continuing...")
             print(exception)
+            db.session.close()  # current transaction is aborted, commands ignored until end of transaction block
     db.session.close()  # https://stackoverflow.com/a/26346280/13775459
 
     if tables_with_data:
