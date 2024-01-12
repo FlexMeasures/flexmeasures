@@ -64,7 +64,7 @@ def check_app_env(env: str | None):
         "production",
     ):
         print(
-            f'Flask(flexmeasures) environment needs to be either "documentation", "development", "testing", "staging" or "production". It currently is "{env}".'
+            f'Flexmeasures environment needs to be either "documentation", "development", "testing", "staging" or "production". It currently is "{env}".'
         )
         sys.exit(2)
 
@@ -72,11 +72,23 @@ def check_app_env(env: str | None):
 def read_config(app: Flask, custom_path_to_config: str | None):
     """Read configuration from various expected sources, complain if not setup correctly."""
 
-    check_app_env(app.env)
+    flexmeasures_env = DefaultConfig.FLEXMEASURES_ENV_DEFAULT
+    if app.testing:
+        flexmeasures_env = "testing"
+    elif os.getenv("FLEXMEASURES_ENV", None):
+        flexmeasures_env = os.getenv("FLEXMEASURES_ENV", None)
+    elif os.getenv("FLASK_ENV", None):
+        flexmeasures_env = os.getenv("FLASK_ENV", None)
+        app.logger.warning(
+            "'FLASK_ENV' is deprecated and replaced by FLEXMEASURES_ENV"
+            " Change FLASK_ENV to FLEXMEASURES_ENV in the environment variables",
+        )
+
+    check_app_env(flexmeasures_env)
 
     # First, load default config settings
     app.config.from_object(
-        "flexmeasures.utils.config_defaults.%sConfig" % camelize(app.env)
+        "flexmeasures.utils.config_defaults.%sConfig" % camelize(flexmeasures_env)
     )
 
     # Now, potentially overwrite those from config file or environment variables
@@ -98,7 +110,7 @@ def read_config(app: Flask, custom_path_to_config: str | None):
 
     # Check for missing values.
     # Documentation runs fine without them.
-    if not app.testing and app.env != "documentation":
+    if not app.testing and flexmeasures_env != "documentation":
         if not are_required_settings_complete(app):
             if not os.path.exists(used_path_to_config):
                 print(

@@ -637,7 +637,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         :param one_deterministic_belief_per_event: only return a single value per event (no probabilistic distribution and only 1 source)
         :param one_deterministic_belief_per_event_per_source: only return a single value per event per source (no probabilistic distribution)
         :param resolution: Optional timedelta or pandas freqstr used to resample the results **
-        :param sum_multiple: if True, sum over multiple sensors; otherwise, return a dictionary with sensor names as key, each holding a BeliefsDataFrame as its value
+        :param sum_multiple: if True, sum over multiple sensors; otherwise, return a dictionary with sensors as key, each holding a BeliefsDataFrame as its value
 
         *  If user_source_ids is specified, the "user" source type is automatically included (and not excluded).
            Somewhat redundant, though still allowed, is to set both source_types and exclude_source_types.
@@ -729,7 +729,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 # Workaround (2nd half) for https://github.com/FlexMeasures/flexmeasures/issues/484
                 bdf = bdf[bdf.event_starts >= event_starts_after]
                 bdf = bdf[bdf.event_ends <= event_ends_before]
-            bdf_dict[bdf.sensor.name] = bdf
+            bdf_dict[bdf.sensor] = bdf
 
         if sum_multiple:
             return aggregate_values(bdf_dict)
