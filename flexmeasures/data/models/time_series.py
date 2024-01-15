@@ -10,6 +10,7 @@ import pandas as pd
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm.exc import DetachedInstanceError
 from sqlalchemy.schema import UniqueConstraint
 from sqlalchemy import inspect, create_engine
 import timely_beliefs as tb
@@ -493,11 +494,14 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         return self.name
 
     def to_dict(self) -> dict:
-        return dict(
-            id=self.id,
-            name=self.name,
-            description=f"{self.name} ({self.generic_asset.name})",
-        )
+        try:
+            return dict(
+                id=self.id,
+                name=self.name,
+                description=f"{self.name} ({self.generic_asset.name})",
+            )
+        except DetachedInstanceError:
+            return Sensor.query.get(self.id).to_dict()
 
     @classmethod
     def find_closest(

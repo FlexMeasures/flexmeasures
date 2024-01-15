@@ -389,22 +389,24 @@ class GenericAsset(db.Model, AuthModelMixin):
         :param as_json: return beliefs in JSON format (e.g. for use in charts) rather than as BeliefsDataFrame
         :returns: dictionary of BeliefsDataFrames or JSON string (if as_json is True)
         """
-        bdf_dict = {}
+        from flexmeasures.data.models.time_series import TimedBelief
+
         if sensors is None:
             sensors = self.sensors
-        for sensor in sensors:
-            bdf_dict[sensor] = sensor.search_beliefs(
-                event_starts_after=event_starts_after,
-                event_ends_before=event_ends_before,
-                beliefs_after=beliefs_after,
-                beliefs_before=beliefs_before,
-                horizons_at_least=horizons_at_least,
-                horizons_at_most=horizons_at_most,
-                source=source,
-                most_recent_beliefs_only=most_recent_beliefs_only,
-                most_recent_events_only=most_recent_events_only,
-                one_deterministic_belief_per_event_per_source=True,
-            )
+        bdf_dict = TimedBelief.search(
+            sensors=sensors,
+            event_starts_after=event_starts_after,
+            event_ends_before=event_ends_before,
+            beliefs_after=beliefs_after,
+            beliefs_before=beliefs_before,
+            horizons_at_least=horizons_at_least,
+            horizons_at_most=horizons_at_most,
+            source=source,
+            most_recent_beliefs_only=most_recent_beliefs_only,
+            most_recent_events_only=most_recent_events_only,
+            one_deterministic_belief_per_event_per_source=True,
+            sum_multiple=False,
+        )
         if as_json:
             from flexmeasures.data.services.time_series import simplify_index
 
