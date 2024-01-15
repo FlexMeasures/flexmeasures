@@ -21,7 +21,7 @@ Bugfixes
 -----------
 
 
-v0.18.1 | January XX, 2024
+v0.18.1 | January 15, 2024
 ============================
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
