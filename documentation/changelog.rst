@@ -21,6 +21,12 @@ Bugfixes
 -----------
 
 
+v0.18.2 | January xx, 2024
+============================
+
+* Automatically update table navigation in the UI without requiring users to hard refresh their browser [see `PR #961 <https://github.com/FlexMeasures/flexmeasures/pull/961>`_]
+
+
 v0.18.1 | January 15, 2024
 ============================
 
