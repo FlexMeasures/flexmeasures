@@ -4,12 +4,14 @@ from typing import Any, Type
 from datetime import datetime as datetime_type, timedelta
 import json
 from flask import current_app
+import multiprocessing
 
 import pandas as pd
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy.schema import UniqueConstraint
-from sqlalchemy import inspect
+from sqlalchemy import inspect, create_engine
 import timely_beliefs as tb
 from timely_beliefs.beliefs.probabilistic_utils import get_median_belief
 import timely_beliefs.utils as tb_utils
@@ -675,55 +677,24 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         )
         custom_join_targets = [] if parsed_sources else [DataSource]
 
-        bdf_dict = {}
-        for sensor in sensors:
-            bdf = cls.search_session(
-                session=db.session,
-                sensor=sensor,
-                # Workaround (1st half) for https://github.com/FlexMeasures/flexmeasures/issues/484
-                event_ends_after=event_starts_after,
-                event_starts_before=event_ends_before,
-                beliefs_after=beliefs_after,
-                beliefs_before=beliefs_before,
-                horizons_at_least=horizons_at_least,
-                horizons_at_most=horizons_at_most,
-                source=parsed_sources,
-                most_recent_beliefs_only=most_recent_beliefs_only,
-                most_recent_events_only=most_recent_events_only,
-                custom_filter_criteria=source_criteria,
-                custom_join_targets=custom_join_targets,
-            )
-            if one_deterministic_belief_per_event:
-                # todo: compute median of collective belief instead of median of first belief (update expected test results accordingly)
-                # todo: move to timely-beliefs: select mean/median belief
-                if (
-                    bdf.lineage.number_of_sources <= 1
-                    and bdf.lineage.probabilistic_depth == 1
-                ):
-                    # Fast track, no need to loop over beliefs
-                    pass
-                else:
-                    bdf = (
-                        bdf.for_each_belief(get_median_belief)
-                        .groupby(level=["event_start"], group_keys=False)
-                        .apply(lambda x: x.head(1))
-                    )
-            elif one_deterministic_belief_per_event_per_source:
-                if len(bdf) == 0 or bdf.lineage.probabilistic_depth == 1:
-                    # Fast track, no need to loop over beliefs
-                    pass
-                else:
-                    bdf = bdf.for_each_belief(get_median_belief)
-
-            if resolution is not None:
-                bdf = bdf.resample_events(
-                    resolution, keep_only_most_recent_belief=most_recent_beliefs_only
-                )
-                # Workaround (2nd half) for https://github.com/FlexMeasures/flexmeasures/issues/484
-                bdf = bdf[bdf.event_starts >= event_starts_after]
-                bdf = bdf[bdf.event_ends <= event_ends_before]
-            bdf_dict[bdf.sensor] = bdf
-
+        search_kwargs = dict(
+            # Workaround (1st half) for https://github.com/FlexMeasures/flexmeasures/issues/484
+            event_ends_after=event_starts_after,
+            event_starts_before=event_ends_before,
+            beliefs_after=beliefs_after,
+            beliefs_before=beliefs_before,
+            horizons_at_least=horizons_at_least,
+            horizons_at_most=horizons_at_most,
+            source=parsed_sources,
+            most_recent_beliefs_only=most_recent_beliefs_only,
+            most_recent_events_only=most_recent_events_only,
+            custom_filter_criteria=source_criteria,
+            custom_join_targets=custom_join_targets,
+        )
+        n = 4
+        with multiprocessing.Pool(processes=n) as pool:
+            results = pool.starmap(search_wrapper, [(s, search_kwargs) for s in sensors])
+        bdf_dict = dict(results)
         if sum_multiple:
             return aggregate_values(bdf_dict)
         else:
@@ -767,3 +738,53 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
     def __repr__(self) -> str:
         """timely-beliefs representation of timed beliefs."""
         return tb.TimedBelief.__repr__(self)
+
+
+def search_wrapper(
+    s,
+    search_kwargs,
+):
+    db_uri = current_app.config.get("SQLALCHEMY_DATABASE_URI")
+    engine = create_engine(db_uri)
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    search_kwargs["session"] = session
+
+    one_deterministic_belief_per_event = search_kwargs.get("one_deterministic_belief_per_event")
+    one_deterministic_belief_per_event_per_source = search_kwargs.get("one_deterministic_belief_per_event_per_source")
+    resolution = search_kwargs.get("resolution")
+    most_recent_beliefs_only = search_kwargs.get("most_recent_beliefs_only")
+    event_starts_after = search_kwargs.get("event_starts_after")
+    event_ends_before = search_kwargs.get("event_ends_before")
+
+    bdf = TimedBelief.search_session(sensor=s, **search_kwargs)
+    if one_deterministic_belief_per_event:
+        # todo: compute median of collective belief instead of median of first belief (update expected test results accordingly)
+        # todo: move to timely-beliefs: select mean/median belief
+        if (
+            bdf.lineage.number_of_sources <= 1
+            and bdf.lineage.probabilistic_depth == 1
+        ):
+            # Fast track, no need to loop over beliefs
+            pass
+        else:
+            bdf = (
+                bdf.for_each_belief(get_median_belief)
+                .groupby(level=["event_start"], group_keys=False)
+                .apply(lambda x: x.head(1))
+            )
+    elif one_deterministic_belief_per_event_per_source:
+        if len(bdf) == 0 or bdf.lineage.probabilistic_depth == 1:
+            # Fast track, no need to loop over beliefs
+            pass
+        else:
+            bdf = bdf.for_each_belief(get_median_belief)
+
+    if resolution is not None:
+        bdf = bdf.resample_events(
+            resolution, keep_only_most_recent_belief=most_recent_beliefs_only
+        )
+        # Workaround (2nd half) for https://github.com/FlexMeasures/flexmeasures/issues/484
+        bdf = bdf[bdf.event_starts >= event_starts_after]
+        bdf = bdf[bdf.event_ends <= event_ends_before]
+    return bdf.sensor, bdf
