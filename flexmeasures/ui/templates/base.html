@@ -660,7 +660,7 @@
 
     <!-- Custom scripts -->
     <script src="{{ url_for('flexmeasures_ui.static', filename='js/swiped-events.min.js') }}"></script>
-    <script src="{{ url_for('flexmeasures_ui.static', filename='js/flexmeasures.js') }}"></script>
+    <script src="{{ url_for('flexmeasures_ui.static', filename='js/flexmeasures.js') }}?v={{ flexmeasures_version }}"></script>
 
     {% endblock scripts %}
 
