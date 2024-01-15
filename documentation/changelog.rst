@@ -3,12 +3,46 @@
 FlexMeasures Changelog
 **********************
 
+
+v0.19.0 | February xx, 2024
+============================
+
+.. warning:: This version replaces FLASK_ENV with FLEXMEASURES_ENV (FLASK_ENV will still be used as a fallback).
+
+New features
+-------------
+
+Infrastructure / Support
+----------------------
+
+* Deprecate use of flask's ``FLASK_ENV`` variable and replace it with ``FLEXMEASURES_ENV`` [see `PR #907 <https://github.com/FlexMeasures/flexmeasures/pull/907>`_]
+
+Bugfixes
+-----------
+
+
+v0.18.1 | January XX, 2024
+============================
+
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+
+Bugfixes
+-----------
+
+* Fix database migrations meant to clean up deprecated tables [see `PR #960 <https://github.com/FlexMeasures/flexmeasures/pull/960>`_]
+* Allow showing beliefs (plot and file export) via the CLI for sensors with non-unique names [see `PR #947 <https://github.com/FlexMeasures/flexmeasures/pull/947>`_]
+* Added Redis credentials to the Docker Compose configuration for the web server to ensure proper interaction with the Redis queue [see `PR #945 <https://github.com/FlexMeasures/flexmeasures/pull/945>`_]
+* Fix API version listing (GET /api/v3_0) for hosts running on Python 3.8 [see `PR #917 <https://github.com/FlexMeasures/flexmeasures/pull/917>`_ and `PR #950 <https://github.com/FlexMeasures/flexmeasures/pull/950>`_]
+* Fix the validation of the option ``--parent-asset`` of command ``flexmeasures add asset`` [see `PR #959 <https://github.com/FlexMeasures/flexmeasures/pull/959>`_]
+
+
+
 v0.18.0 | December 23, 2023
 ============================
 
-   .. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/018-better-use-of-future-knowledge/>`__.
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/018-better-use-of-future-knowledge/>`__.
 
-.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``). If this fails, update to ``flexmeasures==0.18.1`` first (and then run ``flexmeasures db upgrade``).
 
 New features
 -------------
@@ -44,7 +78,7 @@ Bugfixes
 * Show `Assets`, `Users`, `Tasks` and `Accounts` pages in the navigation bar for the `admin-reader` role [see `PR #900 <https://github.com/FlexMeasures/flexmeasures/pull/900>`_]
 * Reduce worker logs when datetime exceeds the end of the schedule [see `PR #918 <https://github.com/FlexMeasures/flexmeasures/pull/918>`_]
 * Fix infeasible problem due to incorrect estimation of the big-M value [see `PR #905 <https://github.com/FlexMeasures/flexmeasures/pull/905>`_]
-* Fix API version listing (GET /api/v3_0) for hosts running on Python 3.8 [see `PR #917 <https://github.com/FlexMeasures/flexmeasures/pull/917>`_]
+* [Incomplete fix; full fix in v0.18.1] Fix API version listing (GET /api/v3_0) for hosts running on Python 3.8 [see `PR #917 <https://github.com/FlexMeasures/flexmeasures/pull/917>`_]
 
 
 v0.17.0 | November 8, 2023
