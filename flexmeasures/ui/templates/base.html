@@ -33,7 +33,7 @@
     <link href="https://cdn.jsdelivr.net/npm/ion-rangeslider@2.3.1/css/ion.rangeSlider.css"
         rel="stylesheet" />
     <!-- Custom CSS -->
-    <link href="{{ url_for('flexmeasures_ui.static', filename='css/flexmeasures.css') }}" rel="stylesheet" />
+    <link href="{{ url_for('flexmeasures_ui.static', filename='css/flexmeasures.css') }}?v={{ flexmeasures_version }}" rel="stylesheet" />
     {% if active_page == "tasks" %}
     <link href="{{ url_for('rq_dashboard.static', filename='css/main.css') }}" rel="stylesheet">
     <link href="{{ url_for('flexmeasures_ui.static', filename='css/external/rq-dashboard-bootstrap.min.css') }}" rel="stylesheet" />
@@ -660,7 +660,7 @@
 
     <!-- Custom scripts -->
     <script src="{{ url_for('flexmeasures_ui.static', filename='js/swiped-events.min.js') }}"></script>
-    <script src="{{ url_for('flexmeasures_ui.static', filename='js/flexmeasures.js') }}"></script>
+    <script src="{{ url_for('flexmeasures_ui.static', filename='js/flexmeasures.js') }}?v={{ flexmeasures_version }}"></script>
 
     {% endblock scripts %}
 
