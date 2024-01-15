@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional, Tuple, List, Union
 import json
+import multiprocessing
 
 from flask import current_app
 from flask_security import current_user
@@ -389,22 +390,24 @@ class GenericAsset(db.Model, AuthModelMixin):
         :param as_json: return beliefs in JSON format (e.g. for use in charts) rather than as BeliefsDataFrame
         :returns: dictionary of BeliefsDataFrames or JSON string (if as_json is True)
         """
-        bdf_dict = {}
         if sensors is None:
             sensors = self.sensors
-        for sensor in sensors:
-            bdf_dict[sensor] = sensor.search_beliefs(
-                event_starts_after=event_starts_after,
-                event_ends_before=event_ends_before,
-                beliefs_after=beliefs_after,
-                beliefs_before=beliefs_before,
-                horizons_at_least=horizons_at_least,
-                horizons_at_most=horizons_at_most,
-                source=source,
-                most_recent_beliefs_only=most_recent_beliefs_only,
-                most_recent_events_only=most_recent_events_only,
-                one_deterministic_belief_per_event_per_source=True,
-            )
+        search_kwargs = dict(
+            event_starts_after=event_starts_after,
+            event_ends_before=event_ends_before,
+            beliefs_after=beliefs_after,
+            beliefs_before=beliefs_before,
+            horizons_at_least=horizons_at_least,
+            horizons_at_most=horizons_at_most,
+            source=source,
+            most_recent_beliefs_only=most_recent_beliefs_only,
+            most_recent_events_only=most_recent_events_only,
+            one_deterministic_belief_per_event_per_source=True,
+        )
+        n = 4
+        with multiprocessing.Pool(processes=n) as pool:
+            results = pool.starmap(search_wrapper, [(s, search_kwargs) for s in sensors])
+        bdf_dict = dict(results)
         if as_json:
             from flexmeasures.data.services.time_series import simplify_index
 
@@ -646,3 +649,17 @@ def get_center_location_of_assets(user: Optional[User]) -> Tuple[float, float]:
     ):
         return 52.366, 4.904  # Amsterdam, NL
     return locations[0].latitude, locations[0].longitude
+
+
+def search_wrapper(
+    s,
+    search_kwargs,
+):
+    # db_uri = current_app.config.get("SQLALCHEMY_DATABASE_URI")
+    # engine = create_engine(db_uri)
+    # Session = sessionmaker(bind=engine)
+    # session = Session()
+    # search_kwargs["session"] = session
+
+    bdf = s.search_beliefs(**search_kwargs)
+    return bdf.sensor, bdf
