@@ -4,7 +4,7 @@
 FlexMeasures CLI Changelog
 **********************
 
-since v0.18.1 | January XX, 2023
+since v0.18.1 | January 15, 2023
 =======================================
 
 * Fix the validation of the option ``--parent-asset`` of command ``flexmeasures add asset``.
