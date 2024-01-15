@@ -33,13 +33,16 @@ def upgrade():
         "weather_sensor",
     ]:
         try:
-            result = db.session.execute(
-                sa.text(f"SELECT EXISTS (SELECT 1 FROM {table});")
-            ).scalar_one_or_none()
-            if result:
-                tables_with_data += [table]
+            inspect = sa.inspect(db.engine)
+            if inspect.has_table(table):
+                result = db.session.execute(
+                    sa.text(f"SELECT 1 FROM {table};")
+                ).scalar_one_or_none()
+                if result:
+                    tables_with_data.append(table)
+            else:
+                print(f"Table {table} not found, continuing...")
         except ProgrammingError as exception:
-            print(f"Table {table} not found, continuing...")
             print(exception)
     db.session.close()  # https://stackoverflow.com/a/26346280/13775459
 
