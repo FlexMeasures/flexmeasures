@@ -160,8 +160,7 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
     :caption: Concepts
     :maxdepth: 1
 
-    concepts/benefits
-    concepts/inbuilt-smart-functionality
+    concepts/data-model
     concepts/algorithms
     concepts/security_auth
     concepts/device_scheduler

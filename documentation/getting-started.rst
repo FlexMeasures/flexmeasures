@@ -58,8 +58,6 @@ You want to extend the functionality of FlexMeasures, e.g. a custom integration 
 - See how some existing plugins are made `flexmeasures-entsoe <https://github.com/SeitaBV/flexmeasures-entsoe>`_ or `flexmeasures-openweathermap <https://github.com/SeitaBV/flexmeasures-openweathermap>`_
 - Of course, some of the developers resources (see below) might be helpful to you, as well.
 
-.. warning:: Please read :ref:`note_on_datamodel_transition`.
-
 
 Core developers
 ^^^^^^^^^^^^^^^^
