@@ -1,7 +1,7 @@
 .. _benefits_of_flex:
 
-Benefits from energy flexibility
-====================================
+Energy flexibility
+=====================
 
 FlexMeasures was created so that the value of energy flexibility can be realised.
 This will make energy cheaper to use, and can also reduce CO₂ emissions.
@@ -102,7 +102,7 @@ This volume is a multiplication of the energy volume being shifted and the durat
 .. _activation_profits:
 
 Profits of flexibility activation
----------------
+---------------------------------
 
 The realised value from activating flexibility has to be computed and accounted for.
 Both of these activities depend on the context in which FlexMeasures is being used, and we expect that it will often have to be implemented in a custom manner (much as the actual scheduling optimisation).
