@@ -8,6 +8,7 @@ from flexmeasures.api.common.schemas.sensor_data import (
     PostSensorDataSchema,
     GetSensorDataSchema,
 )
+from flexmeasures.data.schemas.reporting import BeliefsSearchConfigSchema
 
 
 @pytest.mark.parametrize(
@@ -126,9 +127,46 @@ def test_value_field_invalid(deserialization_input, error_msg):
 
 def test_get_status(add_market_prices, capacity_sensors):
     market_sensor = add_market_prices["epex_da"]
-    market_beliefs = GetSensorDataSchema.get_status(sensor=market_sensor)
+    market_staleness_search = BeliefsSearchConfigSchema().load(
+        {
+            "sensor": market_sensor.id,
+            "horizons_at_most": "PT0H",
+            "horizons_at_least": "PT0H",
+        }
+    )
+    # event_starts_after = AwareDateTimeField()
+    # event_ends_before = AwareDateTimeField()
+
+    # belief_time = AwareDateTimeField()
+
+    # horizons_at_least = DurationField()
+    # horizons_at_most = DurationField()
+
+    # source = DataSourceIdField()
+
+    # source_types = fields.List(fields.Str())
+    # exclude_source_types = fields.List(fields.Str())
+    # most_recent_beliefs_only = fields.Boolean()
+    # most_recent_events_only = fields.Boolean()
+
+    # one_deterministic_belief_per_event = fields.Boolean()
+    # one_deterministic_belief_per_event_per_source = fields.Boolean()
+    # resolution = DurationField()
+    # sum_multiple = fields.Boolean()
+
+    market_beliefs = GetSensorDataSchema.get_staleness(
+        staleness_search=market_staleness_search
+    )
     production_sensor = capacity_sensors["production"]
-    production_beliefs = GetSensorDataSchema.get_status(sensor=production_sensor)
+    production_staleness_search = BeliefsSearchConfigSchema().load(
+        {
+            "sensor": production_sensor.id,
+        }
+    )
+    production_beliefs = GetSensorDataSchema.get_staleness(
+        staleness_search=production_staleness_search
+    )
 
     assert len(market_beliefs.event_starts) == 4
     assert len(production_beliefs.event_starts) == 4
+    assert 1 == 2

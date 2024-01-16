@@ -44,6 +44,7 @@ class BeliefsSearchConfigSchema(Schema):
     using the method flexmeasures.data.models.time_series:Sensor.search_beliefs
     """
 
+    # sensor is a Sensor object or a SensorIdField
     sensor = SensorIdField(required=True)
     alias = fields.Str()
 

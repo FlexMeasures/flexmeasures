@@ -1,4 +1,5 @@
 from __future__ import annotations
+import pdb
 
 from datetime import timedelta
 
@@ -24,6 +25,7 @@ from flexmeasures.utils.time_utils import (
     get_most_recent_clocktime_window,
     server_now,
 )
+from flexmeasures.data.schemas.reporting import BeliefsSearchConfigSchema
 from flexmeasures.utils.unit_utils import (
     convert_units,
     units_are_convertible,
@@ -216,22 +218,37 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
         return response
 
     @staticmethod
-    def get_status(sensor: Sensor):
-        end, _ = get_most_recent_clocktime_window(
+    def get_staleness(staleness_search: BeliefsSearchConfigSchema):
+        """Get the staleness of the sensor"""
+        sensor = staleness_search.pop("sensor")
+        _, end = get_most_recent_clocktime_window(
             int(sensor.event_resolution.total_seconds() / 60)
         )
-        test_end = end + sensor.knowledge_horizon(end)
-        start = test_end - (sensor.event_resolution * 4)
 
-        bdf = sensor.search_beliefs(
-            event_starts_after=start,
-            event_ends_before=test_end,
+        bdf1 = sensor.search_beliefs(
+            event_starts_after=(server_now() - timedelta(days=1)),
+            event_ends_before=(server_now() + timedelta(days=10)),
+            most_recent_beliefs_only=True,
             one_deterministic_belief_per_event=True,
             resolution=sensor.event_resolution,
             as_json=False,
+            **staleness_search,
+        )
+        print(bdf1)
+
+        # difference between knowledge time and now is staleness which can be calculated as follows:
+        # staleness = server_now() - sensor.knowledge_time(
+        #     bdf1.event_starts[-1], sensor.event_resolution
+        # )
+        # or the more direct way:
+        staleness = (
+            server_now()
+            - bdf1.event_starts[-1]
+            + sensor.knowledge_horizon(bdf1.event_starts[-1], sensor.event_resolution)
         )
 
-        return bdf
+        pdb.set_trace()
+        return staleness
 
 
 class PostSensorDataSchema(SensorDataDescriptionSchema):

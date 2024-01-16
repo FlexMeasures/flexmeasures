@@ -675,11 +675,11 @@ def add_market_prices_common(
     ]
     db.session.add_all(day3_beliefs_production)
 
-    start_now, _ = get_most_recent_clocktime_window(
+    _, start_now = get_most_recent_clocktime_window(
         window_size_in_minutes=int(timedelta(hours=1).total_seconds() / 60),
         now=server_now(),
     )
-    end_now, _ = get_most_recent_clocktime_window(
+    _, end_now = get_most_recent_clocktime_window(
         window_size_in_minutes=int(timedelta(hours=1).total_seconds() / 60),
         now=(server_now() + timedelta(days=2)),
     )
