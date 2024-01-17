@@ -18,6 +18,9 @@ depends_on = None
 
 def upgrade():
     # The name of the data_source should be 120 String, this was not correctly set in an earlier revision of the db.
+    op.execute(
+        sa.text("UPDATE data_source SET attributes = '{}' WHERE attributes IS NULL;")
+    )
     with op.batch_alter_table("data_source", schema=None) as batch_op:
         batch_op.alter_column(
             "name",
@@ -34,15 +37,21 @@ def upgrade():
         )
 
     # This constraint is renamed to include the full name of the `data_source` table.
-    with op.batch_alter_table("timed_belief", schema=None) as batch_op:
-        batch_op.drop_constraint(
-            "timed_belief_source_id_source_fkey", type_="foreignkey"
-        )
-        batch_op.create_foreign_key(
-            batch_op.f("timed_belief_source_id_data_source_fkey"),
-            "data_source",
-            ["source_id"],
-            ["id"],
+    if foreign_key_exists("timed_belief", "timed_belief_source_id_source_fkey"):
+        with op.batch_alter_table("timed_belief", schema=None) as batch_op:
+            batch_op.drop_constraint(
+                "timed_belief_source_id_source_fkey", type_="foreignkey"
+            )
+            batch_op.create_foreign_key(
+                batch_op.f("timed_belief_source_id_data_source_fkey"),
+                "data_source",
+                ["source_id"],
+                ["id"],
+            )
+    else:
+        # already renamed
+        assert foreign_key_exists(
+            "timed_belief", "timed_belief_source_id_data_source_fkey"
         )
 
 
@@ -71,3 +80,17 @@ def downgrade():
             type_=sa.VARCHAR(length=80),
             existing_nullable=False,
         )
+
+
+def foreign_key_exists(table_name, fk_name) -> bool:
+    # Get the current connection
+    connection = op.get_bind()
+
+    # Create an Inspector
+    insp = sa.inspect(connection)
+
+    # Get the foreign keys for the specified table
+    foreign_keys = insp.get_foreign_keys(table_name)
+
+    # Check if the specified foreign key name exists
+    return any(fk["name"] == fk_name for fk in foreign_keys)

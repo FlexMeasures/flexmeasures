@@ -17,6 +17,12 @@ since v0.19.0 | February xx, 2024
     * ``--user-id`` -> ``--user`
 
 
+since v0.18.1 | January 15, 2023
+=======================================
+
+* Fix the validation of the option ``--parent-asset`` of command ``flexmeasures add asset``.
+
+
 since v0.17.0 | November 8, 2023
 =======================================
 
