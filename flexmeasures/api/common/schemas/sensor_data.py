@@ -1,7 +1,6 @@
 from __future__ import annotations
-import pdb
 
-from datetime import timedelta
+from datetime import timedelta, datetime
 
 from flask_login import current_user
 from isodate import datetime_isoformat
@@ -22,8 +21,6 @@ from flexmeasures.data.services.time_series import simplify_index
 from flexmeasures.utils.time_utils import (
     decide_resolution,
     duration_isoformat,
-    get_most_recent_clocktime_window,
-    server_now,
 )
 from flexmeasures.data.schemas.reporting import BeliefsSearchConfigSchema
 from flexmeasures.utils.unit_utils import (
@@ -31,6 +28,7 @@ from flexmeasures.utils.unit_utils import (
     units_are_convertible,
     is_energy_price_unit,
 )
+from flexmeasures.utils.time_utils import server_now
 
 
 class SingleValueField(fields.Float):
@@ -218,37 +216,46 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
         return response
 
     @staticmethod
-    def get_staleness(staleness_search: BeliefsSearchConfigSchema):
+    def get_staleness(sensor: Sensor, staleness_search: dict, now: datetime):
         """Get the staleness of the sensor"""
-        sensor = staleness_search.pop("sensor")
-        _, end = get_most_recent_clocktime_window(
-            int(sensor.event_resolution.total_seconds() / 60)
-        )
+
+        staleness_search_schema = BeliefsSearchConfigSchema().load(staleness_search)
 
         bdf1 = sensor.search_beliefs(
-            event_starts_after=(server_now() - timedelta(days=1)),
-            event_ends_before=(server_now() + timedelta(days=10)),
+            event_starts_after=(now - timedelta(days=1)),
+            event_ends_before=(now + timedelta(days=10)),
             most_recent_beliefs_only=True,
             one_deterministic_belief_per_event=True,
             resolution=sensor.event_resolution,
             as_json=False,
-            **staleness_search,
+            **staleness_search_schema,
+        )
+        bdf2 = sensor.search_beliefs(
+            event_starts_after=(now - timedelta(days=1)),
+            event_ends_before=(now + timedelta(days=10)),
+            one_deterministic_belief_per_event=True,
+            resolution=sensor.event_resolution,
+            as_json=False,
+            horizons_at_most=timedelta(0),
+            **staleness_search_schema,
         )
         print(bdf1)
+        if bdf2.empty:
+            staleness = timedelta(days=10)
+            return {"staleness": staleness}
 
         # difference between knowledge time and now is staleness which can be calculated as follows:
-        # staleness = server_now() - sensor.knowledge_time(
+        # staleness = now - sensor.knowledge_time(
         #     bdf1.event_starts[-1], sensor.event_resolution
         # )
         # or the more direct way:
         staleness = (
-            server_now()
-            - bdf1.event_starts[-1]
-            + sensor.knowledge_horizon(bdf1.event_starts[-1], sensor.event_resolution)
+            now
+            - bdf2.event_starts[-1]
+            + sensor.knowledge_horizon(bdf2.event_starts[-1], sensor.event_resolution)
         )
 
-        pdb.set_trace()
-        return staleness
+        return {"staleness": staleness}
 
 
 class PostSensorDataSchema(SensorDataDescriptionSchema):

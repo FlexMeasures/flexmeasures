@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import timedelta, datetime, timezone
 import pytest
 
 from marshmallow import ValidationError
@@ -8,7 +8,6 @@ from flexmeasures.api.common.schemas.sensor_data import (
     PostSensorDataSchema,
     GetSensorDataSchema,
 )
-from flexmeasures.data.schemas.reporting import BeliefsSearchConfigSchema
 
 
 @pytest.mark.parametrize(
@@ -125,48 +124,131 @@ def test_value_field_invalid(deserialization_input, error_msg):
     assert error_msg in str(ve)
 
 
-def test_get_status(add_market_prices, capacity_sensors):
-    market_sensor = add_market_prices["epex_da"]
-    market_staleness_search = BeliefsSearchConfigSchema().load(
-        {
-            "sensor": market_sensor.id,
-            "horizons_at_most": "PT0H",
-            "horizons_at_least": "PT0H",
-        }
+@pytest.mark.parametrize(
+    "now, sensor_type",
+    [
+        (
+            datetime(
+                2016,
+                1,
+                1,
+                0,
+                0,
+                0,
+                tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
+            ),
+            "market",
+        ),
+        (
+            datetime(
+                2016,
+                1,
+                2,
+                0,
+                0,
+                0,
+                tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
+            ),
+            "market",
+        ),
+        (
+            datetime(
+                2016,
+                1,
+                3,
+                0,
+                0,
+                0,
+                tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
+            ),
+            "market",
+        ),
+        (
+            datetime(
+                2016,
+                1,
+                4,
+                0,
+                0,
+                0,
+                tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
+            ),
+            "market",
+        ),
+        (
+            datetime(
+                2016,
+                1,
+                2,
+                5,
+                0,
+                0,
+                tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
+            ),
+            "market",
+        ),
+        (
+            datetime(
+                2016,
+                1,
+                2,
+                13,
+                0,
+                0,
+                tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
+            ),
+            "market",
+        ),
+        (
+            datetime(
+                2016,
+                1,
+                2,
+                21,
+                0,
+                0,
+                tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
+            ),
+            "market",
+        ),
+        (
+            datetime(
+                2015,
+                1,
+                2,
+                21,
+                0,
+                0,
+                tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
+            ),
+            "production",
+        ),
+        (
+            datetime(
+                2015,
+                1,
+                2,
+                0,
+                0,
+                0,
+                tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
+            ),
+            "production",
+        ),
+    ],
+)
+def test_get_status(add_market_prices, capacity_sensors, now, sensor_type):
+    if sensor_type == "market":
+        sensor = add_market_prices["epex_da"]
+    elif sensor_type == "production":
+        sensor = capacity_sensors["production"]
+
+    staleness_search = {
+        "beliefs_before": now.isoformat(),
+    }
+
+    staleness = GetSensorDataSchema.get_staleness(
+        sensor=sensor, staleness_search=staleness_search, now=now
     )
-    # event_starts_after = AwareDateTimeField()
-    # event_ends_before = AwareDateTimeField()
 
-    # belief_time = AwareDateTimeField()
-
-    # horizons_at_least = DurationField()
-    # horizons_at_most = DurationField()
-
-    # source = DataSourceIdField()
-
-    # source_types = fields.List(fields.Str())
-    # exclude_source_types = fields.List(fields.Str())
-    # most_recent_beliefs_only = fields.Boolean()
-    # most_recent_events_only = fields.Boolean()
-
-    # one_deterministic_belief_per_event = fields.Boolean()
-    # one_deterministic_belief_per_event_per_source = fields.Boolean()
-    # resolution = DurationField()
-    # sum_multiple = fields.Boolean()
-
-    market_beliefs = GetSensorDataSchema.get_staleness(
-        staleness_search=market_staleness_search
-    )
-    production_sensor = capacity_sensors["production"]
-    production_staleness_search = BeliefsSearchConfigSchema().load(
-        {
-            "sensor": production_sensor.id,
-        }
-    )
-    production_beliefs = GetSensorDataSchema.get_staleness(
-        staleness_search=production_staleness_search
-    )
-
-    assert len(market_beliefs.event_starts) == 4
-    assert len(production_beliefs.event_starts) == 4
-    assert 1 == 2
+    assert staleness["staleness"] == timedelta(0)

@@ -4,11 +4,7 @@ from contextlib import contextmanager
 import pytest
 from random import random, seed
 from datetime import datetime, timedelta
-from flexmeasures.utils.time_utils import (
-    get_most_recent_clocktime_window,
-    get_most_recent_quarter,
-    server_now,
-)
+from flexmeasures.utils.time_utils import get_most_recent_quarter
 
 
 from isodate import parse_duration
@@ -606,7 +602,7 @@ def add_market_prices_common(
         resolution="1H",
     )
     seed(42)  # ensure same results over different test runs
-    values_day1 = [
+    values = [
         random() * (1 + np.sin(x * 2 * np.pi / 24)) for x in range(len(time_slots))
     ]
     day1_beliefs = [
@@ -617,7 +613,7 @@ def add_market_prices_common(
             source=setup_sources["Seita"],
             sensor=setup_markets["epex_da"],
         )
-        for dt, val in zip(time_slots, values_day1)
+        for dt, val in zip(time_slots, values)
     ]
     db.session.add_all(day1_beliefs)
 
@@ -675,16 +671,15 @@ def add_market_prices_common(
     ]
     db.session.add_all(day3_beliefs_production)
 
-    _, start_now = get_most_recent_clocktime_window(
-        window_size_in_minutes=int(timedelta(hours=1).total_seconds() / 60),
-        now=server_now(),
+    # consumption prices for staleness tests
+    time_slots = initialize_index(
+        start=pd.Timestamp("2016-01-01").tz_localize("Europe/Amsterdam"),
+        end=pd.Timestamp("2016-01-03").tz_localize("Europe/Amsterdam"),
+        resolution="1H",
     )
-    _, end_now = get_most_recent_clocktime_window(
-        window_size_in_minutes=int(timedelta(hours=1).total_seconds() / 60),
-        now=(server_now() + timedelta(days=2)),
-    )
-    # consumption prices tomorrow
-    time_slots = initialize_index(start=start_now, end=end_now, resolution="1H")
+    values_today = [
+        random() * (1 + np.sin(x * 2 * np.pi / 24)) for x in range(len(time_slots))
+    ]
 
     today_beliefs = [
         TimedBelief(
@@ -694,7 +689,7 @@ def add_market_prices_common(
             source=setup_sources["Seita"],
             sensor=setup_markets["epex_da"],
         )
-        for dt, val in zip(time_slots, values_day1)
+        for dt, val in zip(time_slots, values_today)
     ]
     db.session.add_all(today_beliefs)
 
