@@ -461,14 +461,18 @@ def add_source(name: str, model: str, version: str, source_type: str):
     click.secho(f"Added source {source.__repr__()}", **MsgStyle.SUCCESS)
 
 
-@fm_add_data.command("beliefs")
+@fm_add_data.command("beliefs", cls=DeprecatedOptionsCommand)
 @with_appcontext
 @click.argument("file", type=click.Path(exists=True))
 @click.option(
     "--sensor",
+    "--sensor-id",
     "sensor",
     required=True,
     type=SensorIdField(),
+    cls=DeprecatedOption,
+    deprecated=["--sensor-id"],
+    preferred="--sensor",
     help="Record the beliefs under this sensor. Follow up with the sensor's ID. ",
 )
 @click.option(
