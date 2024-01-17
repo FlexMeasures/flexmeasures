@@ -31,8 +31,8 @@ def fm_edit_data():
 @fm_edit_data.command("attribute", cls=DeprecatedOptionsCommand)
 @with_appcontext
 @click.option(
-    "--asset-id",
     "--asset",
+    "--asset-id",
     "assets",
     required=False,
     multiple=True,
@@ -43,8 +43,8 @@ def fm_edit_data():
     help="Add/edit attribute to this asset. Follow up with the asset's ID.",
 )
 @click.option(
-    "--sensor-id",
     "--sensor",
+    "--sensor-id",
     "sensors",
     required=False,
     multiple=True,
@@ -155,8 +155,8 @@ def edit_attribute(
 @fm_edit_data.command("resample-data", cls=DeprecatedOptionsCommand)
 @with_appcontext
 @click.option(
-    "--sensor-id",
     "--sensor",
+    "--sensor-id",
     "sensor_ids",
     multiple=True,
     required=True,

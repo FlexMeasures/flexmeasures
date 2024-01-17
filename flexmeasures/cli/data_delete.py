@@ -163,8 +163,8 @@ def delete_structure(force):
 @fm_delete_data.command("measurements", cls=DeprecatedOptionsCommand)
 @with_appcontext
 @click.option(
-    "--sensor-id",
     "--sensor",
+    "--sensor-id",
     "sensor_id",
     type=int,
     cls=DeprecatedOption,
@@ -193,8 +193,8 @@ def delete_measurements(
     "--force/--no-force", default=False, help="Skip warning about consequences."
 )
 @click.option(
-    "--sensor-id",
     "--sensor",
+    "--sensor-id",
     "sensor_id",
     type=int,
     cls=DeprecatedOption,
@@ -217,8 +217,9 @@ def delete_prognoses(
 @fm_delete_data.command("unchanged-beliefs", cls=DeprecatedOptionsCommand)
 @with_appcontext
 @click.option(
+    "--sensor",
     "--sensor-id",
-    "--sensor" "sensor_id",
+    "sensor_id",
     type=int,
     cls=DeprecatedOption,
     deprecated=["--sensor-id"],
@@ -302,8 +303,8 @@ def delete_unchanged_beliefs(
 @fm_delete_data.command("nan-beliefs", cls=DeprecatedOptionsCommand)
 @with_appcontext
 @click.option(
-    "--sensor-id",
     "--sensor",
+    "--sensor-id",
     "sensor_id",
     type=int,
     cls=DeprecatedOption,

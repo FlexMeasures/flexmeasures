@@ -194,8 +194,8 @@ def new_account(name: str, roles: str, consultancy_account: Account | None):
 @click.option("--username", required=True)
 @click.option("--email", required=True)
 @click.option(
-    "--account-id",
     "--account",
+    "--account-id",
     "account_id",
     type=int,
     required=True,
@@ -274,8 +274,8 @@ def new_user(
     help="Timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'",
 )
 @click.option(
-    "--asset-id",
     "--asset",
+    "--asset-id",
     "generic_asset_id",
     required=True,
     type=int,
@@ -371,8 +371,8 @@ def add_asset_type(**kwargs):
     help="Longitude of the asset's location",
 )
 @click.option(
-    "--account-id",
     "--account",
+    "--account-id",
     type=int,
     required=False,
     cls=DeprecatedOption,
@@ -381,8 +381,8 @@ def add_asset_type(**kwargs):
     help="Add asset to this account. Follow up with the account's ID. If not set, the asset will become public (which makes it accessible to all users).",
 )
 @click.option(
-    "--asset-type-id",
     "--asset-type",
+    "--asset-type-id",
     "generic_asset_type_id",
     required=True,
     type=int,
@@ -742,8 +742,8 @@ def add_beliefs(
     help="Annotation ends at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format. Defaults to one (nominal) day after the start of the annotation.",
 )
 @click.option(
-    "--account-id",
     "--account",
+    "--account-id",
     "account_ids",
     type=click.INT,
     multiple=True,
@@ -753,8 +753,8 @@ def add_beliefs(
     help="Add annotation to this organisation account. Follow up with the account's ID. This argument can be given multiple times.",
 )
 @click.option(
-    "--asset-id",
     "--asset",
+    "--asset-id",
     "generic_asset_ids",
     type=int,
     multiple=True,
@@ -764,8 +764,8 @@ def add_beliefs(
     help="Add annotation to this asset. Follow up with the asset's ID. This argument can be given multiple times.",
 )
 @click.option(
-    "--sensor-id",
     "--sensor",
+    "--sensor-id",
     "sensor_ids",
     type=int,
     multiple=True,
@@ -775,8 +775,8 @@ def add_beliefs(
     help="Add annotation to this sensor. Follow up with the sensor's ID. This argument can be given multiple times.",
 )
 @click.option(
-    "--user-id",
     "--user",
+    "--user-id",
     "user_id",
     type=int,
     required=True,
@@ -858,8 +858,8 @@ def add_annotation(
     help="The ISO 3166-1 country/region or ISO 3166-2 sub-region for which to look up holidays (such as US, BR and DE). This argument can be given multiple times.",
 )
 @click.option(
-    "--asset-id",
     "--asset",
+    "--asset-id",
     "generic_asset_ids",
     type=click.INT,
     multiple=True,
@@ -869,8 +869,8 @@ def add_annotation(
     help="Add annotations to this asset. Follow up with the asset's ID. This argument can be given multiple times.",
 )
 @click.option(
-    "--account-id",
     "--account",
+    "--account-id",
     "account_ids",
     type=click.INT,
     multiple=True,
@@ -937,8 +937,8 @@ def add_holidays(
 @fm_add_data.command("forecasts", cls=DeprecatedOptionsCommand)
 @with_appcontext
 @click.option(
-    "--sensor-id",
     "--sensor",
+    "--sensor-id",
     "sensor_ids",
     multiple=True,
     required=True,
@@ -1069,8 +1069,8 @@ def create_schedule(ctx):
 @create_schedule.command("for-storage", cls=DeprecatedOptionsCommand)
 @with_appcontext
 @click.option(
-    "--sensor-id",
     "--sensor",
+    "--sensor-id",
     "power_sensor",
     type=SensorIdField(),
     required=True,
@@ -1293,8 +1293,8 @@ def add_schedule_for_storage(
 @create_schedule.command("for-process", cls=DeprecatedOptionsCommand)
 @with_appcontext
 @click.option(
-    "--sensor-id",
     "--sensor",
+    "--sensor-id",
     "power_sensor",
     type=SensorIdField(),
     required=True,

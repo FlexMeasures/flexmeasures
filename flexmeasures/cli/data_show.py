@@ -437,8 +437,8 @@ def chart(
 @fm_show_data.command("beliefs", cls=DeprecatedOptionsCommand)
 @with_appcontext
 @click.option(
-    "--sensor-id",
     "--sensor",
+    "--sensor-id",
     "sensors",
     required=True,
     multiple=True,
@@ -471,8 +471,8 @@ def chart(
     help="Time at which beliefs had been known. Follow up with a timezone-aware datetime in ISO 6801 format.",
 )
 @click.option(
-    "--source-id",
     "--source",
+    "--source-id",
     "source",
     required=False,
     type=DataSourceIdField(),
