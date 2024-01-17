@@ -373,6 +373,7 @@ def add_asset_type(**kwargs):
 @click.option(
     "--account",
     "--account-id",
+    "account_id",
     type=int,
     required=False,
     cls=DeprecatedOption,
