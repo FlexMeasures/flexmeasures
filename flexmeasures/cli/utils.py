@@ -7,7 +7,6 @@ from __future__ import annotations
 from typing import Any
 from datetime import datetime, timedelta
 
-import warnings
 import click
 import pytz
 from click_default_group import DefaultGroup
@@ -29,7 +28,13 @@ class MsgStyle(object):
 
 
 class DeprecatedOption(click.Option):
-    """A custom option that can be used to mark an option as deprecated."""
+    """A custom option that can be used to mark an option as deprecated.
+
+    References
+    ----------------
+
+    Copied from  https://stackoverflow.com/a/50402799/13775459
+    """
 
     def __init__(self, *args, **kwargs):
         self.deprecated = kwargs.pop("deprecated", ())
@@ -38,7 +43,13 @@ class DeprecatedOption(click.Option):
 
 
 class DeprecatedOptionsCommand(click.Command):
-    """A custom command that can be used to mark options as deprecated."""
+    """A custom command that can be used to mark options as deprecated.
+
+    References
+    ----------------
+
+    Adopted from  https://stackoverflow.com/a/50402799/13775459
+    """
 
     def make_parser(self, ctx):
         """Hook 'make_parser' and during processing check the name
@@ -77,8 +88,10 @@ class DeprecatedOptionsCommand(click.Command):
                         del frame
 
                     if opt in deprecated:
-                        msg = "Option '{}' will be replaced by '{}'."
-                        warnings.warn(msg.format(opt, preferred), FutureWarning)
+                        click.secho(
+                            f"Option '{opt}' will be replaced by '{preferred}'.",
+                            **MsgStyle.WARN,
+                        )
                     return orig_process(value, state)
 
                 return process
