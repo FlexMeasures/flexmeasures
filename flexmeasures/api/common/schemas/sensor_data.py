@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+
 from datetime import timedelta, datetime
 
 from flask_login import current_user
@@ -221,38 +222,28 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
 
         staleness_search_schema = BeliefsSearchConfigSchema().load(staleness_search)
 
-        bdf1 = sensor.search_beliefs(
-            event_starts_after=(now - timedelta(days=1)),
-            event_ends_before=(now + timedelta(days=10)),
-            most_recent_beliefs_only=True,
-            one_deterministic_belief_per_event=True,
-            resolution=sensor.event_resolution,
-            as_json=False,
-            **staleness_search_schema,
-        )
         bdf2 = sensor.search_beliefs(
             event_starts_after=(now - timedelta(days=1)),
             event_ends_before=(now + timedelta(days=10)),
             one_deterministic_belief_per_event=True,
             resolution=sensor.event_resolution,
             as_json=False,
-            horizons_at_most=timedelta(0),
+            # horizons_at_most=timedelta(0),
             **staleness_search_schema,
         )
-        print(bdf1)
         if bdf2.empty:
             staleness = timedelta(days=10)
             return {"staleness": staleness}
 
         # difference between knowledge time and now is staleness which can be calculated as follows:
         # staleness = now - sensor.knowledge_time(
-        #     bdf1.event_starts[-1], sensor.event_resolution
+        #     bdf1.event_starts[-1], bdf2.event_resolution
         # )
         # or the more direct way:
         staleness = (
             now
             - bdf2.event_starts[-1]
-            + sensor.knowledge_horizon(bdf2.event_starts[-1], sensor.event_resolution)
+            + sensor.knowledge_horizon(bdf2.event_starts[-1], bdf2.event_resolution)
         )
 
         return {"staleness": staleness}

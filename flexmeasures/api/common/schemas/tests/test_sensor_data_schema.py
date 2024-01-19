@@ -125,7 +125,7 @@ def test_value_field_invalid(deserialization_input, error_msg):
 
 
 @pytest.mark.parametrize(
-    "now, sensor_type",
+    "now, sensor_type, staleness_assert",
     [
         (
             datetime(
@@ -138,6 +138,7 @@ def test_value_field_invalid(deserialization_input, error_msg):
                 tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
             ),
             "market",
+            timedelta(hours=13),
         ),
         (
             datetime(
@@ -145,11 +146,12 @@ def test_value_field_invalid(deserialization_input, error_msg):
                 1,
                 2,
                 0,
-                0,
+                18,
                 0,
                 tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
             ),
             "market",
+            timedelta(hours=13, minutes=18),
         ),
         (
             datetime(
@@ -162,6 +164,7 @@ def test_value_field_invalid(deserialization_input, error_msg):
                 tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
             ),
             "market",
+            timedelta(days=1, hours=13),
         ),
         (
             datetime(
@@ -174,6 +177,7 @@ def test_value_field_invalid(deserialization_input, error_msg):
                 tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
             ),
             "market",
+            timedelta(days=10),
         ),
         (
             datetime(
@@ -186,6 +190,7 @@ def test_value_field_invalid(deserialization_input, error_msg):
                 tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
             ),
             "market",
+            timedelta(hours=18),
         ),
         (
             datetime(
@@ -198,6 +203,7 @@ def test_value_field_invalid(deserialization_input, error_msg):
                 tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
             ),
             "market",
+            timedelta(days=1, hours=2),
         ),
         (
             datetime(
@@ -210,6 +216,7 @@ def test_value_field_invalid(deserialization_input, error_msg):
                 tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
             ),
             "market",
+            timedelta(days=1, hours=10),
         ),
         (
             datetime(
@@ -222,22 +229,26 @@ def test_value_field_invalid(deserialization_input, error_msg):
                 tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
             ),
             "production",
+            timedelta(hours=14),
         ),
         (
             datetime(
                 2015,
                 1,
                 2,
-                0,
-                0,
+                3,
+                18,
                 0,
                 tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
             ),
             "production",
+            timedelta(minutes=3),
         ),
     ],
 )
-def test_get_status(add_market_prices, capacity_sensors, now, sensor_type):
+def test_get_status(
+    add_market_prices, capacity_sensors, now, sensor_type, staleness_assert
+):
     if sensor_type == "market":
         sensor = add_market_prices["epex_da"]
     elif sensor_type == "production":
@@ -251,4 +262,4 @@ def test_get_status(add_market_prices, capacity_sensors, now, sensor_type):
         sensor=sensor, staleness_search=staleness_search, now=now
     )
 
-    assert staleness["staleness"] == timedelta(0)
+    assert staleness["staleness"] == staleness_assert
