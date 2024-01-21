@@ -145,6 +145,7 @@ def add_transmission_zone_asset(country_code: str, db: SQLAlchemy) -> GenericAss
             generic_asset_type=transmission_zone_type,
             account_id=None,  # public
         )
+        db.session.add(transmission_zone)
     return transmission_zone
 
 
