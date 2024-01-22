@@ -48,7 +48,7 @@ class DeprecatedOptionsCommand(click.Command):
     References
     ----------------
 
-    Adopted from  https://stackoverflow.com/a/50402799/13775459
+    Adapted from  https://stackoverflow.com/a/50402799/13775459
     """
 
     def make_parser(self, ctx):
