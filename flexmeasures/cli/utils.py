@@ -7,7 +7,6 @@ from __future__ import annotations
 from typing import Any
 from datetime import datetime, timedelta
 
-
 import click
 import pytz
 from click_default_group import DefaultGroup
@@ -26,6 +25,80 @@ class MsgStyle(object):
     SUCCESS: dict[str, Any] = {"fg": "green"}
     WARN: dict[str, Any] = {"fg": "yellow"}
     ERROR: dict[str, Any] = {"fg": "red"}
+
+
+class DeprecatedOption(click.Option):
+    """A custom option that can be used to mark an option as deprecated.
+
+    References
+    ----------------
+
+    Copied from  https://stackoverflow.com/a/50402799/13775459
+    """
+
+    def __init__(self, *args, **kwargs):
+        self.deprecated = kwargs.pop("deprecated", ())
+        self.preferred = kwargs.pop("preferred", args[0][-1])
+        super(DeprecatedOption, self).__init__(*args, **kwargs)
+
+
+class DeprecatedOptionsCommand(click.Command):
+    """A custom command that can be used to mark options as deprecated.
+
+    References
+    ----------------
+
+    Adapted from  https://stackoverflow.com/a/50402799/13775459
+    """
+
+    def make_parser(self, ctx):
+        """Hook 'make_parser' and during processing check the name
+        used to invoke the option to see if it is preferred"""
+
+        parser = super(DeprecatedOptionsCommand, self).make_parser(ctx)
+
+        # get the parser options
+        options = set(parser._short_opt.values())
+        options |= set(parser._long_opt.values())
+
+        for option in options:
+            if not isinstance(option.obj, DeprecatedOption):
+                continue
+
+            def make_process(an_option):
+                """Construct a closure to the parser option processor"""
+
+                orig_process = an_option.process
+                deprecated = getattr(an_option.obj, "deprecated", None)
+                preferred = getattr(an_option.obj, "preferred", None)
+                msg = "Expected `deprecated` value for `{}`"
+                assert deprecated is not None, msg.format(an_option.obj.name)
+
+                def process(value, state):
+                    """The function above us on the stack used 'opt' to
+                    pick option from a dict, see if it is deprecated"""
+
+                    # reach up the stack and get 'opt'
+                    import inspect
+
+                    frame = inspect.currentframe()
+                    try:
+                        opt = frame.f_back.f_locals.get("opt")
+                    finally:
+                        del frame
+
+                    if opt in deprecated:
+                        click.secho(
+                            f"Option '{opt}' will be replaced by '{preferred}'.",
+                            **MsgStyle.WARN,
+                        )
+                    return orig_process(value, state)
+
+                return process
+
+            option.process = make_process(option)
+
+        return parser
 
 
 class DeprecatedDefaultGroup(DefaultGroup):

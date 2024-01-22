@@ -132,10 +132,10 @@ Otherwise, you need to add some other user first. Here is how we add an admin:
 
 .. code-block:: bash
     
-    $ flexmeasures add account --name MyCompany   
-    $ flexmeasures add user --username admin --account-id 1 --email admin@mycompany.io --roles admin
+    $ flexmeasures add account --name MyCompany
+    $ flexmeasures add user --username admin --account 1 --email admin@mycompany.io --roles admin
 
-(The account-id you need in the 2nd command is printed by the 1st)
+(The `account` you need in the 2nd command is printed by the 1st)
 
 
 .. note::

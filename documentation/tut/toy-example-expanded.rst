@@ -60,7 +60,7 @@ Setting the data source type to "forecaster" helps FlexMeasures to visually dist
 
     $ flexmeasures add source --name "toy-forecaster" --type forecaster
     Added source <Data source 4 (toy-forecaster)>
-    $ flexmeasures add beliefs --sensor-id 3 --source 4 solar-tomorrow.csv --timezone Europe/Amsterdam
+    $ flexmeasures add beliefs --sensor 3 --source 4 solar-tomorrow.csv --timezone Europe/Amsterdam
     Successfully created beliefs
 
 The one-hour CSV data is automatically resampled to the 15-minute resolution of the sensor that is recording solar production. We can see solar production in the `FlexMeasures UI <http://localhost:5000/sensors/3/>`_ :
@@ -79,7 +79,7 @@ Now, we'll reschedule the battery while taking into account the solar production
 
 .. code-block:: bash
 
-    $ flexmeasures add schedule for-storage --sensor-id 2 --consumption-price-sensor 1 \
+    $ flexmeasures add schedule for-storage --sensor 2 --consumption-price-sensor 1 \
         --inflexible-device-sensor 3 \
         --start ${TOMORROW}T07:00+02:00 --duration PT12H \
         --soc-at-start 50% --roundtrip-efficiency 90%
