@@ -24,7 +24,7 @@ To keep it short, we'll only ask for a 12-hour window starting at 7am. Finally, 
 
 .. code-block:: bash
 
-    $ flexmeasures add schedule for-storage --sensor-id 2 --consumption-price-sensor 1 \
+    $ flexmeasures add schedule for-storage --sensor 2 --consumption-price-sensor 1 \
         --start ${TOMORROW}T07:00+01:00 --duration PT12H \
         --soc-at-start 50% --roundtrip-efficiency 90%
     New schedule is stored.
@@ -33,7 +33,7 @@ Great. Let's see what we made:
 
 .. code-block:: bash
 
-    $ flexmeasures show beliefs --sensor-id 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
+    $ flexmeasures show beliefs --sensor 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
     Beliefs for Sensor 'discharging' (ID 2).
     Data spans 12 hours and starts at 2022-03-04 07:00:00+01:00.
     The time resolution (x-axis) is 15 minutes.
