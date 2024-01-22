@@ -4,10 +4,17 @@
 FlexMeasures CLI Changelog
 **********************
 
+since v0.18.1 | January 15, 2023
+=======================================
+
+* Fix the validation of the option ``--parent-asset`` of command ``flexmeasures add asset``.
+
+
 since v0.17.0 | November 8, 2023
 =======================================
 
 * Add ``--consultancy`` option to ``flexmeasures add account`` to create a consultancy relationship with another account.
+
 
 since v0.16.0 | September 29, 2023
 =======================================
