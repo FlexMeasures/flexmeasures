@@ -44,7 +44,7 @@ Run the command below to show the values for the `grid connection capacity`:
 .. code-block:: bash
 
     $ TOMORROW=$(date --date="next day" '+%Y-%m-%d')
-    $ flexmeasures show beliefs --sensor-id 7 --start ${TOMORROW}T00:00:00+02:00 --duration PT24H --resolution PT1H
+    $ flexmeasures show beliefs --sensor 7 --start ${TOMORROW}T00:00:00+02:00 --duration PT24H --resolution PT1H
       
       Beliefs for Sensor 'grid connection capacity' (ID 7).
         Data spans a day and starts at 2023-08-14 00:00:00+02:00.

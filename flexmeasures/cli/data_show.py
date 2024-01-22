@@ -31,6 +31,7 @@ from flexmeasures.data.services.time_series import simplify_index
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
 from flexmeasures.cli.utils import MsgStyle, validate_unique
 from flexmeasures.utils.coding_utils import delete_key_recursive
+from flexmeasures.cli.utils import DeprecatedOptionsCommand, DeprecatedOption
 
 
 @click.group("show")
@@ -433,15 +434,19 @@ def chart(
         )
 
 
-@fm_show_data.command("beliefs")
+@fm_show_data.command("beliefs", cls=DeprecatedOptionsCommand)
 @with_appcontext
 @click.option(
+    "--sensor",
     "--sensor-id",
     "sensors",
     required=True,
     multiple=True,
     callback=validate_unique,
     type=SensorIdField(),
+    cls=DeprecatedOption,
+    preferred="--sensor",
+    deprecated=["--sensor-id"],
     help="ID of sensor(s). This argument can be given multiple times.",
 )
 @click.option(
@@ -466,10 +471,14 @@ def chart(
     help="Time at which beliefs had been known. Follow up with a timezone-aware datetime in ISO 6801 format.",
 )
 @click.option(
+    "--source",
     "--source-id",
     "source",
     required=False,
     type=DataSourceIdField(),
+    cls=DeprecatedOption,
+    preferred="--source",
+    deprecated=["--source-id"],
     help="Source of the beliefs (an existing source id).",
 )
 @click.option(
