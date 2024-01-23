@@ -490,9 +490,7 @@ class MetaStorageScheduler(Scheduler):
         """
         soc_targets = self.flex_model.get("soc_targets")
         if soc_targets:
-            max_target_datetime = max(
-                [soc_target["datetime"] for soc_target in soc_targets]
-            )
+            max_target_datetime = max([soc_target["end"] for soc_target in soc_targets])
             if max_target_datetime > self.end:
                 max_server_horizon = get_max_planning_horizon(self.resolution)
                 if max_server_horizon:
@@ -705,7 +703,6 @@ def build_device_soc_values(
     if isinstance(soc_values, pd.Series):  # some tests prepare it this way
         device_values = soc_values
     else:
-        disregarded_datetimes = []
         device_values = initialize_series(
             np.nan,
             start=start_of_schedule,
@@ -714,28 +711,41 @@ def build_device_soc_values(
             inclusive="right",  # note that target values are indexed by their due date (i.e. inclusive="right")
         )
 
+        max_server_horizon = get_max_planning_horizon(resolution)
+        disregarded_periods: list[tuple[datetime, datetime]] = []
         for soc_value in soc_values:
             soc = soc_value["value"]
-            soc_datetime = soc_value["datetime"].astimezone(
+            # convert timezone, otherwise DST would be problematic
+            soc_constraint_start = soc_value["start"].astimezone(
                 device_values.index.tzinfo
-            )  # otherwise DST would be problematic
-            if soc_datetime > end_of_schedule:
+            )
+            soc_constraint_end = soc_value["end"].astimezone(device_values.index.tzinfo)
+            if soc_constraint_end > end_of_schedule:
                 # Skip too-far-into-the-future target
-                disregarded_datetimes += [soc_datetime]
-                max_server_horizon = get_max_planning_horizon(resolution)
+                disregarded_periods += [(soc_constraint_start, soc_constraint_end)]
+                if soc_constraint_start <= end_of_schedule:
+                    device_values.loc[soc_constraint_start:end_of_schedule] = soc
                 continue
 
-            device_values.loc[soc_datetime] = soc
+            device_values.loc[soc_constraint_start:soc_constraint_end] = soc
 
-        if disregarded_datetimes:
-            if len(disregarded_datetimes) == 1:
+        if not disregarded_periods:
+            pass
+        elif len(disregarded_periods) == 1:
+            soc_constraint_start, soc_constraint_end = disregarded_periods[0]
+            if soc_constraint_start == soc_constraint_end:
                 current_app.logger.warning(
-                    f"Disregarding 1 target datetime {disregarded_datetimes[0]}, because it exceeds {end_of_schedule}. Maximum scheduling horizon is {max_server_horizon}."
+                    f"Disregarding target datetime {soc_constraint_end}, because it exceeds {end_of_schedule}. Maximum scheduling horizon is {max_server_horizon}."
                 )
             else:
                 current_app.logger.warning(
-                    f"Disregarding {len(disregarded_datetimes)} target datetimes from {min(disregarded_datetimes)} until {max(disregarded_datetimes)}, because they exceed {end_of_schedule}. Maximum scheduling horizon is {max_server_horizon}."
+                    f"Disregarding target datetimes that exceed {end_of_schedule} (within the window {soc_constraint_start} until {soc_constraint_end}). Maximum scheduling horizon is {max_server_horizon}."
                 )
+        else:
+            soc_constraint_starts, soc_constraint_ends = zip(*disregarded_periods)
+            current_app.logger.warning(
+                f"Disregarding target datetimes that exceed {end_of_schedule} (within the window {min(soc_constraint_starts)} until {max(soc_constraint_ends)} spanning {len(disregarded_periods)} targets). Maximum scheduling horizon is {max_server_horizon}."
+            )
 
         # soc_values are at the end of each time slot, while prices are indexed by the start of each time slot
         device_values = device_values[start_of_schedule + resolution : end_of_schedule]

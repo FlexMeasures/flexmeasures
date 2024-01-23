@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
+import isodate
 from flask import current_app
 from marshmallow import (
     Schema,
@@ -11,10 +12,11 @@ from marshmallow import (
     fields,
     validates,
 )
-from marshmallow.validate import OneOf, ValidationError
+from marshmallow.validate import OneOf, ValidationError, Validator
+import pandas as pd
 
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.schemas.times import AwareDateTimeField
+from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.sensors import QuantityOrSensor
 
@@ -49,21 +51,81 @@ class EfficiencyField(QuantityField):
 
 
 class SOCValueSchema(Schema):
-    """
-    A point in time with a target value.
-    """
-
     value = fields.Float(required=True)
-    datetime = AwareDateTimeField(required=True)
+    datetime = AwareDateTimeField(required=False)
+    start = AwareDateTimeField(required=False)
+    end = AwareDateTimeField(required=False)
+    duration = DurationField(required=False)
 
-    def __init__(self, *args, **kwargs):
-        self.value_validator = kwargs.pop("value_validator", None)
+    def __init__(
+        self,
+        timezone: str | None = None,
+        value_validator: Validator | None = None,
+        *args,
+        **kwargs,
+    ):
+        """A time period (or single point) with a target value.
+
+        :param timezone:  Optionally, set a timezone to be able to interpret nominal durations.
+        """
+        self.timezone = timezone
+        self.value_validator = value_validator
         super().__init__(*args, **kwargs)
 
     @validates("value")
     def validate_value(self, _value):
         if self.value_validator is not None:
             self.value_validator(_value)
+
+    @validates_schema
+    def check_time_window(self, data: dict, **kwargs):
+        """Checks whether a complete time interval can be derived from the timing fields.
+
+        The data is updated in-place, guaranteeing that the 'start' and 'end' fields are filled out.
+        """
+        dt = data.get("datetime")
+        start = data.get("start")
+        end = data.get("end")
+        duration = data.get("duration")
+
+        if dt is not None:
+            if any([p is not None for p in (start, end, duration)]):
+                raise ValidationError(
+                    "If using the 'datetime' field, no 'start', 'end' or 'duration' is expected."
+                )
+            data["start"] = dt
+            data["end"] = dt
+        elif duration is not None:
+            if self.timezone is None and isinstance(duration, isodate.Duration):
+                raise ValidationError(
+                    "Cannot interpret nominal duration used in the 'duration' field without a known timezone."
+                )
+            elif all([p is None for p in (start, end)]) or all(
+                [p is not None for p in (start, end)]
+            ):
+                raise ValidationError(
+                    "If using the 'duration' field, either 'start' or 'end' is expected."
+                )
+            if start is not None:
+                grounded = DurationField.ground_from(
+                    duration, pd.Timestamp(start).tz_convert(self.timezone)
+                )
+                data["start"] = start
+                data["end"] = start + grounded
+            else:
+                grounded = DurationField.ground_from(
+                    -duration, pd.Timestamp(end).tz_convert(self.timezone)
+                )
+                data["start"] = end + grounded
+                data["end"] = end
+        else:
+            if any([p is None for p in (start, end)]):
+                raise ValidationError(
+                    "Missing field(s) to describe timing: use the 'datetime' field, "
+                    "or a combination of 2 fields of 'start', 'end' and 'duration'."
+                )
+            data["start"] = start
+            data["end"] = end
 
 
 class StorageFlexModelSchema(Schema):
@@ -89,10 +151,22 @@ class StorageFlexModelSchema(Schema):
         "MW", data_key="production-capacity", required=False
     )
 
-    soc_maxima = fields.List(fields.Nested(SOCValueSchema()), data_key="soc-maxima")
+    # Timezone placeholder is overridden in __init__
+    soc_maxima = fields.List(
+        fields.Nested(SOCValueSchema(timezone="placeholder")),
+        data_key="soc-maxima",
+    )
     soc_minima = fields.List(
-        fields.Nested(SOCValueSchema(value_validator=validate.Range(min=0))),
+        fields.Nested(
+            SOCValueSchema(
+                timezone="placeholder", value_validator=validate.Range(min=0)
+            )
+        ),
         data_key="soc-minima",
+    )
+    soc_targets = fields.List(
+        fields.Nested(SOCValueSchema(timezone="placeholder")),
+        data_key="soc-targets",
     )
 
     soc_unit = fields.Str(
@@ -104,7 +178,6 @@ class StorageFlexModelSchema(Schema):
         ),
         data_key="soc-unit",
     )  # todo: allow unit to be set per field, using QuantityField("%", validate=validate.Range(min=0, max=1))
-    soc_targets = fields.List(fields.Nested(SOCValueSchema()), data_key="soc-targets")
 
     charging_efficiency = QuantityOrSensor(
         "%", data_key="charging-efficiency", required=False
@@ -129,6 +202,22 @@ class StorageFlexModelSchema(Schema):
         """Pass the schedule's start, so we can use it to validate soc-target datetimes."""
         self.start = start
         self.sensor = sensor
+        self.soc_maxima = fields.List(
+            fields.Nested(SOCValueSchema(timezone=sensor.timezone)),
+            data_key="soc-maxima",
+        )
+        self.soc_minima = fields.List(
+            fields.Nested(
+                SOCValueSchema(
+                    timezone=sensor.timezone, value_validator=validate.Range(min=0)
+                )
+            ),
+            data_key="soc-minima",
+        )
+        self.soc_targets = fields.List(
+            fields.Nested(SOCValueSchema(timezone=sensor.timezone)),
+            data_key="soc-targets",
+        )
         super().__init__(*args, **kwargs)
 
     @validates_schema
@@ -139,7 +228,7 @@ class StorageFlexModelSchema(Schema):
         max_server_horizon = current_app.config.get("FLEXMEASURES_MAX_PLANNING_HORIZON")
         if isinstance(max_server_horizon, int):
             max_server_horizon *= self.sensor.event_resolution
-        max_target_datetime = max([target["datetime"] for target in soc_targets])
+        max_target_datetime = max([target["end"] for target in soc_targets])
         max_server_datetime = self.start + max_server_horizon
         if max_target_datetime > max_server_datetime:
             current_app.logger.warning(
