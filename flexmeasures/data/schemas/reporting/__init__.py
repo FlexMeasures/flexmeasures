@@ -43,9 +43,6 @@ class BeliefsSearchConfigSchema(Schema):
     using the method flexmeasures.data.models.time_series:Sensor.search_beliefs
     """
 
-    # sensor = SensorIdField(required=True)
-    alias = fields.Str()
-
     event_starts_after = AwareDateTimeField()
     event_ends_before = AwareDateTimeField()
 
@@ -66,3 +63,14 @@ class BeliefsSearchConfigSchema(Schema):
     one_deterministic_belief_per_event_per_source = fields.Boolean()
     resolution = DurationField()
     sum_multiple = fields.Boolean()
+
+
+class StatusSchema(Schema):
+    max_staleness = DurationField(required=True)
+
+    staleness_search = fields.Nested(BeliefsSearchConfigSchema(), required=True)
+
+    # start = AwareDateTimeField(required=True)
+    # end = AwareDateTimeField(required=True)
+
+    # belief_time = AwareDateTimeField(required=False)

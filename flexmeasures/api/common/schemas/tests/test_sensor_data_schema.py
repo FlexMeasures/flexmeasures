@@ -8,6 +8,8 @@ from flexmeasures.api.common.schemas.sensor_data import (
     PostSensorDataSchema,
     GetSensorDataSchema,
 )
+from flexmeasures.data.services.sensors import get_staleness
+from flexmeasures.data.schemas.reporting import StatusSchema
 
 
 @pytest.mark.parametrize(
@@ -125,7 +127,7 @@ def test_value_field_invalid(deserialization_input, error_msg):
 
 
 @pytest.mark.parametrize(
-    "now, sensor_type, staleness_assert",
+    "now, sensor_type, source_name, expected_staleness",
     [
         (
             datetime(
@@ -138,7 +140,8 @@ def test_value_field_invalid(deserialization_input, error_msg):
                 tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
             ),
             "market",
-            timedelta(hours=13),
+            None,
+            timedelta(hours=-11),
         ),
         (
             datetime(
@@ -151,6 +154,7 @@ def test_value_field_invalid(deserialization_input, error_msg):
                 tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
             ),
             "market",
+            None,
             timedelta(hours=13, minutes=18),
         ),
         (
@@ -164,6 +168,7 @@ def test_value_field_invalid(deserialization_input, error_msg):
                 tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
             ),
             "market",
+            None,
             timedelta(days=1, hours=13),
         ),
         (
@@ -177,7 +182,8 @@ def test_value_field_invalid(deserialization_input, error_msg):
                 tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
             ),
             "market",
-            timedelta(days=10),
+            None,
+            timedelta(days=2, hours=13),
         ),
         (
             datetime(
@@ -190,6 +196,7 @@ def test_value_field_invalid(deserialization_input, error_msg):
                 tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
             ),
             "market",
+            None,
             timedelta(hours=18),
         ),
         (
@@ -203,6 +210,7 @@ def test_value_field_invalid(deserialization_input, error_msg):
                 tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
             ),
             "market",
+            None,
             timedelta(days=1, hours=2),
         ),
         (
@@ -216,6 +224,7 @@ def test_value_field_invalid(deserialization_input, error_msg):
                 tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
             ),
             "market",
+            None,
             timedelta(days=1, hours=10),
         ),
         (
@@ -229,6 +238,7 @@ def test_value_field_invalid(deserialization_input, error_msg):
                 tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
             ),
             "production",
+            "Seita",
             timedelta(hours=14),
         ),
         (
@@ -242,24 +252,61 @@ def test_value_field_invalid(deserialization_input, error_msg):
                 tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
             ),
             "production",
-            timedelta(minutes=3),
+            "Seita",
+            timedelta(hours=-3, minutes=-42),
+        ),
+        (
+            datetime(
+                2015,
+                1,
+                2,
+                21,
+                0,
+                0,
+                tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
+            ),
+            "production",
+            "Schedule",
+            timedelta(hours=14),
+        ),
+        (
+            datetime(
+                2015,
+                1,
+                2,
+                21,
+                0,
+                0,
+                tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
+            ),
+            "production",
+            None,
+            timedelta(hours=14),
         ),
     ],
 )
 def test_get_status(
-    add_market_prices, capacity_sensors, now, sensor_type, staleness_assert
+    add_market_prices,
+    capacity_sensors,
+    now,
+    sensor_type,
+    source_name,
+    expected_staleness,
 ):
     if sensor_type == "market":
         sensor = add_market_prices["epex_da"]
+        staleness_search = {}
     elif sensor_type == "production":
         sensor = capacity_sensors["production"]
+        for source in sensor.data_sources:
+            if source.name == source_name:
+                source_id = source.id
+                staleness_search = {"source": source_id}
+            else:
+                staleness_search = {}
 
-    staleness_search = {
-        "beliefs_before": now.isoformat(),
-    }
+    staleness = get_staleness(sensor=sensor, staleness_search=staleness_search, now=now)
 
-    staleness = GetSensorDataSchema.get_staleness(
-        sensor=sensor, staleness_search=staleness_search, now=now
-    )
-
-    assert staleness["staleness"] == staleness_assert
+    status_specs = {"staleness_search": staleness_search, "max_staleness": "PT1H"}
+    assert StatusSchema().load(status_specs)
+    assert staleness == expected_staleness

@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+
+from flexmeasures.data.models.time_series import TimedBelief
+
+
 import sqlalchemy as sa
 
 from flexmeasures import Sensor, Account
@@ -43,3 +48,66 @@ def get_sensors(
     if sensor_name_allowlist:
         sensor_query = sensor_query.filter(Sensor.name.in_(sensor_name_allowlist))
     return sensor_query.all()
+
+
+def get_staleness(sensor: Sensor, staleness_search: dict, now: datetime) -> timedelta:
+    """Get the staleness of the sensor"""
+
+    # max_staleness = staleness_search.pop("max_staleness")
+
+    staleness_bdf = TimedBelief.search(
+        sensors=sensor,
+        most_recent_events_only=True,
+        **staleness_search,
+    )
+    print(staleness_bdf)
+    if staleness_bdf.empty:
+        return timedelta.max
+    staleness = (
+        now
+        - staleness_bdf.event_starts[-1]
+        + sensor.knowledge_horizon(
+            staleness_bdf.event_starts[-1], staleness_bdf.event_resolution
+        )
+    )
+
+    # bdf1 = sensor.search_beliefs(
+    #     **staleness_search,
+    # )
+
+    # result = TimedBelief.search(**staleness_search_schema)
+    # bdf2 = sensor.search_beliefs(
+    #     event_starts_after=(now - timedelta(days=1)),
+    #     event_ends_before=(now + timedelta(days=10)),
+    #     # one_deterministic_belief_per_event=True,
+    #     # resolution=sensor.event_resolution,
+    #     # as_json=False,
+    #     # horizons_at_least=timedelta(0),
+    #     **staleness_search_schema,
+    # )
+    # if bdf2.empty:
+    #     staleness = timedelta(days=10)
+    #     return {"staleness": staleness}
+
+    # difference between knowledge time and now is staleness which can be calculated as follows:
+    # staleness = now - sensor.knowledge_time(
+    #     bdf1.event_starts[-1], bdf2.event_resolution
+    # )
+    # or the more direct way:
+
+    # staleness per source
+
+    return staleness
+
+
+def get_status(sensor: Sensor, status_specs: dict, now: datetime) -> dict:
+    max_staleness = status_specs.pop("max_staleness")
+    staleness_search = status_specs.pop("staleness_search")
+    staleness = get_staleness(sensor=sensor, staleness_search=staleness_search, now=now)
+
+    stale = staleness >= max_staleness
+    status = dict(
+        staleness=staleness,
+        stale=stale,
+    )
+    return status

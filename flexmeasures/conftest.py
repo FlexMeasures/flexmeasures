@@ -4,7 +4,6 @@ from contextlib import contextmanager
 import pytest
 from random import random, seed
 from datetime import datetime, timedelta
-from flexmeasures.utils.time_utils import get_most_recent_quarter
 
 
 from isodate import parse_duration
@@ -326,7 +325,12 @@ def create_sources(db) -> dict[str, DataSource]:
     db.session.add(seita_source)
     entsoe_source = DataSource(name="ENTSO-E", type="demo script")
     db.session.add(entsoe_source)
-    return {"Seita": seita_source, "ENTSO-E": entsoe_source}
+    schedule_source = DataSource(name="Schedule", type="demo script")
+    return {
+        "Seita": seita_source,
+        "ENTSO-E": entsoe_source,
+        "Schedule": schedule_source,
+    }
 
 
 @pytest.fixture(scope="module")
@@ -1189,20 +1193,15 @@ def capacity_sensors(db, add_battery_assets, setup_sources):
     db.session.commit()
 
     time_slots = pd.date_range(
-        (get_most_recent_quarter() - timedelta(hours=2)),
-        get_most_recent_quarter(),
-        freq="15T",
-    )
-
-    values = [200] * 6
-
+        datetime(2015, 1, 2), datetime(2015, 1, 2, 7, 45), freq="15T"
+    ).tz_localize("Europe/Amsterdam")
     beliefs = [
         TimedBelief(
             event_start=dt,
-            belief_horizon=parse_duration("PT0M"),
             event_value=val,
             sensor=production_capacity_sensor,
-            source=setup_sources["Seita"],
+            source=setup_sources["Schedule"],
+            belief_time="2015-01-02T00:00+01",
         )
         for dt, val in zip(time_slots, values)
     ]

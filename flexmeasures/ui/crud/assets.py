@@ -20,10 +20,10 @@ from flexmeasures.data.models.generic_assets import (
     get_center_location_of_assets,
 )
 from flexmeasures.data.models.user import Account
-from flexmeasures.api.common.schemas.sensor_data import GetSensorDataSchema
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.crud.api_wrapper import InternalApi
+from flexmeasures.data.services.sensors import get_staleness
 
 
 """
@@ -289,7 +289,7 @@ class AssetCrudUI(FlaskView):
         asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
         sensors = []
         for sensor in asset.sensors:
-            status = GetSensorDataSchema.get_status(sensor=sensor)
+            status = get_staleness(sensor=sensor)
 
             sensor_dict = {}
             sensor_dict["name"] = sensor.name
