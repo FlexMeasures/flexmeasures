@@ -5,7 +5,7 @@ from datetime import timedelta
 import pandas as pd
 import pytest
 from flask_security import SQLAlchemySessionUserDatastore, hash_password
-from sqlalchemy import select
+from sqlalchemy import select, delete
 
 from flexmeasures import Sensor, Source, User, UserRole
 from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
@@ -35,7 +35,7 @@ def setup_api_fresh_test_data(
     """
     print("Setting up fresh data for API 3.0 tests on %s" % fresh_db.engine)
     for sensor in fresh_db.session.execute(select(Sensor)).scalars().all():
-        fresh_db.delete(sensor)
+        fresh_db.session.execute(delete(Sensor).filter_by(id=sensor.id))
     sensors = add_incineration_line(
         fresh_db,
         fresh_db.session.get(User, setup_roles_users_fresh_db["Test Supplier User"]),

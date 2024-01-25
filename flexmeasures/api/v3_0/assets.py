@@ -6,7 +6,7 @@ from flask_security import auth_required
 from flask_json import as_json
 from marshmallow import fields
 from webargs.flaskparser import use_kwargs, use_args
-from sqlalchemy import select
+from sqlalchemy import select, delete
 
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
@@ -262,7 +262,7 @@ class AssetAPI(FlaskView):
         :status 422: UNPROCESSABLE_ENTITY
         """
         asset_name = asset.name
-        db.session.delete(asset)
+        db.session.execute(delete(GenericAsset).filter_by(name=asset_name))
         db.session.commit()
         current_app.logger.info("Deleted asset '%s'." % asset_name)
         return {}, 204
