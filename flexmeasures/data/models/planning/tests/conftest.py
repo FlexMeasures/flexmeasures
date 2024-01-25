@@ -310,6 +310,58 @@ def add_stock_delta(db, add_battery_assets, setup_sources) -> dict[str, Sensor]:
     return sensors
 
 
+@pytest.fixture(scope="module")
+def add_storage_efficiency(db, add_battery_assets, setup_sources) -> dict[str, Sensor]:
+    """
+    Different usage forecast sensors are defined:
+        - "delta fails": the usage forecast exceeds the maximum power.
+        - "delta": the usage forecast can be fulfilled just right. This coincides with the schedule resolution.
+        - "delta hourly": the event resolution is changed to test that the schedule is still feasible.
+                          This has a greater resolution.
+        - "delta 5min": the event resolution is reduced even more. This sensor has a resolution smaller than that used
+                        for the scheduler.
+    """
+
+    battery = add_battery_assets["Test battery"]
+    sensors = {}
+    sensor_specs = [
+        ("storage efficiency 90%", timedelta(minutes=15), 90),
+        ("storage efficiency 110%", timedelta(minutes=15), 110),
+        ("storage efficiency negative", timedelta(minutes=15), -90),
+        ("storage efficiency hourly", timedelta(hours=1), 90),
+    ]
+
+    for name, resolution, value in sensor_specs:
+        # 1 days of test data
+        time_slots = initialize_index(
+            start=pd.Timestamp("2015-01-01").tz_localize("Europe/Amsterdam"),
+            end=pd.Timestamp("2015-01-02").tz_localize("Europe/Amsterdam"),
+            resolution=resolution,
+        )
+
+        storage_efficiency_sensor = Sensor(
+            name=name,
+            unit="%",
+            event_resolution=resolution,
+            generic_asset=battery,
+        )
+        db.session.add(storage_efficiency_sensor)
+        db.session.flush()
+
+        efficiency_values = [value] * len(time_slots)
+
+        add_as_beliefs(
+            db,
+            storage_efficiency_sensor,
+            efficiency_values,
+            time_slots,
+            setup_sources["Seita"],
+        )
+        sensors[name] = storage_efficiency_sensor
+
+    return sensors
+
+
 def add_as_beliefs(db, sensor, values, time_slots, source):
     beliefs = [
         TimedBelief(
