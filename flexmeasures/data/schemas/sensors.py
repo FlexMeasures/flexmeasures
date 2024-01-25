@@ -3,6 +3,7 @@ from marshmallow import Schema, fields, validates, ValidationError
 from pint import DimensionalityError
 
 import json
+import re
 
 from flexmeasures.data import ma
 from flexmeasures.data.models.generic_assets import GenericAsset
@@ -147,3 +148,13 @@ class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
             raise FMValidationError(
                 "Serialized Quantity Or Sensor needs to be of type int, float or Sensor"
             )
+
+    def convert(self, value, param, ctx, **kwargs):
+        _value = re.match(r"sensor:(\d+)", value)
+
+        if _value is not None:
+            _value = {"sensor": int(_value.groups()[0])}
+        else:
+            _value = value
+
+        return super().convert(_value, param, ctx, **kwargs)
