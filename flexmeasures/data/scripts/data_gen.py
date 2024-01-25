@@ -293,13 +293,11 @@ def depopulate_structure(db: SQLAlchemy):
     roles = db.session.scalars(select(Role)).all()
     num_roles_deleted = 0
     for role in roles:
-        # db.session.delete(role)
         db.session.execute(delete(Role).filter_by(id=role.id))
         num_roles_deleted += 1
     users = db.session.scalars(select(User)).all()
     num_users_deleted = 0
     for user in users:
-        # db.session.delete(user)
         db.session.execute(delete(User).filter_by(id=user.id))
         num_users_deleted += 1
     click.echo("Deleted %d AssetTypes" % num_asset_types_deleted)
