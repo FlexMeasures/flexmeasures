@@ -17,7 +17,7 @@ def test_add_one_sensor_attribute(app, db, setup_markets):
     n_attributes_before = len(sensor.attributes)
 
     cli_input = {
-        "sensor-id": sensor.id,
+        "sensor": sensor.id,
         "attribute": "some new attribute",
         "float": 3,
     }
@@ -73,7 +73,7 @@ def test_resample_sensor_data(
     )
 
     cli_input = {
-        "sensor-id": sensor.id,
+        "sensor": sensor.id,
         "event-resolution": sensor.event_resolution.seconds / 60 / 2,
     }
     runner = app.test_cli_runner()

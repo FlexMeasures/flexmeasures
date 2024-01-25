@@ -19,6 +19,7 @@ from flexmeasures.data.models.planning.storage import (
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.planning.tests.utils import check_constraints
 from flexmeasures.data.models.planning.utils import initialize_series, initialize_df
+from flexmeasures.data.schemas.scheduling.storage import SOCValueSchema
 from flexmeasures.utils.calculations import (
     apply_stock_changes_and_losses,
     integrate_time_series,
@@ -1261,8 +1262,28 @@ def test_capacity(
 
 
 @pytest.mark.parametrize(
-    ["soc_values", "log_message"],
+    ["soc_values", "log_message", "expected_num_targets"],
     [
+        (
+            [
+                {
+                    "start": datetime(2023, 5, 19, tzinfo=pytz.utc),
+                    "end": datetime(2023, 5, 23, tzinfo=pytz.utc),
+                    "value": 1.0,
+                },
+            ],
+            "Disregarding target datetimes that exceed 2023-05-20 00:00:00+00:00 (within the window 2023-05-19 00:00:00+00:00 until 2023-05-23 00:00:00+00:00).",
+            1 * 24 * 60 / 5
+            + 1,  # every 5-minute mark on the 19th including both midnights
+        ),
+        (
+            [
+                {"datetime": datetime(2023, 5, 19, tzinfo=pytz.utc), "value": 1.0},
+                {"datetime": datetime(2023, 5, 23, tzinfo=pytz.utc), "value": 1.0},
+            ],
+            "Disregarding target datetime 2023-05-23 00:00:00+00:00, because it exceeds 2023-05-20 00:00:00+00:00.",
+            1,  # only the 19th
+        ),
         (
             [
                 {"datetime": datetime(2023, 5, 19, tzinfo=pytz.utc), "value": 1.0},
@@ -1270,23 +1291,21 @@ def test_capacity(
                 {"datetime": datetime(2023, 5, 23, tzinfo=pytz.utc), "value": 1.0},
                 {"datetime": datetime(2023, 5, 21, tzinfo=pytz.utc), "value": 1.0},
             ],
-            "Disregarding 3 target datetimes from 2023-05-21 00:00:00+00:00 until 2023-05-23 00:00:00+00:00, because they exceed 2023-05-20 00:00:00+00:00",
-        ),
-        (
-            [
-                {"datetime": datetime(2023, 5, 19, tzinfo=pytz.utc), "value": 1.0},
-                {"datetime": datetime(2023, 5, 23, tzinfo=pytz.utc), "value": 1.0},
-            ],
-            "Disregarding 1 target datetime 2023-05-23 00:00:00+00:00, because it exceeds 2023-05-20 00:00:00+00:00",
+            "Disregarding target datetimes that exceed 2023-05-20 00:00:00+00:00 (within the window 2023-05-21 00:00:00+00:00 until 2023-05-23 00:00:00+00:00 spanning 3 targets).",
+            1,  # only the 19th
         ),
     ],
 )
-def test_build_device_soc_values(caplog, soc_values, log_message):
+def test_build_device_soc_values(caplog, soc_values, log_message, expected_num_targets):
     caplog.set_level(logging.WARNING)
     soc_at_start = 3.0
     start_of_schedule = datetime(2023, 5, 18, tzinfo=pytz.utc)
     end_of_schedule = datetime(2023, 5, 20, tzinfo=pytz.utc)
     resolution = timedelta(minutes=5)
+
+    # Convert SoC datetimes to periods with a start and end.
+    for soc in soc_values:
+        SOCValueSchema().check_time_window(soc)
 
     with caplog.at_level(logging.WARNING):
         device_values = build_device_soc_values(
@@ -1298,6 +1317,15 @@ def test_build_device_soc_values(caplog, soc_values, log_message):
         )
     print(device_values)
     assert log_message in caplog.text
+
+    # Check test assumption
+    for soc in soc_values:
+        assert soc["value"] == 1
+    soc_delta = 1 - soc_at_start
+    soc_delta_per_resolution = soc_delta * timedelta(hours=1) / resolution
+
+    assert soc_delta_per_resolution in device_values
+    assert np.count_nonzero(~np.isnan(device_values)) == expected_num_targets
 
 
 @pytest.mark.parametrize(
@@ -1406,7 +1434,6 @@ def test_battery_power_capacity_as_sensor(
     expected_production,
     expected_consumption,
 ):
-
     epex_da, battery = get_sensors_from_db(
         add_battery_assets, battery_name=battery_name
     )
@@ -1453,7 +1480,6 @@ def test_battery_power_capacity_as_sensor(
 def get_efficiency_problem_device_constraints(
     extra_flex_model, efficiency_sensors, add_battery_assets
 ) -> pd.DataFrame:
-
     _, battery = get_sensors_from_db(add_battery_assets)
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 1))

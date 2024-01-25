@@ -56,6 +56,7 @@ def message_for_trigger_schedule(
     with_targets: bool = False,
     realistic_targets: bool = True,
     too_far_into_the_future_targets: bool = False,
+    use_time_window: bool = False,
 ) -> dict:
     message = {
         "start": "2015-01-01T00:00:00+01:00",
@@ -87,14 +88,21 @@ def message_for_trigger_schedule(
             target_datetime = "2015-02-02T23:00:00+01:00"
         else:
             target_datetime = "2015-01-02T23:00:00+01:00"
+        if use_time_window:
+            target_time_window = {
+                "start": "2015-01-02T22:45:00+01:00",
+                "end": target_datetime,
+            }
+        else:
+            target_time_window = {"datetime": target_datetime}
         message["flex-model"]["soc-targets"] = [
-            {"value": target_value, "datetime": target_datetime}
+            {"value": target_value, **target_time_window}
         ]
         # Also create some minima and maxima constraints to test correct deserialization using the soc-unit
         message["flex-model"]["soc-minima"] = [
-            {"value": target_value - 1, "datetime": target_datetime}
+            {"value": target_value - 1, **target_time_window}
         ]
         message["flex-model"]["soc-maxima"] = [
-            {"value": target_value + 1, "datetime": target_datetime}
+            {"value": target_value + 1, **target_time_window}
         ]
     return message
