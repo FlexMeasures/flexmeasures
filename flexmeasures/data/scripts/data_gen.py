@@ -10,7 +10,7 @@ import pandas as pd
 from flask import current_app as app
 from flask_sqlalchemy import SQLAlchemy
 import click
-from sqlalchemy import func, and_, select
+from sqlalchemy import func, and_, select, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.serializer import loads, dumps
 from timetomodel.forecasting import make_rolling_forecasts
@@ -163,12 +163,23 @@ def populate_initial_structure(db: SQLAlchemy):
     add_default_user_roles(db)
     add_default_account_roles(db)
     add_default_asset_types(db)
-    click.echo("DB now has %d DataSource(s)" % db.session.query(DataSource).count())
     click.echo(
-        "DB now has %d AssetType(s)" % db.session.query(GenericAssetType).count()
+        "DB now has %d DataSource(s)"
+        % db.session.scalar(select(func.count()).select_from(DataSource))
     )
-    click.echo("DB now has %d Role(s) for users" % db.session.query(Role).count())
-    click.echo("DB now has %d AccountRole(s)" % db.session.query(AccountRole).count())
+
+    click.echo(
+        "DB now has %d AssetType(s)"
+        % db.session.scalar(select(func.count()).select_from(GenericAssetType))
+    )
+    click.echo(
+        "DB now has %d Role(s) for users"
+        % db.session.scalar(select(func.count()).select_from(Role))
+    )
+    click.echo(
+        "DB now has %d AccountRole(s)"
+        % db.session.scalar(select(func.count()).select_from(AccountRole))
+    )
 
 
 @as_transaction  # noqa: C901
@@ -264,27 +275,32 @@ def populate_time_series_forecasts(  # noqa: C901
 
     click.echo(
         "DB now has %d forecasts"
-        % db.session.query(TimedBelief)
-        .filter(TimedBelief.belief_horizon > timedelta(hours=0))
-        .count()
+        % db.session.scalar(
+            select(func.count())
+            .select_from(TimedBelief)
+            .filter(TimedBelief.belief_horizon > timedelta(hours=0))
+        )
     )
 
 
 @as_transaction
 def depopulate_structure(db: SQLAlchemy):
     click.echo("Depopulating structural data from the database %s ..." % db.engine)
-    num_assets_deleted = db.session.query(GenericAsset).delete()
-    num_asset_types_deleted = db.session.query(GenericAssetType).delete()
-    num_data_sources_deleted = db.session.query(DataSource).delete()
-    roles = db.session.query(Role).all()
+    num_assets_deleted = db.session.execute(delete(GenericAsset))
+    num_asset_types_deleted = db.session.execute(delete(GenericAssetType))
+
+    num_data_sources_deleted = db.session.execute(delete(DataSource))
+    roles = db.session.scalars(select(Role)).all()
     num_roles_deleted = 0
     for role in roles:
-        db.session.delete(role)
+        # db.session.delete(role)
+        db.session.execute(delete(Role).filter_by(id=role.id))
         num_roles_deleted += 1
-    users = db.session.query(User).all()
+    users = db.session.scalars(select(User)).all()
     num_users_deleted = 0
     for user in users:
-        db.session.delete(user)
+        # db.session.delete(user)
+        db.session.execute(delete(User).filter_by(id=user.id))
         num_users_deleted += 1
     click.echo("Deleted %d AssetTypes" % num_asset_types_deleted)
     click.echo("Deleted %d Assets" % num_assets_deleted)
@@ -300,12 +316,10 @@ def depopulate_measurements(
 ):
     click.echo("Deleting (time series) data from the database %s ..." % db.engine)
 
-    query = db.session.query(TimedBelief).filter(
-        TimedBelief.belief_horizon <= timedelta(hours=0)
-    )
+    query = delete(TimedBelief).filter(TimedBelief.belief_horizon <= timedelta(hours=0))
     if sensor_id is not None:
         query = query.filter(TimedBelief.sensor_id == sensor_id)
-    num_measurements_deleted = query.delete()
+    num_measurements_deleted = db.session.execute(query)
 
     click.echo("Deleted %d measurements (ex-post beliefs)" % num_measurements_deleted)
 
@@ -334,12 +348,11 @@ def depopulate_prognoses(
         num_scheduling_jobs_deleted = app.queues["scheduling"].empty()
 
     # Clear all forecasts (data with positive horizon)
-    query = db.session.query(TimedBelief).filter(
-        TimedBelief.belief_horizon > timedelta(hours=0)
-    )
+    query = delete(TimedBelief).filter(TimedBelief.belief_horizon > timedelta(hours=0))
+
     if sensor_id is not None:
         query = query.filter(TimedBelief.sensor_id == sensor_id)
-    num_forecasts_deleted = query.delete()
+    num_forecasts_deleted = db.session.execute(query)
 
     if not sensor_id:
         click.echo("Deleted %d Forecast Jobs" % num_forecasting_jobs_deleted)
@@ -383,7 +396,7 @@ def save_tables(
             file_path = "%s/%s/%s.obj" % (backup_path, backup_name, c.__tablename__)
 
             with open(file_path, "xb") as file_handler:
-                file_handler.write(dumps(db.session.query(c).all()))
+                file_handler.write(dumps(db.session.scalars(select(c))).all())
             click.echo("Successfully saved %s/%s." % (backup_name, c.__tablename__))
     except SQLAlchemyError as e:
         click.echo(
@@ -420,7 +433,9 @@ def load_tables(
                 if sequence_name in sequence_names:
 
                     # Get max id
-                    max_id = db.session.query(func.max(c.id)).one_or_none()[0]
+                    max_id = db.session.execute(
+                        select(func.max(c.id)).select_from(c)
+                    ).scalar_one_or_none()
                     max_id = 1 if max_id is None else max_id
 
                     # Set table seq to max id
