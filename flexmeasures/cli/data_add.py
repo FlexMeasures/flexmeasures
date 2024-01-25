@@ -1568,14 +1568,14 @@ def add_report(  # noqa: C901
         )
 
         # todo: get the oldest last_value among all the sensors
-        last_value_datetime = (
-            db.session.query(func.max(TimedBelief.event_start))
-            .filter(TimedBelief.sensor_id == output[0]["sensor"].id)
-            .one_or_none()
-        )
+        last_value_datetime = db.session.execute(
+            select(func.max(TimedBelief.event_start))
+            .select_from(TimedBelief)
+            .filter_by(sensor_id=output[0]["sensor"].id)
+        ).scalar_one_or_none()
         # If there's data saved to the reporter sensors
-        if last_value_datetime[0] is not None:
-            start = last_value_datetime[0]
+        if last_value_datetime is not None:
+            start = last_value_datetime
         else:
             click.secho(
                 "Could not find any data for the output sensors provided. Such data is needed to compute"
