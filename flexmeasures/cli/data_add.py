@@ -1255,7 +1255,7 @@ def serialize_quantity_or_sensor(qos: Sensor | ur.Quantity) -> dict | str:
     "storage_efficiency",
     type=QuantityOrSensor("%", default_src_unit="dimensionless"),
     required=False,
-    default=1,
+    default="100%",
     help="Storage efficiency (e.g. 95% or 0.95) to use for the schedule,"
     " applied over each time step equal to the sensor resolution."
     "This parameter also supports using a reference sensor as 'sensor:<id>' (e.g. sensor:34)."

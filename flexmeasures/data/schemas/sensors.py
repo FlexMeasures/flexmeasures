@@ -159,6 +159,10 @@ class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
             )
 
     def convert(self, value, param, ctx, **kwargs):
+        # case that the click default is defined in numeric values
+        if not isinstance(value, str):
+            return super().convert(value, param, ctx, **kwargs)
+
         _value = re.match(r"sensor:(\d+)", value)
 
         if _value is not None:
