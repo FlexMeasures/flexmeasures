@@ -102,7 +102,7 @@ def test_plot_beliefs(app, fresh_db, setup_beliefs_fresh_db):
     result = runner.invoke(
         plot_beliefs,
         [
-            "--sensor-id",
+            "--sensor",
             sensor.id,
             "--start",
             "2021-03-28T16:00+01",

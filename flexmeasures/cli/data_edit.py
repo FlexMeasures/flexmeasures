@@ -21,7 +21,7 @@ from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.utils import save_to_db
-from flexmeasures.cli.utils import MsgStyle
+from flexmeasures.cli.utils import MsgStyle, DeprecatedOption, DeprecatedOptionsCommand
 
 
 @click.group("edit")
@@ -29,22 +29,30 @@ def fm_edit_data():
     """FlexMeasures: Edit data."""
 
 
-@fm_edit_data.command("attribute")
+@fm_edit_data.command("attribute", cls=DeprecatedOptionsCommand)
 @with_appcontext
 @click.option(
+    "--asset",
     "--asset-id",
     "assets",
     required=False,
     multiple=True,
     type=GenericAssetIdField(),
+    cls=DeprecatedOption,
+    deprecated=["--asset-id"],
+    preferred="--asset",
     help="Add/edit attribute to this asset. Follow up with the asset's ID.",
 )
 @click.option(
+    "--sensor",
     "--sensor-id",
     "sensors",
     required=False,
     multiple=True,
     type=SensorIdField(),
+    cls=DeprecatedOption,
+    deprecated=["--sensor-id"],
+    preferred="--sensor",
     help="Add/edit attribute to this sensor. Follow up with the sensor's ID.",
 )
 @click.option(
@@ -145,13 +153,17 @@ def edit_attribute(
     click.secho("Successfully edited/added attribute.", **MsgStyle.SUCCESS)
 
 
-@fm_edit_data.command("resample-data")
+@fm_edit_data.command("resample-data", cls=DeprecatedOptionsCommand)
 @with_appcontext
 @click.option(
+    "--sensor",
     "--sensor-id",
     "sensor_ids",
     multiple=True,
     required=True,
+    cls=DeprecatedOption,
+    deprecated=["--sensor-id"],
+    preferred="--sensor",
     help="Resample data for this sensor. Follow up with the sensor's ID. This argument can be given multiple times.",
 )
 @click.option(

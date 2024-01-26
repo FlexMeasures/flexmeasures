@@ -97,7 +97,7 @@ def naturalized_datetime_str(dt: datetime | None, now: datetime | None = None) -
     The dt parameter (as well as the now parameter if you use it)
     can be either naive or tz-aware. We assume UTC in the naive case.
 
-    We use the the humanize library to generate a human-friendly string.
+    We use the `humanize` library to generate a human-friendly string.
     If dt is not longer ago than 24 hours, we use humanize.naturaltime (e.g. "3 hours ago"),
     otherwise humanize.naturaldate (e.g. "one week ago")
 

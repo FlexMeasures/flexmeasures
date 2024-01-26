@@ -21,7 +21,7 @@ from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.services.users import find_user_by_email, delete_user
-from flexmeasures.cli.utils import MsgStyle
+from flexmeasures.cli.utils import MsgStyle, DeprecatedOption, DeprecatedOptionsCommand
 
 
 @click.group("delete")
@@ -174,11 +174,16 @@ def delete_structure(force):
     depopulate_structure(db)
 
 
-@fm_delete_data.command("measurements")
+@fm_delete_data.command("measurements", cls=DeprecatedOptionsCommand)
 @with_appcontext
 @click.option(
+    "--sensor",
     "--sensor-id",
+    "sensor_id",
     type=int,
+    cls=DeprecatedOption,
+    deprecated=["--sensor-id"],
+    preferred="--sensor",
     help="Delete (time series) data for a single sensor only. Follow up with the sensor's ID.",
 )
 @click.option(
@@ -196,14 +201,19 @@ def delete_measurements(
     depopulate_measurements(db, sensor_id)
 
 
-@fm_delete_data.command("prognoses")
+@fm_delete_data.command("prognoses", cls=DeprecatedOptionsCommand)
 @with_appcontext
 @click.option(
     "--force/--no-force", default=False, help="Skip warning about consequences."
 )
 @click.option(
+    "--sensor",
     "--sensor-id",
+    "sensor_id",
     type=int,
+    cls=DeprecatedOption,
+    deprecated=["--sensor-id"],
+    preferred="--sensor",
     help="Delete (time series) data for a single sensor only. Follow up with the sensor's ID. ",
 )
 def delete_prognoses(
@@ -218,11 +228,16 @@ def delete_prognoses(
     depopulate_prognoses(db, sensor_id)
 
 
-@fm_delete_data.command("unchanged-beliefs")
+@fm_delete_data.command("unchanged-beliefs", cls=DeprecatedOptionsCommand)
 @with_appcontext
 @click.option(
+    "--sensor",
     "--sensor-id",
+    "sensor_id",
     type=int,
+    cls=DeprecatedOption,
+    deprecated=["--sensor-id"],
+    preferred="--sensor",
     help="Delete unchanged (time series) data for a single sensor only. Follow up with the sensor's ID. ",
 )
 @click.option(
@@ -314,11 +329,16 @@ def delete_unchanged_beliefs(
     click.secho(f"Done! {num_beliefs_after} beliefs left", **MsgStyle.SUCCESS)
 
 
-@fm_delete_data.command("nan-beliefs")
+@fm_delete_data.command("nan-beliefs", cls=DeprecatedOptionsCommand)
 @with_appcontext
 @click.option(
+    "--sensor",
     "--sensor-id",
+    "sensor_id",
     type=int,
+    cls=DeprecatedOption,
+    deprecated=["--sensor-id"],
+    preferred="--sensor",
     help="Delete NaN time series data for a single sensor only. Follow up with the sensor's ID.",
 )
 def delete_nan_beliefs(sensor_id: int | None = None):
