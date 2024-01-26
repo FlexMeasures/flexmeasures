@@ -1206,7 +1206,9 @@ def serialize_quantity_or_sensor(qos: Sensor | ur.Quantity) -> dict | str:
     type=QuantityOrSensor("MW"),
     required=False,
     default=None,
-    help="",
+    help="Specify the State of Charge (SoC) gain as a quantity in power units (e.g. 1 MW or 1000 kW)"
+    "or reference a sensor by using 'sensor:<id>' (e.g. sensor:34)."
+    "This represents the rate at which storage is charged from a different source.",
 )
 @click.option(
     "--soc-usage",
@@ -1214,7 +1216,9 @@ def serialize_quantity_or_sensor(qos: Sensor | ur.Quantity) -> dict | str:
     type=QuantityOrSensor("MW"),
     required=False,
     default=None,
-    help="",
+    help="Specify the State of Charge (SoC) usage as a quantity in power units (e.g. 1 MW or 1000 kW) "
+    "or reference a sensor by using 'sensor:<id>' (e.g. sensor:34)."
+    "This represents the rate at which the storage is discharged from a different source.",
 )
 @click.option(
     "--storage-power-capacity",
@@ -1222,7 +1226,9 @@ def serialize_quantity_or_sensor(qos: Sensor | ur.Quantity) -> dict | str:
     type=QuantityOrSensor("MW"),
     required=False,
     default=None,
-    help="",
+    help="Storage consumption/production power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
+    "or reference a sensor using 'sensor:<id>' (e.g. sensor:34)."
+    "It defines both-ways maximum power capacity.",
 )
 @click.option(
     "--storage-consumption-capacity",
@@ -1230,7 +1236,9 @@ def serialize_quantity_or_sensor(qos: Sensor | ur.Quantity) -> dict | str:
     type=QuantityOrSensor("MW"),
     required=False,
     default=None,
-    help="",
+    help="Storage consumption power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
+    "or reference a sensor using 'sensor:<id>' (e.g. sensor:34)."
+    "It defines the storage maximum consumption (charging) capacity.",
 )
 @click.option(
     "--storage-production-capacity",
@@ -1238,16 +1246,19 @@ def serialize_quantity_or_sensor(qos: Sensor | ur.Quantity) -> dict | str:
     type=QuantityOrSensor("MW"),
     required=False,
     default=None,
-    help="",
+    help="Storage production power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
+    "or reference a sensor using 'sensor:<id>' (e.g. sensor:34)."
+    "It defines the storage maximum production (discharging) capacity.",
 )
 @click.option(
     "--storage-efficiency",
     "storage_efficiency",
-    type=EfficiencyField(),
+    type=QuantityOrSensor("%", default_src_unit="dimensionless"),
     required=False,
     default=1,
     help="Storage efficiency (e.g. 95% or 0.95) to use for the schedule,"
     " applied over each time step equal to the sensor resolution."
+    "This parameter also supports using a reference sensor as 'sensor:<id>' (e.g. sensor:34)."
     " For example, a storage efficiency of 99 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of 0.99**(1/24)."
     " Defaults to 100% (no losses).",
 )
@@ -1277,7 +1288,7 @@ def add_schedule_for_storage(  # noqa C901
     soc_min: ur.Quantity | None = None,
     soc_max: ur.Quantity | None = None,
     roundtrip_efficiency: ur.Quantity | None = None,
-    storage_efficiency: ur.Quantity | None = None,
+    storage_efficiency: ur.Quantity | Sensor | None = None,
     as_job: bool = False,
 ):
     """Create a new schedule for a storage asset.
@@ -1335,8 +1346,6 @@ def add_schedule_for_storage(  # noqa C901
         soc_max = convert_units(soc_max.magnitude, str(soc_max.units), "MWh", capacity=capacity_str)  # type: ignore
     if roundtrip_efficiency is not None:
         roundtrip_efficiency = roundtrip_efficiency.magnitude / 100.0
-    if storage_efficiency is not None:
-        storage_efficiency = storage_efficiency.magnitude / 100.0
 
     scheduling_kwargs = dict(
         start=start,
@@ -1350,7 +1359,6 @@ def add_schedule_for_storage(  # noqa C901
             "soc-max": soc_max,
             "soc-unit": "MWh",
             "roundtrip-efficiency": roundtrip_efficiency,
-            "storage-efficiency": storage_efficiency,
         },
         flex_context={
             "consumption-price-sensor": consumption_price_sensor.id,
@@ -1367,6 +1375,10 @@ def add_schedule_for_storage(  # noqa C901
         scheduling_kwargs["flex_model"][
             "discharging-efficiency"
         ] = serialize_quantity_or_sensor(discharging_efficiency)
+    if storage_efficiency is not None:
+        scheduling_kwargs["flex_model"][
+            "storage-efficiency"
+        ] = serialize_quantity_or_sensor(storage_efficiency)
 
     if soc_gain is not None:
         scheduling_kwargs["flex_model"]["soc-gain"] = serialize_quantity_or_sensor(
