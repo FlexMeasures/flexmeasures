@@ -9,6 +9,7 @@ import sqlalchemy as sa
 
 from flexmeasures import Sensor, Account
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.schemas.reporting import StatusSchema
 
 
 def get_sensors(
@@ -101,6 +102,8 @@ def get_staleness(sensor: Sensor, staleness_search: dict, now: datetime) -> time
 
 
 def get_status(sensor: Sensor, status_specs: dict, now: datetime) -> dict:
+    """Get the status of the sensor"""
+    status_specs = StatusSchema().load(status_specs)
     max_staleness = status_specs.pop("max_staleness")
     staleness_search = status_specs.pop("staleness_search")
     staleness = get_staleness(sensor=sensor, staleness_search=staleness_search, now=now)

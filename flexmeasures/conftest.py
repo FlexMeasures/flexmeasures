@@ -1200,7 +1200,7 @@ def capacity_sensors(db, add_battery_assets, setup_sources):
             event_start=dt,
             event_value=val,
             sensor=production_capacity_sensor,
-            source=setup_sources["Schedule"],
+            source=setup_sources["SomeSchedule"],
             belief_time="2015-01-02T00:00+01",
         )
         for dt, val in zip(time_slots, values)

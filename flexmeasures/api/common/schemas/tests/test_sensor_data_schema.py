@@ -8,7 +8,7 @@ from flexmeasures.api.common.schemas.sensor_data import (
     PostSensorDataSchema,
     GetSensorDataSchema,
 )
-from flexmeasures.data.services.sensors import get_staleness
+from flexmeasures.data.services.sensors import get_staleness, get_status
 from flexmeasures.data.schemas.reporting import StatusSchema
 
 
@@ -127,7 +127,7 @@ def test_value_field_invalid(deserialization_input, error_msg):
 
 
 @pytest.mark.parametrize(
-    "now, sensor_type, source_name, expected_staleness",
+    "now, sensor_type, source_name, expected_staleness, expected_status",
     [
         (
             datetime(
@@ -142,6 +142,7 @@ def test_value_field_invalid(deserialization_input, error_msg):
             "market",
             None,
             timedelta(hours=-11),
+            False,
         ),
         (
             datetime(
@@ -156,6 +157,7 @@ def test_value_field_invalid(deserialization_input, error_msg):
             "market",
             None,
             timedelta(hours=13, minutes=18),
+            True,
         ),
         (
             datetime(
@@ -170,6 +172,7 @@ def test_value_field_invalid(deserialization_input, error_msg):
             "market",
             None,
             timedelta(days=1, hours=13),
+            True,
         ),
         (
             datetime(
@@ -184,6 +187,7 @@ def test_value_field_invalid(deserialization_input, error_msg):
             "market",
             None,
             timedelta(days=2, hours=13),
+            True,
         ),
         (
             datetime(
@@ -198,6 +202,7 @@ def test_value_field_invalid(deserialization_input, error_msg):
             "market",
             None,
             timedelta(hours=18),
+            True,
         ),
         (
             datetime(
@@ -212,6 +217,7 @@ def test_value_field_invalid(deserialization_input, error_msg):
             "market",
             None,
             timedelta(days=1, hours=2),
+            True,
         ),
         (
             datetime(
@@ -226,6 +232,7 @@ def test_value_field_invalid(deserialization_input, error_msg):
             "market",
             None,
             timedelta(days=1, hours=10),
+            True,
         ),
         (
             datetime(
@@ -240,6 +247,7 @@ def test_value_field_invalid(deserialization_input, error_msg):
             "production",
             "Seita",
             timedelta(hours=14),
+            True,
         ),
         (
             datetime(
@@ -254,6 +262,7 @@ def test_value_field_invalid(deserialization_input, error_msg):
             "production",
             "Seita",
             timedelta(hours=-3, minutes=-42),
+            False,
         ),
         (
             datetime(
@@ -266,8 +275,9 @@ def test_value_field_invalid(deserialization_input, error_msg):
                 tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
             ),
             "production",
-            "Schedule",
+            "SomeSchedule",
             timedelta(hours=14),
+            True,
         ),
         (
             datetime(
@@ -282,6 +292,7 @@ def test_value_field_invalid(deserialization_input, error_msg):
             "production",
             None,
             timedelta(hours=14),
+            True,
         ),
     ],
 )
@@ -292,6 +303,7 @@ def test_get_status(
     sensor_type,
     source_name,
     expected_staleness,
+    expected_status,
 ):
     if sensor_type == "market":
         sensor = add_market_prices["epex_da"]
@@ -306,7 +318,14 @@ def test_get_status(
                 staleness_search = {}
 
     staleness = get_staleness(sensor=sensor, staleness_search=staleness_search, now=now)
+    sensor_status = get_status(
+        sensor=sensor,
+        status_specs={"staleness_search": staleness_search, "max_staleness": "PT1H"},
+        now=now,
+    )
 
     status_specs = {"staleness_search": staleness_search, "max_staleness": "PT1H"}
     assert StatusSchema().load(status_specs)
     assert staleness == expected_staleness
+    assert sensor_status["staleness"] == expected_staleness
+    assert sensor_status["stale"] == expected_status
