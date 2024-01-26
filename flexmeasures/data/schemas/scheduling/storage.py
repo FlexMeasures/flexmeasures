@@ -190,7 +190,9 @@ class StorageFlexModelSchema(Schema):
         data_key="roundtrip-efficiency", required=False
     )
 
-    storage_efficiency = EfficiencyField(data_key="storage-efficiency")
+    storage_efficiency = QuantityOrSensor(
+        "%", default_src_unit="dimensionless", data_key="storage-efficiency"
+    )
     prefer_charging_sooner = fields.Bool(data_key="prefer-charging-sooner")
 
     soc_gain = fields.List(QuantityOrSensor("MW"), data_key="soc-gain", required=False)
@@ -275,10 +277,10 @@ class StorageFlexModelSchema(Schema):
                     maximum["value"] /= 1000.0
             data["soc_unit"] = "MWh"
 
-        # Convert efficiencies to dimensionless (to the (0,1] range)
-        efficiency_fields = ("storage_efficiency", "roundtrip_efficiency")
-        for field in efficiency_fields:
-            if data.get(field) is not None:
-                data[field] = data[field].to(ur.Quantity("dimensionless")).magnitude
+        # Convert efficiency to dimensionless (to the (0,1] range)
+        if data.get("roundtrip_efficiency") is not None:
+            data["roundtrip_efficiency"] = (
+                data["roundtrip_efficiency"].to(ur.Quantity("dimensionless")).magnitude
+            )
 
         return data

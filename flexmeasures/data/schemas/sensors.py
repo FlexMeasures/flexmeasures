@@ -95,9 +95,12 @@ class SensorIdField(MarshmallowClickMixin, fields.Int):
 
 
 class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
-    def __init__(self, to_unit: str, *args, **kwargs):
+    def __init__(
+        self, to_unit: str, default_src_unit: str | None = None, *args, **kwargs
+    ):
         super().__init__(*args, **kwargs)
         self.to_unit = ur.Quantity(to_unit)
+        self.default_src_unit = default_src_unit
 
     @with_appcontext_if_needed()
     def _deserialize(
@@ -133,6 +136,12 @@ class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
                     f"Cannot convert value `{value}` to '{self.to_unit}'"
                 ) from e
         else:
+
+            if self.default_src_unit is not None:
+                return self._deserialize(
+                    f"{value} {self.default_src_unit}", attr, obj, **kwargs
+                )
+
             raise FMValidationError(
                 f"Unsupported value type. `{type(value)}` was provided but only dict and str are supported."
             )
