@@ -108,7 +108,7 @@ class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
                     "Dictionary provided but `sensor` key not found."
                 )
 
-            sensor = Sensor.query.get(value["sensor"])
+            sensor = db.session.get(Sensor, value["sensor"])
 
             if sensor is None:
                 raise FMValidationError(f"No sensor found with id {value['sensor']}.")

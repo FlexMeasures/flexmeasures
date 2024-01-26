@@ -2,13 +2,13 @@ from typing import List, Optional, Type, Tuple, Union
 from datetime import datetime, timedelta
 
 from flask_security import current_user
-from sqlalchemy import Select
 from werkzeug.exceptions import Forbidden
 import pandas as pd
 import timely_beliefs as tb
-from sqlalchemy.orm import Query, Session
+from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import BinaryExpression, or_
 from sqlalchemy.sql.expression import null
+from sqlalchemy import select, Select
 
 from flexmeasures.data.config import db
 from flexmeasures.data.models.generic_assets import GenericAsset
@@ -26,11 +26,9 @@ def create_beliefs_query(
     old_sensor_names: Tuple[str],
     start: Optional[datetime],
     end: Optional[datetime],
-) -> Query:
+) -> Select:
     query = (
-        session.query(
-            old_sensor_class.name, cls.datetime, cls.value, cls.horizon, DataSource
-        )
+        select(old_sensor_class.name, cls.datetime, cls.value, cls.horizon, DataSource)
         .join(DataSource)
         .filter(cls.data_source_id == DataSource.id)
         .join(old_sensor_class)
@@ -45,7 +43,6 @@ def create_beliefs_query(
 
 def potentially_limit_assets_query_to_account(
     query: Select[tuple[GenericAsset]],
-    # query: Query,
     account_id: Optional[int] = None,
 ) -> Select[tuple[GenericAsset]]:
     """Filter out all assets that are not in the current user's account.
@@ -111,11 +108,11 @@ def user_source_criterion(
     """
     if user_source_ids is not None and not isinstance(user_source_ids, list):
         user_source_ids = [user_source_ids]  # ensure user_source_ids is a list
-    ignorable_user_sources = (
-        DataSource.query.filter(DataSource.type == "user")
+    ignorable_user_sources = db.session.scalars(
+        select(DataSource)
+        .filter(DataSource.type == "user")
         .filter(DataSource.id.not_in(user_source_ids))
-        .all()
-    )
+    ).all()
     ignorable_user_source_ids = [
         user_source.id for user_source in ignorable_user_sources
     ]

@@ -20,9 +20,6 @@ def check_data_availability(
     for training window and lagged variables. Otherwise, suggest new forecast period.
     TODO: we could also check regressor data, if we get regressor specs passed in here.
     """
-    # q = old_time_series_data_model.query.join(old_sensor_model.__class__).filter(
-    #     old_sensor_model.__class__.name == old_sensor_model.name
-    # )
     q = (
         select(old_time_series_data_model)
         .join(old_sensor_model.__class__)

@@ -19,7 +19,6 @@ def test_get_or_create_annotation(db, setup_sources):
         type="holiday",
     )
     assert first_annotation == get_or_create_annotation(first_annotation)
-    # num_annotations_intermediate = Annotation.query.count()
     num_annotations_intermediate = db.session.scalar(
         select(func.count()).select_from(Annotation)
     )

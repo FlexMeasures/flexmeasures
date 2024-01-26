@@ -79,7 +79,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
     @validates("parent_asset_id")
     def validate_parent_asset(self, parent_asset_id: int | None):
         if parent_asset_id is not None:
-            parent_asset = GenericAsset.query.get(parent_asset_id)
+            parent_asset = db.session.get(GenericAsset, parent_asset_id)
             if not parent_asset:
                 raise ValidationError(
                     f"Parent GenericAsset with id {parent_asset_id} doesn't exist."

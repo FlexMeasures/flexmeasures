@@ -101,14 +101,16 @@ def test_duration_exceeds_planning_window(
     assert (schedule == 4).all()
 
 
-def test_process_scheduler_time_restrictions(add_battery_assets, process):
+def test_process_scheduler_time_restrictions(add_battery_assets, process, db):
     """
     Test ProcessScheduler with a time restrictions consisting of a block of 2h starting
     at 8am. The resulting schedules avoid the 8am-10am period and schedules for a valid period.
     """
 
     # get the sensors from the database
-    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    epex_da = db.session.execute(
+        select(Sensor).filter(Sensor.name == "epex_da")
+    ).scalar_one_or_none()
 
     # time parameters
 
@@ -150,7 +152,7 @@ def test_process_scheduler_time_restrictions(add_battery_assets, process):
     assert (schedule[time_restrictions] == 0).all()
 
 
-def test_breakable_scheduler_time_restrictions(add_battery_assets, process):
+def test_breakable_scheduler_time_restrictions(add_battery_assets, process, db):
     """
     Test BREAKABLE process_type of ProcessScheduler by introducing four 1-hour restrictions
     interspaced by 1 hour. The equivalent mask would be the following: [0,...,0,1,0,1,0,1,0,1,0, ...,0].
@@ -159,7 +161,9 @@ def test_breakable_scheduler_time_restrictions(add_battery_assets, process):
     """
 
     # get the sensors from the database
-    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    epex_da = db.session.execute(
+        select(Sensor).filter(Sensor.name == "epex_da")
+    ).scalar_one_or_none()
 
     # time parameters
 
@@ -209,7 +213,7 @@ def test_breakable_scheduler_time_restrictions(add_battery_assets, process):
     ],
 )
 def test_impossible_schedules(
-    add_battery_assets, process, process_type, time_restrictions
+    add_battery_assets, process, process_type, time_restrictions, db
 ):
     """
     Test schedules with time restrictions that make a 4h block not fit anytime during the

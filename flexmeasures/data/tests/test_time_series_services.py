@@ -1,19 +1,22 @@
 import pandas as pd
 from timely_beliefs import utils as tb_utils
+from sqlalchemy import select
 
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor
 
 
-def test_drop_unchanged_beliefs(setup_beliefs):
+def test_drop_unchanged_beliefs(setup_beliefs, db):
     """Trying to save beliefs that are already in the database shouldn't raise an error.
 
     Even after updating the belief time, we expect to persist only the older belief time.
     """
 
     # Set a reference for the number of beliefs stored and their belief times
-    sensor = Sensor.query.filter_by(name="epex_da").one_or_none()
+    sensor = db.session.execute(
+        select(Sensor).filter_by(name="epex_da")
+    ).scalar_one_or_none()
     bdf = sensor.search_beliefs(most_recent_beliefs_only=False)
     num_beliefs_before = len(bdf)
     belief_times_before = bdf.belief_times
@@ -37,11 +40,13 @@ def test_drop_unchanged_beliefs(setup_beliefs):
     assert list(bdf.belief_times) == list(belief_times_before)
 
 
-def test_do_not_drop_beliefs_copied_by_another_source(setup_beliefs):
+def test_do_not_drop_beliefs_copied_by_another_source(setup_beliefs, db):
     """Trying to copy beliefs from one source to another should double the number of beliefs."""
 
     # Set a reference for the number of beliefs stored
-    sensor = Sensor.query.filter_by(name="epex_da").one_or_none()
+    sensor = db.session.execute(
+        select(Sensor).filter_by(name="epex_da")
+    ).scalar_one_or_none()
     bdf = sensor.search_beliefs(most_recent_beliefs_only=False)
     num_beliefs_before = len(bdf)
 
@@ -58,7 +63,7 @@ def test_do_not_drop_beliefs_copied_by_another_source(setup_beliefs):
     assert num_beliefs_after == 2 * num_beliefs_before
 
 
-def test_do_not_drop_changed_probabilistic_belief(setup_beliefs):
+def test_do_not_drop_changed_probabilistic_belief(setup_beliefs, db):
     """Trying to save a changed probabilistic belief should result in saving the whole belief.
 
     For example, given a belief that defines both cp=0.2 and cp=0.5,
@@ -67,7 +72,9 @@ def test_do_not_drop_changed_probabilistic_belief(setup_beliefs):
     """
 
     # Set a reference for the number of beliefs stored
-    sensor = Sensor.query.filter_by(name="epex_da").one_or_none()
+    sensor = db.session.execute(
+        select(Sensor).filter_by(name="epex_da")
+    ).scalar_one_or_none()
     bdf = sensor.search_beliefs(source="ENTSO-E", most_recent_beliefs_only=False)
     num_beliefs_before = len(bdf)
 

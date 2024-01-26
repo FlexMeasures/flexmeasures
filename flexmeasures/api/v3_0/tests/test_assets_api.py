@@ -497,15 +497,11 @@ def test_consultant_get_asset(
     """
     The Consultant Account reads an asset from the ConsultancyClient Account.
     """
-    asset_id = (
-        db.session.execute(
-            select(GenericAsset).filter_by(name="Test ConsultancyClient Asset")
-        )
-        .scalar_one_or_none()
-        .id
-    )
+    asset_id = db.session.execute(
+        select(GenericAsset).filter_by(name="Test ConsultancyClient Asset")
+    ).scalar_one_or_none()
 
-    get_asset_response = client.get(url_for("AssetAPI:get", id=asset_id))
+    get_asset_response = client.get(url_for("AssetAPI:get", id=asset_id.id))
     print("Server responded with:\n%s" % get_asset_response.json)
     assert get_asset_response.status_code == 200
     assert get_asset_response.json["name"] == "Test ConsultancyClient Asset"

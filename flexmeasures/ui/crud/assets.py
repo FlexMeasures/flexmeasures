@@ -150,15 +150,18 @@ def process_internal_api_response(
         expunge_asset()
         asset.owner = db.session.get(Account, asset_data["account_id"])
         expunge_asset()
+        db.session.flush()
         if "id" in asset_data:
             asset.sensors = db.session.scalars(
                 select(Sensor).filter_by(generic_asset_id=asset_data["id"])
             ).all()
             expunge_asset()
         if asset_data.get("parent_asset_id", None) is not None:
-            asset.parent_asset = GenericAsset.query.filter(
-                GenericAsset.id == asset_data["parent_asset_id"]
-            ).one_or_none()
+            asset.parent_asset = db.session.execute(
+                select(GenericAsset).filter(
+                    GenericAsset.id == asset_data["parent_asset_id"]
+                )
+            ).scalar_one_or_none()
             expunge_asset()
         return asset
     return asset_data
@@ -242,6 +245,7 @@ class AssetCrudUI(FlaskView):
                 process_internal_api_response(ad, make_obj=True)
                 for ad in get_assets_response.json()
             ]
+        db.session.flush()
         return render_flexmeasures_template(
             "crud/assets.html",
             account=db.session.get(Account, account_id),

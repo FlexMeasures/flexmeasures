@@ -83,13 +83,11 @@ class AssetGroup:
             raise Exception("Empty asset (group) name passed (%s)" % name)
         self.name = name
 
-        if not asset_query:
-            asset_query = db.session.scalars(
-                select(GenericAsset).filter_by(name=self.name)
-            )
+        if asset_query is None:
+            asset_query = select(GenericAsset).filter_by(name=self.name)
 
         # List unique asset types and asset type names represented by this group
-        self.assets = asset_query.all()
+        self.assets = db.session.scalars(asset_query).all()
         self.unique_asset_types = list(set([a.asset_type for a in self.assets]))
         self.unique_asset_type_names = list(
             set([a.asset_type.name for a in self.assets])

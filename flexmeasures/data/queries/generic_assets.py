@@ -26,7 +26,7 @@ def query_assets_by_type(
     :param query: Pass in an existing Query object if you have one.
     """
     if not query:
-        query = GenericAsset.query
+        query = select(GenericAsset)
     query = query.join(GenericAssetType).filter(
         GenericAsset.generic_asset_type_id == GenericAssetType.id
     )
@@ -126,7 +126,7 @@ def get_asset_group_queries(
 
     # 2. Include a group per asset type - using the pluralised asset type name
     if group_by_type:
-        for asset_type in GenericAssetType.query.all():
+        for asset_type in db.session.scalars(select(GenericAssetType)).all():
             asset_queries[pluralize(asset_type.name)] = query_assets_by_type(
                 asset_type.name
             )

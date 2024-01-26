@@ -14,7 +14,7 @@ from email_validator import (
 from email_validator.deliverability import validate_email_deliverability
 from flask_security.utils import hash_password
 from werkzeug.exceptions import NotFound
-from sqlalchemy import select
+from sqlalchemy import select, delete
 
 from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataSource
@@ -45,7 +45,6 @@ def get_users(
     The role_name parameter allows to filter by role.
     Set only_active to False if you also want non-active users.
     """
-    # user_query = User.query
     user_query = select(User)
 
     if account_name is not None:
@@ -150,7 +149,9 @@ def create_user(  # noqa: C901
         raise InvalidFlexMeasuresUser(
             "Cannot create user without knowing the name of the account which this user is associated with."
         )
-    account = db.session.query(Account).filter_by(name=account_name).one_or_none()
+    account = db.session.execute(
+        select(Account).filter_by(name=account_name)
+    ).scalar_one_or_none()
     if account is None:
         print(f"Creating account {account_name} ...")
         account = Account(name=account_name)
@@ -220,5 +221,5 @@ def delete_user(user: User):
         raise Exception("You cannot delete yourself.")
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
     user_datastore.delete_user(user)
-    db.session.delete(user)
+    db.session.execute(delete(User).filter_by(id=user.id))
     current_app.logger.info("Deleted %s." % user)

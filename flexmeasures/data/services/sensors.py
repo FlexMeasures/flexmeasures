@@ -20,7 +20,6 @@ def get_sensors(
     :param sensor_id_allowlist:     optionally, allow only sensors whose id is in this list
     :param sensor_name_allowlist:   optionally, allow only sensors whose name is in this list
     """
-    # sensor_query = Sensor.query
     sensor_query = sa.select(Sensor)
     if account is None:
         account_ids = []
@@ -44,5 +43,4 @@ def get_sensors(
         sensor_query = sensor_query.filter(Sensor.id.in_(sensor_id_allowlist))
     if sensor_name_allowlist:
         sensor_query = sensor_query.filter(Sensor.name.in_(sensor_name_allowlist))
-    # return sensor_query.all()
     return db.session.scalars(sensor_query).all()

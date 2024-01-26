@@ -111,9 +111,9 @@ def upgrade_data():
             print(
                 f"Linking user {user_id} to account {account_name} (as from custom param) ..."
             )
-            account_results = (
-                session.query(Account.id).filter_by(name=account_name).one_or_none()
-            )
+            account_results = session.execute(
+                sa.select(Account.id).filter_by(name=account_name)
+            ).scalar_one_or_none()
             if account_results is None:
                 print(f"need to create account {account_name} ...")
                 account = Account(name=account_name)
@@ -121,8 +121,10 @@ def upgrade_data():
                 session.flush()
                 account_id = account.id
             else:
-                account_id = account_results[0]
-            user_results = session.query(User.id).filter_by(id=user_id).one_or_none()
+                account_id = account_results
+            user_results = session.execute(
+                sa.select(User.id).filter_by(id=user_id)
+            ).scalar_one_or_none()
             if not user_results:
                 raise ValueError(f"User with ID {user_id} does not exist!")
             connection.execute(
@@ -130,7 +132,9 @@ def upgrade_data():
             )
 
     # Make sure each existing user has an account
-    for user_results in session.query(User.id, User.email, User.account_id).all():
+    for user_results in session.scalars(
+        sa.select(User.id, User.email, User.account_id)
+    ).all():
         user_id = user_results[0]
         user_email = user_results[1]
         user_account_id = user_results[2]
