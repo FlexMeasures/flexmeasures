@@ -325,11 +325,11 @@ def create_sources(db) -> dict[str, DataSource]:
     db.session.add(seita_source)
     entsoe_source = DataSource(name="ENTSO-E", type="demo script")
     db.session.add(entsoe_source)
-    schedule_source = DataSource(name="Schedule", type="demo script")
+    dummy_schedule_source = DataSource(name="DummySchedule", type="demo script")
     return {
         "Seita": seita_source,
         "ENTSO-E": entsoe_source,
-        "Schedule": schedule_source,
+        "DummySchedule": dummy_schedule_source,
     }
 
 
@@ -1200,7 +1200,7 @@ def capacity_sensors(db, add_battery_assets, setup_sources):
             event_start=dt,
             event_value=val,
             sensor=production_capacity_sensor,
-            source=setup_sources["SomeSchedule"],
+            source=setup_sources["DummySchedule"],
             belief_time="2015-01-02T00:00+01",
         )
         for dt, val in zip(time_slots, values)
