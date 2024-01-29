@@ -52,20 +52,8 @@ To enable a temporary target SoC of more than 85% (for car reservations, see the
             "soc-maxima": [
                 {
                     "value": 51,
-                    "datetime": "2024-02-04T10:35:00+01:00"
-                },
-                {
-                    "value": 51,
-                    "datetime": "2024-02-04T10:40:00+01:00"
-                },
-                ...
-                {
-                    "value": 51,
-                    "datetime": "2024-02-05T04:20:00+01:00"
-                },
-                {
-                    "value": 51,
-                    "datetime": "2024-02-05T04:25:00+01:00"
+                    "start": "2024-02-04T10:35:00+01:00",
+                    "end": "2024-02-05T04:25:00+01:00"
                 }
             ],
             "soc-unit": "kWh"
@@ -106,19 +94,8 @@ To make sure the car remains at 95% SoC for some time, additional soc-minima con
             "soc-minima": [
                 {
                     "value": 57,
-                    "datetime": "2024-02-05T08:00:00+01:00"
-                },
-                {
-                    "value": 57,
-                    "datetime": "2024-02-05T08:05:00+01:00"
-                },
-                {
-                    "value": 57,
-                    "datetime": "2024-02-05T08:10:00+01:00"
-                },
-                {
-                    "value": 57,
-                    "datetime": "2024-02-05T08:15:00+01:00"
+                    "start": "2024-02-05T08:00:00+01:00",
+                    "end": "2024-02-05T08:15:00+01:00"
                 }
             ]
         }

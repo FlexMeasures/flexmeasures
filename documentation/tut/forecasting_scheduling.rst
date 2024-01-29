@@ -75,7 +75,7 @@ Here we request 6-hour forecasts to be made for two sensors, for a period of two
 
 .. code-block:: bash
 
-    $ flexmeasures add forecasts --sensor-id 2 --sensor-id 3 \
+    $ flexmeasures add forecasts --sensor 2 --sensor 3 \
         --from-date 2015-02-01 --to-date 2015-08-31 \
         --horizon 6 --as-job
 
@@ -131,7 +131,7 @@ A second way to add scheduling jobs is via the CLI, so this is available for peo
 
 .. code-block:: bash
 
-    $ flexmeasures add schedule for-storage --sensor-id 1 --consumption-price-sensor 2 \
+    $ flexmeasures add schedule for-storage --sensor 1 --consumption-price-sensor 2 \
         --start 2022-07-05T07:00+01:00 --duration PT12H \
         --soc-at-start 50% --roundtrip-efficiency 90% --as-job
 
