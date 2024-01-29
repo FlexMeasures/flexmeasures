@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 from datetime import timedelta
 
 from flask_login import current_user
@@ -22,15 +21,13 @@ from flexmeasures.data.services.time_series import simplify_index
 from flexmeasures.utils.time_utils import (
     decide_resolution,
     duration_isoformat,
+    server_now,
 )
-
-
 from flexmeasures.utils.unit_utils import (
     convert_units,
     units_are_convertible,
     is_energy_price_unit,
 )
-from flexmeasures.utils.time_utils import server_now
 
 
 class SingleValueField(fields.Float):
