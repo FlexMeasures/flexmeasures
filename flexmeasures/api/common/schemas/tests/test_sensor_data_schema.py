@@ -266,7 +266,7 @@ def test_value_field_invalid(deserialization_input, error_msg):
         ),
         (
             datetime(
-                2015,
+                2016,
                 1,
                 2,
                 21,
@@ -275,13 +275,13 @@ def test_value_field_invalid(deserialization_input, error_msg):
                 tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
             ),
             "production",
-            "SomeSchedule",
+            "DummySchedule",
             timedelta(hours=14),
             True,
         ),
         (
             datetime(
-                2015,
+                2016,
                 1,
                 2,
                 21,
@@ -310,13 +310,14 @@ def test_get_status(
         staleness_search = {}
     elif sensor_type == "production":
         sensor = capacity_sensors["production"]
+        staleness_search = {}
         for source in sensor.data_sources:
+            print(source.name)
             if source.name == source_name:
                 source_id = source.id
                 staleness_search = {"source": source_id}
-            else:
-                staleness_search = {}
 
+    print(staleness_search)
     staleness = get_staleness(sensor=sensor, staleness_search=staleness_search, now=now)
     sensor_status = get_status(
         sensor=sensor,
