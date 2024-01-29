@@ -1193,7 +1193,7 @@ def capacity_sensors(db, add_battery_assets, setup_sources):
     db.session.commit()
 
     time_slots = pd.date_range(
-        datetime(2015, 1, 2), datetime(2015, 1, 2, 7, 45), freq="15T"
+        datetime(2016, 1, 2), datetime(2016, 1, 2, 7, 45), freq="15T"
     ).tz_localize("Europe/Amsterdam")
     beliefs = [
         TimedBelief(
