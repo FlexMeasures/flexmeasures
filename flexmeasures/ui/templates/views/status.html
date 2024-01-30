@@ -21,7 +21,7 @@
                     <thead>
                         <tr>
                             <th>Name</th>
-                            <th class="no-sort">Last values</th>
+                            <th class="no-sort">Time since last value</th>
                             <th class="text-right no-sort">Status</th>
                             <th class="hidden">URL</th>
                         </tr>
@@ -33,14 +33,12 @@
                                 {{ sensor.name }}
                             </td>
                             <td>
-                                {{ sensor["event_starts"] }}
+                                {{ sensor["staleness"] }}
                             </td>
                             <td class="text-right">
-                                {% if sensor.sensor_status == "complete" %}
+                                {% if sensor["stale"] == False %}
                                 🟢
-                                {% elif sensor.sensor_status == "partial" %}
-                                🟡
-                                {% elif sensor.sensor_status == "empty" %}
+                                {% elif sensor["stale"] == True %}
                                 🔴
                                 {% endif %}
                             </td>

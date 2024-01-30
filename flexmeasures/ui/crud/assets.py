@@ -290,7 +290,7 @@ class AssetCrudUI(FlaskView):
         asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
         sensors = []
         for sensor in asset.sensors:
-            status = get_status(
+            sensor_status = get_status(
                 sensor=sensor,
                 status_specs={"staleness_search": {}, "max_staleness": "PT1H"},
                 now=server_now(),
@@ -299,8 +299,10 @@ class AssetCrudUI(FlaskView):
             sensor_dict = {}
             sensor_dict["name"] = sensor.name
             sensor_dict["id"] = sensor.id
-            sensor_dict["sensor_status"] = status["stale"]
-            sensor_dict["staleness"] = status["staleness"]
+            sensor_dict["stale"] = sensor_status["stale"]
+            sensor_dict["staleness"] = sensor_status["staleness"]
+
+            sensors += [sensor_dict]
 
         return render_flexmeasures_template(
             "views/status.html", asset=asset, sensors=sensors

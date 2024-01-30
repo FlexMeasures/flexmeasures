@@ -91,4 +91,5 @@ def get_status(sensor: Sensor, status_specs: dict, now: datetime) -> dict:
         staleness=staleness,
         stale=stale,
     )
+    print(staleness, stale)
     return status
