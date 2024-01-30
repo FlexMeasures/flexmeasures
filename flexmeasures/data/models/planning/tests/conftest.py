@@ -313,13 +313,19 @@ def add_stock_delta(db, add_battery_assets, setup_sources) -> dict[str, Sensor]:
 @pytest.fixture(scope="module")
 def add_storage_efficiency(db, add_battery_assets, setup_sources) -> dict[str, Sensor]:
     """
-    Different usage forecast sensors are defined:
-        - "delta fails": the usage forecast exceeds the maximum power.
-        - "delta": the usage forecast can be fulfilled just right. This coincides with the schedule resolution.
-        - "delta hourly": the event resolution is changed to test that the schedule is still feasible.
-                          This has a greater resolution.
-        - "delta 5min": the event resolution is reduced even more. This sensor has a resolution smaller than that used
-                        for the scheduler.
+    Fixture to add storage efficiency sensors and their beliefs to the database.
+
+    This fixture creates several storage efficiency sensors with different characteristics
+    and attaches them to a test battery asset.
+
+    The sensor specifications include:
+    - "storage efficiency 90%" with 15-minute resolution and 90% efficiency.
+    - "storage efficiency 110%" with 15-minute resolution and 110% efficiency.
+    - "storage efficiency negative" with 15-minute resolution and -90% efficiency.
+    - "storage efficiency hourly" with 1-hour resolution and 90% efficiency.
+
+    The function creates a day's worth of test data for each sensor starting from
+    January 1, 2015.
     """
 
     battery = add_battery_assets["Test battery"]
