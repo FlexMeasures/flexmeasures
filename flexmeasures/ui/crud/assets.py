@@ -23,7 +23,8 @@ from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.crud.api_wrapper import InternalApi
-from flexmeasures.data.services.sensors import get_staleness
+from flexmeasures.data.services.sensors import get_status
+from flexmeasures.utils.time_utils import server_now
 
 
 """
@@ -289,20 +290,17 @@ class AssetCrudUI(FlaskView):
         asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
         sensors = []
         for sensor in asset.sensors:
-            status = get_staleness(sensor=sensor)
+            status = get_status(
+                sensor=sensor,
+                status_specs={"staleness_search": {}, "max_staleness": "PT1H"},
+                now=server_now(),
+            )
 
             sensor_dict = {}
             sensor_dict["name"] = sensor.name
             sensor_dict["id"] = sensor.id
-            sensor_dict["event_starts"] = status.event_starts.to_list()
-            if len(status.event_starts) == 4:
-                sensor_dict["sensor_status"] = "complete"
-            elif len(status.event_starts) in [1, 2, 3]:
-                sensor_dict["sensor_status"] = "partial"
-            elif len(status.event_starts) == 0:
-                sensor_dict["sensor_status"] = "empty"
-
-            sensors += [sensor_dict]
+            sensor_dict["sensor_status"] = status["stale"]
+            sensor_dict["staleness"] = status["staleness"]
 
         return render_flexmeasures_template(
             "views/status.html", asset=asset, sensors=sensors
