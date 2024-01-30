@@ -1660,6 +1660,13 @@ def test_battery_stock_delta_quantity(add_battery_assets, gain, usage, expected_
 def test_battery_efficiency_quantity(
     add_battery_assets, efficiency, expected_efficiency
 ):
+    """
+    Test to ensure correct handling of storage efficiency quantities in the StorageScheduler.
+
+    The test covers the handling of percentage values, dimensionless numeric values, and the
+    case where the efficiency is not defined.
+    """
+
     _, battery = get_sensors_from_db(add_battery_assets)
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 1))
@@ -1702,6 +1709,12 @@ def test_battery_storage_efficiency_sensor(
     efficiency_sensor_name,
     expected_efficiency,
 ):
+    """
+    Test the handling of different storage efficiency sensors in the StorageScheduler.
+
+    It checks if the scheduler correctly handles regular values, values exceeding 100%, negative values,
+    and values with different resolutions compared to the scheduling resolution.
+    """
     _, battery = get_sensors_from_db(add_battery_assets)
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 1))
