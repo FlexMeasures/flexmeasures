@@ -177,6 +177,7 @@ def get_power_values(
     resolution: timedelta,
     beliefs_before: Optional[datetime],
     sensor: Sensor,
+    to_unit="MW",
 ) -> np.ndarray:
     """Get measurements or forecasts of an inflexible device represented by a power sensor.
 
@@ -207,6 +208,8 @@ def get_power_values(
             f"Assuming zero power values for (partially) unknown power values for planning window. (sensor {sensor.id})"
         )
         df = df.fillna(0)
+
+    df *= convert_units(1, sensor.unit, to_unit)
 
     if sensor.get_attribute(
         "consumption_is_positive", False
