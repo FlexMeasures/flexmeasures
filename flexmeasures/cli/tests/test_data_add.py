@@ -461,15 +461,22 @@ def test_add_storage_scheduler(
     storage_efficiency,
 ):
     """
-    Test adding a storage schedule using the 'flexmeasures add schedule for-storage'.
+    Test the 'flexmeasures add schedule for-storage' CLI command for adding storage schedules.
 
-    The test involves:
-        1. Running the command `flexmeasures add toy-account`.
-        2. Configuring CLI input parameters, including start time, duration, sensor IDs, and efficiency settings.
-        3. Optionally adjusting power capacity and efficiency based on provided parameters or sensor values.
-        4. Executing the 'add_schedule_for_storage' command with these parameters.
-        5. Verifying successful command execution and the correct number of scheduled values (48 12H * 4 15min period per hour)
-           for the power sensor.
+    This test evaluates the command's functionality in creating storage schedules for different configurations
+    of power capacity and storage efficiency. It uses a combination of sensor-based and manually specified values
+    for these parameters.
+
+    The test performs the following steps:
+    1. Simulates running the `flexmeasures add toy-account` command to set up a test account.
+    2. Configures CLI input parameters for scheduling, including the start time, duration, and sensor IDs.
+       The test also sets up parameters for state of charge at start and roundtrip efficiency.
+    3. Depending on the test parameters, adjusts power capacity and efficiency settings. These settings can be
+       either sensor-based (retrieved from storage_schedule_sensors fixture), manually specified quantities,
+       or left undefined.
+    4. Executes the 'add_schedule_for_storage' command with the configured parameters.
+    5. Verifies that the command executes successfully (exit code 0) and that the correct number of scheduled
+       values (48 for a 12-hour period with 15-minute resolution) are created for the power sensor.
     """
     power_limit_sensor, efficiency = storage_schedule_sensors
 
