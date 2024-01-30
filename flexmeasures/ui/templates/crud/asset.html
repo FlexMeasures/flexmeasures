@@ -174,6 +174,54 @@
                     </tbody>
                 </table>
             </div>
+                
+            <div class="card">
+                <h3>All child assets for {{ asset.name }}</h3>
+
+                <table class="table table-striped table-responsive paginate nav-on-click" title="View this asset">
+                    <thead>
+                        <tr>
+                            <th><i class="left-icon">Name</i></th>
+                            <th>Location</th>
+                            <th>Asset ID</th>
+                            <th>Account</th>
+                            <th>Sensors</th>
+                            <th class="hidden">URL</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for child in children %}
+                        <tr>
+                            <td>
+                                <i class="{{ child.generic_asset_type.name | asset_icon }} left-icon">{{ child.name }}</i>
+                            </td>
+                            <td>
+                                {% if child.latitude and child.longitude %}
+                                LAT: {{ "{:,.4f}".format( child.latitude ) }} LONG:
+                                {{ "{:,.4f}".format( child.longitude ) }}
+                                {% endif %}
+                            </td>
+                            <td>
+                                {{ child.id }}
+                            </td>
+                            <td>
+                                {% if child.owner %}
+                                {{ child.owner.name }}
+                                {% else %}
+                                PUBLIC
+                                {% endif %}
+                            </td>
+                            <td>
+                                {{ child.sensors | length }}
+                            </td>
+                            <td class="hidden">
+                                /assets/{{ child.id }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
         <div class="col-sm-2">
             <div class="replay-container">

@@ -280,6 +280,7 @@ class AssetCrudUI(FlaskView):
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
             user_can_create_assets=user_can_create_assets(),
             user_can_delete_asset=user_can_delete(asset),
+            children=GenericAsset.query.get(asset.id).child_assets,
         )
 
     @login_required
