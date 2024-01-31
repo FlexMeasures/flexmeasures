@@ -1698,9 +1698,10 @@ def test_battery_efficiency_quantity(
         ("storage efficiency 90%", 0.9),  # regular value
         ("storage efficiency 110%", 1),  # clip values that exceed 100%
         ("storage efficiency negative", 0),  # clip negative values
-        ("storage efficiency hourly", 0.9)  # this one should fail.
+        ("storage efficiency hourly", 0.974003)  # this one fails.
         # We should resample making sure that the efficiencies are equivalent.
         # For example, 90% defined in 1h is equivalent to 97% in a 15min period (0.97^4≈0.9).
+        # Plans to support resampling efficiencies can be found here https://github.com/FlexMeasures/flexmeasures/issues/720
     ],
 )
 def test_battery_storage_efficiency_sensor(
