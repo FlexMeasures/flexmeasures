@@ -69,8 +69,3 @@ class StatusSchema(Schema):
     max_staleness = DurationField(required=True)
 
     staleness_search = fields.Nested(BeliefsSearchConfigSchema(), required=True)
-
-    # start = AwareDateTimeField(required=True)
-    # end = AwareDateTimeField(required=True)
-
-    # belief_time = AwareDateTimeField(required=False)
