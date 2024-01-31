@@ -98,6 +98,11 @@ class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
     def __init__(
         self, to_unit: str, default_src_unit: str | None = None, *args, **kwargs
     ):
+        """
+        :param to_unit: unit in which the sensor or quantity should be convertible to
+        :param default_src_unit: what unit to use in case of getting a numeric value
+        """
+
         super().__init__(*args, **kwargs)
         self.to_unit = ur.Quantity(to_unit)
         self.default_src_unit = default_src_unit
