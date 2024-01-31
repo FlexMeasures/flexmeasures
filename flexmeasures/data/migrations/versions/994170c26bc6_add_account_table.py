@@ -132,7 +132,7 @@ def upgrade_data():
             )
 
     # Make sure each existing user has an account
-    for user_results in session.scalars(
+    for user_results in session.execute(
         sa.select(User.id, User.email, User.account_id)
     ).all():
         user_id = user_results[0]
