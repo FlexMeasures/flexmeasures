@@ -162,13 +162,13 @@ def storage_schedule_sensors(
 
     beliefs = []
     # generic power sensor to store power limit
-    power_sensor = Sensor(
+    power_capacity = Sensor(
         "power",
         generic_asset=data_storage,
         event_resolution=timedelta(hours=1),
         unit="MW",
     )
-    db.session.add(power_sensor)
+    db.session.add(power_capacity)
 
     source = DataSource("source1")
 
@@ -178,19 +178,19 @@ def storage_schedule_sensors(
                 event_start=start + timedelta(hours=h),
                 belief_time=start,
                 event_value=0.6,
-                sensor=power_sensor,
+                sensor=power_capacity,
                 source=source,
             )
         )
 
     # efficiency sensor
-    efficiency = Sensor(
-        "efficiency",
+    storage_efficiency = Sensor(
+        "storage_efficiency",
         generic_asset=data_storage,
         event_resolution=timedelta(hours=1),
         unit="%",
     )
-    db.session.add(efficiency)
+    db.session.add(storage_efficiency)
 
     for h in range(24):
         beliefs.append(
@@ -198,7 +198,7 @@ def storage_schedule_sensors(
                 event_start=start + timedelta(hours=h),
                 belief_time=start,
                 event_value=90,
-                sensor=efficiency,
+                sensor=storage_efficiency,
                 source=source,
             )
         )
@@ -208,4 +208,4 @@ def storage_schedule_sensors(
 
     db.session.commit()
 
-    yield power_sensor.id, efficiency.id
+    yield power_capacity.id, storage_efficiency.id

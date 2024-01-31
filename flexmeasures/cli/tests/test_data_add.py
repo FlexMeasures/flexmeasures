@@ -478,7 +478,7 @@ def test_add_storage_scheduler(
     5. Verifies that the command executes successfully (exit code 0) and that the correct number of scheduled
        values (48 for a 12-hour period with 15-minute resolution) are created for the power sensor.
     """
-    power_limit_sensor, efficiency = storage_schedule_sensors
+    power_capacity_sensor, storage_efficiency_sensor = storage_schedule_sensors
 
     from flexmeasures.cli.data_add import add_schedule_for_storage, add_toy_account
 
@@ -503,10 +503,10 @@ def test_add_storage_scheduler(
         if storage_power_capacity == "sensor":
             cli_input_params[
                 "storage-consumption-capacity"
-            ] = f"sensor:{power_limit_sensor}"
+            ] = f"sensor:{power_capacity_sensor}"
             cli_input_params[
                 "storage-production-capacity"
-            ] = f"sensor:{power_limit_sensor}"
+            ] = f"sensor:{power_capacity_sensor}"
         else:
 
             cli_input_params["storage-consumption-capacity"] = "700kW"
@@ -514,7 +514,9 @@ def test_add_storage_scheduler(
 
     if storage_efficiency is not None:
         if storage_efficiency == "sensor":
-            cli_input_params["storage-efficiency"] = f"sensor:{efficiency}"
+            cli_input_params[
+                "storage-efficiency"
+            ] = f"sensor:{storage_efficiency_sensor}"
         else:
 
             cli_input_params["storage-efficiency"] = "90%"
