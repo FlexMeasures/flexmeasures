@@ -1072,17 +1072,6 @@ def create_schedule(ctx):
     pass
 
 
-def serialize_quantity_or_sensor(qos: Sensor | ur.Quantity) -> dict | str:
-    if isinstance(qos, Sensor):
-        return {"sensor": qos.id}
-    elif isinstance(qos, ur.Quantity):
-        return str(qos)
-    else:
-        raise TypeError(
-            f"`qos` function argument type can be either a Sensor or ur.Quantity. `{type(qos)}` was provided."
-        )
-
-
 @create_schedule.command("for-storage", cls=DeprecatedOptionsCommand)
 @with_appcontext
 @click.option(
@@ -1366,40 +1355,27 @@ def add_schedule_for_storage(  # noqa C901
         },
     )
 
-    if charging_efficiency is not None:
-        scheduling_kwargs["flex_model"][
-            "charging-efficiency"
-        ] = serialize_quantity_or_sensor(charging_efficiency)
-    if discharging_efficiency is not None:
-        scheduling_kwargs["flex_model"][
-            "discharging-efficiency"
-        ] = serialize_quantity_or_sensor(discharging_efficiency)
-    if storage_efficiency is not None:
-        scheduling_kwargs["flex_model"][
-            "storage-efficiency"
-        ] = serialize_quantity_or_sensor(storage_efficiency)
+    quantity_or_sensor_vars = {
+        "charging-efficiency": charging_efficiency,
+        "discharging-efficiency": discharging_efficiency,
+        "storage-efficiency": storage_efficiency,
+        "soc-gain": soc_gain,
+        "soc-usage": soc_usage,
+        "power-capacity": storage_power_capacity,
+        "consumption-capacity": storage_consumption_capacity,
+        "production-capacity": storage_production_capacity,
+    }
 
-    if soc_gain is not None:
-        scheduling_kwargs["flex_model"]["soc-gain"] = serialize_quantity_or_sensor(
-            soc_gain
-        )
-    if soc_usage is not None:
-        scheduling_kwargs["flex_model"]["soc-usage"] = serialize_quantity_or_sensor(
-            soc_usage
-        )
+    for field_name, value in quantity_or_sensor_vars.items():
+        if value is not None:
+            if "efficiency" in field_name:
+                unit = "%"
+            else:
+                unit = "MW"
 
-    if storage_power_capacity is not None:
-        scheduling_kwargs["flex_model"][
-            "power-capacity"
-        ] = serialize_quantity_or_sensor(storage_power_capacity)
-    if storage_consumption_capacity is not None:
-        scheduling_kwargs["flex_model"][
-            "consumption-capacity"
-        ] = serialize_quantity_or_sensor(storage_consumption_capacity)
-    if storage_production_capacity is not None:
-        scheduling_kwargs["flex_model"][
-            "production-capacity"
-        ] = serialize_quantity_or_sensor(storage_production_capacity)
+            scheduling_kwargs["flex_model"][field_name] = QuantityOrSensor(
+                unit
+            )._serialize(value, None, None)
 
     if as_job:
         job = create_scheduling_job(asset_or_sensor=power_sensor, **scheduling_kwargs)
