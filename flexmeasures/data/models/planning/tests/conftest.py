@@ -180,7 +180,7 @@ def add_inflexible_device_forecasts(
     # PV (8 hours at zero capacity, 8 hours at 90% capacity, and again 8 hours at zero capacity)
     headroom = 0.1  # 90% of nominal capacity
     pv_sensor = inflexible_devices["PV power sensor"]
-    capacity = pv_sensor.get_attribute("capacity_in_mw")
+    capacity = pv_sensor.get_attribute("capacity_in_mw") * 1000  # MW -> kW
     pv_values = (
         [0] * (8 * 4) + [(1 - headroom) * capacity] * (8 * 4) + [0] * (8 * 4)
     ) * (len(time_slots) // (24 * 4))
@@ -188,7 +188,7 @@ def add_inflexible_device_forecasts(
 
     # Residual demand (1 MW continuously)
     residual_demand_sensor = inflexible_devices["residual demand power sensor"]
-    residual_demand_values = [-1] * len(time_slots)
+    residual_demand_values = [-1000] * len(time_slots)
     add_as_beliefs(
         db,
         residual_demand_sensor,

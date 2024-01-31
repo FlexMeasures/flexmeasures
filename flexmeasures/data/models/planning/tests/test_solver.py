@@ -595,6 +595,7 @@ def test_building_solver_day_2(
     ).tail(
         -4 * 24
     )  # remove first 96 quarter-hours (the schedule is about the 2nd day)
+    capacity = capacity * 0.001  # kW -> MW
     capacity["max"] = building.get_attribute("capacity_in_mw")
     capacity["min"] = -building.get_attribute("capacity_in_mw")
     capacity["production headroom"] = capacity["max"] - capacity["inflexible"]
