@@ -12,6 +12,7 @@ v0.19.0 | February xx, 2024
 New features
 -------------
 
+* List child assets on the asset page [see `PR #967 <https://github.com/FlexMeasures/flexmeasures/pull/967>`_]
 * Support a less verbose way of setting the same :abbr:`SoC (state of charge)` constraint for a given time window [see `PR #899 <https://github.com/FlexMeasures/flexmeasures/pull/899>`_]
 
 Infrastructure / Support
