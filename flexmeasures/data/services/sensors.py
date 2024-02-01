@@ -79,7 +79,11 @@ def get_staleness(sensor: Sensor, staleness_search: dict, now: datetime) -> time
     return staleness
 
 
-def get_status(sensor: Sensor, status_specs: dict, now: datetime) -> dict:
+def get_status(
+    sensor: Sensor,
+    now: datetime,
+    status_specs: dict = {"staleness_search": {}, "max_staleness": "PT0H"},
+) -> dict:
     """Get the status of the sensor"""
     status_specs = StatusSchema().load(status_specs)
     max_staleness = status_specs.pop("max_staleness")
