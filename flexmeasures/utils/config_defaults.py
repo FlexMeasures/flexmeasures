@@ -210,3 +210,6 @@ class TestingConfig(Config):
 
 class DocumentationConfig(Config):
     SECRET_KEY: str = "dummy-key-for-documentation"
+    SQLALCHEMY_DATABASE_URI: str = (
+        "postgresql://flexmeasures_test:flexmeasures_test@localhost/flexmeasures_test"
+    )
