@@ -16,6 +16,7 @@ from flask_mail import Mail
 from flask_sslify import SSLify
 from flask_json import FlaskJSON
 from flask_cors import CORS
+from flexmeasures.utils.config_utils import use_documentation_config, use_testing_config
 
 from redis import Redis
 from rq import Queue
@@ -37,7 +38,6 @@ def create(  # noqa C901
     Also, a list of plugins can be set. Usually this works as a config setting, but this is useful for automated testing.
     """
 
-    from flexmeasures.utils import config_defaults
     from flexmeasures.utils.config_utils import read_config, configure_logging
     from flexmeasures.utils.app_utils import set_secret_key, init_sentry
     from flexmeasures.utils.error_utils import add_basic_error_handlers
@@ -46,20 +46,29 @@ def create(  # noqa C901
 
     configure_logging()  # do this first, see https://flask.palletsprojects.com/en/2.0.x/logging
     # we're loading dotenv files manually & early (can do Flask.run(load_dotenv=False)),
-    # as we need to know the ENV now (for it to be recognised by Flask()).
+    # as we need to know the ENV now (for it to be recognized by Flask()).
     load_dotenv()
+
+    # Below sets app.config["ENV"] = os.environ.get("FLASK_ENV") or "production"
     app = Flask("flexmeasures")
 
-    if env is not None:  # overwrite
-        app.config["FLEXMEASURES_ENV"] = env
-    if app.config.get("FLEXMEASURES_ENV") == "testing":
-        app.testing = True
-    if app.config.get("FLEXMEASURES_ENV") == "development":
-        app.debug = config_defaults.DevelopmentConfig.DEBUG
+    # Overwrite the setting of app.config["ENV"] to "production" instead the "FLASK_ENV" environment variable.
+    # Otherwise, the in the future deprecated "FLASK_ENV" can create issues.
+    if os.environ.get("FLASK_ENV"):
+        app.config["ENV"] = "production"
 
-    # App configuration
+    if env == "documentation":
+        use_documentation_config(app, path_to_config=path_to_config)
+    elif env == "testing":
+        use_testing_config(app)
+        from fakeredis import FakeStrictRedis
 
-    read_config(app, custom_path_to_config=path_to_config)
+        redis_conn = FakeStrictRedis(
+            host="redis", port="1234"
+        )  # dummy connection details
+    else:
+        read_config(app, custom_path_to_config=path_to_config, env=env)
+
     if plugins:
         app.config["FLEXMEASURES_PLUGINS"] += plugins
     add_basic_error_handlers(app)
@@ -74,13 +83,7 @@ def create(  # noqa C901
     CORS(app)
 
     # configure Redis (for redis queue)
-    if app.testing:
-        from fakeredis import FakeStrictRedis
-
-        redis_conn = FakeStrictRedis(
-            host="redis", port="1234"
-        )  # dummy connection details
-    else:
+    if not app.testing:
         redis_conn = Redis(
             app.config["FLEXMEASURES_REDIS_URL"],
             port=app.config["FLEXMEASURES_REDIS_PORT"],
