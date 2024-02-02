@@ -293,7 +293,6 @@ class AssetCrudUI(FlaskView):
             sensor_status = get_status(
                 sensor=sensor,
                 now=server_now(),
-                status_specs=sensor.attributes.get("status_specs"),
             )
 
             sensor_dict = {}

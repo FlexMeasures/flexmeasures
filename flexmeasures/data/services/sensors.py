@@ -86,7 +86,10 @@ def get_status(
 ) -> dict:
     """Get the status of the sensor"""
     if status_specs is None:
-        status_specs = {"staleness_search": {}, "max_staleness": "PT0H"}
+        status_specs = sensor.attributes.get(
+            "status_specs",
+            {"staleness_search": {}, "max_staleness": "PT0H"},
+        )
     status_specs = StatusSchema().load(status_specs)
     max_staleness = status_specs.pop("max_staleness")
     staleness_search = status_specs.pop("staleness_search")
