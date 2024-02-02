@@ -290,17 +290,11 @@ class AssetCrudUI(FlaskView):
         asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
         sensors = []
         for sensor in asset.sensors:
-            if sensor.attributes.get("status_specs") is not None:
-                sensor_status = get_status(
-                    sensor=sensor,
-                    now=server_now(),
-                    status_specs=sensor.attributes.get("status_specs"),
-                )
-            else:
-                sensor_status = get_status(
-                    sensor=sensor,
-                    now=server_now(),
-                )
+            sensor_status = get_status(
+                sensor=sensor,
+                now=server_now(),
+                status_specs=sensor.attributes.get("status_specs"),
+            )
 
             sensor_dict = {}
             sensor_dict["name"] = sensor.name
