@@ -25,8 +25,8 @@ def test_add_annotation(app, db, setup_roles_users):
     cli_input = {
         "content": "Company founding day",
         "at": "2016-05-11T00:00+02:00",
-        "account-id": 1,
-        "user-id": 1,
+        "account": 1,
+        "user": 1,
     }
     runner = app.test_cli_runner()
     result = runner.invoke(add_annotation, to_flags(cli_input))
@@ -42,13 +42,13 @@ def test_add_annotation(app, db, setup_roles_users):
         )
         .join(AccountAnnotationRelationship)
         .filter(
-            AccountAnnotationRelationship.account_id == cli_input["account-id"],
+            AccountAnnotationRelationship.account_id == cli_input["account"],
             AccountAnnotationRelationship.annotation_id == Annotation.id,
         )
         .join(DataSource)
         .filter(
             DataSource.id == Annotation.source_id,
-            DataSource.user_id == cli_input["user-id"],
+            DataSource.user_id == cli_input["user"],
         )
         .one_or_none()
     )
@@ -61,7 +61,7 @@ def test_add_holidays(app, db, setup_roles_users):
     cli_input = {
         "year": 2020,
         "country": "NL",
-        "account-id": 1,
+        "account": 1,
     }
     runner = app.test_cli_runner()
     result = runner.invoke(add_holidays, to_flags(cli_input))
@@ -73,7 +73,7 @@ def test_add_holidays(app, db, setup_roles_users):
     assert (
         Annotation.query.join(AccountAnnotationRelationship)
         .filter(
-            AccountAnnotationRelationship.account_id == cli_input["account-id"],
+            AccountAnnotationRelationship.account_id == cli_input["account"],
             AccountAnnotationRelationship.annotation_id == Annotation.id,
         )
         .join(DataSource)
@@ -358,7 +358,7 @@ def test_add_process(
     process_power_sensor_id = process_power_sensor
 
     cli_input_params = {
-        "sensor-id": process_power_sensor_id,
+        "sensor": process_power_sensor_id,
         "start": "2015-01-02T00:00:00+01:00",
         "duration": "PT24H",
         "process-duration": "PT4H",
@@ -402,7 +402,7 @@ def test_add_sensor(app, db, setup_dummy_asset, event_resolution, name, success)
         "name": name,
         "event-resolution": event_resolution,
         "unit": "kWh",
-        "asset-id": asset,
+        "asset": asset,
         "timezone": "UTC",
     }
     runner = app.test_cli_runner()

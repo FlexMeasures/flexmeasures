@@ -320,11 +320,8 @@ class SensorAPI(FlaskView):
                     "soc-minima": [
                         {
                             "value": 15,
-                            "datetime": "2015-06-02T14:00:00+00:00"
-                        },
-                        {
-                            "value": 20,
-                            "datetime": "2015-06-02T15:00:00+00:00"
+                            "start": "2015-06-02T14:00:00+00:00",
+                            "end": "2015-06-02T15:00:00+00:00"
                         }
                     ],
                     "soc-min": 10,

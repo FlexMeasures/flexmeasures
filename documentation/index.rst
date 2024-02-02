@@ -56,11 +56,12 @@ A quick glance
             $ export SQLALCHEMY_DATABASE_URI="postgresql://postgres:docker@127.0.0.1:5433/flexmeasures-db" && export SECRET_KEY=notsecret 
             $ flexmeasures db upgrade  # create tables
             $ flexmeasures add toy-account --kind battery  # setup account incl. a user, battery (ID 1) and market (ID 2)
-            $ flexmeasures add beliefs --sensor-id 2 --source toy-user prices-tomorrow.csv --timezone utc  # load prices, also possible per API
-            $ flexmeasures add schedule for-storage --sensor-id 1 --consumption-price-sensor 2 \
+            $ flexmeasures add beliefs --sensor 2 --source toy-user prices-tomorrow.csv --timezone utc  # load prices, also possible per API
+            $ flexmeasures add schedule for-storage --sensor 1 --consumption-price-sensor 2 \
                 --start ${TOMORROW}T07:00+01:00 --duration PT12H \
                 --soc-at-start 50% --roundtrip-efficiency 90%  # this is also possible per API
-            $ flexmeasures show beliefs --sensor-id 1 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H  # also visible per UI, of course
+                --soc-at-start 50% --roundtrip-efficiency 90%  # this is also possible per API
+            $ flexmeasures show beliefs --sensor 1 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H  # also visible per UI, of course
 
 Want to read more about the example case shown here? We discuss this in more depth at :ref:`tut_toy_schedule` and the tutorials that build on that.
 
