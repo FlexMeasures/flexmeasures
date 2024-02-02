@@ -33,7 +33,7 @@
                                 {{ sensor.name }}
                             </td>
                             <td>
-                                {{ sensor["staleness"] }}
+                                {{ sensor["staleness"] | naturalized_timedelta }}
                             </td>
                             <td class="text-right">
                                 {% if sensor["stale"] == False %}
