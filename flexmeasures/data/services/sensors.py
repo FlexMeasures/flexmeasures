@@ -100,5 +100,4 @@ def get_status(
         staleness=staleness,
         stale=stale,
     )
-    print(staleness, stale)
     return status
