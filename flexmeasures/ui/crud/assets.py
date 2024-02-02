@@ -282,7 +282,7 @@ class AssetCrudUI(FlaskView):
     @login_required
     @route("/<id>/status/")
     def status(self, id: str):
-        """GET from /assets/<id>/status to show the last 4 sensor readings for each sensor of the asset"""
+        """GET from /assets/<id>/status to show the staleness of the asset's sensors."""
 
         get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_one", id=id))
         asset_dict = get_asset_response.json()
