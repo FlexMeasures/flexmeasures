@@ -3,7 +3,7 @@
 The FlexMeasures data model 
 =============================
 
-The data model being used in FlexMeasures is visualized here:
+The data model being used in FlexMeasures is visualized here (click for larger version):
 
 .. image:: https://raw.githubusercontent.com/FlexMeasures/screenshots/main/architecture/FlexMeasures-NewDataModel.png
     :target: https://raw.githubusercontent.com/FlexMeasures/screenshots/main/architecture/FlexMeasures-NewDataModel.png
@@ -29,13 +29,13 @@ Sensors
 A sensor depicts how data is collected in detail. Each sensor links to an asset.
 
 For instance, an asset might have both a energy meter and a temperature reading.
-You'd link two sensors to that asset and each sensor would have a unique unit (e.g. kWh and C).
+You'd link two sensors to that asset and each sensor would have a unique unit (e.g. kWh and °C).
 
-You can also tell FlexMeasures in what timezone your data is expected to set, and what the resolution should be.
-Then, FlexMeasures can control incoming data to these specs.
+You can also tell FlexMeasures in what timezone your data is expected to be set, and what the resolution should be.
+Then, FlexMeasures can try to convert incoming data to these specifications (e.g. if Fahrenheit readings come in, it converts them to Celsius).
 
-A bit more intricate control is to describe when beliefs (see below), are known. You might get prices from a supplier, but the time you imported them is not the time they were known.
-A market might have a publish date you want to adhere to. More information `in the timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#beliefs-in-economics>`_ 
+A bit more intricate control is to describe when beliefs (see below) are known. You might get prices from a supplier, but the time you imported them is not the time they were known.
+A market might have a publication date you want to adhere to. More information `in the timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#beliefs-in-economics>`_.
 
 
 Beliefs

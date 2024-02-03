@@ -32,7 +32,7 @@ The flex-context
 -----------------
 
 The ``flex-context`` is independent of the type of flexible device which is optimized.
-With the flexibility context, we aim to describe the system in which the flexible assets operates:
+With the flexibility context, we aim to describe the system in which the flexible assets operate:
 
 
 .. list-table::
@@ -47,10 +47,10 @@ With the flexibility context, we aim to describe the system in which the flexibl
      - Power sensors that are relevant, but not flexible, such as a sensor recording rooftop solar power connected behind the main meter, whose production falls under the same contract as the flexible device(s) being scheduled.
    * - ``consumption-price-sensor``
      - ``5``
-     - The sensor which defines costs/revenues of consuming energy.
+     - The sensor which defines the price of consuming energy. This sensor can be recording market prices, but also CO2 - whatever fits your optimization problem. 
    * - ``production-price-sensor``
      - ``6``
-     - The sensor which defines cost/revenues of producing energy.
+     - The sensor which defines the price of producing energy.
    * - ``site-power-capacity``
      - ``"45kW"``
      - Maximum/minimum achievable power at the grid connection point [#asymmetric]_. Defaults to the Asset attribute ``capacity_in_mw``
@@ -63,10 +63,10 @@ With the flexibility context, we aim to describe the system in which the flexibl
 
 
 .. [#asymmetric] ``site-consumption-capacity`` and ``site-production-capacity`` allow defining asymmetric contracted transport capacities for each direction (i.e. production and consumption).
-.. [#production] Example: with a connection capacity (``site-power-capacity``) of 1 MVA (apparent power) and a production capacity (``site-production-capacity``) of 400 kW (active power), the scheduler will make sure that the grid outflow doesn't exceed 400 kW.
-.. [#consumption] Example: with a connection capacity (``site-power-capacity``) of 1 MVA (apparent power) and a consumption capacity (``site-consumption-capacity``) of 800 kW (active power), the scheduler will make sure that the grid inflow doesn't exceed 800 kW.
+.. [#production] Example: with a connection capacity (``site-power-capacity``) of 1 MVA (apparent power) and a production capacity (``site-production-capacity``) of 400 kW (active power), the scheduler will make sure that the grid inflow doesn't exceed 400 kW.
+.. [#consumption] Example: with a connection capacity (``site-power-capacity``) of 1 MVA (apparent power) and a consumption capacity (``site-consumption-capacity``) of 800 kW (active power), the scheduler will make sure that the grid outflow doesn't exceed 800 kW.
 
-.. warning:: If no (symmetric, consumption and production) site capacity is defined (also not as defaults), the scheduler will not enforce any bound on the site power.
+.. note:: If no (symmetric, consumption and production) site capacity is defined (also not as defaults), the scheduler will not enforce any bound on the site power. The flexible device can still has its own power limit defined in its flex-model.
 
 
 The flex-models & corresponding schedulers
@@ -75,7 +75,7 @@ The flex-models & corresponding schedulers
 Storage
 ^^^^^^^^
 
-For *storage* devices , the FlexMeasures scheduler deals with the state of charge (SoC) for an optimal outcome.
+For *storage* devices, the FlexMeasures scheduler deals with the state of charge (SoC) for an optimal outcome.
 You can do a lot with this ― examples for storage devices are:
 
 - batteries
@@ -101,7 +101,7 @@ and what constraints or preferences should be taken into account.
      - The (estimated) state of charge at the beginning of the schedule (defaults to 0).
    * - ``soc-unit``
      - ``"kWh"`` or ``"MWh"``
-     - The unit which the schedule should be in.
+     - The unit which all SoC related flex-model values are to be interpreted as.
    * - ``soc-min``
      - ``"2.5"``
      - A constant lower boundary for all values in the schedule (defaults to 0).
@@ -110,10 +110,10 @@ and what constraints or preferences should be taken into account.
      - A constant upper boundary for all values in the schedule (defaults to max soc target, if provided)
    * - ``soc-minima``
      - ``[{"datetime": "2024-02-05T08:00:00+01:00", value: 8.2}]``
-     - Set point(s) which form lower boundaries, e.g. to target a full car battery in the morning. Can be single values or a range (defaults to NaN values).
+     - Set point(s) that form lower boundaries, e.g. to target a full car battery in the morning. Can be single values or a range (defaults to NaN values).
    * - ``soc-maxima``
      - ``{"value": 51, "start": "2024-02-05T12:00:00+01:00","end": "2024-02-05T13:30:00+01:00"}``
-     - Set point(s) which form upper boundaries at certain times Can be single values or a range (defaults to NaN values).
+     - Set point(s) that form upper boundaries at certain times. Can be single values or a range (defaults to NaN values).
    * - ``soc-targets``
      - ``[{"datetime": "2024-02-05T08:00:00+01:00", value: 3.2}]``
      - Exact set point(s) which the scheduler needs to realize (defaults to NaN values).
@@ -128,13 +128,13 @@ and what constraints or preferences should be taken into account.
      - Below 100%, this represents roundtrip losses (of charging & discharging), usually used for batteries. Can be percent or ratio ``[0,1]``. Defaults to 100%.
    * - ``charging-efficiency``
      - ``".9"``
-     - Apply efficiency losses only at time of charging, not across roundtrip (defaults to 100%). A constant loss at every step, or see [#sensor_field]_.
+     - Apply efficiency losses only at time of charging, not across roundtrip (defaults to 100%). A constant percentage at every step, or see [#sensor_field]_.
    * - ``discharging-efficiency``
      - ``"90%"``
-     - Apply efficiency losses only at time of discharging, not across roundtrip (defaults to 100%). A constant loss at every step, or see [#sensor_field]_.
+     - Apply efficiency losses only at time of discharging, not across roundtrip (defaults to 100%). A constant percentage at every step, or see [#sensor_field]_.
    * - ``storage-efficiency``
      - ``"99.9%"``
-     - This can encode losses over time, so each time step the energy is held longer leads to higher losses (defaults to 100%) [#storage_efficiency]_
+     - This can encode losses over time, so each time step the energy is held longer leads to higher losses (defaults to 100%). A constant percentage at every step, or see [#sensor_field]_. Also read [#storage_efficiency]_ about applying this value per time step across longer time spans.
    * - ``prefer-charging-sooner``
      - ``True``
      - Policy to apply if conditions are stable (defaults to True, which also signals a preference to discharge later)
@@ -154,6 +154,8 @@ and what constraints or preferences should be taken into account.
 
 Usually, not the whole flexibility model is needed. FlexMeasures can infer missing values in the flex model, and even get them (as default) from the sensor's attributes.
 
+You can add new storage schedules with the CLI command ``flexmeasures add schedule for-storage``.
+
 If you model devices which *buffer* energy (e.g. thermal energy storage systems connected to heat pumps), we can use the same flexibility parameters described above for storage devices.
 However, here are some tips to model a buffer correctly:
 
@@ -162,8 +164,8 @@ However, here are some tips to model a buffer correctly:
    - Set ``charging-efficiency`` to the sensor describing the :abbr:`COP (coefficient of performance)` values.
    - Set ``storage-efficiency`` to a value below 100% to model (heat) loss.
 
-What happens if the flex model describes an unfeasible problem for the storage scheduler? Excellent question! It is highly important for a robust operation that these situations still lead to a somewhat good outcome.
-From our practical experience, we derived a ``StorageFallbackScheduler``. It simplifies an unfeasible situation by just starting to charge, discharge, or do neither,
+What happens if the flex model describes an infeasible problem for the storage scheduler? Excellent question! It is highly important for a robust operation that these situations still lead to a somewhat good outcome.
+From our practical experience, we derived a ``StorageFallbackScheduler``. It simplifies an infeasible situation by just starting to charge, discharge, or do neither,
 depending on the first target state of charge and the capabilities of the asset.
 
 Of course, we also log a failure in the scheduling job, so it's important to take note of these failures. Often, mis-configured flex models are the reason.
@@ -178,7 +180,7 @@ You can also review the current flex-model for storage in the code, at ``flexmea
 Shiftable loads (processes)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-For *processes*, which can be shifted or interrupted, but have to happen at a constant rate (of consumption), FlexMeasures provides the ``ShiftabelLoad`` scheduler.
+For *processes*, which can be shifted or interrupted, but have to happen at a constant rate (of consumption), FlexMeasures provides the ``ShiftabeLoad`` scheduler.
 Some examples from practice (usually industry) could be:
 
 - A centrifuge's daily work of combing through sludge water. Depends on amount of sludge present.
@@ -208,16 +210,17 @@ Some examples from practice (usually industry) could be:
      - ``INFLEXIBLE``, ``BREAKABLE`` or ``SHIFTABLE``
      - Is the load inflexible? Or is there flexibility, to interrupt or shift it? 
 
-
 You can review the current flex-model for processes in the code, at ``flexmeasures.data.schemas.scheduling.process.ProcessSchedulerFlexModelSchema``.
 
+You can add new shiftable-process schedules with the CLI command ``flexmeasures add schedule for-process``.
 
-.. note:: See :ref:`flexibility_types` for more info on shifting and curtailment.
 
-In addition, folks who write their own custom scheduler (see :ref:`plugin_customization`) might also require their custom flexibility model.
-That's no problem, FlexMeasures will let the scheduler decide which flexibility model is relevant and how it should be validated. 
+Work on other schedulers
+--------------------------
 
-.. note:: We also aim to model situations with more than one flexible asset, with different types of flexibility.
-     This is ongoing architecture design work, and therefore happens in development settings, until we are happy 
-     with the outcomes. Thoughts welcome :) 
+We believe the two schedulers (and their flex-models) we describe here are covering a lot of use cases already.
+Here are some thoughts on further innovation:
 
+- Writing your own scheduler. You can always write your own scheduler(see :ref:`plugin_customization`). You then might want to add your own flex model, as well. FlexMeasures will let the scheduler decide which flexibility model is relevant and how it should be validated. 
+- We also aim to model situations with more than one flexible asset, and which have different types of flexibility (e.g. EV charging and smart heating in the same site). This is ongoing architecture design work, and therefore happens in development settings, until we are happy with the outcomes. Thoughts welcome :) 
+- Aggregating flexibility of a group of assets (e.g. a neighborhood) and optimizing its aggregated usage (e.g. for grid congestion support) is also an exciting direction for expansion.

@@ -69,7 +69,7 @@ If you want to take regressors into account, in addition to merely past measurem
 currently FlexMeasures supports only weather correlations.
 
 The attribute `sensor.weather_correlations` can be used for this, e.g. for the solar example above you might want to set this to ``["irradiance", "temperature"]``.
-FlexMeasures will then try to find an asset with asset type "weather_station" that has a location near the asset your forecasted sensor belings to.
+FlexMeasures will then try to find an asset with asset type "weather_station" that has a location near the asset your forecasted sensor belogs to.
 That weather station should have sensors with the correlations you entered, and if they have data in a suitable range, the regressors can be used in your forecasting.
 
 In `this weather forecast plugin <https://github.com/SeitaBV/flexmeasures-openweathermap>`_, we enabled you to collect regressor data for ``["temperature", "wind speed", "cloud cover", "irradiance"]``, at a location you select.
@@ -123,12 +123,12 @@ Accuracies in the table are reported as 1 minus WAPE, which can be interpreted a
 Future work
 ---------------
 
-We have mentioned that forecasting within FlexMEasures can become more powerful.
+We have mentioned that forecasting within FlexMeasures can become more powerful.
 Here we summarize what is on the roadmap for forecasting:
 
 - Add fixed-point forecasting (see above)
 - Make features easier to configure, especially regressors
 - Add more types of forecasting algorithms, like random forest or even LSTM
-- Possibly integrate with existing powerful forecasting tooling, for instance `OpenStef <https://lfenergy.org/projects/openstef>`_. 
+- Possibly integrate with existing powerful forecasting tooling, for instance `OpenStef <https://lfenergy.org/projects/openstef>`_ or `Quartz Solar OS <https://github.com/openclimatefix/Open-Source-Quartz-Solar-Forecast>`_. 
 
 
