@@ -3,7 +3,7 @@
 Energy flexibility
 =====================
 
-FlexMeasures was created so that the value of energy flexibility can be realised.
+FlexMeasures was created so that the value of energy flexibility can be realized.
 This will make energy cheaper to use, and can also reduce CO₂ emissions.
 Here, we define a few terms around this idea, which come up in other parts of this documentation.
 
@@ -104,27 +104,27 @@ This volume is a multiplication of the energy volume being shifted and the durat
 Profits of flexibility activation
 ---------------------------------
 
-The realised value from activating flexibility has to be computed and accounted for.
-Both of these activities depend on the context in which FlexMeasures is being used, and we expect that it will often have to be implemented in a custom manner (much as the actual scheduling optimisation).
+The realized value from activating flexibility has to be computed and accounted for.
+Both of these activities depend on the context in which FlexMeasures is being used, and we expect that it will often have to be implemented in a custom manner (much as the actual scheduling optimization).
 
 .. todo:: Making it possible to configure custom scheduling and value accounting is on the roadmap for FlexMeasures.
 
 Computing value
 ^^^^^^^^^^^^^^^^
 
-The computation of the value is what drives the scheduling optimisation.
+The computation of the value is what drives the scheduling optimization.
 This value is usually monetary, and in that case there should be some form of market configured.
 This can be a constant or time-of-use tariff, or a real market.
-However, there are other possibilities, for instance if the optimisation goal is to minimise CO₂ emissions.
-Then, the realised value is avoided CO₂, which nowadays has an assumed value, e.g. in `the EU ETS carbon market <https://ember-climate.org/data/carbon-price-viewer/>`_.
+However, there are other possibilities, for instance if the optimization goal is to minimize CO₂ emissions.
+Then, the realized value is avoided CO₂, which nowadays has an assumed value, e.g. in `the EU ETS carbon market <https://ember-climate.org/data/carbon-price-viewer/>`_.
 
 
 Accounting / Sharing value
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The realisation of payments is outside of the scope of FlexMeasures, but it can provide the accounting to enable them (as was said above, this is usually a part of the optimisation problem formulation).
+The realization of payments is outside of the scope of FlexMeasures, but it can provide the accounting to enable them (as was said above, this is usually a part of the optimization problem formulation).
 
-However, next to fueling algorithmic optimisation, the way that the value of energy flexibility is shared among the stakeholders will also be an important driver for project participation. Accounting plays an important role here.
+However, next to fueling algorithmic optimization, the way that the value of energy flexibility is shared among the stakeholders will also be an important driver for project participation. Accounting plays an important role here.
 
 There are different roles in a modern smart energy system (e.g. "Prosumer", "DSO", Aggregator", "ESCo"),
 and they all enjoy the benefits of flexibility  in different ways
@@ -136,9 +136,9 @@ can support well are the following relationships:
 
 * between Aggregator and Prosumer, where the Aggregator sells the balancing power to a third party and shares the profits with the Prosumer according to some contracted method for profit sharing. In this case the stated costs and revenues for the Prosumer may be after deducting the Aggregator fee (which typically include price components per flex activation and price components per unit of time, but may include arbitrarily complex price components).
 
-* between ESCo and Prosumer, where the ESCo advises the Prosumer to optimise against e.g. dynamic prices. Likewise, stated numbers may be after deducting the ESCo fee.
+* between ESCo and Prosumer, where the ESCo advises the Prosumer to optimize against e.g. dynamic prices. Likewise, stated numbers may be after deducting the ESCo fee.
 
-FlexMeasures can take these intricacies into account if a custom optimisation algorithm is plugged in to model them.
+FlexMeasures can take these intricacies into account if a custom optimization algorithm is plugged in to model them.
 
 Alternatively, we can assume that all profit from activating flexibility goes to the Prosumer, or simply report the profits before sharing (and before deducting any service fees).
 

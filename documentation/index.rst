@@ -157,14 +157,12 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
 
 
 .. toctree::
-    :caption: Concepts
+    :caption: Features
     :maxdepth: 1
-
-    concepts/data-model
-    concepts/algorithms
-    concepts/security_auth
-    concepts/device_scheduler
-
+    
+    features/scheduling
+    features/forecasting
+    features/reporting
 
 .. toctree::
     :caption: Tutorials
@@ -173,11 +171,23 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
     tut/toy-example-setup
     tut/toy-example-from-scratch
     tut/toy-example-expanded
+    tut/flex-model-v2g
     tut/toy-example-process
     tut/toy-example-reporter
     tut/posting_data
     tut/forecasting_scheduling
     tut/building_uis
+
+
+.. toctree::
+    :caption: Concepts
+    :maxdepth: 1
+
+    concepts/flexibility
+    concepts/data-model
+    concepts/security_auth
+    concepts/device_scheduler
+
 
 .. toctree::
     :caption: The in-built UI
@@ -193,7 +203,6 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
 
     api/introduction
     api/notation
-    api/v2g
     api/v3_0
     api/dev
     api/change_log

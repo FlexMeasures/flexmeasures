@@ -3,8 +3,13 @@
 Getting started
 =================================
 
-For a direct dive into running FlexMeasures, go to :ref:`installation`. However, FlexMeasures is useful from different perspectives.
-Below, we added helpful pointers to start reading the right sections of this documentation first, to start engaging with this technology in a way that makes sense to you personally.
+For a direct intro on running FlexMeasures, go to :ref:`installation`. However, FlexMeasures is useful from different perspectives.
+Below, we added helpful pointers to start reading.
+
+.. contents::
+    :local:
+    :depth: 2
+
 
 .. _start_using_flexmeasures_in_your_organization:
 
