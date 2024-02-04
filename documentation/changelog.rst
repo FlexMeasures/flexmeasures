@@ -19,6 +19,7 @@ Infrastructure / Support
 
 * Deprecate use of flask's ``FLASK_ENV`` variable and replace it with ``FLEXMEASURES_ENV`` [see `PR #907 <https://github.com/FlexMeasures/flexmeasures/pull/907>`_]
 * Streamline CLI option naming by favoring ``--<entity>`` over ``--<entity>-id`` [see `PR #946 <https://github.com/FlexMeasures/flexmeasures/pull/946>`_]
+* Documentation: improve index page, installation overview, feature overview incl. flex-model overview and UI screenshots [see `PR #953 <https://github.com/FlexMeasures/flexmeasures/pull/953>`_]
 
 
 Bugfixes
