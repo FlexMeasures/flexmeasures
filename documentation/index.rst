@@ -195,6 +195,7 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
 
     views/dashboard
     views/asset-data
+    views/account
     views/admin
 
 .. toctree::
