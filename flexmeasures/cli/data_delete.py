@@ -50,7 +50,7 @@ def delete_account_role(name: str):
         )
         for account in accounts:
             account.account_roles.remove(role)
-    delete(role)
+    db.session.execute(delete(AccountRole).filter_by(name=role.name))
     db.session.commit()
     click.secho(f"Account role '{name}' has been deleted.", **MsgStyle.SUCCESS)
 
@@ -101,7 +101,7 @@ def delete_account(id: int, force: bool):
             f"Deleting association of account {account.name} and role {role.name} ...",
         )
         db.session.execute(
-            delete(AccountRole).filter_by(id=role_account_association.role_id)
+            delete(RolesAccounts).filter_by(role_id=role_account_association.role_id)
         )
     for asset in account.generic_assets:
         click.echo(f"Deleting generic asset {asset} (and sensors & beliefs) ...")
