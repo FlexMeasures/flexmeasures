@@ -233,13 +233,13 @@ def test_get_status(
     print(staleness_search)
     now = pd.Timestamp(now)
     staleness = get_staleness(sensor=sensor, staleness_search=staleness_search, now=now)
+    status_specs = {"staleness_search": staleness_search, "max_staleness": "PT1H"}
     sensor_status = get_status(
         sensor=sensor,
-        status_specs={"staleness_search": staleness_search, "max_staleness": "PT1H"},
+        status_specs=status_specs,
         now=now,
     )
 
-    status_specs = {"staleness_search": staleness_search, "max_staleness": "PT1H"}
     assert StatusSchema().load(status_specs)
     assert staleness == expected_staleness
     assert sensor_status["staleness"] == expected_staleness
