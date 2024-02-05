@@ -109,7 +109,7 @@ def get_status_specs(sensor: Sensor) -> dict:
     if status_specs is None:
         # Default to status specs for economical sensors with daily updates
         if sensor.knowledge_horizon_fnc == "x_days_ago_at_y_oclock":
-            status_specs = {"staleness_search": {}, "max_staleness": f"P1D"}
+            status_specs = {"staleness_search": {}, "max_staleness": "P1D"}
         else:
             # Default to status specs indicating immediate staleness after knowledge time
             status_specs = {"staleness_search": {}, "max_staleness": "PT0H"}
