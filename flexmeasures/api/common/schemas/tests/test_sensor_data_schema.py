@@ -131,80 +131,91 @@ def test_value_field_invalid(deserialization_input, error_msg):
     "now, sensor_type, source_name, expected_staleness, expected_stale",
     [
         (
-            "2016-01-01T00:00+00",
+            # Last event start at 2016-01-01T23:00+01, with knowledge time 2016-01-01T12:00+01, 12 hours from now
+            "2016-01-01T00:00+01",
             "market",
             None,
-            timedelta(hours=-11),
+            timedelta(hours=-12),
             False,
         ),
         (
-            "2016-01-02T00:18+00",
+            # Last event start at 2016-01-01T23:00+01, with knowledge time 2016-01-01T12:00+01, 12 hours and 18 minutes ago
+            "2016-01-02T00:18+01",
             "market",
             None,
-            timedelta(hours=13, minutes=18),
+            timedelta(hours=12, minutes=18),
             True,
         ),
         (
-            "2016-01-03T00:00+00",
+            # Last event start at 2016-01-01T23:00+01, with knowledge time 2016-01-01T12:00+01, 1 day and 12 hours ago
+            "2016-01-03T00:00+01",
             "market",
             None,
-            timedelta(days=1, hours=13),
+            timedelta(days=1, hours=12),
             True,
         ),
         (
-            "2016-01-04T00:00+00",
+            # Last event start at 2016-01-01T23:00+01, with knowledge time 2016-01-01T12:00+01, 2 days and 12 hours ago
+            "2016-01-04T00:00+01",
             "market",
             None,
-            timedelta(days=2, hours=13),
+            timedelta(days=2, hours=12),
             True,
         ),
         (
-            "2016-01-02T05:00+00",
+            # Last event start at 2016-01-01T23:00+01, with knowledge time 2016-01-01T12:00+01, 17 hours ago
+            "2016-01-02T05:00+01",
             "market",
             None,
-            timedelta(hours=18),
+            timedelta(hours=17),
             True,
         ),
         (
-            "2016-01-02T13:00+00",
+            # Last event start at 2016-01-01T23:00+01, with knowledge time 2016-01-01T12:00+01, 1 day and 1 hour ago
+            "2016-01-02T13:00+01",
             "market",
             None,
-            timedelta(days=1, hours=2),
+            timedelta(days=1, hours=1),
             True,
         ),
         (
-            "2016-01-02T21:00+00",
+            # Last event start at 2016-01-01T23:00+01, with knowledge time 2016-01-01T12:00+01, 1 day and 9 hours ago
+            "2016-01-02T21:00+01",
             "market",
             None,
-            timedelta(days=1, hours=10),
+            timedelta(days=1, hours=9),
             True,
         ),
         (
-            "2015-01-02T06:20+00",
+            # Last event start at 2015-01-02T07:45+01, with knowledge time 2015-01-02T08:00+01, 40 minutes from now
+            "2015-01-02T07:20+01",
             "production",
             "Seita",
             timedelta(minutes=-40),
             True,
         ),
         (
-            "2015-01-02T03:18+00",
+            # Last event start of Seita's belief at 2015-01-02T07:45+01, with knowledge time 2015-01-02T08:00+01, 4 hours and 42 minutes from now
+            "2015-01-02T03:18+01",
             "production",
             "Seita",
-            timedelta(hours=-3, minutes=-42),
+            timedelta(hours=-4, minutes=-42),
             False,
         ),
         (
-            "2016-01-02T21:00+00",
+            # Last event start of DummyScheduler's belief at 2016-01-02T07:45+01, with knowledge time 2016-01-02T08:00+01, 13 hours ago
+            "2016-01-02T21:00+01",
             "production",
             "DummySchedule",
-            timedelta(hours=14),
+            timedelta(hours=13),
             True,
         ),
         (
-            "2016-01-02T21:00+00",
+            # Last event start at 2016-01-02T07:45+01, with knowledge time 2016-01-02T08:00+01, 13 hours ago
+            "2016-01-02T21:00+01",
             "production",
             None,
-            timedelta(hours=14),
+            timedelta(hours=13),
             True,
         ),
     ],
