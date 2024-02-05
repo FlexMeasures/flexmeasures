@@ -294,14 +294,9 @@ class AssetCrudUI(FlaskView):
                 sensor=sensor,
                 now=server_now(),
             )
-
-            sensor_dict = {}
-            sensor_dict["name"] = sensor.name
-            sensor_dict["id"] = sensor.id
-            sensor_dict["stale"] = sensor_status["stale"]
-            sensor_dict["staleness"] = sensor_status["staleness"]
-
-            sensors += [sensor_dict]
+            sensor_status["name"] = sensor.name
+            sensor_status["id"] = sensor.id
+            sensors += [sensor_status]
 
         return render_flexmeasures_template(
             "views/status.html", asset=asset, sensors=sensors

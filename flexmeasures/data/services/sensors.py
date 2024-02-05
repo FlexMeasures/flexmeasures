@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
+from humanize.time import naturaldelta
+
 from flexmeasures.data.models.time_series import TimedBelief
 
 
@@ -51,30 +53,29 @@ def get_sensors(
     return sensor_query.all()
 
 
-def get_staleness(sensor: Sensor, staleness_search: dict, now: datetime) -> timedelta:
-    """Get the staleness of the sensor"""
+def get_most_recent_knowledge_time(sensor: Sensor, staleness_search: dict) -> datetime | None:
+    """Get the knowledge time of the sensor's most recent event.
 
+    This knowledge time represents when you could have known about the event
+    (specifically, when you could have formed an ex-ante belief about it).
+    """
     staleness_bdf = TimedBelief.search(
         sensors=sensor,
         most_recent_events_only=True,
         **staleness_search,
     )
     if staleness_bdf.empty:
-        return timedelta.max
+        return None
+    return staleness_bdf.knowledge_times[-1]
 
-    # difference between knowledge time and now is staleness which can be calculated as follows:
-    # staleness = now - sensor.knowledge_time(
-    #     bdf1.event_starts[-1], bdf2.event_resolution
-    # )
-    # or the more direct way:
 
-    staleness = (
-        now
-        - staleness_bdf.event_starts[-1]
-        + sensor.knowledge_horizon(
-            staleness_bdf.event_starts[-1], staleness_bdf.event_resolution
-        )
-    )
+def get_staleness(sensor: Sensor, staleness_search: dict, now: datetime) -> timedelta | None:
+    """Get the staleness of the sensor.
+
+    :returns: the knowledge time of the most recent event (when you could have formed an ex-ante belief about it)
+    """
+
+    staleness = now - get_most_recent_knowledge_time(sensor=sensor, staleness_search=staleness_search)
 
     return staleness
 
@@ -94,10 +95,16 @@ def get_status(
     max_staleness = status_specs.pop("max_staleness")
     staleness_search = status_specs.pop("staleness_search")
     staleness = get_staleness(sensor=sensor, staleness_search=staleness_search, now=now)
-
-    stale = staleness > max_staleness
+    if staleness is not None:
+        staleness_since = now - staleness
+        stale = staleness > max_staleness
+    else:
+        staleness_since = None
+        stale = True
     status = dict(
         staleness=staleness,
         stale=stale,
+        staleness_since=staleness_since,
+        reason=("" if stale else "not ") + f"more than {naturaldelta(max_staleness)} old",
     )
     return status

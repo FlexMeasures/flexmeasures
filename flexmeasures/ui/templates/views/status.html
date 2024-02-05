@@ -17,30 +17,32 @@
         <div class="col-sm-8">
             <div class="sensors-asset card">
                 <h3>Data connectivity for sensors of {{ asset.name }}</h3>
-                <table class="table table-striped table-responsive paginate nav-on-click" title="View data">
+                <table class="table table-striped table-responsive paginate nav-on-click">
                     <thead>
                         <tr>
                             <th>Name</th>
-                            <th class="no-sort">Time since last value</th>
+                            <th class="no-sort" title="This is the knowledge time of the most recent event recorded">Time of last value</th>
                             <th class="text-right no-sort">Status</th>
                             <th class="hidden">URL</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for sensor in sensors: %}
-                        <tr>
+                        <tr title="View data">
                             <td>
                                 {{ sensor.name }}
                             </td>
                             <td>
-                                {{ sensor["staleness"] | naturalized_timedelta }}
+                                <span title="{{ sensor['staleness_since'] }}">{{ sensor["staleness_since"] | naturalized_datetime }}</span>
                             </td>
                             <td class="text-right">
-                                {% if sensor["stale"] == False %}
-                                🟢
-                                {% elif sensor["stale"] == True %}
-                                🔴
-                                {% endif %}
+                                <span title="{{ sensor['reason'] }}">
+                                    {% if sensor["stale"] == False %}
+                                    🟢
+                                    {% elif sensor["stale"] == True %}
+                                    🔴
+                                    {% endif %}
+                                </span>
                             </td>
                             <td class="hidden">
                                 /sensors/{{ sensor.id }}
