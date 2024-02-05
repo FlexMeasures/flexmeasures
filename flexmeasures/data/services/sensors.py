@@ -95,7 +95,7 @@ def get_status(
     staleness_search = status_specs.pop("staleness_search")
     staleness = get_staleness(sensor=sensor, staleness_search=staleness_search, now=now)
 
-    stale = staleness >= -max_staleness
+    stale = staleness > max_staleness
     status = dict(
         staleness=staleness,
         stale=stale,

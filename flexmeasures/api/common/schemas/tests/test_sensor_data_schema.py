@@ -160,7 +160,15 @@ def test_value_field_invalid(deserialization_input, error_msg):
             "production",
             "Seita",
             timedelta(minutes=-40),
-            True,
+            False,
+        ),
+        (
+            # Last event start at 2015-01-02T07:45+01, with knowledge time 2015-01-02T08:00+01, 40 minutes ago (but still less than max PT1H allowed)
+            "2015-01-02T08:40+01",
+            "production",
+            "Seita",
+            timedelta(minutes=40),
+            False,
         ),
         (
             # Last event start of Seita's belief at 2015-01-02T07:45+01, with knowledge time 2015-01-02T08:00+01, 4 hours and 42 minutes from now
