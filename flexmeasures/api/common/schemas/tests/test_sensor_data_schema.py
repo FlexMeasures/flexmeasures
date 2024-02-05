@@ -128,7 +128,7 @@ def test_value_field_invalid(deserialization_input, error_msg):
 
 
 @pytest.mark.parametrize(
-    "now, sensor_type, source_name, expected_staleness, expected_status",
+    "now, sensor_type, source_name, expected_staleness, expected_stale",
     [
         (
             "2016-01-01T00:00+00",
@@ -216,7 +216,7 @@ def test_get_status(
     sensor_type,
     source_name,
     expected_staleness,
-    expected_status,
+    expected_stale,
 ):
     if sensor_type == "market":
         sensor = add_market_prices["epex_da"]
@@ -243,4 +243,4 @@ def test_get_status(
     assert StatusSchema().load(status_specs)
     assert staleness == expected_staleness
     assert sensor_status["staleness"] == expected_staleness
-    assert sensor_status["stale"] == expected_status
+    assert sensor_status["stale"] == expected_stale
