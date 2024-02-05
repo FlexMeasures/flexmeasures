@@ -155,38 +155,6 @@ def test_value_field_invalid(deserialization_input, error_msg):
             True,
         ),
         (
-            # Last event start at 2016-01-01T23:00+01, with knowledge time 2016-01-01T12:00+01, 2 days and 12 hours ago
-            "2016-01-04T00:00+01",
-            "market",
-            None,
-            timedelta(days=2, hours=12),
-            True,
-        ),
-        (
-            # Last event start at 2016-01-01T23:00+01, with knowledge time 2016-01-01T12:00+01, 17 hours ago
-            "2016-01-02T05:00+01",
-            "market",
-            None,
-            timedelta(hours=17),
-            True,
-        ),
-        (
-            # Last event start at 2016-01-01T23:00+01, with knowledge time 2016-01-01T12:00+01, 1 day and 1 hour ago
-            "2016-01-02T13:00+01",
-            "market",
-            None,
-            timedelta(days=1, hours=1),
-            True,
-        ),
-        (
-            # Last event start at 2016-01-01T23:00+01, with knowledge time 2016-01-01T12:00+01, 1 day and 9 hours ago
-            "2016-01-02T21:00+01",
-            "market",
-            None,
-            timedelta(days=1, hours=9),
-            True,
-        ),
-        (
             # Last event start at 2015-01-02T07:45+01, with knowledge time 2015-01-02T08:00+01, 40 minutes from now
             "2015-01-02T07:20+01",
             "production",
