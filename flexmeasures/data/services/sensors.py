@@ -57,7 +57,7 @@ def get_most_recent_knowledge_time(sensor: Sensor, staleness_search: dict) -> da
     """Get the knowledge time of the sensor's most recent event.
 
     This knowledge time represents when you could have known about the event
-    (specifically, when you could have formed an ex-ante belief about it).
+    (specifically, when you could have formed an ex-post belief about it).
     """
     staleness_bdf = TimedBelief.search(
         sensors=sensor,
@@ -70,10 +70,7 @@ def get_most_recent_knowledge_time(sensor: Sensor, staleness_search: dict) -> da
 
 
 def get_staleness(sensor: Sensor, staleness_search: dict, now: datetime) -> timedelta | None:
-    """Get the staleness of the sensor.
-
-    :returns: the knowledge time of the most recent event (when you could have formed an ex-ante belief about it)
-    """
+    """Get the staleness of the sensor."""
 
     staleness = now - get_most_recent_knowledge_time(sensor=sensor, staleness_search=staleness_search)
 
