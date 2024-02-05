@@ -72,7 +72,11 @@ def get_most_recent_knowledge_time(sensor: Sensor, staleness_search: dict) -> da
 def get_staleness(sensor: Sensor, staleness_search: dict, now: datetime) -> timedelta | None:
     """Get the staleness of the sensor."""
 
-    staleness = now - get_most_recent_knowledge_time(sensor=sensor, staleness_search=staleness_search)
+    most_recent_knowledge_time = get_most_recent_knowledge_time(sensor=sensor, staleness_search=staleness_search)
+    if most_recent_knowledge_time is not None:
+        staleness = now - most_recent_knowledge_time
+    else:
+        staleness = None
 
     return staleness
 
