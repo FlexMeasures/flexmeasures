@@ -14,11 +14,11 @@ In essence, reporters apply arbitrary transformations to data coming from some s
     Currently, FlexMeasures comes with the following reporters:
         - `PandasReporter`: applies arbitrary `Pandas <https://pandas.pydata.org>`_ methods to sensor data. 
         - `AggregatorReporter`: combines data from multiple sensors into one using any of the methods supported by the Pandas `aggregate` function (e.g. sum, average, max, min...).
-        - `ProfitLossReporter`: computes the profit/loss due to an energy flow under a specific tariff.
+        - `ProfitOrLossReporter`: computes the profit/loss due to an energy flow under a specific tariff.
 
     Moreover, it's possible to implement your custom reporters in plugins. Instructions for this to come.
 
-Now, coming back to the tutorial, we are going to use the `AggregatorReporter` and the `ProfitLossReporter`. In the first part, we'll use the `AggregatorReporter` to compute the (discharge) headroom of the battery in :ref:`tut_toy_schedule_expanded`. That way, we can verify the maximum power at which the battery can discharge at any point of time. In the second part, we'll use the `ProfitLossReporter` to compute the costs of operating the process of Tut. Part III in the different policies.
+Now, coming back to the tutorial, we are going to use the `AggregatorReporter` and the `ProfitOrLossReporter`. In the first part, we'll use the `AggregatorReporter` to compute the (discharge) headroom of the battery in :ref:`tut_toy_schedule_expanded`. That way, we can verify the maximum power at which the battery can discharge at any point of time. In the second part, we'll use the `ProfitOrLossReporter` to compute the costs of operating the process of Tut. Part III in the different policies.
 
 Before getting to the meat of the tutorial, we need to set up up all the entities. Instead of having to do that manually (e.g. using commands such as ``flexmeasures add sensor``), we have prepared a command that does that automatically.
 
@@ -34,7 +34,7 @@ Just as in previous sections, we need to run the command ``flexmeasures add toy-
 Under the hood, this command is adding the following entities:
     - A yearly sensor that stores the capacity of the grid connection.
     - A power sensor, `headroom`, to store the remaining capacity for the battery. This is where we'll store the report.
-    - A `ProfitLossReporter` configured to use the prices that we set up in Tut. Part II.
+    - A `ProfitOrLossReporter` configured to use the prices that we set up in Tut. Part II.
     - Three sensors to register the profits/losses from running the three different processes of Tut. Part III.
 
 Let's check it out! 
@@ -72,7 +72,7 @@ Run the command below to show the values for the `grid connection capacity`:
                         ██ grid connection capacity
 
 
-Moreover, we can check the freshly created source `<Source id=6>` which defines the `ProfitLossReporter` with the required configuration. You'll notice that the `config` is under the `data_generator` field. That's because reporters belong to a bigger category of classes that also contains the `Schedulers` and `Forecasters`.
+Moreover, we can check the freshly created source `<Source id=6>` which defines the `ProfitOrLossReporter` with the required configuration. You'll notice that the `config` is under the `data_generator` field. That's because reporters belong to a bigger category of classes that also contains the `Schedulers` and `Forecasters`.
 
 .. code-block:: bash
 
@@ -80,7 +80,7 @@ Moreover, we can check the freshly created source `<Source id=6>` which defines 
 
          ID  Name          Type      User ID    Model           Version    Attributes                                  
        ----  ------------  --------  ---------  --------------  ---------  -----------------------------------------   
-          6  FlexMeasures  reporter             ProfitLossReporter             {                                            
+          6  FlexMeasures  reporter             ProfitOrLossReporter           {                                            
                                                                                "data_generator": {                      
                                                                                    "config": {                          
                                                                                        "consumption_price_sensor": 1     
@@ -139,7 +139,7 @@ at noon the battery can only discharge at 280kW max.
 Process scheduler profit
 -------------------------
 
-For the second part of this tutorial, we are going to use the `ProfitLossReporter` to compute the losses (defined as `cost - revenue`) of operating the 
+For the second part of this tutorial, we are going to use the `ProfitOrLossReporter` to compute the losses (defined as `cost - revenue`) of operating the 
 process from Tut. Part III, under the three different policies: INFLEXIBLE, BREAKABLE and SHIFTABLE.
 
 In addition, we'll explore another way to invoke reporters: data generators. Without going too much into detail, data generators

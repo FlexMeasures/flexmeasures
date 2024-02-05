@@ -17,7 +17,7 @@ In addition, we'll explain some basics which you'll need:
 Installing and running FlexMeasures 
 ------------------------------------
 
-In a nutshell, how does installation and running look like?
+In a nutshell, what does installation and running look like?
 Well, there are two major ways:
 
 .. tabs::
@@ -39,7 +39,7 @@ Well, there are two major ways:
            $ docker pull lfenergy/flexmeasures
            $ docker run -d lfenergy/flexmeasures  # this won't work just yet
 
-        The ``-d`` option keeps FlexMeasures running in the backgroubd ("detached"), as it should.
+        The ``-d`` option keeps FlexMeasures running in the background ("detached"), as it should.
 
         .. note::  For more information, see :ref:`docker-image` and :ref:`docker-compose`.
       
@@ -307,7 +307,7 @@ First, you can load in data from a file (CSV or Excel) via the ``flexmeasures`` 
    $ flexmeasures add beliefs --file my-data.csv --skiprows 2 --delimiter ";" --source OurLegacyDatabase --sensor-id 1
 
 This assumes you have a file `my-data.csv` with measurements, which was exported from some legacy database, and that the data is about our sensor with ID 1. This command has many options, so do use its ``--help`` function.
-For instance, to add data as forecasts, use the ``--beliefcol`` parameter, to say precisely when these forecasts were made. Or add  ``--horizon`` for rolling forecasts if they are all the same.
+For instance, to add data as forecasts, use the ``--beliefcol`` parameter, to say precisely when these forecasts were made. Or add  ``--horizon`` for rolling forecasts if they all share the same horizon.
 
 Second, you can use the `POST /api/v3_0/sensors/data <../api/v3_0.html#post--api-v3_0-sensors-data>`_ endpoint in the FlexMeasures API to send meter data.
 

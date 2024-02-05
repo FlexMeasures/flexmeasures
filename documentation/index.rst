@@ -43,7 +43,7 @@ A quick glance
                     :align: center
                 ..    :scale: 40%
 
-        A short explanation: This battery is optimized to buy power cheaply and sell it at expensive times - the red-dotted line is what FlexMeasures computed to be the best schedule, given all knowledge (in this case, the prices shown in blue). However, in the example on the right the battery has to store local solar power as well (orange line), which contrains how much it can do with its capacity (that's why the schedule is limited in capcity and thus cycling less energy overall than on the left).
+        A short explanation: This battery is optimized to buy power cheaply and sell it at expensive times - the red-dotted line is what FlexMeasures computed to be the best schedule, given all knowledge (in this case, the prices shown in blue). However, in the example on the right the battery has to store local solar power as well (orange line), which contrains how much it can do with its capacity (that's why the schedule is limited in capacity and thus cycling less energy overall than on the left).
 
     .. tab:: Example code
 

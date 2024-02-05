@@ -24,10 +24,12 @@ We believe this infrastructure will become very powerful and enable FlexMeasures
 Below are two quick examples, but you can also dive deeper in :ref:`tut_toy_schedule_reporter`.
 
 
-Example: solar which has not been self-consumed 
+Example: solar feed-in / self-consumption delta 
 ------------------------------------------------
 
-So here is a glimpse into a reporter we made - it is based on the ``AggregatorReporter`` (which is for the combination of any two sensors). This simplified example reporter calculates how much of your local PV power has not been covered by your own consumption:
+So here is a glimpse into a reporter we made - it is based on the ``AggregatorReporter`` (which is for the combination of any two sensors).
+This simplified example reporter basically calculates ``pv - consumption`` at grid connection point.
+This tells us how much solar power we fed back to the grid (positive values) and/or the amount of grid power within the overall consumption which did not come from local solar panels (negative values).
 
 .. code-block:: json
 
@@ -55,10 +57,11 @@ So here is a glimpse into a reporter we made - it is based on the ``AggregatorRe
 Example: Profits & losses
 ---------------------------
 
-A report that should cover a use case right off the shelf for almost everyone using FlexMeasures is the ``ProfitLossReporter`` ― a reporter to compute how profitable your operation has been.
+A report that should cover a use case right off the shelf for almost everyone using FlexMeasures is the ``ProfitOrLossReporter`` ― a reporter to compute how profitable your operation has been.
 Showing the results of your optimization is a crucial feature, and now easier than ever.
 
-First, reporters can be stored as data sources, so they are easy to be used repeatedly and the data they generate can reference them. Our data source has "ProfitLossReporter" as Model and these attributes (the least a ``ProfitLossReporter`` needs to know is a price): 
+First, reporters can be stored as data sources, so they are easy to be used repeatedly and the data they generate can reference them.
+Our data source has "ProfitOrLossReporter" as Model and these JSON info stored on its ``attribute`` define the reporter (the least a ``ProfitOrLossReporter`` needs to know is a price): 
 
 .. code-block:: json
 
@@ -70,7 +73,8 @@ First, reporters can be stored as data sources, so they are easy to be used repe
       }
     }
 
-And here is excerpts from the tutorial in how to configure and create a report:
+And here are more excerpts from the tutorial mentioned above.
+Here we configure the input and output:
 
 .. code-block:: bash
     
@@ -78,16 +82,18 @@ And here is excerpts from the tutorial in how to configure and create a report:
       {
           'input' : [{'sensor' : 4}],
           'output' : [{'sensor' : 9}]
-      }" > inflexible-parameters.json
+      }" > profitorloss-parameters.json
 
 The input sensor stores the power/energy flow, and the output sensor will store the report.
 
 .. code-block:: bash
 
-    $ flexmeasures add report --source 6 \
-      --parameters inflexible-parameters.json \
+    $ flexmeasures add report\
+      --source 6 \
+      --parameters profitorloss-parameters.json \
       --start-offset DB,1D --end-offset DB,2D
 
-With these offsets, we indicate that we want the report to encompass the day of tomorrow (see Pandas offset strings).
+Here, the ``ProfitOrLossReporter`` used as source (with Id 6) is the one we configured above.
+With the offsets, we control the timing ― we indicate that we want the new report to encompass the day of tomorrow (see Pandas offset strings).
 
 The report sensor will now store all costs which we know will be made tomorrow by the  schedule.

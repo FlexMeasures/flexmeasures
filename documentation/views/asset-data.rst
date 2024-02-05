@@ -42,7 +42,7 @@ Heatmaps are great ways to spot the hotspots of activity. Usually heatmaps are a
 
 We chose the "time map" of weekdays. From our experience, this is where you see the most interesting activity hotspots at a glance. For instance, that mornings often experience peaks. Or that Tuesday afternoons have low energy use, for some reason.
 
-Here is how it looks like for one week of temperature data:
+Here is what it looks like for one week of temperature data:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/heatmap-week-temperature.png
     :align: center

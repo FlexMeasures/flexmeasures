@@ -5,7 +5,7 @@ A storage flex-model tutorial: Vehicle-to-grid
 
 The most powerful concept of FlexMeasures is the flex-model. We feel it is time to pay more attention to it and illustrate its effects.
 
-As a demonstration of how to construct a suitable flex model for a given use case, let us for a moment consider a use case where FlexMeasures is asked (throough API calls) to compute :abbr:`V2G (vehicle-to-grid)` schedules.
+As a demonstration of how to construct a suitable flex model for a given use case, let us for a moment consider a use case where FlexMeasures is asked (through API calls) to compute :abbr:`V2G (vehicle-to-grid)` schedules.
 (For a more general introduction to flex modeling, see :ref:`describing_flexibility`.)
 
 In this example, the client is interested in the following:

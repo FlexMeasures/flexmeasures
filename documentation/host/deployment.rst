@@ -12,7 +12,7 @@ Here you can learn how to get FlexMeasures onto a server.
 WSGI configuration
 ------------------
 
-On your own computer, ``flexmeasures run`` is a nice way to start FlexMeasures. On a production web server, you want it done the WSGI way. 
+On your own computer, ``flexmeasures run`` is a nice way to start FlexMeasures. On a production web server, you want it done the :abbr:`WSGI (Web Server Gateway Interface)` way. 
 
 Here, you'd want to hand FlexMeasures' ``app`` object to a WSGI process, as your platform of choice describes.
 Often, that requires a WSGI script. Below is a minimal example. 
