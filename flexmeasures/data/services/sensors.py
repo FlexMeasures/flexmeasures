@@ -131,7 +131,9 @@ def get_status(
     if staleness is not None:
         staleness_since = now - staleness
         stale = staleness > max_staleness
-        reason = ("" if stale else "not ") + f"more than {naturaldelta(max_staleness)} old"
+        reason = (
+            "" if stale else "not "
+        ) + f"more than {naturaldelta(max_staleness)} old"
     else:
         staleness_since = None
         stale = True
