@@ -2,6 +2,7 @@ from datetime import timedelta, datetime, timezone
 import pytest
 
 from marshmallow import ValidationError
+import pandas as pd
 
 from flexmeasures.api.common.schemas.sensor_data import (
     SingleValueField,
@@ -127,171 +128,78 @@ def test_value_field_invalid(deserialization_input, error_msg):
 
 
 @pytest.mark.parametrize(
-    "now, sensor_type, source_name, expected_staleness, expected_status",
+    "now, sensor_type, source_name, expected_staleness, expected_stale",
     [
         (
-            datetime(
-                2016,
-                1,
-                1,
-                0,
-                0,
-                0,
-                tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
-            ),
+            # Last event start at 2016-01-01T23:00+01, with knowledge time 2016-01-01T12:00+01, 12 hours from now
+            "2016-01-01T00:00+01",
             "market",
             None,
-            timedelta(hours=-11),
+            None,  # Not known yet
+            True,
+        ),
+        (
+            # Last event start at 2016-01-01T23:00+01, with knowledge time 2016-01-01T12:00+01, 12 hours and 18 minutes ago
+            "2016-01-02T00:18+01",
+            "market",
+            None,
+            timedelta(hours=12, minutes=18),
+            True,
+        ),
+        (
+            # Last event start at 2016-01-01T23:00+01, with knowledge time 2016-01-01T12:00+01, 1 day and 12 hours ago
+            "2016-01-03T00:00+01",
+            "market",
+            None,
+            timedelta(days=1, hours=12),
+            True,
+        ),
+        (
+            # Last event start at 2015-01-02T07:45+01, with knowledge time 2015-01-02T08:00+01, 40 minutes from now
+            "2015-01-02T07:20+01",
+            "production",
+            "Seita",
+            None,  # Not known yet
+            True,
+        ),
+        (
+            # Last event start at 2015-01-02T07:45+01, with knowledge time 2015-01-02T08:00+01, 40 minutes ago (but still less than max PT1H allowed)
+            "2015-01-02T08:40+01",
+            "production",
+            "Seita",
+            timedelta(minutes=40),
             False,
         ),
         (
-            datetime(
-                2016,
-                1,
-                2,
-                0,
-                18,
-                0,
-                tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
-            ),
-            "market",
-            None,
-            timedelta(hours=13, minutes=18),
-            True,
-        ),
-        (
-            datetime(
-                2016,
-                1,
-                3,
-                0,
-                0,
-                0,
-                tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
-            ),
-            "market",
-            None,
-            timedelta(days=1, hours=13),
-            True,
-        ),
-        (
-            datetime(
-                2016,
-                1,
-                4,
-                0,
-                0,
-                0,
-                tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
-            ),
-            "market",
-            None,
-            timedelta(days=2, hours=13),
-            True,
-        ),
-        (
-            datetime(
-                2016,
-                1,
-                2,
-                5,
-                0,
-                0,
-                tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
-            ),
-            "market",
-            None,
-            timedelta(hours=18),
-            True,
-        ),
-        (
-            datetime(
-                2016,
-                1,
-                2,
-                13,
-                0,
-                0,
-                tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
-            ),
-            "market",
-            None,
-            timedelta(days=1, hours=2),
-            True,
-        ),
-        (
-            datetime(
-                2016,
-                1,
-                2,
-                21,
-                0,
-                0,
-                tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
-            ),
-            "market",
-            None,
-            timedelta(days=1, hours=10),
-            True,
-        ),
-        (
-            datetime(
-                2015,
-                1,
-                2,
-                6,
-                20,
-                0,
-                tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
-            ),
+            # Last event start of Seita's belief at 2015-01-02T07:45+01, with knowledge time 2015-01-02T08:00+01, 2 minutes from now
+            "2015-01-02T07:58+01",
             "production",
             "Seita",
-            timedelta(minutes=-40),
+            None,  # Not known yet
             True,
         ),
         (
-            datetime(
-                2015,
-                1,
-                2,
-                3,
-                18,
-                0,
-                tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
-            ),
+            # Last event start of Seita's belief at 2015-01-02T07:45+01, with knowledge time 2015-01-02T08:00+01, 4 hours and 42 minutes ago
+            "2015-01-02T12:42+01",
             "production",
             "Seita",
-            timedelta(hours=-3, minutes=-42),
-            False,
+            timedelta(hours=4, minutes=42),
+            True,
         ),
         (
-            datetime(
-                2016,
-                1,
-                2,
-                21,
-                0,
-                0,
-                tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
-            ),
+            # Last event start of DummyScheduler's belief at 2016-01-02T07:45+01, with knowledge time 2016-01-02T08:00+01, 13 hours ago
+            "2016-01-02T21:00+01",
             "production",
             "DummySchedule",
-            timedelta(hours=14),
+            timedelta(hours=13),
             True,
         ),
         (
-            datetime(
-                2016,
-                1,
-                2,
-                21,
-                0,
-                0,
-                tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
-            ),
+            # Last event start at 2016-01-02T07:45+01, with knowledge time 2016-01-02T08:00+01, 13 hours ago
+            "2016-01-02T21:00+01",
             "production",
             None,
-            timedelta(hours=14),
+            timedelta(hours=13),
             True,
         ),
     ],
@@ -303,30 +211,38 @@ def test_get_status(
     sensor_type,
     source_name,
     expected_staleness,
-    expected_status,
+    expected_stale,
 ):
     if sensor_type == "market":
         sensor = add_market_prices["epex_da"]
-        staleness_search = {}
+        deserialized_staleness_search = dict()
+        serialized_staleness_search = {}
     elif sensor_type == "production":
         sensor = capacity_sensors["production"]
-        staleness_search = {}
+        deserialized_staleness_search = dict()
+        serialized_staleness_search = {}
         for source in sensor.data_sources:
             print(source.name)
             if source.name == source_name:
-                source_id = source.id
-                staleness_search = {"source": source_id}
+                deserialized_staleness_search = dict(source=source)
+                serialized_staleness_search = {"source": source.id}
 
-    print(staleness_search)
-    staleness = get_staleness(sensor=sensor, staleness_search=staleness_search, now=now)
+    print(deserialized_staleness_search)
+    now = pd.Timestamp(now)
+    staleness = get_staleness(
+        sensor=sensor, staleness_search=deserialized_staleness_search, now=now
+    )
+    status_specs = {
+        "staleness_search": serialized_staleness_search,
+        "max_staleness": "PT1H",
+    }
     sensor_status = get_status(
         sensor=sensor,
-        status_specs={"staleness_search": staleness_search, "max_staleness": "PT1H"},
+        status_specs=status_specs,
         now=now,
     )
 
-    status_specs = {"staleness_search": staleness_search, "max_staleness": "PT1H"}
     assert StatusSchema().load(status_specs)
     assert staleness == expected_staleness
     assert sensor_status["staleness"] == expected_staleness
-    assert sensor_status["stale"] == expected_status
+    assert sensor_status["stale"] == expected_stale

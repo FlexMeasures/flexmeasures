@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
+from humanize.time import naturaldelta
+
 from flexmeasures.data.models.time_series import TimedBelief
 
 
@@ -51,32 +53,67 @@ def get_sensors(
     return sensor_query.all()
 
 
-def get_staleness(sensor: Sensor, staleness_search: dict, now: datetime) -> timedelta:
-    """Get the staleness of the sensor"""
+def get_most_recent_knowledge_time(
+    sensor: Sensor, staleness_search: dict
+) -> datetime | None:
+    """Get the knowledge time of the sensor's most recent event.
 
+    This knowledge time represents when you could have known about the event
+    (specifically, when you could have formed an ex-post belief about it).
+    """
     staleness_bdf = TimedBelief.search(
         sensors=sensor,
         most_recent_events_only=True,
         **staleness_search,
     )
     if staleness_bdf.empty:
-        return timedelta.max
+        return None
+    return staleness_bdf.knowledge_times[-1]
 
-    # difference between knowledge time and now is staleness which can be calculated as follows:
-    # staleness = now - sensor.knowledge_time(
-    #     bdf1.event_starts[-1], bdf2.event_resolution
-    # )
-    # or the more direct way:
 
-    staleness = (
-        now
-        - staleness_bdf.event_starts[-1]
-        + sensor.knowledge_horizon(
-            staleness_bdf.event_starts[-1], staleness_bdf.event_resolution
-        )
+def get_staleness(
+    sensor: Sensor, staleness_search: dict, now: datetime
+) -> timedelta | None:
+    """Get the staleness of the sensor.
+
+    :param sensor:              The sensor to compute the staleness for.
+    :param staleness_search:    Deserialized keyword arguments to `TimedBelief.search`.
+    :param now:                 Datetime representing now, used both to mask future beliefs,
+                                and to measures staleness against.
+    """
+
+    # Mask beliefs before now
+    staleness_search = staleness_search.copy()  # no inplace operations
+    beliefs_before = staleness_search.get("beliefs_before")
+    if beliefs_before is not None:
+        staleness_search["beliefs_before"] = min(beliefs_before, now)
+    else:
+        staleness_search["beliefs_before"] = now
+
+    most_recent_knowledge_time = get_most_recent_knowledge_time(
+        sensor=sensor, staleness_search=staleness_search
     )
+    if most_recent_knowledge_time is not None:
+        staleness = now - most_recent_knowledge_time
+    else:
+        staleness = None
 
     return staleness
+
+
+def get_status_specs(sensor: Sensor) -> dict:
+    """Get status specs from a given sensor."""
+
+    # Check for explicitly defined status specs
+    status_specs = sensor.attributes.get("status_specs")
+    if status_specs is None:
+        # Default to status specs for economical sensors with daily updates
+        if sensor.knowledge_horizon_fnc == "x_days_ago_at_y_oclock":
+            status_specs = {"staleness_search": {}, "max_staleness": f"P1D"}
+        else:
+            # Default to status specs indicating immediate staleness after knowledge time
+            status_specs = {"staleness_search": {}, "max_staleness": "PT0H"}
+    return status_specs
 
 
 def get_status(
@@ -86,18 +123,23 @@ def get_status(
 ) -> dict:
     """Get the status of the sensor"""
     if status_specs is None:
-        status_specs = sensor.attributes.get(
-            "status_specs",
-            {"staleness_search": {}, "max_staleness": "PT0H"},
-        )
+        status_specs = get_status_specs(sensor=sensor)
     status_specs = StatusSchema().load(status_specs)
     max_staleness = status_specs.pop("max_staleness")
     staleness_search = status_specs.pop("staleness_search")
     staleness = get_staleness(sensor=sensor, staleness_search=staleness_search, now=now)
-
-    stale = staleness >= -max_staleness
+    if staleness is not None:
+        staleness_since = now - staleness
+        stale = staleness > max_staleness
+        reason = ("" if stale else "not ") + f"more than {naturaldelta(max_staleness)} old"
+    else:
+        staleness_since = None
+        stale = True
+        reason = "no data recorded"
     status = dict(
         staleness=staleness,
         stale=stale,
+        staleness_since=staleness_since,
+        reason=reason,
     )
     return status
