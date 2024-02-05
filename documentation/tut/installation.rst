@@ -56,7 +56,7 @@ Set an environment variable to indicate in which environment you are operating (
 
 .. code-block:: bash
 
-   $ export FLASK_ENV=development
+   $ export FLEXMEASURES_ENV=development
 
 (on Windows, use ``set`` instead of ``export``\ )
 
@@ -64,7 +64,7 @@ or:
 
 .. code-block:: bash
 
-   $ echo "FLASK_ENV=development" >> .env
+   $ echo "FLEXMEASURES_ENV=development" >> .env
 
 .. note:: The default is ``production``\ , which will not work well on localhost due to SSL issues. 
 
@@ -163,9 +163,9 @@ Usually, we are here because we want to measure something with respect to our as
 
 .. code-block:: bash
 
-   $ flexmeasures add sensor --name power --unit MW --event-resolution 5 --timezone Europe/Amsterdam --asset-id 1 --attributes '{"capacity_in_mw": 7}'
+   $ flexmeasures add sensor --name power --unit MW --event-resolution 5 --timezone Europe/Amsterdam --asset 1 --attributes '{"capacity_in_mw": 7}'
 
-The asset ID I got from the last CLI command, or I could consult ``flexmeasures show account --account-id <my-account-id>``.
+The asset ID I got from the last CLI command, or I could consult ``flexmeasures show account --account <my-account-id>``.
 
 .. note: The event resolution is given in minutes. Capacity is something unique to power sensors, so it is added as an attribute.
 
@@ -179,7 +179,7 @@ First, you can load in data from a file (CSV or Excel) via the ``flexmeasures`` 
 
 .. code-block:: bash
    
-   $ flexmeasures add beliefs --file my-data.csv --skiprows 2 --delimiter ";" --source OurLegacyDatabase --sensor-id 1
+   $ flexmeasures add beliefs --file my-data.csv --skiprows 2 --delimiter ";" --source OurLegacyDatabase --sensor 1
 
 This assumes you have a file `my-data.csv` with measurements, which was exported from some legacy database, and that the data is about our sensor with ID 1. This command has many options, so do use its ``--help`` function.
 

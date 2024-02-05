@@ -42,11 +42,11 @@ Running the image (as a container) might work like this (remember to get the ima
 
 .. code-block:: bash
 
-    docker run --env SQLALCHEMY_DATABASE_URI=postgresql://user:pass@localhost:5432/dbname --env SECRET_KEY=blabla  --env FLASK_ENV=development -d --net=host lfenergy/flexmeasures
+    docker run --env SQLALCHEMY_DATABASE_URI=postgresql://user:pass@localhost:5432/dbname --env SECRET_KEY=blabla  --env FLEXMEASURES_ENV=development -d --net=host lfenergy/flexmeasures
 
 .. note:: Don't know what your image is called (its "tag")? We used ``lfenergy/flexmeasures`` here, as that should be the name when pulling it from Docker Hub. You can run ``docker images`` to see which images you have.
 
-The two minimal environment variables to run the container successfully are the database URI and the secret key, see :ref:`configuration`. ``FLASK_ENV=development`` is needed if you do not have an SSL certificate set up (the default mode is ``production``, and in that mode FlexMeasures requires https for security reasons). If you see too much output, you can also set ``LOGGING_LEVEL=INFO``.
+The two minimal environment variables to run the container successfully are the database URI and the secret key, see :ref:`configuration`. ``FLEXMEASURES_ENV=development`` is needed if you do not have an SSL certificate set up (the default mode is ``production``, and in that mode FlexMeasures requires https for security reasons). If you see too much output, you can also set ``LOGGING_LEVEL=INFO``.
 
 In this example, we connect to a postgres database running on our local computer, so we use the host network. In the docker-compose section below, we use a Docker container for the database, as well.
 
@@ -70,5 +70,18 @@ To load a configuration file into the container when starting up, we make use of
 
 .. warning:: The location of the instance folder depends on how we serve FlexMeasures. The above works with gunicorn. See the compose file for an alternative (for the FlexMeasures CLI), and you can also read the above link about the instance folder.
 
-.. note:: This is also a way to add your custom logic (as described in :ref:`plugins`) to the container. We'll document that shortly. Plugins which should be installed (e.g. by ``pip``) are a bit more difficult to support (you'd need to add `pip install` before the actual entry point). Ideas welcome. 
+Installing plugins within the container
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+At this point, the FlexMeasures container is up and running without including any plugins you might need to use. To integrate a plugin into the container, follow these steps:
+
+1. Copy the plugin into your active FlexMeasures container by executing the following command:
+
+.. code-block:: bash
+
+    docker cp </path/to/plugin-directory> <flexmeasures-container-name>:/app
+
+
+2. Once the plugin is successfully copied proceed to install it, for instance using pip ``docker exec -it <flexmeasures-container-name> bash -c "pip install <path/to-package>"``. Instead, you just need to install the requirements, then run this command ``docker exec -it <flexmeasures-container-name> bash -c "pip install -r <path/to-package/requirements.txt``.
+3. After completing the installation, create a directory named ``instance`` in the container working directory and transfer the FlexMeasures configuration file, ``flexmeasures.cfg``, into it using the ``docker cp`` command. Additionally, ensure that you incorporate your plugin details into the ``flexmeasures.cfg`` file as outlined in the :ref:`plugin-config` section.
+4. Once these steps are finished, halt the container using the ``docker stop <flexmeasures-container-name>`` command, followed by restarting it using ``docker start <flexmeasures-container-name>``. This ensures that the changes take effect. Now, you can make use of the installed plugins within the FlexMeasures Docker container.

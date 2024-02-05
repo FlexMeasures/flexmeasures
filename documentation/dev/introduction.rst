@@ -78,7 +78,7 @@ Also, we add some env settings in an `.env` file. Create that file in the `flexm
 
 .. code-block:: bash
 
-    FLASK_ENV="development"
+    FLEXMEASURES_ENV="development"
     LOGGING_LEVEL="INFO"
 
 The development mode makes sure we don't need SSL to connect, among other things. 
@@ -132,10 +132,10 @@ Otherwise, you need to add some other user first. Here is how we add an admin:
 
 .. code-block:: bash
     
-    $ flexmeasures add account --name MyCompany   
-    $ flexmeasures add user --username admin --account-id 1 --email admin@mycompany.io --roles admin
+    $ flexmeasures add account --name MyCompany
+    $ flexmeasures add user --username admin --account 1 --email admin@mycompany.io --roles admin
 
-(The account-id you need in the 2nd command is printed by the 1st)
+(The `account` you need in the 2nd command is printed by the 1st)
 
 
 .. note::

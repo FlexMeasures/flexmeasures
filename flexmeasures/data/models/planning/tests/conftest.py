@@ -220,6 +220,44 @@ def process(db, building, setup_sources) -> dict[str, Sensor]:
 
 
 @pytest.fixture(scope="module")
+def efficiency_sensors(db, add_battery_assets, setup_sources) -> dict[str, Sensor]:
+    battery = add_battery_assets["Test battery"]
+    sensors = {}
+    sensor_specs = [("efficiency", timedelta(minutes=15), 90)]
+
+    for name, resolution, value in sensor_specs:
+        # 1 days of test data
+        time_slots = initialize_index(
+            start=pd.Timestamp("2015-01-01").tz_localize("Europe/Amsterdam"),
+            end=pd.Timestamp("2015-01-02").tz_localize("Europe/Amsterdam"),
+            resolution=resolution,
+        )
+
+        efficiency_sensor = Sensor(
+            name=name,
+            unit="%",
+            event_resolution=resolution,
+            generic_asset=battery,
+        )
+        db.session.add(efficiency_sensor)
+        db.session.flush()
+
+        steps_in_hour = int(timedelta(hours=1) / resolution)
+        efficiency = [value] * len(time_slots)
+
+        add_as_beliefs(
+            db,
+            efficiency_sensor,
+            efficiency[:-steps_in_hour],
+            time_slots[:-steps_in_hour],
+            setup_sources["Seita"],
+        )
+        sensors[name] = efficiency_sensor
+
+    return sensors
+
+
+@pytest.fixture(scope="module")
 def add_stock_delta(db, add_battery_assets, setup_sources) -> dict[str, Sensor]:
     """
     Different usage forecast sensors are defined:

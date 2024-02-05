@@ -4,6 +4,25 @@
 FlexMeasures CLI Changelog
 **********************
 
+since v0.19.0 | February xx, 2024
+=======================================
+
+* Streamline CLI option naming by favoring ``--<entity>`` over ``--<entity>-id``. This affects the following options:
+
+    * ``--account-id`` -> ``--account``
+    * ``--asset-id`` -> ``--asset``
+    * ``--asset-type-id`` -> ``--asset-type``
+    * ``--sensor-id`` -> ``--sensor``
+    * ``--source-id`` -> ``--source``
+    * ``--user-id`` -> ``--user`
+
+
+since v0.18.1 | January 15, 2023
+=======================================
+
+* Fix the validation of the option ``--parent-asset`` of command ``flexmeasures add asset``.
+
+
 since v0.17.0 | November 8, 2023
 =======================================
 

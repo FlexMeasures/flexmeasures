@@ -154,6 +154,11 @@ def process_internal_api_response(
                 Sensor.generic_asset_id == asset_data["id"]
             ).all()
             expunge_asset()
+        if asset_data.get("parent_asset_id", None) is not None:
+            asset.parent_asset = GenericAsset.query.filter(
+                GenericAsset.id == asset_data["parent_asset_id"]
+            ).one_or_none()
+            expunge_asset()
         return asset
     return asset_data
 
@@ -374,6 +379,7 @@ class AssetCrudUI(FlaskView):
                 asset = process_internal_api_response(
                     asset_info, int(id), make_obj=True
                 )
+
                 return render_flexmeasures_template(
                     "crud/asset.html",
                     asset_form=asset_form,

@@ -75,8 +75,8 @@ function clickableTable(element, urlColumn) {
 
 
 function handleClick(event, url) {
-    // ignore clicks on <a href> or <button> elements
-    if (['a', 'button'].includes(event.target.tagName.toLowerCase())) {
+    // ignore clicks on <a href>, <button> or <input> elements
+    if (['a', 'button', 'input'].includes(event.target.tagName.toLowerCase())) {
         return
     } else if (event.ctrlKey) {
         window.open(url, "_blank");
@@ -375,7 +375,7 @@ function submit_sensor_type() {
 vega.expressionFunction('quantityWithUnitFormat', function(datum, params) {
     const formatDef = {
         "decimal": ".",
-        "thousands": ",",
+        "thousands": " ",
         "grouping": [3],
     };
     const locale = d3.formatLocale(formatDef);
@@ -384,7 +384,7 @@ vega.expressionFunction('quantityWithUnitFormat', function(datum, params) {
         return locale.format(params[0])(datum) + " " + convertCurrencyCodeToSymbol(params[1]);
     }
     else {
-        return d3.format(params[0])(datum) + " " + params[1];
+        return locale.format(params[0])(datum) + " " + params[1];
     }
 });
 
