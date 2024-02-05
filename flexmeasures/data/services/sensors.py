@@ -70,7 +70,21 @@ def get_most_recent_knowledge_time(sensor: Sensor, staleness_search: dict) -> da
 
 
 def get_staleness(sensor: Sensor, staleness_search: dict, now: datetime) -> timedelta | None:
-    """Get the staleness of the sensor."""
+    """Get the staleness of the sensor.
+
+    :param sensor:              The sensor to compute the staleness for.
+    :param staleness_search:    Deserialized keyword arguments to `TimedBelief.search`.
+    :param now:                 Datetime representing now, used both to mask future beliefs,
+                                and to measures staleness against.
+    """
+
+    # Mask beliefs before now
+    staleness_search = staleness_search.copy()  # no inplace operations
+    beliefs_before = staleness_search.get("beliefs_before")
+    if beliefs_before is not None:
+        staleness_search["beliefs_before"] = min(beliefs_before, now)
+    else:
+        staleness_search["beliefs_before"] = now
 
     most_recent_knowledge_time = get_most_recent_knowledge_time(sensor=sensor, staleness_search=staleness_search)
     if most_recent_knowledge_time is not None:

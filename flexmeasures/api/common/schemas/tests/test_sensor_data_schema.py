@@ -135,8 +135,8 @@ def test_value_field_invalid(deserialization_input, error_msg):
             "2016-01-01T00:00+01",
             "market",
             None,
-            timedelta(hours=-12),
-            False,
+            None,  # Not known yet
+            True,
         ),
         (
             # Last event start at 2016-01-01T23:00+01, with knowledge time 2016-01-01T12:00+01, 12 hours and 18 minutes ago
@@ -159,8 +159,8 @@ def test_value_field_invalid(deserialization_input, error_msg):
             "2015-01-02T07:20+01",
             "production",
             "Seita",
-            timedelta(minutes=-40),
-            False,
+            None,  # Not known yet
+            True,
         ),
         (
             # Last event start at 2015-01-02T07:45+01, with knowledge time 2015-01-02T08:00+01, 40 minutes ago (but still less than max PT1H allowed)
@@ -171,12 +171,20 @@ def test_value_field_invalid(deserialization_input, error_msg):
             False,
         ),
         (
-            # Last event start of Seita's belief at 2015-01-02T07:45+01, with knowledge time 2015-01-02T08:00+01, 4 hours and 42 minutes from now
-            "2015-01-02T03:18+01",
+            # Last event start of Seita's belief at 2015-01-02T07:45+01, with knowledge time 2015-01-02T08:00+01, 2 minutes from now
+            "2015-01-02T07:58+01",
             "production",
             "Seita",
-            timedelta(hours=-4, minutes=-42),
-            False,
+            None,  # Not known yet
+            True,
+        ),
+        (
+            # Last event start of Seita's belief at 2015-01-02T07:45+01, with knowledge time 2015-01-02T08:00+01, 4 hours and 42 minutes ago
+            "2015-01-02T12:42+01",
+            "production",
+            "Seita",
+            timedelta(hours=4, minutes=42),
+            True,
         ),
         (
             # Last event start of DummyScheduler's belief at 2016-01-02T07:45+01, with knowledge time 2016-01-02T08:00+01, 13 hours ago
@@ -207,20 +215,22 @@ def test_get_status(
 ):
     if sensor_type == "market":
         sensor = add_market_prices["epex_da"]
-        staleness_search = {}
+        deserialized_staleness_search = dict()
+        serialized_staleness_search = {}
     elif sensor_type == "production":
         sensor = capacity_sensors["production"]
-        staleness_search = {}
+        deserialized_staleness_search = dict()
+        serialized_staleness_search = {}
         for source in sensor.data_sources:
             print(source.name)
             if source.name == source_name:
-                source_id = source.id
-                staleness_search = {"source": source_id}
+                deserialized_staleness_search = dict(source=source)
+                serialized_staleness_search = {"source": source.id}
 
-    print(staleness_search)
+    print(deserialized_staleness_search)
     now = pd.Timestamp(now)
-    staleness = get_staleness(sensor=sensor, staleness_search=staleness_search, now=now)
-    status_specs = {"staleness_search": staleness_search, "max_staleness": "PT1H"}
+    staleness = get_staleness(sensor=sensor, staleness_search=deserialized_staleness_search, now=now)
+    status_specs = {"staleness_search": serialized_staleness_search, "max_staleness": "PT1H"}
     sensor_status = get_status(
         sensor=sensor,
         status_specs=status_specs,
