@@ -2,6 +2,7 @@ from datetime import timedelta, datetime, timezone
 import pytest
 
 from marshmallow import ValidationError
+import pandas as pd
 
 from flexmeasures.api.common.schemas.sensor_data import (
     SingleValueField,
@@ -130,165 +131,77 @@ def test_value_field_invalid(deserialization_input, error_msg):
     "now, sensor_type, source_name, expected_staleness, expected_status",
     [
         (
-            datetime(
-                2016,
-                1,
-                1,
-                0,
-                0,
-                0,
-                tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
-            ),
+            "2016-01-01T00:00+00",
             "market",
             None,
             timedelta(hours=-11),
             False,
         ),
         (
-            datetime(
-                2016,
-                1,
-                2,
-                0,
-                18,
-                0,
-                tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
-            ),
+            "2016-01-02T00:18+00",
             "market",
             None,
             timedelta(hours=13, minutes=18),
             True,
         ),
         (
-            datetime(
-                2016,
-                1,
-                3,
-                0,
-                0,
-                0,
-                tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
-            ),
+            "2016-01-03T00:00+00",
             "market",
             None,
             timedelta(days=1, hours=13),
             True,
         ),
         (
-            datetime(
-                2016,
-                1,
-                4,
-                0,
-                0,
-                0,
-                tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
-            ),
+            "2016-01-04T00:00+00",
             "market",
             None,
             timedelta(days=2, hours=13),
             True,
         ),
         (
-            datetime(
-                2016,
-                1,
-                2,
-                5,
-                0,
-                0,
-                tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
-            ),
+            "2016-01-02T05:00+00",
             "market",
             None,
             timedelta(hours=18),
             True,
         ),
         (
-            datetime(
-                2016,
-                1,
-                2,
-                13,
-                0,
-                0,
-                tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
-            ),
+            "2016-01-02T13:00+00",
             "market",
             None,
             timedelta(days=1, hours=2),
             True,
         ),
         (
-            datetime(
-                2016,
-                1,
-                2,
-                21,
-                0,
-                0,
-                tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
-            ),
+            "2016-01-02T21:00+00",
             "market",
             None,
             timedelta(days=1, hours=10),
             True,
         ),
         (
-            datetime(
-                2015,
-                1,
-                2,
-                6,
-                20,
-                0,
-                tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
-            ),
+            "2015-01-02T06:20+00",
             "production",
             "Seita",
             timedelta(minutes=-40),
             True,
         ),
         (
-            datetime(
-                2015,
-                1,
-                2,
-                3,
-                18,
-                0,
-                tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
-            ),
+            "2015-01-02T03:18+00",
             "production",
             "Seita",
             timedelta(hours=-3, minutes=-42),
             False,
         ),
         (
-            datetime(
-                2016,
-                1,
-                2,
-                21,
-                0,
-                0,
-                tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
-            ),
+            "2016-01-02T21:00+00",
             "production",
             "DummySchedule",
             timedelta(hours=14),
             True,
         ),
         (
-            datetime(
-                2016,
-                1,
-                2,
-                21,
-                0,
-                0,
-                tzinfo=timezone(offset=timedelta(hours=0), name="Europe/Amsterdam"),
-            ),
+            "2016-01-02T21:00+00",
             "production",
             None,
             timedelta(hours=14),
@@ -318,6 +231,7 @@ def test_get_status(
                 staleness_search = {"source": source_id}
 
     print(staleness_search)
+    now = pd.Timestamp(now)
     staleness = get_staleness(sensor=sensor, staleness_search=staleness_search, now=now)
     sensor_status = get_status(
         sensor=sensor,
