@@ -229,8 +229,13 @@ def test_get_status(
 
     print(deserialized_staleness_search)
     now = pd.Timestamp(now)
-    staleness = get_staleness(sensor=sensor, staleness_search=deserialized_staleness_search, now=now)
-    status_specs = {"staleness_search": serialized_staleness_search, "max_staleness": "PT1H"}
+    staleness = get_staleness(
+        sensor=sensor, staleness_search=deserialized_staleness_search, now=now
+    )
+    status_specs = {
+        "staleness_search": serialized_staleness_search,
+        "max_staleness": "PT1H",
+    }
     sensor_status = get_status(
         sensor=sensor,
         status_specs=status_specs,

@@ -53,7 +53,9 @@ def get_sensors(
     return sensor_query.all()
 
 
-def get_most_recent_knowledge_time(sensor: Sensor, staleness_search: dict) -> datetime | None:
+def get_most_recent_knowledge_time(
+    sensor: Sensor, staleness_search: dict
+) -> datetime | None:
     """Get the knowledge time of the sensor's most recent event.
 
     This knowledge time represents when you could have known about the event
@@ -69,7 +71,9 @@ def get_most_recent_knowledge_time(sensor: Sensor, staleness_search: dict) -> da
     return staleness_bdf.knowledge_times[-1]
 
 
-def get_staleness(sensor: Sensor, staleness_search: dict, now: datetime) -> timedelta | None:
+def get_staleness(
+    sensor: Sensor, staleness_search: dict, now: datetime
+) -> timedelta | None:
     """Get the staleness of the sensor.
 
     :param sensor:              The sensor to compute the staleness for.
@@ -86,7 +90,9 @@ def get_staleness(sensor: Sensor, staleness_search: dict, now: datetime) -> time
     else:
         staleness_search["beliefs_before"] = now
 
-    most_recent_knowledge_time = get_most_recent_knowledge_time(sensor=sensor, staleness_search=staleness_search)
+    most_recent_knowledge_time = get_most_recent_knowledge_time(
+        sensor=sensor, staleness_search=staleness_search
+    )
     if most_recent_knowledge_time is not None:
         staleness = now - most_recent_knowledge_time
     else:
@@ -103,7 +109,7 @@ def get_status_specs(sensor: Sensor) -> dict:
     if status_specs is None:
         # Default to status specs for economical sensors with daily updates
         if sensor.knowledge_horizon_fnc == "x_days_ago_at_y_oclock":
-            status_specs = {"staleness_search": {}, "max_staleness": f'P1D'}
+            status_specs = {"staleness_search": {}, "max_staleness": f"P1D"}
         else:
             # Default to status specs indicating immediate staleness after knowledge time
             status_specs = {"staleness_search": {}, "max_staleness": "PT0H"}
@@ -132,6 +138,7 @@ def get_status(
         staleness=staleness,
         stale=stale,
         staleness_since=staleness_since,
-        reason=("" if stale else "not ") + f"more than {naturaldelta(max_staleness)} old",
+        reason=("" if stale else "not ")
+        + f"more than {naturaldelta(max_staleness)} old",
     )
     return status
