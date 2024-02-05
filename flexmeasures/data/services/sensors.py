@@ -77,6 +77,21 @@ def get_staleness(sensor: Sensor, staleness_search: dict, now: datetime) -> time
     return staleness
 
 
+def get_status_specs(sensor: Sensor) -> dict:
+    """Get status specs from a given sensor."""
+
+    # Check for explicitly defined status specs
+    status_specs = sensor.attributes.get("status_specs")
+    if status_specs is None:
+        # Default to status specs for economical sensors with daily updates
+        if sensor.knowledge_horizon_fnc == "x_days_ago_at_y_oclock":
+            status_specs = {"staleness_search": {}, "max_staleness": f'P1D'}
+        else:
+            # Default to status specs indicating immediate staleness after knowledge time
+            status_specs = {"staleness_search": {}, "max_staleness": "PT0H"}
+    return status_specs
+
+
 def get_status(
     sensor: Sensor,
     now: datetime,
@@ -84,10 +99,7 @@ def get_status(
 ) -> dict:
     """Get the status of the sensor"""
     if status_specs is None:
-        status_specs = sensor.attributes.get(
-            "status_specs",
-            {"staleness_search": {}, "max_staleness": "PT0H"},
-        )
+        status_specs = get_status_specs(sensor=sensor)
     status_specs = StatusSchema().load(status_specs)
     max_staleness = status_specs.pop("max_staleness")
     staleness_search = status_specs.pop("staleness_search")
