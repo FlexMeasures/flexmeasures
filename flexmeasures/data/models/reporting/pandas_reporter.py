@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Union, Dict, List
+from typing import Any
 from datetime import datetime, timedelta
 from copy import deepcopy, copy
 
@@ -29,7 +29,7 @@ class PandasReporter(Reporter):
     transformations: list[dict[str, Any]] = None
     final_df_output: str = None
 
-    data: Dict[str, Union[tb.BeliefsDataFrame, pd.DataFrame]] = None
+    data: dict[str, tb.BeliefsDataFrame | pd.DataFrame] = None
 
     def fetch_data(
         self,
@@ -74,7 +74,7 @@ class PandasReporter(Reporter):
             # store BeliefsDataFrame as local variable
             self.data[name] = bdf
 
-    def _compute_report(self, **kwargs) -> List[Dict[str, Any]]:
+    def _compute_report(self, **kwargs) -> list[dict[str, Any]]:
         """
         This method applies the transformations and outputs the dataframe
         defined in `final_df_output` field of the report_config.
@@ -87,7 +87,7 @@ class PandasReporter(Reporter):
 
         resolution: timedelta | None = kwargs.get("resolution", None)
         belief_time: datetime | None = kwargs.get("belief_time", None)
-        output: List[Dict[str, Any]] = kwargs.get("output")
+        output: list[dict[str, Any]] = kwargs.get("output")
 
         # by default, use the minimum resolution among the output sensors
         if resolution is None:

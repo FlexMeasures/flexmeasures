@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Optional, Type, List, Dict, Any, Union
+from typing import Any, Dict, List, Union
 
 import pandas as pd
 from flask import current_app
@@ -12,9 +12,7 @@ from flexmeasures.utils.coding_utils import deprecated
 from .exceptions import WrongEntityException
 
 
-SchedulerOutputType = Union[pd.Series, List[Dict[str, Any]], None]
-
-
+# Use | instead of Union, list instead of List and dict instead of Dict when FM stops supporting Python 3.9 (because of https://github.com/python/cpython/issues/86399)
 SchedulerOutputType = Union[pd.Series, List[Dict[str, Any]], None]
 
 
@@ -39,8 +37,8 @@ class Scheduler:
     __version__ = None
     __author__ = None
 
-    sensor: Optional[Sensor] = None
-    asset: Optional[Asset] = None
+    sensor: Sensor | None = None
+    asset: Asset | None = None
 
     start: datetime
     end: datetime
@@ -49,8 +47,8 @@ class Scheduler:
 
     round_to_decimals: int
 
-    flex_model: Optional[dict] = None
-    flex_context: Optional[dict] = None
+    flex_model: dict | None = None
+    flex_context: dict | None = None
 
     fallback_scheduler_class: "Type[Scheduler] | None" = None
     info: dict | None = None
@@ -65,15 +63,15 @@ class Scheduler:
 
     def __init__(
         self,
-        sensor: Optional[Sensor] = None,  # deprecated
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
-        resolution: Optional[timedelta] = None,
-        belief_time: Optional[datetime] = None,
+        sensor: Sensor | None = None,  # deprecated
+        start: datetime | None = None,
+        end: datetime | None = None,
+        resolution: timedelta | None = None,
+        belief_time: datetime | None = None,
         asset_or_sensor: Asset | Sensor | None = None,
-        round_to_decimals: Optional[int] = 6,
-        flex_model: Optional[dict] = None,
-        flex_context: Optional[dict] = None,
+        round_to_decimals: int | None = 6,
+        flex_model: dict | None = None,
+        flex_context: dict | None = None,
         return_multiple: bool = False,
     ):
         """
@@ -128,7 +126,7 @@ class Scheduler:
 
         self.return_multiple = return_multiple
 
-    def compute_schedule(self) -> Optional[pd.Series]:
+    def compute_schedule(self) -> pd.Series | None:
         """
         Overwrite with the actual computation of your schedule.
 

@@ -4,7 +4,6 @@ Tooling & docs for implementing our auth policy
 
 from __future__ import annotations
 
-# Use | instead of Union, list instead of List and tuple instead of Tuple when FM stops supporting Python 3.9 (because of https://github.com/python/cpython/issues/86399)
 from typing import List, Tuple, Union
 
 from flask import current_app
@@ -20,6 +19,7 @@ ADMIN_READER_ROLE = "admin-reader"
 # constants to allow access to certain groups
 EVERY_LOGGED_IN_USER = "every-logged-in-user"
 
+# Use | instead of Union, list instead of List and tuple instead of Tuple when FM stops supporting Python 3.9 (because of https://github.com/python/cpython/issues/86399)
 PRINCIPALS_TYPE = Union[str, Tuple[str], List[Union[str, Tuple[str]]]]
 
 

@@ -1,7 +1,8 @@
 """
 Populate the database with data we know or read in.
 """
-from typing import List, Optional, Dict
+from __future__ import annotations
+
 from pathlib import Path
 from shutil import rmtree
 from datetime import datetime, timedelta
@@ -52,7 +53,7 @@ def add_default_data_sources(db: SQLAlchemy):
             db.session.add(DataSource(name=source_name, type=source_type))
 
 
-def add_default_asset_types(db: SQLAlchemy) -> Dict[str, GenericAssetType]:
+def add_default_asset_types(db: SQLAlchemy) -> dict[str, GenericAssetType]:
     """
     Add a few useful asset types.
     """
@@ -185,11 +186,11 @@ def populate_initial_structure(db: SQLAlchemy):
 @as_transaction  # noqa: C901
 def populate_time_series_forecasts(  # noqa: C901
     db: SQLAlchemy,
-    sensor_ids: List[int],
-    horizons: List[timedelta],
+    sensor_ids: list[int],
+    horizons: list[timedelta],
     forecast_start: datetime,
     forecast_end: datetime,
-    event_resolution: Optional[timedelta] = None,
+    event_resolution: timedelta | None = None,
 ):
     training_and_testing_period = timedelta(days=30)
 
@@ -310,7 +311,7 @@ def depopulate_structure(db: SQLAlchemy):
 @as_transaction
 def depopulate_measurements(
     db: SQLAlchemy,
-    sensor_id: Optional[id] = None,
+    sensor_id: id | None = None,
 ):
     click.echo("Deleting (time series) data from the database %s ..." % db.engine)
 
@@ -325,7 +326,7 @@ def depopulate_measurements(
 @as_transaction
 def depopulate_prognoses(
     db: SQLAlchemy,
-    sensor_id: Optional[id] = None,
+    sensor_id: id | None = None,
 ):
     """
     Delete all prognosis data (with an horizon > 0).
@@ -456,7 +457,7 @@ def load_tables(
         )
 
 
-def get_affected_classes(structure: bool = True, data: bool = False) -> List:
+def get_affected_classes(structure: bool = True, data: bool = False) -> list:
     affected_classes = []
     if structure:
         affected_classes += [
