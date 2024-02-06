@@ -5,7 +5,7 @@ CLI commands for populating the database
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Type, List
+from typing import Type
 import isodate
 import json
 import yaml
@@ -104,7 +104,7 @@ def fm_add_data():
     help="What kind of data generators to consider in the creation of the basic DataSources. Defaults to `reporter`.",
 )
 @with_appcontext
-def add_sources(kind: List[str]):
+def add_sources(kind: list[str]):
     """Create data sources for the data generators found registered in the
     application and the plugins. Currently, this command only registers the
     sources for the Reporters.
@@ -1488,7 +1488,7 @@ def add_schedule_process(
     process_duration: timedelta,
     process_type: str,
     process_power: ur.Quantity,
-    forbid: List | None = None,
+    forbid: list | None = None,
     as_job: bool = False,
 ):
     """Create a new schedule for a process asset.
