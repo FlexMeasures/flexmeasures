@@ -237,6 +237,16 @@ class StorageFlexModelSchema(Schema):
                 f"Target datetime exceeds {max_server_datetime}. Maximum scheduling horizon is {max_server_horizon}."
             )
 
+    @validates("storage_efficiency")
+    def validate_storage_efficiency_resolution(self, unit: Sensor | ur.Quantity):
+        if (
+            isinstance(unit, Sensor)
+            and unit.event_resolution != self.sensor.event_resolution
+        ):
+            raise ValidationError(
+                "Event resolution of the storage efficiency and the power sensor don't match. Resampling the storage efficiency is not supported."
+            )
+
     @validates_schema
     def check_redundant_efficiencies(self, data: dict, **kwargs):
         """
