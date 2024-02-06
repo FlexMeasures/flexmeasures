@@ -12,7 +12,7 @@ from flexmeasures.utils.coding_utils import deprecated
 from .exceptions import WrongEntityException
 
 
-# Use | instead of Union, list instead of List and dict instead of Dict when FM stops supporting Python 3.9 (because of https://github.com/python/cpython/issues/86399)
+# todo: Use | instead of Union, list instead of List and dict instead of Dict when FM stops supporting Python 3.9 (because of https://github.com/python/cpython/issues/86399)
 SchedulerOutputType = Union[pd.Series, List[Dict[str, Any]], None]
 
 
