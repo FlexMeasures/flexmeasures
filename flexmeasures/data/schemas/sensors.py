@@ -3,6 +3,7 @@ from marshmallow import Schema, fields, validates, ValidationError
 from pint import DimensionalityError
 
 import json
+import re
 
 from flexmeasures.data import ma, db
 from flexmeasures.data.models.generic_assets import GenericAsset
@@ -94,9 +95,17 @@ class SensorIdField(MarshmallowClickMixin, fields.Int):
 
 
 class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
-    def __init__(self, to_unit: str, *args, **kwargs):
+    def __init__(
+        self, to_unit: str, default_src_unit: str | None = None, *args, **kwargs
+    ):
+        """
+        :param to_unit: unit in which the sensor or quantity should be convertible to
+        :param default_src_unit: what unit to use in case of getting a numeric value
+        """
+
         super().__init__(*args, **kwargs)
         self.to_unit = ur.Quantity(to_unit)
+        self.default_src_unit = default_src_unit
 
     @with_appcontext_if_needed()
     def _deserialize(
@@ -132,6 +141,12 @@ class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
                     f"Cannot convert value `{value}` to '{self.to_unit}'"
                 ) from e
         else:
+
+            if self.default_src_unit is not None:
+                return self._deserialize(
+                    f"{value} {self.default_src_unit}", attr, obj, **kwargs
+                )
+
             raise FMValidationError(
                 f"Unsupported value type. `{type(value)}` was provided but only dict and str are supported."
             )
@@ -147,3 +162,17 @@ class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
             raise FMValidationError(
                 "Serialized Quantity Or Sensor needs to be of type int, float or Sensor"
             )
+
+    def convert(self, value, param, ctx, **kwargs):
+        # case that the click default is defined in numeric values
+        if not isinstance(value, str):
+            return super().convert(value, param, ctx, **kwargs)
+
+        _value = re.match(r"sensor:(\d+)", value)
+
+        if _value is not None:
+            _value = {"sensor": int(_value.groups()[0])}
+        else:
+            _value = value
+
+        return super().convert(_value, param, ctx, **kwargs)

@@ -62,6 +62,7 @@ from flexmeasures.data.schemas import (
     LongitudeField,
     SensorIdField,
     TimeIntervalField,
+    QuantityOrSensor,
 )
 from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.schemas.times import TimeIntervalSchema
@@ -1185,13 +1186,83 @@ def create_schedule(ctx):
     help="Round-trip efficiency (e.g. 85% or 0.85) to use for the schedule. Defaults to 100% (no losses).",
 )
 @click.option(
+    "--charging-efficiency",
+    "charging_efficiency",
+    type=QuantityOrSensor("%"),
+    required=False,
+    default=None,
+    help="Storage charging efficiency to use for the schedule."
+    "Provide a quantity with units (e.g. 94%) or a sensor storing the value with the syntax sensor:<id> (e.g. sensor:20)."
+    "Defaults to 100% (no losses).",
+)
+@click.option(
+    "--discharging-efficiency",
+    "discharging_efficiency",
+    type=QuantityOrSensor("%"),
+    required=False,
+    default=None,
+    help="Storage discharging efficiency to use for the schedule."
+    "Provide a quantity with units (e.g. 94%) or a sensor storing the value with the syntax sensor:<id> (e.g. sensor:20)."
+    "Defaults to 100% (no losses).",
+)
+@click.option(
+    "--soc-gain",
+    "soc_gain",
+    type=QuantityOrSensor("MW"),
+    required=False,
+    default=None,
+    help="Specify the State of Charge (SoC) gain as a quantity in power units (e.g. 1 MW or 1000 kW)"
+    "or reference a sensor by using 'sensor:<id>' (e.g. sensor:34)."
+    "This represents the rate at which storage is charged from a different source.",
+)
+@click.option(
+    "--soc-usage",
+    "soc_usage",
+    type=QuantityOrSensor("MW"),
+    required=False,
+    default=None,
+    help="Specify the State of Charge (SoC) usage as a quantity in power units (e.g. 1 MW or 1000 kW) "
+    "or reference a sensor by using 'sensor:<id>' (e.g. sensor:34)."
+    "This represents the rate at which the storage is discharged from a different source.",
+)
+@click.option(
+    "--storage-power-capacity",
+    "storage_power_capacity",
+    type=QuantityField("MW"),
+    required=False,
+    default=None,
+    help="Storage consumption/production power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)."
+    "It defines both-ways maximum power capacity.",
+)
+@click.option(
+    "--storage-consumption-capacity",
+    "storage_consumption_capacity",
+    type=QuantityOrSensor("MW"),
+    required=False,
+    default=None,
+    help="Storage consumption power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
+    "or reference a sensor using 'sensor:<id>' (e.g. sensor:34)."
+    "It defines the storage maximum consumption (charging) capacity.",
+)
+@click.option(
+    "--storage-production-capacity",
+    "storage_production_capacity",
+    type=QuantityOrSensor("MW"),
+    required=False,
+    default=None,
+    help="Storage production power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
+    "or reference a sensor using 'sensor:<id>' (e.g. sensor:34)."
+    "It defines the storage maximum production (discharging) capacity.",
+)
+@click.option(
     "--storage-efficiency",
     "storage_efficiency",
-    type=EfficiencyField(),
+    type=QuantityOrSensor("%", default_src_unit="dimensionless"),
     required=False,
-    default=1,
+    default="100%",
     help="Storage efficiency (e.g. 95% or 0.95) to use for the schedule,"
     " applied over each time step equal to the sensor resolution."
+    "This parameter also supports using a reference sensor as 'sensor:<id>' (e.g. sensor:34)."
     " For example, a storage efficiency of 99 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of 0.99**(1/24)."
     " Defaults to 100% (no losses).",
 )
@@ -1201,7 +1272,7 @@ def create_schedule(ctx):
     help="Whether to queue a scheduling job instead of computing directly. "
     "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'scheduling' queue. Defaults to False.",
 )
-def add_schedule_for_storage(
+def add_schedule_for_storage(  # noqa C901
     power_sensor: Sensor,
     consumption_price_sensor: Sensor,
     production_price_sensor: Sensor,
@@ -1210,11 +1281,18 @@ def add_schedule_for_storage(
     start: datetime,
     duration: timedelta,
     soc_at_start: ur.Quantity,
+    charging_efficiency: ur.Quantity | Sensor | None,
+    discharging_efficiency: ur.Quantity | Sensor | None,
+    soc_gain: ur.Quantity | Sensor | None,
+    soc_usage: ur.Quantity | Sensor | None,
+    storage_power_capacity: ur.Quantity | Sensor | None,
+    storage_consumption_capacity: ur.Quantity | Sensor | None,
+    storage_production_capacity: ur.Quantity | Sensor | None,
     soc_target_strings: list[tuple[ur.Quantity, str]],
     soc_min: ur.Quantity | None = None,
     soc_max: ur.Quantity | None = None,
     roundtrip_efficiency: ur.Quantity | None = None,
-    storage_efficiency: ur.Quantity | None = None,
+    storage_efficiency: ur.Quantity | Sensor | None = None,
     as_job: bool = False,
 ):
     """Create a new schedule for a storage asset.
@@ -1272,8 +1350,6 @@ def add_schedule_for_storage(
         soc_max = convert_units(soc_max.magnitude, str(soc_max.units), "MWh", capacity=capacity_str)  # type: ignore
     if roundtrip_efficiency is not None:
         roundtrip_efficiency = roundtrip_efficiency.magnitude / 100.0
-    if storage_efficiency is not None:
-        storage_efficiency = storage_efficiency.magnitude / 100.0
 
     scheduling_kwargs = dict(
         start=start,
@@ -1287,7 +1363,6 @@ def add_schedule_for_storage(
             "soc-max": soc_max,
             "soc-unit": "MWh",
             "roundtrip-efficiency": roundtrip_efficiency,
-            "storage-efficiency": storage_efficiency,
         },
         flex_context={
             "consumption-price-sensor": consumption_price_sensor.id,
@@ -1295,6 +1370,29 @@ def add_schedule_for_storage(
             "inflexible-device-sensors": [s.id for s in inflexible_device_sensors],
         },
     )
+
+    quantity_or_sensor_vars = {
+        "charging-efficiency": charging_efficiency,
+        "discharging-efficiency": discharging_efficiency,
+        "storage-efficiency": storage_efficiency,
+        "soc-gain": soc_gain,
+        "soc-usage": soc_usage,
+        "power-capacity": storage_power_capacity,
+        "consumption-capacity": storage_consumption_capacity,
+        "production-capacity": storage_production_capacity,
+    }
+
+    for field_name, value in quantity_or_sensor_vars.items():
+        if value is not None:
+            if "efficiency" in field_name:
+                unit = "%"
+            else:
+                unit = "MW"
+
+            scheduling_kwargs["flex_model"][field_name] = QuantityOrSensor(
+                unit
+            )._serialize(value, None, None)
+
     if as_job:
         job = create_scheduling_job(asset_or_sensor=power_sensor, **scheduling_kwargs)
         if job:
