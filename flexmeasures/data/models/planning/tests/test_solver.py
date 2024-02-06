@@ -1635,3 +1635,114 @@ def test_battery_stock_delta_quantity(add_battery_assets, gain, usage, expected_
         assert all(scheduler_info[5][0]["stock delta"] == expected_delta)
     else:
         assert all(scheduler_info[5][0]["stock delta"].isna())
+
+
+@pytest.mark.parametrize(
+    "efficiency,expected_efficiency",
+    [
+        ("100%", 1),
+        (
+            "110%",
+            1,
+        ),  # value exceeding the upper bound (100%). It clips the values above 100%.
+        (
+            "90%",
+            0.9,
+        ),  # percentage unit to dimensionless units within the [0,1] interval
+        (0.9, 0.9),  # numeric values are interpreted as dimensionless
+        (
+            None,
+            None,
+        ),  # if the `storage-efficiency` is not defined, the constraint dataframe
+        # uses NaN.
+    ],
+)
+def test_battery_efficiency_quantity(
+    add_battery_assets, efficiency, expected_efficiency
+):
+    """
+    Test to ensure correct handling of storage efficiency quantities in the StorageScheduler.
+
+    The test covers the handling of percentage values, dimensionless numeric values, and the
+    case where the efficiency is not defined.
+    """
+
+    _, battery = get_sensors_from_db(add_battery_assets)
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+    flex_model = {
+        "soc-max": 2,
+        "soc-min": 0,
+        "roundtrip-efficiency": 1,
+    }
+
+    if efficiency is not None:
+        flex_model["storage-efficiency"] = efficiency
+
+    scheduler: Scheduler = StorageScheduler(
+        battery, start, end, resolution, flex_model=flex_model
+    )
+    scheduler_info = scheduler._prepare()
+
+    if efficiency is not None:
+        assert all(scheduler_info[5][0]["efficiency"] == expected_efficiency)
+    else:
+        assert all(scheduler_info[5][0]["efficiency"].isna())
+
+
+@pytest.mark.parametrize(
+    "efficiency_sensor_name, expected_efficiency",
+    [
+        ("storage efficiency 90%", 0.9),  # regular value
+        ("storage efficiency 110%", 1),  # clip values that exceed 100%
+        ("storage efficiency negative", 0),  # clip negative values
+        pytest.param(
+            "storage efficiency hourly",
+            0.974003,
+            marks=pytest.mark.xfail(
+                reason="resampling storage efficiency is not supported"
+            ),
+        ),  # this one fails.
+        # We should resample making sure that the efficiencies are equivalent.
+        # For example, 90% defined in 1h is equivalent to 97% in a 15min period (0.97^4≈0.9).
+        # Plans to support resampling efficiencies can be found here https://github.com/FlexMeasures/flexmeasures/issues/720
+    ],
+)
+def test_battery_storage_efficiency_sensor(
+    add_battery_assets,
+    add_storage_efficiency,
+    efficiency_sensor_name,
+    expected_efficiency,
+):
+    """
+    Test the handling of different storage efficiency sensors in the StorageScheduler.
+
+    It checks if the scheduler correctly handles regular values, values exceeding 100%, negative values,
+    and values with different resolutions compared to the scheduling resolution.
+    """
+    _, battery = get_sensors_from_db(add_battery_assets)
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+    storage_efficiency_sensor_obj = add_storage_efficiency[efficiency_sensor_name]
+
+    scheduler: Scheduler = StorageScheduler(
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model={
+            "soc-max": 2,
+            "soc-min": 0,
+            "roundtrip-efficiency": 1,
+            "storage-efficiency": {"sensor": storage_efficiency_sensor_obj.id},
+            "production-capacity": "0kW",
+            "soc-at-start": 0,
+        },
+    )
+
+    scheduler_info = scheduler._prepare()
+    assert all(scheduler_info[5][0]["efficiency"] == expected_efficiency)
