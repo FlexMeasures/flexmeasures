@@ -1,4 +1,5 @@
-from typing import List, Union, Optional, Dict
+from __future__ import annotations
+
 from itertools import groupby
 from flask_login import current_user
 
@@ -14,9 +15,9 @@ from flexmeasures.utils.flexmeasures_inflection import pluralize
 
 
 def query_assets_by_type(
-    type_names: Union[List[str], str],
-    account_id: Optional[int] = None,
-    query: Optional[Query] = None,
+    type_names: list[str] | str,
+    account_id: int | None = None,
+    query: Query | None = None,
 ) -> Query:
     """
     Return a query which looks for GenericAssets by their type.
@@ -39,7 +40,7 @@ def query_assets_by_type(
 
 
 def get_location_queries(
-    account_id: Optional[int] = None,
+    account_id: int | None = None,
 ) -> dict[str, Select[tuple[GenericAsset]]]:
     """
     Make queries for grouping assets by location.
@@ -86,8 +87,8 @@ def get_location_queries(
 
 
 def group_assets_by_location(
-    asset_list: List[GenericAsset],
-) -> List[List[GenericAsset]]:
+    asset_list: list[GenericAsset],
+) -> list[list[GenericAsset]]:
     groups = []
 
     def key_function(x):
@@ -103,8 +104,8 @@ def get_asset_group_queries(
     group_by_type: bool = True,
     group_by_account: bool = False,
     group_by_location: bool = False,
-    custom_aggregate_type_groups: Optional[Dict[str, List[str]]] = None,
-) -> Dict[str, Query]:
+    custom_aggregate_type_groups: dict[str, list[str]] | None = None,
+) -> dict[str, Query]:
     """
     An asset group is defined by Asset queries, which this function can generate.
     Each query has a name (for the asset group it represents).
