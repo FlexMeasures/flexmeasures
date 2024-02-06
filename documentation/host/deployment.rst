@@ -29,7 +29,7 @@ Often, that requires a WSGI script. Below is a minimal example.
    from flexmeasures.app import create as create_app
    application = create_app()
 
-The web server is told about the WSGI script, but also about the object which represents the application.
+The web server is told about the WSGI script, but also about the object that represents the application.
 For instance, if this script is called wsgi.py, then the relevant argument to the gunicorn server is `wsgi:application`.
 
 A more nuanced one from our practice is this:

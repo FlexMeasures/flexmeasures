@@ -3,7 +3,7 @@ Welcome to the FlexMeasures documentation!
 
 FlexMeasures is the intelligent & developer-friendly EMS to support real-time energy flexibility apps, rapidly and scalable.
 
-The problem it helps you to solve is: **What are the best times to run flexible assets, like batteries or heat pumps?**
+The problem it helps you to solve is: **What are the best times to run flexible assets, such as batteries or heat pumps?**
 
 In a nutshell, FlexMeasures turns data into optimized schedules for flexible assets.
 *Why?* Planning ahead allows flexible assets to serve the whole system with their flexibility, e.g. by shifting energy consumption to more optimal times. For the asset owners, this creates CO₂ savings but also monetary value (e.g. through self-consumption, dynamic tariffs and grid incentives).
@@ -13,7 +13,9 @@ In a nutshell, FlexMeasures turns data into optimized schedules for flexible ass
     :align: center
 ..    :scale: 40%
 
-FlexMeasures is written in Python, and runs on Flask and Postgres. We aim to create developer-friendly technology which saves time in developing complex services. Read more on this in :ref:`dev_why`. 
+FlexMeasures is written in Python, and runs on Flask and Postgres.
+We aim to create developer-friendly technology that saves time in developing complex services.
+Read more on this in :ref:`dev_why`.
 
 FlexMeasures proudly is an incubation project at `the Linux Energy Foundation <https://www.lfenergy.org/>`_.
 
@@ -25,7 +27,7 @@ A quick glance
 
     .. tab:: Schedules
 
-        The main purpose of FlexMeasures is to create optimized schedules. Let's have a quick glance how that looks like in the UI:
+        The main purpose of FlexMeasures is to create optimized schedules. Let's have a quick glance at what that looks like in the UI:
 
         .. tabs::
 
@@ -43,7 +45,7 @@ A quick glance
                     :align: center
                 ..    :scale: 40%
 
-        A short explanation: This battery is optimized to buy power cheaply and sell it at expensive times - the red-dotted line is what FlexMeasures computed to be the best schedule, given all knowledge (in this case, the prices shown in blue). However, in the example on the right the battery has to store local solar power as well (orange line), which contrains how much it can do with its capacity (that's why the schedule is limited in capacity and thus cycling less energy overall than on the left).
+        A short explanation: This battery is optimized to buy power cheaply and sell it at expensive times - the red-dotted line is what FlexMeasures computed to be the best schedule, given all knowledge (in this case, the prices shown in blue). However, in the example on the right the battery has to store local solar power as well (orange line), which constrains how much it can do with its capacity (that's why the schedule is limited in capacity and thus cycling less energy overall than on the left).
 
     .. tab:: Example code
 
@@ -81,7 +83,7 @@ What FlexMeasures does
     - Forecasting
         Optimizing the future (by scheduling) requires some predictions.  or consumption. Several predictions can be gotten from third parties (e.g. weather conditions, for which we wrote `a plugin <https://github.com/SeitaBV/flexmeasures-openweathermap>`_), others need to be done manually. FlexMeasures provides some support for this (read more at :ref:`tut_forecasting_scheduling`), but you can also create predictions with one of the many excellent tools out there and feed them into FlexMeasures.
     - Monitoring
-        As FlexMeasures is a real-time platform, processing data and computing new schedules continuously, hosting it requires to be notified when things go wrong. There is in-built :ref:`host_error_monitoring` for tracking connection problems and tasks which did not finish correctly. Also, you can connect to Sentry. We have `further plans to monitor data quality <https://github.com/FlexMeasures/flexmeasures/projects/12>`_.  
+        As FlexMeasures is a real-time platform, processing data and computing new schedules continuously, hosting it requires to be notified when things go wrong. There is in-built :ref:`host_error_monitoring` for tracking connection problems and tasks that did not finish correctly. Also, you can connect to Sentry. We have `further plans to monitor data quality <https://github.com/FlexMeasures/flexmeasures/projects/12>`_.
 
   .. tab:: Interfacing with FlexMeasures
 

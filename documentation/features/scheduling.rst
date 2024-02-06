@@ -32,7 +32,7 @@ Let's dive into the details ― what can you tell FlexMeasures about your optimi
 The flex-context
 -----------------
 
-The ``flex-context`` is independent of the type of flexible device which is optimized.
+The ``flex-context`` is independent of the type of flexible device that is optimized.
 With the flexibility context, we aim to describe the system in which the flexible assets operate:
 
 
@@ -48,10 +48,10 @@ With the flexibility context, we aim to describe the system in which the flexibl
      - Power sensors that are relevant, but not flexible, such as a sensor recording rooftop solar power connected behind the main meter, whose production falls under the same contract as the flexible device(s) being scheduled.
    * - ``consumption-price-sensor``
      - ``5``
-     - The sensor which defines the price of consuming energy. This sensor can be recording market prices, but also CO2 - whatever fits your optimization problem. 
+     - The sensor that defines the price of consuming energy. This sensor can be recording market prices, but also CO₂ - whatever fits your optimization problem.
    * - ``production-price-sensor``
      - ``6``
-     - The sensor which defines the price of producing energy.
+     - The sensor that defines the price of producing energy.
    * - ``site-power-capacity``
      - ``"45kW"``
      - Maximum/minimum achievable power at the grid connection point [#asymmetric]_. Defaults to the Asset attribute ``capacity_in_mw``
@@ -84,7 +84,7 @@ You can do a lot with this ― examples for storage devices are:
 - hot water storage ("heat batteries", where the SoC relates to the water temperature)
 - pumped hydro storage (SoC is the water level)
 - water basins (here, SoC is supposed to be low, as water is being pumped out)
-- buffers of energy-intensive chemicals which are needed in other industry processes
+- buffers of energy-intensive chemicals that are needed in other industry processes
 
 
 The ``flex-model`` for storage describes to the scheduler what the flexible asset's state is,
@@ -102,7 +102,7 @@ and what constraints or preferences should be taken into account.
      - The (estimated) state of charge at the beginning of the schedule (defaults to 0).
    * - ``soc-unit``
      - ``"kWh"`` or ``"MWh"``
-     - The unit which all SoC related flex-model values are to be interpreted as.
+     - The unit in which all SoC related flex-model values are to be interpreted.
    * - ``soc-min``
      - ``"2.5"``
      - A constant lower boundary for all values in the schedule (defaults to 0).
@@ -117,7 +117,7 @@ and what constraints or preferences should be taken into account.
      - Set point(s) that form upper boundaries at certain times. Can be single values or a range (defaults to NaN values).
    * - ``soc-targets``
      - ``[{"datetime": "2024-02-05T08:00:00+01:00", value: 3.2}]``
-     - Exact set point(s) which the scheduler needs to realize (defaults to NaN values).
+     - Exact set point(s) that the scheduler needs to realize (defaults to NaN values).
    * - ``soc-gain``
      - ``.1kWh`` 
      - Encode SoC gain per time step. A constant gain every time step, or see [#sensor_field]_.
@@ -149,7 +149,7 @@ and what constraints or preferences should be taken into account.
      - ``0kW`` (only consumption)
      - Device-level power constraint on production. How much power can be supplied by this asset. A constant limit, or see [#sensor_field]_.
 
-.. [#sensor_field] For some fields, it is possible to supply a sensor instead of one fixed value (``{"sensor": 51}``), which allows for more dynamic contexts, for instance power limits which change over time.
+.. [#sensor_field] For some fields, it is possible to supply a sensor instead of one fixed value (``{"sensor": 51}``), which allows for more dynamic contexts, for instance power limits that change over time.
 
 .. [#storage_efficiency] The storage efficiency (e.g. 95% or 0.95) to use for the schedule is applied over each time step equal to the sensor resolution. For example, a storage efficiency of 95 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of :math:`0.95^{1/24} = 0.997865`.
 
@@ -157,7 +157,7 @@ Usually, not the whole flexibility model is needed. FlexMeasures can infer missi
 
 You can add new storage schedules with the CLI command ``flexmeasures add schedule for-storage``.
 
-If you model devices which *buffer* energy (e.g. thermal energy storage systems connected to heat pumps), we can use the same flexibility parameters described above for storage devices.
+If you model devices that *buffer* energy (e.g. thermal energy storage systems connected to heat pumps), we can use the same flexibility parameters described above for storage devices.
 However, here are some tips to model a buffer correctly:
 
    - Describe the thermal energy content in kWh or MWh.
@@ -181,7 +181,7 @@ You can also review the current flex-model for storage in the code, at ``flexmea
 Shiftable loads (processes)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-For *processes*, which can be shifted or interrupted, but have to happen at a constant rate (of consumption), FlexMeasures provides the ``ShiftabeLoad`` scheduler.
+For *processes* that can be shifted or interrupted, but have to happen at a constant rate (of consumption), FlexMeasures provides the ``ShiftableLoad`` scheduler.
 Some examples from practice (usually industry) could be:
 
 - A centrifuge's daily work of combing through sludge water. Depends on amount of sludge present.
@@ -223,5 +223,5 @@ We believe the two schedulers (and their flex-models) we describe here are cover
 Here are some thoughts on further innovation:
 
 - Writing your own scheduler. You can always write your own scheduler(see :ref:`plugin_customization`). You then might want to add your own flex model, as well. FlexMeasures will let the scheduler decide which flexibility model is relevant and how it should be validated. 
-- We also aim to model situations with more than one flexible asset, and which have different types of flexibility (e.g. EV charging and smart heating in the same site). This is ongoing architecture design work, and therefore happens in development settings, until we are happy with the outcomes. Thoughts welcome :) 
+- We also aim to model situations with more than one flexible asset, and that have different types of flexibility (e.g. EV charging and smart heating in the same site). This is ongoing architecture design work, and therefore happens in development settings, until we are happy with the outcomes. Thoughts welcome :)
 - Aggregating flexibility of a group of assets (e.g. a neighborhood) and optimizing its aggregated usage (e.g. for grid congestion support) is also an exciting direction for expansion.

@@ -7,8 +7,8 @@ FlexMeasures feeds upon raw measurement data (e.g. solar generation) and data fr
 
 However, there are use cases for enriching these raw data by combining them:
 
-- Pre-calculations: E.g. from a tariff and some tax rules we compute the real financial impact of price data.
-- Post-calculations: To be able to show the customer value, we regularly want to compute things like money or CO2 saved.
+- Pre-calculations: For example, from a tariff and some tax rules we compute the real financial impact of price data.
+- Post-calculations: To be able to show the customer value, we regularly want to compute things like money or CO₂ saved.
 
 These calculations can be done with code, but there'll be many repetitions. 
 
@@ -29,7 +29,7 @@ Example: solar feed-in / self-consumption delta
 
 So here is a glimpse into a reporter we made - it is based on the ``AggregatorReporter`` (which is for the combination of any two sensors).
 This simplified example reporter basically calculates ``pv - consumption`` at grid connection point.
-This tells us how much solar power we fed back to the grid (positive values) and/or the amount of grid power within the overall consumption which did not come from local solar panels (negative values).
+This tells us how much solar power we fed back to the grid (positive values) and/or the amount of grid power within the overall consumption that did not come from local solar panels (negative values).
 
 .. code-block:: json
 

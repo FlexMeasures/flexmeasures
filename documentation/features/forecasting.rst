@@ -41,7 +41,7 @@ Here are more details:
 A use case: automating solar production prediction
 -----------------------------------------------------
 
-We'll consider an example which FlexMeasures supports ― forecasting an asset that represents solar panels.
+We'll consider an example that FlexMeasures supports ― forecasting an asset that represents solar panels.
 Here is how you can ask for forecasts to be made in the CLI:
 
 .. code-block:: bash
@@ -50,7 +50,7 @@ Here is how you can ask for forecasts to be made in the CLI:
 
 Sensor 12 would represent the power readings of your solar power, and here you ask for forecasts for one day (2 February, 2024), with a forecast of 6 hours.
 
-The ``--as-job`` parameter is optional, if given the computation becomes a job which a worker needs to pick up. There is some more information at :ref:`how_queue_forecasting`.
+The ``--as-job`` parameter is optional. If given, the computation becomes a job which a worker needs to pick up. There is some more information at :ref:`how_queue_forecasting`.
 
 
 Rolling vs fixed-point
