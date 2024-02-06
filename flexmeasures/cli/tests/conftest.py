@@ -134,3 +134,78 @@ def process_power_sensor(
     db.session.commit()
 
     yield power_sensor.id
+
+
+@pytest.mark.skip_github
+@pytest.fixture(scope="function")
+def storage_schedule_sensors(
+    fresh_db,
+    app,
+):
+    """
+    Fixture to set up sensors for storage schedule testing, including power limit and efficiency sensors.
+    """
+
+    start = datetime(2014, 12, 31, 23, 0, 0, tzinfo=utc)
+
+    db = fresh_db
+
+    data_storage_type = GenericAssetType(name="data storage")
+
+    db.session.add(data_storage_type)
+
+    data_storage = GenericAsset(
+        name="Data Storage", generic_asset_type=data_storage_type
+    )
+
+    db.session.add(data_storage)
+
+    beliefs = []
+    # generic power sensor to store power limit
+    power_capacity = Sensor(
+        "power",
+        generic_asset=data_storage,
+        event_resolution=timedelta(hours=1),
+        unit="MW",
+    )
+    db.session.add(power_capacity)
+
+    source = DataSource("source1")
+
+    for h in range(24):
+        beliefs.append(
+            TimedBelief(
+                event_start=start + timedelta(hours=h),
+                belief_time=start,
+                event_value=0.6,
+                sensor=power_capacity,
+                source=source,
+            )
+        )
+
+    # efficiency sensor
+    storage_efficiency = Sensor(
+        "storage_efficiency",
+        generic_asset=data_storage,
+        event_resolution=timedelta(hours=1),
+        unit="%",
+    )
+    db.session.add(storage_efficiency)
+
+    for h in range(24):
+        beliefs.append(
+            TimedBelief(
+                event_start=start + timedelta(hours=h),
+                belief_time=start,
+                event_value=90,
+                sensor=storage_efficiency,
+                source=source,
+            )
+        )
+
+    db.session.add_all(beliefs)
+    db.session.commit()
+
+    db.session.commit()
+
+    yield power_capacity.id, storage_efficiency.id
