@@ -1,4 +1,6 @@
-from typing import List, Optional, Type, Tuple, Union
+from __future__ import annotations
+
+from typing import Type
 from datetime import datetime, timedelta
 
 from flask_security import current_user
@@ -23,9 +25,9 @@ def create_beliefs_query(
     cls: "Type[ts.TimedValue]",
     session: Session,
     old_sensor_class: db.Model,
-    old_sensor_names: Tuple[str],
-    start: Optional[datetime],
-    end: Optional[datetime],
+    old_sensor_names: tuple[str],
+    start: datetime | None,
+    end: datetime | None,
 ) -> Select:
     query = (
         select(old_sensor_class.name, cls.datetime, cls.value, cls.horizon, DataSource)
@@ -43,7 +45,7 @@ def create_beliefs_query(
 
 def potentially_limit_assets_query_to_account(
     query: Select[tuple[GenericAsset]],
-    account_id: Optional[int] = None,
+    account_id: int | None = None,
 ) -> Select[tuple[GenericAsset]]:
     """Filter out all assets that are not in the current user's account.
     For admins and CLI users, no assets are filtered out, unless an account_id is set.
@@ -75,12 +77,12 @@ def potentially_limit_assets_query_to_account(
 
 
 def get_source_criteria(
-    cls: "Union[Type[ts.TimedValue], Type[ts.TimedBelief]]",
-    user_source_ids: Union[int, List[int]],
-    source_types: List[str],
-    exclude_source_types: List[str],
-) -> List[BinaryExpression]:
-    source_criteria: List[BinaryExpression] = []
+    cls: "Type[ts.TimedValue] | Type[ts.TimedBelief]",
+    user_source_ids: int | list[int],
+    source_types: list[str],
+    exclude_source_types: list[str],
+) -> list[BinaryExpression]:
+    source_criteria: list[BinaryExpression] = []
     if user_source_ids is not None:
         source_criteria.append(user_source_criterion(cls, user_source_ids))
     if source_types is not None:
@@ -95,8 +97,8 @@ def get_source_criteria(
 
 
 def user_source_criterion(
-    cls: "Union[Type[ts.TimedValue], Type[ts.TimedBelief]]",
-    user_source_ids: Union[int, List[int]],
+    cls: "Type[ts.TimedValue] | Type[ts.TimedBelief]",
+    user_source_ids: int | list[int],
 ) -> BinaryExpression:
     """Criterion to search only through user data from the specified user sources.
 
@@ -123,12 +125,12 @@ def user_source_criterion(
     return cls.source_id.not_in(ignorable_user_source_ids)
 
 
-def source_type_criterion(source_types: List[str]) -> BinaryExpression:
+def source_type_criterion(source_types: list[str]) -> BinaryExpression:
     """Criterion to collect only data from sources that are of the given type."""
     return DataSource.type.in_(source_types)
 
 
-def source_type_exclusion_criterion(source_types: List[str]) -> BinaryExpression:
+def source_type_exclusion_criterion(source_types: list[str]) -> BinaryExpression:
     """Criterion to exclude sources that are of the given type."""
     return DataSource.type.not_in(source_types)
 
@@ -136,9 +138,9 @@ def source_type_exclusion_criterion(source_types: List[str]) -> BinaryExpression
 def get_belief_timing_criteria(
     cls: "Type[ts.TimedValue]",
     asset_class: db.Model,
-    belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]],
-    belief_time_window: Tuple[Optional[datetime], Optional[datetime]],
-) -> List[BinaryExpression]:
+    belief_horizon_window: tuple[timedelta | None, timedelta | None],
+    belief_time_window: tuple[datetime | None, datetime | None],
+) -> list[BinaryExpression]:
     """Get filter criteria for the desired windows with relevant belief times and belief horizons.
 
     # todo: interpret belief horizons with respect to knowledge time rather than event end.
@@ -177,7 +179,7 @@ def get_belief_timing_criteria(
         belief_time_window = (None, datetime(2020, 5, 13))
 
     """
-    criteria: List[BinaryExpression] = []
+    criteria: list[BinaryExpression] = []
     earliest_belief_time, latest_belief_time = belief_time_window
     if (
         earliest_belief_time is not None
@@ -215,7 +217,7 @@ def get_belief_timing_criteria(
 
 
 def simplify_index(
-    bdf: tb.BeliefsDataFrame, index_levels_to_columns: Optional[List[str]] = None
+    bdf: tb.BeliefsDataFrame, index_levels_to_columns: list[str] | None = None
 ) -> pd.DataFrame:
     """Drops indices other than event_start.
     Optionally, salvage index levels as new columns.
@@ -246,7 +248,7 @@ def multiply_dataframe_with_deterministic_beliefs(
     df1: pd.DataFrame,
     df2: pd.DataFrame,
     multiplication_factor: float = 1,
-    result_source: Optional[str] = None,
+    result_source: str | None = None,
 ) -> pd.DataFrame:
     """
     Create new DataFrame where the event_value columns of df1 and df2 are multiplied.
