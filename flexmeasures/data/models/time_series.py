@@ -582,7 +582,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         if (
             inspection_obj and inspection_obj.detached
         ):  # fetch Sensor only when it is detached
-            sensor = db.sesson.get(Sensor, sensor.id)
+            sensor = db.session.get(Sensor, sensor.id)
 
         tb.TimedBeliefDBMixin.__init__(self, sensor, source, **kwargs)
         tb_utils.remove_class_init_kwargs(tb.TimedBeliefDBMixin, kwargs)
