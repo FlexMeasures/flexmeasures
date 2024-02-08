@@ -18,6 +18,8 @@ build:
   jobs:
     post_create_environment:
       - pip install . --no-deps  # as python install step, RTD installs deps eagerly
+    post_install:
+      - npm install -g @mermaid-js/mermaid-cli
 
 python: 
   install:
