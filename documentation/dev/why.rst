@@ -16,6 +16,7 @@ FlexMeasures is designed to make decisions based on data in an automated way. Da
 - Extensions for integrating 3rd party data, e.g. from `ENTSO-E <https://github.com/SeitaBV/flexmeasures-entsoe>`_ or `OpenWeatherMap <https://github.com/SeitaBV/flexmeasures-openweathermap>`_
 - Forecasting for the upcoming hours
 - Schedule optimization for flexible assets
+- Reporters to combine time series data and create KPIs 
 
 
 It's hard to correctly model data with different sources, resolutions, horizons and even uncertainties

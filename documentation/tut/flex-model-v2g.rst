@@ -1,7 +1,7 @@
 .. _tut_v2g:
 
-A storage flex-model tutorial: Vehicle-to-grid
------------------------------------------------
+A flex-modeling tutorial for storage: Vehicle-to-grid
+------------------------------------------------------
 
 The most powerful concept of FlexMeasures is the flex-model. We feel it is time to pay more attention to it and illustrate its effects.
 

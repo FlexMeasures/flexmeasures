@@ -82,7 +82,7 @@ HiGHS can be installed using pip:
 
    $ pip install highspy
 
-More information (e.g. for installing on Windows) on `the HiGHS website <https://highs.dev/>`_.
+More information on `the HiGHS website <https://highs.dev/>`_.
 
 Cbc needs to be present on the server where FlexMeasures runs, under the ``cbc`` command.
 
@@ -94,7 +94,7 @@ You can install it on Debian like this:
 
 (also available in different popular package managers).
 
-More information (e.g. for installing on Windows) is on `the CBC website <https://projects.coin-or.org/Cbc>`_.
+More information is on `the CBC website <https://projects.coin-or.org/Cbc>`_.
 
 If you can't use the package manager on your host, the solver has to be installed from source.
 We provide an example script in ``ci/install-cbc-from-source.sh`` to do that, where you can also

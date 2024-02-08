@@ -31,27 +31,44 @@ So here is a glimpse into a reporter we made - it is based on the ``AggregatorRe
 This simplified example reporter basically calculates ``pv - consumption`` at grid connection point.
 This tells us how much solar power we fed back to the grid (positive values) and/or the amount of grid power within the overall consumption which did not come from local solar panels (negative values).
 
-.. code-block:: json
+This is the configuration of how the computation works:
 
+.. code-block:: json
+    
     {
-        "beliefs_search_configs": [
-            {
-                "sensor": 1,
-                "source" : 1,
-                "alias" : "pv"
-            },
-            {
-                "sensor": 2,
-                "source" : 2,
-                "alias" : "consumption"
-            }
-        ],
         "method" : "sum",
         "weights" : {
             "pv" : 1.0,
             "consumption" : -1.0
         }
     }
+
+This parameterizes the computation (from which sensors does data come from, which range & where does it go):
+
+.. code-block:: json
+    
+    {
+        "input": [
+            {
+                "name" : "pv",
+                "sensor": 1,
+                "source" : 1,
+            },
+            {
+                "name" : "consumption",
+                "sensor": 1,
+                "source" : 2,
+            }
+        ],
+        "output": [
+            {
+                "sensor": 3,
+            }
+        ],
+        "start" : "2023-01-01T00:00:00+00:00",
+        "end" : "2023-01-03T00:00:00+00:00",
+    }
+
 
 
 Example: Profits & losses
@@ -61,7 +78,7 @@ A report that should cover a use case right off the shelf for almost everyone us
 Showing the results of your optimization is a crucial feature, and now easier than ever.
 
 First, reporters can be stored as data sources, so they are easy to be used repeatedly and the data they generate can reference them.
-Our data source has "ProfitOrLossReporter" as Model and these JSON info stored on its ``attribute`` define the reporter (the least a ``ProfitOrLossReporter`` needs to know is a price): 
+Our data source has ``ProfitOrLossReporter`` as model attribute and these configuration information stored on its ``attribute`` defines the reporter further (the least a ``ProfitOrLossReporter`` needs to know is a price): 
 
 .. code-block:: json
 
@@ -84,7 +101,8 @@ Here we configure the input and output:
           'output' : [{'sensor' : 9}]
       }" > profitorloss-parameters.json
 
-The input sensor stores the power/energy flow, and the output sensor will store the report.
+The input sensor stores the power/energy flow, and the output sensor will store the report. Recall that we already provided the price sensor to use in the reporter's data source.
+ 
 
 .. code-block:: bash
 
