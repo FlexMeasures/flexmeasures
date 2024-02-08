@@ -18,7 +18,7 @@ Examples of flexible processes are:
 
 
 For consumers under :abbr:`ToU (Time of Use)` tariffs, FlexMeasures `ProcessScheduler` can plan the start time of the process to minimize the overall cost of energy.
-Alternatively, it can create a consumption plan to minimize the CO2 emissions. 
+Alternatively, it can create a consumption plan to minimize the CO₂ emissions.
 
 
 In this tutorial, you'll learn how to schedule processes using three different policies: INFLEXIBLE, BREAKABLE and SHIFTABLE. 

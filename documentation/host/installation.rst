@@ -7,7 +7,7 @@ Installation & First steps
 This section walks you through the basics of installing FlexMeasures on a computer and running it continuously.
 
 We'll cover the most crucial settings you need to run FlexMeasures step-by-step, both for `pip`-based installation, as well as running via Docker.
-In addition, we'll explain some basics which you'll need:
+In addition, we'll explain some basics that you'll need:
 
 .. contents:: Table of contents
     :local:
@@ -50,7 +50,8 @@ We'll need to add a few minimal preparations before running will work, see below
 Make a secret key for sessions and password salts
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Set a secret key which is used to sign user sessions and re-salt their passwords. The quickest way is with an environment variable, like this:
+Set a secret key, which is used to sign user sessions and re-salt their passwords.
+The quickest way is with an environment variable, like this:
 
 .. tabs::
 
@@ -326,7 +327,7 @@ This obviously depends on some conditions (like the right underlying data) being
 Set mail settings
 ^^^^^^^^^^^^^^^^^
 
-For FlexMeasures to be able to send email to users (e.g. for resetting passwords), you need an email service which can do that (e.g. GMail). Set the MAIL_* settings in your configuration, see :ref:`mail-config`.
+For FlexMeasures to be able to send email to users (e.g. for resetting passwords), you need an email service that can do that (e.g. GMail). Set the MAIL_* settings in your configuration, see :ref:`mail-config`.
 
 .. _install-lp-solver:
 

@@ -72,7 +72,9 @@ Run the command below to show the values for the `grid connection capacity`:
                         ██ grid connection capacity
 
 
-Moreover, we can check the freshly created source `<Source id=6>` which defines the `ProfitOrLossReporter` with the required configuration. You'll notice that the `config` is under the `data_generator` field. That's because reporters belong to a bigger category of classes that also contains the `Schedulers` and `Forecasters`.
+Moreover, we can check the freshly created source `<Source id=6>`, which defines the `ProfitOrLossReporter` with the required configuration.
+You'll notice that the `config` is under the `data_generator` field.
+That's because reporters belong to a bigger category of classes that also contains the `Schedulers` and `Forecasters`.
 
 .. code-block:: bash
 
@@ -133,21 +135,22 @@ Now we can visualize the headroom in the following `link <http://localhost:5000/
     :align: center
 |
 
-The graph shows that the capacity of the grid is at full disposal for the battery when there's no sun (thus no PV generation), while
-at noon the battery can only discharge at 280kW max.
+The graph shows that the capacity of the grid is at full disposal for the battery when there's no sun (thus no PV generation), while at noon the battery can only discharge at 280kW max.
 
 Process scheduler profit
 -------------------------
 
-For the second part of this tutorial, we are going to use the `ProfitOrLossReporter` to compute the losses (defined as `cost - revenue`) of operating the 
-process from Tut. Part III, under the three different policies: INFLEXIBLE, BREAKABLE and SHIFTABLE.
+For the second part of this tutorial, we are going to use the `ProfitOrLossReporter` to compute the losses (defined as `cost - revenue`) of operating the process from Tut.
+Part III, under the three different policies: INFLEXIBLE, BREAKABLE and SHIFTABLE.
 
-In addition, we'll explore another way to invoke reporters: data generators. Without going too much into detail, data generators
-create new data. The thee main types are: `Reporters`, `Schedulers` and `Forecasters`. This will come handy as the three reports that
-we are going to create share the same `config`. The `config` defines the price sensor to use and sets the reporter to work in **losses** mode which means
-that it will return costs as positive values and revenue as negative values.
+In addition, we'll explore another way to invoke reporters: data generators.
+Without going too much into detail, data generators create new data.
+The thee main types are: `Reporters`, `Schedulers` and `Forecasters`.
+This will come handy as the three reports that we are going to create share the same `config`.
+The `config` defines the price sensor to use and sets the reporter to work in **losses** mode, which means that it will return costs as positive values and revenue as negative values.
 
-Still, we need to define the parameters. The three reports share the same structure for the parameters with the following fields:
+Still, we need to define the parameters.
+The three reports share the same structure for the parameters with the following fields:
 
     - `input`: sensor that stores the power/energy flow. The number of sensors is limited to 1.
     - `output`: sensor to store the report. We can provide sensors with different resolutions to store the same results at different time scales.
@@ -155,9 +158,9 @@ Still, we need to define the parameters. The three reports share the same struct
 .. note::
     It's possible to define the `config` and `parameters` in JSON or YAML formats.
 
-After setting up `config` and `parameters`, we can invoke the reporter using the command ``flexmeasures add report``. The command takes the data source id,
-the files containing the parameters and the timing parameters (start and end). For this particular case, we make use of the offsets to indicate that we want the
-report to encompass the day of tomorrow.
+After setting up `config` and `parameters`, we can invoke the reporter using the command ``flexmeasures add report``.
+The command takes the data source id, the files containing the parameters and the timing parameters (start and end).
+For this particular case, we make use of the offsets to indicate that we want the report to encompass the day of tomorrow.
 
 Inflexible process
 ^^^^^^^^^^^^^^^^^^^

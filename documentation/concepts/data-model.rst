@@ -21,7 +21,7 @@ Assets can represent physical objects (e.g. a car battery or an industrial machi
 In essence, an asset is anything on which you collect data.
 
 Assets can also have a parent-child relationship with other assets.
-So, you could model a building, which contains assets like solar panels, a heat pump and EV chargers.
+So, you could model a building that contains assets like solar panels, a heat pump and EV chargers.
 
 
 Sensors
