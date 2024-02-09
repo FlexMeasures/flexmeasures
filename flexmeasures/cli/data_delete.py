@@ -281,6 +281,12 @@ def delete_beliefs(
             **MsgStyle.ERROR,
         )
         raise click.Abort()
+    if isinstance(start) and isinstance(end) and start > end:
+        click.secho(
+            "Start should not exceed end.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
 
     # Time window filter
     event_filters = []
