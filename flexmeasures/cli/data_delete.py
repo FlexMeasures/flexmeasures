@@ -236,10 +236,7 @@ def delete_prognoses(
     required=True,
     multiple=True,
     type=AssetIdField(),
-    cls=DeprecatedOption,
-    deprecated=["--asset-id"],
-    preferred="--asset",
-    help="Generic asset to assign this sensor to",
+    help="Delete all beliefs associated with (sensors of) this asset",
 )
 @click.option(
     "--start",
