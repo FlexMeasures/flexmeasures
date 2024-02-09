@@ -20,7 +20,12 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.schemas import AwareDateTimeField, SensorIdField, AssetIdField
 from flexmeasures.data.services.users import find_user_by_email, delete_user
-from flexmeasures.cli.utils import MsgStyle, DeprecatedOption, DeprecatedOptionsCommand
+from flexmeasures.cli.utils import (
+    abort,
+    MsgStyle,
+    DeprecatedOption,
+    DeprecatedOptionsCommand,
+)
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 
 
@@ -41,8 +46,7 @@ def delete_account_role(name: str):
         select(AccountRole).filter_by(name=name)
     ).scalar_one_or_none()
     if role is None:
-        click.secho(f"Account role '{name}' does not exist.", **MsgStyle.ERROR)
-        raise click.Abort()
+        abort(f"Account role '{name}' does not exist.")
     accounts = role.accounts.all()
     if len(accounts) > 0:
         click.secho(
@@ -67,8 +71,7 @@ def delete_account(id: int, force: bool):
     """
     account: Account = db.session.get(Account, id)
     if account is None:
-        click.secho(f"Account with ID '{id}' does not exist.", **MsgStyle.ERROR)
-        raise click.Abort()
+        abort(f"Account with ID '{id}' does not exist.")
     if not force:
         prompt = f"Delete account '{account.name}', including generic assets, users and all their data?\n"
         users = (
@@ -127,10 +130,7 @@ def delete_a_user(email: str, force: bool):
         click.confirm(prompt, abort=True)
     the_user = find_user_by_email(email)
     if the_user is None:
-        click.secho(
-            f"Could not find user with email address '{email}' ...", **MsgStyle.WARN
-        )
-        raise click.Abort()
+        abort(f"Could not find user with email address '{email}' ...")
     delete_user(the_user)
     db.session.commit()
 
@@ -270,23 +270,11 @@ def delete_beliefs(
 
     # Validate input
     if not generic_assets and not sensors:
-        click.secho(
-            "Must pass at least one sensor or asset.",
-            **MsgStyle.ERROR,
-        )
-        raise click.Abort()
+        abort("Must pass at least one sensor or asset.")
     elif generic_assets and sensors:
-        click.secho(
-            "Passing both sensors and assets at the same time is not supported.",
-            **MsgStyle.ERROR,
-        )
-        raise click.Abort()
+        abort("Passing both sensors and assets at the same time is not supported.")
     if isinstance(start) and isinstance(end) and start > end:
-        click.secho(
-            "Start should not exceed end.",
-            **MsgStyle.ERROR,
-        )
-        raise click.Abort()
+        abort("Start should not exceed end.")
 
     # Time window filter
     event_filters = []
@@ -369,11 +357,7 @@ def delete_unchanged_beliefs(
             select(Sensor).filter(Sensor.id == sensor_id)
         ).scalar_one_or_none()
         if sensor is None:
-            click.secho(
-                f"Failed to delete any beliefs: no sensor found with id {sensor_id}.",
-                **MsgStyle.ERROR,
-            )
-            raise click.Abort()
+            abort(f"Failed to delete any beliefs: no sensor found with id {sensor_id}.")
         q = q.filter_by(sensor_id=sensor.id)
     num_beliefs_before = db.session.scalar(select(func.count()).select_from(q))
     unchanged_queries = []
