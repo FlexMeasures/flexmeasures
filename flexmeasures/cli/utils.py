@@ -212,3 +212,6 @@ def validate_unique(ctx, param, value):
 def abort(message: str):
     click.secho(message, **MsgStyle.ERROR)
     raise click.Abort()
+
+def done(message: str):
+    click.secho(message, **MsgStyle.SUCCESS)

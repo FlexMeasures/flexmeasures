@@ -22,7 +22,7 @@ from flexmeasures.data.schemas import AwareDateTimeField, SensorIdField, AssetId
 from flexmeasures.data.services.users import find_user_by_email, delete_user
 from flexmeasures.cli.utils import (
     abort,
-    MsgStyle,
+    done,
     DeprecatedOption,
     DeprecatedOptionsCommand,
 )
@@ -56,7 +56,7 @@ def delete_account_role(name: str):
             account.account_roles.remove(role)
     db.session.execute(delete(AccountRole).filter_by(name=role.name))
     db.session.commit()
-    click.secho(f"Account role '{name}' has been deleted.", **MsgStyle.SUCCESS)
+    done(f"Account role '{name}' has been deleted.")
 
 
 @fm_delete_data.command("account")
@@ -112,7 +112,7 @@ def delete_account(id: int, force: bool):
     account_name = account.name
     db.session.execute(delete(Account).filter_by(name=account_name))
     db.session.commit()
-    click.secho(f"Account {account_name} has been deleted.", **MsgStyle.SUCCESS)
+    done(f"Account {account_name} has been deleted.")
 
 
 @fm_delete_data.command("user")
@@ -315,9 +315,8 @@ def delete_beliefs(
     db.session.commit()
     num_beliefs_after = db.session.scalar(select(func.count()).select_from(q))
     # only show the asset names for the final confirmation
-    click.secho(
-        f"Done! {num_beliefs_after} beliefs left on sensors of {join_words_into_a_list([asset.name for asset in generic_assets])}.",
-        **MsgStyle.SUCCESS,
+    done(
+        f"{num_beliefs_after} beliefs left on sensors of {join_words_into_a_list([asset.name for asset in generic_assets])}."
     )
 
 
@@ -415,7 +414,7 @@ def delete_unchanged_beliefs(
     click.secho(f"Removing {num_beliefs_up_for_deletion} beliefs ...")
     db.session.commit()
     num_beliefs_after = db.session.scalar(select(func.count()).select_from(q))
-    click.secho(f"Done! {num_beliefs_after} beliefs left", **MsgStyle.SUCCESS)
+    done(f"{num_beliefs_after} beliefs left.")
 
 
 @fm_delete_data.command("nan-beliefs", cls=DeprecatedOptionsCommand)
@@ -440,10 +439,7 @@ def delete_nan_beliefs(sensor_id: int | None = None):
     click.confirm(prompt, abort=True)
     db.session.execute(delete(TimedBelief).filter_by(event_value=float("NaN")))
     db.session.commit()
-    click.secho(
-        f"Done! {db.session.scalar(select(func.count()).select_from(q))} beliefs left",
-        **MsgStyle.SUCCESS,
-    )
+    done(f"{db.session.scalar(select(func.count()).select_from(q))} beliefs left.")
 
 
 @fm_delete_data.command("sensor")
