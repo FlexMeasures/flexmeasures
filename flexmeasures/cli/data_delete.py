@@ -241,13 +241,35 @@ def delete_prognoses(
     preferred="--asset",
     help="Generic asset to assign this sensor to",
 )
+@click.option(
+    "--start",
+    "start",
+    type=AwareDateTimeField(),
+    required=False,
+    help="Remove beliefs about events starting at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
+)
+@click.option(
+    "--end",
+    "end",
+    type=AwareDateTimeField(),
+    required=False,
+    help="Remove beliefs about events ending at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
+)
 def delete_beliefs(
     generic_assets: list[GenericAsset],
+    start: datetime | None = None,
+    end: datetime | None = None,
 ):
     """Delete all beliefs recorded on sensors of a given asset."""
+    event_filters = []
+    if start is not None:
+        event_filters += [TimedBelief.event_start >= start]
+    if end is not None:
+        event_filters += [TimedBelief.event_start + Sensor.event_resolution <= end]
     q = select(TimedBelief, Sensor).where(
         TimedBelief.sensor_id == Sensor.id,
         Sensor.generic_asset_id.in_([asset.id for asset in generic_assets]),
+        *event_filters,
     )
     num_beliefs_up_for_deletion = db.session.scalar(select(func.count()).select_from(q))
     # str(asset) includes the IDs, which matters for the confirmation prompt
