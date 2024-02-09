@@ -76,6 +76,10 @@ def get_staleness(
 ) -> timedelta | None:
     """Get the staleness of the sensor.
 
+    The staleness is defined relative to the knowledge time of the most recent event, rather than to its belief time.
+    Basically, that means that we don't really care when the data arrived,
+    as long as the available data is about what we should be able to know by now.
+
     :param sensor:              The sensor to compute the staleness for.
     :param staleness_search:    Deserialized keyword arguments to `TimedBelief.search`.
     :param now:                 Datetime representing now, used both to mask future beliefs,
