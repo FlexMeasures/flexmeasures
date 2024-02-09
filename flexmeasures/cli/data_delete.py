@@ -233,10 +233,18 @@ def delete_prognoses(
 @click.option(
     "--asset",
     "generic_assets",
-    required=True,
+    required=False,
     multiple=True,
     type=AssetIdField(),
-    help="Delete all beliefs associated with (sensors of) this asset",
+    help="Delete all beliefs associated with (sensors of) this asset.",
+)
+@click.option(
+    "--sensor",
+    "sensors",
+    required=False,
+    multiple=True,
+    type=AssetIdField(),
+    help="Delete all beliefs associated with this sensor.",
 )
 @click.option(
     "--start",
@@ -254,25 +262,55 @@ def delete_prognoses(
 )
 def delete_beliefs(
     generic_assets: list[GenericAsset],
+    sensors: list[Sensor],
     start: datetime | None = None,
     end: datetime | None = None,
 ):
-    """Delete all beliefs recorded on sensors of a given asset."""
+    """Delete all beliefs recorded on a given sensor (or on sensors of a given asset)."""
+
+    # Validate input
+    if not generic_assets and not sensors:
+        click.secho(
+            f"Must pass at least one sensor or asset.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+    elif generic_assets and sensors:
+        click.secho(
+            f"Passing both sensors and assets at the same time is not supported.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+
+    # Time window filter
     event_filters = []
     if start is not None:
         event_filters += [TimedBelief.event_start >= start]
     if end is not None:
         event_filters += [TimedBelief.event_start + Sensor.event_resolution <= end]
-    q = select(TimedBelief, Sensor).where(
-        TimedBelief.sensor_id == Sensor.id,
-        Sensor.generic_asset_id.in_([asset.id for asset in generic_assets]),
-        *event_filters,
-    )
+
+    # Entity filter
+    entity_filters = []
+    if sensors:
+        entity_filters += [TimedBelief.sensor_id.in_([sensor.id for sensor in sensors])]
+        select_statement = select(TimedBelief)
+    if generic_assets:
+        entity_filters += [
+            TimedBelief.sensor_id == Sensor.id,
+            Sensor.generic_asset_id.in_([asset.id for asset in generic_assets]),
+        ]
+        select_statement = select(TimedBelief, Sensor)
+
+    # Create query
+    q = select_statement.where(*entity_filters, *event_filters)
+
+    # Prompt based on count of query
     num_beliefs_up_for_deletion = db.session.scalar(select(func.count()).select_from(q))
     # str(asset) includes the IDs, which matters for the confirmation prompt
     prompt = f"Delete all {num_beliefs_up_for_deletion} beliefs on sensors of {join_words_into_a_list([str(asset) for asset in generic_assets])}?"
     click.confirm(prompt, abort=True)
 
+    # Delete all beliefs found by query
     beliefs_up_for_deletion = db.session.scalars(q).all()
     batch_size = 10000
     for i, b in enumerate(beliefs_up_for_deletion, start=1):
