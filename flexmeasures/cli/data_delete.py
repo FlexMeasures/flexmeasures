@@ -11,17 +11,17 @@ import click
 from flask import current_app as app
 from flask.cli import with_appcontext
 from timely_beliefs.beliefs.queries import query_unchanged_beliefs
-from sqlalchemy import select, func, delete
+from sqlalchemy import delete, func, select, MetaData
 
 
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts, User
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
-from flexmeasures.data.schemas.sensors import SensorIdField
+from flexmeasures.data.schemas import AwareDateTimeField, SensorIdField, AssetIdField
 from flexmeasures.data.services.users import find_user_by_email, delete_user
 from flexmeasures.cli.utils import MsgStyle, DeprecatedOption, DeprecatedOptionsCommand
+from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 
 
 @click.group("delete")
@@ -137,7 +137,7 @@ def delete_a_user(email: str, force: bool):
 
 @fm_delete_data.command("asset")
 @with_appcontext
-@click.option("--id", "asset", type=GenericAssetIdField())
+@click.option("--id", "asset", type=AssetIdField())
 @click.option(
     "--force/--no-force", default=False, help="Skip warning about consequences."
 )
@@ -226,6 +226,48 @@ def delete_prognoses(
     from flexmeasures.data.scripts.data_gen import depopulate_prognoses
 
     depopulate_prognoses(db, sensor_id)
+
+
+@fm_delete_data.command("beliefs")
+@with_appcontext
+@click.option(
+    "--asset",
+    "generic_assets",
+    required=True,
+    multiple=True,
+    type=AssetIdField(),
+    cls=DeprecatedOption,
+    deprecated=["--asset-id"],
+    preferred="--asset",
+    help="Generic asset to assign this sensor to",
+)
+def delete_beliefs(
+    generic_assets: list[GenericAsset],
+):
+    """Delete all beliefs recorded on sensors of a given asset."""
+    q = select(TimedBelief, Sensor).where(
+        TimedBelief.sensor_id == Sensor.id,
+        Sensor.generic_asset_id.in_([asset.id for asset in generic_assets]),
+    )
+    num_beliefs_up_for_deletion = db.session.scalar(select(func.count()).select_from(q))
+    # str(asset) includes the IDs, which matters for the confirmation prompt
+    prompt = f"Delete all {num_beliefs_up_for_deletion} beliefs on sensors of {join_words_into_a_list([str(asset) for asset in generic_assets])}?"
+    click.confirm(prompt, abort=True)
+
+    beliefs_up_for_deletion = db.session.scalars(q).all()
+    batch_size = 10000
+    for i, b in enumerate(beliefs_up_for_deletion, start=1):
+        if i % batch_size == 0 or i == num_beliefs_up_for_deletion:
+            click.echo(f"{i} beliefs processed ...")
+        db.session.delete(b)
+    click.secho(f"Removing {num_beliefs_up_for_deletion} beliefs ...")
+    db.session.commit()
+    num_beliefs_after = db.session.scalar(select(func.count()).select_from(q))
+    # only show the asset names for the final confirmation
+    click.secho(
+        f"Done! {num_beliefs_after} beliefs left on sensors of {join_words_into_a_list([asset.name for asset in generic_assets])}.",
+        **MsgStyle.SUCCESS,
+    )
 
 
 @fm_delete_data.command("unchanged-beliefs", cls=DeprecatedOptionsCommand)
