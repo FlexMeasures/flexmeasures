@@ -273,7 +273,7 @@ def delete_beliefs(
         abort("Must pass at least one sensor or asset.")
     elif generic_assets and sensors:
         abort("Passing both sensors and assets at the same time is not supported.")
-    if isinstance(start) and isinstance(end) and start > end:
+    if start is not None and end is not None and start > end:
         abort("Start should not exceed end.")
 
     # Time window filter
