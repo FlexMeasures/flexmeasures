@@ -243,7 +243,7 @@ def delete_prognoses(
     "sensors",
     required=False,
     multiple=True,
-    type=AssetIdField(),
+    type=SensorIdField(),
     help="Delete all beliefs associated with this sensor.",
 )
 @click.option(
