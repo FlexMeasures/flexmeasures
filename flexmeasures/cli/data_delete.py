@@ -4,14 +4,14 @@ CLI commands for removing data
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from itertools import chain
 
 import click
 from flask import current_app as app
 from flask.cli import with_appcontext
 from timely_beliefs.beliefs.queries import query_unchanged_beliefs
-from sqlalchemy import delete, func, select, MetaData
+from sqlalchemy import delete, func, select
 
 
 from flexmeasures.data import db
@@ -271,13 +271,13 @@ def delete_beliefs(
     # Validate input
     if not generic_assets and not sensors:
         click.secho(
-            f"Must pass at least one sensor or asset.",
+            "Must pass at least one sensor or asset.",
             **MsgStyle.ERROR,
         )
         raise click.Abort()
     elif generic_assets and sensors:
         click.secho(
-            f"Passing both sensors and assets at the same time is not supported.",
+            "Passing both sensors and assets at the same time is not supported.",
             **MsgStyle.ERROR,
         )
         raise click.Abort()
