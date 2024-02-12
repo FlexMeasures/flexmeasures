@@ -314,15 +314,7 @@ def delete_unchanged_beliefs(
     for i, b in enumerate(beliefs_up_for_deletion, start=1):
         if i % batch_size == 0 or i == num_beliefs_up_for_deletion:
             click.echo(f"{i} beliefs processed ...")
-        db.session.execute(
-            delete(TimedBelief).filter_by(
-                belief_horizon=b.belief_horizon,
-                event_start=b.event_start,
-                sensor_id=b.sensor_id,
-                source_id=b.source_id,
-                cumulative_probability=b.cumulative_probability,
-            )
-        )
+        db.session.delete(b)
     click.secho(f"Removing {num_beliefs_up_for_deletion} beliefs ...")
     db.session.commit()
     num_beliefs_after = db.session.scalar(select(func.count()).select_from(q))
@@ -343,18 +335,15 @@ def delete_unchanged_beliefs(
 )
 def delete_nan_beliefs(sensor_id: int | None = None):
     """Delete NaN beliefs."""
-    q = select(TimedBelief)
+    q = db.session.query(TimedBelief)
     if sensor_id is not None:
         q = q.filter(TimedBelief.sensor_id == sensor_id)
     query = q.filter(TimedBelief.event_value == float("NaN"))
-    prompt = f"Delete {db.session.scalar(select(func.count()).select_from(query))} NaN beliefs out of {db.session.scalar(select(func.count()).select_from(q))} beliefs?"
+    prompt = f"Delete {query.count()} NaN beliefs out of {q.count()} beliefs?"
     click.confirm(prompt, abort=True)
-    db.session.execute(delete(TimedBelief).filter_by(event_value=float("NaN")))
+    query.delete()
     db.session.commit()
-    click.secho(
-        f"Done! {db.session.scalar(select(func.count()).select_from(q))} beliefs left",
-        **MsgStyle.SUCCESS,
-    )
+    click.secho(f"Done! {q.count()} beliefs left", **MsgStyle.SUCCESS)
 
 
 @fm_delete_data.command("sensor")
