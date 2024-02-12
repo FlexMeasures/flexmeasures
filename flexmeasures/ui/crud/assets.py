@@ -135,6 +135,8 @@ def process_internal_api_response(
     if asset_id:
         asset_data["id"] = asset_id
     if make_obj:
+        children = asset_data.pop("child_assets", [])
+
         asset = GenericAsset(
             **{
                 **asset_data,
@@ -157,6 +159,15 @@ def process_internal_api_response(
                 GenericAsset.id == asset_data["parent_asset_id"]
             ).one_or_none()
             expunge_asset()
+
+        child_assets = []
+        for child in children:
+            child.pop("child_assets")
+            child_asset = process_internal_api_response(child, child["id"], True)
+            child_assets.append(child_asset)
+        asset.child_assets = child_assets
+        expunge_asset()
+
         return asset
     return asset_data
 
@@ -280,7 +291,6 @@ class AssetCrudUI(FlaskView):
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
             user_can_create_assets=user_can_create_assets(),
             user_can_delete_asset=user_can_delete(asset),
-            children=GenericAsset.query.get(asset.id).child_assets,
         )
 
     @login_required

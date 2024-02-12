@@ -190,7 +190,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for child in children %}
+                        {% for child in asset.child_assets %}
                         <tr>
                             <td>
                                 <i class="{{ child.generic_asset_type.name | asset_icon }} left-icon">{{ child.name }}</i>
