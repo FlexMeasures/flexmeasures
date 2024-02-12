@@ -260,7 +260,7 @@ def delete_prognoses(
     required=False,
     help="Remove beliefs about events ending at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
 )
-def delete_beliefs(
+def delete_beliefs(  # noqa: C901
     generic_assets: list[GenericAsset],
     sensors: list[Sensor],
     start: datetime | None = None,
@@ -300,8 +300,11 @@ def delete_beliefs(
 
     # Prompt based on count of query
     num_beliefs_up_for_deletion = db.session.scalar(select(func.count()).select_from(q))
-    # str(asset) includes the IDs, which matters for the confirmation prompt
-    prompt = f"Delete all {num_beliefs_up_for_deletion} beliefs on sensors of {join_words_into_a_list([str(asset) for asset in generic_assets])}?"
+    # repr(entity) includes the IDs, which matters for the confirmation prompt
+    if sensors:
+        prompt = f"Delete all {num_beliefs_up_for_deletion} beliefs on {join_words_into_a_list([repr(sensor) for sensor in sensors])}?"
+    elif generic_assets:
+        prompt = f"Delete all {num_beliefs_up_for_deletion} beliefs on sensors of {join_words_into_a_list([repr(asset) for asset in generic_assets])}?"
     click.confirm(prompt, abort=True)
 
     # Delete all beliefs found by query
@@ -314,10 +317,15 @@ def delete_beliefs(
     click.secho(f"Removing {num_beliefs_up_for_deletion} beliefs ...")
     db.session.commit()
     num_beliefs_after = db.session.scalar(select(func.count()).select_from(q))
-    # only show the asset names for the final confirmation
-    done(
-        f"{num_beliefs_after} beliefs left on sensors of {join_words_into_a_list([asset.name for asset in generic_assets])}."
-    )
+    # only show the entity names for the final confirmation
+    if sensors:
+        done(
+            f"{num_beliefs_after} beliefs left on sensors {join_words_into_a_list([sensor.name for sensor in sensors])}."
+        )
+    elif generic_assets:
+        done(
+            f"{num_beliefs_after} beliefs left on sensors of {join_words_into_a_list([asset.name for asset in generic_assets])}."
+        )
 
 
 @fm_delete_data.command("unchanged-beliefs", cls=DeprecatedOptionsCommand)
