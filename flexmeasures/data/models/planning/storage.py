@@ -10,6 +10,7 @@ import numpy as np
 from flask import current_app
 
 
+from flexmeasures import Sensor
 from flexmeasures.data.models.planning import Scheduler, SchedulerOutputType
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.planning.utils import (
@@ -300,7 +301,25 @@ class MetaStorageScheduler(Scheduler):
         device_constraints[0]["derivative up efficiency"] = charging_efficiency
 
         # Apply storage efficiency (accounts for losses over time)
-        device_constraints[0]["efficiency"] = storage_efficiency
+        if isinstance(storage_efficiency, ur.Quantity) or isinstance(
+            storage_efficiency, Sensor
+        ):
+            device_constraints[0]["efficiency"] = (
+                get_continuous_series_sensor_or_quantity(
+                    quantity_or_sensor=storage_efficiency,
+                    actuator=sensor,
+                    unit="dimensionless",
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    fallback_attribute="storage_efficiency",  # this should become storage-efficiency
+                    max_value=1,
+                )
+                .fillna(1.0)
+                .clip(lower=0.0, upper=1.0)
+            )
+        elif storage_efficiency is not None:
+            device_constraints[0]["efficiency"] = storage_efficiency
 
         # check that storage constraints are fulfilled
         if not skip_validation:
@@ -455,17 +474,6 @@ class MetaStorageScheduler(Scheduler):
                 self.flex_model["soc-unit"] = self.sensor.unit
             elif self.sensor.unit in ("MW", "kW"):
                 self.flex_model["soc-unit"] = self.sensor.unit + "h"
-
-        # Check for storage efficiency
-        # todo: simplify to: `if self.flex_model.get("storage-efficiency") is None:`
-        if (
-            "storage-efficiency" not in self.flex_model
-            or self.flex_model["storage-efficiency"] is None
-        ):
-            # Get default from sensor, or use 100% otherwise
-            self.flex_model["storage-efficiency"] = self.sensor.get_attribute(
-                "storage_efficiency", 1
-            )
 
         self.ensure_soc_min_max()
 

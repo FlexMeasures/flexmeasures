@@ -5,6 +5,7 @@ import os
 from datetime import datetime
 import pytz
 
+from flexmeasures import Asset
 from flexmeasures.cli.tests.utils import to_flags
 from flexmeasures.data.models.annotations import (
     Annotation,
@@ -447,3 +448,82 @@ def test_add_account(
     else:
         # fail because "Test ConsultancyClient Account" already exists
         assert result.exit_code == 1
+
+
+@pytest.mark.skip_github
+@pytest.mark.parametrize("storage_power_capacity", ["sensor", "quantity", None])
+@pytest.mark.parametrize("storage_efficiency", ["sensor", "quantity", None])
+def test_add_storage_scheduler(
+    app,
+    add_market_prices_fresh_db,
+    storage_schedule_sensors,
+    storage_power_capacity,
+    storage_efficiency,
+):
+    """
+    Test the 'flexmeasures add schedule for-storage' CLI command for adding storage schedules.
+
+    This test evaluates the command's functionality in creating storage schedules for different configurations
+    of power capacity and storage efficiency. It uses a combination of sensor-based and manually specified values
+    for these parameters.
+
+    The test performs the following steps:
+    1. Simulates running the `flexmeasures add toy-account` command to set up a test account.
+    2. Configures CLI input parameters for scheduling, including the start time, duration, and sensor IDs.
+       The test also sets up parameters for state of charge at start and roundtrip efficiency.
+    3. Depending on the test parameters, adjusts power capacity and efficiency settings. These settings can be
+       either sensor-based (retrieved from storage_schedule_sensors fixture), manually specified quantities,
+       or left undefined.
+    4. Executes the 'add_schedule_for_storage' command with the configured parameters.
+    5. Verifies that the command executes successfully (exit code 0) and that the correct number of scheduled
+       values (48 for a 12-hour period with 15-minute resolution) are created for the power sensor.
+    """
+    power_capacity_sensor, storage_efficiency_sensor = storage_schedule_sensors
+
+    from flexmeasures.cli.data_add import add_schedule_for_storage, add_toy_account
+
+    runner = app.test_cli_runner()
+    runner.invoke(add_toy_account)
+
+    toy_account = Account.query.filter_by(name="Toy Account").one_or_none()
+    battery = Asset.query.filter_by(name="toy-battery", owner=toy_account).one_or_none()
+    power_sensor = battery.sensors[0]
+    prices = add_market_prices_fresh_db["epex_da"]
+
+    cli_input_params = {
+        "start": "2014-12-31T23:00:00+00",
+        "duration": "PT12H",
+        "sensor": battery.sensors[0].id,
+        "consumption-price-sensor": prices.id,
+        "soc-at-start": "50%",
+        "roundtrip-efficiency": "90%",
+    }
+
+    if storage_power_capacity is not None:
+        if storage_power_capacity == "sensor":
+            cli_input_params[
+                "storage-consumption-capacity"
+            ] = f"sensor:{power_capacity_sensor}"
+            cli_input_params[
+                "storage-production-capacity"
+            ] = f"sensor:{power_capacity_sensor}"
+        else:
+
+            cli_input_params["storage-consumption-capacity"] = "700kW"
+            cli_input_params["storage-production-capacity"] = "700kW"
+
+    if storage_efficiency is not None:
+        if storage_efficiency == "sensor":
+            cli_input_params[
+                "storage-efficiency"
+            ] = f"sensor:{storage_efficiency_sensor}"
+        else:
+
+            cli_input_params["storage-efficiency"] = "90%"
+
+    cli_input = to_flags(cli_input_params)
+
+    result = runner.invoke(add_schedule_for_storage, cli_input)
+
+    assert result.exit_code == 0
+    assert len(power_sensor.search_beliefs()) == 48

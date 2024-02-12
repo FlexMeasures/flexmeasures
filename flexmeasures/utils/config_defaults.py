@@ -210,3 +210,4 @@ class TestingConfig(Config):
 
 class DocumentationConfig(Config):
     SECRET_KEY: str = "dummy-key-for-documentation"
+    SQLALCHEMY_DATABASE_URI: str = "postgresql://dummy:uri@for/documentation"

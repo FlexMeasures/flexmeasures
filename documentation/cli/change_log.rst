@@ -7,6 +7,17 @@ FlexMeasures CLI Changelog
 since v0.19.0 | February xx, 2024
 =======================================
 
+* Enable the use of QuantityOrSensor fields for the ``flexmeasures add schedule for-storage`` CLI command:
+
+    * ``charging-efficiency``
+    * ``discharging-efficiency``
+    * ``soc-gain``
+    * ``soc-usage``
+    * ``power-capacity``
+    * ``production-capacity``
+    * ``consumption-capacity``
+    * ``storage-efficiency``
+
 * Streamline CLI option naming by favoring ``--<entity>`` over ``--<entity>-id``. This affects the following options:
 
     * ``--account-id`` -> ``--account``
