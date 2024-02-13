@@ -10,11 +10,16 @@
 <nav aria-label="breadcrumb">
   <ol class="breadcrumb">
     {% for breadcrumb in breadcrumb_info["ancestors"] %}
-      <li class="breadcrumb-item{% if loop.last %} active{% endif %}" {% if loop.last %}aria-current="page"{% endif %}>
+      <li class="breadcrumb-item{% if loop.last %} dropdown active{% endif %}" {% if loop.last %}aria-current="page"{% endif %}>
         {% if breadcrumb["url"] is not none and not loop.last %}
           <a href="{{ breadcrumb['url'] }}">{{ breadcrumb['name'] }}</a>
         {% else %}
-          {{ breadcrumb['name'] }}
+          <a class="dropdown-toggle" data-toggle="dropdown" href="#">{{ breadcrumb['name'] }}<span class="caret"></span></a>
+          <ul class="dropdown-menu">
+            {% for sibling in breadcrumb_info["siblings"] %}
+              <li><a href="{{ sibling['url'] }}">{{ sibling["name"] }}</a></li>
+            {% endfor %}
+          </ul>
         {% endif %}
       </li>
     {% endfor %}

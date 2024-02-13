@@ -240,6 +240,7 @@ p.error {
 
 .dropdown-menu {
     border: none !important;
+    z-index: 2000;
 }
 
 .navbar-default .navbar-nav>li>a:focus,
