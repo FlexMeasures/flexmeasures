@@ -482,6 +482,13 @@ def chart(
     help="Source of the beliefs (an existing source id).",
 )
 @click.option(
+    "--source-type",
+    "source_types",
+    required=False,
+    type=str,
+    help="Only show beliefs from this type of source, for example, 'user', 'forecaster' or 'scheduler'.",
+)
+@click.option(
     "--resolution",
     "resolution",
     type=DurationField(),
@@ -519,6 +526,7 @@ def plot_beliefs(
     belief_time_before: datetime | None,
     source: DataSource | None,
     filepath: str | None,
+    source_types: list[str] = None,
     include_ids: bool = False,
 ):
     """
@@ -537,6 +545,7 @@ def plot_beliefs(
         event_ends_before=start + duration,
         beliefs_before=belief_time_before,
         source=source,
+        source_types=source_types,
         one_deterministic_belief_per_event=True,
         resolution=resolution,
         sum_multiple=False,
