@@ -1,7 +1,9 @@
 """ FlexMeasures way of handling inflection """
 
 from __future__ import annotations
+
 import re
+from typing import Any
 
 import inflect
 import inflection
@@ -61,3 +63,51 @@ def titleize(word):
 
 def join_words_into_a_list(words: list[str]) -> str:
     return p.join(words, final_sep="")
+
+
+def atoi(text):
+    """Utility method for the `natural_keys` method."""
+    return int(text) if text.isdigit() else text
+
+
+def natural_keys(text: str):
+    """Support for human sorting.
+
+    `alist.sort(key=natural_keys)` sorts in human order.
+
+    https://stackoverflow.com/a/5967539/13775459
+    """
+    return [atoi(c) for c in re.split(r"(\d+)", text)]
+
+
+def human_sorted(alist: list, attr: Any | None = None, reverse: bool = False):
+    """Human sort a list (for example, a list of strings or dictionaries).
+
+    :param alist:   List to be sorted.
+    :param attr:    Optionally, pass a dictionary key or attribute name to sort by
+    :param reverse: If True, sorts descending.
+
+    Example:
+    >>> alist = ["PV 10", "CP1", "PV 2", "PV 1", "CP 2"]
+    >>> sorted(alist)
+    ['CP 2', 'CP1', 'PV 1', 'PV 10', 'PV 2']
+    >>> human_sorted(alist)
+    ['CP1', 'CP 2', 'PV 1', 'PV 2', 'PV 10']
+    """
+    if attr is None:
+        # List of strings, to be sorted
+        sorted_list = sorted(alist, key=lambda k: natural_keys(str(k)), reverse=reverse)
+    else:
+        try:
+            # List of dictionaries, to be sorted by key
+            sorted_list = sorted(
+                alist, key=lambda k: natural_keys(k[attr]), reverse=reverse
+            )
+        except TypeError:
+            # List of objects, to be sorted by attribute
+            sorted_list = sorted(
+                alist,
+                key=lambda k: natural_keys(str(getattr(k, attr))),
+                reverse=reverse,
+            )
+    return sorted_list
