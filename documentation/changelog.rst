@@ -12,6 +12,7 @@ v0.19.0 | February xx, 2024
 New features
 -------------   
 
+* List child assets on the asset page [see `PR #967 <https://github.com/FlexMeasures/flexmeasures/pull/967>`_]
 * Enable the use of QuantityOrSensor fields for the ``flexmeasures add schedule for-storage`` CLI command [see `PR #966 <https://github.com/FlexMeasures/flexmeasures/pull/966>`_]
 * Support for defining the storage efficiency as a sensor or quantity for the ``StorageScheduler`` [see `PR #965 <https://github.com/FlexMeasures/flexmeasures/pull/965>`_]
 * Support a less verbose way of setting the same :abbr:`SoC (state of charge)` constraint for a given time window [see `PR #899 <https://github.com/FlexMeasures/flexmeasures/pull/899>`_]
