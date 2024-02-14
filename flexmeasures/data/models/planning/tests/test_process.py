@@ -221,7 +221,9 @@ def test_impossible_schedules(
     """
 
     # get the sensors from the database
-    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    epex_da = db.session.execute(
+        select(Sensor).filter_by(name="epex_da")
+    ).scalar_one_or_none()
 
     flex_model = {
         "duration": "PT4H",

@@ -278,7 +278,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             query = query.filter(
                 Annotation.source.in_(parsed_sources),
             )
-        annotations = db.session.execute(query).scalars().all()
+        annotations = db.session.scalars(query).all()
         if include_asset_annotations:
             annotations += self.generic_asset.search_annotations(
                 annotations_after=annotations_after,
@@ -669,11 +669,9 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         sensor_names = [s for s in sensors if isinstance(s, str)]
         if sensor_names:
             sensors = [s for s in sensors if not isinstance(s, str)]
-            sensors_from_names = (
-                db.session.execute(select(Sensor).filter(Sensor.name.in_(sensor_names)))
-                .scalars()
-                .all()
-            )
+            sensors_from_names = db.session.scalars(
+                select(Sensor).filter(Sensor.name.in_(sensor_names))
+            ).all()
             sensors.extend(sensors_from_names)
 
         parsed_sources = parse_source_arg(source)

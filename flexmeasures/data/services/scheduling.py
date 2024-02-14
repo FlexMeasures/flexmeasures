@@ -432,18 +432,14 @@ def get_data_source_for_job(job: Job) -> DataSource | None:
         raise ValueError(
             "Cannot look up scheduling data without knowing the full data_source_info (version)."
         )
-    scheduler_sources = (
-        db.session.execute(
-            select(DataSource)
-            .filter_by(
-                type="scheduler",
-                **data_source_info,
-            )
-            .order_by(DataSource.version.desc())
+    scheduler_sources = db.session.scalars(
+        select(DataSource)
+        .filter_by(
+            type="scheduler",
+            **data_source_info,
         )
-        .scalars()
-        .all()
-    )  # Might still be more than one, e.g. per user
+        .order_by(DataSource.version.desc())
+    ).all()  # Might still be more than one, e.g. per user
     if len(scheduler_sources) == 0:
         return None
     return scheduler_sources[0]

@@ -38,9 +38,7 @@ def get_number_of_assets_in_account(account_id: int) -> int:
 
 
 def get_account_roles(account_id: int) -> list[AccountRole]:
-    account = db.session.execute(
-        select(Account).filter_by(id=account_id)
-    ).scalar_one_or_none()
+    account = db.session.get(Account, account_id)
     if account is None:
         return []
     return account.account_roles

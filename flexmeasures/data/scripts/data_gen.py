@@ -67,7 +67,7 @@ def add_default_asset_types(db: SQLAlchemy) -> Dict[str, GenericAssetType]:
         ("process", "process"),
     ):
         _type = db.session.execute(
-            select(GenericAssetType).filter(GenericAssetType.name == type_name)
+            select(GenericAssetType).filter_by(name=type_name)
         ).scalar_one_or_none()
         if _type is None:
             _type = GenericAssetType(name=type_name, description=type_description)
@@ -92,7 +92,7 @@ def add_default_user_roles(db: SQLAlchemy):
         ("consultant", "Can read everything in consultancy client accounts"),
     ):
         role = db.session.execute(
-            select(Role).filter(Role.name == role_name)
+            select(Role).filter_by(name=role_name)
         ).scalar_one_or_none()
         if role:
             click.echo(f"Role {role_name} already exists.")
@@ -112,7 +112,7 @@ def add_default_account_roles(db: SQLAlchemy):
         ("ESCO", "Energy Service Company"),
     ):
         role = db.session.execute(
-            select(AccountRole).filter(AccountRole.name == role_name)
+            select(AccountRole).filter_by(name=role_name)
         ).scalar_one_or_none()
         if role:
             click.echo(f"Account role {role_name} already exists.")
@@ -290,16 +290,8 @@ def depopulate_structure(db: SQLAlchemy):
     num_asset_types_deleted = db.session.execute(delete(GenericAssetType))
 
     num_data_sources_deleted = db.session.execute(delete(DataSource))
-    roles = db.session.scalars(select(Role)).all()
-    num_roles_deleted = 0
-    for role in roles:
-        db.session.execute(delete(Role).filter_by(id=role.id))
-        num_roles_deleted += 1
-    users = db.session.scalars(select(User)).all()
-    num_users_deleted = 0
-    for user in users:
-        db.session.execute(delete(User).filter_by(id=user.id))
-        num_users_deleted += 1
+    num_roles_deleted = db.session.execute(delete(Role))
+    num_users_deleted = db.session.execute(delete(User))
     click.echo("Deleted %d AssetTypes" % num_asset_types_deleted)
     click.echo("Deleted %d Assets" % num_assets_deleted)
     click.echo("Deleted %d DataSources" % num_data_sources_deleted)

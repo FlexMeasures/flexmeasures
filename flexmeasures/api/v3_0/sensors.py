@@ -751,7 +751,7 @@ class SensorAPI(FlaskView):
         db.session.execute(delete(TimedBelief).filter_by(sensor_id=sensor.id))
 
         sensor_name = sensor.name
-        db.session.execute(delete(Sensor).filter_by(name=sensor_name))
+        db.session.execute(delete(Sensor).filter_by(id=sensor.id))
         db.session.commit()
         current_app.logger.info("Deleted sensor '%s'." % sensor_name)
         return {}, 204

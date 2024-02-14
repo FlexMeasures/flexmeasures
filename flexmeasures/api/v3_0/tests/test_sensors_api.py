@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from flask import url_for
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures import Sensor
@@ -30,9 +30,7 @@ def test_fetch_one_sensor(
     assert response.json["unit"] == "m³/h"
     assert response.json["timezone"] == "UTC"
     assert response.json["event_resolution"] == "PT10M"
-    asset = db.session.execute(
-        select(GenericAsset).filter_by(id=response.json["generic_asset_id"])
-    ).scalar_one_or_none()
+    asset = db.session.get(GenericAsset, response.json["generic_asset_id"])
     assert asset.name == "incineration line"
 
 
@@ -187,14 +185,10 @@ def test_patch_sensor_non_admin(client, setup_api_test_data, requesting_user, db
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_delete_a_sensor(client, setup_api_test_data, requesting_user, db):
     existing_sensor_id = setup_api_test_data["some temperature sensor"].id
-    sensor_data = (
-        db.session.execute(
-            select(TimedBelief).filter(TimedBelief.sensor_id == existing_sensor_id)
-        )
-        .scalars()
-        .all()
-    )
-    sensor_count = len(db.session.execute(select(Sensor)).scalars().all())
+    sensor_data = db.session.scalars(
+        select(TimedBelief).filter(TimedBelief.sensor_id == existing_sensor_id)
+    ).all()
+    sensor_count = db.session.scalar(select(func.count()).select_from(Sensor))
 
     assert isinstance(sensor_data[0].event_value, float)
 
@@ -202,16 +196,14 @@ def test_delete_a_sensor(client, setup_api_test_data, requesting_user, db):
         url_for("SensorAPI:delete", id=existing_sensor_id),
     )
     assert delete_sensor_response.status_code == 204
-    deleted_sensor = db.session.execute(
-        select(Sensor).filter_by(id=existing_sensor_id)
-    ).scalar_one_or_none()
+    deleted_sensor = db.session.get(Sensor, existing_sensor_id)
     assert deleted_sensor is None
     assert (
-        db.session.execute(
+        db.session.scalars(
             select(TimedBelief).filter(TimedBelief.sensor_id == existing_sensor_id)
-        )
-        .scalars()
-        .all()
+        ).all()
         == []
     )
-    assert len(db.session.execute(select(Sensor)).scalars().all()) == sensor_count - 1
+    assert (
+        db.session.scalar(select(func.count()).select_from(Sensor)) == sensor_count - 1
+    )

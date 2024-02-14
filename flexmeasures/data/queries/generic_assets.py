@@ -4,7 +4,6 @@ from itertools import groupby
 from flask_login import current_user
 
 from sqlalchemy import select, Select
-from sqlalchemy.orm import Query
 from flexmeasures.data import db
 from flexmeasures.auth.policy import user_has_admin_access
 
@@ -17,8 +16,8 @@ from flexmeasures.utils.flexmeasures_inflection import pluralize
 def query_assets_by_type(
     type_names: list[str] | str,
     account_id: int | None = None,
-    query: Query | None = None,
-) -> Query:
+    query: Select | None = None,
+) -> Select:
     """
     Return a query which looks for GenericAssets by their type.
 
@@ -28,11 +27,11 @@ def query_assets_by_type(
     """
     if not query:
         query = select(GenericAsset)
-    query = query.join(GenericAssetType).filter(
-        GenericAsset.generic_asset_type_id == GenericAssetType.id
+    query = query.join(GenericAssetType).filter_by(
+        generic_asset_type_id=GenericAssetType.id
     )
     if isinstance(type_names, str):
-        query = query.filter(GenericAssetType.name == type_names)
+        query = query.filter_by(name=type_names)
     else:
         query = query.filter(GenericAssetType.name.in_(type_names))
     query = potentially_limit_assets_query_to_account(query, account_id)
@@ -105,7 +104,7 @@ def get_asset_group_queries(
     group_by_account: bool = False,
     group_by_location: bool = False,
     custom_aggregate_type_groups: dict[str, list[str]] | None = None,
-) -> dict[str, Query]:
+) -> dict[str, Select]:
     """
     An asset group is defined by Asset queries, which this function can generate.
     Each query has a name (for the asset group it represents).
