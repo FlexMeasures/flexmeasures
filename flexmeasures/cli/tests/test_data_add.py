@@ -18,6 +18,7 @@ from flexmeasures.data.models.time_series import Sensor
 
 from flexmeasures.cli.tests.utils import get_click_commands
 from flexmeasures.utils.time_utils import server_now
+from flexmeasures.tests.utils import get_test_sensor
 
 
 @pytest.mark.skip_github
@@ -358,9 +359,7 @@ def test_add_process(
 
     from flexmeasures.cli.data_add import add_schedule_process
 
-    epex_da = db.session.execute(
-        select(Sensor).filter_by(name="epex_da")
-    ).scalar_one_or_none()
+    epex_da = get_test_sensor(db)
 
     process_power_sensor_id = process_power_sensor
 

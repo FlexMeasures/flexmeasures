@@ -14,6 +14,7 @@ from flexmeasures.data.queries.utils import (
     multiply_dataframe_with_deterministic_beliefs,
     simplify_index,
 )
+from flexmeasures.tests.utils import get_test_sensor
 
 
 @pytest.mark.parametrize(
@@ -229,9 +230,7 @@ def test_simplify_index(setup_test_data, check_empty_frame):
 
 def test_query_beliefs(setup_beliefs, db):
     """Check various ways of querying for beliefs."""
-    sensor = db.session.execute(
-        select(Sensor).filter_by(name="epex_da")
-    ).scalar_one_or_none()
+    sensor = get_test_sensor(db)
     source = db.session.execute(
         select(DataSource).filter_by(name="ENTSO-E")
     ).scalar_one_or_none()
@@ -256,9 +255,7 @@ def test_persist_beliefs(setup_beliefs, setup_test_data, db):
 
     We load the already set up beliefs, and form new beliefs an hour later.
     """
-    sensor = db.session.execute(
-        select(Sensor).filter_by(name="epex_da")
-    ).scalar_one_or_none()
+    sensor = get_test_sensor(db)
     source = db.session.execute(
         select(DataSource).filter_by(name="ENTSO-E")
     ).scalar_one_or_none()

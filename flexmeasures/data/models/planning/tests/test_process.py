@@ -1,10 +1,9 @@
 from datetime import datetime, timedelta
 import pytest
 import pytz
-from sqlalchemy import select
 
-from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.planning.process import ProcessScheduler
+from flexmeasures.tests.utils import get_test_sensor
 
 
 tz = pytz.timezone("Europe/Amsterdam")
@@ -26,9 +25,7 @@ def test_process_scheduler(
     """
 
     # get the sensors from the database
-    epex_da = db.session.execute(
-        select(Sensor).filter_by(name="epex_da")
-    ).scalar_one_or_none()
+    epex_da = get_test_sensor(db)
 
     flex_model = {
         "duration": "PT4H",
@@ -72,9 +69,7 @@ def test_duration_exceeds_planning_window(
     """
 
     # get the sensors from the database
-    epex_da = db.session.execute(
-        select(Sensor).filter_by(name="epex_da")
-    ).scalar_one_or_none()
+    epex_da = get_test_sensor(db)
 
     flex_model = {
         "duration": "PT48H",
@@ -108,9 +103,7 @@ def test_process_scheduler_time_restrictions(add_battery_assets, process, db):
     """
 
     # get the sensors from the database
-    epex_da = db.session.execute(
-        select(Sensor).filter(Sensor.name == "epex_da")
-    ).scalar_one_or_none()
+    epex_da = get_test_sensor(db)
 
     # time parameters
 
@@ -161,9 +154,7 @@ def test_breakable_scheduler_time_restrictions(add_battery_assets, process, db):
     """
 
     # get the sensors from the database
-    epex_da = db.session.execute(
-        select(Sensor).filter(Sensor.name == "epex_da")
-    ).scalar_one_or_none()
+    epex_da = get_test_sensor(db)
 
     # time parameters
 
@@ -221,9 +212,7 @@ def test_impossible_schedules(
     """
 
     # get the sensors from the database
-    epex_da = db.session.execute(
-        select(Sensor).filter_by(name="epex_da")
-    ).scalar_one_or_none()
+    epex_da = get_test_sensor(db)
 
     flex_model = {
         "duration": "PT4H",
