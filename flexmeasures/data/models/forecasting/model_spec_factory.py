@@ -261,7 +261,7 @@ def configure_regressors_for_nearest_weather_sensor(
     regressor_transformation,  # the regressor transformation can be passed in
     transform_to_normal,  # if not, it a normalization can be applied
 ) -> list[TBSeriesSpecs]:
-    """For Assets, we use weather data as regressors. Here, we configure them."""
+    """We use weather data as regressors. Here, we configure them."""
     regressor_specs = []
     correlated_sensor_names = sensor.get_attribute("weather_correlations")
     if correlated_sensor_names:
