@@ -18,6 +18,7 @@ from flexmeasures.data.models.time_series import Sensor
 
 from flexmeasures.cli.tests.utils import get_click_commands
 from flexmeasures.utils.time_utils import server_now
+from flexmeasures.tests.utils import get_test_sensor
 
 
 @pytest.mark.skip_github
@@ -39,19 +40,19 @@ def test_add_annotation(app, db, setup_roles_users):
     # Check database for annotation entry
     assert db.session.execute(
         select(Annotation)
-        .filter(
-            Annotation.content == cli_input["content"],
-            Annotation.start == cli_input["at"],
+        .filter_by(
+            content=cli_input["content"],
+            start=cli_input["at"],
         )
         .join(AccountAnnotationRelationship)
-        .filter(
-            AccountAnnotationRelationship.account_id == cli_input["account"],
-            AccountAnnotationRelationship.annotation_id == Annotation.id,
+        .filter_by(
+            account_id=cli_input["account"],
+            annotation_id=Annotation.id,
         )
         .join(DataSource)
-        .filter(
-            DataSource.id == Annotation.source_id,
-            DataSource.user_id == cli_input["user"],
+        .filter_by(
+            id=Annotation.source_id,
+            user_id=cli_input["user"],
         )
     ).scalar_one_or_none()
 
@@ -349,7 +350,7 @@ def test_add_multiple_output(app, fresh_db, setup_dummy_data):
 @pytest.mark.skip_github
 @pytest.mark.parametrize("process_type", [("INFLEXIBLE"), ("SHIFTABLE"), ("BREAKABLE")])
 def test_add_process(
-    app, process_power_sensor, process_type, add_market_prices_fresh_db
+    app, process_power_sensor, process_type, add_market_prices_fresh_db, db
 ):
     """
     Schedule a 4h of consumption block at a constant power of 400kW in a day using
@@ -358,9 +359,7 @@ def test_add_process(
 
     from flexmeasures.cli.data_add import add_schedule_process
 
-    epex_da = app.db.session.execute(
-        select(Sensor).filter(Sensor.name == "epex_da")
-    ).scalar_one_or_none()
+    epex_da = get_test_sensor(db)
 
     process_power_sensor_id = process_power_sensor
 
@@ -385,7 +384,7 @@ def test_add_process(
 
     assert result.exit_code == 0  # run command without errors
 
-    process_power_sensor = app.db.session.get(Sensor, process_power_sensor_id)
+    process_power_sensor = db.session.get(Sensor, process_power_sensor_id)
     schedule = process_power_sensor.search_beliefs()
     # check if the schedule is not empty more detailed testing can be found
     # in data/models/planning/tests/test_processs.py.
@@ -414,7 +413,7 @@ def test_add_sensor(app, db, setup_dummy_asset, event_resolution, name, success)
     runner = app.test_cli_runner()
     result = runner.invoke(add_sensor, to_flags(cli_input))
     sensor: Sensor = db.session.execute(
-        select(Sensor).filter(Sensor.name == name)
+        select(Sensor).filter_by(name=name)
     ).scalar_one_or_none()
     if success:
         assert result.exit_code == 0
@@ -468,6 +467,7 @@ def test_add_storage_scheduler(
     storage_schedule_sensors,
     storage_power_capacity,
     storage_efficiency,
+    db,
 ):
     """
     Test the 'flexmeasures add schedule for-storage' CLI command for adding storage schedules.
@@ -494,8 +494,12 @@ def test_add_storage_scheduler(
     runner = app.test_cli_runner()
     runner.invoke(add_toy_account)
 
-    toy_account = Account.query.filter_by(name="Toy Account").one_or_none()
-    battery = Asset.query.filter_by(name="toy-battery", owner=toy_account).one_or_none()
+    toy_account = db.session.execute(
+        select(Account).filter_by(name="Toy Account")
+    ).scalar_one_or_none()
+    battery = db.session.execute(
+        select(Asset).filter_by(name="toy-battery", owner=toy_account)
+    ).scalar_one_or_none()
     power_sensor = battery.sensors[0]
     prices = add_market_prices_fresh_db["epex_da"]
 

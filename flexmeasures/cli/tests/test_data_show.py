@@ -2,8 +2,8 @@ import os
 import pytest
 from sqlalchemy import select
 
-from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.cli.tests.utils import get_click_commands
+from flexmeasures.tests.utils import get_test_sensor
 
 
 @pytest.mark.skip_github
@@ -94,9 +94,7 @@ def test_show_asset(app, fresh_db, setup_generic_assets_fresh_db):
 def test_plot_beliefs(app, fresh_db, setup_beliefs_fresh_db):
     from flexmeasures.cli.data_show import plot_beliefs
 
-    sensor = fresh_db.session.execute(
-        select(Sensor).filter_by(name="epex_da")
-    ).scalar_one_or_none()
+    sensor = get_test_sensor(fresh_db)
 
     runner = app.test_cli_runner()
     result = runner.invoke(
@@ -133,9 +131,7 @@ def test_cli_help(app):
 def test_export_chart(app, fresh_db, setup_beliefs_fresh_db, _format):
     from flexmeasures.cli.data_show import chart
 
-    sensor = fresh_db.session.execute(
-        select(Sensor).filter_by(name="epex_da")
-    ).scalar_one_or_none()
+    sensor = get_test_sensor(fresh_db)
     sensor_id = sensor.id
 
     runner = app.test_cli_runner()

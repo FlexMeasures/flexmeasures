@@ -50,7 +50,7 @@ def delete_account_role(name: str):
         )
         for account in accounts:
             account.account_roles.remove(role)
-    db.session.execute(delete(AccountRole).filter_by(name=role.name))
+    db.session.execute(delete(AccountRole).filter_by(id=role.id))
     db.session.commit()
     click.secho(f"Account role '{name}' has been deleted.", **MsgStyle.SUCCESS)
 
@@ -71,16 +71,12 @@ def delete_account(id: int, force: bool):
         raise click.Abort()
     if not force:
         prompt = f"Delete account '{account.name}', including generic assets, users and all their data?\n"
-        users = (
-            db.session.execute(select(User).filter_by(account_id=id)).scalars().all()
-        )
+        users = db.session.scalars(select(User).filter_by(account_id=id)).all()
         if users:
             prompt += "Affected users: " + ",".join([u.username for u in users]) + "\n"
-        generic_assets = (
-            db.session.execute(select(GenericAsset).filter_by(account_id=id))
-            .scalars()
-            .all()
-        )
+        generic_assets = db.session.scalars(
+            select(GenericAsset).filter_by(account_id=id)
+        ).all()
         if generic_assets:
             prompt += (
                 "Affected generic assets: "
@@ -91,23 +87,23 @@ def delete_account(id: int, force: bool):
     for user in account.users:
         click.secho(f"Deleting user {user} ...")
         delete_user(user)
-    for role_account_association in (
-        db.session.execute(select(RolesAccounts).filter_by(account_id=account.id))
-        .scalars()
-        .all()
-    ):
+    for role_account_association in db.session.scalars(
+        select(RolesAccounts).filter_by(account_id=account.id)
+    ).all():
         role = db.session.get(AccountRole, role_account_association.role_id)
         click.echo(
             f"Deleting association of account {account.name} and role {role.name} ...",
         )
         db.session.execute(
-            delete(RolesAccounts).filter_by(role_id=role_account_association.role_id)
+            delete(RolesAccounts).filter_by(
+                account_id=role_account_association.account_id
+            )
         )
     for asset in account.generic_assets:
         click.echo(f"Deleting generic asset {asset} (and sensors & beliefs) ...")
         db.session.execute(delete(GenericAsset).filter_by(id=asset.id))
     account_name = account.name
-    db.session.execute(delete(Account).filter_by(name=account_name))
+    db.session.execute(delete(Account).filter_by(id=account.id))
     db.session.commit()
     click.secho(f"Account {account_name} has been deleted.", **MsgStyle.SUCCESS)
 
@@ -260,9 +256,7 @@ def delete_unchanged_beliefs(
     """Delete unchanged beliefs (i.e. updated beliefs with a later belief time, but with the same event value)."""
     q = select(TimedBelief)
     if sensor_id:
-        sensor = db.session.execute(
-            select(Sensor).filter(Sensor.id == sensor_id)
-        ).scalar_one_or_none()
+        sensor = db.session.get(Sensor, sensor_id)
         if sensor is None:
             click.secho(
                 f"Failed to delete any beliefs: no sensor found with id {sensor_id}.",

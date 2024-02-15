@@ -69,9 +69,7 @@ def test_post_sensor_data(
         TimedBelief.sensor_id == sensor.id,
         TimedBelief.event_start >= post_data["start"],
     )
-    beliefs_before = (
-        db.session.execute(select(TimedBelief).filter(*filters)).scalars().all()
-    )
+    beliefs_before = db.session.scalars(select(TimedBelief).filter(*filters)).all()
     print(f"BELIEFS BEFORE: {beliefs_before}")
     assert len(beliefs_before) == 0
 
@@ -81,7 +79,7 @@ def test_post_sensor_data(
     )
     print(response.json)
     assert response.status_code == expected_status
-    beliefs = db.session.execute(select(TimedBelief).filter(*filters)).scalars().all()
+    beliefs = db.session.scalars(select(TimedBelief).filter(*filters)).all()
     print(f"BELIEFS AFTER: {beliefs}")
     assert len(beliefs) == expected_num_values
     # check that values are scaled to the sensor unit correctly

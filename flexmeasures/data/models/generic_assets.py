@@ -243,19 +243,15 @@ class GenericAsset(db.Model, AuthModelMixin):
         :param annotations_before: only return annotations that start before this datetime (exclusive)
         """
         parsed_sources = parse_source_arg(source)
-        annotations = (
-            db.session.execute(
-                query_asset_annotations(
-                    asset_id=self.id,
-                    annotations_after=annotations_after,
-                    annotations_before=annotations_before,
-                    sources=parsed_sources,
-                    annotation_type=annotation_type,
-                )
+        annotations = db.session.scalars(
+            query_asset_annotations(
+                asset_id=self.id,
+                annotations_after=annotations_after,
+                annotations_before=annotations_before,
+                sources=parsed_sources,
+                annotation_type=annotation_type,
             )
-            .scalars()
-            .all()
-        )
+        ).all()
         if include_account_annotations and self.owner is not None:
             annotations += self.owner.search_annotations(
                 annotations_after=annotations_after,
@@ -506,7 +502,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         if current_app.config.get("FLEXMEASURES_MODE") == "play":
             from flexmeasures.data.models.user import Account
 
-            accounts = db.session.execute(select(Account)).scalars().all()
+            accounts = db.session.scalars(select(Account)).all()
 
         from flexmeasures.data.services.sensors import get_sensors
 

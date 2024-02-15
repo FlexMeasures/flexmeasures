@@ -199,9 +199,7 @@ def test_scheduling_multiple_triggers(
 
     assert (
         db.session.execute(
-            select(DataSource)
-            .filter_by(name="FlexMeasures", type="scheduling script")
-            .where()
+            select(DataSource).filter_by(name="FlexMeasures", type="scheduling script")
         ).scalar_one_or_none()
         is None
     )  # Make sure the scheduler data source isn't there

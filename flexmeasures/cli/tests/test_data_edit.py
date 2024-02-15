@@ -5,8 +5,9 @@ import timely_beliefs as tb
 from sqlalchemy import select
 
 from flexmeasures.cli.tests.utils import to_flags
-from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.cli.tests.utils import get_click_commands
+from flexmeasures.tests.utils import get_test_sensor
 
 
 @pytest.mark.skip
@@ -14,9 +15,7 @@ def test_add_one_sensor_attribute(app, db, setup_markets):
     from flexmeasures.cli.data_edit import edit_attribute
 
     # Load sensor from database and count attributes
-    sensor = db.session.execute(
-        select(Sensor).filter(Sensor.name == "epex_da")
-    ).scalar_one_or_none()
+    sensor = get_test_sensor(db)
     n_attributes_before = len(sensor.attributes)
 
     cli_input = {
@@ -29,9 +28,7 @@ def test_add_one_sensor_attribute(app, db, setup_markets):
     assert result.exit_code == 0 and "Success" in result.output, result.exception
 
     # Reload sensor from database and count attributes
-    sensor = db.session.execute(
-        select(Sensor).filter(Sensor.name == "epex_da")
-    ).scalar_one_or_none()
+    sensor = get_test_sensor(db)
     n_attributes_after = len(sensor.attributes)
 
     assert n_attributes_after == n_attributes_before + 1
@@ -52,9 +49,7 @@ def test_resample_sensor_data(
 
     from flexmeasures.cli.data_edit import resample_sensor_data
 
-    sensor = db.session.execute(
-        select(Sensor).filter(Sensor.name == "epex_da")
-    ).scalar_one_or_none()
+    sensor = get_test_sensor(db)
     event_starts_after = pd.Timestamp(event_starts_after)
     event_ends_before = pd.Timestamp(event_ends_before)
     beliefs_before = sensor.search_beliefs(
@@ -92,9 +87,7 @@ def test_resample_sensor_data(
     assert "Successfully resampled" in result.output
 
     # Check that we now have twice as much data for this sensor
-    sensor = db.session.execute(
-        select(Sensor).filter(Sensor.name == "epex_da")
-    ).scalar_one_or_none()
+    sensor = get_test_sensor(db)
     beliefs_after = sensor.search_beliefs(
         most_recent_beliefs_only=False,
         event_starts_after=event_starts_after,

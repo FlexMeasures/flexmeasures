@@ -34,7 +34,7 @@ def setup_api_fresh_test_data(
     Set up fresh data for API dev tests.
     """
     print("Setting up fresh data for API 3.0 tests on %s" % fresh_db.engine)
-    for sensor in fresh_db.session.execute(select(Sensor)).scalars().all():
+    for sensor in fresh_db.session.scalars(select(Sensor)).all():
         fresh_db.session.execute(delete(Sensor).filter_by(id=sensor.id))
     sensors = add_incineration_line(
         fresh_db,
@@ -110,7 +110,8 @@ def add_asset_with_children(db, setup_roles_users):
         generic_asset_type=parent_type,
         account_id=test_supplier_user,
     )
-    db.session.flush()  # assign sensor ids
+    db.session.add(parent)
+    db.session.flush()  # assign parent asset id
 
     assets = [
         GenericAsset(
@@ -123,7 +124,7 @@ def add_asset_with_children(db, setup_roles_users):
     ]
 
     db.session.add_all(assets)
-    db.session.flush()  # assign sensor ids
+    db.session.flush()  # assign children asset ids
 
     assets.append(parent)
 

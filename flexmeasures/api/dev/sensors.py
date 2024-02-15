@@ -193,9 +193,7 @@ def get_sensor_or_abort(id: int) -> Sensor:
         "Util function will be deprecated. Switch to using SensorIdField to suppress this warning.",
         FutureWarning,
     )
-    sensor = db.session.execute(
-        select(Sensor).filter(Sensor.id == id)
-    ).scalar_one_or_none()
+    sensor = db.session.get(Sensor, id)
     if sensor is None:
         raise abort(404, f"Sensor {id} not found")
     if not (

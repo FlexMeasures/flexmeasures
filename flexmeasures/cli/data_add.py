@@ -182,7 +182,7 @@ def new_account(name: str, roles: str, consultancy_account: Account | None):
         for role_name in roles.split(","):
             role = db.session.execute(
                 select(AccountRole).filter_by(name=role_name)
-            ).one_or_none()
+            ).scalar_one_or_none()
             if role is None:
                 click.secho(f"Adding account role {role_name} ...", **MsgStyle.ERROR)
                 role = AccountRole(name=role_name)
@@ -816,25 +816,19 @@ def add_annotation(
         else start + pd.offsets.DateOffset(days=1)
     )
     accounts = (
-        db.session.execute(select(Account).filter(Account.id.in_(account_ids)))
-        .scalars()
-        .all()
+        db.session.scalars(select(Account).filter(Account.id.in_(account_ids))).all()
         if account_ids
         else []
     )
     assets = (
-        db.session.execute(
+        db.session.scalars(
             select(GenericAsset).filter(GenericAsset.id.in_(generic_asset_ids))
-        )
-        .scalars()
-        .all()
+        ).all()
         if generic_asset_ids
         else []
     )
     sensors = (
-        db.session.execute(select(Sensor).filter(Sensor.id.in_(sensor_ids)))
-        .scalars()
-        .all()
+        db.session.scalars(select(Sensor).filter(Sensor.id.in_(sensor_ids))).all()
         if sensor_ids
         else []
     )
@@ -908,18 +902,14 @@ def add_holidays(
     num_holidays = {}
 
     accounts = (
-        db.session.execute(select(Account).filter(Account.id.in_(account_ids)))
-        .scalars()
-        .all()
+        db.session.scalars(select(Account).filter(Account.id.in_(account_ids))).all()
         if account_ids
         else []
     )
     assets = (
-        db.session.execute(
+        db.session.scalars(
             select(GenericAsset).filter(GenericAsset.id.in_(generic_asset_ids))
-        )
-        .scalars()
-        .all()
+        ).all()
         if generic_asset_ids
         else []
     )
@@ -1916,7 +1906,7 @@ def add_toy_account(kind: str, name: str):
 
     # make an account (if not exist)
     account = db.session.execute(
-        select(Account).filter(Account.name == name)
+        select(Account).filter_by(name=name)
     ).scalar_one_or_none()
     if account:
         click.secho(
@@ -1926,9 +1916,7 @@ def add_toy_account(kind: str, name: str):
 
     # make an account user (account-admin?)
     email = "toy-user@flexmeasures.io"
-    user = db.session.execute(
-        select(User).filter(User.email == email)
-    ).scalar_one_or_none()
+    user = db.session.execute(select(User).filter_by(email=email)).scalar_one_or_none()
     if user is not None:
         click.secho(
             f"User with email {email} already exists in account {user.account.name}.",
