@@ -110,7 +110,8 @@ def add_asset_with_children(db, setup_roles_users):
         generic_asset_type=parent_type,
         account_id=test_supplier_user,
     )
-    db.session.flush()  # assign sensor ids
+    db.session.add(parent)
+    db.session.flush()  # assign parent asset id
 
     assets = [
         GenericAsset(
@@ -123,7 +124,7 @@ def add_asset_with_children(db, setup_roles_users):
     ]
 
     db.session.add_all(assets)
-    db.session.flush()  # assign sensor ids
+    db.session.flush()  # assign children asset ids
 
     assets.append(parent)
 
