@@ -27,7 +27,7 @@ class InvalidFlexMeasuresUser(Exception):
 
 def get_user(id: str) -> User:
     """Get a user, raise if not found."""
-    user: User = db.session.execute(User, int(id))
+    user: User = db.session.get(User, int(id))
     if user is None:
         raise NotFound
     return user

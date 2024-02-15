@@ -27,11 +27,11 @@ def query_assets_by_type(
     """
     if not query:
         query = select(GenericAsset)
-    query = query.join(GenericAssetType).filter_by(
-        generic_asset_type_id=GenericAssetType.id
+    query = query.join(GenericAssetType).filter(
+        GenericAsset.generic_asset_type_id == GenericAssetType.id
     )
     if isinstance(type_names, str):
-        query = query.filter_by(name=type_names)
+        query = query.filter(GenericAssetType.name == type_names)
     else:
         query = query.filter(GenericAssetType.name.in_(type_names))
     query = potentially_limit_assets_query_to_account(query, account_id)
