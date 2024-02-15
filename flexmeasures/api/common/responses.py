@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Optional, Tuple, Union, Sequence
+from typing import Tuple, Union, Sequence
 import inflect
 from functools import wraps
 
@@ -9,6 +9,7 @@ p = inflect.engine()
 
 
 # Type annotation for responses: (message, status_code) or (message, status_code, header)
+# todo: Use | instead of Union and tuple instead of Tuple when FM stops supporting Python 3.9 (because of https://github.com/python/cpython/issues/86399)
 ResponseTuple = Union[Tuple[dict, int], Tuple[dict, int, dict]]
 
 
@@ -175,7 +176,7 @@ def invalid_role(requested_access_role: str) -> ResponseTuple:
 
 
 def invalid_sender(
-    required_permissions: Optional[List[str]] = None,
+    required_permissions: list[str] | None = None,
 ) -> ResponseTuple:
     """
     Signify that the sender is invalid to perform the request. Fits well with 403 errors.
@@ -200,7 +201,7 @@ def invalid_datetime(message: str) -> ResponseTuple:
 
 
 def invalid_unit(
-    quantity: Optional[str], units: Optional[Union[Sequence[str], Tuple[str]]]
+    quantity: str | None, units: Sequence[str] | tuple[str] | None
 ) -> ResponseTuple:
     quantity_str = (
         "for %s " % quantity.replace("_", " ") if quantity is not None else ""
@@ -359,7 +360,7 @@ def unrecognized_market(requested_market) -> ResponseTuple:
 
 
 def unrecognized_sensor(
-    lat: Optional[float] = None, lng: Optional[float] = None
+    lat: float | None = None, lng: float | None = None
 ) -> ResponseTuple:
     base_message = "No sensor is known at this location."
     if lat is not None and lng is not None:

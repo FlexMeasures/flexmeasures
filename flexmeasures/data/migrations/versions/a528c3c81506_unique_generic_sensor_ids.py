@@ -123,7 +123,7 @@ def upgrade_data():
     # Select all existing ids that need migrating, while keeping names intact
     asset_results = connection.execute(
         sa.select(
-            [
+            *[
                 t_assets.c.id,
                 t_assets.c.name,
             ]
@@ -131,7 +131,7 @@ def upgrade_data():
     ).fetchall()
     market_results = connection.execute(
         sa.select(
-            [
+            *[
                 t_markets.c.id,
                 t_markets.c.name,
             ]
@@ -139,7 +139,7 @@ def upgrade_data():
     ).fetchall()
     weather_sensor_results = connection.execute(
         sa.select(
-            [
+            *[
                 t_weather_sensors.c.id,
                 t_weather_sensors.c.name,
             ]
@@ -203,8 +203,10 @@ def upgrade_data():
     sequence_name = "%s_id_seq" % t_sensors.name
     # Set next id for table seq to just after max id of all old sensors combined
     connection.execute(
-        "SELECT setval('%s', %s, false);"  # is_called = False
-        % (sequence_name, max_asset_id + max_market_id + max_weather_sensor_id + 1)
+        sa.sql.expression.text("SELECT setval(:seq_name, :next_id, false);").bindparams(
+            seq_name=sequence_name,
+            next_id=max_asset_id + max_market_id + max_weather_sensor_id + 1,
+        )
     )
 
 
@@ -278,7 +280,7 @@ def downgrade_data():
     # Select all existing ids that need migrating
     market_results = connection.execute(
         sa.select(
-            [
+            *[
                 t_markets.c.id,
                 t_markets.c.name,
             ]
@@ -302,7 +304,7 @@ def downgrade_data():
     )
     weather_sensor_results = connection.execute(
         sa.select(
-            [
+            *[
                 t_weather_sensors.c.id,
                 t_weather_sensors.c.name,
             ]
@@ -372,7 +374,7 @@ def get_max_id(connection, generic_sensor_type: str) -> int:
     )
     max_id = connection.execute(
         sa.select(
-            [
+            *[
                 sa.sql.expression.func.max(
                     t_generic_sensor.c.id,
                 )

@@ -10,8 +10,13 @@ v0.19.0 | February xx, 2024
 .. warning:: This version replaces FLASK_ENV with FLEXMEASURES_ENV (FLASK_ENV will still be used as a fallback).
 
 New features
--------------
+-------------   
 
+* List child assets on the asset page [see `PR #967 <https://github.com/FlexMeasures/flexmeasures/pull/967>`_]
+* Expand the UI's breadcrumb functionality with the ability to navigate directly to sibling assets and sensors using their child-parent relationship [see `PR #977 <https://github.com/FlexMeasures/flexmeasures/pull/977>`_]
+* Enable the use of QuantityOrSensor fields for the ``flexmeasures add schedule for-storage`` CLI command [see `PR #966 <https://github.com/FlexMeasures/flexmeasures/pull/966>`_]
+* CLI support for showing/savings time series data for a given type of source only, with the new ``--source-type`` option of ``flexmeasures show beliefs``, which let's you filter out schedules, forecasts, or data POSTed by users (through the API), which each have a different source type [see `PR #976 <https://github.com/FlexMeasures/flexmeasures/pull/976>`_]
+* Support for defining the storage efficiency as a sensor or quantity for the ``StorageScheduler`` [see `PR #965 <https://github.com/FlexMeasures/flexmeasures/pull/965>`_]
 * Support a less verbose way of setting the same :abbr:`SoC (state of charge)` constraint for a given time window [see `PR #899 <https://github.com/FlexMeasures/flexmeasures/pull/899>`_]
 
 Infrastructure / Support
@@ -20,10 +25,16 @@ Infrastructure / Support
 * Deprecate use of flask's ``FLASK_ENV`` variable and replace it with ``FLEXMEASURES_ENV`` [see `PR #907 <https://github.com/FlexMeasures/flexmeasures/pull/907>`_]
 * Streamline CLI option naming by favoring ``--<entity>`` over ``--<entity>-id`` [see `PR #946 <https://github.com/FlexMeasures/flexmeasures/pull/946>`_]
 * Documentation: improve index page, installation overview, feature overview incl. flex-model overview and UI screenshots [see `PR #953 <https://github.com/FlexMeasures/flexmeasures/pull/953>`_]
+* Faster database queries of time series data by upgrading SQLAlchemy and timely-beliefs [see `PR #938 <https://github.com/FlexMeasures/flexmeasures/pull/938>`_]
 
 
 Bugfixes
 -----------
+
+v0.18.3 | February xx, 2024
+============================
+
+* Convert unit of the power capacities to ``MW`` instead of that of the storage power sensor [see `PR #979 <https://github.com/FlexMeasures/flexmeasures/pull/979>`_]
 
 
 v0.18.2 | January xx, 2024

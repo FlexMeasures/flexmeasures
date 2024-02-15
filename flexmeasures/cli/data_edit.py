@@ -11,6 +11,7 @@ import pandas as pd
 from flask import current_app as app
 from flask.cli import with_appcontext
 import json
+from sqlalchemy import delete
 
 from flexmeasures import Sensor
 from flexmeasures.data import db
@@ -203,7 +204,7 @@ def resample_sensor_data(
     event_starts_after = pd.Timestamp(start_str)  # note that "" or None becomes NaT
     event_ends_before = pd.Timestamp(end_str)
     for sensor_id in sensor_ids:
-        sensor = Sensor.query.get(sensor_id)
+        sensor = db.session.get(Sensor, sensor_id)
         if sensor.event_resolution == event_resolution:
             click.echo(f"{sensor} already has the desired event resolution.")
             continue
@@ -230,14 +231,14 @@ def resample_sensor_data(
         db.session.add(sensor)
 
         # Update sensor data
-        query = TimedBelief.query.filter(TimedBelief.sensor == sensor)
+        query = delete(TimedBelief).filter_by(sensor=sensor)
         if not pd.isnull(event_starts_after):
             query = query.filter(TimedBelief.event_start >= event_starts_after)
         if not pd.isnull(event_ends_before):
             query = query.filter(
                 TimedBelief.event_start + sensor.event_resolution <= event_ends_before
             )
-        query.delete()
+        db.session.execute(query)
         save_to_db(df_resampled, bulk_save_objects=True)
     db.session.commit()
     click.secho("Successfully resampled sensor data.", **MsgStyle.SUCCESS)

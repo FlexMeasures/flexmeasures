@@ -3,14 +3,15 @@ import pytest
 from isodate import parse_datetime
 
 from rq.job import Job
+from sqlalchemy import select
 
 from flexmeasures.api.common.responses import unknown_schedule, unrecognized_event
 from flexmeasures.api.tests.utils import check_deprecation
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.tests.utils import work_on_rq
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
+from flexmeasures.tests.utils import get_test_sensor
 
 
 @pytest.mark.parametrize(
@@ -109,6 +110,7 @@ def test_trigger_and_get_schedule_with_unknown_prices(
     keep_scheduling_queue_empty,
     message,
     requesting_user,
+    db,
 ):
     sensor = add_battery_assets["Test battery"].sensors[0]
 
@@ -139,9 +141,9 @@ def test_trigger_and_get_schedule_with_unknown_prices(
     )
 
     # check results are not in the database
-    scheduler_source = DataSource.query.filter_by(
-        name="Seita", type="scheduler"
-    ).one_or_none()
+    scheduler_source = db.session.execute(
+        select(DataSource).filter_by(name="Seita", type="scheduler")
+    ).scalar_one_or_none()
     assert (
         scheduler_source is None
     )  # Make sure the scheduler data source is still not there
@@ -168,6 +170,7 @@ def test_get_schedule_fallback(
     add_charging_station_assets,
     keep_scheduling_queue_empty,
     requesting_user,
+    db,
 ):
     """
     Test if the fallback job is created after a failing StorageScheduler call. This test
@@ -180,7 +183,7 @@ def test_get_schedule_fallback(
     charging_station_name = "Test charging station"
 
     start = "2015-01-02T00:00:00+01:00"
-    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    epex_da = get_test_sensor(db)
     charging_station = add_charging_station_assets[charging_station_name].sensors[0]
 
     assert charging_station.get_attribute("capacity_in_mw") == 2
@@ -314,6 +317,7 @@ def test_get_schedule_fallback_not_redirect(
     add_charging_station_assets,
     keep_scheduling_queue_empty,
     requesting_user,
+    db,
 ):
     """
     Test if the fallback scheduler is returned directly after a failing StorageScheduler call. This test
@@ -325,7 +329,7 @@ def test_get_schedule_fallback_not_redirect(
     charging_station_name = "Test charging station"
 
     start = "2015-01-02T00:00:00+01:00"
-    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    epex_da = get_test_sensor(db)
     charging_station = add_charging_station_assets[charging_station_name].sensors[0]
 
     assert charging_station.get_attribute("capacity_in_mw") == 2

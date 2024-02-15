@@ -3,8 +3,9 @@ from marshmallow import Schema, fields, validates, ValidationError
 from pint import DimensionalityError
 
 import json
+import re
 
-from flexmeasures.data import ma
+from flexmeasures.data import ma, db
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.utils import (
@@ -64,7 +65,7 @@ class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
 
     @validates("generic_asset_id")
     def validate_generic_asset(self, generic_asset_id: int):
-        generic_asset = GenericAsset.query.get(generic_asset_id)
+        generic_asset = db.session.get(GenericAsset, generic_asset_id)
         if not generic_asset:
             raise ValidationError(
                 f"Generic asset with id {generic_asset_id} doesn't exist."
@@ -80,7 +81,7 @@ class SensorIdField(MarshmallowClickMixin, fields.Int):
     @with_appcontext_if_needed()
     def _deserialize(self, value: int, attr, obj, **kwargs) -> Sensor:
         """Turn a sensor id into a Sensor."""
-        sensor = Sensor.query.get(value)
+        sensor = db.session.get(Sensor, value)
         if sensor is None:
             raise FMValidationError(f"No sensor found with id {value}.")
         # lazy loading now (sensor is somehow not in session after this)
@@ -94,9 +95,17 @@ class SensorIdField(MarshmallowClickMixin, fields.Int):
 
 
 class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
-    def __init__(self, to_unit: str, *args, **kwargs):
+    def __init__(
+        self, to_unit: str, default_src_unit: str | None = None, *args, **kwargs
+    ):
+        """
+        :param to_unit: unit in which the sensor or quantity should be convertible to
+        :param default_src_unit: what unit to use in case of getting a numeric value
+        """
+
         super().__init__(*args, **kwargs)
         self.to_unit = ur.Quantity(to_unit)
+        self.default_src_unit = default_src_unit
 
     @with_appcontext_if_needed()
     def _deserialize(
@@ -108,7 +117,7 @@ class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
                     "Dictionary provided but `sensor` key not found."
                 )
 
-            sensor = Sensor.query.get(value["sensor"])
+            sensor = db.session.get(Sensor, value["sensor"])
 
             if sensor is None:
                 raise FMValidationError(f"No sensor found with id {value['sensor']}.")
@@ -132,6 +141,12 @@ class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
                     f"Cannot convert value `{value}` to '{self.to_unit}'"
                 ) from e
         else:
+
+            if self.default_src_unit is not None:
+                return self._deserialize(
+                    f"{value} {self.default_src_unit}", attr, obj, **kwargs
+                )
+
             raise FMValidationError(
                 f"Unsupported value type. `{type(value)}` was provided but only dict and str are supported."
             )
@@ -147,3 +162,17 @@ class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
             raise FMValidationError(
                 "Serialized Quantity Or Sensor needs to be of type int, float or Sensor"
             )
+
+    def convert(self, value, param, ctx, **kwargs):
+        # case that the click default is defined in numeric values
+        if not isinstance(value, str):
+            return super().convert(value, param, ctx, **kwargs)
+
+        _value = re.match(r"sensor:(\d+)", value)
+
+        if _value is not None:
+            _value = {"sensor": int(_value.groups()[0])}
+        else:
+            _value = value
+
+        return super().convert(_value, param, ctx, **kwargs)

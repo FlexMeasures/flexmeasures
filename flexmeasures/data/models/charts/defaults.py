@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from functools import wraps
-from typing import Callable, Union
+from typing import Callable
 
 import altair as alt
 
@@ -178,10 +180,10 @@ def apply_chart_defaults(fn):
         include_annotations = kwargs.pop("include_annotations", None)
         if isinstance(fn, Callable):
             # function that returns a chart specification
-            chart_specs: Union[dict, alt.TopLevelMixin] = fn(*args, **kwargs)
+            chart_specs: dict | alt.TopLevelMixin = fn(*args, **kwargs)
         else:
             # not a function, but a direct chart specification
-            chart_specs: Union[dict, alt.TopLevelMixin] = fn
+            chart_specs: dict | alt.TopLevelMixin = fn
         if isinstance(chart_specs, alt.TopLevelMixin):
             chart_specs = chart_specs.to_dict()
             chart_specs.pop("$schema")

@@ -1,10 +1,13 @@
 import pytest
 
-from datetime import timedelta
+from datetime import datetime, timedelta
+from pytz import timezone
+
+from sqlalchemy import select
+
 from flexmeasures.data.models.reporting.profit import ProfitOrLossReporter
 from flexmeasures.data.models.time_series import Sensor
-from datetime import datetime
-from pytz import timezone
+from flexmeasures.tests.utils import get_test_sensor
 
 
 @pytest.mark.parametrize(
@@ -23,10 +26,10 @@ def test_profit_reporter(app, db, profit_report, use_power_sensor, loss_is_posit
     if use_power_sensor:
         output_sensor = power_sensor
 
-    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
-    epex_da_production = Sensor.query.filter(
-        Sensor.name == "epex_da_production"
-    ).one_or_none()
+    epex_da = get_test_sensor(db)
+    epex_da_production = db.session.execute(
+        select(Sensor).filter(Sensor.name == "epex_da_production")
+    ).scalar_one_or_none()
 
     profit_reporter = ProfitOrLossReporter(
         consumption_price_sensor=epex_da,
