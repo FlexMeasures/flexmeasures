@@ -5,8 +5,7 @@ For example, group by asset type or by location.
 from __future__ import annotations
 
 import inflect
-from sqlalchemy import select
-from sqlalchemy.orm import Query
+from sqlalchemy import select, Select
 
 from flexmeasures.data import db
 from flexmeasures.data.queries.generic_assets import (
@@ -29,7 +28,7 @@ def get_asset_group_queries(
     group_by_account: bool = False,
     group_by_location: bool = False,
     custom_aggregate_type_groups: dict[str, list[str]] | None = None,
-) -> dict[str, Query]:
+) -> dict[str, Select]:
     """
     An asset group is defined by Asset queries, which this function can generate.
 
@@ -75,7 +74,7 @@ class AssetGroup:
     unique_asset_types: list[GenericAssetType]
     unique_asset_type_names: list[str]
 
-    def __init__(self, name: str, asset_query: Query | None = None):
+    def __init__(self, name: str, asset_query: Select | None = None):
         """The asset group name is either the name of an asset group or an individual asset."""
         if name is None or name == "":
             raise Exception("Empty asset (group) name passed (%s)" % name)
