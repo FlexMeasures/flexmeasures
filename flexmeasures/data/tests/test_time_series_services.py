@@ -1,6 +1,5 @@
 import pandas as pd
 from timely_beliefs import utils as tb_utils
-from sqlalchemy import select
 
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.data.models.data_sources import DataSource

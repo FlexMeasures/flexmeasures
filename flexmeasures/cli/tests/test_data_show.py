@@ -1,6 +1,5 @@
 import os
 import pytest
-from sqlalchemy import select
 
 from flexmeasures.cli.tests.utils import get_click_commands
 from flexmeasures.tests.utils import get_test_sensor

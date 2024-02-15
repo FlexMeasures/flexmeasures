@@ -12,7 +12,6 @@ from rq import get_current_job
 from rq.job import Job
 from timetomodel.forecasting import make_rolling_forecasts
 import timely_beliefs as tb
-from sqlalchemy import select
 
 from flexmeasures.data import db
 from flexmeasures.data.models.forecasting import lookup_model_specs_configurator

@@ -6,7 +6,6 @@ from flask_security import current_user
 from marshmallow import fields
 from webargs.flaskparser import use_kwargs
 from werkzeug.exceptions import abort
-from sqlalchemy import select
 
 from flexmeasures.data import db
 from flexmeasures.auth.policy import ADMIN_ROLE, ADMIN_READER_ROLE

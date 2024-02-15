@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta
 import pytest
 import pytz
-from sqlalchemy import select
 
 from flexmeasures.data.models.planning.process import ProcessScheduler
 from flexmeasures.tests.utils import get_test_sensor
