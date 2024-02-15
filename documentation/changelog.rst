@@ -29,6 +29,11 @@ Infrastructure / Support
 Bugfixes
 -----------
 
+v0.18.3 | February xx, 2024
+============================
+
+* Convert unit of the power capacities to ``MW`` instead of that of the storage power sensor [see `PR #979 <https://github.com/FlexMeasures/flexmeasures/pull/979>`_]
+
 
 v0.18.2 | January xx, 2024
 ============================
