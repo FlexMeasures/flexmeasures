@@ -4,8 +4,9 @@ import json
 
 from marshmallow import validates, ValidationError, fields, validates_schema
 from flask_security import current_user
+from sqlalchemy import select
 
-from flexmeasures.data import ma
+from flexmeasures.data import ma, db
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.schemas.locations import LatitudeField, LongitudeField
@@ -52,10 +53,14 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
     def validate_name_is_unique_under_parent(self, data, **kwargs):
         if "name" in data:
 
-            asset = GenericAsset.query.filter(
-                GenericAsset.name == data["name"],
-                GenericAsset.parent_asset_id == data.get("parent_asset_id"),
-                GenericAsset.account_id == data.get("account_id"),
+            asset = db.session.scalars(
+                select(GenericAsset)
+                .filter_by(
+                    name=data["name"],
+                    parent_asset_id=data.get("parent_asset_id"),
+                    account_id=data.get("account_id"),
+                )
+                .limit(1)
             ).first()
 
             if asset:
@@ -66,7 +71,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
 
     @validates("generic_asset_type_id")
     def validate_generic_asset_type(self, generic_asset_type_id: int):
-        generic_asset_type = GenericAssetType.query.get(generic_asset_type_id)
+        generic_asset_type = db.session.get(GenericAssetType, generic_asset_type_id)
         if not generic_asset_type:
             raise ValidationError(
                 f"GenericAssetType with id {generic_asset_type_id} doesn't exist."
@@ -75,7 +80,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
     @validates("parent_asset_id")
     def validate_parent_asset(self, parent_asset_id: int | None):
         if parent_asset_id is not None:
-            parent_asset = GenericAsset.query.get(parent_asset_id)
+            parent_asset = db.session.get(GenericAsset, parent_asset_id)
             if not parent_asset:
                 raise ValidationError(
                     f"Parent GenericAsset with id {parent_asset_id} doesn't exist."
@@ -87,7 +92,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
             running_as_cli() or user_has_admin_access(current_user, "update")
         ):
             return
-        account = Account.query.get(account_id)
+        account = db.session.get(Account, account_id)
         if not account:
             raise ValidationError(f"Account with Id {account_id} doesn't exist.")
         if not running_as_cli() and (
@@ -144,7 +149,7 @@ class GenericAssetIdField(MarshmallowClickMixin, fields.Int):
     @with_appcontext_if_needed()
     def _deserialize(self, value, attr, obj, **kwargs) -> GenericAsset:
         """Turn a generic asset id into a GenericAsset."""
-        generic_asset = GenericAsset.query.get(value)
+        generic_asset = db.session.get(GenericAsset, value)
         if generic_asset is None:
             raise FMValidationError(f"No asset found with id {value}.")
         # lazy loading now (asset is somehow not in session after this)

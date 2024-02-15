@@ -5,7 +5,7 @@ CLI commands for populating the database
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Type, List
+from typing import Type
 import isodate
 import json
 import yaml
@@ -21,7 +21,7 @@ from flask.cli import with_appcontext
 import click
 import getpass
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import func
+from sqlalchemy import func, select
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
 import timely_beliefs as tb
 import timely_beliefs.utils as tb_utils
@@ -104,7 +104,7 @@ def fm_add_data():
     help="What kind of data generators to consider in the creation of the basic DataSources. Defaults to `reporter`.",
 )
 @with_appcontext
-def add_sources(kind: List[str]):
+def add_sources(kind: list[str]):
     """Create data sources for the data generators found registered in the
     application and the plugins. Currently, this command only registers the
     sources for the Reporters.
@@ -141,7 +141,9 @@ def new_account_role(name: str, description: str):
     """
     Create an account role.
     """
-    role = AccountRole.query.filter_by(name=name).one_or_none()
+    role = db.session.execute(
+        select(AccountRole).filter_by(name=name)
+    ).scalar_one_or_none()
     if role is not None:
         click.secho(f"Account role '{name}' already exists.", **MsgStyle.ERROR)
         raise click.Abort()
@@ -168,7 +170,9 @@ def new_account(name: str, roles: str, consultancy_account: Account | None):
     """
     Create an account for a tenant in the FlexMeasures platform.
     """
-    account = db.session.query(Account).filter_by(name=name).one_or_none()
+    account = db.session.execute(
+        select(Account).filter_by(name=name)
+    ).scalar_one_or_none()
     if account is not None:
         click.secho(f"Account '{name}' already exists.", **MsgStyle.ERROR)
         raise click.Abort()
@@ -176,7 +180,9 @@ def new_account(name: str, roles: str, consultancy_account: Account | None):
     db.session.add(account)
     if roles:
         for role_name in roles.split(","):
-            role = AccountRole.query.filter_by(name=role_name).one_or_none()
+            role = db.session.execute(
+                select(AccountRole).filter_by(name=role_name)
+            ).scalar_one_or_none()
             if role is None:
                 click.secho(f"Adding account role {role_name} ...", **MsgStyle.ERROR)
                 role = AccountRole(name=role_name)
@@ -237,7 +243,7 @@ def new_user(
     except pytz.UnknownTimeZoneError:
         click.secho(f"Timezone {timezone} is unknown!", **MsgStyle.ERROR)
         raise click.Abort()
-    account = db.session.query(Account).get(account_id)
+    account = db.session.get(Account, account_id)
     if account is None:
         click.secho(f"No account with ID {account_id} found!", **MsgStyle.ERROR)
         raise click.Abort()
@@ -810,23 +816,23 @@ def add_annotation(
         else start + pd.offsets.DateOffset(days=1)
     )
     accounts = (
-        db.session.query(Account).filter(Account.id.in_(account_ids)).all()
+        db.session.scalars(select(Account).filter(Account.id.in_(account_ids))).all()
         if account_ids
         else []
     )
     assets = (
-        db.session.query(GenericAsset)
-        .filter(GenericAsset.id.in_(generic_asset_ids))
-        .all()
+        db.session.scalars(
+            select(GenericAsset).filter(GenericAsset.id.in_(generic_asset_ids))
+        ).all()
         if generic_asset_ids
         else []
     )
     sensors = (
-        db.session.query(Sensor).filter(Sensor.id.in_(sensor_ids)).all()
+        db.session.scalars(select(Sensor).filter(Sensor.id.in_(sensor_ids))).all()
         if sensor_ids
         else []
     )
-    user = db.session.query(User).get(user_id)
+    user = db.session.get(User, user_id)
     _source = get_or_create_source(user)
 
     # Create annotation
@@ -896,14 +902,14 @@ def add_holidays(
     num_holidays = {}
 
     accounts = (
-        db.session.query(Account).filter(Account.id.in_(account_ids)).all()
+        db.session.scalars(select(Account).filter(Account.id.in_(account_ids))).all()
         if account_ids
         else []
     )
     assets = (
-        db.session.query(GenericAsset)
-        .filter(GenericAsset.id.in_(generic_asset_ids))
-        .all()
+        db.session.scalars(
+            select(GenericAsset).filter(GenericAsset.id.in_(generic_asset_ids))
+        ).all()
         if generic_asset_ids
         else []
     )
@@ -1472,7 +1478,7 @@ def add_schedule_process(
     process_duration: timedelta,
     process_type: str,
     process_power: ur.Quantity,
-    forbid: List | None = None,
+    forbid: list | None = None,
     as_job: bool = False,
 ):
     """Create a new schedule for a process asset.
@@ -1714,15 +1720,14 @@ def add_report(  # noqa: C901
         )
 
         # todo: get the oldest last_value among all the sensors
-        last_value_datetime = (
-            db.session.query(func.max(TimedBelief.event_start))
-            .filter(TimedBelief.sensor_id == output[0]["sensor"].id)
-            .one_or_none()
-        )
-
+        last_value_datetime = db.session.execute(
+            select(func.max(TimedBelief.event_start))
+            .select_from(TimedBelief)
+            .filter_by(sensor_id=output[0]["sensor"].id)
+        ).scalar_one_or_none()
         # If there's data saved to the reporter sensors
-        if last_value_datetime[0] is not None:
-            start = last_value_datetime[0]
+        if last_value_datetime is not None:
+            start = last_value_datetime
         else:
             click.secho(
                 "Could not find any data for the output sensors provided. Such data is needed to compute"
@@ -1900,7 +1905,9 @@ def add_toy_account(kind: str, name: str):
     location = (52.374, 4.88969)  # Amsterdam
 
     # make an account (if not exist)
-    account = Account.query.filter(Account.name == name).one_or_none()
+    account = db.session.execute(
+        select(Account).filter_by(name=name)
+    ).scalar_one_or_none()
     if account:
         click.secho(
             f"Account '{account}' already exists. Skipping account creation. Use `flexmeasures delete account --id {account.id}` if you need to remove it.",
@@ -1909,7 +1916,7 @@ def add_toy_account(kind: str, name: str):
 
     # make an account user (account-admin?)
     email = "toy-user@flexmeasures.io"
-    user = User.query.filter_by(email=email).one_or_none()
+    user = db.session.execute(select(User).filter_by(email=email)).scalar_one_or_none()
     if user is not None:
         click.secho(
             f"User with email {email} already exists in account {user.account.name}.",
@@ -1963,7 +1970,7 @@ def add_toy_account(kind: str, name: str):
             GenericAsset,
             name=asset_name,
             generic_asset_type=asset_types[asset_type],
-            owner=Account.query.get(account_id),
+            owner=db.session.get(Account, account_id),
             latitude=location[0],
             longitude=location[1],
         )
@@ -2090,7 +2097,7 @@ def add_toy_account(kind: str, name: str):
             event_start=tz.localize(start_year),
             belief_time=tz.localize(datetime.now()),
             event_value=0.5,
-            source=DataSource.query.get(1),
+            source=db.session.get(DataSource, 1),
             sensor=grid_connection_capacity,
         )
 

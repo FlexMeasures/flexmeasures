@@ -42,7 +42,7 @@ def upgrade():
         sa.Column("fs_uniquifier", sa.String),
     )
     conn = op.get_bind()
-    for row in conn.execute(sa.select([user_table.c.id])):
+    for row in conn.execute(sa.select(*[user_table.c.id])):
         conn.execute(
             user_table.update()
             .values(fs_uniquifier=uuid.uuid4().hex)

@@ -50,7 +50,7 @@ def setup_dummy_data(fresh_db, app, setup_dummy_asset):
 
     db.session.add(pandas_report)
 
-    dummy_asset = GenericAsset.query.get(setup_dummy_asset)
+    dummy_asset = db.session.get(GenericAsset, setup_dummy_asset)
 
     sensor1 = Sensor(
         "sensor 1", generic_asset=dummy_asset, event_resolution=timedelta(hours=1)

@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 import pytz
 import timely_beliefs as tb
+from sqlalchemy import select
 
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.planning.utils import initialize_index
@@ -13,6 +14,7 @@ from flexmeasures.data.queries.utils import (
     multiply_dataframe_with_deterministic_beliefs,
     simplify_index,
 )
+from flexmeasures.tests.utils import get_test_sensor
 
 
 @pytest.mark.parametrize(
@@ -42,7 +44,9 @@ from flexmeasures.data.queries.utils import (
 def test_collect_power(db, app, query_start, query_end, num_values, setup_test_data):
     # asset has only 1 power sensor
     wind_device_1: Sensor = setup_test_data["wind-asset-1"].sensors[0]
-    data = TimedBelief.query.filter(TimedBelief.sensor_id == wind_device_1.id).all()
+    data = db.session.scalars(
+        select(TimedBelief).filter(TimedBelief.sensor_id == wind_device_1.id)
+    ).all()
     print(data)
     bdf: tb.BeliefsDataFrame = TimedBelief.search(
         wind_device_1,
@@ -224,10 +228,12 @@ def test_simplify_index(setup_test_data, check_empty_frame):
     assert df.event_resolution == timedelta(minutes=15)
 
 
-def test_query_beliefs(setup_beliefs):
+def test_query_beliefs(setup_beliefs, db):
     """Check various ways of querying for beliefs."""
-    sensor = Sensor.query.filter_by(name="epex_da").one_or_none()
-    source = DataSource.query.filter_by(name="ENTSO-E").one_or_none()
+    sensor = get_test_sensor(db)
+    source = db.session.execute(
+        select(DataSource).filter_by(name="ENTSO-E")
+    ).scalar_one_or_none()
     bdfs = [
         TimedBelief.search(sensor, source=source, most_recent_beliefs_only=False),
         TimedBelief.search(sensor.id, source=source, most_recent_beliefs_only=False),
@@ -244,13 +250,15 @@ def test_query_beliefs(setup_beliefs):
         assert len(bdf) == setup_beliefs
 
 
-def test_persist_beliefs(setup_beliefs, setup_test_data):
+def test_persist_beliefs(setup_beliefs, setup_test_data, db):
     """Check whether persisting beliefs works.
 
     We load the already set up beliefs, and form new beliefs an hour later.
     """
-    sensor = Sensor.query.filter_by(name="epex_da").one_or_none()
-    source = DataSource.query.filter_by(name="ENTSO-E").one_or_none()
+    sensor = get_test_sensor(db)
+    source = db.session.execute(
+        select(DataSource).filter_by(name="ENTSO-E")
+    ).scalar_one_or_none()
     bdf: tb.BeliefsDataFrame = TimedBelief.search(
         sensor, source=source, most_recent_beliefs_only=False
     )

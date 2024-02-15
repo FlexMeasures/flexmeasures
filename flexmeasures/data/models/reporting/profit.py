@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Any, List, Dict
+from typing import Any
 
 
 from flexmeasures.data.models.reporting import Reporter
@@ -51,10 +51,10 @@ class ProfitOrLossReporter(Reporter):
         self,
         start: datetime,
         end: datetime,
-        input: List[Dict[str, Any]],
-        output: List[Dict[str, Any]],
+        input: list[dict[str, Any]],
+        output: list[dict[str, Any]],
         belief_time: datetime | None = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         :param start: start time of the report
         :param end: end time of the report

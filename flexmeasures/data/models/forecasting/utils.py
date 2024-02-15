@@ -1,6 +1,9 @@
-from typing import Tuple, List, Union
-from datetime import datetime, timedelta
+from __future__ import annotations
 
+from datetime import datetime, timedelta
+from sqlalchemy import select
+
+from flexmeasures.data import db
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.utils.time_utils import as_server_time
@@ -11,18 +14,24 @@ def check_data_availability(
     old_time_series_data_model,
     forecast_start: datetime,
     forecast_end: datetime,
-    query_window: Tuple[datetime, datetime],
+    query_window: tuple[datetime, datetime],
     horizon: timedelta,
 ):
     """Check if enough data is available in the database in the first place,
     for training window and lagged variables. Otherwise, suggest new forecast period.
     TODO: we could also check regressor data, if we get regressor specs passed in here.
     """
-    q = old_time_series_data_model.query.join(old_sensor_model.__class__).filter(
-        old_sensor_model.__class__.name == old_sensor_model.name
+    q = (
+        select(old_time_series_data_model)
+        .join(old_sensor_model.__class__)
+        .filter(old_sensor_model.__class__.name == old_sensor_model.name)
     )
-    first_value = q.order_by(old_time_series_data_model.event_start.asc()).first()
-    last_value = q.order_by(old_time_series_data_model.event_start.desc()).first()
+    first_value = db.session.scalars(
+        q.order_by(old_time_series_data_model.event_start.asc()).limit(1)
+    ).first()
+    last_value = db.session.scalars(
+        q.order_by(old_time_series_data_model.event_start.desc()).limit(1)
+    ).first()
     if first_value is None:
         raise NotEnoughDataException(
             "No data available at all. Forecasting impossible."
@@ -55,7 +64,7 @@ def create_lags(
     horizon: timedelta,
     resolution: timedelta,
     use_periodicity: bool,
-) -> List[timedelta]:
+) -> list[timedelta]:
     """List the lags for this asset type, using horizon and resolution information."""
     lags = []
 
@@ -82,8 +91,8 @@ def create_lags(
 
 
 def get_query_window(
-    training_start: datetime, forecast_end: datetime, lags: List[timedelta]
-) -> Tuple[datetime, datetime]:
+    training_start: datetime, forecast_end: datetime, lags: list[timedelta]
+) -> tuple[datetime, datetime]:
     """Derive query window from start and end date, as well as lags (if any).
     This makes sure we have enough data for lagging and forecasting."""
     if not lags:
@@ -96,8 +105,8 @@ def get_query_window(
 
 def set_training_and_testing_dates(
     forecast_start: datetime,
-    training_and_testing_period: Union[timedelta, Tuple[datetime, datetime]],
-) -> Tuple[datetime, datetime]:
+    training_and_testing_period: timedelta | tuple[datetime, datetime],
+) -> tuple[datetime, datetime]:
     """If needed (if training_and_testing_period is a timedelta),
     derive training_start and testing_end from forecasting_start,
     otherwise simply return training_and_testing_period.

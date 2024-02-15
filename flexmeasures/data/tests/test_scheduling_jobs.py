@@ -5,6 +5,7 @@ import inspect
 import pytz
 import pytest
 from rq.job import Job
+from sqlalchemy import select
 
 from flexmeasures.data.models.planning import Scheduler
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
@@ -31,7 +32,9 @@ def test_scheduling_a_battery(db, app, add_battery_assets, setup_test_data):
     resolution = timedelta(minutes=15)
 
     assert (
-        DataSource.query.filter_by(name="FlexMeasures", type="scheduler").one_or_none()
+        db.session.execute(
+            select(DataSource).filter_by(name="FlexMeasures", type="scheduler")
+        ).scalar_one_or_none()
         is None
     )  # Make sure the scheduler data source isn't there
 
@@ -51,18 +54,18 @@ def test_scheduling_a_battery(db, app, add_battery_assets, setup_test_data):
 
     work_on_rq(app.queues["scheduling"], exc_handler=exception_reporter)
 
-    scheduler_source = DataSource.query.filter_by(
-        name="Seita", type="scheduler"
-    ).one_or_none()
+    scheduler_source = db.session.execute(
+        select(DataSource).filter_by(name="Seita", type="scheduler")
+    ).scalar_one_or_none()
     assert (
         scheduler_source is not None
     )  # Make sure the scheduler data source is now there
 
-    power_values = (
-        TimedBelief.query.filter(TimedBelief.sensor_id == battery.id)
+    power_values = db.session.scalars(
+        select(TimedBelief)
+        .filter(TimedBelief.sensor_id == battery.id)
         .filter(TimedBelief.source_id == scheduler_source.id)
-        .all()
-    )
+    ).all()
     print([v.event_value for v in power_values])
     assert len(power_values) == 96
     assert (
@@ -132,19 +135,21 @@ def test_assigning_custom_scheduler(db, app, add_battery_assets, is_path: bool):
     finished_job = Job.fetch(job.id, connection=redis_connection)
     assert finished_job.meta["data_source_info"]["model"] == scheduler_specs["class"]
 
-    scheduler_source = DataSource.query.filter_by(
-        type="scheduler",
-        **finished_job.meta["data_source_info"],
-    ).one_or_none()
+    scheduler_source = db.session.execute(
+        select(DataSource).filter_by(
+            type="scheduler",
+            **finished_job.meta["data_source_info"],
+        )
+    ).scalar_one_or_none()
     assert (
         scheduler_source is not None
     )  # Make sure the scheduler data source is now there
 
-    power_values = (
-        TimedBelief.query.filter(TimedBelief.sensor_id == battery.id)
+    power_values = db.session.scalars(
+        select(TimedBelief)
+        .filter(TimedBelief.sensor_id == battery.id)
         .filter(TimedBelief.source_id == scheduler_source.id)
-        .all()
-    )
+    ).all()
     assert len(power_values) == 96
     # test for negative value as we schedule consumption
     assert all(

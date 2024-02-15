@@ -4,7 +4,7 @@ from contextlib import contextmanager
 import pytest
 from random import random, seed
 from datetime import datetime, timedelta
-
+from sqlalchemy import select
 from isodate import parse_duration
 import pandas as pd
 import numpy as np
@@ -162,7 +162,9 @@ def create_test_accounts(db) -> dict[str, Account]:
         description="A client of a consultancy",
     )
     consultancy_account_id = (
-        Account.query.filter_by(name="Test Consultancy Account").one_or_none().id
+        db.session.execute(select(Account).filter_by(name="Test Consultancy Account"))
+        .scalar_one_or_none()
+        .id
     )
     consultancy_client_account = Account(
         name="Test ConsultancyClient Account",
@@ -401,7 +403,9 @@ def create_generic_asset_types(db) -> dict[str, GenericAssetType]:
     db.session.add(solar)
     wind = GenericAssetType(name="wind turbine")
     db.session.add(wind)
-    battery = GenericAssetType.query.filter_by(name="battery").one_or_none()
+    battery = db.session.execute(
+        select(GenericAssetType).filter_by(name="battery")
+    ).scalar_one_or_none()
     if (
         not battery
     ):  # legacy if-block, because create_test_battery_assets might have created it already - refactor!
@@ -532,7 +536,9 @@ def create_beliefs(db: SQLAlchemy, setup_markets, setup_sources) -> int:
     """
     :returns: the number of beliefs set up
     """
-    sensor = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    sensor = db.session.execute(
+        select(Sensor).filter(Sensor.name == "epex_da")
+    ).scalar_one_or_none()
     beliefs = [
         TimedBelief(
             sensor=sensor,

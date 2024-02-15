@@ -78,7 +78,7 @@ def test_quantity_or_sensor_conversion(
     ],
 )
 def test_quantity_or_sensor_field(
-    setup_dummy_sensors, sensor_id, input_param, dst_unit, fails
+    setup_dummy_sensors, sensor_id, input_param, dst_unit, fails, db
 ):
 
     field = QuantityOrSensor(to_unit=dst_unit)
@@ -89,7 +89,7 @@ def test_quantity_or_sensor_field(
             assert val.units == ur.Unit(dst_unit)
         else:
             val = field.convert(input_param, None, None)
-            assert val == Sensor.query.get(sensor_id)
+            assert val == db.session.get(Sensor, sensor_id)
 
         assert not fails
     except Exception:

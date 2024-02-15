@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 from datetime import datetime, timedelta
 
 from flask import current_app, url_for
@@ -12,6 +11,7 @@ from marshmallow import fields, ValidationError
 from rq.job import Job, NoSuchJobError
 from timely_beliefs import BeliefsDataFrame
 from webargs.flaskparser import use_args, use_kwargs
+from sqlalchemy import delete
 
 from flexmeasures.api.common.responses import (
     request_processed,
@@ -747,10 +747,10 @@ class SensorAPI(FlaskView):
         """
 
         """Delete time series data."""
-        TimedBelief.query.filter(TimedBelief.sensor_id == sensor.id).delete()
+        db.session.execute(delete(TimedBelief).filter_by(sensor_id=sensor.id))
 
         sensor_name = sensor.name
-        db.session.delete(sensor)
+        db.session.execute(delete(Sensor).filter_by(id=sensor.id))
         db.session.commit()
         current_app.logger.info("Deleted sensor '%s'." % sensor_name)
         return {}, 204

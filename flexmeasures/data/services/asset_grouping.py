@@ -2,13 +2,12 @@
 Convenience functions and class for accessing generic assets in groups.
 For example, group by asset type or by location.
 """
-
 from __future__ import annotations
-from typing import List, Optional, Dict
+
 import inflect
+from sqlalchemy import select, Select
 
-from sqlalchemy.orm import Query
-
+from flexmeasures.data import db
 from flexmeasures.data.queries.generic_assets import (
     get_asset_group_queries as get_asset_group_queries_new,
 )
@@ -28,8 +27,8 @@ def get_asset_group_queries(
     group_by_type: bool = True,
     group_by_account: bool = False,
     group_by_location: bool = False,
-    custom_aggregate_type_groups: Optional[Dict[str, List[str]]] = None,
-) -> Dict[str, Query]:
+    custom_aggregate_type_groups: dict[str, list[str]] | None = None,
+) -> dict[str, Select]:
     """
     An asset group is defined by Asset queries, which this function can generate.
 
@@ -70,22 +69,22 @@ class AssetGroup:
     """
 
     name: str
-    assets: List[GenericAsset]
+    assets: list[GenericAsset]
     count: int
-    unique_asset_types: List[GenericAssetType]
-    unique_asset_type_names: List[str]
+    unique_asset_types: list[GenericAssetType]
+    unique_asset_type_names: list[str]
 
-    def __init__(self, name: str, asset_query: Optional[Query] = None):
+    def __init__(self, name: str, asset_query: Select | None = None):
         """The asset group name is either the name of an asset group or an individual asset."""
         if name is None or name == "":
             raise Exception("Empty asset (group) name passed (%s)" % name)
         self.name = name
 
-        if not asset_query:
-            asset_query = GenericAsset.query.filter_by(name=self.name)
+        if asset_query is None:
+            asset_query = select(GenericAsset).filter_by(name=self.name)
 
         # List unique asset types and asset type names represented by this group
-        self.assets = asset_query.all()
+        self.assets = db.session.scalars(asset_query).all()
         self.unique_asset_types = list(set([a.asset_type for a in self.assets]))
         self.unique_asset_type_names = list(
             set([a.asset_type.name for a in self.assets])
@@ -118,7 +117,7 @@ class AssetGroup:
         )
 
     @property
-    def hover_label(self) -> Optional[str]:
+    def hover_label(self) -> str | None:
         """Attempt to get a hover label to show if possible."""
         label = p.join(
             [
