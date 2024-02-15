@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from packaging import version
-from typing import List, Optional, Tuple, Union
 from datetime import date, datetime, timedelta
 
 from flask import current_app
@@ -24,7 +23,7 @@ from pint.errors import UndefinedUnitError, DimensionalityError
 
 
 def initialize_df(
-    columns: List[str],
+    columns: list[str],
     start: datetime,
     end: datetime,
     resolution: timedelta,
@@ -37,7 +36,7 @@ def initialize_df(
 
 
 def initialize_series(
-    data: Optional[Union[pd.Series, List[float], np.ndarray, float]],
+    data: pd.Series | list[float] | np.ndarray | float | None,
     start: datetime,
     end: datetime,
     resolution: timedelta,
@@ -48,9 +47,9 @@ def initialize_series(
 
 
 def initialize_index(
-    start: Union[date, datetime, str],
-    end: Union[date, datetime, str],
-    resolution: Union[timedelta, str],
+    start: date | datetime | str,
+    end: date | datetime | str,
+    resolution: timedelta | str,
     inclusive: str = "left",
 ) -> pd.DatetimeIndex:
     if version.parse(pd.__version__) >= version.parse("1.4.0"):
@@ -98,13 +97,13 @@ def get_market(sensor: Sensor) -> Sensor:
 
 
 def get_prices(
-    query_window: Tuple[datetime, datetime],
+    query_window: tuple[datetime, datetime],
     resolution: timedelta,
-    beliefs_before: Optional[datetime],
-    price_sensor: Optional[Sensor] = None,
-    sensor: Optional[Sensor] = None,
+    beliefs_before: datetime | None,
+    price_sensor: Sensor | None = None,
+    sensor: Sensor | None = None,
     allow_trimmed_query_window: bool = True,
-) -> Tuple[pd.DataFrame, Tuple[datetime, datetime]]:
+) -> tuple[pd.DataFrame, tuple[datetime, datetime]]:
     """Check for known prices or price forecasts.
 
     If so allowed, the query window is trimmed according to the available data.
@@ -174,9 +173,9 @@ def get_prices(
 
 
 def get_power_values(
-    query_window: Tuple[datetime, datetime],
+    query_window: tuple[datetime, datetime],
     resolution: timedelta,
-    beliefs_before: Optional[datetime],
+    beliefs_before: datetime | None,
     sensor: Sensor,
 ) -> np.ndarray:
     """Get measurements or forecasts of an inflexible device represented by a power sensor.

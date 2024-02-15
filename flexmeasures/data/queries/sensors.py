@@ -1,4 +1,4 @@
-from typing import List, Optional
+from __future__ import annotations
 
 from sqlalchemy.sql import Select, select
 
@@ -7,9 +7,9 @@ from flexmeasures.data.queries.utils import potentially_limit_assets_query_to_ac
 
 
 def query_sensor_by_name_and_generic_asset_type_name(
-    sensor_name: Optional[str] = None,
-    generic_asset_type_names: Optional[List[str]] = None,
-    account_id: Optional[int] = None,
+    sensor_name: str | None = None,
+    generic_asset_type_names: list[str] | None = None,
+    account_id: int | None = None,
 ) -> Select:
     """Match a sensor by its own name and that of its generic asset type.
 
@@ -37,9 +37,9 @@ def query_sensor_by_name_and_generic_asset_type_name(
 def query_sensors_by_proximity(
     latitude: float,
     longitude: float,
-    generic_asset_type_name: Optional[str],
-    sensor_name: Optional[str],
-    account_id: Optional[int] = None,
+    generic_asset_type_name: str | None,
+    sensor_name: str | None,
+    account_id: int | None = None,
 ) -> Select:
     """Order them by proximity of their asset's location to the target."""
     from flexmeasures.data.models.time_series import Sensor

@@ -1,4 +1,4 @@
-from typing import List, Tuple, Union
+from __future__ import annotations
 
 from flask import current_app
 import pandas as pd
@@ -28,13 +28,13 @@ infinity = float("inf")
 
 
 def device_scheduler(  # noqa C901
-    device_constraints: List[pd.DataFrame],
+    device_constraints: list[pd.DataFrame],
     ems_constraints: pd.DataFrame,
-    commitment_quantities: List[pd.Series],
-    commitment_downwards_deviation_price: Union[List[pd.Series], List[float]],
-    commitment_upwards_deviation_price: Union[List[pd.Series], List[float]],
+    commitment_quantities: list[pd.Series],
+    commitment_downwards_deviation_price: list[pd.Series] | list[float],
+    commitment_upwards_deviation_price: list[pd.Series] | list[float],
     initial_stock: float = 0,
-) -> Tuple[List[pd.Series], float, SolverResults, ConcreteModel]:
+) -> tuple[list[pd.Series], float, SolverResults, ConcreteModel]:
     """This generic device scheduler is able to handle an EMS with multiple devices,
     with various types of constraints on the EMS level and on the device level,
     and with multiple market commitments on the EMS level.

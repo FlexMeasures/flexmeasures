@@ -1,4 +1,6 @@
-from typing import Tuple, Callable
+from __future__ import annotations
+
+from typing import Callable
 
 from timetomodel import ModelSpecs
 
@@ -22,7 +24,7 @@ def lookup_model_specs_configurator(
 ) -> Callable[
     ...,  # See model_spec_factory.create_initial_model_specs for an up-to-date type annotation
     # Annotating here would require Python>=3.10 (specifically, ParamSpec from PEP 612)
-    Tuple[ModelSpecs, str, str],
+    tuple[ModelSpecs, str, str],
 ]:
     """
     This function maps a model-identifying search term to a model configurator function, which can make model meta data.

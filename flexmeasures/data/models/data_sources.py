@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Any, List, Dict, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 from sqlalchemy.ext.mutable import MutableDict
 
 import timely_beliefs as tb
@@ -90,10 +90,10 @@ class DataGenerator:
         elif len(kwargs) == 0:
             self._config = self._config_schema.load({})
 
-    def _compute(self, **kwargs) -> List[Dict[str, Any]]:
+    def _compute(self, **kwargs) -> list[dict[str, Any]]:
         raise NotImplementedError()
 
-    def compute(self, parameters: dict | None = None, **kwargs) -> List[Dict[str, Any]]:
+    def compute(self, parameters: dict | None = None, **kwargs) -> list[dict[str, Any]]:
         """The configuration `parameters` stores dynamic parameters, parameters that, if
         changed, DO NOT trigger the creation of a new DataSource. Static parameters, such as
         the topology of an energy system, can go into `config`.

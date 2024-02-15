@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 from datetime import datetime, timedelta
 
 from flask import current_app, url_for
