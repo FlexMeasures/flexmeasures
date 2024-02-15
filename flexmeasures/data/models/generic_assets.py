@@ -7,9 +7,10 @@ import json
 from flask import current_app
 from flask_security import current_user
 import pandas as pd
+from sqlalchemy import select
 from sqlalchemy.engine import Row
 from sqlalchemy.ext.hybrid import hybrid_method
-from sqlalchemy.sql.expression import func
+from sqlalchemy.sql.expression import func, text
 from sqlalchemy.ext.mutable import MutableDict
 from timely_beliefs import BeliefsDataFrame, utils as tb_utils
 
@@ -238,12 +239,14 @@ class GenericAsset(db.Model, AuthModelMixin):
         :param annotations_before: only return annotations that start before this datetime (exclusive)
         """
         parsed_sources = parse_source_arg(source)
-        annotations = query_asset_annotations(
-            asset_id=self.id,
-            annotations_after=annotations_after,
-            annotations_before=annotations_before,
-            sources=parsed_sources,
-            annotation_type=annotation_type,
+        annotations = db.session.scalars(
+            query_asset_annotations(
+                asset_id=self.id,
+                annotations_after=annotations_after,
+                annotations_before=annotations_before,
+                sources=parsed_sources,
+                annotation_type=annotation_type,
+            )
         ).all()
         if include_account_annotations and self.owner is not None:
             annotations += self.owner.search_annotations(
@@ -483,7 +486,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         if current_app.config.get("FLEXMEASURES_MODE") == "play":
             from flexmeasures.data.models.user import Account
 
-            accounts = Account.query.all()
+            accounts = db.session.scalars(select(Account)).all()
 
         from flexmeasures.data.services.sensors import get_sensors
 
@@ -596,9 +599,9 @@ def create_generic_asset(generic_asset_type: str, **kwargs) -> GenericAsset:
             asset_type_name = kwargs.pop(f"{generic_asset_type}_type").name
         else:
             asset_type_name = kwargs.pop("sensor_type").name
-    generic_asset_type = GenericAssetType.query.filter_by(
-        name=asset_type_name
-    ).one_or_none()
+    generic_asset_type = db.session.execute(
+        select(GenericAssetType).filter_by(name=asset_type_name)
+    ).scalar_one_or_none()
     if generic_asset_type is None:
         raise ValueError(f"Cannot find GenericAssetType {asset_type_name} in database.")
 
@@ -638,7 +641,7 @@ def get_center_location_of_assets(user: Optional[User]) -> Tuple[float, float]:
     if user is None:
         user = current_user
     query += f" where generic_asset.account_id = {user.account_id}"
-    locations: List[Row] = db.session.execute(query + ";").fetchall()
+    locations: List[Row] = db.session.execute(text(query + ";")).fetchall()
     if (
         len(locations) == 0
         or locations[0].latitude is None

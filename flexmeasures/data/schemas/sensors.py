@@ -5,7 +5,7 @@ from pint import DimensionalityError
 import json
 import re
 
-from flexmeasures.data import ma
+from flexmeasures.data import ma, db
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.utils import (
@@ -65,7 +65,7 @@ class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
 
     @validates("generic_asset_id")
     def validate_generic_asset(self, generic_asset_id: int):
-        generic_asset = GenericAsset.query.get(generic_asset_id)
+        generic_asset = db.session.get(GenericAsset, generic_asset_id)
         if not generic_asset:
             raise ValidationError(
                 f"Generic asset with id {generic_asset_id} doesn't exist."
@@ -81,7 +81,7 @@ class SensorIdField(MarshmallowClickMixin, fields.Int):
     @with_appcontext_if_needed()
     def _deserialize(self, value: int, attr, obj, **kwargs) -> Sensor:
         """Turn a sensor id into a Sensor."""
-        sensor = Sensor.query.get(value)
+        sensor = db.session.get(Sensor, value)
         if sensor is None:
             raise FMValidationError(f"No sensor found with id {value}.")
         # lazy loading now (sensor is somehow not in session after this)
@@ -117,7 +117,7 @@ class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
                     "Dictionary provided but `sensor` key not found."
                 )
 
-            sensor = Sensor.query.get(value["sensor"])
+            sensor = db.session.get(Sensor, value["sensor"])
 
             if sensor is None:
                 raise FMValidationError(f"No sensor found with id {value['sensor']}.")

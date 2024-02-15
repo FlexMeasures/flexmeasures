@@ -4,6 +4,7 @@ from datetime import datetime
 
 from flask_security import UserMixin, RoleMixin
 import pandas as pd
+from sqlalchemy import select
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy import Boolean, DateTime, Column, Integer, String, ForeignKey
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -145,9 +146,13 @@ class Account(db.Model, AuthModelMixin):
         )
 
         parsed_sources = parse_source_arg(source)
-        query = Annotation.query.join(AccountAnnotationRelationship).filter(
-            AccountAnnotationRelationship.account_id == self.id,
-            AccountAnnotationRelationship.annotation_id == Annotation.id,
+        query = (
+            select(Annotation)
+            .join(AccountAnnotationRelationship)
+            .filter(
+                AccountAnnotationRelationship.account_id == self.id,
+                AccountAnnotationRelationship.annotation_id == Annotation.id,
+            )
         )
         if annotations_after is not None:
             query = query.filter(
@@ -161,7 +166,7 @@ class Account(db.Model, AuthModelMixin):
             query = query.filter(
                 Annotation.source.in_(parsed_sources),
             )
-        annotations = query.all()
+        annotations = db.session.scalars(query).all()
 
         return to_annotation_frame(annotations) if as_frame else annotations
 

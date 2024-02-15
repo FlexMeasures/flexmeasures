@@ -1,6 +1,8 @@
 from datetime import datetime
 import pytz
 
+from sqlalchemy import select
+
 from flexmeasures.data import db
 
 
@@ -31,9 +33,9 @@ class LatestTaskRun(db.Model):
         If the row is not yet in the table, create it first.
         Does not commit.
         """
-        task_run = LatestTaskRun.query.filter(
-            LatestTaskRun.name == task_name
-        ).one_or_none()
+        task_run = db.session.execute(
+            select(LatestTaskRun).filter(LatestTaskRun.name == task_name)
+        ).scalar_one_or_none()
         if task_run is None:
             task_run = LatestTaskRun(name=task_name)
             db.session.add(task_run)

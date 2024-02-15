@@ -11,6 +11,8 @@ import click
 from flask import current_app as app
 from flask.cli import with_appcontext
 from timely_beliefs.beliefs.queries import query_unchanged_beliefs
+from sqlalchemy import select, func, delete
+
 
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts, User
@@ -35,7 +37,9 @@ def delete_account_role(name: str):
     Delete an account role.
     If it has accounts connected, print them before deleting the connection.
     """
-    role: AccountRole = AccountRole.query.filter_by(name=name).one_or_none()
+    role: AccountRole = db.session.execute(
+        select(AccountRole).filter_by(name=name)
+    ).scalar_one_or_none()
     if role is None:
         click.secho(f"Account role '{name}' does not exist.", **MsgStyle.ERROR)
         raise click.Abort()
@@ -46,7 +50,7 @@ def delete_account_role(name: str):
         )
         for account in accounts:
             account.account_roles.remove(role)
-    db.session.delete(role)
+    db.session.execute(delete(AccountRole).filter_by(id=role.id))
     db.session.commit()
     click.secho(f"Account role '{name}' has been deleted.", **MsgStyle.SUCCESS)
 
@@ -61,16 +65,18 @@ def delete_account(id: int, force: bool):
     """
     Delete an account, including their users & data.
     """
-    account: Account = db.session.query(Account).get(id)
+    account: Account = db.session.get(Account, id)
     if account is None:
         click.secho(f"Account with ID '{id}' does not exist.", **MsgStyle.ERROR)
         raise click.Abort()
     if not force:
         prompt = f"Delete account '{account.name}', including generic assets, users and all their data?\n"
-        users = User.query.filter(User.account_id == id).all()
+        users = db.session.scalars(select(User).filter_by(account_id=id)).all()
         if users:
             prompt += "Affected users: " + ",".join([u.username for u in users]) + "\n"
-        generic_assets = GenericAsset.query.filter(GenericAsset.account_id == id).all()
+        generic_assets = db.session.scalars(
+            select(GenericAsset).filter_by(account_id=id)
+        ).all()
         if generic_assets:
             prompt += (
                 "Affected generic assets: "
@@ -81,19 +87,23 @@ def delete_account(id: int, force: bool):
     for user in account.users:
         click.secho(f"Deleting user {user} ...")
         delete_user(user)
-    for role_account_association in RolesAccounts.query.filter_by(
-        account_id=account.id
+    for role_account_association in db.session.scalars(
+        select(RolesAccounts).filter_by(account_id=account.id)
     ).all():
-        role = AccountRole.query.get(role_account_association.role_id)
+        role = db.session.get(AccountRole, role_account_association.role_id)
         click.echo(
             f"Deleting association of account {account.name} and role {role.name} ...",
         )
-        db.session.delete(role_account_association)
+        db.session.execute(
+            delete(RolesAccounts).filter_by(
+                account_id=role_account_association.account_id
+            )
+        )
     for asset in account.generic_assets:
         click.echo(f"Deleting generic asset {asset} (and sensors & beliefs) ...")
-        db.session.delete(asset)
+        db.session.execute(delete(GenericAsset).filter_by(id=asset.id))
     account_name = account.name
-    db.session.delete(account)
+    db.session.execute(delete(Account).filter_by(id=account.id))
     db.session.commit()
     click.secho(f"Account {account_name} has been deleted.", **MsgStyle.SUCCESS)
 
@@ -136,7 +146,7 @@ def delete_asset_and_data(asset: GenericAsset, force: bool):
             f"Delete {asset.__repr__()}, including all its sensors, data and children?"
         )
         click.confirm(prompt, abort=True)
-    db.session.delete(asset)
+    db.session.execute(delete(GenericAsset).filter_by(id=asset.id))
     db.session.commit()
 
 
@@ -244,18 +254,17 @@ def delete_unchanged_beliefs(
     delete_unchanged_measurements: bool = True,
 ):
     """Delete unchanged beliefs (i.e. updated beliefs with a later belief time, but with the same event value)."""
-    q = db.session.query(TimedBelief)
+    q = select(TimedBelief)
     if sensor_id:
-        sensor = Sensor.query.filter(Sensor.id == sensor_id).one_or_none()
+        sensor = db.session.get(Sensor, sensor_id)
         if sensor is None:
             click.secho(
                 f"Failed to delete any beliefs: no sensor found with id {sensor_id}.",
                 **MsgStyle.ERROR,
             )
             raise click.Abort()
-        q = q.filter(TimedBelief.sensor_id == sensor.id)
-    num_beliefs_before = q.count()
-
+        q = q.filter_by(sensor_id=sensor.id)
+    num_beliefs_before = db.session.scalar(select(func.count()).select_from(q))
     unchanged_queries = []
     num_forecasts_up_for_deletion = 0
     num_measurements_up_for_deletion = 0
@@ -269,7 +278,9 @@ def delete_unchanged_beliefs(
             include_non_positive_horizons=False,
         )
         unchanged_queries.append(q_unchanged_forecasts)
-        num_forecasts_up_for_deletion = q_unchanged_forecasts.count()
+        num_forecasts_up_for_deletion = db.session.scalar(
+            select(func.count()).select_from(q_unchanged_forecasts)
+        )
     if delete_unchanged_measurements:
         q_unchanged_measurements = query_unchanged_beliefs(
             db.session,
@@ -280,7 +291,9 @@ def delete_unchanged_beliefs(
             include_positive_horizons=False,
         )
         unchanged_queries.append(q_unchanged_measurements)
-        num_measurements_up_for_deletion = q_unchanged_measurements.count()
+        num_measurements_up_for_deletion = db.session.scalar(
+            select(func.count()).select_from(q_unchanged_measurements)
+        )
 
     num_beliefs_up_for_deletion = (
         num_forecasts_up_for_deletion + num_measurements_up_for_deletion
@@ -288,7 +301,9 @@ def delete_unchanged_beliefs(
     prompt = f"Delete {num_beliefs_up_for_deletion} unchanged beliefs ({num_measurements_up_for_deletion} measurements and {num_forecasts_up_for_deletion} forecasts) out of {num_beliefs_before} beliefs?"
     click.confirm(prompt, abort=True)
 
-    beliefs_up_for_deletion = list(chain(*[q.all() for q in unchanged_queries]))
+    beliefs_up_for_deletion = list(
+        chain(*[db.session.scalars(q).all() for q in unchanged_queries])
+    )
     batch_size = 10000
     for i, b in enumerate(beliefs_up_for_deletion, start=1):
         if i % batch_size == 0 or i == num_beliefs_up_for_deletion:
@@ -296,7 +311,7 @@ def delete_unchanged_beliefs(
         db.session.delete(b)
     click.secho(f"Removing {num_beliefs_up_for_deletion} beliefs ...")
     db.session.commit()
-    num_beliefs_after = q.count()
+    num_beliefs_after = db.session.scalar(select(func.count()).select_from(q))
     click.secho(f"Done! {num_beliefs_after} beliefs left", **MsgStyle.SUCCESS)
 
 
@@ -340,15 +355,18 @@ def delete_sensor(
     sensors: list[Sensor],
 ):
     """Delete sensors and their (time series) data."""
-    n = TimedBelief.query.filter(
+    n = delete(TimedBelief).where(
         TimedBelief.sensor_id.in_(sensor.id for sensor in sensors)
-    ).delete()
+    )
+    statements = []
     for sensor in sensors:
-        db.session.delete(sensor)
+        statements.append(delete(Sensor).filter_by(id=sensor.id))
     click.confirm(
         f"Delete {', '.join(sensor.__repr__() for sensor in sensors)}, along with {n} beliefs?",
         abort=True,
     )
+    for statement in statements:
+        db.session.execute(statement)
     db.session.commit()
 
 

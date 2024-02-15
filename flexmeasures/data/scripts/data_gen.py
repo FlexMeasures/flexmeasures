@@ -10,7 +10,7 @@ import pandas as pd
 from flask import current_app as app
 from flask_sqlalchemy import SQLAlchemy
 import click
-from sqlalchemy import func, and_
+from sqlalchemy import func, and_, select, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.serializer import loads, dumps
 from timetomodel.forecasting import make_rolling_forecasts
@@ -41,9 +41,11 @@ def add_default_data_sources(db: SQLAlchemy):
         ("Seita", "forecaster"),
         ("Seita", "scheduler"),
     ):
-        source = DataSource.query.filter(
-            and_(DataSource.name == source_name, DataSource.type == source_type)
-        ).one_or_none()
+        source = db.session.execute(
+            select(DataSource).filter(
+                and_(DataSource.name == source_name, DataSource.type == source_type)
+            )
+        ).scalar_one_or_none()
         if source:
             click.echo(f"Source {source_name} ({source_type}) already exists.")
         else:
@@ -64,9 +66,9 @@ def add_default_asset_types(db: SQLAlchemy) -> Dict[str, GenericAssetType]:
         ("building", "building"),
         ("process", "process"),
     ):
-        _type = GenericAssetType.query.filter(
-            GenericAssetType.name == type_name
-        ).one_or_none()
+        _type = db.session.execute(
+            select(GenericAssetType).filter_by(name=type_name)
+        ).scalar_one_or_none()
         if _type is None:
             _type = GenericAssetType(name=type_name, description=type_description)
             db.session.add(_type)
@@ -89,7 +91,9 @@ def add_default_user_roles(db: SQLAlchemy):
         ("account-admin", "Can post and edit sensors and assets in their account"),
         ("consultant", "Can read everything in consultancy client accounts"),
     ):
-        role = Role.query.filter(Role.name == role_name).one_or_none()
+        role = db.session.execute(
+            select(Role).filter_by(name=role_name)
+        ).scalar_one_or_none()
         if role:
             click.echo(f"Role {role_name} already exists.")
         else:
@@ -107,7 +111,9 @@ def add_default_account_roles(db: SQLAlchemy):
         ("Aggregator", "Aggregator of energy flexibility"),
         ("ESCO", "Energy Service Company"),
     ):
-        role = AccountRole.query.filter(AccountRole.name == role_name).one_or_none()
+        role = db.session.execute(
+            select(AccountRole).filter_by(name=role_name)
+        ).scalar_one_or_none()
         if role:
             click.echo(f"Account role {role_name} already exists.")
         else:
@@ -118,9 +124,9 @@ def add_transmission_zone_asset(country_code: str, db: SQLAlchemy) -> GenericAss
     """
     Ensure a GenericAsset exists to model a transmission zone for a country.
     """
-    transmission_zone_type = GenericAssetType.query.filter(
-        GenericAssetType.name == "transmission zone"
-    ).one_or_none()
+    transmission_zone_type = db.session.execute(
+        select(GenericAssetType).filter_by(name="transmission zone")
+    ).scalar_one_or_none()
     if not transmission_zone_type:
         click.echo("Adding transmission zone type ...")
         transmission_zone_type = GenericAssetType(
@@ -129,9 +135,9 @@ def add_transmission_zone_asset(country_code: str, db: SQLAlchemy) -> GenericAss
         )
         db.session.add(transmission_zone_type)
     ga_name = f"{country_code} transmission zone"
-    transmission_zone = GenericAsset.query.filter(
-        GenericAsset.name == ga_name
-    ).one_or_none()
+    transmission_zone = db.session.execute(
+        select(GenericAsset).filter_by(name=ga_name)
+    ).scalar_one_or_none()
     if not transmission_zone:
         click.echo(f"Adding {ga_name} ...")
         transmission_zone = GenericAsset(
@@ -139,6 +145,7 @@ def add_transmission_zone_asset(country_code: str, db: SQLAlchemy) -> GenericAss
             generic_asset_type=transmission_zone_type,
             account_id=None,  # public
         )
+        db.session.add(transmission_zone)
     return transmission_zone
 
 
@@ -156,12 +163,23 @@ def populate_initial_structure(db: SQLAlchemy):
     add_default_user_roles(db)
     add_default_account_roles(db)
     add_default_asset_types(db)
-    click.echo("DB now has %d DataSource(s)" % db.session.query(DataSource).count())
     click.echo(
-        "DB now has %d AssetType(s)" % db.session.query(GenericAssetType).count()
+        "DB now has %d DataSource(s)"
+        % db.session.scalar(select(func.count()).select_from(DataSource))
     )
-    click.echo("DB now has %d Role(s) for users" % db.session.query(Role).count())
-    click.echo("DB now has %d AccountRole(s)" % db.session.query(AccountRole).count())
+
+    click.echo(
+        "DB now has %d AssetType(s)"
+        % db.session.scalar(select(func.count()).select_from(GenericAssetType))
+    )
+    click.echo(
+        "DB now has %d Role(s) for users"
+        % db.session.scalar(select(func.count()).select_from(Role))
+    )
+    click.echo(
+        "DB now has %d AccountRole(s)"
+        % db.session.scalar(select(func.count()).select_from(AccountRole))
+    )
 
 
 @as_transaction  # noqa: C901
@@ -181,12 +199,15 @@ def populate_time_series_forecasts(  # noqa: C901
     )
 
     # Set a data source for the forecasts
-    data_source = DataSource.query.filter_by(
-        name="Seita", type="demo script"
-    ).one_or_none()
-
+    data_source = db.session.execute(
+        select(DataSource).filter_by(name="Seita", type="demo script")
+    ).scalar_one_or_none()
     # List all sensors for which to forecast.
-    sensors = [Sensor.query.filter(Sensor.id.in_(sensor_ids)).one_or_none()]
+    sensors = [
+        db.session.execute(
+            select(Sensor).filter(Sensor.id.in_(sensor_ids))
+        ).scalar_one_or_none()
+    ]
     if not sensors:
         click.echo("No such sensors in db, so I will not add any forecasts.")
         return
@@ -254,28 +275,23 @@ def populate_time_series_forecasts(  # noqa: C901
 
     click.echo(
         "DB now has %d forecasts"
-        % db.session.query(TimedBelief)
-        .filter(TimedBelief.belief_horizon > timedelta(hours=0))
-        .count()
+        % db.session.scalar(
+            select(func.count())
+            .select_from(TimedBelief)
+            .filter(TimedBelief.belief_horizon > timedelta(hours=0))
+        )
     )
 
 
 @as_transaction
 def depopulate_structure(db: SQLAlchemy):
     click.echo("Depopulating structural data from the database %s ..." % db.engine)
-    num_assets_deleted = db.session.query(GenericAsset).delete()
-    num_asset_types_deleted = db.session.query(GenericAssetType).delete()
-    num_data_sources_deleted = db.session.query(DataSource).delete()
-    roles = db.session.query(Role).all()
-    num_roles_deleted = 0
-    for role in roles:
-        db.session.delete(role)
-        num_roles_deleted += 1
-    users = db.session.query(User).all()
-    num_users_deleted = 0
-    for user in users:
-        db.session.delete(user)
-        num_users_deleted += 1
+    num_assets_deleted = db.session.execute(delete(GenericAsset))
+    num_asset_types_deleted = db.session.execute(delete(GenericAssetType))
+
+    num_data_sources_deleted = db.session.execute(delete(DataSource))
+    num_roles_deleted = db.session.execute(delete(Role))
+    num_users_deleted = db.session.execute(delete(User))
     click.echo("Deleted %d AssetTypes" % num_asset_types_deleted)
     click.echo("Deleted %d Assets" % num_assets_deleted)
     click.echo("Deleted %d DataSources" % num_data_sources_deleted)
@@ -290,12 +306,10 @@ def depopulate_measurements(
 ):
     click.echo("Deleting (time series) data from the database %s ..." % db.engine)
 
-    query = db.session.query(TimedBelief).filter(
-        TimedBelief.belief_horizon <= timedelta(hours=0)
-    )
+    query = delete(TimedBelief).filter(TimedBelief.belief_horizon <= timedelta(hours=0))
     if sensor_id is not None:
         query = query.filter(TimedBelief.sensor_id == sensor_id)
-    num_measurements_deleted = query.delete()
+    num_measurements_deleted = db.session.execute(query)
 
     click.echo("Deleted %d measurements (ex-post beliefs)" % num_measurements_deleted)
 
@@ -324,12 +338,11 @@ def depopulate_prognoses(
         num_scheduling_jobs_deleted = app.queues["scheduling"].empty()
 
     # Clear all forecasts (data with positive horizon)
-    query = db.session.query(TimedBelief).filter(
-        TimedBelief.belief_horizon > timedelta(hours=0)
-    )
+    query = delete(TimedBelief).filter(TimedBelief.belief_horizon > timedelta(hours=0))
+
     if sensor_id is not None:
         query = query.filter(TimedBelief.sensor_id == sensor_id)
-    num_forecasts_deleted = query.delete()
+    num_forecasts_deleted = db.session.execute(query)
 
     if not sensor_id:
         click.echo("Deleted %d Forecast Jobs" % num_forecasting_jobs_deleted)
@@ -373,7 +386,7 @@ def save_tables(
             file_path = "%s/%s/%s.obj" % (backup_path, backup_name, c.__tablename__)
 
             with open(file_path, "xb") as file_handler:
-                file_handler.write(dumps(db.session.query(c).all()))
+                file_handler.write(dumps(db.session.scalars(select(c))).all())
             click.echo("Successfully saved %s/%s." % (backup_name, c.__tablename__))
     except SQLAlchemyError as e:
         click.echo(
@@ -410,7 +423,9 @@ def load_tables(
                 if sequence_name in sequence_names:
 
                     # Get max id
-                    max_id = db.session.query(func.max(c.id)).one_or_none()[0]
+                    max_id = db.session.execute(
+                        select(func.max(c.id)).select_from(c)
+                    ).scalar_one_or_none()
                     max_id = 1 if max_id is None else max_id
 
                     # Set table seq to max id

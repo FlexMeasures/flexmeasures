@@ -178,7 +178,7 @@ def make_rolling_viewpoint_forecasts(
     model_search_term = rq_job.meta.get("model_search_term", "linear-OLS")
 
     # find sensor
-    sensor = Sensor.query.filter_by(id=sensor_id).one_or_none()
+    sensor = db.session.get(Sensor, sensor_id)
 
     click.echo(
         "Running Forecasting Job %s: %s for %s on model '%s', from %s to %s"

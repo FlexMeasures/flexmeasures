@@ -17,7 +17,7 @@ from flask_security import (
 )
 from werkzeug.local import LocalProxy
 from werkzeug.exceptions import Forbidden
-
+from flexmeasures.data import db
 from flexmeasures.auth.policy import ADMIN_ROLE, AuthModelMixin, check_access
 
 
@@ -188,7 +188,7 @@ def permission_required_for_context(
                     if inspect.isclass(ctx_loader) and issubclass(
                         ctx_loader, AuthModelMixin
                     ):
-                        context = ctx_loader.query.get(context_from_args)
+                        context = db.session.get(ctx_loader, context_from_args)
                     else:
                         context = ctx_loader(context_from_args)
                 else:

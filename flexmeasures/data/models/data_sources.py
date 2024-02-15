@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Any, List, Dict
+from typing import TYPE_CHECKING, Any, List, Dict, ClassVar
 from sqlalchemy.ext.mutable import MutableDict
 
 import timely_beliefs as tb
@@ -226,7 +226,7 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         viewonly=True,
     )
 
-    _data_generator: DataGenerator | None = None
+    _data_generator: ClassVar[DataGenerator | None] = None
 
     def __init__(
         self,
