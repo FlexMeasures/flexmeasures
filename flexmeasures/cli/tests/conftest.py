@@ -187,12 +187,12 @@ def storage_schedule_sensors(
     storage_efficiency = Sensor(
         "storage_efficiency",
         generic_asset=data_storage,
-        event_resolution=timedelta(hours=1),
+        event_resolution=timedelta(minutes=15),
         unit="%",
     )
     db.session.add(storage_efficiency)
 
-    for h in range(24):
+    for h in range(24 * 4):
         beliefs.append(
             TimedBelief(
                 event_start=start + timedelta(hours=h),
