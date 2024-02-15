@@ -95,7 +95,7 @@ def delete_account(id: int, force: bool):
             f"Deleting association of account {account.name} and role {role.name} ...",
         )
         db.session.execute(
-            delete(RolesAccounts).filter_by(role_id=role_account_association.role_id)
+            delete(RolesAccounts).filter_by(account_id=role_account_association.account_id)
         )
     for asset in account.generic_assets:
         click.echo(f"Deleting generic asset {asset} (and sensors & beliefs) ...")
