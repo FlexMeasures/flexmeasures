@@ -24,11 +24,17 @@ Infrastructure / Support
 
 * Deprecate use of flask's ``FLASK_ENV`` variable and replace it with ``FLEXMEASURES_ENV`` [see `PR #907 <https://github.com/FlexMeasures/flexmeasures/pull/907>`_]
 * Streamline CLI option naming by favoring ``--<entity>`` over ``--<entity>-id`` [see `PR #946 <https://github.com/FlexMeasures/flexmeasures/pull/946>`_]
+* Documentation: improve index page, installation overview, feature overview incl. flex-model overview and UI screenshots [see `PR #953 <https://github.com/FlexMeasures/flexmeasures/pull/953>`_]
 * Faster database queries of time series data by upgrading SQLAlchemy and timely-beliefs [see `PR #938 <https://github.com/FlexMeasures/flexmeasures/pull/938>`_]
 
 
 Bugfixes
 -----------
+
+v0.18.3 | February xx, 2024
+============================
+
+* Convert unit of the power capacities to ``MW`` instead of that of the storage power sensor [see `PR #979 <https://github.com/FlexMeasures/flexmeasures/pull/979>`_]
 
 
 v0.18.2 | January xx, 2024

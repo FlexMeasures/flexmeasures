@@ -18,7 +18,7 @@ Examples of flexible processes are:
 
 
 For consumers under :abbr:`ToU (Time of Use)` tariffs, FlexMeasures `ProcessScheduler` can plan the start time of the process to minimize the overall cost of energy.
-Alternatively, it can create a consumption plan to minimize the CO2 emissions. 
+Alternatively, it can create a consumption plan to minimize the CO₂ emissions.
 
 
 In this tutorial, you'll learn how to schedule processes using three different policies: INFLEXIBLE, BREAKABLE and SHIFTABLE. 
@@ -127,4 +127,4 @@ Let's list the power price the policies achieved for each of the four blocks the
 
 Quantitatively, comparing the total cost of running the process under each policy, the BREAKABLE policy achieves the best results. This is because it can fit much more consumption blocks in the cheapest hours.
 
-This tutorial showed a quick way to optimize the activation of processes. In :ref:`tut_toy_schedule_reporter`, we'll turn to something different: using *reporters* to apply transformations to sensor data.
+This tutorial showed a quick way to optimize the activation of processes. In :ref:`tut_toy_schedule_reporter`, we'll turn away from scheduling, and towards another important FlexMeasures feature: using *reporters* to apply transformations to sensor data.
