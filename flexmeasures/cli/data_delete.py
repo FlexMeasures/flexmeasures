@@ -283,16 +283,14 @@ def delete_beliefs(  # noqa: C901
     entity_filters = []
     if sensors:
         entity_filters += [TimedBelief.sensor_id.in_([sensor.id for sensor in sensors])]
-        select_statement = select(TimedBelief)
     if generic_assets:
         entity_filters += [
             TimedBelief.sensor_id == Sensor.id,
             Sensor.generic_asset_id.in_([asset.id for asset in generic_assets]),
         ]
-        select_statement = select(TimedBelief, Sensor)
 
     # Create query
-    q = select_statement.where(*entity_filters, *event_filters)
+    q = select(TimedBelief).join(Sensor).where(*entity_filters, *event_filters)
 
     # Prompt based on count of query
     num_beliefs_up_for_deletion = db.session.scalar(select(func.count()).select_from(q))
