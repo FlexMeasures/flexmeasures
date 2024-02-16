@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional, Tuple, List, Union
+from typing import Any
 import json
 
 from flask import current_app
@@ -138,7 +138,7 @@ class GenericAsset(db.Model, AuthModelMixin):
     )
 
     @property
-    def location(self) -> Optional[Tuple[float, float]]:
+    def location(self) -> tuple[float, float] | None:
         location = (self.latitude, self.longitude)
         if None not in location:
             return location
@@ -222,15 +222,19 @@ class GenericAsset(db.Model, AuthModelMixin):
 
     def search_annotations(
         self,
-        annotations_after: Optional[datetime] = None,
-        annotations_before: Optional[datetime] = None,
-        source: Optional[
-            Union[DataSource, List[DataSource], int, List[int], str, List[str]]
-        ] = None,
+        annotations_after: datetime | None = None,
+        annotations_before: datetime | None = None,
+        source: DataSource
+        | list[DataSource]
+        | int
+        | list[int]
+        | str
+        | list[str]
+        | None = None,
         annotation_type: str = None,
         include_account_annotations: bool = False,
         as_frame: bool = False,
-    ) -> Union[List[Annotation], pd.DataFrame]:
+    ) -> list[Annotation] | pd.DataFrame:
         """Return annotations assigned to this asset, and optionally, also those assigned to the asset's account.
 
         The returned annotations do not include any annotations on public accounts.
@@ -259,13 +263,17 @@ class GenericAsset(db.Model, AuthModelMixin):
 
     def count_annotations(
         self,
-        annotation_starts_after: Optional[datetime] = None,  # deprecated
-        annotations_after: Optional[datetime] = None,
-        annotation_ends_before: Optional[datetime] = None,  # deprecated
-        annotations_before: Optional[datetime] = None,
-        source: Optional[
-            Union[DataSource, List[DataSource], int, List[int], str, List[str]]
-        ] = None,
+        annotation_starts_after: datetime | None = None,  # deprecated
+        annotations_after: datetime | None = None,
+        annotation_ends_before: datetime | None = None,  # deprecated
+        annotations_before: datetime | None = None,
+        source: DataSource
+        | list[DataSource]
+        | int
+        | list[int]
+        | str
+        | list[str]
+        | None = None,
         annotation_type: str = None,
     ) -> int:
         """Count the number of annotations assigned to this asset."""
@@ -300,15 +308,19 @@ class GenericAsset(db.Model, AuthModelMixin):
     def chart(
         self,
         chart_type: str = "chart_for_multiple_sensors",
-        event_starts_after: Optional[datetime] = None,
-        event_ends_before: Optional[datetime] = None,
-        beliefs_after: Optional[datetime] = None,
-        beliefs_before: Optional[datetime] = None,
-        source: Optional[
-            Union[DataSource, List[DataSource], int, List[int], str, List[str]]
-        ] = None,
+        event_starts_after: datetime | None = None,
+        event_ends_before: datetime | None = None,
+        beliefs_after: datetime | None = None,
+        beliefs_before: datetime | None = None,
+        source: DataSource
+        | list[DataSource]
+        | int
+        | list[int]
+        | str
+        | list[str]
+        | None = None,
         include_data: bool = False,
-        dataset_name: Optional[str] = None,
+        dataset_name: str | None = None,
         **kwargs,
     ) -> dict:
         """Create a vega-lite chart showing sensor data.
@@ -362,20 +374,24 @@ class GenericAsset(db.Model, AuthModelMixin):
 
     def search_beliefs(
         self,
-        sensors: Optional[List["Sensor"]] = None,  # noqa F821
-        event_starts_after: Optional[datetime] = None,
-        event_ends_before: Optional[datetime] = None,
-        beliefs_after: Optional[datetime] = None,
-        beliefs_before: Optional[datetime] = None,
-        horizons_at_least: Optional[timedelta] = None,
-        horizons_at_most: Optional[timedelta] = None,
-        source: Optional[
-            Union[DataSource, List[DataSource], int, List[int], str, List[str]]
-        ] = None,
+        sensors: list["Sensor"] | None = None,  # noqa F821
+        event_starts_after: datetime | None = None,
+        event_ends_before: datetime | None = None,
+        beliefs_after: datetime | None = None,
+        beliefs_before: datetime | None = None,
+        horizons_at_least: timedelta | None = None,
+        horizons_at_most: timedelta | None = None,
+        source: DataSource
+        | list[DataSource]
+        | int
+        | list[int]
+        | str
+        | list[str]
+        | None = None,
         most_recent_beliefs_only: bool = True,
         most_recent_events_only: bool = False,
         as_json: bool = False,
-    ) -> Union[BeliefsDataFrame, str]:
+    ) -> BeliefsDataFrame | str:
         """Search all beliefs about events for all sensors of this asset
 
         If you don't set any filters, you get the most recent beliefs about all events.
@@ -543,7 +559,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         return "UTC"
 
     @property
-    def timerange(self) -> Dict[str, datetime]:
+    def timerange(self) -> dict[str, datetime]:
         """Time range for which sensor data exists.
 
         :returns: dictionary with start and end, for example:
@@ -555,7 +571,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         return self.get_timerange(self.sensors)
 
     @property
-    def timerange_of_sensors_to_show(self) -> Dict[str, datetime]:
+    def timerange_of_sensors_to_show(self) -> dict[str, datetime]:
         """Time range for which sensor data exists, for sensors to show.
 
         :returns: dictionary with start and end, for example:
@@ -567,7 +583,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         return self.get_timerange(self.sensors_to_show)
 
     @classmethod
-    def get_timerange(cls, sensors: List["Sensor"]) -> Dict[str, datetime]:  # noqa F821
+    def get_timerange(cls, sensors: list["Sensor"]) -> dict[str, datetime]:  # noqa F821
         """Time range for which sensor data exists.
 
         :param sensors: sensors to check
@@ -619,7 +635,7 @@ def create_generic_asset(generic_asset_type: str, **kwargs) -> GenericAsset:
     return new_generic_asset
 
 
-def assets_share_location(assets: List[GenericAsset]) -> bool:
+def assets_share_location(assets: list[GenericAsset]) -> bool:
     """
     Return True if all assets in this list are located on the same spot.
     TODO: In the future, we might soften this to compare if assets are in the same "housing" or "site".
@@ -629,7 +645,7 @@ def assets_share_location(assets: List[GenericAsset]) -> bool:
     return all([a.location == assets[0].location for a in assets])
 
 
-def get_center_location_of_assets(user: Optional[User]) -> Tuple[float, float]:
+def get_center_location_of_assets(user: User | None) -> tuple[float, float]:
     """
     Find the center position between all generic assets of the user's account.
     """
@@ -641,7 +657,7 @@ def get_center_location_of_assets(user: Optional[User]) -> Tuple[float, float]:
     if user is None:
         user = current_user
     query += f" where generic_asset.account_id = {user.account_id}"
-    locations: List[Row] = db.session.execute(text(query + ";")).fetchall()
+    locations: list[Row] = db.session.execute(text(query + ";")).fetchall()
     if (
         len(locations) == 0
         or locations[0].latitude is None

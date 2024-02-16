@@ -1,4 +1,5 @@
-from typing import Tuple, List, Union
+from __future__ import annotations
+
 from datetime import datetime, timedelta
 from sqlalchemy import select
 
@@ -13,7 +14,7 @@ def check_data_availability(
     old_time_series_data_model,
     forecast_start: datetime,
     forecast_end: datetime,
-    query_window: Tuple[datetime, datetime],
+    query_window: tuple[datetime, datetime],
     horizon: timedelta,
 ):
     """Check if enough data is available in the database in the first place,
@@ -63,7 +64,7 @@ def create_lags(
     horizon: timedelta,
     resolution: timedelta,
     use_periodicity: bool,
-) -> List[timedelta]:
+) -> list[timedelta]:
     """List the lags for this asset type, using horizon and resolution information."""
     lags = []
 
@@ -90,8 +91,8 @@ def create_lags(
 
 
 def get_query_window(
-    training_start: datetime, forecast_end: datetime, lags: List[timedelta]
-) -> Tuple[datetime, datetime]:
+    training_start: datetime, forecast_end: datetime, lags: list[timedelta]
+) -> tuple[datetime, datetime]:
     """Derive query window from start and end date, as well as lags (if any).
     This makes sure we have enough data for lagging and forecasting."""
     if not lags:
@@ -104,8 +105,8 @@ def get_query_window(
 
 def set_training_and_testing_dates(
     forecast_start: datetime,
-    training_and_testing_period: Union[timedelta, Tuple[datetime, datetime]],
-) -> Tuple[datetime, datetime]:
+    training_and_testing_period: timedelta | tuple[datetime, datetime],
+) -> tuple[datetime, datetime]:
     """If needed (if training_and_testing_period is a timedelta),
     derive training_start and testing_end from forecasting_start,
     otherwise simply return training_and_testing_period.

@@ -1,8 +1,8 @@
 import pytest
 
-from datetime import timedelta
-from datetime import datetime
+from datetime import datetime, timedelta
 from pytz import timezone
+
 from sqlalchemy import select
 
 from flexmeasures.data.models.reporting.profit import ProfitOrLossReporter
