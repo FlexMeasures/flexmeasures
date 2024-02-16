@@ -4,24 +4,29 @@ CLI commands for removing data
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from itertools import chain
 
 import click
 from flask import current_app as app
 from flask.cli import with_appcontext
 from timely_beliefs.beliefs.queries import query_unchanged_beliefs
-from sqlalchemy import select, func, delete
+from sqlalchemy import delete, func, select
 
 
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts, User
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
-from flexmeasures.data.schemas.sensors import SensorIdField
+from flexmeasures.data.schemas import AwareDateTimeField, SensorIdField, AssetIdField
 from flexmeasures.data.services.users import find_user_by_email, delete_user
-from flexmeasures.cli.utils import MsgStyle, DeprecatedOption, DeprecatedOptionsCommand
+from flexmeasures.cli.utils import (
+    abort,
+    done,
+    DeprecatedOption,
+    DeprecatedOptionsCommand,
+)
+from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 
 
 @click.group("delete")
@@ -41,8 +46,7 @@ def delete_account_role(name: str):
         select(AccountRole).filter_by(name=name)
     ).scalar_one_or_none()
     if role is None:
-        click.secho(f"Account role '{name}' does not exist.", **MsgStyle.ERROR)
-        raise click.Abort()
+        abort(f"Account role '{name}' does not exist.")
     accounts = role.accounts.all()
     if len(accounts) > 0:
         click.secho(
@@ -52,7 +56,7 @@ def delete_account_role(name: str):
             account.account_roles.remove(role)
     db.session.execute(delete(AccountRole).filter_by(id=role.id))
     db.session.commit()
-    click.secho(f"Account role '{name}' has been deleted.", **MsgStyle.SUCCESS)
+    done(f"Account role '{name}' has been deleted.")
 
 
 @fm_delete_data.command("account")
@@ -67,8 +71,7 @@ def delete_account(id: int, force: bool):
     """
     account: Account = db.session.get(Account, id)
     if account is None:
-        click.secho(f"Account with ID '{id}' does not exist.", **MsgStyle.ERROR)
-        raise click.Abort()
+        abort(f"Account with ID '{id}' does not exist.")
     if not force:
         prompt = f"Delete account '{account.name}', including generic assets, users and all their data?\n"
         users = db.session.scalars(select(User).filter_by(account_id=id)).all()
@@ -105,7 +108,7 @@ def delete_account(id: int, force: bool):
     account_name = account.name
     db.session.execute(delete(Account).filter_by(id=account.id))
     db.session.commit()
-    click.secho(f"Account {account_name} has been deleted.", **MsgStyle.SUCCESS)
+    done(f"Account {account_name} has been deleted.")
 
 
 @fm_delete_data.command("user")
@@ -123,17 +126,14 @@ def delete_a_user(email: str, force: bool):
         click.confirm(prompt, abort=True)
     the_user = find_user_by_email(email)
     if the_user is None:
-        click.secho(
-            f"Could not find user with email address '{email}' ...", **MsgStyle.WARN
-        )
-        raise click.Abort()
+        abort(f"Could not find user with email address '{email}' ...")
     delete_user(the_user)
     db.session.commit()
 
 
 @fm_delete_data.command("asset")
 @with_appcontext
-@click.option("--id", "asset", type=GenericAssetIdField())
+@click.option("--id", "asset", type=AssetIdField())
 @click.option(
     "--force/--no-force", default=False, help="Skip warning about consequences."
 )
@@ -224,6 +224,106 @@ def delete_prognoses(
     depopulate_prognoses(db, sensor_id)
 
 
+@fm_delete_data.command("beliefs")
+@with_appcontext
+@click.option(
+    "--asset",
+    "generic_assets",
+    required=False,
+    multiple=True,
+    type=AssetIdField(),
+    help="Delete all beliefs associated with (sensors of) this asset.",
+)
+@click.option(
+    "--sensor",
+    "sensors",
+    required=False,
+    multiple=True,
+    type=SensorIdField(),
+    help="Delete all beliefs associated with this sensor.",
+)
+@click.option(
+    "--start",
+    "start",
+    type=AwareDateTimeField(),
+    required=False,
+    help="Remove beliefs about events starting at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
+)
+@click.option(
+    "--end",
+    "end",
+    type=AwareDateTimeField(),
+    required=False,
+    help="Remove beliefs about events ending at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
+)
+def delete_beliefs(  # noqa: C901
+    generic_assets: list[GenericAsset],
+    sensors: list[Sensor],
+    start: datetime | None = None,
+    end: datetime | None = None,
+):
+    """Delete all beliefs recorded on a given sensor (or on sensors of a given asset)."""
+
+    # Validate input
+    if not generic_assets and not sensors:
+        abort("Must pass at least one sensor or asset.")
+    elif generic_assets and sensors:
+        abort("Passing both sensors and assets at the same time is not supported.")
+    if start is not None and end is not None and start > end:
+        abort("Start should not exceed end.")
+
+    # Time window filter
+    event_filters = []
+    if start is not None:
+        event_filters += [TimedBelief.event_start >= start]
+    if end is not None:
+        event_filters += [TimedBelief.event_start + Sensor.event_resolution <= end]
+
+    # Entity filter
+    entity_filters = []
+    if sensors:
+        entity_filters += [TimedBelief.sensor_id.in_([sensor.id for sensor in sensors])]
+        select_statement = select(TimedBelief)
+    if generic_assets:
+        entity_filters += [
+            TimedBelief.sensor_id == Sensor.id,
+            Sensor.generic_asset_id.in_([asset.id for asset in generic_assets]),
+        ]
+        select_statement = select(TimedBelief, Sensor)
+
+    # Create query
+    q = select_statement.where(*entity_filters, *event_filters)
+
+    # Prompt based on count of query
+    num_beliefs_up_for_deletion = db.session.scalar(select(func.count()).select_from(q))
+    # repr(entity) includes the IDs, which matters for the confirmation prompt
+    if sensors:
+        prompt = f"Delete all {num_beliefs_up_for_deletion} beliefs on {join_words_into_a_list([repr(sensor) for sensor in sensors])}?"
+    elif generic_assets:
+        prompt = f"Delete all {num_beliefs_up_for_deletion} beliefs on sensors of {join_words_into_a_list([repr(asset) for asset in generic_assets])}?"
+    click.confirm(prompt, abort=True)
+
+    # Delete all beliefs found by query
+    beliefs_up_for_deletion = db.session.scalars(q).all()
+    batch_size = 10000
+    for i, b in enumerate(beliefs_up_for_deletion, start=1):
+        if i % batch_size == 0 or i == num_beliefs_up_for_deletion:
+            click.echo(f"{i} beliefs processed ...")
+        db.session.delete(b)
+    click.secho(f"Removing {num_beliefs_up_for_deletion} beliefs ...")
+    db.session.commit()
+    num_beliefs_after = db.session.scalar(select(func.count()).select_from(q))
+    # only show the entity names for the final confirmation
+    if sensors:
+        done(
+            f"{num_beliefs_after} beliefs left on sensors {join_words_into_a_list([sensor.name for sensor in sensors])}."
+        )
+    elif generic_assets:
+        done(
+            f"{num_beliefs_after} beliefs left on sensors of {join_words_into_a_list([asset.name for asset in generic_assets])}."
+        )
+
+
 @fm_delete_data.command("unchanged-beliefs", cls=DeprecatedOptionsCommand)
 @with_appcontext
 @click.option(
@@ -258,11 +358,7 @@ def delete_unchanged_beliefs(
     if sensor_id:
         sensor = db.session.get(Sensor, sensor_id)
         if sensor is None:
-            click.secho(
-                f"Failed to delete any beliefs: no sensor found with id {sensor_id}.",
-                **MsgStyle.ERROR,
-            )
-            raise click.Abort()
+            abort(f"Failed to delete any beliefs: no sensor found with id {sensor_id}.")
         q = q.filter_by(sensor_id=sensor.id)
     num_beliefs_before = db.session.scalar(select(func.count()).select_from(q))
     unchanged_queries = []
@@ -312,7 +408,7 @@ def delete_unchanged_beliefs(
     click.secho(f"Removing {num_beliefs_up_for_deletion} beliefs ...")
     db.session.commit()
     num_beliefs_after = db.session.scalar(select(func.count()).select_from(q))
-    click.secho(f"Done! {num_beliefs_after} beliefs left", **MsgStyle.SUCCESS)
+    done(f"{num_beliefs_after} beliefs left.")
 
 
 @fm_delete_data.command("nan-beliefs", cls=DeprecatedOptionsCommand)
@@ -337,7 +433,7 @@ def delete_nan_beliefs(sensor_id: int | None = None):
     click.confirm(prompt, abort=True)
     query.delete()
     db.session.commit()
-    click.secho(f"Done! {q.count()} beliefs left", **MsgStyle.SUCCESS)
+    done(f"Done! {q.count()} beliefs left")
 
 
 @fm_delete_data.command("sensor")

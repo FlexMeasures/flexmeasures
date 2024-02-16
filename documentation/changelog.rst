@@ -16,6 +16,7 @@ New features
 * Expand the UI's breadcrumb functionality with the ability to navigate directly to sibling assets and sensors using their child-parent relationship [see `PR #977 <https://github.com/FlexMeasures/flexmeasures/pull/977>`_]
 * Enable the use of QuantityOrSensor fields for the ``flexmeasures add schedule for-storage`` CLI command [see `PR #966 <https://github.com/FlexMeasures/flexmeasures/pull/966>`_]
 * CLI support for showing/savings time series data for a given type of source only, with the new ``--source-type`` option of ``flexmeasures show beliefs``, which let's you filter out schedules, forecasts, or data POSTed by users (through the API), which each have a different source type [see `PR #976 <https://github.com/FlexMeasures/flexmeasures/pull/976>`_]
+* New CLI command ``flexmeasures delete beliefs`` to delete all beliefs on a given sensor (or multiple sensors) or on sensors of a given asset (or multiple assets) [see `PR #975 <https://github.com/FlexMeasures/flexmeasures/pull/975>`_]
 * Support for defining the storage efficiency as a sensor or quantity for the ``StorageScheduler`` [see `PR #965 <https://github.com/FlexMeasures/flexmeasures/pull/965>`_]
 * Support a less verbose way of setting the same :abbr:`SoC (state of charge)` constraint for a given time window [see `PR #899 <https://github.com/FlexMeasures/flexmeasures/pull/899>`_]
 
