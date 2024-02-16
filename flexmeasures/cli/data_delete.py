@@ -433,7 +433,7 @@ def delete_nan_beliefs(sensor_id: int | None = None):
     click.confirm(prompt, abort=True)
     query.delete()
     db.session.commit()
-    click.secho(f"Done! {q.count()} beliefs left", **MsgStyle.SUCCESS)
+    done(f"Done! {q.count()} beliefs left")
 
 
 @fm_delete_data.command("sensor")
