@@ -104,6 +104,23 @@ def test_get_assets(
         assert turbine["account_id"] == setup_accounts["Supplier"].id
 
 
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_asset_with_children(client, add_asset_with_children, requesting_user):
+    """
+    Get asset `parent` with children `child_1` and `child_2`.
+    We expect the response to be the serialized asset including its
+    child assets in the field `child_assets`.
+    """
+
+    parent = add_asset_with_children["parent"]
+    get_assets_response = client.get(
+        url_for("AssetAPI:fetch_one", id=parent.id),
+    )
+    print("Server responded with:\n%s" % get_assets_response.json)
+    assert get_assets_response.status_code == 200
+    assert len(get_assets_response.json["child_assets"]) == 2
+
+
 @pytest.mark.parametrize("requesting_user", [None], indirect=True)
 def test_get_public_assets_noauth(
     client, setup_api_test_data, setup_accounts, requesting_user
@@ -497,11 +514,11 @@ def test_consultant_get_asset(
     """
     The Consultant Account reads an asset from the ConsultancyClient Account.
     """
-    asset_id = db.session.execute(
+    asset = db.session.execute(
         select(GenericAsset).filter_by(name="Test ConsultancyClient Asset")
     ).scalar_one_or_none()
 
-    get_asset_response = client.get(url_for("AssetAPI:get", id=asset_id.id))
+    get_asset_response = client.get(url_for("AssetAPI:get", id=asset.id))
     print("Server responded with:\n%s" % get_asset_response.json)
     assert get_asset_response.status_code == 200
     assert get_asset_response.json["name"] == "Test ConsultancyClient Asset"

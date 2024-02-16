@@ -1,10 +1,9 @@
 import pandas as pd
 from timely_beliefs import utils as tb_utils
-from sqlalchemy import select
 
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.tests.utils import get_test_sensor
 
 
 def test_drop_unchanged_beliefs(setup_beliefs, db):
@@ -14,9 +13,7 @@ def test_drop_unchanged_beliefs(setup_beliefs, db):
     """
 
     # Set a reference for the number of beliefs stored and their belief times
-    sensor = db.session.execute(
-        select(Sensor).filter_by(name="epex_da")
-    ).scalar_one_or_none()
+    sensor = get_test_sensor(db)
     bdf = sensor.search_beliefs(most_recent_beliefs_only=False)
     num_beliefs_before = len(bdf)
     belief_times_before = bdf.belief_times
@@ -44,9 +41,7 @@ def test_do_not_drop_beliefs_copied_by_another_source(setup_beliefs, db):
     """Trying to copy beliefs from one source to another should double the number of beliefs."""
 
     # Set a reference for the number of beliefs stored
-    sensor = db.session.execute(
-        select(Sensor).filter_by(name="epex_da")
-    ).scalar_one_or_none()
+    sensor = get_test_sensor(db)
     bdf = sensor.search_beliefs(most_recent_beliefs_only=False)
     num_beliefs_before = len(bdf)
 
@@ -72,9 +67,7 @@ def test_do_not_drop_changed_probabilistic_belief(setup_beliefs, db):
     """
 
     # Set a reference for the number of beliefs stored
-    sensor = db.session.execute(
-        select(Sensor).filter_by(name="epex_da")
-    ).scalar_one_or_none()
+    sensor = get_test_sensor(db)
     bdf = sensor.search_beliefs(source="ENTSO-E", most_recent_beliefs_only=False)
     num_beliefs_before = len(bdf)
 

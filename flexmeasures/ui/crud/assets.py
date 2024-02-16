@@ -138,6 +138,8 @@ def process_internal_api_response(
     if asset_id:
         asset_data["id"] = asset_id
     if make_obj:
+        children = asset_data.pop("child_assets", [])
+
         asset = GenericAsset(
             **{
                 **asset_data,
@@ -163,6 +165,15 @@ def process_internal_api_response(
                 )
             ).scalar_one_or_none()
             expunge_asset()
+
+        child_assets = []
+        for child in children:
+            child.pop("child_assets")
+            child_asset = process_internal_api_response(child, child["id"], True)
+            child_assets.append(child_asset)
+        asset.child_assets = child_assets
+        expunge_asset()
+
         return asset
     return asset_data
 

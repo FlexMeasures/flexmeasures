@@ -57,11 +57,9 @@ def process_internal_api_response(
     """
     with db.session.no_autoflush:
         role_ids = tuple(user_data.get("flexmeasures_roles", []))
-        user_data["flexmeasures_roles"] = (
-            db.session.execute(select(Role).filter(Role.id.in_(role_ids)))
-            .scalars()
-            .all()
-        )
+        user_data["flexmeasures_roles"] = db.session.scalars(
+            select(Role).filter(Role.id.in_(role_ids))
+        ).all()
         user_data.pop("status", None)  # might have come from requests.response
         for date_field in ("last_login_at", "last_seen_at"):
             if date_field in user_data and user_data[date_field] is not None:

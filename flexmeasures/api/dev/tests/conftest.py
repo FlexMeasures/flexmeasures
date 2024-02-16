@@ -25,7 +25,7 @@ def setup_api_fresh_test_data(
     Set up fresh data for API dev tests.
     """
     print("Setting up fresh data for API dev tests on %s" % fresh_db.engine)
-    for sensor in fresh_db.session.execute(select(Sensor)).scalars().all():
+    for sensor in fresh_db.session.scalars(select(Sensor)).all():
         fresh_db.delete(sensor)
     add_incineration_line(
         fresh_db,

@@ -99,13 +99,9 @@ class AssetAPI(FlaskView):
         :status 401: UNAUTHORIZED
         :status 422: UNPROCESSABLE_ENTITY
         """
-        assets = (
-            db.session.execute(
-                select(GenericAsset).filter(GenericAsset.account_id.is_(None))
-            )
-            .scalars()
-            .all()
-        )
+        assets = db.session.scalars(
+            select(GenericAsset).filter(GenericAsset.account_id.is_(None))
+        ).all()
         return assets_schema.dump(assets), 200
 
     @route("", methods=["POST"])
@@ -262,7 +258,7 @@ class AssetAPI(FlaskView):
         :status 422: UNPROCESSABLE_ENTITY
         """
         asset_name = asset.name
-        db.session.execute(delete(GenericAsset).filter_by(name=asset_name))
+        db.session.execute(delete(GenericAsset).filter_by(id=asset.id))
         db.session.commit()
         current_app.logger.info("Deleted asset '%s'." % asset_name)
         return {}, 204

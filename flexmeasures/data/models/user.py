@@ -166,7 +166,7 @@ class Account(db.Model, AuthModelMixin):
             query = query.filter(
                 Annotation.source.in_(parsed_sources),
             )
-        annotations = db.session.execute(query).scalars().all()
+        annotations = db.session.scalars(query).all()
 
         return to_annotation_frame(annotations) if as_frame else annotations
 

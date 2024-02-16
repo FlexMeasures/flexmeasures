@@ -9,9 +9,9 @@ from flexmeasures.api.common.responses import unknown_schedule, unrecognized_eve
 from flexmeasures.api.tests.utils import check_deprecation
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.tests.utils import work_on_rq
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
+from flexmeasures.tests.utils import get_test_sensor
 
 
 @pytest.mark.parametrize(
@@ -183,9 +183,7 @@ def test_get_schedule_fallback(
     charging_station_name = "Test charging station"
 
     start = "2015-01-02T00:00:00+01:00"
-    epex_da = db.session.execute(
-        select(Sensor).filter_by(name="epex_da")
-    ).scalar_one_or_none()
+    epex_da = get_test_sensor(db)
     charging_station = add_charging_station_assets[charging_station_name].sensors[0]
 
     assert charging_station.get_attribute("capacity_in_mw") == 2
@@ -331,9 +329,7 @@ def test_get_schedule_fallback_not_redirect(
     charging_station_name = "Test charging station"
 
     start = "2015-01-02T00:00:00+01:00"
-    epex_da = db.session.execute(
-        select(Sensor).filter_by(name="epex_da")
-    ).scalar_one_or_none()
+    epex_da = get_test_sensor(db)
     charging_station = add_charging_station_assets[charging_station_name].sensors[0]
 
     assert charging_station.get_attribute("capacity_in_mw") == 2

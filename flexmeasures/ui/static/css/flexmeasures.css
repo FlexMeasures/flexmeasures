@@ -240,6 +240,7 @@ p.error {
 
 .dropdown-menu {
     border: none !important;
+    z-index: 2000;
 }
 
 .navbar-default .navbar-nav>li>a:focus,
@@ -1515,12 +1516,13 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 
 
 /* ---- Sensors on asset page ---- */
+/* [id^=DataTables_Table] [id$=filter] matches all the ids starting with DataTables_Table and ending with filter */
 
-.sensors-asset #DataTables_Table_0_wrapper {
+.sensors-asset .dataTables_wrapper {
     margin-top: 30px;
 }
 
-.sensors-asset #DataTables_Table_0_filter input {
+.sensors-asset .dataTables_filter input {
     border: var(--light-gray) 1px solid;
     padding: 10px;
     outline: none;
@@ -1531,7 +1533,7 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     -o-transition: .4s;
 }
 
-.sensors-asset #DataTables_Table_0_filter input:focus {
+.sensors-asset .dataTables_filter input:focus {
     box-shadow: 0 0 10px rgba(0,0,0,.1);
     border-color: var(--secondary-color);
 }
