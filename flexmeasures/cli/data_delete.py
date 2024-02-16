@@ -283,13 +283,13 @@ def delete_beliefs(  # noqa: C901
     entity_filters = []
     if sensors:
         entity_filters += [TimedBelief.sensor_id.in_([sensor.id for sensor in sensors])]
-        select_statement = select(TimedBelief)
+        select_statement = select(TimedBelief).join(Sensor)
     if generic_assets:
         entity_filters += [
             TimedBelief.sensor_id == Sensor.id,
             Sensor.generic_asset_id.in_([asset.id for asset in generic_assets]),
         ]
-        select_statement = select(TimedBelief, Sensor)
+        select_statement = select(TimedBelief).join(Sensor)
 
     # Create query
     q = select_statement.where(*entity_filters, *event_filters)
