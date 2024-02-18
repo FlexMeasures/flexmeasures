@@ -127,7 +127,6 @@ importlib-metadata==7.0.1
 importlib-resources==6.1.1
     # via
     #   alembic
-    #   flask-security-too
     #   jsonschema
     #   jsonschema-specifications
     #   matplotlib
@@ -164,7 +163,6 @@ mako==1.3.2
     # via alembic
 markupsafe==2.1.5
     # via
-    #   flask-security-too
     #   jinja2
     #   mako
     #   sentry-sdk

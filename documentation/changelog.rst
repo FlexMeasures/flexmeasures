@@ -4,8 +4,10 @@ FlexMeasures Changelog
 **********************
 
 
-v0.19.0 | February xx, 2024
+v0.19.0 | February 18, 2024
 ============================
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/019-asset-nesting/>`__.
 
 .. warning:: This version replaces FLASK_ENV with FLEXMEASURES_ENV (FLASK_ENV will still be used as a fallback).
 
@@ -20,6 +22,7 @@ New features
 * Support for defining the storage efficiency as a sensor or quantity for the ``StorageScheduler`` [see `PR #965 <https://github.com/FlexMeasures/flexmeasures/pull/965>`_]
 * Support a less verbose way of setting the same :abbr:`SoC (state of charge)` constraint for a given time window [see `PR #899 <https://github.com/FlexMeasures/flexmeasures/pull/899>`_]
 
+
 Infrastructure / Support
 ----------------------
 
@@ -29,18 +32,11 @@ Infrastructure / Support
 * Faster database queries of time series data by upgrading SQLAlchemy and timely-beliefs [see `PR #938 <https://github.com/FlexMeasures/flexmeasures/pull/938>`_]
 
 
-Bugfixes
------------
 
-v0.18.3 | February xx, 2024
+v0.18.2 | February xx, 2024
 ============================
 
 * Convert unit of the power capacities to ``MW`` instead of that of the storage power sensor [see `PR #979 <https://github.com/FlexMeasures/flexmeasures/pull/979>`_]
-
-
-v0.18.2 | January xx, 2024
-============================
-
 * Automatically update table navigation in the UI without requiring users to hard refresh their browser [see `PR #961 <https://github.com/FlexMeasures/flexmeasures/pull/961>`_]
 * Updated documentation to enhance clarity for integrating plugins within the FlexMeasures Docker container [see `PR #958 <https://github.com/FlexMeasures/flexmeasures/pull/958>`_]
 

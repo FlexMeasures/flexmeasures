@@ -4,7 +4,7 @@
 FlexMeasures CLI Changelog
 **********************
 
-since v0.19.0 | February xx, 2024
+since v0.19.0 | February 18, 2024
 =======================================
 
 * Enable the use of QuantityOrSensor fields for the ``flexmeasures add schedule for-storage`` CLI command:
