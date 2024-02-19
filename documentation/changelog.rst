@@ -10,7 +10,7 @@ v0.20.0 | April XX, 2024
 New features
 -------------   
 
-* Add command ``flexmeasures edit transfer-ownership`` to transfer the ownership of an asset and its children [see `PR #983 <https://github.com/FlexMeasures/flexmeasures/pull/983>`_]
+* Add command ``flexmeasures edit transfer-ownership`` to transfer the ownership of an asset and its children from one account to another[see `PR #983 <https://github.com/FlexMeasures/flexmeasures/pull/983>`_]
 
 
 Infrastructure / Support

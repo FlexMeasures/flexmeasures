@@ -256,13 +256,13 @@ def resample_sensor_data(
     help="Change the ownership of this asset and its children. Follow up with the asset's ID.",
 )
 @click.option(
-    "--account",
-    "account",
+    "--new-owner",
+    "new_owner",
     type=AccountIdField(),
     required=True,
     help="New owner of the asset and its children.",
 )
-def transfer_ownership(asset: Asset, account: Account):
+def transfer_ownership(asset: Asset, new_owner: Account):
     """
     Transfer the ownership of and asset and its children to an account.
     """
@@ -272,9 +272,9 @@ def transfer_ownership(asset: Asset, account: Account):
         for child in asset.child_assets:
             transfer_ownership_recursive(child, account)
 
-    transfer_ownership_recursive(asset, account)
+    transfer_ownership_recursive(asset, new_owner)
     click.secho(
-        f"Success! Asset `{asset}` ownership was transfered to account `{account}`.",
+        f"Success! Asset `{asset}` ownership was transfered to account `{new_owner}`.",
         **MsgStyle.SUCCESS,
     )
 

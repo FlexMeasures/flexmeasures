@@ -117,7 +117,7 @@ def test_cli_help(app):
         assert "Usage" in result.output
 
 
-def test_trasfer_ownership(app, db, add_asset_with_children, add_alternative_account):
+def test_transfer_ownership(app, db, add_asset_with_children, add_alternative_account):
     """
     Test that the parent and its children change their ownership from the old account
     to the new one.
@@ -135,7 +135,7 @@ def test_trasfer_ownership(app, db, add_asset_with_children, add_alternative_acc
 
     cli_input_params = {
         "asset": parent.id,
-        "account": new_account.id,
+        "new_owner": new_account.id,
     }
 
     cli_input = to_flags(cli_input_params)

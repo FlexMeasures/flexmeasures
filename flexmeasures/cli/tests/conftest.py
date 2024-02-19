@@ -3,7 +3,7 @@ import pytest
 from datetime import datetime, timedelta
 from pytz import utc
 
-from flexmeasures import Account
+from flexmeasures import Account, User
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
@@ -215,6 +215,7 @@ def storage_schedule_sensors(
 @pytest.fixture(scope="module")
 def add_asset_with_children(db, setup_roles_users):
     test_supplier_user = setup_roles_users["Test Supplier User"]
+    account_id = db.session.get(User, test_supplier_user).account_id
     parent_type = GenericAssetType(
         name="parent",
     )
@@ -225,7 +226,7 @@ def add_asset_with_children(db, setup_roles_users):
     parent = GenericAsset(
         name="parent",
         generic_asset_type=parent_type,
-        account_id=test_supplier_user,
+        account_id=account_id,
     )
     db.session.add(parent)
     db.session.flush()  # assign parent asset id
@@ -235,7 +236,7 @@ def add_asset_with_children(db, setup_roles_users):
             name=f"child_{i}",
             generic_asset_type=child_type,
             parent_asset_id=parent.id,
-            account_id=test_supplier_user,
+            account_id=account_id,
         )
         for i in range(1, 3)
     ]
