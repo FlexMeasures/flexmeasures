@@ -11,9 +11,11 @@ import pandas as pd
 from flask import current_app as app
 from flask.cli import with_appcontext
 import json
+from flexmeasures.data.models.user import Account
+from flexmeasures.data.schemas.account import AccountIdField
 from sqlalchemy import delete
 
-from flexmeasures import Sensor
+from flexmeasures import Sensor, Asset
 from flexmeasures.data import db
 from flexmeasures.data.schemas.attributes import validate_special_attributes
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
@@ -242,6 +244,41 @@ def resample_sensor_data(
         save_to_db(df_resampled, bulk_save_objects=True)
     db.session.commit()
     click.secho("Successfully resampled sensor data.", **MsgStyle.SUCCESS)
+
+
+@fm_edit_data.command("transfer-ownership")
+@with_appcontext
+@click.option(
+    "--asset",
+    "asset",
+    type=GenericAssetIdField(),
+    required=True,
+    help="Change the ownership of this asset and its children. Follow up with the asset's ID.",
+)
+@click.option(
+    "--account",
+    "account",
+    type=AccountIdField(),
+    required=True,
+    help="New owner of the asset and its children.",
+)
+def transfer_ownership(asset: Asset, account: Account):
+    """
+    Transfer the ownership of and asset and its children to an account.
+    """
+
+    def transfer_ownership_recursive(asset: Asset, account: Account):
+        asset.owner = account
+        for child in asset.child_assets:
+            transfer_ownership_recursive(child, account)
+
+    transfer_ownership_recursive(asset, account)
+    click.secho(
+        f"Success! Asset `{asset}` ownership was transfered to account `{account}`.",
+        **MsgStyle.SUCCESS,
+    )
+
+    db.session.commit()
 
 
 app.cli.add_command(fm_edit_data)

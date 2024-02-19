@@ -3,6 +3,7 @@ import pytest
 from datetime import datetime, timedelta
 from pytz import utc
 
+from flexmeasures import Account
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
@@ -209,3 +210,46 @@ def storage_schedule_sensors(
     db.session.commit()
 
     yield power_capacity.id, storage_efficiency.id
+
+
+@pytest.fixture(scope="module")
+def add_asset_with_children(db, setup_roles_users):
+    test_supplier_user = setup_roles_users["Test Supplier User"]
+    parent_type = GenericAssetType(
+        name="parent",
+    )
+    child_type = GenericAssetType(name="child")
+
+    db.session.add_all([parent_type, child_type])
+
+    parent = GenericAsset(
+        name="parent",
+        generic_asset_type=parent_type,
+        account_id=test_supplier_user,
+    )
+    db.session.add(parent)
+    db.session.flush()  # assign parent asset id
+
+    assets = [
+        GenericAsset(
+            name=f"child_{i}",
+            generic_asset_type=child_type,
+            parent_asset_id=parent.id,
+            account_id=test_supplier_user,
+        )
+        for i in range(1, 3)
+    ]
+
+    db.session.add_all(assets)
+    db.session.flush()  # assign children asset ids
+
+    assets.append(parent)
+
+    return {a.name: a for a in assets}
+
+
+@pytest.fixture(scope="module")
+def add_alternative_account(app, db):
+    alternative_account = Account(name="Alternative Account")
+    db.session.add(alternative_account)
+    return alternative_account
