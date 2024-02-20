@@ -1,6 +1,6 @@
 from marshmallow import Schema, fields, validate
 
-from flexmeasures.data.schemas.sensors import SensorIdField
+from flexmeasures.data.schemas.sensors import QuantityOrSensor, SensorIdField
 from flexmeasures.data.schemas.units import QuantityField
 
 
@@ -15,17 +15,17 @@ class FlexContextSchema(Schema):
         data_key="site-power-capacity",
         validate=validate.Range(min=0),
     )
-    ems_production_capacity_in_mw = QuantityField(
+    ems_production_capacity_in_mw = QuantityOrSensor(
         "MW",
         required=False,
         data_key="site-production-capacity",
-        validate=validate.Range(min=0),
+        # validate=validate.Range(min=0),
     )
-    ems_consumption_capacity_in_mw = QuantityField(
+    ems_consumption_capacity_in_mw = QuantityOrSensor(
         "MW",
         required=False,
         data_key="site-consumption-capacity",
-        validate=validate.Range(min=0),
+        # validate=validate.Range(min=0),
     )
     consumption_price_sensor = SensorIdField(data_key="consumption-price-sensor")
     production_price_sensor = SensorIdField(data_key="production-price-sensor")

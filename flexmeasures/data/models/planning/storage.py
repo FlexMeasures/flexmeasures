@@ -344,68 +344,40 @@ class MetaStorageScheduler(Scheduler):
             StorageScheduler.COLUMNS, start, end, resolution
         )
 
-        capacity_in_mw = self.flex_context.get(
+        ems_power_capacity_in_mw = self.flex_context.get(
             "ems_power_capacity_in_mw",
             self.sensor.generic_asset.get_attribute("capacity_in_mw", np.nan),
         )
-
-        if not np.isnan(capacity_in_mw):
-            assert capacity_in_mw >= 0, "EMS power capacity needs to be nonnegative."
-
-            capacity_in_mw = check_and_convert_power_capacity(capacity_in_mw)
-
-        """
-        Priority order to fetch the site consumption power capacity:
-
-        "site-consumption-capacity" (flex-context) -> "consumption_capacity_in_mw" (asset attribute)
-
-        where the flex-context is in its serialized form.
-        """
-        ems_consumption_capacity_in_mw = self.flex_context.get(
-            "ems_consumption_capacity_in_mw",
-            self.sensor.generic_asset.get_attribute(
-                "consumption_capacity_in_mw", np.nan
-            ),
-        )
-
-        """
-        Priority order to fetch the site production power capacity:
-
-        "site-production-capacity" (flex-context) -> "production_capacity_in_mw" (asset attribute)
-
-        where the flex-context is in its serialized form.
-        """
-        ems_production_capacity_in_mw = self.flex_context.get(
-            "ems_production_capacity_in_mw",
-            self.sensor.generic_asset.get_attribute(
-                "production_capacity_in_mw", np.nan
-            ),
-        )
-
-        if not np.isnan(ems_consumption_capacity_in_mw):
+        if not np.isnan(ems_power_capacity_in_mw):
             assert (
-                ems_consumption_capacity_in_mw >= 0
-            ), "EMS consumption capacity needs to be nonnegative."
+                ems_power_capacity_in_mw >= 0
+            ), "EMS power capacity needs to be nonnegative."
 
-            ems_consumption_capacity_in_mw = check_and_convert_power_capacity(
-                ems_consumption_capacity_in_mw
+            ems_power_capacity_in_mw = check_and_convert_power_capacity(
+                ems_power_capacity_in_mw
             )
 
-        if not np.isnan(ems_production_capacity_in_mw):
-            assert (
-                ems_production_capacity_in_mw >= 0
-            ), "EMS production capacity needs to be nonnegative."
-            ems_production_capacity_in_mw = check_and_convert_power_capacity(
-                ems_production_capacity_in_mw
-            )
-        else:
-            ems_production_capacity_in_mw = np.nan
-
-        ems_constraints["derivative min"] = -np.nanmin(
-            [ems_production_capacity_in_mw, capacity_in_mw]
+        ems_constraints["derivative max"] = get_continuous_series_sensor_or_quantity(
+            quantity_or_sensor=self.flex_context.get("ems_consumption_capacity_in_mw"),
+            actuator=sensor.generic_asset,
+            unit="MW",
+            query_window=(start, end),
+            resolution=resolution,
+            beliefs_before=belief_time,
+            fallback_attribute="consumption_capacity_in_mw",
+            max_value=ems_power_capacity_in_mw,
         )
-        ems_constraints["derivative max"] = np.nanmin(
-            [ems_consumption_capacity_in_mw, capacity_in_mw]
+        ems_constraints["derivative min"] = (
+            -1
+        ) * get_continuous_series_sensor_or_quantity(
+            quantity_or_sensor=self.flex_context.get("ems_production_capacity_in_mw"),
+            actuator=sensor.generic_asset,
+            unit="MW",
+            query_window=(start, end),
+            resolution=resolution,
+            beliefs_before=belief_time,
+            fallback_attribute="production_capacity_in_mw",
+            max_value=ems_power_capacity_in_mw,
         )
 
         return (
