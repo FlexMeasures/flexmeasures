@@ -4,6 +4,11 @@
 FlexMeasures CLI Changelog
 **********************
 
+since v.0.20.0 | March XX, 2024
+=================================
+
+* Add command ``flexmeasures edit transfer-ownership`` to transfer the ownership of an asset and its children.
+
 since v0.19.0 | February 18, 2024
 =======================================
 

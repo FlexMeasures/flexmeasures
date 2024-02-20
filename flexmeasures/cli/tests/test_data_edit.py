@@ -115,3 +115,37 @@ def test_cli_help(app):
         result = runner.invoke(cmd, ["--help"])
         assert result.exit_code == 0
         assert "Usage" in result.output
+
+
+def test_transfer_ownership(app, db, add_asset_with_children, add_alternative_account):
+    """
+    Test that the parent and its children change their ownership from the old account
+    to the new one.
+    """
+
+    from flexmeasures.cli.data_edit import transfer_ownership
+
+    parent = add_asset_with_children["parent"]
+    old_account = parent.owner
+    new_account = add_alternative_account
+
+    # assert that the children belong to the same account as the parent
+    for child in parent.child_assets:
+        assert child.owner == old_account
+
+    cli_input_params = {
+        "asset": parent.id,
+        "new_owner": new_account.id,
+    }
+
+    cli_input = to_flags(cli_input_params)
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(transfer_ownership, cli_input)
+
+    assert result.exit_code == 0  # run command without errors
+
+    # assert that the parent and its children now belong to the new account
+    assert parent.owner == new_account
+    for child in parent.child_assets:
+        assert child.owner == new_account
