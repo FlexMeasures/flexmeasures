@@ -1529,7 +1529,7 @@ def get_efficiency_problem_device_constraints(
     _, battery = get_sensors_from_db(db, add_battery_assets)
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 1))
-    end = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 2))
     resolution = timedelta(minutes=15)
     base_flex_model = {
         "soc-max": 2,
