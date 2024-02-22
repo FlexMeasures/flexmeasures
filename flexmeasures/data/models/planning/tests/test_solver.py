@@ -25,6 +25,7 @@ from flexmeasures.utils.calculations import (
     apply_stock_changes_and_losses,
     integrate_time_series,
 )
+from flexmeasures.data.services.time_series import simplify_index
 from flexmeasures.tests.utils import get_test_sensor
 
 
@@ -1475,13 +1476,60 @@ def test_battery_power_capacity_as_sensor(
     assert all(device_constraints["derivative max"].values == expected_consumption)
 
 
+def test_battery_bothways_power_capacity_as_sensor(
+    db, add_battery_assets, add_inflexible_device_forecasts, capacity_sensors
+):
+    """
+    Check that the charging and discharging power capacities are limited by the
+    the
+    """
+    epex_da, battery = get_sensors_from_db(
+        db, add_battery_assets, battery_name="Test battery"
+    )
+
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 2))
+    end = tz.localize(datetime(2015, 1, 2, 7, 45))
+    resolution = timedelta(minutes=15)
+    soc_at_start = 10
+
+    flex_model = {
+        "soc-at-start": soc_at_start,
+        "roundtrip-efficiency": "100%",
+        "prefer-charging-sooner": False,
+    }
+
+    flex_model["power-capacity"] = {"sensor": capacity_sensors["production"].id}
+    flex_model["consumption-capacity"] = {"sensor": capacity_sensors["consumption"].id}
+    flex_model["production-capacity"] = {
+        "sensor": capacity_sensors["power_capacity"].id
+    }
+
+    scheduler: Scheduler = StorageScheduler(
+        battery, start, end, resolution, flex_model=flex_model
+    )
+
+    data_to_solver = scheduler._prepare()
+    device_constraints = data_to_solver[5][0]
+
+    max_capacity = (
+        capacity_sensors["power_capacity"]
+        .search_beliefs(event_starts_after=start, event_ends_before=end)
+        .event_value.values
+    )
+
+    simplify_index(capacity_sensors["production"].search_beliefs())
+    assert all(device_constraints["derivative min"].values >= -max_capacity)
+    assert all(device_constraints["derivative max"].values <= max_capacity)
+
+
 def get_efficiency_problem_device_constraints(
     extra_flex_model, efficiency_sensors, add_battery_assets, db
 ) -> pd.DataFrame:
     _, battery = get_sensors_from_db(db, add_battery_assets)
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 1))
-    end = tz.localize(datetime(2015, 1, 2))
+    end = tz.localize(datetime(2015, 1, 1))
     resolution = timedelta(minutes=15)
     base_flex_model = {
         "soc-max": 2,
