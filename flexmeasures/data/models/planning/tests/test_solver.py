@@ -25,7 +25,6 @@ from flexmeasures.utils.calculations import (
     apply_stock_changes_and_losses,
     integrate_time_series,
 )
-from flexmeasures.data.services.time_series import simplify_index
 from flexmeasures.tests.utils import get_test_sensor
 
 
@@ -1518,7 +1517,6 @@ def test_battery_bothways_power_capacity_as_sensor(
         .event_value.values
     )
 
-    simplify_index(capacity_sensors["production"].search_beliefs())
     assert all(device_constraints["derivative min"].values >= -max_capacity)
     assert all(device_constraints["derivative max"].values <= max_capacity)
 
