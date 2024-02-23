@@ -1155,7 +1155,7 @@ def capacity_sensors(db, add_battery_assets, setup_sources):
         datetime(2015, 1, 2), datetime(2015, 1, 2, 7, 45), freq="15T"
     ).tz_localize("Europe/Amsterdam")
 
-    values = [200] * 4 * 4 + [300] * 4 * 4
+    values = [199] * 4 * 4 + [300] * 4 * 4
 
     beliefs = [
         TimedBelief(
