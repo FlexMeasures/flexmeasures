@@ -10,7 +10,7 @@ v0.18.2 | January xx, 2024
 * Automatically update table navigation in the UI without requiring users to hard refresh their browser [see `PR #961 <https://github.com/FlexMeasures/flexmeasures/pull/961>`_]
 * Updated documentation to enhance clarity for integrating plugins within the FlexMeasures Docker container [see `PR #958 <https://github.com/FlexMeasures/flexmeasures/pull/958>`_]
 * Convert unit of the power capacities to ``MW`` instead of that of the storage power sensor [see `PR #979 <https://github.com/FlexMeasures/flexmeasures/pull/979>`_]
-
+* Support defining the ``site-power-capacity`` as a sensor [see `PR #987 <https://github.com/FlexMeasures/flexmeasures/pull/987>`_]
 
 v0.18.1 | January 15, 2024
 ============================
