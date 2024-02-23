@@ -1478,10 +1478,7 @@ def test_battery_power_capacity_as_sensor(
 def test_battery_bothways_power_capacity_as_sensor(
     db, add_battery_assets, add_inflexible_device_forecasts, capacity_sensors
 ):
-    """
-    Check that the charging and discharging power capacities are limited by the
-    the
-    """
+    """Check that the charging and discharging power capacities are limited by the power capacity."""
     epex_da, battery = get_sensors_from_db(
         db, add_battery_assets, battery_name="Test battery"
     )
