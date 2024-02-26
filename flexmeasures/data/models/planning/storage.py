@@ -122,16 +122,19 @@ class MetaStorageScheduler(Scheduler):
                 "Power capacity is not defined in the sensor attributes or the flex-model."
             )
 
-        if isinstance(power_capacity_in_mw, ur.Quantity):
-            power_capacity_in_mw = power_capacity_in_mw.magnitude
-
-        if not (
-            isinstance(power_capacity_in_mw, float)
-            or isinstance(power_capacity_in_mw, int)
+        if isinstance(power_capacity_in_mw, float) or isinstance(
+            power_capacity_in_mw, int
         ):
-            raise ValueError(
-                "The only supported types for the power capacity are int and float."
-            )
+            power_capacity_in_mw = ur.Quantity(f"{power_capacity_in_mw} MW")
+
+        power_capacity_in_mw = get_continuous_series_sensor_or_quantity(
+            quantity_or_sensor=power_capacity_in_mw,
+            actuator=sensor,
+            unit="MW",
+            query_window=(start, end),
+            resolution=resolution,
+            beliefs_before=belief_time,
+        )
 
         # Check for known prices or price forecasts, trimming planning window accordingly
         up_deviation_prices, (start, end) = get_prices(
