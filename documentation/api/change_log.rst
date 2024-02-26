@@ -9,7 +9,7 @@ API change log
 v3.0-16 | 2024-02-26
 """"""""""""""""""""
 
-- Fix support for providing a sensor definition to the ``site-power-capacity`` flex-config field for `/sensors/<id>/schedules/trigger` (POST).
+- Fix support for providing a sensor definition to the ``power-capacity`` flex-model field for `/sensors/<id>/schedules/trigger` (POST).
 
 v3.0-15 | 2024-01-11
 """"""""""""""""""""

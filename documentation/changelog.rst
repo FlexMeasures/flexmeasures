@@ -17,6 +17,14 @@ Infrastructure / Support
 ----------------------
 
 
+
+
+v0.19.1 | February 26, 2024
+============================
+
+* Support defining the ``power-capacity`` as a sensor in the API and CLI [see `PR #987 <https://github.com/FlexMeasures/flexmeasures/pull/987>`_]
+
+
 v0.19.0 | February 18, 2024
 ============================
 
@@ -52,7 +60,8 @@ v0.18.2 | February 26, 2024
 * Convert unit of the power capacities to ``MW`` instead of that of the storage power sensor [see `PR #979 <https://github.com/FlexMeasures/flexmeasures/pull/979>`_]
 * Automatically update table navigation in the UI without requiring users to hard refresh their browser [see `PR #961 <https://github.com/FlexMeasures/flexmeasures/pull/961>`_]
 * Updated documentation to enhance clarity for integrating plugins within the FlexMeasures Docker container [see `PR #958 <https://github.com/FlexMeasures/flexmeasures/pull/958>`_]
-* Support defining the ``site-power-capacity`` as a sensor [see `PR #987 <https://github.com/FlexMeasures/flexmeasures/pull/987>`_]
+* Support defining the ``power-capacity`` as a sensor in the API [see `PR #987 <https://github.com/FlexMeasures/flexmeasures/pull/987>`_]
+
 
 v0.18.1 | January 15, 2024
 ============================
@@ -67,7 +76,6 @@ Bugfixes
 * Added Redis credentials to the Docker Compose configuration for the web server to ensure proper interaction with the Redis queue [see `PR #945 <https://github.com/FlexMeasures/flexmeasures/pull/945>`_]
 * Fix API version listing (GET /api/v3_0) for hosts running on Python 3.8 [see `PR #917 <https://github.com/FlexMeasures/flexmeasures/pull/917>`_ and `PR #950 <https://github.com/FlexMeasures/flexmeasures/pull/950>`_]
 * Fix the validation of the option ``--parent-asset`` of command ``flexmeasures add asset`` [see `PR #959 <https://github.com/FlexMeasures/flexmeasures/pull/959>`_]
-
 
 
 v0.18.0 | December 23, 2023

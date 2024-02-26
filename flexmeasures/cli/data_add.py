@@ -1218,10 +1218,11 @@ def create_schedule(ctx):
 @click.option(
     "--storage-power-capacity",
     "storage_power_capacity",
-    type=QuantityField("MW"),
+    type=QuantityOrSensor("MW"),
     required=False,
     default=None,
-    help="Storage consumption/production power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)."
+    help="Storage consumption/production power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
+    "or reference a sensor using 'sensor:<id>' (e.g. sensor:34)."
     "It defines both-ways maximum power capacity.",
 )
 @click.option(
