@@ -195,18 +195,6 @@ class QuantityOrSensorValidator(validate.Validator):
         self.original_validator = original_validator
 
     def __call__(self, value):
-        print("hi there")
-        print(value)
-        print(self.original_validator)
-        print(type(self.original_validator))
-        print(type(value))
-        print(type(value))
-        print(type(value))
-        print(isinstance(value, Sensor))
         if not isinstance(value, Sensor):
-            print("maar..")
-            a = self.original_validator(value)
-            print(a)
-            print("huh?")
-        print("okay")
+            self.original_validator(value)
         return value
