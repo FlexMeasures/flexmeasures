@@ -411,4 +411,10 @@ def get_continuous_series_sensor_or_quantity(
 
 def nanmin_of_series_and_value(s: pd.Series, value: float | pd.Series) -> pd.Series:
     """Perform a nanmin between a Series and a float."""
+    if isinstance(value, pd.Series):
+        # Avoid strange InvalidIndexError on .clip due to different "dtype"
+        # pd.testing.assert_index_equal(value.index, s.index)
+        # [left]:  datetime64[ns, +0000]
+        # [right]: datetime64[ns, UTC]
+        value = value.tz_convert("UTC")
     return s.fillna(value).clip(upper=value)
