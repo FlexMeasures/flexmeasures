@@ -233,10 +233,21 @@ def test_efficiency_pair(
             {"site-power-capacity": "1 MVA"},
             False,
         ),
+        (
+            {"site-power-capacity": {"sensor": "site-power-capacity"}},
+            False,
+        ),
     ],
 )
-def test_flex_context_schema(db, app, flex_context, fails):
+def test_flex_context_schema(db, app, setup_site_capacity_sensor, flex_context, fails):
     schema = FlexContextSchema()
+
+    # Replace sensor name with sensor ID
+    for field_name, field_value in flex_context.items():
+        if isinstance(field_value, dict):
+            flex_context[field_name]["sensor"] = setup_site_capacity_sensor[
+                field_value["sensor"]
+            ].id
 
     if fails:
         with pytest.raises(ValidationError) as e_info:
