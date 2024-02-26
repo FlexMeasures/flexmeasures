@@ -4,7 +4,14 @@
 FlexMeasures CLI Changelog
 **********************
 
-since v0.18.1 | January 15, 2023
+
+since v0.18.2 | February 26, 2024
+=======================================
+
+* Fix support for providing a sensor definition to the ``--site-power-capacity`` option of the ``flexmeasures add schedule for-storage`` command.
+
+
+since v0.18.1 | January 15, 2024
 =======================================
 
 * Fix the validation of the option ``--parent-asset`` of command ``flexmeasures add asset``.

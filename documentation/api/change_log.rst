@@ -5,6 +5,17 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
+
+v3.0-16 | 2024-02-26
+""""""""""""""""""""
+
+- Fix support for providing a sensor definition to the ``site-power-capacity`` flex-config field for `/sensors/<id>/schedules/trigger` (POST).
+
+v3.0-15 | 2024-01-11
+""""""""""""""""""""
+
+- Support setting SoC constraints in the flex model for a given time period rather than a single datetime, using the new ``start``, ``end`` and/or ``duration`` fields of ``soc-maxima``, ``soc-minima`` and ``soc-targets``.
+
 v3.0-14 | 2023-12-07
 """"""""""""""""""""
 
