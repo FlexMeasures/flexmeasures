@@ -1121,6 +1121,36 @@ def create_schedule(ctx):
     " This argument can be given multiple times.",
 )
 @click.option(
+    "--site-power-capacity",
+    "site_power_capacity",
+    type=QuantityOrSensor("MW"),
+    required=False,
+    default=None,
+    help="Site consumption/production power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
+    "or reference a sensor using 'sensor:<id>' (e.g. sensor:34)."
+    "It defines both-ways maximum power capacity on the site level.",
+)
+@click.option(
+    "--site-consumption-capacity",
+    "site_consumption_capacity",
+    type=QuantityOrSensor("MW"),
+    required=False,
+    default=None,
+    help="Site consumption power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
+    "or reference a sensor using 'sensor:<id>' (e.g. sensor:34)."
+    "It defines the maximum consumption capacity on the site level.",
+)
+@click.option(
+    "--site-production-capacity",
+    "site_production_capacity",
+    type=QuantityOrSensor("MW"),
+    required=False,
+    default=None,
+    help="Site production power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
+    "or reference a sensor using 'sensor:<id>' (e.g. sensor:34)."
+    "It defines the maximum production capacity on the site level.",
+)
+@click.option(
     "--start",
     "start",
     type=AwareDateTimeField(format="iso"),
@@ -1269,6 +1299,9 @@ def add_schedule_for_storage(  # noqa C901
     production_price_sensor: Sensor,
     optimization_context_sensor: Sensor,
     inflexible_device_sensors: list[Sensor],
+    site_power_capacity: ur.Quantity | Sensor | None,
+    site_consumption_capacity: ur.Quantity | Sensor | None,
+    site_production_capacity: ur.Quantity | Sensor | None,
     start: datetime,
     duration: timedelta,
     soc_at_start: ur.Quantity,
@@ -1359,6 +1392,9 @@ def add_schedule_for_storage(  # noqa C901
             "consumption-price-sensor": consumption_price_sensor.id,
             "production-price-sensor": production_price_sensor.id,
             "inflexible-device-sensors": [s.id for s in inflexible_device_sensors],
+            "site-power-capacity": site_power_capacity,
+            "site-consumption-capacity": site_consumption_capacity,
+            "site-production-capacity": site_production_capacity,
         },
     )
 
