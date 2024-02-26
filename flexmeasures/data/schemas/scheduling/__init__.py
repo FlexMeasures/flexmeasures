@@ -1,7 +1,6 @@
 from marshmallow import Schema, fields, validate
 
 from flexmeasures.data.schemas.sensors import QuantityOrSensor, SensorIdField
-from flexmeasures.data.schemas.units import QuantityField
 
 
 class FlexContextSchema(Schema):
@@ -9,11 +8,11 @@ class FlexContextSchema(Schema):
     This schema lists fields that can be used to describe sensors in the optimised portfolio
     """
 
-    ems_power_capacity_in_mw = QuantityField(
+    ems_power_capacity_in_mw = QuantityOrSensor(
         "MW",
         required=False,
         data_key="site-power-capacity",
-        validate=validate.Range(min=0),
+        # validate=validate.Range(min=0),
     )
     ems_production_capacity_in_mw = QuantityOrSensor(
         "MW",

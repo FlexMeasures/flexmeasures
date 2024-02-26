@@ -30,24 +30,6 @@ from flexmeasures.utils.coding_utils import deprecated
 from flexmeasures.utils.unit_utils import ur
 
 
-def check_and_convert_power_capacity(
-    power_capacity: ur.Quantity | float | int,
-) -> float:
-    """
-    Check if the power_capacity is of type ur.Quantity, float or int and converts the Quantity to
-    MW.
-    """
-    if isinstance(power_capacity, ur.Quantity):
-        return power_capacity.to(ur.Quantity("MW")).magnitude
-
-    elif isinstance(power_capacity, float) or isinstance(power_capacity, int):
-        return power_capacity
-    else:
-        raise ValueError(
-            "The only supported types for the ems power capacity are int, float and pint.Quantity."
-        )
-
-
 class MetaStorageScheduler(Scheduler):
     """This class defines the constraints of a schedule for a storage device from the
     flex-model, flex-context, and sensor and asset attributes"""
@@ -347,18 +329,15 @@ class MetaStorageScheduler(Scheduler):
             StorageScheduler.COLUMNS, start, end, resolution
         )
 
-        ems_power_capacity_in_mw = self.flex_context.get(
-            "ems_power_capacity_in_mw",
-            self.sensor.generic_asset.get_attribute("capacity_in_mw", np.nan),
+        ems_power_capacity_in_mw = get_continuous_series_sensor_or_quantity(
+            quantity_or_sensor=self.flex_context.get("ems_power_capacity_in_mw"),
+            actuator=sensor.generic_asset,
+            unit="MW",
+            query_window=(start, end),
+            resolution=resolution,
+            beliefs_before=belief_time,
+            fallback_attribute="capacity_in_mw",
         )
-        if not np.isnan(ems_power_capacity_in_mw):
-            assert (
-                ems_power_capacity_in_mw >= 0
-            ), "EMS power capacity needs to be nonnegative."
-
-            ems_power_capacity_in_mw = check_and_convert_power_capacity(
-                ems_power_capacity_in_mw
-            )
 
         ems_constraints["derivative max"] = get_continuous_series_sensor_or_quantity(
             quantity_or_sensor=self.flex_context.get("ems_consumption_capacity_in_mw"),
