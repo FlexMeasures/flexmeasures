@@ -110,7 +110,7 @@ class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
 
         _validate = kwargs.pop("validate", None)
         super().__init__(*args, **kwargs)
-        if "validate" is not None:
+        if _validate is not None:
             # Insert validation into self.validators so that multiple errors can be stored.
             validator = QuantityOrSensorValidator(_validate)
             self.validators.insert(0, validator)
