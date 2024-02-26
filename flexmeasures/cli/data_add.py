@@ -1785,7 +1785,6 @@ def add_report(  # noqa: C901
     click.echo(f"Report scope:\n\tstart: {start}\n\tend:   {end}")
 
     if source is None:
-
         click.echo(
             f"Looking for the Reporter {reporter_class} among all the registered reporters...",
         )
