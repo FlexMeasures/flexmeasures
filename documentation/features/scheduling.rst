@@ -54,13 +54,13 @@ With the flexibility context, we aim to describe the system in which the flexibl
      - The sensor that defines the price of producing energy.
    * - ``site-power-capacity``
      - ``"45kW"``
-     - Maximum/minimum achievable power at the grid connection point [#asymmetric]_. Defaults to the Asset attribute ``capacity_in_mw``
+     - Maximum/minimum achievable power at the grid connection point [#asymmetric]_. Defaults to the Asset attribute ``capacity_in_mw``. A constant limit, or see [#sensor_field]_.
    * - ``site-consumption-capacity``
      - ``"45kW"``
-     - Maximum consumption power at the grid connection point [#consumption]_. If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-consumption-capacity`` will be used. Defaults to the Asset attribute ``consumption_capacity_in_mw``
+     - Maximum consumption power at the grid connection point [#consumption]_. If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-consumption-capacity`` will be used. Defaults to the Asset attribute ``consumption_capacity_in_mw``. A constant limit, or see [#sensor_field]_.
    * - ``site-production-capacity``
      - ``"0kW"``
-     - Maximum production power at the grid connection point [#production]_.  If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-production-capacity`` will be used. Defaults to the Asset attribute ``production_capacity_in_mw``
+     - Maximum production power at the grid connection point [#production]_.  If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-production-capacity`` will be used. Defaults to the Asset attribute ``production_capacity_in_mw``. A constant limit, or see [#sensor_field]_.
 
 
 .. [#asymmetric] ``site-consumption-capacity`` and ``site-production-capacity`` allow defining asymmetric contracted transport capacities for each direction (i.e. production and consumption).
