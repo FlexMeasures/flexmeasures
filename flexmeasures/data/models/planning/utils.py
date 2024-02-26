@@ -313,8 +313,13 @@ def get_quantity_from_attribute(
         q = ur.Quantity(value)
         q = q.to(unit)
     except (UndefinedUnitError, DimensionalityError, ValueError, AssertionError):
-        current_app.logger.warning(f"Couldn't convert {value} to `{unit}`")
-        q = np.nan * ur.Quantity(unit)  # at least return result in the desired unit
+        try:
+            # Fall back to interpreting the value in the given unit
+            q = ur.Quantity(f"{value} {unit}")
+            q = q.to(unit)
+        except (UndefinedUnitError, DimensionalityError, ValueError, AssertionError):
+            current_app.logger.warning(f"Couldn't convert {value} to `{unit}`")
+            q = np.nan * ur.Quantity(unit)  # at least return result in the desired unit
     return q
 
 
