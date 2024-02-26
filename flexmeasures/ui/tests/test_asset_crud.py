@@ -16,17 +16,14 @@ api_path_assets = "http://localhost//api/v3_0/assets"
 
 
 def test_assets_page_empty(db, client, requests_mock, as_prosumer_user1):
-    requests_mock.get(f"{api_path_assets}?account_id=1", status_code=200, json={})
-    requests_mock.get(f"{api_path_assets}/public", status_code=200, json={})
+    requests_mock.get(f"{api_path_assets}", status_code=200, json=[])
     asset_index = client.get(url_for("AssetCrudUI:index"), follow_redirects=True)
     assert asset_index.status_code == 200
 
 
 def test_get_assets_by_account(db, client, requests_mock, as_prosumer_user1):
     mock_assets = mock_asset_response(multiple=True)
-    requests_mock.get(
-        f"{api_path_assets}?account_id=1", status_code=200, json=mock_assets
-    )
+    requests_mock.get(f"{api_path_assets}", status_code=200, json=mock_assets)
     assert get_assets_by_account(1)[1].name == "TestAsset2"
 
 
@@ -35,9 +32,7 @@ def test_assets_page_nonempty(
     db, client, requests_mock, as_prosumer_user1, use_owned_by
 ):
     mock_assets = mock_asset_response(multiple=True)
-    requests_mock.get(
-        f"{api_path_assets}?account_id=1", status_code=200, json=mock_assets
-    )
+    requests_mock.get(f"{api_path_assets}", status_code=200, json=mock_assets)
     if use_owned_by:
         asset_index = client.get(
             url_for("AssetCrudUI:owned_by", account_id=mock_assets[0]["account_id"])

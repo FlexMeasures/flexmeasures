@@ -15,7 +15,7 @@ Actual logic is tested in the API tests.
 
 def test_get_users_by_account(client, requests_mock, as_prosumer_user1):
     requests_mock.get(
-        f"http://localhost//api/v3_0/users?account_id={current_user.account.id}",
+        "http://localhost//api/v3_0/users",
         status_code=200,
         json=mock_user_response(multiple=True),
     )

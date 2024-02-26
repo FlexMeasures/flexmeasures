@@ -21,9 +21,9 @@ def test_dashboard_responds_only_for_logged_in_users(client, as_prosumer_user1):
 
 def test_assets_responds(client, requests_mock, as_prosumer_user1):
     requests_mock.get(
-        "http://localhost//api/v3_0/assets?account_id=1",
+        "http://localhost//api/v3_0/assets",
         status_code=200,
-        json={},
+        json=[],
     )
     assets_page = client.get(url_for("AssetCrudUI:index"), follow_redirects=True)
     assert assets_page.status_code == 200

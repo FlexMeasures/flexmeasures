@@ -48,12 +48,15 @@ class UserAPI(FlaskView):
     @permission_required_for_context("read", ctx_arg_name="account")
     @as_json
     def index(self, account: Account, include_inactive: bool = False):
-        """API endpoint to list all users of an account.
+        """API endpoint to list all users.
+
 
         .. :quickref: User; Download user list
 
         This endpoint returns all accessible users.
         By default, only active users are returned.
+        The `account_id` query parameter can be used to filter the users of
+        a given account.
         The `include_inactive` query parameter can be used to also fetch
         inactive users.
         Accessible users are users in the same account as the current user.
@@ -86,7 +89,10 @@ class UserAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        users = get_users(account_name=account.name, only_active=not include_inactive)
+        users = get_users(
+            account_name=account.name if account is not None else None,
+            only_active=not include_inactive,
+        )
         return users_schema.dump(users), 200
 
     @route("/<id>")
