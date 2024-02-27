@@ -112,7 +112,7 @@ class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
         super().__init__(*args, **kwargs)
         if _validate is not None:
             # Insert validation into self.validators so that multiple errors can be stored.
-            validator = QuantityOrSensorValidator(_validate)
+            validator = RepurposeValidatorToIgnoreSensors(_validate)
             self.validators.insert(0, validator)
         self.to_unit = ur.Quantity(to_unit)
         self.default_src_unit = default_src_unit
@@ -187,7 +187,7 @@ class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
         return super().convert(_value, param, ctx, **kwargs)
 
 
-class QuantityOrSensorValidator(validate.Validator):
+class RepurposeValidatorToIgnoreSensors(validate.Validator):
     """Validator that executes another validator (the one you initialize it with) only on non-Sensor values."""
 
     def __init__(self, original_validator, *, error: str | None = None):
