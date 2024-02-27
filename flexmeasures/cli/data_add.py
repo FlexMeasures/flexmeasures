@@ -1392,13 +1392,10 @@ def add_schedule_for_storage(  # noqa C901
             "consumption-price-sensor": consumption_price_sensor.id,
             "production-price-sensor": production_price_sensor.id,
             "inflexible-device-sensors": [s.id for s in inflexible_device_sensors],
-            "site-power-capacity": site_power_capacity,
-            "site-consumption-capacity": site_consumption_capacity,
-            "site-production-capacity": site_production_capacity,
         },
     )
 
-    quantity_or_sensor_vars = {
+    flex_model_quantity_or_sensor_vars = {
         "charging-efficiency": charging_efficiency,
         "discharging-efficiency": discharging_efficiency,
         "storage-efficiency": storage_efficiency,
@@ -1408,8 +1405,13 @@ def add_schedule_for_storage(  # noqa C901
         "consumption-capacity": storage_consumption_capacity,
         "production-capacity": storage_production_capacity,
     }
+    flex_context_quantity_or_sensor_vars = {
+        "site-power-capacity": site_power_capacity,
+        "site-consumption-capacity": site_consumption_capacity,
+        "site-production-capacity": site_production_capacity,
+    }
 
-    for field_name, value in quantity_or_sensor_vars.items():
+    for field_name, value in flex_model_quantity_or_sensor_vars.items():
         if value is not None:
             if "efficiency" in field_name:
                 unit = "%"
@@ -1418,6 +1420,12 @@ def add_schedule_for_storage(  # noqa C901
 
             scheduling_kwargs["flex_model"][field_name] = QuantityOrSensor(
                 unit
+            )._serialize(value, None, None)
+
+    for field_name, value in flex_context_quantity_or_sensor_vars.items():
+        if value is not None:
+            scheduling_kwargs["flex_context"][field_name] = QuantityOrSensor(
+                "MW"
             )._serialize(value, None, None)
 
     if as_job:
