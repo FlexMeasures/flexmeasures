@@ -188,7 +188,7 @@ class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
 
 
 class QuantityOrSensorValidator(validate.Validator):
-    """Validator which succeeds if the value passed to it is a valid quantity."""
+    """Validator that executes another validator (the one you initialize it with) only on non-Sensor values."""
 
     def __init__(self, original_validator, *, error: str | None = None):
         self.error = error
