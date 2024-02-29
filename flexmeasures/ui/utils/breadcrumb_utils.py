@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from sqlalchemy import select
 from flexmeasures import Sensor, Asset, Account
 from flexmeasures.utils.flexmeasures_inflection import human_sorted
-from flask import url_for
+from flask import url_for, current_app
 
 
 def get_breadcrumb_info(entity: Sensor | Asset | Account | None) -> dict:
@@ -73,7 +74,11 @@ def get_siblings(entity: Sensor | Asset | Account | None) -> list[dict]:
         if entity.parent_asset is not None:
             sibling_assets = entity.parent_asset.child_assets
         else:
-            sibling_assets = entity.owner.generic_assets
+            session = current_app.db.session
+            sibling_assets = session.scalars(
+                select(Asset).where(Asset.owner is None)
+            ).all()
+
         siblings = [
             {
                 "url": url_for("AssetCrudUI:get", id=asset.id),
