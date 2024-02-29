@@ -1169,69 +1169,37 @@ def capacity_sensors(db, add_battery_assets, setup_sources):
         datetime(2015, 1, 2), datetime(2015, 1, 2, 7, 45), freq="15T"
     ).tz_localize("Europe/Amsterdam")
 
-    values = [200] * 4 * 4 + [300] * 4 * 4
+    add_beliefs(
+        db=db,
+        sensor=production_capacity_sensor,
+        time_slots=time_slots,
+        values=[200] * 4 * 4 + [300] * 4 * 4,
+        source=setup_sources["Seita"],
+    )
 
-    beliefs = [
-        TimedBelief(
-            event_start=dt,
-            belief_horizon=parse_duration("PT0M"),
-            event_value=val,
-            sensor=production_capacity_sensor,
-            source=setup_sources["Seita"],
-        )
-        for dt, val in zip(time_slots, values)
-    ]
-    db.session.add_all(beliefs)
-    db.session.commit()
+    add_beliefs(
+        db=db,
+        sensor=consumption_capacity_sensor,
+        time_slots=time_slots,
+        values=[250] * 4 * 4 + [150] * 4 * 4,
+        source=setup_sources["Seita"],
+    )
 
-    time_slots = pd.date_range(
-        datetime(2015, 1, 2), datetime(2015, 1, 2, 7, 45), freq="15T"
-    ).tz_localize("Europe/Amsterdam")
+    add_beliefs(
+        db=db,
+        sensor=power_capacity_sensor,
+        time_slots=time_slots,
+        values=[225] * 4 * 4 + [199] * 4 * 4,
+        source=setup_sources["Seita"],
+    )
 
-    values = [250] * 4 * 4 + [150] * 4 * 4
-
-    beliefs = [
-        TimedBelief(
-            event_start=dt,
-            belief_horizon=parse_duration("PT0M"),
-            event_value=val,
-            sensor=consumption_capacity_sensor,
-            source=setup_sources["Seita"],
-        )
-        for dt, val in zip(time_slots, values)
-    ]
-    db.session.add_all(beliefs)
-    db.session.commit()
-
-    values = [225] * 4 * 4 + [199] * 4 * 4
-
-    beliefs = [
-        TimedBelief(
-            event_start=dt,
-            belief_horizon=parse_duration("PT0M"),
-            event_value=val,
-            sensor=power_capacity_sensor,
-            source=setup_sources["Seita"],
-        )
-        for dt, val in zip(time_slots, values)
-    ]
-    db.session.add_all(beliefs)
-    db.session.commit()
-
-    values = [1300] * 4 * 4 + [1050] * 4 * 4
-
-    beliefs = [
-        TimedBelief(
-            event_start=dt,
-            belief_horizon=parse_duration("PT0M"),
-            event_value=val,
-            sensor=site_power_capacity_sensor,
-            source=setup_sources["Seita"],
-        )
-        for dt, val in zip(time_slots, values)
-    ]
-    db.session.add_all(beliefs)
-    db.session.commit()
+    add_beliefs(
+        db=db,
+        sensor=site_power_capacity_sensor,
+        time_slots=time_slots,
+        values=[1300] * 4 * 4 + [1050] * 4 * 4,
+        source=setup_sources["Seita"],
+    )
 
     yield dict(
         production=production_capacity_sensor,
@@ -1239,3 +1207,18 @@ def capacity_sensors(db, add_battery_assets, setup_sources):
         power_capacity=power_capacity_sensor,
         site_power_capacity=site_power_capacity_sensor,
     )
+
+
+def add_beliefs(db, sensor: Sensor, time_slots, values: list[int | float], source):
+    beliefs = [
+        TimedBelief(
+            event_start=dt,
+            belief_horizon=parse_duration("PT0M"),
+            event_value=val,
+            sensor=sensor,
+            source=source,
+        )
+        for dt, val in zip(time_slots, values)
+    ]
+    db.session.add_all(beliefs)
+    db.session.commit()
