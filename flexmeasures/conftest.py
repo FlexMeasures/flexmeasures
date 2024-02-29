@@ -23,7 +23,6 @@ from werkzeug.exceptions import (
 
 from flexmeasures.app import create as create_app
 from flexmeasures.auth.policy import ADMIN_ROLE
-from flexmeasures.utils.time_utils import as_server_time
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
 from flexmeasures.data.models.data_sources import DataSource
@@ -610,9 +609,6 @@ def add_market_prices_common(
         ],
         source=setup_sources["Seita"],
     )
-    values = [
-        random() * (1 + np.sin(x * 2 * np.pi / 24)) for x in range(len(time_slots))
-    ]
 
     # another day of test data (8 expensive hours, 8 cheap hours, and again 8 expensive hours)
     time_slots = initialize_index(
