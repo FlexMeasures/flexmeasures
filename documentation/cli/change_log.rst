@@ -9,6 +9,11 @@ since v.0.20.0 | March XX, 2024
 
 * Add command ``flexmeasures edit transfer-ownership`` to transfer the ownership of an asset and its children.
 
+since v0.19.1 | February 26, 2024
+=======================================
+
+* Fix support for providing a sensor definition to the ``--storage-power-capacity`` option of the ``flexmeasures add schedule for-storage`` command.
+
 since v0.19.0 | February 18, 2024
 =======================================
 
@@ -32,12 +37,10 @@ since v0.19.0 | February 18, 2024
     * ``--source-id`` -> ``--source``
     * ``--user-id`` -> ``--user`
 
-
-since v0.18.1 | January 15, 2023
+since v0.18.1 | January 15, 2024
 =======================================
 
 * Fix the validation of the option ``--parent-asset`` of command ``flexmeasures add asset``.
-
 
 since v0.17.0 | November 8, 2023
 =======================================
