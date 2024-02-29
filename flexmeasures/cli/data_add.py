@@ -1395,38 +1395,35 @@ def add_schedule_for_storage(  # noqa C901
         },
     )
 
-    flex_model_quantity_or_sensor_vars = {
-        "charging-efficiency": charging_efficiency,
-        "discharging-efficiency": discharging_efficiency,
-        "storage-efficiency": storage_efficiency,
-        "soc-gain": soc_gain,
-        "soc-usage": soc_usage,
-        "power-capacity": storage_power_capacity,
-        "consumption-capacity": storage_consumption_capacity,
-        "production-capacity": storage_production_capacity,
+    quantity_or_sensor_vars = {
+        "flex_model": {
+            "charging-efficiency": charging_efficiency,
+            "discharging-efficiency": discharging_efficiency,
+            "storage-efficiency": storage_efficiency,
+            "soc-gain": soc_gain,
+            "soc-usage": soc_usage,
+            "power-capacity": storage_power_capacity,
+            "consumption-capacity": storage_consumption_capacity,
+            "production-capacity": storage_production_capacity,
+        },
+        "flex_context": {
+            "site-power-capacity": site_power_capacity,
+            "site-consumption-capacity": site_consumption_capacity,
+            "site-production-capacity": site_production_capacity,
+        },
     }
-    flex_context_quantity_or_sensor_vars = {
-        "site-power-capacity": site_power_capacity,
-        "site-consumption-capacity": site_consumption_capacity,
-        "site-production-capacity": site_production_capacity,
-    }
 
-    for field_name, value in flex_model_quantity_or_sensor_vars.items():
-        if value is not None:
-            if "efficiency" in field_name:
-                unit = "%"
-            else:
-                unit = "MW"
+    for key in ["flex_model", "flex_context"]:
+        for field_name, value in quantity_or_sensor_vars[key].items():
+            if value is not None:
+                if "efficiency" in field_name:
+                    unit = "%"
+                else:
+                    unit = "MW"
 
-            scheduling_kwargs["flex_model"][field_name] = QuantityOrSensor(
-                unit
-            )._serialize(value, None, None)
-
-    for field_name, value in flex_context_quantity_or_sensor_vars.items():
-        if value is not None:
-            scheduling_kwargs["flex_context"][field_name] = QuantityOrSensor(
-                "MW"
-            )._serialize(value, None, None)
+                scheduling_kwargs[key][field_name] = QuantityOrSensor(unit)._serialize(
+                    value, None, None
+                )
 
     if as_job:
         job = create_scheduling_job(asset_or_sensor=power_sensor, **scheduling_kwargs)
