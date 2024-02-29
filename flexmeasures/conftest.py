@@ -1189,7 +1189,13 @@ def capacity_sensors(db, add_battery_assets, setup_sources):
     )
 
 
-def add_beliefs(db, sensor: Sensor, time_slots, values: list[int | float], source):
+def add_beliefs(
+    db,
+    sensor: Sensor,
+    time_slots: pd.DatetimeIndex,
+    values: list[int | float],
+    source: DataSource,
+):
     beliefs = [
         TimedBelief(
             event_start=dt,
