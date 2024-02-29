@@ -489,7 +489,7 @@ def create_assets(
         # one day of test data (one complete sine curve)
         time_slots = pd.date_range(
             datetime(2015, 1, 1), datetime(2015, 1, 1, 23, 45), freq="15T"
-        ).tz_localize("Europe/Amsterdam")
+        ).tz_localize("UTC")
         seed(42)  # ensure same results over different test runs
         add_beliefs(
             db=db,
