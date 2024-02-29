@@ -18,7 +18,7 @@ from flexmeasures.data.models.planning.exceptions import (
 from flexmeasures import Asset
 from flexmeasures.data.queries.utils import simplify_index
 
-from flexmeasures.utils.unit_utils import ur, convert_units, is_numeric
+from flexmeasures.utils.unit_utils import ur, convert_units
 from pint.errors import UndefinedUnitError, DimensionalityError
 
 
@@ -315,7 +315,6 @@ def get_quantity_from_attribute(
     except (UndefinedUnitError, DimensionalityError, ValueError, AssertionError):
         try:
             # Fall back to interpreting the value in the given unit
-            assert is_numeric(value)
             q = ur.Quantity(f"{value} {unit}")
             q = q.to(unit)
         except (UndefinedUnitError, DimensionalityError, ValueError, AssertionError):

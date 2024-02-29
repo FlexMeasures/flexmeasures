@@ -11,7 +11,6 @@ Percentages can be converted to units of some physical capacity if a capacity is
 from __future__ import annotations
 
 from datetime import timedelta
-from typing import Any
 
 from moneyed import list_all_currencies, Currency
 import numpy as np
@@ -326,11 +325,3 @@ def convert_units(
             # int or float
             data = to_magnitudes[0]
     return data
-
-
-def is_numeric(value: Any) -> bool:
-    try:
-        float(value)
-        return True
-    except ValueError:
-        return False
