@@ -188,6 +188,35 @@ class MetaStorageScheduler(Scheduler):
                 sensor=inflexible_sensor,
             )
 
+        # fetch SOC constraints from sensors
+        if isinstance(soc_targets, Sensor):
+            soc_targets = get_continuous_series_sensor_or_quantity(
+                quantity_or_sensor=soc_targets,
+                actuator=sensor,
+                unit="MWh",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+            )
+        if isinstance(soc_minima, Sensor):
+            soc_minima = get_continuous_series_sensor_or_quantity(
+                quantity_or_sensor=soc_minima,
+                actuator=sensor,
+                unit="MWh",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+            )
+        if isinstance(soc_maxima, Sensor):
+            soc_maxima = get_continuous_series_sensor_or_quantity(
+                quantity_or_sensor=soc_maxima,
+                actuator=sensor,
+                unit="MWh",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+            )
+
         device_constraints[0] = add_storage_constraints(
             start,
             end,
@@ -497,7 +526,8 @@ class MetaStorageScheduler(Scheduler):
               this function would become a class method with a @post_load decorator.
         """
         soc_targets = self.flex_model.get("soc_targets")
-        if soc_targets:
+
+        if soc_targets and not isinstance(soc_targets, Sensor):
             max_target_datetime = max([soc_target["end"] for soc_target in soc_targets])
             if max_target_datetime > self.end:
                 max_server_horizon = get_max_planning_horizon(self.resolution)
@@ -512,6 +542,11 @@ class MetaStorageScheduler(Scheduler):
         min_target = None
         max_target = None
         soc_targets_label = "soc_targets" if deserialized_names else "soc-targets"
+
+        # if the SOC targets are defined as a Sensor, we don't get min max values
+        if isinstance(self.flex_model.get(soc_targets_label), dict):
+            return None, None
+
         if (
             soc_targets_label in self.flex_model
             and len(self.flex_model[soc_targets_label]) > 0

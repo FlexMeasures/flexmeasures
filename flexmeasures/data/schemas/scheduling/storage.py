@@ -15,12 +15,19 @@ from marshmallow import (
 from marshmallow.validate import OneOf, ValidationError, Validator
 import pandas as pd
 
+from flexmeasures.data import db
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.sensors import QuantityOrSensor
 
-from flexmeasures.utils.unit_utils import ur
+from flexmeasures.utils.unit_utils import ur, units_are_convertible
+
+from flexmeasures.data.schemas.utils import (
+    FMValidationError,
+    MarshmallowClickMixin,
+    with_appcontext_if_needed,
+)
 
 
 class EfficiencyField(QuantityField):
@@ -128,6 +135,57 @@ class SOCValueSchema(Schema):
             data["end"] = end
 
 
+class TimeSeriesOrSensor(MarshmallowClickMixin, fields.Field):
+    def __init__(
+        self, unit, timezone, *args, value_validator: Validator | None = None, **kwargs
+    ):
+        super().__init__(*args, **kwargs)
+        self.timezone = timezone
+        self.value_validator = value_validator
+        self.unit = ur.Quantity(unit)
+
+    @with_appcontext_if_needed()
+    def _deserialize(
+        self, value: str | dict[str, int], attr, obj, **kwargs
+    ) -> list[dict] | Sensor:
+
+        if isinstance(value, dict):
+            if "sensor" not in value:
+                raise FMValidationError(
+                    "Dictionary provided but `sensor` key not found."
+                )
+
+            sensor = db.session.get(Sensor, value["sensor"])
+
+            if sensor is None:
+                raise FMValidationError(f"No sensor found with id {value['sensor']}.")
+
+            # lazy loading now (sensor is somehow not in session after this)
+            sensor.generic_asset
+            sensor.generic_asset.generic_asset_type
+
+            if not units_are_convertible(sensor.unit, str(self.unit.units)):
+                raise FMValidationError(
+                    f"Cannot convert {sensor.unit} to {self.unit.units}"
+                )
+            return sensor
+
+        elif isinstance(value, list):
+            field = fields.List(
+                fields.Nested(
+                    SOCValueSchema(
+                        timezone=self.timezone, value_validator=self.value_validator
+                    )
+                )
+            )
+
+            return field._deserialize(value, None, None)
+        else:
+            raise FMValidationError(
+                f"Unsupported value type. `{type(value)}` was provided but only dict and list are supported."
+            )
+
+
 class StorageFlexModelSchema(Schema):
     """
     This schema lists fields we require when scheduling storage assets.
@@ -152,21 +210,19 @@ class StorageFlexModelSchema(Schema):
     )
 
     # Timezone placeholder is overridden in __init__
-    soc_maxima = fields.List(
-        fields.Nested(SOCValueSchema(timezone="placeholder")),
-        data_key="soc-maxima",
+    soc_maxima = TimeSeriesOrSensor(
+        unit="MWh", timezone="placeholder", data_key="soc-maxima"
     )
-    soc_minima = fields.List(
-        fields.Nested(
-            SOCValueSchema(
-                timezone="placeholder", value_validator=validate.Range(min=0)
-            )
-        ),
+
+    soc_minima = TimeSeriesOrSensor(
+        unit="MWh",
+        timezone="placeholder",
         data_key="soc-minima",
+        value_validator=validate.Range(min=0),
     )
-    soc_targets = fields.List(
-        fields.Nested(SOCValueSchema(timezone="placeholder")),
-        data_key="soc-targets",
+
+    soc_targets = TimeSeriesOrSensor(
+        unit="MWh", timezone="placeholder", data_key="soc-targets"
     )
 
     soc_unit = fields.Str(
@@ -204,28 +260,27 @@ class StorageFlexModelSchema(Schema):
         """Pass the schedule's start, so we can use it to validate soc-target datetimes."""
         self.start = start
         self.sensor = sensor
-        self.soc_maxima = fields.List(
-            fields.Nested(SOCValueSchema(timezone=sensor.timezone)),
-            data_key="soc-maxima",
+        self.soc_maxima = TimeSeriesOrSensor(
+            unit="MWh", timezone=sensor.timezone, data_key="soc-maxima"
         )
-        self.soc_minima = fields.List(
-            fields.Nested(
-                SOCValueSchema(
-                    timezone=sensor.timezone, value_validator=validate.Range(min=0)
-                )
-            ),
+
+        self.soc_minima = TimeSeriesOrSensor(
+            unit="MWh",
+            timezone=sensor.timezone,
             data_key="soc-minima",
+            value_validator=validate.Range(min=0),
         )
-        self.soc_targets = fields.List(
-            fields.Nested(SOCValueSchema(timezone=sensor.timezone)),
-            data_key="soc-targets",
+        self.soc_targets = TimeSeriesOrSensor(
+            unit="MWh", timezone=sensor.timezone, data_key="soc-targets"
         )
+
         super().__init__(*args, **kwargs)
 
     @validates_schema
     def check_whether_targets_exceed_max_planning_horizon(self, data: dict, **kwargs):
         soc_targets: list[dict[str, datetime | float]] | None = data.get("soc_targets")
-        if not soc_targets:
+        # skip check if the SOC targets are not provided or if they are defined as sensors
+        if not soc_targets or isinstance(soc_targets, Sensor):
             return
         max_server_horizon = current_app.config.get("FLEXMEASURES_MAX_PLANNING_HORIZON")
         if isinstance(max_server_horizon, int):

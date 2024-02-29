@@ -368,6 +368,50 @@ def add_storage_efficiency(db, add_battery_assets, setup_sources) -> dict[str, S
     return sensors
 
 
+@pytest.fixture(scope="module")
+def add_soc_targets(db, add_battery_assets, setup_sources) -> dict[str, Sensor]:
+    """
+    Fixture to add storage SOC targets as sensors and their beliefs to the database.
+
+    The function creates a single event at 14:00 + offset with a value of 0.5.
+    """
+
+    battery = add_battery_assets["Test battery"]
+    soc_value = 0.5
+    soc_datetime = pd.Timestamp("2015-01-01T14:00:00", tz="Europe/Amsterdam")
+    sensors = {}
+
+    sensor_specs = [
+        # name, resolution, offset from the resolution tick
+        ("soc-targets (1h)", timedelta(minutes=60), timedelta(minutes=0)),
+        ("soc-targets (15min)", timedelta(minutes=15), timedelta(minutes=0)),
+        ("soc-targets (15min lagged)", timedelta(minutes=15), timedelta(minutes=5)),
+        ("soc-targets (instantaneous)", timedelta(minutes=0), timedelta(minutes=0)),
+    ]
+
+    for name, resolution, offset in sensor_specs:
+        storage_constraint_sensor = Sensor(
+            name=name,
+            unit="MWh",
+            event_resolution=resolution,
+            generic_asset=battery,
+        )
+        db.session.add(storage_constraint_sensor)
+        db.session.flush()
+
+        belief = TimedBelief(
+            event_start=soc_datetime + offset,
+            belief_horizon=timedelta(hours=100),
+            event_value=soc_value,
+            source=setup_sources["Seita"],
+            sensor=storage_constraint_sensor,
+        )
+        db.session.add(belief)
+        sensors[name] = storage_constraint_sensor
+
+    return sensors
+
+
 def add_as_beliefs(db, sensor, values, time_slots, source):
     beliefs = [
         TimedBelief(

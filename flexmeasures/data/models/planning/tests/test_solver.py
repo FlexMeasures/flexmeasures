@@ -1747,3 +1747,86 @@ def test_battery_storage_efficiency_sensor(
 
     scheduler_info = scheduler._prepare()
     assert all(scheduler_info[5][0]["efficiency"] == expected_efficiency)
+
+
+@pytest.mark.parametrize(
+    "sensor_name, expected_start, expected_end",
+    [
+        (
+            "soc-targets (1h)",
+            "14:00:00",
+            "14:45:00",
+        ),  # A value defined in a larger resolution is downsampled to match the power sensor resolution.
+        (
+            "soc-targets (15min)",
+            "14:00:00",
+            "14:00:00",
+        ),  # A simple case, SOC constraint sensor in the sample resolution as the power sensor.
+        (
+            "soc-targets (instantaneous)",
+            "14:00:00",
+            "14:00:00",
+        ),  # For an instantaneous sensor, the value is set to the interval containing the instantaneous event.
+        pytest.param(  # This is an event at 14:05:00 with a duration of 15min. These constraint should span the intervals 14:00 and 14:15 but we are not reindexing properly.
+            "soc-targets (15min lagged)",
+            "14:00:00",
+            "14:15:00",
+            marks=pytest.mark.xfail(
+                reason="we should re-index the series so that values of the original index that overlap are used."
+            ),
+        ),
+    ],
+)
+def test_add_storage_constraint_from_sensor(
+    add_battery_assets,
+    add_soc_targets,
+    sensor_name,
+    expected_start,
+    expected_end,
+    db,
+):
+    """
+    Test the handling of different values for the target SOC constraints as sensors in the StorageScheduler.
+    """
+    _, battery = get_sensors_from_db(db, add_battery_assets)
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+    soc_targets = add_soc_targets[sensor_name]
+
+    flex_model = {
+        "soc-max": 2,
+        "soc-min": 0,
+        "roundtrip-efficiency": 1,
+        "production-capacity": "0kW",
+        "soc-at-start": 0,
+    }
+
+    flex_model["soc-targets"] = {"sensor": soc_targets.id}
+
+    scheduler: Scheduler = StorageScheduler(
+        battery, start, end, resolution, flex_model=flex_model
+    )
+
+    scheduler_info = scheduler._prepare()
+    storage_constraints = scheduler_info[5][0]
+
+    expected_target_start = pd.Timedelta(expected_start) + start
+    expected_target_end = pd.Timedelta(expected_end) + start
+    expected_soc_target_value = 0.5 * timedelta(hours=1) / resolution
+
+    # convert dates from UTC to local time (Europe/Amsterdam)
+    equals = storage_constraints["equals"].tz_convert(tz)
+
+    # check that no value before expected_target_start is non-nan
+    assert all(equals[: expected_target_start - resolution].isna())
+
+    # check that no value after expected_target_end is non-nan
+    assert all(equals[expected_target_end + resolution :].isna())
+
+    # check that the values in the (expected_target_start, expected_target_end) are equal to the expected value
+    assert all(
+        equals[expected_target_start + resolution : expected_target_end]
+        == expected_soc_target_value
+    )
