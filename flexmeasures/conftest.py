@@ -489,23 +489,18 @@ def create_assets(
         # one day of test data (one complete sine curve)
         time_slots = pd.date_range(
             datetime(2015, 1, 1), datetime(2015, 1, 1, 23, 45), freq="15T"
-        )
+        ).tz_localize("Europe/Amsterdam")
         seed(42)  # ensure same results over different test runs
-        values = [
-            random() * (1 + np.sin(x * 2 * np.pi / (4 * 24)))
-            for x in range(len(time_slots))
-        ]
-        beliefs = [
-            TimedBelief(
-                event_start=as_server_time(dt),
-                belief_horizon=parse_duration("PT0M"),
-                event_value=val,
-                sensor=sensor,
-                source=setup_sources["Seita"],
-            )
-            for dt, val in zip(time_slots, values)
-        ]
-        db.session.add_all(beliefs)
+        add_beliefs(
+            db=db,
+            sensor=sensor,
+            time_slots=time_slots,
+            values=[
+                random() * (1 + np.sin(x * 2 * np.pi / (4 * 24)))
+                for x in range(len(time_slots))
+            ],
+            source=setup_sources["Seita"],
+        )
     db.session.commit()
     return {asset.name: asset for asset in assets}
 
@@ -606,20 +601,18 @@ def add_market_prices_common(
         resolution="1H",
     )
     seed(42)  # ensure same results over different test runs
+    add_beliefs(
+        db=db,
+        sensor=setup_markets["epex_da"],
+        time_slots=time_slots,
+        values=[
+            random() * (1 + np.sin(x * 2 * np.pi / 24)) for x in range(len(time_slots))
+        ],
+        source=setup_sources["Seita"],
+    )
     values = [
         random() * (1 + np.sin(x * 2 * np.pi / 24)) for x in range(len(time_slots))
     ]
-    day1_beliefs = [
-        TimedBelief(
-            event_start=dt,
-            belief_horizon=timedelta(hours=0),
-            event_value=val,
-            source=setup_sources["Seita"],
-            sensor=setup_markets["epex_da"],
-        )
-        for dt, val in zip(time_slots, values)
-    ]
-    db.session.add_all(day1_beliefs)
 
     # another day of test data (8 expensive hours, 8 cheap hours, and again 8 expensive hours)
     time_slots = initialize_index(
@@ -627,18 +620,13 @@ def add_market_prices_common(
         end=pd.Timestamp("2015-01-03").tz_localize("Europe/Amsterdam"),
         resolution="1H",
     )
-    values = [100] * 8 + [90] * 8 + [100] * 8
-    day2_beliefs = [
-        TimedBelief(
-            event_start=dt,
-            belief_horizon=timedelta(hours=0),
-            event_value=val,
-            source=setup_sources["Seita"],
-            sensor=setup_markets["epex_da"],
-        )
-        for dt, val in zip(time_slots, values)
-    ]
-    db.session.add_all(day2_beliefs)
+    add_beliefs(
+        db=db,
+        sensor=setup_markets["epex_da"],
+        time_slots=time_slots,
+        values=[100] * 8 + [90] * 8 + [100] * 8,
+        source=setup_sources["Seita"],
+    )
 
     # the third day of test data (8 hours with negative prices, followed by 16 expensive hours)
     time_slots = initialize_index(
@@ -648,32 +636,22 @@ def add_market_prices_common(
     )
 
     # consumption prices
-    values = [-10] * 8 + [100] * 16
-    day3_beliefs = [
-        TimedBelief(
-            event_start=dt,
-            belief_horizon=timedelta(hours=0),
-            event_value=val,
-            source=setup_sources["Seita"],
-            sensor=setup_markets["epex_da"],
-        )
-        for dt, val in zip(time_slots, values)
-    ]
-    db.session.add_all(day3_beliefs)
+    add_beliefs(
+        db=db,
+        sensor=setup_markets["epex_da"],
+        time_slots=time_slots,
+        values=[-10] * 8 + [100] * 16,
+        source=setup_sources["Seita"],
+    )
 
     # production prices = consumption prices - 40
-    values = [-50] * 8 + [60] * 16
-    day3_beliefs_production = [
-        TimedBelief(
-            event_start=dt,
-            belief_horizon=timedelta(hours=0),
-            event_value=val,
-            source=setup_sources["Seita"],
-            sensor=setup_markets["epex_da_production"],
-        )
-        for dt, val in zip(time_slots, values)
-    ]
-    db.session.add_all(day3_beliefs_production)
+    add_beliefs(
+        db=db,
+        sensor=setup_markets["epex_da_production"],
+        time_slots=time_slots,
+        values=[-50] * 8 + [60] * 16,
+        source=setup_sources["Seita"],
+    )
 
     return {
         "epex_da": setup_markets["epex_da"],
@@ -1201,6 +1179,8 @@ def capacity_sensors(db, add_battery_assets, setup_sources):
         source=setup_sources["Seita"],
     )
 
+    db.session.commit()
+
     yield dict(
         production=production_capacity_sensor,
         consumption=consumption_capacity_sensor,
@@ -1221,4 +1201,3 @@ def add_beliefs(db, sensor: Sensor, time_slots, values: list[int | float], sourc
         for dt, val in zip(time_slots, values)
     ]
     db.session.add_all(beliefs)
-    db.session.commit()
