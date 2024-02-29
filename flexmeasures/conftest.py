@@ -1148,7 +1148,21 @@ def capacity_sensors(db, add_battery_assets, setup_sources):
         attributes={"consumption_is_positive": True},
     )
 
-    db.session.add_all([production_capacity_sensor, consumption_capacity_sensor])
+    site_power_capacity_sensor = Sensor(
+        name="site power capacity",
+        generic_asset=battery,
+        unit="kW",
+        event_resolution="PT15M",
+        attributes={"consumption_is_positive": True},
+    )
+
+    db.session.add_all(
+        [
+            production_capacity_sensor,
+            consumption_capacity_sensor,
+            site_power_capacity_sensor,
+        ]
+    )
     db.session.flush()
 
     time_slots = pd.date_range(
@@ -1204,8 +1218,24 @@ def capacity_sensors(db, add_battery_assets, setup_sources):
     db.session.add_all(beliefs)
     db.session.commit()
 
+    values = [1300] * 4 * 4 + [1050] * 4 * 4
+
+    beliefs = [
+        TimedBelief(
+            event_start=dt,
+            belief_horizon=parse_duration("PT0M"),
+            event_value=val,
+            sensor=site_power_capacity_sensor,
+            source=setup_sources["Seita"],
+        )
+        for dt, val in zip(time_slots, values)
+    ]
+    db.session.add_all(beliefs)
+    db.session.commit()
+
     yield dict(
         production=production_capacity_sensor,
         consumption=consumption_capacity_sensor,
         power_capacity=power_capacity_sensor,
+        site_power_capacity=site_power_capacity_sensor,
     )
