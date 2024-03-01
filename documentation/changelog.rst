@@ -23,6 +23,7 @@ v0.19.2 | March 1, 2024
 ============================
 
 * Upgrade timely-beliefs to enhance our main time series query and fix a database index on time series data, leading to significantly better performance [see `PR #992 <https://github.com/FlexMeasures/flexmeasures/pull/992>`_]
+* Fix server error on loading the asset page for a public asset, due to a bug in the breadcrumb's sibling navigation [see `PR #991 <https://github.com/FlexMeasures/flexmeasures/pull/991>`_]
 
 
 v0.19.1 | February 26, 2024
