@@ -531,7 +531,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             account_id=account_id_filter,
         )
         if n == 1:
-            return db.session.scalar(query.limit(1)).first()
+            return db.session.scalars(query.limit(1)).first()
         else:
             return db.session.scalars(query.limit(n)).all()
 

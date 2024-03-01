@@ -373,7 +373,7 @@ def get_continuous_series_sensor_or_quantity(
     resolution: timedelta,
     beliefs_before: datetime | None = None,
     fallback_attribute: str | None = None,
-    max_value: float | int = np.nan,
+    max_value: float | int | pd.Series = np.nan,
 ) -> pd.Series:
     """Creates a time series from a quantity or sensor within a specified window,
     falling back to a given `fallback_attribute` and making sure no values exceed `max_value`.
@@ -409,6 +409,12 @@ def get_continuous_series_sensor_or_quantity(
     return time_series
 
 
-def nanmin_of_series_and_value(s: pd.Series, value: float) -> pd.Series:
+def nanmin_of_series_and_value(s: pd.Series, value: float | pd.Series) -> pd.Series:
     """Perform a nanmin between a Series and a float."""
+    if isinstance(value, pd.Series):
+        # Avoid strange InvalidIndexError on .clip due to different "dtype"
+        # pd.testing.assert_index_equal(value.index, s.index)
+        # [left]:  datetime64[ns, +0000]
+        # [right]: datetime64[ns, UTC]
+        value = value.tz_convert("UTC")
     return s.fillna(value).clip(upper=value)
