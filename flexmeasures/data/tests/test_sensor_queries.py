@@ -8,7 +8,7 @@ def test_closest_sensor(run_as_cli, add_nearby_weather_sensors, n):
     """Check that the closest temperature sensor to our wind sensor returns
     the one that is on the same spot as the wind sensor itself.
     (That's where we set it up in our conftest.)
-    And check that the 2nd and 3rd closest are the farther temperature sensors we set up.
+    And check that the 2nd and 3rd closest are the farther temperature sensors we set up, in the case of 3 sensors.
     """
     wind_sensor = add_nearby_weather_sensors["wind"]
     closest_sensor_or_sensors = Sensor.find_closest(
