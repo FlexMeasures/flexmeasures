@@ -10,6 +10,7 @@ import numpy as np
 from flask import current_app
 
 
+from flexmeasures import Sensor
 from flexmeasures.data.models.planning import Scheduler, SchedulerOutputType
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.planning.utils import (
@@ -26,7 +27,7 @@ from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
 from flexmeasures.data.schemas.scheduling import FlexContextSchema
 from flexmeasures.utils.time_utils import get_max_planning_horizon
 from flexmeasures.utils.coding_utils import deprecated
-from flexmeasures.utils.unit_utils import ur, convert_units
+from flexmeasures.utils.unit_utils import ur
 
 
 def check_and_convert_power_capacity(
@@ -121,16 +122,19 @@ class MetaStorageScheduler(Scheduler):
                 "Power capacity is not defined in the sensor attributes or the flex-model."
             )
 
-        if isinstance(power_capacity_in_mw, ur.Quantity):
-            power_capacity_in_mw = power_capacity_in_mw.magnitude
-
-        if not (
-            isinstance(power_capacity_in_mw, float)
-            or isinstance(power_capacity_in_mw, int)
+        if isinstance(power_capacity_in_mw, float) or isinstance(
+            power_capacity_in_mw, int
         ):
-            raise ValueError(
-                "The only supported types for the power capacity are int and float."
-            )
+            power_capacity_in_mw = ur.Quantity(f"{power_capacity_in_mw} MW")
+
+        power_capacity_in_mw = get_continuous_series_sensor_or_quantity(
+            quantity_or_sensor=power_capacity_in_mw,
+            actuator=sensor,
+            unit="MW",
+            query_window=(start, end),
+            resolution=resolution,
+            beliefs_before=belief_time,
+        )
 
         # Check for known prices or price forecasts, trimming planning window accordingly
         up_deviation_prices, (start, end) = get_prices(
@@ -210,12 +214,12 @@ class MetaStorageScheduler(Scheduler):
             ) * get_continuous_series_sensor_or_quantity(
                 quantity_or_sensor=production_capacity,
                 actuator=sensor,
-                unit=sensor.unit,
+                unit="MW",
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
                 fallback_attribute="production_capacity",
-                max_value=convert_units(power_capacity_in_mw, "MW", sensor.unit),
+                max_value=power_capacity_in_mw,
             )
         if sensor.get_attribute("is_strictly_non_negative"):
             device_constraints[0]["derivative max"] = 0
@@ -225,12 +229,12 @@ class MetaStorageScheduler(Scheduler):
             ] = get_continuous_series_sensor_or_quantity(
                 quantity_or_sensor=consumption_capacity,
                 actuator=sensor,
-                unit=sensor.unit,
+                unit="MW",
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
                 fallback_attribute="consumption_capacity",
-                max_value=convert_units(power_capacity_in_mw, "MW", sensor.unit),
+                max_value=power_capacity_in_mw,
             )
 
         soc_gain = self.flex_model.get("soc_gain", [])
@@ -300,7 +304,25 @@ class MetaStorageScheduler(Scheduler):
         device_constraints[0]["derivative up efficiency"] = charging_efficiency
 
         # Apply storage efficiency (accounts for losses over time)
-        device_constraints[0]["efficiency"] = storage_efficiency
+        if isinstance(storage_efficiency, ur.Quantity) or isinstance(
+            storage_efficiency, Sensor
+        ):
+            device_constraints[0]["efficiency"] = (
+                get_continuous_series_sensor_or_quantity(
+                    quantity_or_sensor=storage_efficiency,
+                    actuator=sensor,
+                    unit="dimensionless",
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    fallback_attribute="storage_efficiency",  # this should become storage-efficiency
+                    max_value=1,
+                )
+                .fillna(1.0)
+                .clip(lower=0.0, upper=1.0)
+            )
+        elif storage_efficiency is not None:
+            device_constraints[0]["efficiency"] = storage_efficiency
 
         # check that storage constraints are fulfilled
         if not skip_validation:
@@ -455,17 +477,6 @@ class MetaStorageScheduler(Scheduler):
                 self.flex_model["soc-unit"] = self.sensor.unit
             elif self.sensor.unit in ("MW", "kW"):
                 self.flex_model["soc-unit"] = self.sensor.unit + "h"
-
-        # Check for storage efficiency
-        # todo: simplify to: `if self.flex_model.get("storage-efficiency") is None:`
-        if (
-            "storage-efficiency" not in self.flex_model
-            or self.flex_model["storage-efficiency"] is None
-        ):
-            # Get default from sensor, or use 100% otherwise
-            self.flex_model["storage-efficiency"] = self.sensor.get_attribute(
-                "storage_efficiency", 1
-            )
 
         self.ensure_soc_min_max()
 

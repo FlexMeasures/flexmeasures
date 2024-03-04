@@ -1,9 +1,11 @@
 from flask import request, current_app
 from flask_security import login_required
 from flask_security.core import current_user
+from sqlalchemy import select
+
 from flexmeasures.auth.policy import user_has_admin_access
 from flexmeasures.data.queries.generic_assets import get_asset_group_queries
-
+from flexmeasures.data import db
 from flexmeasures.ui.views import flexmeasures_ui
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template, clear_session
 from flexmeasures.data.models.generic_assets import (
@@ -50,7 +52,9 @@ def dashboard_view():
         if any([a.location for a in asset_group.assets]):
             map_asset_groups[asset_group_name] = asset_group
 
-    known_asset_types = [gat.name for gat in GenericAssetType.query.all()]
+    known_asset_types = [
+        gat.name for gat in db.session.scalars(select(GenericAssetType)).all()
+    ]
 
     return render_flexmeasures_template(
         "views/new_dashboard.html",

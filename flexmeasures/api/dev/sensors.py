@@ -7,6 +7,7 @@ from marshmallow import fields
 from webargs.flaskparser import use_kwargs
 from werkzeug.exceptions import abort
 
+from flexmeasures.data import db
 from flexmeasures.auth.policy import ADMIN_ROLE, ADMIN_READER_ROLE
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data.schemas import (
@@ -191,7 +192,7 @@ def get_sensor_or_abort(id: int) -> Sensor:
         "Util function will be deprecated. Switch to using SensorIdField to suppress this warning.",
         FutureWarning,
     )
-    sensor = Sensor.query.filter(Sensor.id == id).one_or_none()
+    sensor = db.session.get(Sensor, id)
     if sensor is None:
         raise abort(404, f"Sensor {id} not found")
     if not (

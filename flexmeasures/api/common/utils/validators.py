@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from functools import wraps
-from typing import Tuple, Union, Optional
 import re
 
 import isodate
@@ -41,7 +40,7 @@ There is some actual logic in here, which we still need. It can usually be porte
 """
 
 
-def parse_horizon(horizon_str: str) -> Tuple[Optional[timedelta], bool]:
+def parse_horizon(horizon_str: str) -> tuple[timedelta | None, bool]:
     """
     Validates whether a horizon string represents a valid ISO 8601 (repeating) time interval.
 
@@ -78,8 +77,8 @@ def parse_horizon(horizon_str: str) -> Tuple[Optional[timedelta], bool]:
 
 
 def parse_duration(
-    duration_str: str, start: Optional[datetime] = None
-) -> Union[timedelta, isodate.Duration, None]:
+    duration_str: str, start: datetime | None = None
+) -> timedelta | isodate.Duration | None:
     """
     Parses the 'duration' string into a Duration object.
     If needed, try deriving the timedelta from the actual time span (e.g. in case duration is 1 year).

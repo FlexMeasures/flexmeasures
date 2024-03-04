@@ -1,7 +1,9 @@
 from flask import abort
 from flask_security import current_user
 from marshmallow import fields
+from sqlalchemy import select
 
+from flexmeasures.data import db
 from flexmeasures.data.models.user import User, Account
 
 
@@ -11,7 +13,9 @@ class AccountIdField(fields.Integer):
     """
 
     def _deserialize(self, account_id: str, attr, obj, **kwargs) -> Account:
-        account: Account = Account.query.filter_by(id=int(account_id)).one_or_none()
+        account: Account = db.session.execute(
+            select(Account).filter_by(id=int(account_id))
+        ).scalar_one_or_none()
         if account is None:
             raise abort(404, f"Account {account_id} not found")
         return account
@@ -40,7 +44,9 @@ class UserIdField(fields.Integer):
         super().__init__(*args, **kwargs)
 
     def _deserialize(self, user_id: int, attr, obj, **kwargs) -> User:
-        user: User = User.query.filter_by(id=int(user_id)).one_or_none()
+        user: User = db.session.execute(
+            select(User).filter_by(id=int(user_id))
+        ).scalar_one_or_none()
         if user is None:
             raise abort(404, f"User {user_id} not found")
         return user

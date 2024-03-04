@@ -33,12 +33,13 @@ tldextract
 pyomo>=5.6
 tabulate
 timetomodel>=0.7.3
-timely-beliefs[forecast]>=1.20.1
+# significantly faster db queries
+timely-beliefs[forecast]>=2.1
 python-dotenv
 # a backport, not needed in Python3.8
 importlib_metadata
 # see GH#607 for issue on this pin
-sqlalchemy>=1.4.0, <2
+sqlalchemy>=2.0
 Flask-SSLify
 # use <0.4 if not compatible with Flask2.2 yet
 Flask_JSON

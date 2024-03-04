@@ -6,6 +6,7 @@ import logging
 import numpy as np
 import pandas as pd
 from pandas.tseries.frequencies import to_offset
+from sqlalchemy import select
 
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.planning import Scheduler
@@ -24,6 +25,7 @@ from flexmeasures.utils.calculations import (
     apply_stock_changes_and_losses,
     integrate_time_series,
 )
+from flexmeasures.tests.utils import get_test_sensor
 
 
 TOLERANCE = 0.00001
@@ -67,9 +69,10 @@ def test_battery_solver_day_1(
     add_inflexible_device_forecasts,
     use_inflexible_device,
     battery_name,
+    db,
 ):
     epex_da, battery = get_sensors_from_db(
-        add_battery_assets, battery_name=battery_name
+        db, add_battery_assets, battery_name=battery_name
     )
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 1))
@@ -108,7 +111,7 @@ def test_battery_solver_day_1(
     ],
 )
 def test_battery_solver_day_2(
-    add_battery_assets, roundtrip_efficiency: float, storage_efficiency: float
+    add_battery_assets, roundtrip_efficiency: float, storage_efficiency: float, db
 ):
     """Check battery scheduling results for day 2, which is set up with
     8 expensive, then 8 cheap, then again 8 expensive hours.
@@ -120,7 +123,7 @@ def test_battery_solver_day_2(
     and so we expect the scheduler to only:
     - completely discharge within the last 8 hours
     """
-    _epex_da, battery = get_sensors_from_db(add_battery_assets)
+    _epex_da, battery = get_sensors_from_db(db, add_battery_assets)
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 2))
     end = tz.localize(datetime(2015, 1, 3))
@@ -267,10 +270,7 @@ def run_test_charge_discharge_sign(
     return schedule.tz_convert(tz), soc_schedule.tz_convert(tz)
 
 
-def test_battery_solver_day_3(
-    add_battery_assets,
-    add_inflexible_device_forecasts,
-):
+def test_battery_solver_day_3(add_battery_assets, add_inflexible_device_forecasts, db):
     """Check battery scheduling results for day 3, which is set up with
     8 hours with negative prices, followed by 16 expensive hours.
 
@@ -288,10 +288,10 @@ def test_battery_solver_day_3(
     """
 
     roundtrip_efficiency = 0.9
-    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
-    epex_da_production = Sensor.query.filter(
-        Sensor.name == "epex_da_production"
-    ).one_or_none()
+    epex_da = get_test_sensor(db)
+    epex_da_production = db.session.execute(
+        select(Sensor).filter_by(name="epex_da_production")
+    ).scalar_one_or_none()
     battery = add_battery_assets["Test battery"].sensors[0]
 
     tz = pytz.timezone("Europe/Amsterdam")
@@ -355,7 +355,7 @@ def test_battery_solver_day_3(
     ],
 )
 def test_charging_station_solver_day_2(
-    target_soc, charging_station_name, setup_planning_test_data
+    target_soc, charging_station_name, setup_planning_test_data, db
 ):
     """Starting with a state of charge 1 kWh, within 2 hours we should be able to reach
     any state of charge in the range [1, 5] kWh for a unidirectional station,
@@ -364,7 +364,7 @@ def test_charging_station_solver_day_2(
     soc_at_start = 1
     duration_until_target = timedelta(hours=2)
 
-    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    epex_da = get_test_sensor(db)
     charging_station = setup_planning_test_data[charging_station_name].sensors[0]
     assert charging_station.get_attribute("capacity_in_mw") == 2
     assert charging_station.get_attribute("market_id") == epex_da.id
@@ -427,7 +427,7 @@ def test_charging_station_solver_day_2(
     ],
 )
 def test_fallback_to_unsolvable_problem(
-    target_soc, charging_station_name, setup_planning_test_data
+    target_soc, charging_station_name, setup_planning_test_data, db
 ):
     """Starting with a state of charge 10 kWh, within 2 hours we should be able to reach
     any state of charge in the range [10, 14] kWh for a unidirectional station,
@@ -443,7 +443,7 @@ def test_fallback_to_unsolvable_problem(
     duration_until_target = timedelta(hours=2)
     expected_gap = 1
 
-    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    epex_da = get_test_sensor(db)
     charging_station = setup_planning_test_data[charging_station_name].sensors[0]
     assert charging_station.get_attribute("capacity_in_mw") == 2
     assert charging_station.get_attribute("market_id") == epex_da.id
@@ -540,9 +540,7 @@ def test_building_solver_day_2(
     """
     battery = flexible_devices["battery power sensor"]
     building = battery.generic_asset
-    default_consumption_price_sensor = Sensor.query.filter(
-        Sensor.name == "epex_da"
-    ).one_or_none()
+    default_consumption_price_sensor = get_test_sensor(db)
     assert battery.get_attribute("market_id") == default_consumption_price_sensor.id
     if market_scenario == "dynamic contract":
         consumption_price_sensor = default_consumption_price_sensor
@@ -646,7 +644,7 @@ def test_building_solver_day_2(
     )
 
 
-def test_soc_bounds_timeseries(add_battery_assets):
+def test_soc_bounds_timeseries(db, add_battery_assets):
     """Check that the maxima and minima timeseries alter the result
     of the optimization.
 
@@ -656,7 +654,7 @@ def test_soc_bounds_timeseries(add_battery_assets):
     """
 
     # get the sensors from the database
-    epex_da, battery = get_sensors_from_db(add_battery_assets)
+    epex_da, battery = get_sensors_from_db(db, add_battery_assets)
 
     # time parameters
     tz = pytz.timezone("Europe/Amsterdam")
@@ -958,11 +956,11 @@ def test_validate_constraints(
     assert set(expected_constraint_type_violations) == constraint_type_violations_output
 
 
-def test_infeasible_problem_error(add_battery_assets):
+def test_infeasible_problem_error(db, add_battery_assets):
     """Try to create a schedule with infeasible constraints. soc-max is 4.5 and soc-target is 8.0"""
 
     # get the sensors from the database
-    _epex_da, battery = get_sensors_from_db(add_battery_assets)
+    _epex_da, battery = get_sensors_from_db(db, add_battery_assets)
 
     # time parameters
     tz = pytz.timezone("Europe/Amsterdam")
@@ -1007,22 +1005,22 @@ def test_infeasible_problem_error(add_battery_assets):
         compute_schedule(flex_model)
 
 
-def get_sensors_from_db(battery_assets, battery_name="Test battery"):
+def get_sensors_from_db(db, battery_assets, battery_name="Test battery"):
     # get the sensors from the database
-    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    epex_da = get_test_sensor(db)
     battery = battery_assets[battery_name].sensors[0]
     assert battery.get_attribute("market_id") == epex_da.id
 
     return epex_da, battery
 
 
-def test_numerical_errors(app_with_each_solver, setup_planning_test_data):
+def test_numerical_errors(app_with_each_solver, setup_planning_test_data, db):
     """Test that a soc-target = soc-max can exceed this value due to numerical errors in the operations
     to compute the device constraint DataFrame.
     In the case of HiGHS, the tiny difference creates an infeasible constraint.
     """
 
-    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    epex_da = get_test_sensor(db)
     charging_station = setup_planning_test_data[
         "Test charging station (bidirectional)"
     ].sensors[0]
@@ -1435,7 +1433,7 @@ def test_battery_power_capacity_as_sensor(
     expected_consumption,
 ):
     epex_da, battery = get_sensors_from_db(
-        add_battery_assets, battery_name=battery_name
+        db, add_battery_assets, battery_name=battery_name
     )
 
     tz = pytz.timezone("Europe/Amsterdam")
@@ -1477,10 +1475,53 @@ def test_battery_power_capacity_as_sensor(
     assert all(device_constraints["derivative max"].values == expected_consumption)
 
 
+def test_battery_bothways_power_capacity_as_sensor(
+    db, add_battery_assets, add_inflexible_device_forecasts, capacity_sensors
+):
+    """Check that the charging and discharging power capacities are limited by the power capacity."""
+    epex_da, battery = get_sensors_from_db(
+        db, add_battery_assets, battery_name="Test battery"
+    )
+
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 2))
+    end = tz.localize(datetime(2015, 1, 2, 7, 45))
+    resolution = timedelta(minutes=15)
+    soc_at_start = 10
+
+    flex_model = {
+        "soc-at-start": soc_at_start,
+        "roundtrip-efficiency": "100%",
+        "prefer-charging-sooner": False,
+    }
+
+    flex_model["power-capacity"] = {"sensor": capacity_sensors["production"].id}
+    flex_model["consumption-capacity"] = {"sensor": capacity_sensors["consumption"].id}
+    flex_model["production-capacity"] = {
+        "sensor": capacity_sensors["power_capacity"].id
+    }
+
+    scheduler: Scheduler = StorageScheduler(
+        battery, start, end, resolution, flex_model=flex_model
+    )
+
+    data_to_solver = scheduler._prepare()
+    device_constraints = data_to_solver[5][0]
+
+    max_capacity = (
+        capacity_sensors["power_capacity"]
+        .search_beliefs(event_starts_after=start, event_ends_before=end)
+        .event_value.values
+    )
+
+    assert all(device_constraints["derivative min"].values >= -max_capacity)
+    assert all(device_constraints["derivative max"].values <= max_capacity)
+
+
 def get_efficiency_problem_device_constraints(
-    extra_flex_model, efficiency_sensors, add_battery_assets
+    extra_flex_model, efficiency_sensors, add_battery_assets, db
 ) -> pd.DataFrame:
-    _, battery = get_sensors_from_db(add_battery_assets)
+    _, battery = get_sensors_from_db(db, add_battery_assets)
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 1))
     end = tz.localize(datetime(2015, 1, 2))
@@ -1521,7 +1562,7 @@ def test_dis_charging_efficiency_as_sensor(
     }
 
     device_constraints = get_efficiency_problem_device_constraints(
-        extra_flex_model, efficiency_sensors, add_battery_assets
+        extra_flex_model, efficiency_sensors, add_battery_assets, db
     )
 
     assert all(
@@ -1542,7 +1583,7 @@ def test_dis_charging_efficiency_as_sensor(
     ["delta fails", "delta", "delta hourly", "delta 5min"],
 )
 def test_battery_stock_delta_sensor(
-    add_battery_assets, add_stock_delta, stock_delta_sensor
+    add_battery_assets, add_stock_delta, stock_delta_sensor, db
 ):
     """
     Test the SOC delta feature using sensors.
@@ -1560,7 +1601,7 @@ def test_battery_stock_delta_sensor(
     With these settings, the battery needs to charge at a power or greater than the usage forecast
     to keep the SOC within bounds ([0, 2 MWh]).
     """
-    _, battery = get_sensors_from_db(add_battery_assets)
+    _, battery = get_sensors_from_db(db, add_battery_assets)
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 1))
     end = tz.localize(datetime(2015, 1, 2))
@@ -1602,14 +1643,16 @@ def test_battery_stock_delta_sensor(
         ([], [], None),  # no gain defined -> no gain or loss happens
     ],
 )
-def test_battery_stock_delta_quantity(add_battery_assets, gain, usage, expected_delta):
+def test_battery_stock_delta_quantity(
+    add_battery_assets, gain, usage, expected_delta, db
+):
     """
     Test the stock gain field when a constant value is provided.
 
     We expect a constant gain/loss to happen in every time period equal to the energy
     value provided.
     """
-    _, battery = get_sensors_from_db(add_battery_assets)
+    _, battery = get_sensors_from_db(db, add_battery_assets)
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 1))
     end = tz.localize(datetime(2015, 1, 2))
@@ -1635,3 +1678,115 @@ def test_battery_stock_delta_quantity(add_battery_assets, gain, usage, expected_
         assert all(scheduler_info[5][0]["stock delta"] == expected_delta)
     else:
         assert all(scheduler_info[5][0]["stock delta"].isna())
+
+
+@pytest.mark.parametrize(
+    "efficiency,expected_efficiency",
+    [
+        ("100%", 1),
+        (
+            "110%",
+            1,
+        ),  # value exceeding the upper bound (100%). It clips the values above 100%.
+        (
+            "90%",
+            0.9,
+        ),  # percentage unit to dimensionless units within the [0,1] interval
+        (0.9, 0.9),  # numeric values are interpreted as dimensionless
+        (
+            None,
+            None,
+        ),  # if the `storage-efficiency` is not defined, the constraint dataframe
+        # uses NaN.
+    ],
+)
+def test_battery_efficiency_quantity(
+    add_battery_assets, efficiency, expected_efficiency, db
+):
+    """
+    Test to ensure correct handling of storage efficiency quantities in the StorageScheduler.
+
+    The test covers the handling of percentage values, dimensionless numeric values, and the
+    case where the efficiency is not defined.
+    """
+
+    _, battery = get_sensors_from_db(db, add_battery_assets)
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+    flex_model = {
+        "soc-max": 2,
+        "soc-min": 0,
+        "roundtrip-efficiency": 1,
+    }
+
+    if efficiency is not None:
+        flex_model["storage-efficiency"] = efficiency
+
+    scheduler: Scheduler = StorageScheduler(
+        battery, start, end, resolution, flex_model=flex_model
+    )
+    scheduler_info = scheduler._prepare()
+
+    if efficiency is not None:
+        assert all(scheduler_info[5][0]["efficiency"] == expected_efficiency)
+    else:
+        assert all(scheduler_info[5][0]["efficiency"].isna())
+
+
+@pytest.mark.parametrize(
+    "efficiency_sensor_name, expected_efficiency",
+    [
+        ("storage efficiency 90%", 0.9),  # regular value
+        ("storage efficiency 110%", 1),  # clip values that exceed 100%
+        ("storage efficiency negative", 0),  # clip negative values
+        pytest.param(
+            "storage efficiency hourly",
+            0.974003,
+            marks=pytest.mark.xfail(
+                reason="resampling storage efficiency is not supported"
+            ),
+        ),  # this one fails.
+        # We should resample making sure that the efficiencies are equivalent.
+        # For example, 90% defined in 1h is equivalent to 97% in a 15min period (0.97^4≈0.9).
+        # Plans to support resampling efficiencies can be found here https://github.com/FlexMeasures/flexmeasures/issues/720
+    ],
+)
+def test_battery_storage_efficiency_sensor(
+    add_battery_assets,
+    add_storage_efficiency,
+    efficiency_sensor_name,
+    expected_efficiency,
+    db,
+):
+    """
+    Test the handling of different storage efficiency sensors in the StorageScheduler.
+
+    It checks if the scheduler correctly handles regular values, values exceeding 100%, negative values,
+    and values with different resolutions compared to the scheduling resolution.
+    """
+    _, battery = get_sensors_from_db(db, add_battery_assets)
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+    storage_efficiency_sensor_obj = add_storage_efficiency[efficiency_sensor_name]
+
+    scheduler: Scheduler = StorageScheduler(
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model={
+            "soc-max": 2,
+            "soc-min": 0,
+            "roundtrip-efficiency": 1,
+            "storage-efficiency": {"sensor": storage_efficiency_sensor_obj.id},
+            "production-capacity": "0kW",
+            "soc-at-start": 0,
+        },
+    )
+
+    scheduler_info = scheduler._prepare()
+    assert all(scheduler_info[5][0]["efficiency"] == expected_efficiency)

@@ -4,8 +4,7 @@ from contextlib import contextmanager
 import pytest
 from random import random, seed
 from datetime import datetime, timedelta
-
-
+from sqlalchemy import select
 from isodate import parse_duration
 import pandas as pd
 import numpy as np
@@ -163,7 +162,9 @@ def create_test_accounts(db) -> dict[str, Account]:
         description="A client of a consultancy",
     )
     consultancy_account_id = (
-        Account.query.filter_by(name="Test Consultancy Account").one_or_none().id
+        db.session.execute(select(Account).filter_by(name="Test Consultancy Account"))
+        .scalar_one_or_none()
+        .id
     )
     consultancy_client_account = Account(
         name="Test ConsultancyClient Account",
@@ -407,7 +408,9 @@ def create_generic_asset_types(db) -> dict[str, GenericAssetType]:
     db.session.add(solar)
     wind = GenericAssetType(name="wind turbine")
     db.session.add(wind)
-    battery = GenericAssetType.query.filter_by(name="battery").one_or_none()
+    battery = db.session.execute(
+        select(GenericAssetType).filter_by(name="battery")
+    ).scalar_one_or_none()
     if (
         not battery
     ):  # legacy if-block, because create_test_battery_assets might have created it already - refactor!
@@ -538,7 +541,9 @@ def create_beliefs(db: SQLAlchemy, setup_markets, setup_sources) -> int:
     """
     :returns: the number of beliefs set up
     """
-    sensor = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    sensor = db.session.execute(
+        select(Sensor).filter(Sensor.name == "epex_da")
+    ).scalar_one_or_none()
     beliefs = [
         TimedBelief(
             sensor=sensor,
@@ -1162,6 +1167,14 @@ def capacity_sensors(db, add_battery_assets, setup_sources):
         attributes={"consumption_is_positive": True},
     )
 
+    power_capacity_sensor = Sensor(
+        name="power capacity",
+        generic_asset=battery,
+        unit="kW",
+        event_resolution="PT15M",
+        attributes={"consumption_is_positive": True},
+    )
+
     db.session.add_all([production_capacity_sensor, consumption_capacity_sensor])
     db.session.flush()
 
@@ -1219,6 +1232,23 @@ def capacity_sensors(db, add_battery_assets, setup_sources):
     db.session.add_all(beliefs)
     db.session.commit()
 
+    values = [225] * 4 * 4 + [199] * 4 * 4
+
+    beliefs = [
+        TimedBelief(
+            event_start=dt,
+            belief_horizon=parse_duration("PT0M"),
+            event_value=val,
+            sensor=power_capacity_sensor,
+            source=setup_sources["Seita"],
+        )
+        for dt, val in zip(time_slots, values)
+    ]
+    db.session.add_all(beliefs)
+    db.session.commit()
+
     yield dict(
-        production=production_capacity_sensor, consumption=consumption_capacity_sensor
+        production=production_capacity_sensor,
+        consumption=consumption_capacity_sensor,
+        power_capacity=power_capacity_sensor,
     )

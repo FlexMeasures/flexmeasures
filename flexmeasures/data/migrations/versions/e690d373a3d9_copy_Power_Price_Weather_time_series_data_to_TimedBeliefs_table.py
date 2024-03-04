@@ -106,7 +106,7 @@ def copy_time_series_data(
 
     # Get data from old data model
     results = connection.execute(
-        sa.select([getattr(t_old_data_model.c, a) for a in mapping.keys()])
+        sa.select(*[getattr(t_old_data_model.c, a) for a in mapping.keys()])
     ).fetchall()
 
     if len(results) > 0:

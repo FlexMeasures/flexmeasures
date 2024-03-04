@@ -5,7 +5,7 @@ CLI commands for populating the database
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Type, List
+from typing import Type
 import isodate
 import json
 import yaml
@@ -21,7 +21,7 @@ from flask.cli import with_appcontext
 import click
 import getpass
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import func
+from sqlalchemy import func, select
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
 import timely_beliefs as tb
 import timely_beliefs.utils as tb_utils
@@ -62,6 +62,7 @@ from flexmeasures.data.schemas import (
     LongitudeField,
     SensorIdField,
     TimeIntervalField,
+    QuantityOrSensor,
 )
 from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.schemas.times import TimeIntervalSchema
@@ -103,7 +104,7 @@ def fm_add_data():
     help="What kind of data generators to consider in the creation of the basic DataSources. Defaults to `reporter`.",
 )
 @with_appcontext
-def add_sources(kind: List[str]):
+def add_sources(kind: list[str]):
     """Create data sources for the data generators found registered in the
     application and the plugins. Currently, this command only registers the
     sources for the Reporters.
@@ -140,7 +141,9 @@ def new_account_role(name: str, description: str):
     """
     Create an account role.
     """
-    role = AccountRole.query.filter_by(name=name).one_or_none()
+    role = db.session.execute(
+        select(AccountRole).filter_by(name=name)
+    ).scalar_one_or_none()
     if role is not None:
         click.secho(f"Account role '{name}' already exists.", **MsgStyle.ERROR)
         raise click.Abort()
@@ -167,7 +170,9 @@ def new_account(name: str, roles: str, consultancy_account: Account | None):
     """
     Create an account for a tenant in the FlexMeasures platform.
     """
-    account = db.session.query(Account).filter_by(name=name).one_or_none()
+    account = db.session.execute(
+        select(Account).filter_by(name=name)
+    ).scalar_one_or_none()
     if account is not None:
         click.secho(f"Account '{name}' already exists.", **MsgStyle.ERROR)
         raise click.Abort()
@@ -175,7 +180,9 @@ def new_account(name: str, roles: str, consultancy_account: Account | None):
     db.session.add(account)
     if roles:
         for role_name in roles.split(","):
-            role = AccountRole.query.filter_by(name=role_name).one_or_none()
+            role = db.session.execute(
+                select(AccountRole).filter_by(name=role_name)
+            ).scalar_one_or_none()
             if role is None:
                 click.secho(f"Adding account role {role_name} ...", **MsgStyle.ERROR)
                 role = AccountRole(name=role_name)
@@ -236,7 +243,7 @@ def new_user(
     except pytz.UnknownTimeZoneError:
         click.secho(f"Timezone {timezone} is unknown!", **MsgStyle.ERROR)
         raise click.Abort()
-    account = db.session.query(Account).get(account_id)
+    account = db.session.get(Account, account_id)
     if account is None:
         click.secho(f"No account with ID {account_id} found!", **MsgStyle.ERROR)
         raise click.Abort()
@@ -809,23 +816,23 @@ def add_annotation(
         else start + pd.offsets.DateOffset(days=1)
     )
     accounts = (
-        db.session.query(Account).filter(Account.id.in_(account_ids)).all()
+        db.session.scalars(select(Account).filter(Account.id.in_(account_ids))).all()
         if account_ids
         else []
     )
     assets = (
-        db.session.query(GenericAsset)
-        .filter(GenericAsset.id.in_(generic_asset_ids))
-        .all()
+        db.session.scalars(
+            select(GenericAsset).filter(GenericAsset.id.in_(generic_asset_ids))
+        ).all()
         if generic_asset_ids
         else []
     )
     sensors = (
-        db.session.query(Sensor).filter(Sensor.id.in_(sensor_ids)).all()
+        db.session.scalars(select(Sensor).filter(Sensor.id.in_(sensor_ids))).all()
         if sensor_ids
         else []
     )
-    user = db.session.query(User).get(user_id)
+    user = db.session.get(User, user_id)
     _source = get_or_create_source(user)
 
     # Create annotation
@@ -895,14 +902,14 @@ def add_holidays(
     num_holidays = {}
 
     accounts = (
-        db.session.query(Account).filter(Account.id.in_(account_ids)).all()
+        db.session.scalars(select(Account).filter(Account.id.in_(account_ids))).all()
         if account_ids
         else []
     )
     assets = (
-        db.session.query(GenericAsset)
-        .filter(GenericAsset.id.in_(generic_asset_ids))
-        .all()
+        db.session.scalars(
+            select(GenericAsset).filter(GenericAsset.id.in_(generic_asset_ids))
+        ).all()
         if generic_asset_ids
         else []
     )
@@ -1169,13 +1176,84 @@ def create_schedule(ctx):
     help="Round-trip efficiency (e.g. 85% or 0.85) to use for the schedule. Defaults to 100% (no losses).",
 )
 @click.option(
+    "--charging-efficiency",
+    "charging_efficiency",
+    type=QuantityOrSensor("%"),
+    required=False,
+    default=None,
+    help="Storage charging efficiency to use for the schedule."
+    "Provide a quantity with units (e.g. 94%) or a sensor storing the value with the syntax sensor:<id> (e.g. sensor:20)."
+    "Defaults to 100% (no losses).",
+)
+@click.option(
+    "--discharging-efficiency",
+    "discharging_efficiency",
+    type=QuantityOrSensor("%"),
+    required=False,
+    default=None,
+    help="Storage discharging efficiency to use for the schedule."
+    "Provide a quantity with units (e.g. 94%) or a sensor storing the value with the syntax sensor:<id> (e.g. sensor:20)."
+    "Defaults to 100% (no losses).",
+)
+@click.option(
+    "--soc-gain",
+    "soc_gain",
+    type=QuantityOrSensor("MW"),
+    required=False,
+    default=None,
+    help="Specify the State of Charge (SoC) gain as a quantity in power units (e.g. 1 MW or 1000 kW)"
+    "or reference a sensor by using 'sensor:<id>' (e.g. sensor:34)."
+    "This represents the rate at which storage is charged from a different source.",
+)
+@click.option(
+    "--soc-usage",
+    "soc_usage",
+    type=QuantityOrSensor("MW"),
+    required=False,
+    default=None,
+    help="Specify the State of Charge (SoC) usage as a quantity in power units (e.g. 1 MW or 1000 kW) "
+    "or reference a sensor by using 'sensor:<id>' (e.g. sensor:34)."
+    "This represents the rate at which the storage is discharged from a different source.",
+)
+@click.option(
+    "--storage-power-capacity",
+    "storage_power_capacity",
+    type=QuantityOrSensor("MW"),
+    required=False,
+    default=None,
+    help="Storage consumption/production power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
+    "or reference a sensor using 'sensor:<id>' (e.g. sensor:34)."
+    "It defines both-ways maximum power capacity.",
+)
+@click.option(
+    "--storage-consumption-capacity",
+    "storage_consumption_capacity",
+    type=QuantityOrSensor("MW"),
+    required=False,
+    default=None,
+    help="Storage consumption power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
+    "or reference a sensor using 'sensor:<id>' (e.g. sensor:34)."
+    "It defines the storage maximum consumption (charging) capacity.",
+)
+@click.option(
+    "--storage-production-capacity",
+    "storage_production_capacity",
+    type=QuantityOrSensor("MW"),
+    required=False,
+    default=None,
+    help="Storage production power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
+    "or reference a sensor using 'sensor:<id>' (e.g. sensor:34)."
+    "It defines the storage maximum production (discharging) capacity.",
+)
+@click.option(
     "--storage-efficiency",
     "storage_efficiency",
-    type=EfficiencyField(),
+    type=QuantityOrSensor("%", default_src_unit="dimensionless"),
     required=False,
-    default=1,
+    default="100%",
     help="Storage efficiency (e.g. 95% or 0.95) to use for the schedule,"
     " applied over each time step equal to the sensor resolution."
+    "This parameter also supports using a reference sensor as 'sensor:<id>' (e.g. sensor:34)."
     " For example, a storage efficiency of 99 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of 0.99**(1/24)."
     " Defaults to 100% (no losses).",
 )
@@ -1185,7 +1263,7 @@ def create_schedule(ctx):
     help="Whether to queue a scheduling job instead of computing directly. "
     "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'scheduling' queue. Defaults to False.",
 )
-def add_schedule_for_storage(
+def add_schedule_for_storage(  # noqa C901
     power_sensor: Sensor,
     consumption_price_sensor: Sensor,
     production_price_sensor: Sensor,
@@ -1194,11 +1272,18 @@ def add_schedule_for_storage(
     start: datetime,
     duration: timedelta,
     soc_at_start: ur.Quantity,
+    charging_efficiency: ur.Quantity | Sensor | None,
+    discharging_efficiency: ur.Quantity | Sensor | None,
+    soc_gain: ur.Quantity | Sensor | None,
+    soc_usage: ur.Quantity | Sensor | None,
+    storage_power_capacity: ur.Quantity | Sensor | None,
+    storage_consumption_capacity: ur.Quantity | Sensor | None,
+    storage_production_capacity: ur.Quantity | Sensor | None,
     soc_target_strings: list[tuple[ur.Quantity, str]],
     soc_min: ur.Quantity | None = None,
     soc_max: ur.Quantity | None = None,
     roundtrip_efficiency: ur.Quantity | None = None,
-    storage_efficiency: ur.Quantity | None = None,
+    storage_efficiency: ur.Quantity | Sensor | None = None,
     as_job: bool = False,
 ):
     """Create a new schedule for a storage asset.
@@ -1256,8 +1341,6 @@ def add_schedule_for_storage(
         soc_max = convert_units(soc_max.magnitude, str(soc_max.units), "MWh", capacity=capacity_str)  # type: ignore
     if roundtrip_efficiency is not None:
         roundtrip_efficiency = roundtrip_efficiency.magnitude / 100.0
-    if storage_efficiency is not None:
-        storage_efficiency = storage_efficiency.magnitude / 100.0
 
     scheduling_kwargs = dict(
         start=start,
@@ -1271,7 +1354,6 @@ def add_schedule_for_storage(
             "soc-max": soc_max,
             "soc-unit": "MWh",
             "roundtrip-efficiency": roundtrip_efficiency,
-            "storage-efficiency": storage_efficiency,
         },
         flex_context={
             "consumption-price-sensor": consumption_price_sensor.id,
@@ -1279,6 +1361,29 @@ def add_schedule_for_storage(
             "inflexible-device-sensors": [s.id for s in inflexible_device_sensors],
         },
     )
+
+    quantity_or_sensor_vars = {
+        "charging-efficiency": charging_efficiency,
+        "discharging-efficiency": discharging_efficiency,
+        "storage-efficiency": storage_efficiency,
+        "soc-gain": soc_gain,
+        "soc-usage": soc_usage,
+        "power-capacity": storage_power_capacity,
+        "consumption-capacity": storage_consumption_capacity,
+        "production-capacity": storage_production_capacity,
+    }
+
+    for field_name, value in quantity_or_sensor_vars.items():
+        if value is not None:
+            if "efficiency" in field_name:
+                unit = "%"
+            else:
+                unit = "MW"
+
+            scheduling_kwargs["flex_model"][field_name] = QuantityOrSensor(
+                unit
+            )._serialize(value, None, None)
+
     if as_job:
         job = create_scheduling_job(asset_or_sensor=power_sensor, **scheduling_kwargs)
         if job:
@@ -1374,7 +1479,7 @@ def add_schedule_process(
     process_duration: timedelta,
     process_type: str,
     process_power: ur.Quantity,
-    forbid: List | None = None,
+    forbid: list | None = None,
     as_job: bool = False,
 ):
     """Create a new schedule for a process asset.
@@ -1616,15 +1721,14 @@ def add_report(  # noqa: C901
         )
 
         # todo: get the oldest last_value among all the sensors
-        last_value_datetime = (
-            db.session.query(func.max(TimedBelief.event_start))
-            .filter(TimedBelief.sensor_id == output[0]["sensor"].id)
-            .one_or_none()
-        )
-
+        last_value_datetime = db.session.execute(
+            select(func.max(TimedBelief.event_start))
+            .select_from(TimedBelief)
+            .filter_by(sensor_id=output[0]["sensor"].id)
+        ).scalar_one_or_none()
         # If there's data saved to the reporter sensors
-        if last_value_datetime[0] is not None:
-            start = last_value_datetime[0]
+        if last_value_datetime is not None:
+            start = last_value_datetime
         else:
             click.secho(
                 "Could not find any data for the output sensors provided. Such data is needed to compute"
@@ -1802,7 +1906,9 @@ def add_toy_account(kind: str, name: str):
     location = (52.374, 4.88969)  # Amsterdam
 
     # make an account (if not exist)
-    account = Account.query.filter(Account.name == name).one_or_none()
+    account = db.session.execute(
+        select(Account).filter_by(name=name)
+    ).scalar_one_or_none()
     if account:
         click.secho(
             f"Account '{account}' already exists. Skipping account creation. Use `flexmeasures delete account --id {account.id}` if you need to remove it.",
@@ -1811,7 +1917,7 @@ def add_toy_account(kind: str, name: str):
 
     # make an account user (account-admin?)
     email = "toy-user@flexmeasures.io"
-    user = User.query.filter_by(email=email).one_or_none()
+    user = db.session.execute(select(User).filter_by(email=email)).scalar_one_or_none()
     if user is not None:
         click.secho(
             f"User with email {email} already exists in account {user.account.name}.",
@@ -1865,7 +1971,7 @@ def add_toy_account(kind: str, name: str):
             GenericAsset,
             name=asset_name,
             generic_asset_type=asset_types[asset_type],
-            owner=Account.query.get(account_id),
+            owner=db.session.get(Account, account_id),
             latitude=location[0],
             longitude=location[1],
         )
@@ -1992,7 +2098,7 @@ def add_toy_account(kind: str, name: str):
             event_start=tz.localize(start_year),
             belief_time=tz.localize(datetime.now()),
             event_value=0.5,
-            source=DataSource.query.get(1),
+            source=db.session.get(DataSource, 1),
             sensor=grid_connection_capacity,
         )
 

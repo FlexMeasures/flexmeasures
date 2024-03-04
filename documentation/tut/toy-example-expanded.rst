@@ -119,4 +119,5 @@ In the case of the scheduler that we ran in the previous tutorial, which did not
 
 We hope this part of the tutorial shows how to incorporate a limited grid connection rather easily with FlexMeasures. There are more ways to model such settings, but this is a straightforward one.
 
-This tutorial showed a quick way to add an inflexible load (like solar power) and a grid connection. In :ref:`tut_toy_schedule_process`, we'll turn to something different: the optimal timing of processes with fixed energy work and duration.
+This tutorial showed a quick way to add an inflexible load (like solar power) and a grid connection.
+In :ref:`tut_v2g`, we will temporarily pause giving you tutorials you can follow step-by-step. We feel it is time to pay more attention to the power of the flex-model, and illustrate its effects.

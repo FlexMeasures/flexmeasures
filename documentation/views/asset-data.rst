@@ -1,8 +1,11 @@
 .. _view_asset-data:
 
-**************
-Assets & data
-**************
+*********************
+Assets & sensor data
+*********************
+
+Asset page
+------------
 
 The asset page allows to see data from the asset's sensors, and also to edit attributes of the asset, like its location.
 Other attributes are stored as a JSON string, which can be edited here as well.
@@ -21,3 +24,36 @@ This includes the possibility to specify which sensors the asset page should sho
 .. note:: While it is possible to show an arbitrary number of sensors this way, we recommend showing only the most crucial ones for faster loading, less page scrolling, and generally, a quick grasp of what the asset is up to.
 .. note:: Asset attributes can be edited through the CLI as well, with the CLI command ``flexmeasures edit attribute``.
 
+
+Sensor page
+-------------
+
+Each sensor also has its own page:
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_sensor.png
+    :align: center
+..    :scale: 40%
+
+|
+|
+
+Next to line plots, data can sometimes be more usefully displayed as heatmaps.
+Heatmaps are great ways to spot the hotspots of activity. Usually heatmaps are actually geographical maps. In our context, the most interesting background is time ― so we'd like to see activity hotspots on a map of time intervals.
+
+We chose the "time map" of weekdays. From our experience, this is where you see the most interesting activity hotspots at a glance. For instance, that mornings often experience peaks. Or that Tuesday afternoons have low energy use, for some reason.
+
+Here is what it looks like for one week of temperature data:
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/heatmap-week-temperature.png
+    :align: center
+    
+It's easy to see which days had milder temperatures.
+
+And here are 4 days of (dis)-charging patterns in Seita's V2GLiberty project:
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/heatmap-week-charging.png
+    :align: center
+    
+Charging (blue) mostly happens in sunshine hours, discharging during high-price hours (morning & evening)
+
+So on a technical level, the daily heatmap is essentially a heatmap of the sensor's values, with dates on the y-axis and time of day on the x-axis. For individual devices, it gives an insight into the device's running times. A new button lets users switch between charts.

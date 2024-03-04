@@ -207,3 +207,12 @@ def validate_unique(ctx, param, value):
         if len(value) != len(set(value)):
             raise click.BadParameter("Values must be unique.")
     return value
+
+
+def abort(message: str):
+    click.secho(message, **MsgStyle.ERROR)
+    raise click.Abort()
+
+
+def done(message: str):
+    click.secho(message, **MsgStyle.SUCCESS)

@@ -7,6 +7,7 @@ from flask_security import auth_required, login_required
 from marshmallow import fields
 from webargs.flaskparser import use_kwargs
 
+from flexmeasures.data import db
 from flexmeasures.data.schemas.times import AwareDateTimeField
 from flexmeasures.api.dev.sensors import SensorAPI
 from flexmeasures import Sensor
@@ -72,5 +73,5 @@ class SensorUI(FlaskView):
             "views/sensors.html",
             sensor_id=id,
             msg="",
-            breadcrumb_info=get_breadcrumb_info(Sensor.query.get(id)),
+            breadcrumb_info=get_breadcrumb_info(db.session.get(Sensor, id)),
         )
