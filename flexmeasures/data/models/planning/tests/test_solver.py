@@ -20,7 +20,7 @@ from flexmeasures.data.models.planning.storage import (
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.planning.tests.utils import check_constraints
 from flexmeasures.data.models.planning.utils import initialize_series, initialize_df
-from flexmeasures.data.schemas.scheduling.storage import SOCValueSchema
+from flexmeasures.data.schemas.scheduling.storage import TimedEventSchema
 from flexmeasures.utils.calculations import (
     apply_stock_changes_and_losses,
     integrate_time_series,
@@ -1303,7 +1303,7 @@ def test_build_device_soc_values(caplog, soc_values, log_message, expected_num_t
 
     # Convert SoC datetimes to periods with a start and end.
     for soc in soc_values:
-        SOCValueSchema().check_time_window(soc)
+        TimedEventSchema().check_time_window(soc)
 
     with caplog.at_level(logging.WARNING):
         device_values = build_device_soc_values(

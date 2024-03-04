@@ -78,15 +78,35 @@ class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
 class SensorIdField(MarshmallowClickMixin, fields.Int):
     """Field that deserializes to a Sensor and serializes back to an integer."""
 
+    def __init__(self, *args, unit: str | ur.Quantity | None = None, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        if isinstance(unit, str):
+            self.to_unit = ur.Quantity(unit)
+        elif isinstance(unit, ur.Quantity):
+            self.to_unit = unit
+        else:
+            self.to_unit = None
+
     @with_appcontext_if_needed()
     def _deserialize(self, value: int, attr, obj, **kwargs) -> Sensor:
         """Turn a sensor id into a Sensor."""
         sensor = db.session.get(Sensor, value)
         if sensor is None:
             raise FMValidationError(f"No sensor found with id {value}.")
+
         # lazy loading now (sensor is somehow not in session after this)
         sensor.generic_asset
         sensor.generic_asset.generic_asset_type
+
+        # if the units are defined, check if the sensor data is convertible to the target units
+        if self.to_unit is not None and not units_are_convertible(
+            sensor.unit, str(self.to_unit.units)
+        ):
+            raise FMValidationError(
+                f"Cannot convert {sensor.unit} to {self.to_unit.units}"
+            )
+
         return sensor
 
     def _serialize(self, sensor: Sensor, attr, data, **kwargs) -> int:
@@ -116,20 +136,9 @@ class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
                 raise FMValidationError(
                     "Dictionary provided but `sensor` key not found."
                 )
-
-            sensor = db.session.get(Sensor, value["sensor"])
-
-            if sensor is None:
-                raise FMValidationError(f"No sensor found with id {value['sensor']}.")
-
-            # lazy loading now (sensor is somehow not in session after this)
-            sensor.generic_asset
-            sensor.generic_asset.generic_asset_type
-
-            if not units_are_convertible(sensor.unit, str(self.to_unit.units)):
-                raise FMValidationError(
-                    f"Cannot convert {sensor.unit} to {self.to_unit.units}"
-                )
+            sensor = SensorIdField(unit=self.to_unit)._deserialize(
+                value["sensor"], None, None
+            )
 
             return sensor
 

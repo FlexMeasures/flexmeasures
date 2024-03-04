@@ -743,7 +743,7 @@ def build_device_soc_values(
         2010-01-01 06:00:00    3.0
         Freq: 15T, dtype: float64
 
-    TODO: this function could become the deserialization method of a new SOCValueSchema (targets, plural), which wraps SOCValueSchema.
+    TODO: this function could become the deserialization method of a new TimedEventSchema (targets, plural), which wraps TimedEventSchema.
 
     """
     if isinstance(soc_values, pd.Series):  # some tests prepare it this way

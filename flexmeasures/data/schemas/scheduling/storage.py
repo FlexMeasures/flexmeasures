@@ -15,13 +15,12 @@ from marshmallow import (
 from marshmallow.validate import OneOf, ValidationError, Validator
 import pandas as pd
 
-from flexmeasures.data import db
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
 from flexmeasures.data.schemas.units import QuantityField
-from flexmeasures.data.schemas.sensors import QuantityOrSensor
+from flexmeasures.data.schemas.sensors import QuantityOrSensor, SensorIdField
 
-from flexmeasures.utils.unit_utils import ur, units_are_convertible
+from flexmeasures.utils.unit_utils import ur
 
 from flexmeasures.data.schemas.utils import (
     FMValidationError,
@@ -57,7 +56,7 @@ class EfficiencyField(QuantityField):
         )
 
 
-class SOCValueSchema(Schema):
+class TimedEventSchema(Schema):
     value = fields.Float(required=True)
     datetime = AwareDateTimeField(required=False)
     start = AwareDateTimeField(required=False)
@@ -137,8 +136,17 @@ class SOCValueSchema(Schema):
 
 class TimeSeriesOrSensor(MarshmallowClickMixin, fields.Field):
     def __init__(
-        self, unit, timezone, *args, value_validator: Validator | None = None, **kwargs
+        self,
+        unit,
+        *args,
+        timezone: str | None = None,
+        value_validator: Validator | None = None,
+        **kwargs,
     ):
+        """
+        The timezone is only used in case a time series is specified and one
+        of the *timed events* in the time series uses a nominal duration, such as "P1D".
+        """
         super().__init__(*args, **kwargs)
         self.timezone = timezone
         self.value_validator = value_validator
@@ -155,25 +163,16 @@ class TimeSeriesOrSensor(MarshmallowClickMixin, fields.Field):
                     "Dictionary provided but `sensor` key not found."
                 )
 
-            sensor = db.session.get(Sensor, value["sensor"])
+            sensor = SensorIdField(unit=self.unit)._deserialize(
+                value["sensor"], None, None
+            )
 
-            if sensor is None:
-                raise FMValidationError(f"No sensor found with id {value['sensor']}.")
-
-            # lazy loading now (sensor is somehow not in session after this)
-            sensor.generic_asset
-            sensor.generic_asset.generic_asset_type
-
-            if not units_are_convertible(sensor.unit, str(self.unit.units)):
-                raise FMValidationError(
-                    f"Cannot convert {sensor.unit} to {self.unit.units}"
-                )
             return sensor
 
         elif isinstance(value, list):
             field = fields.List(
                 fields.Nested(
-                    SOCValueSchema(
+                    TimedEventSchema(
                         timezone=self.timezone, value_validator=self.value_validator
                     )
                 )
@@ -209,7 +208,7 @@ class StorageFlexModelSchema(Schema):
         "MW", data_key="production-capacity", required=False
     )
 
-    # Timezone placeholder is overridden in __init__
+    # Timezone placeholder for the soc_maxima, soc_minima and soc_targets fields are overridden in __init__
     soc_maxima = TimeSeriesOrSensor(
         unit="MWh", timezone="placeholder", data_key="soc-maxima"
     )
@@ -278,7 +277,9 @@ class StorageFlexModelSchema(Schema):
 
     @validates_schema
     def check_whether_targets_exceed_max_planning_horizon(self, data: dict, **kwargs):
-        soc_targets: list[dict[str, datetime | float]] | None = data.get("soc_targets")
+        soc_targets: list[dict[str, datetime | float] | Sensor] | None = data.get(
+            "soc_targets"
+        )
         # skip check if the SOC targets are not provided or if they are defined as sensors
         if not soc_targets or isinstance(soc_targets, Sensor):
             return
