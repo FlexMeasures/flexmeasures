@@ -20,7 +20,7 @@ from flexmeasures.data.models.planning.storage import (
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.planning.tests.utils import check_constraints
 from flexmeasures.data.models.planning.utils import initialize_series, initialize_df
-from flexmeasures.data.schemas.scheduling.storage import TimedEventSchema
+from flexmeasures.data.schemas.sensors import TimedEventSchema
 from flexmeasures.utils.calculations import (
     apply_stock_changes_and_losses,
     integrate_time_series,

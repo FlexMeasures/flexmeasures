@@ -10,9 +10,9 @@ from flexmeasures.data.schemas.scheduling.process import (
     ProcessType,
 )
 from flexmeasures.data.schemas.scheduling.storage import (
-    TimedEventSchema,
     StorageFlexModelSchema,
 )
+from flexmeasures.data.schemas.sensors import TimedEventSchema
 
 
 @pytest.mark.parametrize(
