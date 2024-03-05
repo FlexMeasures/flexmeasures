@@ -327,6 +327,7 @@ def create_sources(db) -> dict[str, DataSource]:
     entsoe_source = DataSource(name="ENTSO-E", type="demo script")
     db.session.add(entsoe_source)
     dummy_schedule_source = DataSource(name="DummySchedule", type="demo script")
+    db.session.add(dummy_schedule_source)
     return {
         "Seita": seita_source,
         "ENTSO-E": entsoe_source,
