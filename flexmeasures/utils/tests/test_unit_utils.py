@@ -144,6 +144,20 @@ def test_convert_unit(
                 1682985603 - 60 * 60 * 2,
             ],
         ),
+        # Mixed offsets across DST transitions don't fail
+        (
+            "datetime",
+            "s",
+            "Europe/Amsterdam",
+            [
+                "2023-10-29 02:00:00 +02:00",
+                "2023-10-29 02:00:00 +01:00",
+            ],
+            [
+                1682985600 + 180 * 24 * 60 * 60 + 60 * 60 * (2 - 2),
+                1682985600 + 180 * 24 * 60 * 60 + 60 * 60 * (2 - 1),
+            ],
+        ),
         # Timedeltas can be converted to units of time
         ("timedelta", "s", None, ["1 minute", "1 minute 2 seconds"], [60.0, 62.0]),
         # Convertible timedeltas include absolute days of 24 hours
