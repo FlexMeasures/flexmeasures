@@ -241,9 +241,13 @@ def _convert_time_units(
         to_unit = f"1{to_unit}"
     if "datetime" in from_unit:
         dt_data = pd.to_datetime(
-            data, dayfirst=True if "dayfirst" in from_unit else False
+            data, dayfirst=True if "dayfirst" in from_unit else False, utc=True
         )
         # localize timezone naive data to the sensor's timezone, if available
+        # todo: write test for the following case
+        # event_start                belief_time                source       cumulative_probability
+        # 2023-10-27 18:30:05+02:00  2023-10-27 18:30:05+02:00  some-source  0.5                       2023-10-28 05:51:01+02:00
+        # 2023-10-28 19:38:13+02:00  2023-10-28 19:38:13+02:00  some-source  0.5                       2023-10-29 06:33:01+01:00
         if dt_data.dt.tz is None:
             timezone = data.sensor.timezone if hasattr(data, "sensor") else "utc"
             dt_data = dt_data.dt.tz_localize(timezone)
