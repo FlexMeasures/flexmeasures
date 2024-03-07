@@ -318,13 +318,7 @@ class SensorAPI(FlaskView):
                             "datetime": "2015-06-02T16:00:00+00:00"
                         },
                     ],
-                    "soc-minima": [
-                        {
-                            "value": 15,
-                            "start": "2015-06-02T14:00:00+00:00",
-                            "end": "2015-06-02T15:00:00+00:00"
-                        }
-                    ],
+                    "soc-minima": {"sensor" : 300},
                     "soc-min": 10,
                     "soc-max": 25,
                     "charging-efficiency": "120%",
