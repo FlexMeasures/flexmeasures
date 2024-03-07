@@ -294,11 +294,12 @@ def delete_beliefs(  # noqa: C901
 
         for asset in generic_assets:
             generic_assets_offspring.extend(asset.offspring)
+        generic_assets = list(generic_assets) + generic_assets_offspring
 
         entity_filters += [
             TimedBelief.sensor_id == Sensor.id,
             Sensor.generic_asset_id.in_(
-                [asset.id for asset in generic_assets_offspring + list(generic_assets)]
+                [asset.id for asset in generic_assets]
             ),
         ]
 
