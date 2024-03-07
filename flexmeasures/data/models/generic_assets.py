@@ -139,6 +139,7 @@ class GenericAsset(db.Model, AuthModelMixin):
 
     @property
     def offspring(self) -> list[GenericAsset]:
+        """Returns a flattened list of all offspring, which is looked up recursively."""
         offspring = []
 
         for child in self.child_assets:
