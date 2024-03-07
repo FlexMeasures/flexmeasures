@@ -1,5 +1,12 @@
 from __future__ import annotations
-from marshmallow import Schema, fields, validates, ValidationError, validates_schema
+from marshmallow import (
+    Schema,
+    fields,
+    validate,
+    validates,
+    ValidationError,
+    validates_schema,
+)
 from marshmallow.validate import Validator
 from pint import DimensionalityError
 
@@ -199,12 +206,22 @@ class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
     def __init__(
         self, to_unit: str, default_src_unit: str | None = None, *args, **kwargs
     ):
-        """
+        """Field for validating, serializing and deserializing a Quantity or a Sensor.
+
+        NB any validators passed are only applied to Quantities.
+        For example, validate=validate.Range(min=0) will raise a ValidationError in case of negative quantities,
+        but will let pass any sensor that has recorded negative values.
+
         :param to_unit: unit in which the sensor or quantity should be convertible to
         :param default_src_unit: what unit to use in case of getting a numeric value
         """
 
+        _validate = kwargs.pop("validate", None)
         super().__init__(*args, **kwargs)
+        if _validate is not None:
+            # Insert validation into self.validators so that multiple errors can be stored.
+            validator = RepurposeValidatorToIgnoreSensors(_validate)
+            self.validators.insert(0, validator)
         self.to_unit = ur.Quantity(to_unit)
         self.default_src_unit = default_src_unit
 
@@ -231,7 +248,6 @@ class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
                     f"Cannot convert value `{value}` to '{self.to_unit}'"
                 ) from e
         else:
-
             if self.default_src_unit is not None:
                 return self._deserialize(
                     f"{value} {self.default_src_unit}", attr, obj, **kwargs
@@ -317,3 +333,16 @@ class TimeSeriesOrSensor(MarshmallowClickMixin, fields.Field):
             raise FMValidationError(
                 f"Unsupported value type. `{type(value)}` was provided but only dict and list are supported."
             )
+
+
+class RepurposeValidatorToIgnoreSensors(validate.Validator):
+    """Validator that executes another validator (the one you initialize it with) only on non-Sensor values."""
+
+    def __init__(self, original_validator, *, error: str | None = None):
+        self.error = error
+        self.original_validator = original_validator
+
+    def __call__(self, value):
+        if not isinstance(value, Sensor):
+            self.original_validator(value)
+        return value

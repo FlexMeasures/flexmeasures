@@ -8,6 +8,7 @@ since v.0.20.0 | March XX, 2024
 =================================
 
 * Add command ``flexmeasures edit transfer-ownership`` to transfer the ownership of an asset and its children.
+- Add support for providing a sensor definition to the ``--site-power-capacity``, ``--site-consumption-capacity`` and ``--site-production-capacity`` options of the ``flexmeasures add schedule for-storage`` command.
 
 since v0.19.1 | February 26, 2024
 =======================================
