@@ -138,6 +138,15 @@ class GenericAsset(db.Model, AuthModelMixin):
     )
 
     @property
+    def offspring(self) -> list[GenericAsset]:
+        offspring = []
+
+        for child in self.child_assets:
+            offspring.extend(child.offspring)
+
+        return offspring + self.child_assets
+
+    @property
     def location(self) -> tuple[float, float] | None:
         location = (self.latitude, self.longitude)
         if None not in location:

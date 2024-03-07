@@ -256,11 +256,13 @@ def delete_prognoses(
     required=False,
     help="Remove beliefs about events ending at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
 )
+@click.option("--offspring", type=bool, required=False, default=False, is_flag=True)
 def delete_beliefs(  # noqa: C901
     generic_assets: list[GenericAsset],
     sensors: list[Sensor],
     start: datetime | None = None,
     end: datetime | None = None,
+    offspring: bool = False,
 ):
     """Delete all beliefs recorded on a given sensor (or on sensors of a given asset)."""
 
@@ -271,6 +273,8 @@ def delete_beliefs(  # noqa: C901
         abort("Passing both sensors and assets at the same time is not supported.")
     if start is not None and end is not None and start > end:
         abort("Start should not exceed end.")
+    if offspring and len(generic_assets) == 0:
+        abort("Must pass at least one asset when the offspring option is employed.")
 
     # Time window filter
     event_filters = []
@@ -284,9 +288,18 @@ def delete_beliefs(  # noqa: C901
     if sensors:
         entity_filters += [TimedBelief.sensor_id.in_([sensor.id for sensor in sensors])]
     if generic_assets:
+
+        # get the offspring of all generic assets
+        generic_assets_offspring = []
+
+        for asset in generic_assets:
+            generic_assets_offspring.extend(asset.offspring)
+
         entity_filters += [
             TimedBelief.sensor_id == Sensor.id,
-            Sensor.generic_asset_id.in_([asset.id for asset in generic_assets]),
+            Sensor.generic_asset_id.in_(
+                [asset.id for asset in generic_assets_offspring + list(generic_assets)]
+            ),
         ]
 
     # Create query
