@@ -298,9 +298,7 @@ def delete_beliefs(  # noqa: C901
 
         entity_filters += [
             TimedBelief.sensor_id == Sensor.id,
-            Sensor.generic_asset_id.in_(
-                [asset.id for asset in generic_assets]
-            ),
+            Sensor.generic_asset_id.in_([asset.id for asset in generic_assets]),
         ]
 
     # Create query
@@ -326,14 +324,17 @@ def delete_beliefs(  # noqa: C901
     db.session.commit()
     num_beliefs_after = db.session.scalar(select(func.count()).select_from(q))
     # only show the entity names for the final confirmation
+    message = f"{num_beliefs_after} beliefs left on sensors "
     if sensors:
-        done(
-            f"{num_beliefs_after} beliefs left on sensors {join_words_into_a_list([sensor.name for sensor in sensors])}."
-        )
+        message += f"{join_words_into_a_list([sensor.name for sensor in sensors])}"
     elif generic_assets:
-        done(
-            f"{num_beliefs_after} beliefs left on sensors of {join_words_into_a_list([asset.name for asset in generic_assets])}."
+        message = (
+            f"of {join_words_into_a_list([asset.name for asset in generic_assets])}"
         )
+    if start is not None or end is not None:
+        message += " within the specified time window"
+    message += "."
+    done(message)
 
 
 @fm_delete_data.command("unchanged-beliefs", cls=DeprecatedOptionsCommand)
