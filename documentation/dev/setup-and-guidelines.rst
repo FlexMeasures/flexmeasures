@@ -54,12 +54,37 @@ Go into the ``flexmeasures`` folder and install all dependencies including the o
 
    $ pip install highspy
 
-
-Alternatively, the CBC solver can be installed with:
+On MacOS it is impossible to properly install highs via pip, so it should be built locally:
 
 .. code-block:: bash
 
-   $ apt-get install coinor-cbc
+    $ cd ../
+    $ git clone https://github.com/ERGO-Code/HiGHS.git
+    $ cd HiGHS
+    $ git checkout latest
+    $ mkdir build
+    $ cd build
+    $ brew install cmake
+    $ cmake ..
+    $ make
+    $ make install
+    $ cd ../
+
+Besides highs, the CBC solver is required as well:
+
+.. tabs::
+
+    .. tab:: Linux
+
+        .. code-block:: bash
+
+            $ apt-get install coinor-cbc
+
+    .. tab:: MacOS
+
+        .. code-block:: bash
+
+            $ brew install cbc
 
 
 Configuration

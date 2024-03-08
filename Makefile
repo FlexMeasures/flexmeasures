@@ -55,6 +55,13 @@ else
 	rm temp-test.in
 endif
 	make install-flexmeasures
+	make install-highs
+
+install-highs:
+# Need to install highs locally on macos
+	if [ -d "../HiGHS/" ] && [ "$(shell uname)" = "Darwin" ]; then \
+		pip install "../HiGHS/" ; \
+	fi
 
 install-deps:
 	make install-pip-tools
