@@ -70,7 +70,7 @@ On MacOS it is impossible to properly install highs via pip, so it should be bui
     $ make install
     $ cd ../
 
-Besides highs, the CBC solver is required as well:
+Besides highs, the CBC solver is required for tests as well:
 
 .. tabs::
 

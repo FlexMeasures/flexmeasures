@@ -143,7 +143,7 @@ Proceed to create a database as the postgres superuser (using your postgres user
    $ createuser --pwprompt -U postgres flexmeasures_test  # enter "flexmeasures_test" as password
    $ exit
 
-.. note:: In case you encouter the following "FAILS: sudo: unknown user postgres" you need to create "postgres" OS user with sudo rights first.
+.. note:: In case you encounter the following "FAILS: sudo: unknown user postgres" you need to create "postgres" OS user with sudo rights first - better done via System preferences -> Users & Groups.
 
 
 Or, from within Postgres console:
@@ -309,7 +309,7 @@ You can visualise the data model like this:
 This will generate a picture based on the model code.
 You can also generate picture based on the actual database, see inside the Makefile. 
 
-.. note:: If you encounter "error: externally-managed-environment" when running `make test`, add "[global] break-system-packages = true" to pip config file (find config - `pip config list -v`)
+.. note:: If you encounter "error: externally-managed-environment" when running `make test` and you do it in venv, try `pip cache purge` or use pipx.
 
 Maintenance
 ----------------
