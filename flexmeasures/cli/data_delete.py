@@ -321,7 +321,7 @@ def delete_beliefs(  # noqa: C901
     if sensors:
         message += f"{join_words_into_a_list([sensor.name for sensor in sensors])}"
     elif generic_assets:
-        message = (
+        message += (
             f"of {join_words_into_a_list([asset.name for asset in generic_assets])}"
         )
     if start is not None or end is not None:
