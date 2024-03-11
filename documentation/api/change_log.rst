@@ -8,7 +8,7 @@ API change log
 
 v3.0-18 | 2024-03-07
 """"""""""""""""""""
-- Add support for providing a sensor definition to the ``soc-minima``, ``soc-maxima`` and ``sox-targets`` flex-model fields for `/sensors/<id>/schedules/trigger` (POST).
+- Add support for providing a sensor definition to the ``soc-minima``, ``soc-maxima`` and ``soc-targets`` flex-model fields for `/sensors/<id>/schedules/trigger` (POST).
 
 
 v3.0-17 | 2024-02-26
