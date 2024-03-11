@@ -145,7 +145,7 @@ def inflexible_devices(db, building) -> dict[str, Sensor]:
         name="PV power sensor",
         generic_asset=building,
         event_resolution=timedelta(hours=1),
-        unit="kW",
+        unit="MW",
         attributes={"capacity_in_mw": 2},
     )
     db.session.add(pv_sensor)
@@ -153,7 +153,7 @@ def inflexible_devices(db, building) -> dict[str, Sensor]:
         name="residual demand power sensor",
         generic_asset=building,
         event_resolution=timedelta(hours=1),
-        unit="kW",
+        unit="MW",
         attributes={"capacity_in_mw": 2},
     )
     db.session.add(residual_demand_sensor)
