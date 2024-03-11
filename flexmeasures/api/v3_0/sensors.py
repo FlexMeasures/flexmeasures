@@ -290,8 +290,7 @@ class SensorAPI(FlaskView):
         The charging efficiency is constant (120%) and the discharging efficiency is determined by the contents of sensor
         with id 98. If just the ``roundtrip-efficiency`` is known, it can be described with its own field.
         The global minimum and maximum soc are set to 10 and 25 kWh, respectively.
-        To guarantee a minimum SOC in the period prior to 4.00pm, local minima constraints are imposed (via soc-minima)
-        at 2.00pm and 3.00pm, for 15kWh and 20kWh, respectively.
+        To guarantee a minimum SOC in the period prior, the sensor with ID 300 contains beliefs at 2.00pm and 3.00pm, for 15kWh and 20kWh, respectively.
         Storage efficiency is set to 99.99%, denoting the state of charge left after each time step equal to the sensor's resolution.
         Aggregate consumption (of all devices within this EMS) should be priced by sensor 9,
         and aggregate production should be priced by sensor 10,
