@@ -94,13 +94,11 @@ What FlexMeasures does
     - FlexMeasures Client
         For automating the interaction with FlexMeasures from local sites (e.g. from a smart gateway - think RaspberryPi or higher-level), we created `the FlexMeasures Client <https://github.com/FlexMeasures/flexmeasures-client>`_. The Flexmeasures Client package provides functionality for authentication, posting sensor data, triggering schedules and retrieving schedules from a FlexMeasures instance through the API. 
 
-Use cases & Users
------------
 
 .. _use_cases_and_users:
 
 Use cases & Users
------------
+------------------
 
 .. tabs::
 
