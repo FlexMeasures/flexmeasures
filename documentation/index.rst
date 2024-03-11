@@ -98,7 +98,7 @@ What FlexMeasures does
 .. _use_cases_and_users:
 
 Use cases & Users
------------
+------------------
 
 .. tabs::
 

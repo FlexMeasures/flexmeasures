@@ -54,6 +54,7 @@ extensions = [
     "sphinx_fontawesome",
     "sphinxcontrib.autohttp.flask",
     "sphinxcontrib.autohttp.flaskqref",
+    "sphinxcontrib.mermaid",
 ]
 
 autodoc_default_options = {}
@@ -66,6 +67,7 @@ gen_code_docs = not bool(
     os.environ.get("GEN_CODE_DOCS", "True").lower() in ("f", "false", "0")
 )
 
+mermaid_params = ["-p" "puppeteer-config.json"]
 
 # Generate code docs
 if gen_code_docs:
