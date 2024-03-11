@@ -22,8 +22,7 @@ depends_on = None
 
 
 def upgrade():
-    tables_with_data = []
-    for table in [
+    tables = [
         "price",
         "power",
         "market",
@@ -31,9 +30,13 @@ def upgrade():
         "weather",
         "asset",
         "weather_sensor",
-    ]:
+    ]
+
+    #  check for existing data
+    tables_with_data = []
+    inspect = sa.inspect(db.engine)
+    for table in tables:
         try:
-            inspect = sa.inspect(db.engine)
             if inspect.has_table(table):
                 result = db.session.execute(
                     sa.text(f"SELECT 1 FROM {table};")
@@ -52,33 +55,27 @@ def upgrade():
             abort=True,
         )
 
+    # drop indexes
     with op.batch_alter_table("power", schema=None) as batch_op:
-        batch_op.drop_index("power_datetime_idx")
-        batch_op.drop_index("power_sensor_id_idx")
+        batch_op.drop_index("power_datetime_idx", if_exists=True)
+        batch_op.drop_index("power_sensor_id_idx", if_exists=True)
 
     with op.batch_alter_table("asset_type", schema=None) as batch_op:
-        batch_op.drop_index("asset_type_can_curtail_idx")
-        batch_op.drop_index("asset_type_can_shift_idx")
+        batch_op.drop_index("asset_type_can_curtail_idx", if_exists=True)
+        batch_op.drop_index("asset_type_can_shift_idx", if_exists=True)
 
     with op.batch_alter_table("weather", schema=None) as batch_op:
-        batch_op.drop_index("weather_datetime_idx")
-        batch_op.drop_index("weather_sensor_id_idx")
+        batch_op.drop_index("weather_datetime_idx", if_exists=True)
+        batch_op.drop_index("weather_sensor_id_idx", if_exists=True)
 
     with op.batch_alter_table("price", schema=None) as batch_op:
-        batch_op.drop_index("price_datetime_idx")
-        batch_op.drop_index("price_sensor_id_idx")
+        batch_op.drop_index("price_datetime_idx", if_exists=True)
+        batch_op.drop_index("price_sensor_id_idx", if_exists=True)
 
-    op.drop_table("asset")
-    op.drop_table("power")
-    op.drop_table("asset_type")
-
-    op.drop_table("weather_sensor")
-    op.drop_table("weather")
-    op.drop_table("weather_sensor_type")
-
-    op.drop_table("market")
-    op.drop_table("market_type")
-    op.drop_table("price")
+    # drop tables
+    for table in tables:
+        if inspect.has_table(table):
+            op.drop_table(table)
 
 
 def downgrade():

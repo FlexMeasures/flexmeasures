@@ -11,12 +11,23 @@ New features
 -------------   
 
 * Add command ``flexmeasures edit transfer-ownership`` to transfer the ownership of an asset and its children from one account to another[see `PR #983 <https://github.com/FlexMeasures/flexmeasures/pull/983>`_]
+* Support defining the ``site-power-capacity``, ``site-consumption-capacity`` and ``site-production-capacity`` as a sensor in the API and CLI [see `PR #985 <https://github.com/FlexMeasures/flexmeasures/pull/985>`_]
 
 
 Infrastructure / Support
 ----------------------
 
 
+
+
+v0.19.2 | March 1, 2024
+============================
+
+.. note:: Optionally, run ``flexmeasures db upgrade`` after upgrading to this version for enhanced database performance on time series queries.
+
+* Upgrade timely-beliefs to enhance our main time series query and fix a database index on time series data, leading to significantly better performance [see `PR #992 <https://github.com/FlexMeasures/flexmeasures/pull/992>`_]
+* Fix server error on loading the asset page for a public asset, due to a bug in the breadcrumb's sibling navigation [see `PR #991 <https://github.com/FlexMeasures/flexmeasures/pull/991>`_]
+* Restore compatibility with the `flexmeasures-openweathermap plugin <https://github.com/SeitaBV/flexmeasures-openweathermap>`_ by fixing the query for the closest weather sensor to a given asset [see `PR #997 <https://github.com/FlexMeasures/flexmeasures/pull/997>`_]
 
 
 v0.19.1 | February 26, 2024

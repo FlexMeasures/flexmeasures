@@ -5,6 +5,7 @@ import pytest
 from marshmallow.validate import ValidationError
 import pandas as pd
 
+from flexmeasures.data.schemas.scheduling import FlexContextSchema
 from flexmeasures.data.schemas.scheduling.process import (
     ProcessSchedulerFlexModelSchema,
     ProcessType,
@@ -215,3 +216,51 @@ def test_efficiency_pair(
             load_schema()
     else:
         load_schema()
+
+
+@pytest.mark.parametrize(
+    ["flex_context", "fails"],
+    [
+        (
+            {"site-power-capacity": -1},
+            {"site-power-capacity": "Unsupported value type"},
+        ),
+        (
+            {"site-power-capacity": "-1 MVA"},
+            {"site-power-capacity": "Must be greater than or equal to 0."},
+        ),
+        (
+            {"site-power-capacity": "1 MVA"},
+            False,
+        ),
+        (
+            {"site-power-capacity": {"sensor": "site-power-capacity"}},
+            False,
+        ),
+    ],
+)
+def test_flex_context_schema(db, app, setup_site_capacity_sensor, flex_context, fails):
+    schema = FlexContextSchema()
+
+    # Replace sensor name with sensor ID
+    for field_name, field_value in flex_context.items():
+        if isinstance(field_value, dict):
+            flex_context[field_name]["sensor"] = setup_site_capacity_sensor[
+                field_value["sensor"]
+            ].id
+
+    if fails:
+        with pytest.raises(ValidationError) as e_info:
+            schema.load(flex_context)
+        print(e_info.value.messages)
+        for field_name, expected_message in fails.items():
+            assert field_name in e_info.value.messages
+            # Check all messages for the given field for the expected message
+            assert any(
+                [
+                    expected_message in message
+                    for message in e_info.value.messages[field_name]
+                ]
+            )
+    else:
+        schema.load(flex_context)

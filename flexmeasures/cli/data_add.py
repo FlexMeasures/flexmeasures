@@ -1121,6 +1121,36 @@ def create_schedule(ctx):
     " This argument can be given multiple times.",
 )
 @click.option(
+    "--site-power-capacity",
+    "site_power_capacity",
+    type=QuantityOrSensor("MW"),
+    required=False,
+    default=None,
+    help="Site consumption/production power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
+    "or reference a sensor using 'sensor:<id>' (e.g. sensor:34)."
+    "It defines both-ways maximum power capacity on the site level.",
+)
+@click.option(
+    "--site-consumption-capacity",
+    "site_consumption_capacity",
+    type=QuantityOrSensor("MW"),
+    required=False,
+    default=None,
+    help="Site consumption power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
+    "or reference a sensor using 'sensor:<id>' (e.g. sensor:34)."
+    "It defines the maximum consumption capacity on the site level.",
+)
+@click.option(
+    "--site-production-capacity",
+    "site_production_capacity",
+    type=QuantityOrSensor("MW"),
+    required=False,
+    default=None,
+    help="Site production power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
+    "or reference a sensor using 'sensor:<id>' (e.g. sensor:34)."
+    "It defines the maximum production capacity on the site level.",
+)
+@click.option(
     "--start",
     "start",
     type=AwareDateTimeField(format="iso"),
@@ -1269,6 +1299,9 @@ def add_schedule_for_storage(  # noqa C901
     production_price_sensor: Sensor,
     optimization_context_sensor: Sensor,
     inflexible_device_sensors: list[Sensor],
+    site_power_capacity: ur.Quantity | Sensor | None,
+    site_consumption_capacity: ur.Quantity | Sensor | None,
+    site_production_capacity: ur.Quantity | Sensor | None,
     start: datetime,
     duration: timedelta,
     soc_at_start: ur.Quantity,
@@ -1363,26 +1396,34 @@ def add_schedule_for_storage(  # noqa C901
     )
 
     quantity_or_sensor_vars = {
-        "charging-efficiency": charging_efficiency,
-        "discharging-efficiency": discharging_efficiency,
-        "storage-efficiency": storage_efficiency,
-        "soc-gain": soc_gain,
-        "soc-usage": soc_usage,
-        "power-capacity": storage_power_capacity,
-        "consumption-capacity": storage_consumption_capacity,
-        "production-capacity": storage_production_capacity,
+        "flex_model": {
+            "charging-efficiency": charging_efficiency,
+            "discharging-efficiency": discharging_efficiency,
+            "storage-efficiency": storage_efficiency,
+            "soc-gain": soc_gain,
+            "soc-usage": soc_usage,
+            "power-capacity": storage_power_capacity,
+            "consumption-capacity": storage_consumption_capacity,
+            "production-capacity": storage_production_capacity,
+        },
+        "flex_context": {
+            "site-power-capacity": site_power_capacity,
+            "site-consumption-capacity": site_consumption_capacity,
+            "site-production-capacity": site_production_capacity,
+        },
     }
 
-    for field_name, value in quantity_or_sensor_vars.items():
-        if value is not None:
-            if "efficiency" in field_name:
-                unit = "%"
-            else:
-                unit = "MW"
+    for key in ["flex_model", "flex_context"]:
+        for field_name, value in quantity_or_sensor_vars[key].items():
+            if value is not None:
+                if "efficiency" in field_name:
+                    unit = "%"
+                else:
+                    unit = "MW"
 
-            scheduling_kwargs["flex_model"][field_name] = QuantityOrSensor(
-                unit
-            )._serialize(value, None, None)
+                scheduling_kwargs[key][field_name] = QuantityOrSensor(unit)._serialize(
+                    value, None, None
+                )
 
     if as_job:
         job = create_scheduling_job(asset_or_sensor=power_sensor, **scheduling_kwargs)
@@ -1749,7 +1790,6 @@ def add_report(  # noqa: C901
     click.echo(f"Report scope:\n\tstart: {start}\n\tend:   {end}")
 
     if source is None:
-
         click.echo(
             f"Looking for the Reporter {reporter_class} among all the registered reporters...",
         )
