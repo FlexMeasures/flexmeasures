@@ -54,21 +54,7 @@ Go into the ``flexmeasures`` folder and install all dependencies including the o
 
    $ pip install highspy
 
-On MacOS it is impossible to properly install highs via pip, so it should be built locally:
-
-.. code-block:: bash
-
-    $ cd ../
-    $ git clone https://github.com/ERGO-Code/HiGHS.git
-    $ cd HiGHS
-    $ git checkout latest
-    $ mkdir build
-    $ cd build
-    $ brew install cmake
-    $ cmake ..
-    $ make
-    $ make install
-    $ cd ../
+On MacOS it will be installed locally and no actions are required on your part
 
 Besides highs, the CBC solver is required for tests as well:
 
