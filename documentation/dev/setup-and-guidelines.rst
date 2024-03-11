@@ -54,7 +54,7 @@ Go into the ``flexmeasures`` folder and install all dependencies including the o
 
    $ pip install highspy
 
-On MacOS it will be installed locally and no actions are required on your part
+On MacOS it will be installed locally by `make install-for-test` and no actions are required on your part
 
 Besides highs, the CBC solver is required for tests as well:
 
