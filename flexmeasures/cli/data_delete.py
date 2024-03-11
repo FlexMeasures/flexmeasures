@@ -312,14 +312,7 @@ def delete_beliefs(  # noqa: C901
     elif generic_assets:
         prompt = f"Delete all {num_beliefs_up_for_deletion} beliefs on sensors of {join_words_into_a_list([repr(asset) for asset in generic_assets])}?"
     click.confirm(prompt, abort=True)
-
-    # Delete all beliefs found by query
-    beliefs_up_for_deletion = db.session.scalars(q).all()
-    batch_size = 10000
-    for i, b in enumerate(beliefs_up_for_deletion, start=1):
-        if i % batch_size == 0 or i == num_beliefs_up_for_deletion:
-            click.echo(f"{i} beliefs processed ...")
-        db.session.delete(b)
+    db.session.execute(delete(TimedBelief).where(*entity_filters, *event_filters))
     click.secho(f"Removing {num_beliefs_up_for_deletion} beliefs ...")
     db.session.commit()
     num_beliefs_after = db.session.scalar(select(func.count()).select_from(q))
