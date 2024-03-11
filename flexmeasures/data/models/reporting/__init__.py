@@ -21,7 +21,7 @@ class Reporter(DataGenerator):
     _parameters_schema = ReporterParametersSchema()
     _config_schema = ReporterConfigSchema()
 
-    def _compute(self, **kwargs) -> List[Dict[str, Any]]:
+    def _compute(self, check_output_resolution=True, **kwargs) -> List[Dict[str, Any]]:
         """This method triggers the creation of a new report.
 
         The same object can generate multiple reports with different start, end, resolution
@@ -32,7 +32,7 @@ class Reporter(DataGenerator):
 
         for result in results:
             # checking that the event_resolution of the output BeliefDataFrame is equal to the one of the output sensor
-            assert (
+            assert check_output_resolution or (
                 result["sensor"].event_resolution == result["data"].event_resolution
             ), f"The resolution of the results ({result['data'].event_resolution}) should match that of the output sensor ({result['sensor'].event_resolution}, ID {result['sensor'].id})."
 
