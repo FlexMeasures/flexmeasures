@@ -23,33 +23,28 @@ FlexMeasures proudly is an incubation project at `the Linux Energy Foundation <h
 A quick glance 
 ----------------
 
+The main purpose of FlexMeasures is to create optimized schedules. Let's have a quick glance at what that looks like in the UI and what a code implementation would be like:
+
 .. tabs::
 
-    .. tab:: Schedules
+    .. tab:: Battery optimized by price
 
-        The main purpose of FlexMeasures is to create optimized schedules. Let's have a quick glance at what that looks like in the UI:
+        .. image:: https://raw.githubusercontent.com/FlexMeasures/screenshots/main/tut/toy-schedule/asset-view-without-solar.png
+            :target: https://raw.githubusercontent.com/FlexMeasures/screenshots/main/tut/toy-schedule/asset-view-without-solar.png
+            :align: center
+        ..    :scale: 40%
+    
+    .. tab:: Same but constrained by solar
 
-        .. tabs::
+        .. image:: https://raw.githubusercontent.com/FlexMeasures/screenshots/main/tut/toy-schedule/asset-view-with-solar.png
+            :target: https://raw.githubusercontent.com/FlexMeasures/screenshots/main/tut/toy-schedule/asset-view-with-solar.png
+            :align: center
+        ..    :scale: 40%
 
-            .. tab:: Battery optimized by price
 
-                .. image:: https://raw.githubusercontent.com/FlexMeasures/screenshots/main/tut/toy-schedule/asset-view-without-solar.png
-                    :target: https://raw.githubusercontent.com/FlexMeasures/screenshots/main/tut/toy-schedule/asset-view-without-solar.png
-                    :align: center
-                ..    :scale: 40%
-            
-            .. tab:: Battery optimized by price, constrained by solar
-        
-                .. image:: https://raw.githubusercontent.com/FlexMeasures/screenshots/main/tut/toy-schedule/asset-view-with-solar.png
-                    :target: https://raw.githubusercontent.com/FlexMeasures/screenshots/main/tut/toy-schedule/asset-view-with-solar.png
-                    :align: center
-                ..    :scale: 40%
+    .. tab:: Code example
 
-        A short explanation: This battery is optimized to buy power cheaply and sell it at expensive times - the red-dotted line is what FlexMeasures computed to be the best schedule, given all knowledge (in this case, the prices shown in blue). However, in the example on the right the battery has to store local solar power as well (orange line), which constrains how much it can do with its capacity (that's why the schedule is limited in capacity and thus cycling less energy overall than on the left).
-
-    .. tab:: Example code
-
-        A tiny, but complete example: Let's install FlexMeasures from scratch. Then, using only the terminal (FlexMeasures of course also has APIs for all of this), load hourly prices and optimize a 12h-schedule for a battery that is half full at the beginning. Finally, we'll display our new schedule in the terminal.
+        A tiny, but complete example (corresponding to the left tab): Let's install FlexMeasures from scratch. Then, using only the terminal (FlexMeasures of course also has APIs for all of this), load hourly prices and optimize a 12h-schedule for a battery that is half full at the beginning. Finally, we'll display our new schedule in the terminal.
 
         .. code-block:: console
 
@@ -57,12 +52,15 @@ A quick glance
             $ docker pull postgres; docker run --name pg-docker -e POSTGRES_PASSWORD=docker -e POSTGRES_DB=flexmeasures-db -d -p 5433:5432 postgres:latest 
             $ export SQLALCHEMY_DATABASE_URI="postgresql://postgres:docker@127.0.0.1:5433/flexmeasures-db" && export SECRET_KEY=notsecret 
             $ flexmeasures db upgrade  # create tables
-            $ flexmeasures add toy-account --kind battery  # setup account incl. a user, battery (ID 1) and market (ID 2)
+            $ flexmeasures add toy-account --kind battery  # setup account incl. a user, battery (ID 2) and market (ID 1)
             $ flexmeasures add beliefs --sensor 2 --source toy-user prices-tomorrow.csv --timezone utc  # load prices, also possible per API
-            $ flexmeasures add schedule for-storage --sensor 1 --consumption-price-sensor 2 \
+            $ flexmeasures add schedule for-storage --sensor 2 --consumption-price-sensor 1 \
                 --start ${TOMORROW}T07:00+01:00 --duration PT12H \
                 --soc-at-start 50% --roundtrip-efficiency 90%  # this is also possible per API
-            $ flexmeasures show beliefs --sensor 1 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H  # also visible per UI, of course
+            $ flexmeasures show beliefs --sensor 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H  # also visible per UI, of course
+    
+
+A short explanation of the optimization shown above: This battery is optimized to buy power cheaply and sell it at expensive times - the red-dotted line is what FlexMeasures computed to be the best schedule, given all knowledge (in this case, the prices shown in blue). However, in the example in the middle tab, the battery has to store local solar power as well (orange line), which constrains how much it can do with its capacity (that's why the schedule is limited in capacity and thus cycling less energy overall than on the left).
 
 Want to read more about the example case shown here? We discuss this in more depth at :ref:`tut_toy_schedule` and the tutorials that build on that.
 
@@ -77,11 +75,11 @@ What FlexMeasures does
   .. tab:: Main functionality
 
     - Scheduling
-        The main purpose of FlexMeasures is to create optimized schedules. That's also what the "quick glance" section above focuses on. Everything else supports this main purpose. FlexMeasures provides in-built schedulers for storage and processes. Read more at :ref:`tut_toy_schedule` and :ref:`tut_toy_schedule_process`, respectively, for hands-on introductions. Schedulers solve optimization problems for you and a re highly customizable to the situation at hand ― read more on this at :ref:`TODO`. 
+        The main purpose of FlexMeasures is to create optimized schedules. That's also what the "quick glance" section above focuses on. Everything else supports this main purpose. FlexMeasures provides in-built schedulers for storage and processes. Schedulers solve optimization problems for you and are highly customizable to the situation at hand. Read more at :ref:`scheduling` and, for hands-on introductions, at :ref:`tut_toy_schedule` and :ref:`tut_toy_schedule_process`. 
     - Reporting
-        FlexMeasures needs to give users an idea of its effects and outcomes. For instance, computing the energy costs are an important use case. But also creating intermediate data for your scheduler can be a crucial feature (e.g. the allowed headroom for a battery is the difference between the grid connection capacity and the PV power). Read more at :ref:`tut_toy_schedule_reporter`.
+        FlexMeasures needs to give users an idea of its effects and outcomes. For instance, computing the energy costs are an important use case. But also creating intermediate data for your scheduler can be a crucial feature (e.g. the allowed headroom for a battery is the difference between the grid connection capacity and the PV power). Read more at :ref:`reporting` and :ref:`tut_toy_schedule_reporter`.
     - Forecasting
-        Optimizing the future (by scheduling) requires some predictions.  or consumption. Several predictions can be gotten from third parties (e.g. weather conditions, for which we wrote `a plugin <https://github.com/SeitaBV/flexmeasures-openweathermap>`_), others need to be done manually. FlexMeasures provides some support for this (read more at :ref:`tut_forecasting_scheduling`), but you can also create predictions with one of the many excellent tools out there and feed them into FlexMeasures.
+        Optimizing the future (by scheduling) requires some predictions. Several predictions can be gotten from third parties (e.g. weather conditions, for which we wrote `a plugin <https://github.com/SeitaBV/flexmeasures-openweathermap>`_), others need to be done manually. FlexMeasures provides some support for this (read more at :ref:`forecasting` and :ref:`tut_forecasting_scheduling`), but you can also create predictions with one of the many excellent tools out there and feed them into FlexMeasures.
     - Monitoring
         As FlexMeasures is a real-time platform, processing data and computing new schedules continuously, hosting it requires to be notified when things go wrong. There is in-built :ref:`host_error_monitoring` for tracking connection problems and tasks that did not finish correctly. Also, you can connect to Sentry. We have `further plans to monitor data quality <https://github.com/FlexMeasures/flexmeasures/projects/12>`_.
 
@@ -96,6 +94,8 @@ What FlexMeasures does
     - FlexMeasures Client
         For automating the interaction with FlexMeasures from local sites (e.g. from a smart gateway - think RaspberryPi or higher-level), we created `the FlexMeasures Client <https://github.com/FlexMeasures/flexmeasures-client>`_. The Flexmeasures Client package provides functionality for authentication, posting sensor data, triggering schedules and retrieving schedules from a FlexMeasures instance through the API. 
 
+Use cases & Users
+-----------
 
 .. _use_cases_and_users:
 

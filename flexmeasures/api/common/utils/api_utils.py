@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from timely_beliefs.beliefs.classes import BeliefsDataFrame
-from typing import List, Sequence, Union
+from typing import Sequence
 from datetime import timedelta
 
 from flask import current_app
@@ -22,10 +22,10 @@ from flexmeasures.utils.error_utils import error_handling_router
 
 
 def upsample_values(
-    value_groups: Union[List[List[float]], List[float]],
+    value_groups: list[list[float]] | list[float],
     from_resolution: timedelta,
     to_resolution: timedelta,
-) -> Union[List[List[float]], List[float]]:
+) -> list[list[float]] | list[float]:
     """Upsample the values (in value groups) to a smaller resolution.
     from_resolution has to be a multiple of to_resolution"""
     if from_resolution % to_resolution == timedelta(hours=0):
@@ -76,7 +76,7 @@ def enqueue_forecasting_jobs(
 
 
 def save_and_enqueue(
-    data: Union[BeliefsDataFrame, List[BeliefsDataFrame]],
+    data: BeliefsDataFrame | list[BeliefsDataFrame],
     forecasting_jobs: list[Job] | None = None,
     save_changed_beliefs_only: bool = True,
 ) -> ResponseTuple:

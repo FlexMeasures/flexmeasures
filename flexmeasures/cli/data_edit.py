@@ -11,8 +11,11 @@ import pandas as pd
 from flask import current_app as app
 from flask.cli import with_appcontext
 import json
+from flexmeasures.data.models.user import Account
+from flexmeasures.data.schemas.account import AccountIdField
+from sqlalchemy import delete
 
-from flexmeasures import Sensor
+from flexmeasures import Sensor, Asset
 from flexmeasures.data import db
 from flexmeasures.data.schemas.attributes import validate_special_attributes
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
@@ -203,7 +206,7 @@ def resample_sensor_data(
     event_starts_after = pd.Timestamp(start_str)  # note that "" or None becomes NaT
     event_ends_before = pd.Timestamp(end_str)
     for sensor_id in sensor_ids:
-        sensor = Sensor.query.get(sensor_id)
+        sensor = db.session.get(Sensor, sensor_id)
         if sensor.event_resolution == event_resolution:
             click.echo(f"{sensor} already has the desired event resolution.")
             continue
@@ -230,17 +233,52 @@ def resample_sensor_data(
         db.session.add(sensor)
 
         # Update sensor data
-        query = TimedBelief.query.filter(TimedBelief.sensor == sensor)
+        query = delete(TimedBelief).filter_by(sensor=sensor)
         if not pd.isnull(event_starts_after):
             query = query.filter(TimedBelief.event_start >= event_starts_after)
         if not pd.isnull(event_ends_before):
             query = query.filter(
                 TimedBelief.event_start + sensor.event_resolution <= event_ends_before
             )
-        query.delete()
+        db.session.execute(query)
         save_to_db(df_resampled, bulk_save_objects=True)
     db.session.commit()
     click.secho("Successfully resampled sensor data.", **MsgStyle.SUCCESS)
+
+
+@fm_edit_data.command("transfer-ownership")
+@with_appcontext
+@click.option(
+    "--asset",
+    "asset",
+    type=GenericAssetIdField(),
+    required=True,
+    help="Change the ownership of this asset and its children. Follow up with the asset's ID.",
+)
+@click.option(
+    "--new-owner",
+    "new_owner",
+    type=AccountIdField(),
+    required=True,
+    help="New owner of the asset and its children.",
+)
+def transfer_ownership(asset: Asset, new_owner: Account):
+    """
+    Transfer the ownership of and asset and its children to an account.
+    """
+
+    def transfer_ownership_recursive(asset: Asset, account: Account):
+        asset.owner = account
+        for child in asset.child_assets:
+            transfer_ownership_recursive(child, account)
+
+    transfer_ownership_recursive(asset, new_owner)
+    click.secho(
+        f"Success! Asset `{asset}` ownership was transfered to account `{new_owner}`.",
+        **MsgStyle.SUCCESS,
+    )
+
+    db.session.commit()
 
 
 app.cli.add_command(fm_edit_data)

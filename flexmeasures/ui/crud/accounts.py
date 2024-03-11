@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from sqlalchemy import select
 from flask import request, url_for
 from flask_classful import FlaskView
 from flask_security import login_required
@@ -8,6 +9,7 @@ from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.crud.assets import get_assets_by_account
 from flexmeasures.ui.crud.users import get_users_by_account
 from flexmeasures.data.models.user import Account
+from flexmeasures.data import db
 
 
 def get_accounts() -> list[dict]:
@@ -48,9 +50,9 @@ class AccountCrudUI(FlaskView):
         include_inactive = request.args.get("include_inactive", "0") != "0"
         account = get_account(account_id)
         if account["consultancy_account_id"]:
-            consultancy_account = Account.query.filter_by(
-                id=account["consultancy_account_id"]
-            ).one_or_none()
+            consultancy_account = db.session.execute(
+                select(Account).filter_by(id=account["consultancy_account_id"])
+            ).scalar_one_or_none()
             if consultancy_account:
                 account["consultancy_account_name"] = consultancy_account.name
         assets = get_assets_by_account(account_id)

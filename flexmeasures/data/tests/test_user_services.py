@@ -1,4 +1,5 @@
 import pytest
+from sqlalchemy import select, func
 
 from flexmeasures.data.models.user import User, Role
 from flexmeasures.data.services.users import (
@@ -16,20 +17,30 @@ def test_create_user(
     fresh_db, setup_accounts_fresh_db, setup_roles_users_fresh_db, app
 ):
     """Create a user"""
-    num_users = User.query.count()
+    num_users = fresh_db.session.scalar(select(func.count()).select_from(User))
     user = create_user(
         email="new_user@seita.nl",
         password="testtest",
         account_name=setup_accounts_fresh_db["Prosumer"].name,
         user_roles=["SomeRole"],
     )
-    assert User.query.count() == num_users + 1
+    assert (
+        fresh_db.session.scalar(select(func.count()).select_from(User)) == num_users + 1
+    )
     assert user.email == "new_user@seita.nl"
     assert user.username == "new_user"
     assert user.account.name == "Test Prosumer Account"
-    assert user.roles == [Role.query.filter_by(name="SomeRole").one_or_none()]
-    assert DataSource.query.filter_by(user_id=user.id).one_or_none()
-    assert DataSource.query.filter_by(name=user.username).one_or_none()
+    assert user.roles == [
+        fresh_db.session.execute(
+            select(Role).filter_by(name="SomeRole")
+        ).scalar_one_or_none()
+    ]
+    assert fresh_db.session.execute(
+        select(DataSource).filter_by(user_id=user.id)
+    ).scalar_one_or_none()
+    assert fresh_db.session.execute(
+        select(DataSource).filter_by(name=user.username)
+    ).scalar_one_or_none()
 
 
 def test_create_invalid_user(
@@ -82,13 +93,11 @@ def test_create_invalid_user(
 def test_delete_user(fresh_db, setup_roles_users_fresh_db, setup_assets_fresh_db, app):
     """Check that deleting a user does not lead to deleting their organisation's (asset/sensor/beliefs) data."""
     prosumer: User = find_user_by_email("test_prosumer_user@seita.nl")
-    num_users_before = User.query.count()
+    num_users_before = fresh_db.session.scalar(select(func.count(User.id)))
 
     # Find assets belonging to the user's organisation
-    asset_query = GenericAsset.query.filter(
-        GenericAsset.account_id == prosumer.account_id
-    )
-    assets_before = asset_query.all()
+    asset_query = select(GenericAsset).filter_by(account_id=prosumer.account_id)
+    assets_before = fresh_db.session.scalars(asset_query).all()
     assert (
         len(assets_before) > 0
     ), "Test assets should have been set up, otherwise we'd not be testing whether they're kept."
@@ -99,10 +108,10 @@ def test_delete_user(fresh_db, setup_roles_users_fresh_db, setup_assets_fresh_db
         sensors_before.extend(asset.sensors)
 
     # Count all the organisation's beliefs
-    beliefs_query = TimedBelief.query.filter(
+    beliefs_query = select(func.count()).filter(
         TimedBelief.sensor_id.in_([sensor.id for sensor in sensors_before])
     )
-    num_beliefs_before = beliefs_query.count()
+    num_beliefs_before = fresh_db.session.scalar(beliefs_query)
     assert (
         num_beliefs_before > 0
     ), "Some beliefs should have been set up, otherwise we'd not be testing whether they're kept."
@@ -110,11 +119,11 @@ def test_delete_user(fresh_db, setup_roles_users_fresh_db, setup_assets_fresh_db
     # Delete the user
     delete_user(prosumer)
     assert find_user_by_email("test_prosumer_user@seita.nl") is None
-    assert User.query.count() == num_users_before - 1
+    assert fresh_db.session.scalar(select(func.count(User.id))) == num_users_before - 1
 
     # Check whether the organisation's assets, sensors and beliefs were kept
-    assets_after = asset_query.all()
+    assets_after = fresh_db.session.scalars(asset_query).all()
     assert assets_after == assets_before
 
-    num_beliefs_after = beliefs_query.count()
+    num_beliefs_after = fresh_db.session.scalar(beliefs_query)
     assert num_beliefs_after == num_beliefs_before

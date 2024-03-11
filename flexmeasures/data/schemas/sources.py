@@ -1,5 +1,6 @@
 from marshmallow import fields
 
+from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.schemas.utils import (
     with_appcontext_if_needed,
@@ -14,7 +15,7 @@ class DataSourceIdField(fields.Int, MarshmallowClickMixin):
     @with_appcontext_if_needed()
     def _deserialize(self, value, attr, obj, **kwargs) -> DataSource:
         """Turn a source id into a DataSource."""
-        source = DataSource.query.get(value)
+        source = db.session.get(DataSource, value)
         if source is None:
             raise FMValidationError(f"No data source found with id {value}.")
         return source

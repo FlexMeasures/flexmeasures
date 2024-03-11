@@ -9,6 +9,7 @@ from flask_wtf import FlaskForm
 from flask_security import login_required, current_user
 from wtforms import StringField, DecimalField, SelectField
 from wtforms.validators import DataRequired, optional
+from sqlalchemy import select
 from flexmeasures.auth.policy import user_has_admin_access
 
 from flexmeasures.data import db
@@ -107,11 +108,13 @@ class NewAssetForm(AssetForm):
 def with_options(form: AssetForm | NewAssetForm) -> AssetForm | NewAssetForm:
     if "generic_asset_type_id" in form:
         form.generic_asset_type_id.choices = [(-1, "--Select type--")] + [
-            (atype.id, atype.name) for atype in GenericAssetType.query.all()
+            (atype.id, atype.name)
+            for atype in db.session.scalars(select(GenericAssetType)).all()
         ]
     if "account_id" in form:
         form.account_id.choices = [(-1, "--Select account--")] + [
-            (account.id, account.name) for account in Account.query.all()
+            (account.id, account.name)
+            for account in db.session.scalars(select(Account)).all()
         ]
     return form
 
@@ -135,28 +138,42 @@ def process_internal_api_response(
     if asset_id:
         asset_data["id"] = asset_id
     if make_obj:
+        children = asset_data.pop("child_assets", [])
+
         asset = GenericAsset(
             **{
                 **asset_data,
                 **{"attributes": json.loads(asset_data.get("attributes", "{}"))},
             }
         )  # TODO: use schema?
-        asset.generic_asset_type = GenericAssetType.query.get(
-            asset.generic_asset_type_id
+        asset.generic_asset_type = db.session.get(
+            GenericAssetType, asset.generic_asset_type_id
         )
         expunge_asset()
-        asset.owner = Account.query.get(asset_data["account_id"])
+        asset.owner = db.session.get(Account, asset_data["account_id"])
         expunge_asset()
+        db.session.flush()
         if "id" in asset_data:
-            asset.sensors = Sensor.query.filter(
-                Sensor.generic_asset_id == asset_data["id"]
+            asset.sensors = db.session.scalars(
+                select(Sensor).filter_by(generic_asset_id=asset_data["id"])
             ).all()
             expunge_asset()
         if asset_data.get("parent_asset_id", None) is not None:
-            asset.parent_asset = GenericAsset.query.filter(
-                GenericAsset.id == asset_data["parent_asset_id"]
-            ).one_or_none()
+            asset.parent_asset = db.session.execute(
+                select(GenericAsset).filter(
+                    GenericAsset.id == asset_data["parent_asset_id"]
+                )
+            ).scalar_one_or_none()
             expunge_asset()
+
+        child_assets = []
+        for child in children:
+            child.pop("child_assets")
+            child_asset = process_internal_api_response(child, child["id"], True)
+            child_assets.append(child_asset)
+        asset.child_assets = child_assets
+        expunge_asset()
+
         return asset
     return asset_data
 
@@ -209,7 +226,7 @@ class AssetCrudUI(FlaskView):
         assets = []
 
         if user_has_admin_access(current_user, "read"):
-            for account in Account.query.all():
+            for account in db.session.scalars(select(Account)).all():
                 assets += get_assets_by_account(account.id)
             assets += get_assets_by_account(account_id=None)
         else:
@@ -239,9 +256,10 @@ class AssetCrudUI(FlaskView):
                 process_internal_api_response(ad, make_obj=True)
                 for ad in get_assets_response.json()
             ]
+        db.session.flush()
         return render_flexmeasures_template(
             "crud/assets.html",
-            account=Account.query.get(account_id),
+            account=db.session.get(Account, account_id),
             assets=assets,
             msg=msg,
             user_can_create_assets=user_can_create_assets(),
@@ -346,7 +364,7 @@ class AssetCrudUI(FlaskView):
         else:
             asset_form = with_options(AssetForm())
             if not asset_form.validate_on_submit():
-                asset = GenericAsset.query.get(id)
+                asset = db.session.get(GenericAsset, id)
                 # Display the form data, but set some extra data which the page wants to show.
                 asset_info = asset_form.to_json()
                 asset_info["id"] = id
@@ -383,7 +401,7 @@ class AssetCrudUI(FlaskView):
                 asset_form.process_api_validation_errors(
                     patch_asset_response.json().get("message")
                 )
-                asset = GenericAsset.query.get(id)
+                asset = db.session.get(GenericAsset, id)
 
         return render_flexmeasures_template(
             "crud/asset.html",
@@ -415,7 +433,9 @@ def _set_account(asset_form: NewAssetForm) -> tuple[Account | None, str | None]:
         else:
             account_error = "Please pick an existing account."
 
-    account = Account.query.filter_by(id=int(asset_form.account_id.data)).one_or_none()
+    account = db.session.execute(
+        select(Account).filter_by(id=int(asset_form.account_id.data))
+    ).scalar_one_or_none()
 
     if account:
         asset_form.account_id.data = account.id
@@ -435,9 +455,11 @@ def _set_asset_type(
     if int(asset_form.generic_asset_type_id.data) == -1:
         asset_type_error = "Pick an existing asset type."
     else:
-        asset_type = GenericAssetType.query.filter_by(
-            id=int(asset_form.generic_asset_type_id.data)
-        ).one_or_none()
+        asset_type = db.session.execute(
+            select(GenericAssetType).filter_by(
+                id=int(asset_form.generic_asset_type_id.data)
+            )
+        ).scalar_one_or_none()
 
     if asset_type:
         asset_form.generic_asset_type_id.data = asset_type.id

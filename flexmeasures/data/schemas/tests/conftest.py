@@ -1,7 +1,7 @@
 import pytest
 from datetime import timedelta
 
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 
 
@@ -69,3 +69,26 @@ def setup_efficiency_sensors(db, app, dummy_asset):
     db.session.commit()
 
     return sensor
+
+
+@pytest.fixture(scope="module")
+def setup_site_capacity_sensor(db, app, dummy_asset, setup_sources):
+    sensor = Sensor(
+        "site-power-capacity",
+        generic_asset=dummy_asset,
+        event_resolution="P1Y",
+        unit="MVA",
+    )
+    db.session.add(sensor)
+    capacity = TimedBelief(
+        sensor=sensor,
+        source=setup_sources["Seita"],
+        event_value=0.8,
+        belief_horizon="P45D",
+        event_start="2024-02-26T00:00+02",
+    )
+    db.session.add(capacity)
+
+    db.session.commit()
+
+    return {sensor.name: sensor}
