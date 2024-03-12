@@ -24,6 +24,7 @@ Infrastructure / Support
 * Add setting ``FLEXMEASURES_FORCE_HTTPS`` to explicitly toggle if HTTPS should be used for all requests [see `PR #1008 <https://github.com/FlexMeasures/flexmeasures/pull/1008>`_]
 * Make flexmeasures installable locally on macOS [see `PR #1000 <https://github.com/FlexMeasures/flexmeasures/pull/1000>`_]
 
+
 v0.19.2 | March 1, 2024
 ============================
 
