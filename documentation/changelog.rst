@@ -17,7 +17,8 @@ New features
 Infrastructure / Support
 ----------------------
 
-
+* Improve processing time for deleting beliefs via CLI [see `PR #1005 <https://github.com/FlexMeasures/flexmeasures/pull/1005>`_]
+* Support deleting beliefs via CLI for all offspring assets at once [see `PR #1003 <https://github.com/FlexMeasures/flexmeasures/pull/1003>`_]
 
 
 v0.19.2 | March 1, 2024
