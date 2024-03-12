@@ -182,7 +182,8 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
-                to_instantaneous=True,
+                as_instantaneous_events=True,
+                boundary_policy="first",
             )
         if isinstance(soc_minima, Sensor):
             soc_minima = get_continuous_series_sensor_or_quantity(
@@ -192,7 +193,8 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
-                to_instantaneous=True,
+                as_instantaneous_events=True,
+                boundary_policy="max",
             )
         if isinstance(soc_maxima, Sensor):
             soc_maxima = get_continuous_series_sensor_or_quantity(
@@ -202,7 +204,8 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
-                to_instantaneous=True,
+                as_instantaneous_events=True,
+                boundary_policy="min",
             )
 
         device_constraints[0] = add_storage_constraints(

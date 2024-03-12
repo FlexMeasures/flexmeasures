@@ -386,6 +386,7 @@ def add_soc_targets(db, add_battery_assets, setup_sources) -> dict[str, Sensor]:
         ("soc-targets (1h)", timedelta(minutes=60), timedelta(minutes=0)),
         ("soc-targets (15min)", timedelta(minutes=15), timedelta(minutes=0)),
         ("soc-targets (15min lagged)", timedelta(minutes=15), timedelta(minutes=5)),
+        ("soc-targets (5min)", timedelta(minutes=5), timedelta(minutes=0)),
         ("soc-targets (instantaneous)", timedelta(minutes=0), timedelta(minutes=0)),
     ]
 

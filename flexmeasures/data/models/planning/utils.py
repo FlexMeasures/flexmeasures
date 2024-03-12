@@ -329,7 +329,8 @@ def get_series_from_quantity_or_sensor(
     query_window: tuple[datetime, datetime],
     resolution: timedelta,
     beliefs_before: datetime | None = None,
-    to_instantaneous: bool = False,
+    as_instantaneous_events: bool = True,
+    boundary_policy: str | None = None,
 ) -> pd.Series:
     """
     Get a time series given a quantity or sensor defined on a time window.
@@ -357,16 +358,17 @@ def get_series_from_quantity_or_sensor(
             event_starts_after=query_window[0],
             event_ends_before=query_window[1],
             resolution=resolution,
-            # resolution=resolution if not to_instantaneous else timedelta(0),  # NotImplementedError in timely-beliefs
+            # resolution=resolution if not boundary_policy else timedelta(0),  # NotImplementedError in timely-beliefs
+            # frequency=resolution,
             beliefs_before=beliefs_before,
             most_recent_beliefs_only=True,
             one_deterministic_belief_per_event=True,
         )
+        if as_instantaneous_events:
+            bdf = bdf.resample_events(timedelta(0), boundary_policy=boundary_policy)
         time_series = simplify_index(bdf).reindex(index).squeeze()
         time_series = convert_units(time_series, quantity_or_sensor.unit, unit)
 
-        if to_instantaneous and not quantity_or_sensor.event_resolution == timedelta(0):
-            time_series = time_series.ffill(limit=1)
     else:
         raise TypeError(
             f"quantity_or_sensor {quantity_or_sensor} should be a pint Quantity or timely-beliefs Sensor"
@@ -384,7 +386,8 @@ def get_continuous_series_sensor_or_quantity(
     beliefs_before: datetime | None = None,
     fallback_attribute: str | None = None,
     max_value: float | int | pd.Series = np.nan,
-    to_instantaneous: bool = False,
+    as_instantaneous_events: bool = False,
+    boundary_policy: str | None = None,
 ) -> pd.Series:
     """Creates a time series from a quantity or sensor within a specified window,
     falling back to a given `fallback_attribute` and making sure no values exceed `max_value`.
@@ -412,7 +415,8 @@ def get_continuous_series_sensor_or_quantity(
         query_window=query_window,
         resolution=resolution,
         beliefs_before=beliefs_before,
-        to_instantaneous=to_instantaneous,
+        as_instantaneous_events=as_instantaneous_events,
+        boundary_policy=boundary_policy,
     )
 
     # Apply upper limit
