@@ -1864,22 +1864,27 @@ def test_battery_storage_efficiency_sensor(
 @pytest.mark.parametrize(
     "sensor_name, expected_start, expected_end",
     [
+        # A value defined in a coarser resolution is upsampled to match the power sensor resolution.
         (
             "soc-targets (1h)",
             "14:00:00",
-            "14:45:00",
-        ),  # A value defined in a larger resolution is downsampled to match the power sensor resolution.
+            "15:00:00",
+        ),
+        # A simple case, SOC constraint sensor in the sample resolution as the power sensor.
         (
             "soc-targets (15min)",
             "14:00:00",
-            "14:00:00",
-        ),  # A simple case, SOC constraint sensor in the sample resolution as the power sensor.
+            "14:15:00",
+        ),
+        # For an instantaneous sensor, the value is set to the interval containing the instantaneous event.
         (
             "soc-targets (instantaneous)",
             "14:00:00",
             "14:00:00",
-        ),  # For an instantaneous sensor, the value is set to the interval containing the instantaneous event.
-        pytest.param(  # This is an event at 14:05:00 with a duration of 15min. These constraint should span the intervals 14:00 and 14:15 but we are not reindexing properly.
+        ),
+        # This is an event at 14:05:00 with a duration of 15min.
+        # This constraint should span the intervals from 14:00 to 14:15 and from 14:15 to 14:30, but we are not reindexing properly.
+        pytest.param(
             "soc-targets (15min lagged)",
             "14:00:00",
             "14:15:00",
