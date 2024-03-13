@@ -458,7 +458,7 @@ Default: ``True``
 FLEXMEASURES_FORCE_HTTPS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Set to ``True`` if all requests should be forced to be https.
+Set to ``True`` if all requests should be forced to be HTTPS.
 
 Default: ``False``
 
