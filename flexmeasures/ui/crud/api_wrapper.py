@@ -57,12 +57,12 @@ class InternalApi(object):
         query: dict[str, Any] | None = None,
         do_not_raise_for: list | None = None,
     ) -> requests.Response:
-        url_root = self._url_root()
+        full_url = f"{self._url_root()}{url}"
         current_app.logger.debug(
-            f"{self._log_prefix} Calling GET to {url_root}{url} with query {query} ..."
+            f"{self._log_prefix} Calling GET to {full_url} with query {query} ..."
         )
         response = requests.get(
-            f"{url_root}{url}",
+            full_url,
             params=query,
             headers=self._auth_headers(),
         )
@@ -75,12 +75,12 @@ class InternalApi(object):
         args: dict | None = None,
         do_not_raise_for: list | None = None,
     ) -> requests.Response:
-        url_root = self._url_root()
+        full_url = f"{self._url_root()}{url}"
         current_app.logger.debug(
-            f"{self._log_prefix} Call POST to {url_root}{url} with json data {args} ..."
+            f"{self._log_prefix} Call POST to {full_url} with json data {args} ..."
         )
         response = requests.post(
-            f"{url_root}{url}",
+            full_url,
             headers=self._auth_headers(),
             json=args if args else {},
         )
@@ -93,12 +93,12 @@ class InternalApi(object):
         args: dict | None = None,
         do_not_raise_for: list | None = None,
     ) -> requests.Response:
-        url_root = self._url_root()
+        full_url = f"{self._url_root()}{url}"
         current_app.logger.debug(
-            f"{self._log_prefix} Calling PATCH to {url_root}{url} with json data {args} ..."
+            f"{self._log_prefix} Calling PATCH to {full_url} with json data {args} ..."
         )
         response = requests.patch(
-            f"{url_root}{url}",
+            full_url,
             headers=self._auth_headers(),
             json=args if args else {},
         )
@@ -110,12 +110,10 @@ class InternalApi(object):
         url: str,
         do_not_raise_for: list | None = None,
     ) -> requests.Response:
-        url_root = self._url_root()
-        current_app.logger.debug(
-            f"{self._log_prefix} Calling DELETE to {url_root}{url} ..."
-        )
+        full_url = f"{self._url_root()}{url}"
+        current_app.logger.debug(f"{self._log_prefix} Calling DELETE to {full_url} ...")
         response = requests.delete(
-            f"{url_root}{url}",
+            full_url,
             headers=self._auth_headers(),
         )
         self._maybe_raise(response, do_not_raise_for)
