@@ -143,7 +143,11 @@ class PandasReporter(Reporter):
 
         belief_series = belief_series.to_frame("event_value")
         if belief_horizon is not None:
-            belief_time = belief_series["event_start"] + belief_horizon
+            belief_time = (
+                belief_series["event_start"]
+                + belief_series.event_resolution
+                - belief_horizon
+            )
         belief_series["belief_time"] = belief_time
         belief_series["cumulative_probability"] = 0.5
         belief_series["source"] = self.data_source
@@ -164,7 +168,9 @@ class PandasReporter(Reporter):
         # filing the missing indexes with default values:
         if "belief_time" not in bdf.index.names:
             if belief_horizon is not None:
-                belief_time = bdf["event_start"] + belief_horizon
+                belief_time = (
+                    bdf["event_start"] + +bdf.event_resolution - belief_horizon
+                )
             else:
                 belief_time = [belief_time] * len(bdf)
             bdf["belief_time"] = belief_time
