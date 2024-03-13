@@ -178,7 +178,7 @@ def get_power_values(
     beliefs_before: datetime | None,
     sensor: Sensor,
 ) -> np.ndarray:
-    """Get measurements or forecasts of an inflexible device represented by a power sensor in MW.
+    """Get measurements or forecasts of an inflexible device represented by a power or energy sensor as an array of power values in MW.
 
     If the requested schedule lies in the future, the returned data will consist of (the most recent) forecasts (if any exist).
     If the requested schedule lies in the past, the returned data will consist of (the most recent) measurements (if any exist).
