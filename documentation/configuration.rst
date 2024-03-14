@@ -13,7 +13,7 @@ Recommended settings (e.g. mail, redis) are marked by one star (*).
 
 
 * in the user's home directory (e.g. ``~/.flexmeasures.cfg`` on Unix). In this case, note the dot at the beginning of the filename!
-* in the app's instance directory (e.g. ``/path/to/your/flexmeasures/code/instance/flexmeasures.cfg``\ ). The path to that instance directory is shown to you by running flexmeasures (e.g. ``flexmeasures run``\ ) with required settings missing or otherwise by running ``flexmeasures shell``.
+* in the app's instance directory (e.g. ``/path/to/your/flexmeasures/code/instance/flexmeasures.cfg``\ ). The path to that instance directory is shown to you by running flexmeasures (e.g. ``flexmeasures run``\ ) with required settings missing or otherwise by running ``flexmeasures shell``. Under :ref:`docker_configuration`, we explain how to load a config file into a FlexMeasures Docker container.
 
 
 Basic functionality
@@ -453,6 +453,14 @@ Allows users to make authenticated requests. If true, injects the Access-Control
 .. note::  This option cannot be used in conjunction with a “*” origin.
 
 Default: ``True``
+
+
+FLEXMEASURES_FORCE_HTTPS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Set to ``True`` if all requests should be forced to be HTTPS.
+
+Default: ``False``
 
 
 FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from flask import current_app
 from timely_beliefs import BeliefsDataFrame, BeliefsSeries
+from sqlalchemy import select
 
 from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataSource
@@ -32,12 +33,14 @@ def get_data_source(
     Meant for scripts that may run for the first time.
     """
 
-    data_source = DataSource.query.filter_by(
-        name=data_source_name,
-        model=data_source_model,
-        version=data_source_version,
-        type=data_source_type,
-    ).one_or_none()
+    data_source = db.session.execute(
+        select(DataSource).filter_by(
+            name=data_source_name,
+            model=data_source_model,
+            version=data_source_version,
+            type=data_source_type,
+        )
+    ).scalar_one_or_none()
     if data_source is None:
         data_source = DataSource(
             name=data_source_name,

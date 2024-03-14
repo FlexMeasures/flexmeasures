@@ -17,7 +17,9 @@ import vl_convert as vlc
 from string import Template
 import pytz
 import json
+from sqlalchemy import select, func
 
+from flexmeasures.data import db
 from flexmeasures.data.models.user import Account, AccountRole, User, Role
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
@@ -45,7 +47,7 @@ def list_accounts():
     """
     List all accounts on this FlexMeasures instance.
     """
-    accounts = Account.query.order_by(Account.name).all()
+    accounts = db.session.scalars(select(Account).order_by(Account.name)).all()
     if not accounts:
         click.secho("No accounts created yet.", **MsgStyle.WARN)
         raise click.Abort()
@@ -54,7 +56,11 @@ def list_accounts():
         (
             account.id,
             account.name,
-            GenericAsset.query.filter(GenericAsset.account_id == account.id).count(),
+            db.session.scalar(
+                select(func.count())
+                .select_from(GenericAsset)
+                .filter_by(account_id=account.id)
+            ),
         )
         for account in accounts
     ]
@@ -67,7 +73,9 @@ def list_roles():
     """
     Show available account and user roles
     """
-    account_roles = AccountRole.query.order_by(AccountRole.name).all()
+    account_roles = db.session.scalars(
+        select(AccountRole).order_by(AccountRole.name)
+    ).all()
     if not account_roles:
         click.secho("No account roles created yet.", **MsgStyle.WARN)
         raise click.Abort()
@@ -79,7 +87,7 @@ def list_roles():
         )
     )
     click.echo()
-    user_roles = Role.query.order_by(Role.name).all()
+    user_roles = db.session.scalars(select(Role).order_by(Role.name)).all()
     if not user_roles:
         click.secho("No user roles created yet, not even admin.", **MsgStyle.WARN)
         raise click.Abort()
@@ -111,7 +119,9 @@ def show_account(account):
         click.secho("Account has no roles.", **MsgStyle.WARN)
     click.echo()
 
-    users = User.query.filter_by(account_id=account.id).order_by(User.username).all()
+    users = db.session.scalars(
+        select(User).filter_by(account_id=account.id).order_by(User.username)
+    ).all()
     if not users:
         click.secho("No users in account ...", **MsgStyle.WARN)
     else:
@@ -135,11 +145,11 @@ def show_account(account):
         )
 
     click.echo()
-    assets = (
-        GenericAsset.query.filter_by(account_id=account.id)
+    assets = db.session.scalars(
+        select(GenericAsset)
+        .filter_by(account_id=account.id)
         .order_by(GenericAsset.name)
-        .all()
-    )
+    ).all()
     if not assets:
         click.secho("No assets in account ...", **MsgStyle.WARN)
     else:
@@ -157,7 +167,9 @@ def list_asset_types():
     """
     Show available asset types
     """
-    asset_types = GenericAssetType.query.order_by(GenericAssetType.name).all()
+    asset_types = db.session.scalars(
+        select(GenericAssetType).order_by(GenericAssetType.name)
+    ).all()
     if not asset_types:
         click.secho("No asset types created yet.", **MsgStyle.WARN)
         raise click.Abort()
@@ -190,9 +202,9 @@ def show_generic_asset(asset):
     click.echo(tabulate(asset_data, headers=["Type", "Location", "Attributes"]))
 
     click.echo()
-    sensors = (
-        Sensor.query.filter_by(generic_asset_id=asset.id).order_by(Sensor.name).all()
-    )
+    sensors = db.session.scalars(
+        select(Sensor).filter_by(generic_asset_id=asset.id).order_by(Sensor.name)
+    ).all()
     if not sensors:
         click.secho("No sensors in asset ...", **MsgStyle.WARN)
         raise click.Abort()
@@ -238,13 +250,13 @@ def list_data_sources(source: DataSource | None = None, show_attributes: bool = 
     Show available data sources
     """
     if source is None:
-        sources = (
-            DataSource.query.order_by(DataSource.type)
+        sources = db.session.scalars(
+            select(DataSource)
+            .order_by(DataSource.type)
             .order_by(DataSource.name)
             .order_by(DataSource.model)
             .order_by(DataSource.version)
-            .all()
-        )
+        ).all()
     else:
         sources = [source]
 
@@ -405,9 +417,9 @@ def chart(
         # need to fetch the entities as they get detached
         # and we get the (in)famous detached instance error.
         if entity_type == "asset":
-            entity = GenericAsset.query.get(entity.id)
+            entity = db.session.get(GenericAsset, entity.id)
         else:
-            entity = Sensor.query.get(entity.id)
+            entity = db.session.get(Sensor, entity.id)
 
         chart_description = entity.chart(
             event_starts_after=start,
@@ -482,6 +494,13 @@ def chart(
     help="Source of the beliefs (an existing source id).",
 )
 @click.option(
+    "--source-type",
+    "source_types",
+    required=False,
+    type=str,
+    help="Only show beliefs from this type of source, for example, 'user', 'forecaster' or 'scheduler'.",
+)
+@click.option(
     "--resolution",
     "resolution",
     type=DurationField(),
@@ -519,6 +538,7 @@ def plot_beliefs(
     belief_time_before: datetime | None,
     source: DataSource | None,
     filepath: str | None,
+    source_types: list[str] = None,
     include_ids: bool = False,
 ):
     """
@@ -537,6 +557,7 @@ def plot_beliefs(
         event_ends_before=start + duration,
         beliefs_before=belief_time_before,
         source=source,
+        source_types=source_types,
         one_deterministic_belief_per_event=True,
         resolution=resolution,
         sum_multiple=False,

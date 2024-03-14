@@ -1,6 +1,7 @@
 from flask import current_app
 from flask_classful import FlaskView, route
 from flask_json import as_json
+import sqlalchemy as sa
 
 
 from redis.exceptions import ConnectionError
@@ -9,7 +10,7 @@ from flexmeasures.data import db
 
 def _check_sql_database():
     try:
-        db.session.execute("SELECT 1").first()
+        db.session.execute(sa.text("SELECT 1")).first()
         return True
     except Exception:  # noqa: B902
         current_app.logger.exception("Database down or undetected")

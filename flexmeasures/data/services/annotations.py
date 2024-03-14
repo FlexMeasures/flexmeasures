@@ -1,7 +1,8 @@
+from __future__ import annotations
+
 from datetime import datetime
 from itertools import chain
 from textwrap import wrap
-from typing import Optional
 
 import pandas as pd
 
@@ -18,8 +19,8 @@ def stack_annotations(x: pd.DataFrame) -> pd.DataFrame:
 
 def prepare_annotations_for_chart(
     df: pd.DataFrame,
-    event_starts_after: Optional[datetime] = None,
-    event_ends_before: Optional[datetime] = None,
+    event_starts_after: datetime | None = None,
+    event_ends_before: datetime | None = None,
     max_line_length: int = 60,
 ) -> pd.DataFrame:
     """Prepare a DataFrame with annotations for use in a chart.

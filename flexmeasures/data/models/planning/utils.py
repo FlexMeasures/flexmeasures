@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from packaging import version
-from typing import List, Optional, Tuple, Union
 from datetime import date, datetime, timedelta
 
 from flask import current_app
@@ -10,6 +9,7 @@ from pandas.tseries.frequencies import to_offset
 import numpy as np
 import timely_beliefs as tb
 
+from flexmeasures.data import db
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.planning.exceptions import (
     UnknownMarketException,
@@ -23,7 +23,7 @@ from pint.errors import UndefinedUnitError, DimensionalityError
 
 
 def initialize_df(
-    columns: List[str],
+    columns: list[str],
     start: datetime,
     end: datetime,
     resolution: timedelta,
@@ -36,7 +36,7 @@ def initialize_df(
 
 
 def initialize_series(
-    data: Optional[Union[pd.Series, List[float], np.ndarray, float]],
+    data: pd.Series | list[float] | np.ndarray | float | None,
     start: datetime,
     end: datetime,
     resolution: timedelta,
@@ -47,9 +47,9 @@ def initialize_series(
 
 
 def initialize_index(
-    start: Union[date, datetime, str],
-    end: Union[date, datetime, str],
-    resolution: Union[timedelta, str],
+    start: date | datetime | str,
+    end: date | datetime | str,
+    resolution: timedelta | str,
     inclusive: str = "left",
 ) -> pd.DatetimeIndex:
     if version.parse(pd.__version__) >= version.parse("1.4.0"):
@@ -90,20 +90,20 @@ def add_tiny_price_slope(
 
 def get_market(sensor: Sensor) -> Sensor:
     """Get market sensor from the sensor's attributes."""
-    price_sensor = Sensor.query.get(sensor.get_attribute("market_id"))
+    price_sensor = db.session.get(Sensor, sensor.get_attribute("market_id"))
     if price_sensor is None:
         raise UnknownMarketException
     return price_sensor
 
 
 def get_prices(
-    query_window: Tuple[datetime, datetime],
+    query_window: tuple[datetime, datetime],
     resolution: timedelta,
-    beliefs_before: Optional[datetime],
-    price_sensor: Optional[Sensor] = None,
-    sensor: Optional[Sensor] = None,
+    beliefs_before: datetime | None,
+    price_sensor: Sensor | None = None,
+    sensor: Sensor | None = None,
     allow_trimmed_query_window: bool = True,
-) -> Tuple[pd.DataFrame, Tuple[datetime, datetime]]:
+) -> tuple[pd.DataFrame, tuple[datetime, datetime]]:
     """Check for known prices or price forecasts.
 
     If so allowed, the query window is trimmed according to the available data.
@@ -173,9 +173,9 @@ def get_prices(
 
 
 def get_power_values(
-    query_window: Tuple[datetime, datetime],
+    query_window: tuple[datetime, datetime],
     resolution: timedelta,
-    beliefs_before: Optional[datetime],
+    beliefs_before: datetime | None,
     sensor: Sensor,
 ) -> np.ndarray:
     """Get measurements or forecasts of an inflexible device represented by a power sensor.
@@ -313,8 +313,13 @@ def get_quantity_from_attribute(
         q = ur.Quantity(value)
         q = q.to(unit)
     except (UndefinedUnitError, DimensionalityError, ValueError, AssertionError):
-        current_app.logger.warning(f"Couldn't convert {value} to `{unit}`")
-        q = np.nan * ur.Quantity(unit)  # at least return result in the desired unit
+        try:
+            # Fall back to interpreting the value in the given unit
+            q = ur.Quantity(f"{value} {unit}")
+            q = q.to(unit)
+        except (UndefinedUnitError, DimensionalityError, ValueError, AssertionError):
+            current_app.logger.warning(f"Couldn't convert {value} to `{unit}`")
+            q = np.nan * ur.Quantity(unit)  # at least return result in the desired unit
     return q
 
 
@@ -373,7 +378,7 @@ def get_continuous_series_sensor_or_quantity(
     resolution: timedelta,
     beliefs_before: datetime | None = None,
     fallback_attribute: str | None = None,
-    max_value: float | int = np.nan,
+    max_value: float | int | pd.Series = np.nan,
 ) -> pd.Series:
     """Creates a time series from a quantity or sensor within a specified window,
     falling back to a given `fallback_attribute` and making sure no values exceed `max_value`.
@@ -409,6 +414,12 @@ def get_continuous_series_sensor_or_quantity(
     return time_series
 
 
-def nanmin_of_series_and_value(s: pd.Series, value: float) -> pd.Series:
+def nanmin_of_series_and_value(s: pd.Series, value: float | pd.Series) -> pd.Series:
     """Perform a nanmin between a Series and a float."""
+    if isinstance(value, pd.Series):
+        # Avoid strange InvalidIndexError on .clip due to different "dtype"
+        # pd.testing.assert_index_equal(value.index, s.index)
+        # [left]:  datetime64[ns, +0000]
+        # [right]: datetime64[ns, UTC]
+        value = value.tz_convert("UTC")
     return s.fillna(value).clip(upper=value)

@@ -10,7 +10,7 @@ Let's take a look at how FlexMeasures users can access information from these se
     :local:
     :depth: 1
 
-If you want to learn more about the actual algorithms used in the background, head over to :ref:`algorithms`.
+If you want to learn more about the actual algorithms used in the background, head over to :ref:`scheduling` and :ref:`forecasting`.
 
 .. note:: FlexMeasures comes with in-built scheduling algorithms. You can use your own algorithm, as well, see :ref:`plugin-customization`.
 
@@ -67,7 +67,7 @@ You can also add forecasting jobs directly via the CLI. We explain this practice
 Historical forecasts
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-There might be reasons to add forecasts of past time ranges. For instance, for visualisation of past system behaviour and to check how well the forecasting models have been doing on a longer stretch of data.
+There might be reasons to add forecasts of past time ranges. For instance, for visualization of past system behavior and to check how well the forecasting models have been doing on a longer stretch of data.
 
 If you host FlexMeasures yourself, we provide a CLI task for adding forecasts for whole historic periods. This is an example call:
 

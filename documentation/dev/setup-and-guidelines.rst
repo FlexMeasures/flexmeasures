@@ -12,7 +12,7 @@ Furthermore, we discuss several guidelines and best practices.
     :local:
     :depth: 1
 
-.. warning:: Are you implementing code based on FlexMeasures, please read :ref:`note_on_datamodel_transition`.
+.. note:: Are you implementing code based on FlexMeasures, you're probably interested in :ref:`datamodel`.
 
 
 Getting started
@@ -54,12 +54,23 @@ Go into the ``flexmeasures`` folder and install all dependencies including the o
 
    $ pip install highspy
 
+On MacOS it will be installed locally by `make install-for-test` and no actions are required on your part
 
-Alternatively, the CBC solver can be installed with:
+Besides highs, the CBC solver is required for tests as well:
 
-.. code-block:: bash
+.. tabs::
 
-   $ apt-get install coinor-cbc
+    .. tab:: Linux
+
+        .. code-block:: bash
+
+            $ apt-get install coinor-cbc
+
+    .. tab:: MacOS
+
+        .. code-block:: bash
+
+            $ brew install cbc
 
 
 Configuration

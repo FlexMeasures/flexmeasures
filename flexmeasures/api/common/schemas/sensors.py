@@ -1,6 +1,8 @@
 from flask import abort
 from marshmallow import fields
+from sqlalchemy import select
 
+from flexmeasures.data import db
 from flexmeasures.api import FMValidationError
 from flexmeasures.utils.entity_address_utils import (
     parse_entity_address,
@@ -19,7 +21,9 @@ class SensorIdField(fields.Integer):
     """
 
     def _deserialize(self, sensor_id: int, attr, obj, **kwargs) -> Sensor:
-        sensor: Sensor = Sensor.query.filter_by(id=int(sensor_id)).one_or_none()
+        sensor: Sensor = db.session.execute(
+            select(Sensor).filter_by(id=int(sensor_id))
+        ).scalar_one_or_none()
         if sensor is None:
             raise abort(404, f"Sensor {sensor_id} not found")
         return sensor
@@ -58,7 +62,9 @@ class SensorField(fields.Str):
             if self.fm_scheme == "fm0":
                 raise EntityAddressException("The fm0 scheme is no longer supported.")
             else:
-                sensor = Sensor.query.filter(Sensor.id == ea["sensor_id"]).one_or_none()
+                sensor = db.session.execute(
+                    select(Sensor).filter_by(id=ea["sensor_id"])
+                ).scalar_one_or_none()
             if sensor is not None:
                 return sensor
             else:

@@ -10,11 +10,16 @@
 <nav aria-label="breadcrumb">
   <ol class="breadcrumb">
     {% for breadcrumb in breadcrumb_info["ancestors"] %}
-      <li class="breadcrumb-item{% if loop.last %} active{% endif %}" {% if loop.last %}aria-current="page"{% endif %}>
+      <li class="breadcrumb-item{% if loop.last %} dropdown active{% endif %}" {% if loop.last %}aria-current="page"{% endif %}>
         {% if breadcrumb["url"] is not none and not loop.last %}
           <a href="{{ breadcrumb['url'] }}">{{ breadcrumb['name'] }}</a>
         {% else %}
-          {{ breadcrumb['name'] }}
+          <a class="dropdown-toggle" data-toggle="dropdown" href="#">{{ breadcrumb['name'] }}<span class="caret"></span></a>
+          <ul class="dropdown-menu">
+            {% for sibling in breadcrumb_info["siblings"] %}
+              <li><a href="{{ sibling['url'] }}">{{ sibling["name"] }}</a></li>
+            {% endfor %}
+          </ul>
         {% endif %}
       </li>
     {% endfor %}
@@ -168,6 +173,54 @@
                             </td>
                             <td class="hidden">
                                 /sensors/{{ sensor.id }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+                
+            <div class="sensors-asset card">
+                <h3>All child assets for {{ asset.name }}</h3>
+                
+                <table class="table table-striped table-responsive paginate nav-on-click" title="View this asset">
+                    <thead>
+                        <tr>
+                            <th><i class="left-icon">Name</i></th>
+                            <th>Location</th>
+                            <th>Asset ID</th>
+                            <th>Account</th>
+                            <th>Sensors</th>
+                            <th class="hidden">URL</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for child in asset.child_assets %}
+                        <tr>
+                            <td>
+                                <i class="{{ child.generic_asset_type.name | asset_icon }} left-icon">{{ child.name }}</i>
+                            </td>
+                            <td>
+                                {% if child.latitude and child.longitude %}
+                                LAT: {{ "{:,.4f}".format( child.latitude ) }} LONG:
+                                {{ "{:,.4f}".format( child.longitude ) }}
+                                {% endif %}
+                            </td>
+                            <td>
+                                {{ child.id }}
+                            </td>
+                            <td>
+                                {% if child.owner %}
+                                {{ child.owner.name }}
+                                {% else %}
+                                PUBLIC
+                                {% endif %}
+                            </td>
+                            <td>
+                                {{ child.sensors | length }}
+                            </td>
+                            <td class="hidden">
+                                /assets/{{ child.id }}
                             </td>
                         </tr>
                         {% endfor %}

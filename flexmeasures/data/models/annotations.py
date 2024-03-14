@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import timedelta
 
 import pandas as pd
+from sqlalchemy import select
 
 from flexmeasures.data import db
 
@@ -186,17 +187,15 @@ def get_or_create_annotation(
     Return the old annotation object if it exists (and expunge the new one). Otherwise, return the new one.
     """
     with db.session.no_autoflush:
-        existing_annotation = (
-            db.session.query(Annotation)
-            .filter(
+        existing_annotation = db.session.execute(
+            select(Annotation).filter(
                 Annotation.content == annotation.content,
                 Annotation.start == annotation.start,
                 Annotation.end == annotation.end,
                 Annotation.source == annotation.source,
                 Annotation.type == annotation.type,
             )
-            .one_or_none()
-        )
+        ).scalar_one_or_none()
     if existing_annotation is None:
         db.session.add(annotation)
         return annotation

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Any, List, Dict
+from typing import Any
 
 import pandas as pd
 
@@ -30,11 +30,11 @@ class AggregatorReporter(Reporter):
         self,
         start: datetime,
         end: datetime,
-        input: List[Dict[str, Any]],
-        output: List[Dict[str, Any]],
+        input: list[dict[str, Any]],
+        output: list[dict[str, Any]],
         resolution: timedelta | None = None,
         belief_time: datetime | None = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         This method merges all the BeliefDataFrames into a single one, dropping
         all indexes but event_start, and applies an aggregation function over the

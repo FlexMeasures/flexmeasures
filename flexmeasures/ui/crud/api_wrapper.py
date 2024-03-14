@@ -41,17 +41,28 @@ class InternalApi(object):
         if response.status_code not in do_not_raise_for:
             response.raise_for_status()
 
+    def _url_root(self) -> str:
+        """
+        Get the root for the URLs this API should use to call FlexMeasures.
+        """
+        url_root = request.url_root
+        if current_app.config.get("FLEXMEASURES_FORCE_HTTPS", False):
+            # this replacement is for the case we are behind a load balancer who talks http internally
+            url_root = url_root.replace("http://", "https://")
+        return url_root
+
     def get(
         self,
         url: str,
         query: dict[str, Any] | None = None,
         do_not_raise_for: list | None = None,
     ) -> requests.Response:
+        full_url = f"{self._url_root()}{url}"
         current_app.logger.debug(
-            f"{self._log_prefix} GETting {url} with query {query} ..."
+            f"{self._log_prefix} Calling GET to {full_url} with query {query} ..."
         )
         response = requests.get(
-            f"{request.url_root}{url}",
+            full_url,
             params=query,
             headers=self._auth_headers(),
         )
@@ -64,11 +75,12 @@ class InternalApi(object):
         args: dict | None = None,
         do_not_raise_for: list | None = None,
     ) -> requests.Response:
+        full_url = f"{self._url_root()}{url}"
         current_app.logger.debug(
-            f"{self._log_prefix} POSTing {url} with json data {args} ..."
+            f"{self._log_prefix} Call POST to {full_url} with json data {args} ..."
         )
         response = requests.post(
-            f"{request.url_root}{url}",
+            full_url,
             headers=self._auth_headers(),
             json=args if args else {},
         )
@@ -81,11 +93,12 @@ class InternalApi(object):
         args: dict | None = None,
         do_not_raise_for: list | None = None,
     ) -> requests.Response:
+        full_url = f"{self._url_root()}{url}"
         current_app.logger.debug(
-            f"{self._log_prefix} PATCHing {url} with json data {args} ..."
+            f"{self._log_prefix} Calling PATCH to {full_url} with json data {args} ..."
         )
         response = requests.patch(
-            f"{request.url_root}{url}",
+            full_url,
             headers=self._auth_headers(),
             json=args if args else {},
         )
@@ -97,9 +110,10 @@ class InternalApi(object):
         url: str,
         do_not_raise_for: list | None = None,
     ) -> requests.Response:
-        current_app.logger.debug(f"{self._log_prefix} DELETEing {url} ...")
+        full_url = f"{self._url_root()}{url}"
+        current_app.logger.debug(f"{self._log_prefix} Calling DELETE to {full_url} ...")
         response = requests.delete(
-            f"{request.url_root}{url}",
+            full_url,
             headers=self._auth_headers(),
         )
         self._maybe_raise(response, do_not_raise_for)

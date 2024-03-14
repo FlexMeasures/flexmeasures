@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 from flask import url_for, current_app, Response
+from sqlalchemy import select
 
 from flexmeasures.data import db
 from flexmeasures.data.services.users import find_user_by_email
@@ -45,9 +46,9 @@ class AccountContext(object):
     """
 
     def __init__(self, account_name: str):
-        self.the_account = Account.query.filter(
-            Account.name == account_name
-        ).one_or_none()
+        self.the_account = db.session.execute(
+            select(Account).filter(Account.name == account_name)
+        ).scalar_one_or_none()
 
     def __enter__(self):
         return self.the_account

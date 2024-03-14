@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 from datetime import datetime, timedelta
 
 from flask import current_app, url_for
@@ -12,6 +11,7 @@ from marshmallow import fields, ValidationError
 from rq.job import Job, NoSuchJobError
 from timely_beliefs import BeliefsDataFrame
 from webargs.flaskparser import use_args, use_kwargs
+from sqlalchemy import delete
 
 from flexmeasures.api.common.responses import (
     request_processed,
@@ -300,6 +300,7 @@ class SensorAPI(FlaskView):
 
 
         The battery consumption power capacity is limited by sensor 42 and the production capacity is constant (30 kW).
+        Finally, the site consumption capacity is limited by sensor 32.
 
         Note that, if forecasts for sensors 13, 14 and 15 are not available, a schedule cannot be computed.
 
@@ -327,10 +328,10 @@ class SensorAPI(FlaskView):
                     "soc-min": 10,
                     "soc-max": 25,
                     "charging-efficiency": "120%",
-                    "discharging-efficiency": {"sensor" : 98},
+                    "discharging-efficiency": {"sensor": 98},
                     "storage-efficiency": 0.9999,
                     "power-capacity": "25kW",
-                    "consumption-capacity" : {"sensor" : 42},
+                    "consumption-capacity" : {"sensor": 42},
                     "production-capacity" : "30 kW"
                 },
                 "flex-context": {
@@ -339,7 +340,7 @@ class SensorAPI(FlaskView):
                     "inflexible-device-sensors": [13, 14, 15],
                     "site-power-capacity": "100kW",
                     "site-production-capacity": "80kW",
-                    "site-consumption-capacity": "100kW"
+                    "site-consumption-capacity": {"sensor": 32}
                 }
             }
 
@@ -747,10 +748,10 @@ class SensorAPI(FlaskView):
         """
 
         """Delete time series data."""
-        TimedBelief.query.filter(TimedBelief.sensor_id == sensor.id).delete()
+        db.session.execute(delete(TimedBelief).filter_by(sensor_id=sensor.id))
 
         sensor_name = sensor.name
-        db.session.delete(sensor)
+        db.session.execute(delete(Sensor).filter_by(id=sensor.id))
         db.session.commit()
         current_app.logger.info("Deleted sensor '%s'." % sensor_name)
         return {}, 204

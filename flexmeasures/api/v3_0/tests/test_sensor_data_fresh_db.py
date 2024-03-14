@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 from flask import url_for
 from timely_beliefs.tests.utils import equal_lists
+from sqlalchemy import select
 
 from flexmeasures import Sensor, Source
 from flexmeasures.api.v3_0.tests.utils import make_sensor_data_request_for_gas_sensor
@@ -56,16 +57,19 @@ def test_post_sensor_data(
     expected_value,
     expected_status,
     requesting_user,
+    db,
 ):
     post_data = make_sensor_data_request_for_gas_sensor(
         num_values=num_values, unit=unit, include_a_null=include_a_null
     )
-    sensor = Sensor.query.filter(Sensor.name == "some gas sensor").one_or_none()
+    sensor: Sensor = db.session.execute(
+        select(Sensor).filter_by(name="some gas sensor")
+    ).scalar_one_or_none()
     filters = (
         TimedBelief.sensor_id == sensor.id,
         TimedBelief.event_start >= post_data["start"],
     )
-    beliefs_before = TimedBelief.query.filter(*filters).all()
+    beliefs_before = db.session.scalars(select(TimedBelief).filter(*filters)).all()
     print(f"BELIEFS BEFORE: {beliefs_before}")
     assert len(beliefs_before) == 0
 
@@ -75,7 +79,7 @@ def test_post_sensor_data(
     )
     print(response.json)
     assert response.status_code == expected_status
-    beliefs = TimedBelief.query.filter(*filters).all()
+    beliefs = db.session.scalars(select(TimedBelief).filter(*filters)).all()
     print(f"BELIEFS AFTER: {beliefs}")
     assert len(beliefs) == expected_num_values
     # check that values are scaled to the sensor unit correctly
@@ -90,15 +94,16 @@ def test_auto_fix_missing_registration_of_user_as_data_source(
     setup_api_fresh_test_data,
     setup_user_without_data_source,
     requesting_user,
+    db,
 ):
     """Try to post sensor data as a user that has not been properly registered as a data source.
     The API call should succeed and the user should be automatically registered as a data source.
     """
 
     # Make sure the user is not yet registered as a data source
-    data_source = Source.query.filter_by(
-        user=setup_user_without_data_source
-    ).one_or_none()
+    data_source = db.session.execute(
+        select(Source).filter_by(user=setup_user_without_data_source)
+    ).scalar_one_or_none()
     assert data_source is None
 
     post_data = make_sensor_data_request_for_gas_sensor(
@@ -111,7 +116,7 @@ def test_auto_fix_missing_registration_of_user_as_data_source(
     assert response.status_code == 200
 
     # Make sure the user is now registered as a data source
-    data_source = Source.query.filter_by(
-        user=setup_user_without_data_source
-    ).one_or_none()
+    data_source = db.session.execute(
+        select(Source).filter_by(user=setup_user_without_data_source)
+    ).scalar_one_or_none()
     assert data_source is not None

@@ -15,7 +15,7 @@ from flexmeasures.data.models.time_series import Sensor, TimedBelief
 def app_with_each_solver(app, request):
     """Set up the app config to run with different solvers.
 
-    A test that uses this fixtures runs all of its test cases with HiGHS and then again with Cbc.
+    A test that uses this fixture runs all of its test cases with HiGHS and then again with Cbc.
     """
     original_solver = app.config["FLEXMEASURES_LP_SOLVER"]
     app.config["FLEXMEASURES_LP_SOLVER"] = request.param
@@ -306,6 +306,64 @@ def add_stock_delta(db, add_battery_assets, setup_sources) -> dict[str, Sensor]:
             setup_sources["Seita"],
         )
         sensors[name] = stock_delta_sensor
+
+    return sensors
+
+
+@pytest.fixture(scope="module")
+def add_storage_efficiency(db, add_battery_assets, setup_sources) -> dict[str, Sensor]:
+    """
+    Fixture to add storage efficiency sensors and their beliefs to the database.
+
+    This fixture creates several storage efficiency sensors with different characteristics
+    and attaches them to a test battery asset.
+
+    The sensor specifications include:
+    - "storage efficiency 90%" with 15-minute resolution and 90% efficiency.
+    - "storage efficiency 110%" with 15-minute resolution and 110% efficiency.
+    - "storage efficiency negative" with 15-minute resolution and -90% efficiency.
+    - "storage efficiency hourly" with 1-hour resolution and 90% efficiency.
+
+    The function creates a day's worth of test data for each sensor starting from
+    January 1, 2015.
+    """
+
+    battery = add_battery_assets["Test battery"]
+    sensors = {}
+    sensor_specs = [
+        ("storage efficiency 90%", timedelta(minutes=15), 90),
+        ("storage efficiency 110%", timedelta(minutes=15), 110),
+        ("storage efficiency negative", timedelta(minutes=15), -90),
+        ("storage efficiency hourly", timedelta(hours=1), 90),
+    ]
+
+    for name, resolution, value in sensor_specs:
+        # 1 days of test data
+        time_slots = initialize_index(
+            start=pd.Timestamp("2015-01-01").tz_localize("Europe/Amsterdam"),
+            end=pd.Timestamp("2015-01-02").tz_localize("Europe/Amsterdam"),
+            resolution=resolution,
+        )
+
+        storage_efficiency_sensor = Sensor(
+            name=name,
+            unit="%",
+            event_resolution=resolution,
+            generic_asset=battery,
+        )
+        db.session.add(storage_efficiency_sensor)
+        db.session.flush()
+
+        efficiency_values = [value] * len(time_slots)
+
+        add_as_beliefs(
+            db,
+            storage_efficiency_sensor,
+            efficiency_values,
+            time_slots,
+            setup_sources["Seita"],
+        )
+        sensors[name] = storage_efficiency_sensor
 
     return sensors
 

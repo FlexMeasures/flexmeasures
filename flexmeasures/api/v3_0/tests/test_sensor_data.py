@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from datetime import timedelta
-
 from flask import url_for
 import pytest
+
 
 from flexmeasures import Sensor, Source, User
 from flexmeasures.api.v3_0.tests.utils import make_sensor_data_request_for_gas_sensor
@@ -46,11 +46,12 @@ def test_get_sensor_data(
     setup_api_test_data: dict[str, Sensor],
     setup_roles_users: dict[str, User],
     requesting_user,
+    db,
 ):
     """Check the /sensors/data endpoint for fetching 1 hour of data of a 10-minute resolution sensor."""
     sensor = setup_api_test_data["some gas sensor"]
-    source: Source = User.query.get(
-        setup_roles_users["Test Supplier User"]
+    source: Source = db.session.get(
+        User, setup_roles_users["Test Supplier User"]
     ).data_source[0]
     assert sensor.event_resolution == timedelta(minutes=10)
     message = {
@@ -82,11 +83,12 @@ def test_get_instantaneous_sensor_data(
     setup_api_test_data: dict[str, Sensor],
     setup_roles_users: dict[str, User],
     requesting_user,
+    db,
 ):
     """Check the /sensors/data endpoint for fetching 1 hour of data of an instantaneous sensor."""
     sensor = setup_api_test_data["some temperature sensor"]
-    source: Source = User.query.get(
-        setup_roles_users["Test Supplier User"]
+    source: Source = db.session.get(
+        User, setup_roles_users["Test Supplier User"]
     ).data_source[0]
     assert sensor.event_resolution == timedelta(minutes=0)
     message = {
