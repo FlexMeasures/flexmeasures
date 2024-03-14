@@ -3,7 +3,7 @@ dist
 
 raw_data
 instance
-venv
+*venv/
 .eggs
 .env
 .vscode
@@ -44,3 +44,7 @@ pyproject.toml
 poetry.lock
 .venv
 .vscode/
+
+.DS_Store
+
+.gitconfig.*
