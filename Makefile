@@ -5,7 +5,7 @@ HIGHS_DIR = "../HiGHS"
 
 # Note: use tabs
 # actions which are virtual, i.e. not a script
-.PHONY: install install-for-dev install-for-test install-deps install-flexmeasures run-local test freeze-deps upgrade-deps update-docs update-docs-pdf show-file-space show-data-model clean-db cli-autocomplete build-highs install-highs
+.PHONY: install install-for-dev install-for-test install-deps install-flexmeasures run-local test freeze-deps upgrade-deps update-docs update-docs-pdf show-file-space show-data-model clean-db cli-autocomplete build-highs-macos install-highs-macos
 
 
 # ---- Development ---
@@ -58,7 +58,7 @@ endif
 	make install-flexmeasures
 # Locally install HiGS on macOS
 	if [ "$(shell uname)" = "Darwin" ]; then \
-		make install-highs; \
+		make install-highs-macos; \
 	fi
 
 $(HIGHS_DIR):
@@ -67,7 +67,7 @@ $(HIGHS_DIR):
 	fi
 	brew install cmake;
 
-build-highs: $(HIGHS_DIR)
+build-highs-macos: $(HIGHS_DIR)
 	cd $(HIGHS_DIR); \
 	git checkout latest; \
 	mkdir -p build; \
@@ -77,7 +77,7 @@ build-highs: $(HIGHS_DIR)
 	make install; \
 	cd ../../flexmeasures;
 
-install-highs: build-highs
+install-highs-macos: build-highs-macos
 	pip install $(HIGHS_DIR) ; \
 
 install-deps:
