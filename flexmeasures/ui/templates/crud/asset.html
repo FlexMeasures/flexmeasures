@@ -69,7 +69,7 @@
             <div class="sidepanel-container">
                 <div class="left-sidepanel-label">Edit asset</div>
                 <div class="sidepanel left-sidepanel">
-                    <form class="form-horizontal" method="POST" action="/assets/{{ asset.id }}/">
+                    <form class="form-horizontal" method="POST" action="/assets/{{ asset.id }}">
                         {{ asset_form.csrf_token }}
                         {{ asset_form.hidden_tag() }}
                         <fieldset>
