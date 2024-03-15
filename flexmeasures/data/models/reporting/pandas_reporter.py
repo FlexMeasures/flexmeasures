@@ -87,6 +87,7 @@ class PandasReporter(Reporter):
 
         resolution: timedelta | None = kwargs.get("resolution", None)
         belief_time: datetime | None = kwargs.get("belief_time", None)
+        belief_horizon: timedelta | None = kwargs.get("belief_horizon", None)
         output: list[dict[str, Any]] = kwargs.get("output")
 
         # by default, use the minimum resolution among the input sensors
@@ -117,10 +118,14 @@ class PandasReporter(Reporter):
                 output_data = output_data.rename(columns={column: "event_value"})[
                     ["event_value"]
                 ]
-                output_data = self._clean_belief_dataframe(output_data, belief_time)
+                output_data = self._clean_belief_dataframe(
+                    output_data, belief_time, belief_horizon
+                )
 
             elif isinstance(output_data, tb.BeliefsSeries):
-                output_data = self._clean_belief_series(output_data, belief_time)
+                output_data = self._clean_belief_series(
+                    output_data, belief_time, belief_horizon
+                )
 
             result["data"] = output_data
 
@@ -129,11 +134,20 @@ class PandasReporter(Reporter):
         return results
 
     def _clean_belief_series(
-        self, belief_series: tb.BeliefsSeries, belief_time: datetime
+        self,
+        belief_series: tb.BeliefsSeries,
+        belief_time: datetime | None = None,
+        belief_horizon: timedelta | None = None,
     ) -> tb.BeliefsDataFrame:
         """Create a BeliefDataFrame from a BeliefsSeries creating the necessary indexes."""
 
         belief_series = belief_series.to_frame("event_value")
+        if belief_horizon is not None:
+            belief_time = (
+                belief_series["event_start"]
+                + belief_series.event_resolution
+                - belief_horizon
+            )
         belief_series["belief_time"] = belief_time
         belief_series["cumulative_probability"] = 0.5
         belief_series["source"] = self.data_source
@@ -144,13 +158,23 @@ class PandasReporter(Reporter):
         return belief_series
 
     def _clean_belief_dataframe(
-        self, bdf: tb.BeliefsDataFrame, belief_time: datetime
+        self,
+        bdf: tb.BeliefsDataFrame,
+        belief_time: datetime | None = None,
+        belief_horizon: timedelta | None = None,
     ) -> tb.BeliefsDataFrame:
         """Add missing indexes to build a proper BeliefDataFrame."""
 
         # filing the missing indexes with default values:
         if "belief_time" not in bdf.index.names:
-            bdf["belief_time"] = [belief_time] * len(bdf)
+            if belief_horizon is not None:
+                belief_time = (
+                    bdf["event_start"] + +bdf.event_resolution - belief_horizon
+                )
+            else:
+                belief_time = [belief_time] * len(bdf)
+            bdf["belief_time"] = belief_time
+
             bdf = bdf.set_index("belief_time", append=True)
 
         if "cumulative_probability" not in bdf.index.names:
