@@ -44,7 +44,7 @@
                 {% endif %}
                 {% if user_can_delete_asset %}
                 <div class="">
-                    <form action="/assets/delete_with_data/{{ asset.id }}/" method="get">
+                    <form action="/assets/delete_with_data/{{ asset.id }}" method="get">
                         <button id="delete-asset-button" class="btn btn-sm btn-responsive btn-danger delete-button" type="submit">Delete this asset</button>
                     </form>
                     <script>
