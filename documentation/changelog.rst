@@ -17,8 +17,11 @@ New features
 * Support saving beliefs with a ``belief_horizon`` in the ``PandasReporter``[see `PR #1013 <https://github.com/FlexMeasures/flexmeasures/pull/1013>`_]
 * Skip the check of the output event resolution in any ``Reporter`` with the field ``check_output_resolution`` [see `PR #1009 <https://github.com/FlexMeasures/flexmeasures/pull/1009>`_]
 
+Bugfixes
+-----------
+* Use minimum event resolution of the input (instead of the output) sensors for the belief search parameters [see `PR #1010 <https://github.com/FlexMeasures/flexmeasures/pull/1010>`_]
 
-check_output_resolution
+
 
 Infrastructure / Support
 ----------------------
