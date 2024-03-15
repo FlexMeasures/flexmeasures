@@ -100,14 +100,14 @@ if is_database $1
 then
   echo "$1 database exists"
   read -r -p "Make a backup first? [y/N] " response
-  response=${response,,}    # make lowercase
+  response=$(tr '[:upper:]' '[:lower:]' <<< $response) # make lowercase
   if [[ "$response" =~ ^(yes|y)$ ]]; then
     echo "Making db dump ..."
     flexmeasures db-ops dump
   fi
 
   read -r -p "This will drop your database and re-create a clean one. Continue?[y/N] " response
-  response=${response,,} # make lowercase
+  response=$(tr '[:upper:]' '[:lower:]' <<< $response) # make lowercase
   if [[ "$response" =~ ^(yes|y)$ ]]; then
      if ! delete_database $1; then
        exit 1
