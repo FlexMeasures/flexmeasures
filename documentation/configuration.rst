@@ -455,6 +455,14 @@ Allows users to make authenticated requests. If true, injects the Access-Control
 Default: ``True``
 
 
+FLEXMEASURES_FORCE_HTTPS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Set to ``True`` if all requests should be forced to be HTTPS.
+
+Default: ``False``
+
+
 FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

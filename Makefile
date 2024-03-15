@@ -1,10 +1,11 @@
 # Check Python major and minor version
 # For more information, see https://stackoverflow.com/a/22105036
 PYV = $(shell python -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_info[:2]));sys.stdout.write(t)")
+HIGHS_DIR = "../HiGHS"
 
 # Note: use tabs
 # actions which are virtual, i.e. not a script
-.PHONY: install install-for-dev install-for-test install-deps install-flexmeasures run-local test freeze-deps upgrade-deps update-docs update-docs-pdf show-file-space show-data-model clean-db cli-autocomplete
+.PHONY: install install-for-dev install-for-test install-deps install-flexmeasures run-local test freeze-deps upgrade-deps update-docs update-docs-pdf show-file-space show-data-model clean-db cli-autocomplete build-highs-macos install-highs-macos
 
 
 # ---- Development ---
@@ -55,6 +56,29 @@ else
 	rm temp-test.in
 endif
 	make install-flexmeasures
+# Locally install HiGS on macOS
+	if [ "$(shell uname)" = "Darwin" ]; then \
+		make install-highs-macos; \
+	fi
+
+$(HIGHS_DIR):
+	if [ ! -d $(HIGHS_DIR) ]; then \
+		git clone https://github.com/ERGO-Code/HiGHS.git $(HIGHS_DIR); \
+	fi
+	brew install cmake;
+
+build-highs-macos: $(HIGHS_DIR)
+	cd $(HIGHS_DIR); \
+	git checkout latest; \
+	mkdir -p build; \
+	cd build; \
+	cmake ..; \
+	make; \
+	make install; \
+	cd ../../flexmeasures;
+
+install-highs-macos: build-highs-macos
+	pip install $(HIGHS_DIR) ; \
 
 install-deps:
 	make install-pip-tools
