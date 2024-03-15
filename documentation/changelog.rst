@@ -9,6 +9,8 @@ v0.20.0 | April XX, 2024
 
 .. warning:: From this version on, the config setting `FLEXMEASURES_FORCE_HTTPS` decides whether to enforce HTTPS on requests - and it defaults to `False`. Previously, this was governed by `Flask_ENV` or `FLEXMEASURES_ENV` being set to something else than "documentation" or "development". This new way is more clear, but you might be in need of using this setting before upgrading.
 
+.. warning:: Two API endpoints for showing charts are now only reachable without a trailing slash (``/api/v3_0/assets/<id>/chart`` and ``/api/v3_0/assets/<id>/chart_data``)
+
 New features
 -------------   
 
@@ -24,6 +26,7 @@ Infrastructure / Support
 * Support deleting beliefs via CLI for all offspring assets at once [see `PR #1003 <https://github.com/FlexMeasures/flexmeasures/pull/1003>`_]
 * Add setting ``FLEXMEASURES_FORCE_HTTPS`` to explicitly toggle if HTTPS should be used for all requests [see `PR #1008 <https://github.com/FlexMeasures/flexmeasures/pull/1008>`_]
 * Make flexmeasures installable locally on macOS [see `PR #1000 <https://github.com/FlexMeasures/flexmeasures/pull/1000>`_]
+* Align API endpoint policy w.r.t. trailing slash [see `PR #1014 <https://github.com/FlexMeasures/flexmeasures/pull/1014>`_]
 
 
 v0.19.2 | March 1, 2024
