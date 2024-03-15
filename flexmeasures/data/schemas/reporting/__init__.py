@@ -36,6 +36,7 @@ class ReporterParametersSchema(Schema):
 
     resolution = DurationField(required=False)
     belief_time = AwareDateTimeField(required=False)
+    check_output_resolution = fields.Bool(required=False, default=True)
 
 
 class BeliefsSearchConfigSchema(Schema):
