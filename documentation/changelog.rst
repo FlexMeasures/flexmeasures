@@ -12,6 +12,7 @@ New features
 
 * Add command ``flexmeasures edit transfer-ownership`` to transfer the ownership of an asset and its children from one account to another[see `PR #983 <https://github.com/FlexMeasures/flexmeasures/pull/983>`_]
 * Support defining the ``site-power-capacity``, ``site-consumption-capacity`` and ``site-production-capacity`` as a sensor in the API and CLI [see `PR #985 <https://github.com/FlexMeasures/flexmeasures/pull/985>`_]
+* Support saving beliefs with a ``belief-horizon`` in the  ``PandasReporter``[see `PR #1013 <https://github.com/FlexMeasures/flexmeasures/pull/1013>`_]
 
 
 Infrastructure / Support
