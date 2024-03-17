@@ -246,3 +246,54 @@ def test_get_status(
     assert staleness == expected_staleness
     assert sensor_status["staleness"] == expected_staleness
     assert sensor_status["stale"] == expected_stale
+
+
+@pytest.mark.parametrize(
+    "now, expected_staleness, expected_stale, expect_reason",
+    [
+        (
+            # Last event 2016-01-01T12:00+01, 3 hours 20 minutes from now
+            "2016-01-01T08:40+01",
+            timedelta(hours=3, minutes=20),
+            True,
+            'less than 12 hours in the future'
+        ),
+        (
+            # Last event 2016-01-01T12:00+01, 12 hours from now
+            "2016-01-01T00:00+01",
+            timedelta(hours=12),
+            False,
+            'not less than 12 hours in the future'
+        ),
+        (
+            # Last event 2016-01-01T12:00+01, 1 hour ago
+            "2016-01-01T13:00+01",
+            None, # Not known yet
+            True,
+            'no data recorded'
+        ),
+    ]
+)
+def test_get_forecasting_status(
+    add_market_prices,
+    capacity_sensors,
+    now,
+    expected_staleness,
+    expected_stale,
+    expect_reason
+):  
+    sensor = add_market_prices["epex_da"]
+    sensor.attributes["status_specs"] = {
+        "max_staleness": "-PT12H",
+        "is_forecast": True,
+        "staleness_search": {},
+    }
+    now = pd.Timestamp(now)
+    
+    sensor_status = get_status(
+        sensor=sensor,
+        now=now,
+    )
+    assert sensor_status["staleness"] == expected_staleness
+    assert sensor_status["stale"] == expected_stale
+    assert sensor_status["reason"] == expect_reason

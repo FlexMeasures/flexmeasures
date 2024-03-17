@@ -73,7 +73,7 @@ def get_most_recent_knowledge_time(
 
 
 def get_staleness(
-    sensor: Sensor, staleness_search: dict, now: datetime
+    sensor: Sensor, staleness_search: dict, now: datetime, is_forecast: bool=False
 ) -> timedelta | None:
     """Get the staleness of the sensor.
 
@@ -85,6 +85,7 @@ def get_staleness(
     :param staleness_search:    Deserialized keyword arguments to `TimedBelief.search`.
     :param now:                 Datetime representing now, used both to mask future beliefs,
                                 and to measures staleness against.
+    :param is_forecast:         Whether the sensor is a forecast sensor.
     """
 
     # Mask beliefs before now
@@ -92,6 +93,8 @@ def get_staleness(
     beliefs_before = staleness_search.get("beliefs_before")
     if beliefs_before is not None:
         staleness_search["beliefs_before"] = min(beliefs_before, now)
+    elif is_forecast:
+        staleness_search["beliefs_after"] = now
     else:
         staleness_search["beliefs_before"] = now
 
@@ -131,14 +134,19 @@ def get_status(
         status_specs = get_status_specs(sensor=sensor)
     status_specs = StatusSchema().load(status_specs)
     max_staleness = status_specs.pop("max_staleness")
+    is_forecast = status_specs.pop("is_forecast", False)
     staleness_search = status_specs.pop("staleness_search")
-    staleness = get_staleness(sensor=sensor, staleness_search=staleness_search, now=now)
+    staleness = get_staleness(sensor=sensor, staleness_search=staleness_search, now=now, is_forecast=is_forecast)
     if staleness is not None:
         staleness_since = now - staleness
         stale = staleness > max_staleness
+        comparison = "more" if staleness > timedelta(0) else "less"
+        timeline = "old" if staleness > timedelta(0) else "in the future"
+        max_staleness = max_staleness if max_staleness > timedelta(0) else -max_staleness
         reason = (
             "" if stale else "not "
-        ) + f"more than {naturaldelta(max_staleness)} old"
+        ) + f"{comparison} than {naturaldelta(max_staleness)} {timeline}"
+        staleness = staleness if staleness > timedelta(0) else -staleness
     else:
         staleness_since = None
         stale = True

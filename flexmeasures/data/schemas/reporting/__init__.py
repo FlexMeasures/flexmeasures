@@ -67,5 +67,6 @@ class BeliefsSearchConfigSchema(Schema):
 
 class StatusSchema(Schema):
     max_staleness = DurationField(required=True)
+    is_forecast = fields.Boolean()
 
     staleness_search = fields.Nested(BeliefsSearchConfigSchema(), required=True)

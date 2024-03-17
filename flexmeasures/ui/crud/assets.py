@@ -312,17 +312,20 @@ class AssetCrudUI(FlaskView):
 
         asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
         sensors = []
-        for sensor in asset.sensors:
-            sensor_status = get_status(
-                sensor=sensor,
-                now=server_now(),
-            )
-            sensor_status["name"] = sensor.name
-            sensor_status["id"] = sensor.id
-            sensors += [sensor_status]
+        parent_asset = asset
+        for asset in (asset, *asset.child_assets):
+            for sensor in asset.sensors:
+                sensor_status = get_status(
+                    sensor=sensor,
+                    now=server_now(),
+                )
+                sensor_status["name"] = sensor.name
+                sensor_status["id"] = sensor.id
+                sensor_status["asset_name"] = asset.name
+                sensors.append(sensor_status)
 
         return render_flexmeasures_template(
-            "views/status.html", asset=asset, sensors=sensors
+            "views/status.html", asset=parent_asset, sensors=sensors
         )
 
     @login_required
