@@ -169,7 +169,7 @@ class PandasReporter(Reporter):
         if "belief_time" not in bdf.index.names:
             if belief_horizon is not None:
                 belief_time = (
-                    bdf["event_start"] + +bdf.event_resolution - belief_horizon
+                    bdf["event_start"] + bdf.event_resolution - belief_horizon
                 )
             else:
                 belief_time = [belief_time] * len(bdf)
