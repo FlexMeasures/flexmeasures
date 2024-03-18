@@ -26,7 +26,7 @@ from flexmeasures.utils.calculations import (
     integrate_time_series,
 )
 from flexmeasures.tests.utils import get_test_sensor
-
+from flexmeasures.utils.unit_utils import convert_units
 
 TOLERANCE = 0.00001
 
@@ -586,9 +586,20 @@ def test_building_solver_day_2(
     with pd.option_context("display.max_rows", None, "display.max_columns", 3):
         print(soc_schedule)
 
+    unit_factors = np.expand_dims(
+        [
+            convert_units(1, s.unit, "MW")
+            for s in add_inflexible_device_forecasts.keys()
+        ],
+        axis=1,
+    )
+    inflexible_devices_power = np.array(list(add_inflexible_device_forecasts.values()))
+
     # Check if constraints were met
     capacity = pd.DataFrame(
-        data=np.sum(np.array(list(add_inflexible_device_forecasts.values())), axis=0),
+        data=inflexible_devices_power.T.dot(
+            unit_factors
+        ),  # convert to MW and sum column-wise
         columns=["inflexible"],
     ).tail(
         -4 * 24
@@ -1327,7 +1338,19 @@ def test_build_device_soc_values(caplog, soc_values, log_message, expected_num_t
 
 
 @pytest.mark.parametrize(
-    "battery_name, production_sensor, consumption_sensor, production_quantity, consumption_quantity, expected_production, expected_consumption",
+    [
+        "battery_name",
+        "production_sensor",
+        "consumption_sensor",
+        "production_quantity",
+        "consumption_quantity",
+        "expected_production",
+        "expected_consumption",
+        "site_production_capacity_sensor",
+        "site_consumption_capacity_sensor",
+        "expected_site_production",
+        "expected_site_consumption",
+    ],
     [
         (
             "Test battery with dynamic power capacity",
@@ -1335,8 +1358,12 @@ def test_build_device_soc_values(caplog, soc_values, log_message, expected_num_t
             False,
             None,
             None,
-            [-8] * 24 * 4,  # from the power sensor attribute 'production_capacity'
-            [0.5] * 24 * 4,  # from the power sensor attribute 'consumption_capacity'
+            -8,  # from the power sensor attribute 'production_capacity'
+            0.5,  # from the power sensor attribute 'consumption_capacity'
+            False,
+            False,
+            -1.1,
+            1.1,
         ),
         (
             "Test battery with dynamic power capacity",
@@ -1348,7 +1375,11 @@ def test_build_device_soc_values(caplog, soc_values, log_message, expected_num_t
             # and when absent, defaulting to the max value from the power sensor attribute capacity_in_mw
             [-0.2] * 4 * 4 + [-0.3] * 4 * 4 + [-10] * 16 * 4,
             # from the power sensor attribute 'consumption_capacity'
-            [0.5] * 24 * 4,
+            0.5,
+            False,
+            False,
+            -1.1,
+            1.1,
         ),
         (
             "Test battery with dynamic power capacity",
@@ -1361,6 +1392,13 @@ def test_build_device_soc_values(caplog, soc_values, log_message, expected_num_t
             # from the flex model field 'consumption-capacity' (a sensor),
             # and when absent, defaulting to the max value from the power sensor attribute capacity_in_mw
             [0.25] * 4 * 4 + [0.15] * 4 * 4 + [10] * 16 * 4,
+            False,
+            True,
+            -1.1,
+            # the first period with consumption capacity of 1.3 MVA is clipped by a site-power-capacity of 1.1 MVA,
+            # the second period with consumption capacity of 1.05 MVA is kept as is, and
+            # the third period with missing consumption capacity defaults to 1.1 MVA
+            [1.1] * 4 * 4 + [1.05] * 4 * 4 + [1.1] * 16 * 4,
         ),
         (
             "Test battery with dynamic power capacity",
@@ -1369,9 +1407,13 @@ def test_build_device_soc_values(caplog, soc_values, log_message, expected_num_t
             "100 kW",
             "200 kW",
             # from the flex model field 'production-capacity' (a quantity)
-            [-0.1] * 24 * 4,
+            -0.1,
             # from the flex model field 'consumption-capacity' (a quantity)
-            [0.2] * 24 * 4,
+            0.2,
+            False,
+            False,
+            -1.1,
+            1.1,
         ),
         (
             "Test battery with dynamic power capacity",
@@ -1380,9 +1422,13 @@ def test_build_device_soc_values(caplog, soc_values, log_message, expected_num_t
             "1 MW",
             "2 MW",
             # from the flex model field 'production-capacity' (a quantity)
-            [-1] * 24 * 4,
+            -1,
             # from the power sensor attribute 'consumption_capacity' (a quantity)
-            [2] * 24 * 4,
+            2,
+            False,
+            False,
+            -1.1,
+            1.1,
         ),
         (
             "Test battery",
@@ -1391,9 +1437,13 @@ def test_build_device_soc_values(caplog, soc_values, log_message, expected_num_t
             None,
             None,
             # from the asset attribute 'capacity_in_mw'
-            [-2] * 24 * 4,
+            -2,
             # from the asset attribute 'capacity_in_mw'
-            [2] * 24 * 4,
+            2,
+            False,
+            False,
+            -1.1,
+            1.1,
         ),
         (
             "Test battery",
@@ -1402,9 +1452,13 @@ def test_build_device_soc_values(caplog, soc_values, log_message, expected_num_t
             "10 kW",
             None,
             # from the flex model field 'production-capacity' (a quantity)
-            [-0.01] * 24 * 4,
+            -0.01,
             # from the asset attribute 'capacity_in_mw'
-            [2] * 24 * 4,
+            2,
+            False,
+            False,
+            -1.1,
+            1.1,
         ),
         (
             "Test battery",
@@ -1413,9 +1467,13 @@ def test_build_device_soc_values(caplog, soc_values, log_message, expected_num_t
             "10 kW",
             "100 kW",
             # from the flex model field 'production-capacity' (a quantity)
-            [-0.01] * 24 * 4,
+            -0.01,
             # from the flex model field 'consumption-capacity' (a quantity)
-            [0.1] * 24 * 4,
+            0.1,
+            True,
+            True,
+            [-1.1] * 4 * 4 + [-1.05] * 4 * 4 + [-1.1] * 16 * 4,
+            [1.1] * 4 * 4 + [1.05] * 4 * 4 + [1.1] * 16 * 4,
         ),
     ],
 )
@@ -1431,6 +1489,10 @@ def test_battery_power_capacity_as_sensor(
     consumption_quantity,
     expected_production,
     expected_consumption,
+    site_consumption_capacity_sensor,
+    site_production_capacity_sensor,
+    expected_site_production,
+    expected_site_consumption,
 ):
     epex_da, battery = get_sensors_from_db(
         db, add_battery_assets, battery_name=battery_name
@@ -1441,6 +1503,16 @@ def test_battery_power_capacity_as_sensor(
     end = tz.localize(datetime(2015, 1, 3))
     resolution = timedelta(minutes=15)
     soc_at_start = 10
+
+    flex_context = {"site-power-capacity": "1100 kVA"}  # 1.1 MW
+    if site_consumption_capacity_sensor:
+        flex_context["site-consumption-capacity"] = {
+            "sensor": capacity_sensors["site_power_capacity"].id
+        }
+    if site_production_capacity_sensor:
+        flex_context["site-production-capacity"] = {
+            "sensor": capacity_sensors["site_power_capacity"].id
+        }
 
     flex_model = {
         "soc-at-start": soc_at_start,
@@ -1465,14 +1537,22 @@ def test_battery_power_capacity_as_sensor(
         flex_model["consumption-capacity"] = consumption_quantity
 
     scheduler: Scheduler = StorageScheduler(
-        battery, start, end, resolution, flex_model=flex_model
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model=flex_model,
+        flex_context=flex_context,
     )
 
     data_to_solver = scheduler._prepare()
     device_constraints = data_to_solver[5][0]
+    ems_constraints = data_to_solver[6]
 
     assert all(device_constraints["derivative min"].values == expected_production)
     assert all(device_constraints["derivative max"].values == expected_consumption)
+    assert all(ems_constraints["derivative min"].values == expected_site_production)
+    assert all(ems_constraints["derivative max"].values == expected_site_consumption)
 
 
 def test_battery_bothways_power_capacity_as_sensor(

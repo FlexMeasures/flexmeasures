@@ -299,6 +299,7 @@ class SensorAPI(FlaskView):
 
 
         The battery consumption power capacity is limited by sensor 42 and the production capacity is constant (30 kW).
+        Finally, the site consumption capacity is limited by sensor 32.
 
         Note that, if forecasts for sensors 13, 14 and 15 are not available, a schedule cannot be computed.
 
@@ -326,10 +327,10 @@ class SensorAPI(FlaskView):
                     "soc-min": 10,
                     "soc-max": 25,
                     "charging-efficiency": "120%",
-                    "discharging-efficiency": {"sensor" : 98},
+                    "discharging-efficiency": {"sensor": 98},
                     "storage-efficiency": 0.9999,
                     "power-capacity": "25kW",
-                    "consumption-capacity" : {"sensor" : 42},
+                    "consumption-capacity" : {"sensor": 42},
                     "production-capacity" : "30 kW"
                 },
                 "flex-context": {
@@ -338,7 +339,7 @@ class SensorAPI(FlaskView):
                     "inflexible-device-sensors": [13, 14, 15],
                     "site-power-capacity": "100kW",
                     "site-production-capacity": "80kW",
-                    "site-consumption-capacity": "100kW"
+                    "site-consumption-capacity": {"sensor": 32}
                 }
             }
 

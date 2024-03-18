@@ -45,7 +45,7 @@ With the flexibility context, we aim to describe the system in which the flexibl
      - Description 
    * - ``inflexible-device-sensors``
      - ``[3,4]``
-     - Power sensors that are relevant, but not flexible, such as a sensor recording rooftop solar power connected behind the main meter, whose production falls under the same contract as the flexible device(s) being scheduled. * Note:* For now, the inflexible-device-sensors need to have MW units. 
+     - Power sensors that are relevant, but not flexible, such as a sensor recording rooftop solar power connected behind the main meter, whose production falls under the same contract as the flexible device(s) being scheduled.
    * - ``consumption-price-sensor``
      - ``5``
      - The sensor that defines the price of consuming energy. This sensor can be recording market prices, but also CO₂ - whatever fits your optimization problem.
@@ -54,13 +54,13 @@ With the flexibility context, we aim to describe the system in which the flexibl
      - The sensor that defines the price of producing energy.
    * - ``site-power-capacity``
      - ``"45kW"``
-     - Maximum/minimum achievable power at the grid connection point [#asymmetric]_. Defaults to the Asset attribute ``capacity_in_mw``
+     - Maximum/minimum achievable power at the grid connection point [#asymmetric]_ (defaults to the Asset attribute ``capacity_in_mw``). A constant limit, or see [#sensor_field]_.
    * - ``site-consumption-capacity``
      - ``"45kW"``
-     - Maximum consumption power at the grid connection point [#consumption]_. If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-consumption-capacity`` will be used. Defaults to the Asset attribute ``consumption_capacity_in_mw``
+     - Maximum consumption power at the grid connection point [#consumption]_ (defaults to the Asset attribute ``consumption_capacity_in_mw``). A constant limit, or see [#sensor_field]_. If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-consumption-capacity`` will be used.
    * - ``site-production-capacity``
      - ``"0kW"``
-     - Maximum production power at the grid connection point [#production]_.  If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-production-capacity`` will be used. Defaults to the Asset attribute ``production_capacity_in_mw``
+     - Maximum production power at the grid connection point [#production]_ (defaults to the Asset attribute ``production_capacity_in_mw``). A constant limit, or see [#sensor_field]_. If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-production-capacity`` will be used.
 
 
 .. [#asymmetric] ``site-consumption-capacity`` and ``site-production-capacity`` allow defining asymmetric contracted transport capacities for each direction (i.e. production and consumption).
@@ -126,7 +126,7 @@ and what constraints or preferences should be taken into account.
      - Encode SoC reduction per time step. A constant loss every time step, or see [#sensor_field]_.
    * - ``roundtrip-efficiency``
      - ``"90%"``
-     - Below 100%, this represents roundtrip losses (of charging & discharging), usually used for batteries. Can be percent or ratio ``[0,1]``. Defaults to 100%.
+     - Below 100%, this represents roundtrip losses (of charging & discharging), usually used for batteries. Can be percent or ratio ``[0,1]`` (defaults to 100%).
    * - ``charging-efficiency``
      - ``".9"``
      - Apply efficiency losses only at time of charging, not across roundtrip (defaults to 100%). A constant percentage at every step, or see [#sensor_field]_.

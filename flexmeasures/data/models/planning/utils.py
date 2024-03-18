@@ -178,7 +178,7 @@ def get_power_values(
     beliefs_before: datetime | None,
     sensor: Sensor,
 ) -> np.ndarray:
-    """Get measurements or forecasts of an inflexible device represented by a power sensor.
+    """Get measurements or forecasts of an inflexible device represented by a power or energy sensor as an array of power values in MW.
 
     If the requested schedule lies in the future, the returned data will consist of (the most recent) forecasts (if any exist).
     If the requested schedule lies in the past, the returned data will consist of (the most recent) measurements (if any exist).
@@ -208,12 +208,14 @@ def get_power_values(
         )
         df = df.fillna(0)
 
+    series = convert_units(df.values, sensor.unit, "MW")
+
     if sensor.get_attribute(
         "consumption_is_positive", False
     ):  # FlexMeasures default is to store consumption as negative power values
-        return df.values
+        return series
 
-    return -df.values
+    return -series
 
 
 def fallback_charging_policy(
@@ -313,8 +315,13 @@ def get_quantity_from_attribute(
         q = ur.Quantity(value)
         q = q.to(unit)
     except (UndefinedUnitError, DimensionalityError, ValueError, AssertionError):
-        current_app.logger.warning(f"Couldn't convert {value} to `{unit}`")
-        q = np.nan * ur.Quantity(unit)  # at least return result in the desired unit
+        try:
+            # Fall back to interpreting the value in the given unit
+            q = ur.Quantity(f"{value} {unit}")
+            q = q.to(unit)
+        except (UndefinedUnitError, DimensionalityError, ValueError, AssertionError):
+            current_app.logger.warning(f"Couldn't convert {value} to `{unit}`")
+            q = np.nan * ur.Quantity(unit)  # at least return result in the desired unit
     return q
 
 
