@@ -209,11 +209,8 @@ def get_assets_by_account(account_id: int | str | None) -> list[GenericAsset]:
 
 def get_all_assets() -> list[GenericAsset]:
     get_assets_response = InternalApi().get(url_for("AssetAPI:index"))
-
-    return [
-        process_internal_api_response(ad, make_obj=True)
-        for ad in get_assets_response.json()
-    ]
+    asset_ids = [GenericAsset.id.in_(ad["id"] for ad in get_assets_response.json())]
+    return db.session.scalars(select(GenericAsset).where(*asset_ids)).all()
 
 
 class AssetCrudUI(FlaskView):
@@ -232,8 +229,6 @@ class AssetCrudUI(FlaskView):
 
         List the user's assets. For admins, list across all accounts.
         """
-        assets = []
-
         assets = get_all_assets()
 
         return render_flexmeasures_template(
