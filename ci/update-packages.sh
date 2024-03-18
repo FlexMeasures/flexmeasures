@@ -29,8 +29,8 @@ if ! [ -x "$(command -v docker)" ]; then
   exit 1
 fi
 
-# Check if we can run docker without sudo
-if ! docker ps > /dev/null 2>&1; then
+# Check if we can run docker without sudo (check is not needed for Macos system)
+if ! docker ps > /dev/null 2>&1 && [[ "$(uname)" != "Darwin" ]]; then
   echo "Docker is not running without sudo. Please add your user to the docker group and try again."
   echo "You may use the following command to do so:"
   echo "sudo usermod -aG docker $USER"

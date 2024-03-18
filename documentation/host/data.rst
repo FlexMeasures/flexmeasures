@@ -50,10 +50,23 @@ On Windows:
 * ``conda install psycopg2``
 
 
+On Macos:
+
+.. code-block:: bash
+
+   $ brew update
+   $ brew doctor
+   $ # Need to specify postgres version, in this example we use 13
+   $ brew install postgresql@13
+   $ brew link postgresql@13 --force
+   $ # Start postgres (you can change /usr/local/var/postgres to any directory you like)
+   $ pg_ctl -D /usr/local/var/postgres -l logfile start
+
+
 Using Docker Compose:
 
 
-Alternatively, you can use Docker Compose to run a postgres database. Use can use the following ``docker-compose.yml`` as a starting point:
+Alternatively, you can use Docker Compose to run a postgres database. You can use the following ``docker-compose.yml`` as a starting point:
 
 
 .. code-block:: yaml
@@ -96,9 +109,19 @@ Find the ``timezone`` setting and set it to 'UTC'.
 
 Then restart the postgres server.
 
-.. code-block:: bash
+.. tabs::
 
-    $ sudo service postgresql restart
+   .. tab:: Linux
+
+      .. code-block:: bash
+
+         $ sudo service postgresql restart
+
+   .. tab:: Macos
+
+      .. code-block:: bash
+
+         $ pg_ctl -D /usr/local/var/postgres -l logfile restart
 
 .. note:: If you are using Docker to run postgres, the ``timezone`` setting is already set to ``UTC`` by default.
 
@@ -120,14 +143,16 @@ Proceed to create a database as the postgres superuser (using your postgres user
    $ createuser --pwprompt -U postgres flexmeasures_test  # enter "flexmeasures_test" as password
    $ exit
 
+.. note:: In case you encounter the following "FAILS: sudo: unknown user postgres" you need to create "postgres" OS user with sudo rights first - better done via System preferences -> Users & Groups.
+
 
 Or, from within Postgres console:
 
 .. code-block:: sql
 
-   CREATE USER flexmeasures WITH UNENCRYPTED PASSWORD 'this-is-your-secret-choice';
+   CREATE USER flexmeasures WITH PASSWORD 'this-is-your-secret-choice';
    CREATE DATABASE flexmeasures WITH OWNER = flexmeasures;
-   CREATE USER flexmeasures_test WITH UNENCRYPTED PASSWORD 'flexmeasures_test';
+   CREATE USER flexmeasures_test WITH PASSWORD 'flexmeasures_test';
    CREATE DATABASE flexmeasures_test WITH OWNER = flexmeasures_test;
 
 
@@ -157,6 +182,8 @@ Add the following extensions while logged in as the postgres superuser:
    \connect flexmeasures
    CREATE EXTENSION cube;
    CREATE EXTENSION earthdistance;
+
+.. note:: Lines from above should be run seperately
 
 
 If you have it, connect to the ``flexmeasures_test`` database and repeat creating these extensions there. Then ``exit``.
@@ -230,6 +257,7 @@ You can create users with the ``add user`` command. Check it out:
 
 .. code-block:: bash
 
+   $ flexmeasures add account --help
    $ flexmeasures add user --help
 
 
@@ -280,6 +308,8 @@ You can visualise the data model like this:
 
 This will generate a picture based on the model code.
 You can also generate picture based on the actual database, see inside the Makefile. 
+
+.. note:: If you encounter "error: externally-managed-environment" when running `make test` and you do it in venv, try `pip cache purge` or use pipx.
 
 Maintenance
 ----------------
