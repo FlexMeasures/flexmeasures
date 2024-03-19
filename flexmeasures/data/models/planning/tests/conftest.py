@@ -145,7 +145,7 @@ def inflexible_devices(db, building) -> dict[str, Sensor]:
         name="PV power sensor",
         generic_asset=building,
         event_resolution=timedelta(hours=1),
-        unit="kW",
+        unit="MW",
         attributes={"capacity_in_mw": 2},
     )
     db.session.add(pv_sensor)
@@ -186,9 +186,9 @@ def add_inflexible_device_forecasts(
     ) * (len(time_slots) // (24 * 4))
     add_as_beliefs(db, pv_sensor, pv_values, time_slots, setup_sources["Seita"])
 
-    # Residual demand (1 MW continuously)
+    # Residual demand (1 MW = 1000 kW continuously)
     residual_demand_sensor = inflexible_devices["residual demand power sensor"]
-    residual_demand_values = [-1] * len(time_slots)
+    residual_demand_values = [-1000] * len(time_slots)
     add_as_beliefs(
         db,
         residual_demand_sensor,

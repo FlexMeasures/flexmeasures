@@ -90,9 +90,9 @@ class PandasReporter(Reporter):
         belief_horizon: timedelta | None = kwargs.get("belief_horizon", None)
         output: list[dict[str, Any]] = kwargs.get("output")
 
-        # by default, use the minimum resolution among the output sensors
+        # by default, use the minimum resolution among the input sensors
         if resolution is None:
-            resolution = min([o["sensor"].event_resolution for o in output])
+            resolution = min([i["sensor"].event_resolution for i in input])
 
         # fetch sensor data
         self.fetch_data(start, end, input, resolution, belief_time)
