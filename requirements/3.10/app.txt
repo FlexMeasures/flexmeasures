@@ -248,7 +248,7 @@ pyomo==6.7.0
     # via -r requirements/app.in
 pyparsing==3.1.1
     # via matplotlib
-pytest==8.1.1
+pytest==8.0.0
     # via pytest-mock
 pytest-mock==3.12.0
     # via -r requirements/app.in
