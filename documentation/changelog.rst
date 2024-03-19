@@ -9,8 +9,6 @@ v0.20.0 | April XX, 2024
 
 .. warning:: From this version on, the config setting `FLEXMEASURES_FORCE_HTTPS` decides whether to enforce HTTPS on requests - and it defaults to `False`. Previously, this was governed by `Flask_ENV` or `FLEXMEASURES_ENV` being set to something else than "documentation" or "development". This new way is more clear, but you might be in need of using this setting before upgrading.
 
-.. warning:: Two API endpoints for showing charts are now only reachable without a trailing slash (``/api/v3_0/assets/<id>/chart`` and ``/api/v3_0/assets/<id>/chart_data``)
-
 New features
 -------------   
 
