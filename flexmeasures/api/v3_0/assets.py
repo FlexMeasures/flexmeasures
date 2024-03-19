@@ -263,7 +263,7 @@ class AssetAPI(FlaskView):
         current_app.logger.info("Deleted asset '%s'." % asset_name)
         return {}, 204
 
-    @route("/<id>/chart/")
+    @route("/<id>/chart", strict_slashes=False)  # strict on next version? see #1014
     @use_kwargs(
         {"asset": AssetIdField(data_key="id")},
         location="path",
@@ -291,7 +291,9 @@ class AssetAPI(FlaskView):
         set_session_variables("event_starts_after", "event_ends_before")
         return json.dumps(asset.chart(**kwargs))
 
-    @route("/<id>/chart_data/")
+    @route(
+        "/<id>/chart_data", strict_slashes=False
+    )  # strict on next version? see #1014
     @use_kwargs(
         {"asset": AssetIdField(data_key="id")},
         location="path",

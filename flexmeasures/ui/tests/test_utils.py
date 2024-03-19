@@ -35,7 +35,7 @@ def test_get_ancestry(app, db):
     # ancestry of a parentless asset
     assert get_ancestry(assets[0]) == [
         {"url": f"/accounts/{account_id}", "name": "Test Account", "type": "Account"},
-        {"url": f"/assets/{assets[0].id}/", "name": "Parent", "type": "Asset"},
+        {"url": f"/assets/{assets[0].id}", "name": "Parent", "type": "Asset"},
     ]
 
     # check that the number of elements of the ancestry of each assets corresponds to 2 + levels
