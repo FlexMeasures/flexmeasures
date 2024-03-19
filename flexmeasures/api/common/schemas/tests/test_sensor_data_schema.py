@@ -9,7 +9,11 @@ from flexmeasures.api.common.schemas.sensor_data import (
     PostSensorDataSchema,
     GetSensorDataSchema,
 )
-from flexmeasures.data.services.sensors import get_staleness, get_status
+from flexmeasures.data.services.sensors import (
+    get_staleness,
+    get_status,
+    build_asset_status_data,
+)
 from flexmeasures.data.schemas.reporting import StatusSchema
 
 
@@ -252,36 +256,35 @@ def test_get_status(
     "now, expected_staleness, expected_stale, expect_reason",
     [
         (
-            # Last event 2016-01-01T12:00+01, 3 hours 20 minutes from now
-            "2016-01-01T08:40+01",
-            timedelta(hours=3, minutes=20),
+            # Last event start at 2016-01-02T23:00+01 10 hours from now, with knowledge time 2016-01-01T12:00+01 < now
+            "2016-01-02T13:00+01",
+            timedelta(hours=10),
             True,
-            'less than 12 hours in the future'
+            "less than 12 hours in the future",
         ),
         (
-            # Last event 2016-01-01T12:00+01, 12 hours from now
-            "2016-01-01T00:00+01",
-            timedelta(hours=12),
+            # Last event start at 2016-01-02T23:00+01 13 hours from now, with knowledge time 2016-01-01T12:00+01 < now
+            "2016-01-02T10:00+01",
+            timedelta(hours=13),
             False,
-            'not less than 12 hours in the future'
+            "not less than 12 hours in the future",
         ),
         (
-            # Last event 2016-01-01T12:00+01, 1 hour ago
-            "2016-01-01T13:00+01",
-            None, # Not known yet
+            # Last event start at 2016-01-02T23:00+01, with knowledge time 2016-01-01T12:00+01 > now
+            "2016-01-01T11:00+01",
+            None,  # Not known yet
             True,
-            'no data recorded'
+            "no data recorded",
         ),
-    ]
+    ],
 )
 def test_get_forecasting_status(
     add_market_prices,
-    capacity_sensors,
     now,
     expected_staleness,
     expected_stale,
-    expect_reason
-):  
+    expect_reason,
+):
     sensor = add_market_prices["epex_da"]
     sensor.attributes["status_specs"] = {
         "max_staleness": "-PT12H",
@@ -289,7 +292,7 @@ def test_get_forecasting_status(
         "staleness_search": {},
     }
     now = pd.Timestamp(now)
-    
+
     sensor_status = get_status(
         sensor=sensor,
         now=now,
@@ -297,3 +300,21 @@ def test_get_forecasting_status(
     assert sensor_status["staleness"] == expected_staleness
     assert sensor_status["stale"] == expected_stale
     assert sensor_status["reason"] == expect_reason
+
+
+def test_build_asset_status_data(mock_get_status, add_weather_sensors):
+    asset = add_weather_sensors["asset"]
+
+    first_call_res, second_call_res = {"staleness": True}, {"staleness": False}
+    mock_get_status.side_effect = (first_call_res, second_call_res)
+
+    status_data = build_asset_status_data(asset=asset)
+    assert status_data == [
+        {**first_call_res, "name": "wind speed", "id": None, "asset_name": asset.name},
+        {
+            **second_call_res,
+            "name": "temperature",
+            "id": None,
+            "asset_name": asset.name,
+        },
+    ]

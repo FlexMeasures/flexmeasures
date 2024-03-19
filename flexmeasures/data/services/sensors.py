@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from timely_beliefs import BeliefsDataFrame
 
 from humanize.time import naturaldelta
 
@@ -10,9 +11,10 @@ from flexmeasures.data.models.time_series import TimedBelief
 import sqlalchemy as sa
 
 from flexmeasures.data import db
-from flexmeasures import Sensor, Account
+from flexmeasures import Sensor, Account, Asset
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.schemas.reporting import StatusSchema
+from flexmeasures.utils.time_utils import server_now
 
 
 def get_sensors(
@@ -54,6 +56,18 @@ def get_sensors(
     return db.session.scalars(sensor_query).all()
 
 
+def get_sensor_bdf(sensor: Sensor, staleness_search: dict) -> BeliefsDataFrame | None:
+    """Get bdf for a given sensor with given search parameters."""
+    bdf = TimedBelief.search(
+        sensors=sensor,
+        most_recent_events_only=True,
+        **staleness_search,
+    )
+    if bdf.empty:
+        return None
+    return bdf
+
+
 def get_most_recent_knowledge_time(
     sensor: Sensor, staleness_search: dict
 ) -> datetime | None:
@@ -62,18 +76,18 @@ def get_most_recent_knowledge_time(
     This knowledge time represents when you could have known about the event
     (specifically, when you could have formed an ex-post belief about it).
     """
-    staleness_bdf = TimedBelief.search(
-        sensors=sensor,
-        most_recent_events_only=True,
-        **staleness_search,
-    )
-    if staleness_bdf.empty:
-        return None
-    return staleness_bdf.knowledge_times[-1]
+    staleness_bdf = get_sensor_bdf(sensor=sensor, staleness_search=staleness_search)
+    return None if staleness_bdf is None else staleness_bdf.knowledge_times[-1]
+
+
+def get_max_event_start_time(sensor: Sensor, staleness_search: dict) -> datetime | None:
+    """Get the maximum event start time."""
+    forecast_bdf = get_sensor_bdf(sensor=sensor, staleness_search=staleness_search)
+    return None if forecast_bdf is None else forecast_bdf.event_starts[-1]
 
 
 def get_staleness(
-    sensor: Sensor, staleness_search: dict, now: datetime, is_forecast: bool=False
+    sensor: Sensor, staleness_search: dict, now: datetime, is_forecast: bool = False
 ) -> timedelta | None:
     """Get the staleness of the sensor.
 
@@ -93,14 +107,18 @@ def get_staleness(
     beliefs_before = staleness_search.get("beliefs_before")
     if beliefs_before is not None:
         staleness_search["beliefs_before"] = min(beliefs_before, now)
-    elif is_forecast:
-        staleness_search["beliefs_after"] = now
     else:
         staleness_search["beliefs_before"] = now
 
-    most_recent_knowledge_time = get_most_recent_knowledge_time(
-        sensor=sensor, staleness_search=staleness_search
-    )
+    if is_forecast:
+        staleness_search["event_starts_after"] = now
+        most_recent_knowledge_time = get_max_event_start_time(
+            sensor=sensor, staleness_search=staleness_search
+        )
+    else:
+        most_recent_knowledge_time = get_most_recent_knowledge_time(
+            sensor=sensor, staleness_search=staleness_search
+        )
     if most_recent_knowledge_time is not None:
         staleness = now - most_recent_knowledge_time
     else:
@@ -136,13 +154,20 @@ def get_status(
     max_staleness = status_specs.pop("max_staleness")
     is_forecast = status_specs.pop("is_forecast", False)
     staleness_search = status_specs.pop("staleness_search")
-    staleness = get_staleness(sensor=sensor, staleness_search=staleness_search, now=now, is_forecast=is_forecast)
+    staleness = get_staleness(
+        sensor=sensor,
+        staleness_search=staleness_search,
+        now=now,
+        is_forecast=is_forecast,
+    )
     if staleness is not None:
         staleness_since = now - staleness
         stale = staleness > max_staleness
         comparison = "more" if staleness > timedelta(0) else "less"
         timeline = "old" if staleness > timedelta(0) else "in the future"
-        max_staleness = max_staleness if max_staleness > timedelta(0) else -max_staleness
+        max_staleness = (
+            max_staleness if max_staleness > timedelta(0) else -max_staleness
+        )
         reason = (
             "" if stale else "not "
         ) + f"{comparison} than {naturaldelta(max_staleness)} {timeline}"
@@ -158,3 +183,25 @@ def get_status(
         reason=reason,
     )
     return status
+
+
+def build_asset_status_data(
+    asset: Asset,
+    now: datetime = None,
+) -> list:
+    """Get asset status data."""
+    if not now:
+        now = server_now()
+
+    sensors = []
+    for asset in (asset, *asset.child_assets):
+        for sensor in asset.sensors:
+            sensor_status = get_status(
+                sensor=sensor,
+                now=now,
+            )
+            sensor_status["name"] = sensor.name
+            sensor_status["id"] = sensor.id
+            sensor_status["asset_name"] = asset.name
+            sensors.append(sensor_status)
+    return sensors

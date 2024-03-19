@@ -11,6 +11,7 @@ import numpy as np
 from flask import request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_security import roles_accepted
+from pytest_mock import MockerFixture
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
 
 from werkzeug.exceptions import (
@@ -1041,7 +1042,7 @@ def create_weather_sensors(db: SQLAlchemy, generic_asset_types) -> dict[str, Sen
         unit="°C",
     )
     db.session.add(temp_sensor)
-    return {"wind": wind_sensor, "temperature": temp_sensor}
+    return {"wind": wind_sensor, "temperature": temp_sensor, "asset": weather_station}
 
 
 @pytest.fixture(scope="module")
@@ -1248,3 +1249,8 @@ def add_beliefs(
         for dt, val in zip(time_slots, values)
     ]
     db.session.add_all(beliefs)
+
+
+@pytest.fixture
+def mock_get_status(mocker: MockerFixture):
+    return mocker.patch("flexmeasures.data.services.sensors.get_status", autospec=True)
