@@ -216,6 +216,7 @@ class AssetCrudUI(FlaskView):
     """
 
     route_base = "/assets"
+    trailing_slash = False
 
     @login_required
     def index(self, msg=""):
