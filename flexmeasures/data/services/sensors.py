@@ -56,7 +56,7 @@ def get_sensors(
     return db.session.scalars(sensor_query).all()
 
 
-def get_sensor_bdf(sensor: Sensor, staleness_search: dict) -> BeliefsDataFrame | None:
+def _get_sensor_bdf(sensor: Sensor, staleness_search: dict) -> BeliefsDataFrame | None:
     """Get bdf for a given sensor with given search parameters."""
     bdf = TimedBelief.search(
         sensors=sensor,
@@ -76,7 +76,7 @@ def get_most_recent_knowledge_time(
     This knowledge time represents when you could have known about the event
     (specifically, when you could have formed an ex-post belief about it).
     """
-    staleness_bdf = get_sensor_bdf(sensor=sensor, staleness_search=staleness_search)
+    staleness_bdf = _get_sensor_bdf(sensor=sensor, staleness_search=staleness_search)
     return None if staleness_bdf is None else staleness_bdf.knowledge_times[-1]
 
 
