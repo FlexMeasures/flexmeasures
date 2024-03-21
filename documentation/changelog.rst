@@ -32,6 +32,7 @@ Infrastructure / Support
 * Support deleting beliefs via CLI for all offspring assets at once [see `PR #1003 <https://github.com/FlexMeasures/flexmeasures/pull/1003>`_]
 * Add setting ``FLEXMEASURES_FORCE_HTTPS`` to explicitly toggle if HTTPS should be used for all requests [see `PR #1008 <https://github.com/FlexMeasures/flexmeasures/pull/1008>`_]
 * Make flexmeasures installable locally on macOS [see `PR #1000 <https://github.com/FlexMeasures/flexmeasures/pull/1000>`_]
+* Align API endpoint policy w.r.t. trailing slash [see `PR #1014 <https://github.com/FlexMeasures/flexmeasures/pull/1014>`_]
 
 
 v0.19.2 | March 1, 2024
