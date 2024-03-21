@@ -64,6 +64,7 @@ setuptools-scm==8.0.4
     # via -r requirements/dev.in
 tomli==2.0.1
     # via
+    #   -c requirements/3.10/app.txt
     #   -c requirements/3.10/test.txt
     #   black
     #   mypy

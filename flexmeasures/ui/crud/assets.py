@@ -24,7 +24,7 @@ from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.crud.api_wrapper import InternalApi
-from flexmeasures.data.services.sensors import build_asset_status_data
+from flexmeasures.data.services.sensors import build_sensor_status_data
 
 
 """
@@ -310,7 +310,7 @@ class AssetCrudUI(FlaskView):
         asset_dict = get_asset_response.json()
 
         asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
-        status_data = build_asset_status_data(asset)
+        status_data = build_sensor_status_data(asset)
 
         return render_flexmeasures_template(
             "views/status.html", asset=asset, sensors=status_data

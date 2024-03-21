@@ -80,14 +80,8 @@ def get_most_recent_knowledge_time(
     return None if staleness_bdf is None else staleness_bdf.knowledge_times[-1]
 
 
-def get_max_event_start_time(sensor: Sensor, staleness_search: dict) -> datetime | None:
-    """Get the maximum event start time."""
-    forecast_bdf = get_sensor_bdf(sensor=sensor, staleness_search=staleness_search)
-    return None if forecast_bdf is None else forecast_bdf.event_starts[-1]
-
-
 def get_staleness(
-    sensor: Sensor, staleness_search: dict, now: datetime, is_forecast: bool = False
+    sensor: Sensor, staleness_search: dict, now: datetime
 ) -> timedelta | None:
     """Get the staleness of the sensor.
 
@@ -99,7 +93,6 @@ def get_staleness(
     :param staleness_search:    Deserialized keyword arguments to `TimedBelief.search`.
     :param now:                 Datetime representing now, used both to mask future beliefs,
                                 and to measures staleness against.
-    :param is_forecast:         Whether the sensor is a forecast sensor.
     """
 
     # Mask beliefs before now
@@ -110,17 +103,11 @@ def get_staleness(
     else:
         staleness_search["beliefs_before"] = now
 
-    if is_forecast:
-        staleness_search["event_starts_after"] = now
-        most_recent_knowledge_time = get_max_event_start_time(
-            sensor=sensor, staleness_search=staleness_search
-        )
-    else:
-        most_recent_knowledge_time = get_most_recent_knowledge_time(
-            sensor=sensor, staleness_search=staleness_search
-        )
-    if most_recent_knowledge_time is not None:
-        staleness = now - most_recent_knowledge_time
+    staleness_start_time = get_most_recent_knowledge_time(
+        sensor=sensor, staleness_search=staleness_search
+    )
+    if staleness_start_time is not None:
+        staleness = now - staleness_start_time
     else:
         staleness = None
 
@@ -147,30 +134,26 @@ def get_status(
     now: datetime,
     status_specs: dict | None = None,
 ) -> dict:
-    """Get the status of the sensor"""
+    """Get the status of the sensor
+    Main part of result here is a stale value, which is True if the sensor is stale, False otherwise.
+    Other values are just context information for the stale value.
+    """
     if status_specs is None:
         status_specs = get_status_specs(sensor=sensor)
     status_specs = StatusSchema().load(status_specs)
     max_staleness = status_specs.pop("max_staleness")
-    is_forecast = status_specs.pop("is_forecast", False)
     staleness_search = status_specs.pop("staleness_search")
-    staleness = get_staleness(
+    staleness: timedelta = get_staleness(
         sensor=sensor,
         staleness_search=staleness_search,
         now=now,
-        is_forecast=is_forecast,
     )
     if staleness is not None:
         staleness_since = now - staleness
         stale = staleness > max_staleness
-        comparison = "more" if staleness > timedelta(0) else "less"
-        timeline = "old" if staleness > timedelta(0) else "in the future"
-        max_staleness = (
-            max_staleness if max_staleness > timedelta(0) else -max_staleness
-        )
         reason = (
             "" if stale else "not "
-        ) + f"{comparison} than {naturaldelta(max_staleness)} {timeline}"
+        ) + f"more than {naturaldelta(max_staleness)} old"
         staleness = staleness if staleness > timedelta(0) else -staleness
     else:
         staleness_since = None
@@ -185,11 +168,20 @@ def get_status(
     return status
 
 
-def build_asset_status_data(
+def build_sensor_status_data(
     asset: Asset,
     now: datetime = None,
 ) -> list:
-    """Get asset status data."""
+    """Get data connectivity status information for each sensor in given asset and its children
+    Returns a list of dictionaries, each containing the following keys:
+    - id: sensor id
+    - name: sensor name
+    - asset_name: asset name
+    - staleness: staleness of the sensor (for how long the sensor data is stale)
+    - stale: whether the sensor is stale
+    - staleness_since: time since sensor data is considered stale
+    - reason: reason for staleness
+    """
     if not now:
         now = server_now()
 

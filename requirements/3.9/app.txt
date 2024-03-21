@@ -56,6 +56,8 @@ email-validator==2.1.0.post1
     # via
     #   -r requirements/app.in
     #   flask-security-too
+exceptiongroup==1.2.0
+    # via pytest
 filelock==3.13.1
     # via tldextract
 flask==2.2.5
@@ -121,12 +123,14 @@ importlib-metadata==7.0.1
     #   -r requirements/app.in
     #   flask
     #   timely-beliefs
-importlib-resources==6.1.1
+importlib-resources==6.3.2
     # via matplotlib
 inflect==6.0.2
     # via -r requirements/app.in
 inflection==0.5.1
     # via -r requirements/app.in
+iniconfig==2.0.0
+    # via pytest
 iso8601==2.1.0
     # via -r requirements/app.in
 isodate==0.6.1
@@ -197,6 +201,7 @@ packaging==23.2
     #   altair
     #   marshmallow
     #   matplotlib
+    #   pytest
     #   sktime
     #   statsmodels
     #   webargs
@@ -218,6 +223,8 @@ pillow==10.2.0
     #   matplotlib
 pint==0.23
     # via -r requirements/app.in
+pluggy==1.4.0
+    # via pytest
 ply==3.11
     # via pyomo
 properscoring==0.1
@@ -244,6 +251,10 @@ pyomo==6.7.0
     # via -r requirements/app.in
 pyparsing==3.1.1
     # via matplotlib
+pytest==8.0.0
+    # via pytest-mock
+pytest-mock==3.12.0
+    # via -r requirements/app.in
 python-dateutil==2.8.2
     # via
     #   arrow
@@ -332,6 +343,8 @@ timetomodel==0.7.3
     # via -r requirements/app.in
 tldextract==5.1.1
     # via -r requirements/app.in
+tomli==2.0.1
+    # via pytest
 toolz==0.12.1
     # via altair
 types-python-dateutil==2.8.19.20240106
