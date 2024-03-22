@@ -21,6 +21,7 @@ from flexmeasures.data.models.planning.utils import (
     get_power_values,
     fallback_charging_policy,
     get_continuous_series_sensor_or_quantity,
+    create_soc_schedule,
 )
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
 from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
@@ -547,10 +548,12 @@ class StorageFallbackScheduler(MetaStorageScheduler):
         storage_schedule = fallback_charging_policy(
             sensor, device_constraints[0], start, end, resolution
         )
+        soc_schedule, soc_sensor = create_soc_schedule(sensor, storage_schedule, soc_at_start)
 
         # Round schedule
         if self.round_to_decimals:
             storage_schedule = storage_schedule.round(self.round_to_decimals)
+            soc_schedule = soc_schedule.round(self.round_to_decimals)
 
         if self.return_multiple:
             return [
@@ -558,6 +561,11 @@ class StorageFallbackScheduler(MetaStorageScheduler):
                     "name": "storage_schedule",
                     "sensor": sensor,
                     "data": storage_schedule,
+                },
+                {
+                    "name": "soc_schedule",
+                    "sensor": soc_sensor,
+                    "data": soc_schedule,
                 }
             ]
         else:
@@ -604,10 +612,11 @@ class StorageScheduler(MetaStorageScheduler):
 
         # Obtain the storage schedule from all device schedules within the EMS
         storage_schedule = ems_schedule[0]
-
+        soc_schedule, soc_sensor = create_soc_schedule(sensor, storage_schedule, soc_at_start)
         # Round schedule
         if self.round_to_decimals:
             storage_schedule = storage_schedule.round(self.round_to_decimals)
+            soc_schedule = soc_schedule.round(self.round_to_decimals)
 
         if self.return_multiple:
             return [
@@ -615,6 +624,11 @@ class StorageScheduler(MetaStorageScheduler):
                     "name": "storage_schedule",
                     "sensor": sensor,
                     "data": storage_schedule,
+                },
+                {
+                    "name": "soc_schedule",
+                    "sensor": soc_sensor,
+                    "data": soc_schedule,
                 }
             ]
         else:
