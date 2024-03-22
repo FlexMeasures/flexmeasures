@@ -431,13 +431,15 @@ def nanmin_of_series_and_value(s: pd.Series, value: float | pd.Series) -> pd.Ser
     return s.fillna(value).clip(upper=value)
 
 
-def create_soc_schedule(sensor: Sensor, data: pd.Series, soc_at_start: float) -> tuple[pd.Series, Sensor]:
+def create_soc_schedule(
+    sensor: Sensor, data: pd.Series, soc_at_start: float
+) -> tuple[pd.Series, Sensor]:
     """Generates a state of charge (SOC) schedule from provided data and creates or retrieves an SOC sensor."""
     asset = db.session.scalars(
-        select(Asset).filter_by(id=sensor.generic_asset_id)).one_or_none()
+        select(Asset).filter_by(id=sensor.generic_asset_id)
+    ).one_or_none()
 
-    soc_schedule = integrate_time_series(
-        data, soc_at_start, decimal_precision=6)
+    soc_schedule = integrate_time_series(data, soc_at_start, decimal_precision=6)
 
     soc_sensor = get_or_create_model(
         Sensor,

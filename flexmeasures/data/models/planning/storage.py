@@ -548,7 +548,9 @@ class StorageFallbackScheduler(MetaStorageScheduler):
         storage_schedule = fallback_charging_policy(
             sensor, device_constraints[0], start, end, resolution
         )
-        soc_schedule, soc_sensor = create_soc_schedule(sensor, storage_schedule, soc_at_start)
+        soc_schedule, soc_sensor = create_soc_schedule(
+            sensor, storage_schedule, soc_at_start
+        )
 
         # Round schedule
         if self.round_to_decimals:
@@ -566,7 +568,7 @@ class StorageFallbackScheduler(MetaStorageScheduler):
                     "name": "soc_schedule",
                     "sensor": soc_sensor,
                     "data": soc_schedule,
-                }
+                },
             ]
         else:
             return storage_schedule
@@ -612,7 +614,9 @@ class StorageScheduler(MetaStorageScheduler):
 
         # Obtain the storage schedule from all device schedules within the EMS
         storage_schedule = ems_schedule[0]
-        soc_schedule, soc_sensor = create_soc_schedule(sensor, storage_schedule, soc_at_start)
+        soc_schedule, soc_sensor = create_soc_schedule(
+            sensor, storage_schedule, soc_at_start
+        )
         # Round schedule
         if self.round_to_decimals:
             storage_schedule = storage_schedule.round(self.round_to_decimals)
@@ -629,7 +633,7 @@ class StorageScheduler(MetaStorageScheduler):
                     "name": "soc_schedule",
                     "sensor": soc_sensor,
                     "data": soc_schedule,
-                }
+                },
             ]
         else:
             return storage_schedule
