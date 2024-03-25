@@ -1883,10 +1883,13 @@ def test_battery_storage_efficiency_sensor(
         ),
         # A value defined in a finer resolution is downsampled to match the power sensor resolution.
         # Only a single value coincides with the power sensor resolution.
-        (
+        pytest.param(
             "soc-targets (5min)",
             "14:00:00",
-            "14:15:00",  # todo: change to "14:00:00" after timely-beliefs makes it possible to resample to a certain frequency and event resolution simultaneously
+            "14:00:00",  # not "14:15:00"
+            marks=pytest.mark.xfail(
+                reason="timely-beliefs doesn't yet make it possible to resample to a certain frequency and event resolution simultaneously"
+            ),
         ),
         # A simple case, SOC constraint sensor in the same resolution as the power sensor.
         (
