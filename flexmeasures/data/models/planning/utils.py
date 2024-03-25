@@ -337,12 +337,16 @@ def get_series_from_quantity_or_sensor(
     """
     Get a time series given a quantity or sensor defined on a time window.
 
-    :param quantity_or_sensor:  pint Quantity or timely-beliefs Sensor, measuring e.g. power capacity or efficiency
-    :param unit:                unit of the output data.
-    :param query_window:        tuple representing the start and end of the requested data
-    :param resolution:          time resolution of the requested data
-    :param beliefs_before:      optional datetime used to indicate we are interested in the state of knowledge at that time
-    :return:                    pandas Series with the requested time series data
+    :param quantity_or_sensor:      A pint Quantity or timely-beliefs Sensor, measuring e.g. power capacity
+                                    or efficiency.
+    :param unit:                    Unit of the output data.
+    :param query_window:            Tuple representing the start and end of the requested data.
+    :param resolution:              Time resolution of the requested data.
+    :param beliefs_before:          Optional datetime used to indicate we are interested in the state of knowledge
+                                    at that time.
+    :param as_instantaneous_events: Optionally, convert to instantaneous events, in which case the passed resolution is
+                                    interpreted as the desired frequency of the data.
+    :return:                        Pandas Series with the requested time series data.
     """
 
     start, end = query_window
@@ -401,6 +405,8 @@ def get_continuous_series_sensor_or_quantity(
     :param beliefs_before:          Timestamp for prior beliefs or knowledge.
     :param fallback_attribute:      Attribute serving as a fallback default in case no quantity or sensor is given.
     :param max_value:               Maximum value (also replacing NaN values).
+    :param as_instantaneous_events: optionally, convert to instantaneous events, in which case the passed resolution is
+                                    interpreted as the desired frequency of the data.
     :returns:                       time series data with missing values handled based on the chosen method.
     """
     if quantity_or_sensor is None:
