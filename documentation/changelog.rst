@@ -7,17 +7,33 @@ FlexMeasures Changelog
 v0.20.0 | April XX, 2024
 ============================
 
+.. warning:: From this version on, the config setting `FLEXMEASURES_FORCE_HTTPS` decides whether to enforce HTTPS on requests - and it defaults to `False`. Previously, this was governed by `Flask_ENV` or `FLEXMEASURES_ENV` being set to something else than "documentation" or "development". This new way is more clear, but you might be in need of using this setting before upgrading.
+
 New features
 -------------   
 
 * Add command ``flexmeasures edit transfer-ownership`` to transfer the ownership of an asset and its children from one account to another[see `PR #983 <https://github.com/FlexMeasures/flexmeasures/pull/983>`_]
 * Support defining the ``site-power-capacity``, ``site-consumption-capacity`` and ``site-production-capacity`` as a sensor in the API and CLI [see `PR #985 <https://github.com/FlexMeasures/flexmeasures/pull/985>`_]
-* Support defining the ``soc-minima``, ``soc-maxima`` and ``soc-targets`` as sensors in the API [see `PR #996 <https://github.com/FlexMeasures/flexmeasures/pull/996>`_] 
+* Support defining the ``soc-minima``, ``soc-maxima`` and ``soc-targets`` as sensors in the API [see `PR #996 <https://github.com/FlexMeasures/flexmeasures/pull/996>`_]
+* Support defining inflexible power sensors with arbitrary power and energy units [see `PR #1007 <https://github.com/FlexMeasures/flexmeasures/pull/1007>`_]
+* Support saving beliefs with a ``belief_horizon`` in the ``PandasReporter``[see `PR #1013 <https://github.com/FlexMeasures/flexmeasures/pull/1013>`_]
+* Skip the check of the output event resolution in any ``Reporter`` with the field ``check_output_resolution`` [see `PR #1009 <https://github.com/FlexMeasures/flexmeasures/pull/1009>`_]
+
+Bugfixes
+-----------
+
+* Use minimum event resolution of the input (instead of the output) sensors for the belief search parameters [see `PR #1010 <https://github.com/FlexMeasures/flexmeasures/pull/1010>`_]
+
+
 
 Infrastructure / Support
 ----------------------
 
-
+* Improve processing time for deleting beliefs via CLI [see `PR #1005 <https://github.com/FlexMeasures/flexmeasures/pull/1005>`_]
+* Support deleting beliefs via CLI for all offspring assets at once [see `PR #1003 <https://github.com/FlexMeasures/flexmeasures/pull/1003>`_]
+* Add setting ``FLEXMEASURES_FORCE_HTTPS`` to explicitly toggle if HTTPS should be used for all requests [see `PR #1008 <https://github.com/FlexMeasures/flexmeasures/pull/1008>`_]
+* Make flexmeasures installable locally on macOS [see `PR #1000 <https://github.com/FlexMeasures/flexmeasures/pull/1000>`_]
+* Align API endpoint policy w.r.t. trailing slash [see `PR #1014 <https://github.com/FlexMeasures/flexmeasures/pull/1014>`_]
 
 
 v0.19.2 | March 1, 2024

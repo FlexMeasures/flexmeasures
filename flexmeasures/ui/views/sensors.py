@@ -24,9 +24,10 @@ class SensorUI(FlaskView):
     """
 
     route_base = "/sensors"
+    trailing_slash = False
 
     @auth_required()
-    @route("/<id>/chart/")
+    @route("/<id>/chart")
     @use_kwargs(
         {
             "event_starts_after": AwareDateTimeField(format="iso", required=False),

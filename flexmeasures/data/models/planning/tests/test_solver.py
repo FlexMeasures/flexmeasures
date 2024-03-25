@@ -26,7 +26,7 @@ from flexmeasures.utils.calculations import (
     integrate_time_series,
 )
 from flexmeasures.tests.utils import get_test_sensor
-
+from flexmeasures.utils.unit_utils import convert_units
 
 TOLERANCE = 0.00001
 
@@ -586,9 +586,20 @@ def test_building_solver_day_2(
     with pd.option_context("display.max_rows", None, "display.max_columns", 3):
         print(soc_schedule)
 
+    unit_factors = np.expand_dims(
+        [
+            convert_units(1, s.unit, "MW")
+            for s in add_inflexible_device_forecasts.keys()
+        ],
+        axis=1,
+    )
+    inflexible_devices_power = np.array(list(add_inflexible_device_forecasts.values()))
+
     # Check if constraints were met
     capacity = pd.DataFrame(
-        data=np.sum(np.array(list(add_inflexible_device_forecasts.values())), axis=0),
+        data=inflexible_devices_power.T.dot(
+            unit_factors
+        ),  # convert to MW and sum column-wise
         columns=["inflexible"],
     ).tail(
         -4 * 24
