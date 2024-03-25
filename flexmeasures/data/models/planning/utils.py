@@ -178,7 +178,7 @@ def get_power_values(
     beliefs_before: datetime | None,
     sensor: Sensor,
 ) -> np.ndarray:
-    """Get measurements or forecasts of an inflexible device represented by a power sensor.
+    """Get measurements or forecasts of an inflexible device represented by a power or energy sensor as an array of power values in MW.
 
     If the requested schedule lies in the future, the returned data will consist of (the most recent) forecasts (if any exist).
     If the requested schedule lies in the past, the returned data will consist of (the most recent) measurements (if any exist).
@@ -208,12 +208,14 @@ def get_power_values(
         )
         df = df.fillna(0)
 
+    series = convert_units(df.values, sensor.unit, "MW")
+
     if sensor.get_attribute(
         "consumption_is_positive", False
     ):  # FlexMeasures default is to store consumption as negative power values
-        return df.values
+        return series
 
-    return -df.values
+    return -series
 
 
 def fallback_charging_policy(
@@ -329,16 +331,22 @@ def get_series_from_quantity_or_sensor(
     query_window: tuple[datetime, datetime],
     resolution: timedelta,
     beliefs_before: datetime | None = None,
+    as_instantaneous_events: bool = True,
+    boundary_policy: str | None = None,
 ) -> pd.Series:
     """
     Get a time series given a quantity or sensor defined on a time window.
 
-    :param quantity_or_sensor:  pint Quantity or timely-beliefs Sensor, measuring e.g. power capacity or efficiency
-    :param unit:                unit of the output data.
-    :param query_window:        tuple representing the start and end of the requested data
-    :param resolution:          time resolution of the requested data
-    :param beliefs_before:      optional datetime used to indicate we are interested in the state of knowledge at that time
-    :return:                    pandas Series with the requested time series data
+    :param quantity_or_sensor:      A pint Quantity or timely-beliefs Sensor, measuring e.g. power capacity
+                                    or efficiency.
+    :param unit:                    Unit of the output data.
+    :param query_window:            Tuple representing the start and end of the requested data.
+    :param resolution:              Time resolution of the requested data.
+    :param beliefs_before:          Optional datetime used to indicate we are interested in the state of knowledge
+                                    at that time.
+    :param as_instantaneous_events: Optionally, convert to instantaneous events, in which case the passed resolution is
+                                    interpreted as the desired frequency of the data.
+    :return:                        Pandas Series with the requested time series data.
     """
 
     start, end = query_window
@@ -356,12 +364,16 @@ def get_series_from_quantity_or_sensor(
             event_starts_after=query_window[0],
             event_ends_before=query_window[1],
             resolution=resolution,
+            # frequency=resolution,
             beliefs_before=beliefs_before,
             most_recent_beliefs_only=True,
             one_deterministic_belief_per_event=True,
         )
+        if as_instantaneous_events:
+            bdf = bdf.resample_events(timedelta(0), boundary_policy=boundary_policy)
         time_series = simplify_index(bdf).reindex(index).squeeze()
         time_series = convert_units(time_series, quantity_or_sensor.unit, unit)
+
     else:
         raise TypeError(
             f"quantity_or_sensor {quantity_or_sensor} should be a pint Quantity or timely-beliefs Sensor"
@@ -379,6 +391,8 @@ def get_continuous_series_sensor_or_quantity(
     beliefs_before: datetime | None = None,
     fallback_attribute: str | None = None,
     max_value: float | int | pd.Series = np.nan,
+    as_instantaneous_events: bool = False,
+    boundary_policy: str | None = None,
 ) -> pd.Series:
     """Creates a time series from a quantity or sensor within a specified window,
     falling back to a given `fallback_attribute` and making sure no values exceed `max_value`.
@@ -391,6 +405,8 @@ def get_continuous_series_sensor_or_quantity(
     :param beliefs_before:          Timestamp for prior beliefs or knowledge.
     :param fallback_attribute:      Attribute serving as a fallback default in case no quantity or sensor is given.
     :param max_value:               Maximum value (also replacing NaN values).
+    :param as_instantaneous_events: optionally, convert to instantaneous events, in which case the passed resolution is
+                                    interpreted as the desired frequency of the data.
     :returns:                       time series data with missing values handled based on the chosen method.
     """
     if quantity_or_sensor is None:
@@ -406,6 +422,8 @@ def get_continuous_series_sensor_or_quantity(
         query_window=query_window,
         resolution=resolution,
         beliefs_before=beliefs_before,
+        as_instantaneous_events=as_instantaneous_events,
+        boundary_policy=boundary_policy,
     )
 
     # Apply upper limit

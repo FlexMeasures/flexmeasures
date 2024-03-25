@@ -26,7 +26,7 @@ from flexmeasures.utils.calculations import (
     integrate_time_series,
 )
 from flexmeasures.tests.utils import get_test_sensor
-
+from flexmeasures.utils.unit_utils import convert_units
 
 TOLERANCE = 0.00001
 
@@ -586,9 +586,20 @@ def test_building_solver_day_2(
     with pd.option_context("display.max_rows", None, "display.max_columns", 3):
         print(soc_schedule)
 
+    unit_factors = np.expand_dims(
+        [
+            convert_units(1, s.unit, "MW")
+            for s in add_inflexible_device_forecasts.keys()
+        ],
+        axis=1,
+    )
+    inflexible_devices_power = np.array(list(add_inflexible_device_forecasts.values()))
+
     # Check if constraints were met
     capacity = pd.DataFrame(
-        data=np.sum(np.array(list(add_inflexible_device_forecasts.values())), axis=0),
+        data=inflexible_devices_power.T.dot(
+            unit_factors
+        ),  # convert to MW and sum column-wise
         columns=["inflexible"],
     ).tail(
         -4 * 24
@@ -1864,22 +1875,37 @@ def test_battery_storage_efficiency_sensor(
 @pytest.mark.parametrize(
     "sensor_name, expected_start, expected_end",
     [
+        # A value defined in a coarser resolution is upsampled to match the power sensor resolution.
         (
             "soc-targets (1h)",
             "14:00:00",
-            "14:45:00",
-        ),  # A value defined in a larger resolution is downsampled to match the power sensor resolution.
+            "15:00:00",
+        ),
+        # A value defined in a finer resolution is downsampled to match the power sensor resolution.
+        # Only a single value coincides with the power sensor resolution.
+        pytest.param(
+            "soc-targets (5min)",
+            "14:00:00",
+            "14:00:00",  # not "14:15:00"
+            marks=pytest.mark.xfail(
+                reason="timely-beliefs doesn't yet make it possible to resample to a certain frequency and event resolution simultaneously"
+            ),
+        ),
+        # A simple case, SOC constraint sensor in the same resolution as the power sensor.
         (
             "soc-targets (15min)",
             "14:00:00",
-            "14:00:00",
-        ),  # A simple case, SOC constraint sensor in the sample resolution as the power sensor.
+            "14:15:00",
+        ),
+        # For an instantaneous sensor, the value is set to the interval containing the instantaneous event.
         (
             "soc-targets (instantaneous)",
             "14:00:00",
             "14:00:00",
-        ),  # For an instantaneous sensor, the value is set to the interval containing the instantaneous event.
-        pytest.param(  # This is an event at 14:05:00 with a duration of 15min. These constraint should span the intervals 14:00 and 14:15 but we are not reindexing properly.
+        ),
+        # This is an event at 14:05:00 with a duration of 15min.
+        # This constraint should span the intervals from 14:00 to 14:15 and from 14:15 to 14:30, but we are not reindexing properly.
+        pytest.param(
             "soc-targets (15min lagged)",
             "14:00:00",
             "14:15:00",

@@ -182,6 +182,8 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
+                as_instantaneous_events=True,
+                boundary_policy="first",
             )
         if isinstance(soc_minima, Sensor):
             soc_minima = get_continuous_series_sensor_or_quantity(
@@ -191,6 +193,8 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
+                as_instantaneous_events=True,
+                boundary_policy="max",
             )
         if isinstance(soc_maxima, Sensor):
             soc_maxima = get_continuous_series_sensor_or_quantity(
@@ -200,6 +204,8 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
+                as_instantaneous_events=True,
+                boundary_policy="min",
             )
 
         device_constraints[0] = add_storage_constraints(
@@ -685,14 +691,15 @@ def build_device_soc_values(
 
     Should set NaN anywhere where there is no target.
 
-    SOC values should be indexed by their due date. For example, for quarter-hourly targets between 5 and 6 AM:
-    >>> df = pd.Series(data=[1, 2, 2.5, 3], index=pd.date_range(datetime(2010,1,1,5), datetime(2010,1,1,6), freq=timedelta(minutes=15), inclusive="right"))
+    SOC values should be indexed by their due date. For example, for quarter-hourly targets from 5 to 6 AM:
+    >>> df = pd.Series(data=[1, 1.5, 2, 2.5, 3], index=pd.date_range(pd.Timestamp("2010-01-01T05"), pd.Timestamp("2010-01-01T06"), freq=pd.Timedelta("PT15M"), inclusive="both"))
     >>> print(df)
-        2010-01-01 05:15:00    1.0
-        2010-01-01 05:30:00    2.0
-        2010-01-01 05:45:00    2.5
-        2010-01-01 06:00:00    3.0
-        Freq: 15T, dtype: float64
+    2010-01-01 05:00:00    1.0
+    2010-01-01 05:15:00    1.5
+    2010-01-01 05:30:00    2.0
+    2010-01-01 05:45:00    2.5
+    2010-01-01 06:00:00    3.0
+    Freq: 15T, dtype: float64
 
     TODO: this function could become the deserialization method of a new TimedEventSchema (targets, plural), which wraps TimedEventSchema.
 

@@ -106,7 +106,7 @@ def create(  # noqa C901
     set_secret_key(app)
     if app.config.get("SECURITY_PASSWORD_SALT", None) is None:
         app.config["SECURITY_PASSWORD_SALT"] = app.config["SECRET_KEY"]
-    if app.config.get("FLEXMEASURES_ENV") not in ("documentation", "development"):
+    if app.config.get("FLEXMEASURES_FORCE_HTTPS", False):
         SSLify(app)
 
     # Prepare profiling, if needed

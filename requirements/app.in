@@ -15,7 +15,8 @@ inflect<=6.0.2
 pydantic<2
 humanize
 psycopg2-binary
-bcrypt
+# due to https://github.com/Flask-Middleware/flask-security/issues/907
+bcrypt<=4.0.1
 pytz
 # limit the numpy version to make it compatible with dependencies in timely-beliefs >=1.18 (libraries sktime, numba).
 numpy<1.25
@@ -34,7 +35,7 @@ pyomo>=5.6
 tabulate
 timetomodel>=0.7.3
 # significantly faster db queries
-timely-beliefs[forecast]>=2.1
+timely-beliefs[forecast]>=2.2
 python-dotenv
 # a backport, not needed in Python3.8
 importlib_metadata

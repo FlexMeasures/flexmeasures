@@ -15,7 +15,7 @@ from flexmeasures.data.models.time_series import Sensor, TimedBelief
 def app_with_each_solver(app, request):
     """Set up the app config to run with different solvers.
 
-    A test that uses this fixtures runs all of its test cases with HiGHS and then again with Cbc.
+    A test that uses this fixture runs all of its test cases with HiGHS and then again with Cbc.
     """
     original_solver = app.config["FLEXMEASURES_LP_SOLVER"]
     app.config["FLEXMEASURES_LP_SOLVER"] = request.param
@@ -145,7 +145,7 @@ def inflexible_devices(db, building) -> dict[str, Sensor]:
         name="PV power sensor",
         generic_asset=building,
         event_resolution=timedelta(hours=1),
-        unit="kW",
+        unit="MW",
         attributes={"capacity_in_mw": 2},
     )
     db.session.add(pv_sensor)
@@ -186,9 +186,9 @@ def add_inflexible_device_forecasts(
     ) * (len(time_slots) // (24 * 4))
     add_as_beliefs(db, pv_sensor, pv_values, time_slots, setup_sources["Seita"])
 
-    # Residual demand (1 MW continuously)
+    # Residual demand (1 MW = 1000 kW continuously)
     residual_demand_sensor = inflexible_devices["residual demand power sensor"]
-    residual_demand_values = [-1] * len(time_slots)
+    residual_demand_values = [-1000] * len(time_slots)
     add_as_beliefs(
         db,
         residual_demand_sensor,
@@ -386,6 +386,7 @@ def add_soc_targets(db, add_battery_assets, setup_sources) -> dict[str, Sensor]:
         ("soc-targets (1h)", timedelta(minutes=60), timedelta(minutes=0)),
         ("soc-targets (15min)", timedelta(minutes=15), timedelta(minutes=0)),
         ("soc-targets (15min lagged)", timedelta(minutes=15), timedelta(minutes=5)),
+        ("soc-targets (5min)", timedelta(minutes=5), timedelta(minutes=0)),
         ("soc-targets (instantaneous)", timedelta(minutes=0), timedelta(minutes=0)),
     ]
 
