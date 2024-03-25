@@ -167,29 +167,26 @@ def asset_icon_name(asset_type_name: str) -> str:
     becomes (for a battery):
         <i class="icon-battery"></i>
     """
-    # power asset exceptions
-    if "evse" in asset_type_name.lower() or "charge point" in asset_type_name.lower():
-        return "icon-charging_station"
-    if "project" in asset_type_name.lower():
-        return "icon-calculator"
-    if "tariff" in asset_type_name.lower():
-        return "icon-time"
-    if "site" in asset_type_name.lower():
-        return "icon-empty-marker"
-    if "scenario" in asset_type_name.lower():
-        return "icon-binoculars"
-    # weather exceptions
-    if asset_type_name == "irradiance":
-        return "wi wi-horizon-alt"
-    elif asset_type_name == "temperature":
-        return "wi wi-thermometer"
-    elif asset_type_name == "wind direction":
-        return "wi wi-wind-direction"
-    elif asset_type_name == "wind speed":
-        return "wi wi-strong-wind"
-    # aggregation exceptions
-    elif asset_type_name == "renewables":
-        return "icon-wind"
+    icon_mapping = {
+        # site structure
+        "evse": "icon-charging_station",
+        "charge point": "icon-charging_station",
+        "project": "icon-calculator",
+        "tariff": "icon-time",
+        "renewables": "icon-wind",
+        "site": "icon-empty-marker",
+        "scenario": "icon-binoculars",
+        # weather
+        "irradiance": "wi wi-horizon-alt",
+        "temperature": "wi wi-thermometer",
+        "wind direction": "wi wi-wind-direction",
+        "wind speed": "wi wi-strong-wind",
+    }
+
+    for asset_group_name, icon_name in icon_mapping.items():
+        if asset_group_name in asset_type_name.lower():
+            return icon_name
+
     return f"icon-{asset_type_name}"
 
 
