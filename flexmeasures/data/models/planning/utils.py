@@ -360,7 +360,6 @@ def get_series_from_quantity_or_sensor(
             event_starts_after=query_window[0],
             event_ends_before=query_window[1],
             resolution=resolution,
-            # resolution=resolution if not boundary_policy else timedelta(0),  # NotImplementedError in timely-beliefs
             # frequency=resolution,
             beliefs_before=beliefs_before,
             most_recent_beliefs_only=True,

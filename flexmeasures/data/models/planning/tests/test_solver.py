@@ -1888,7 +1888,7 @@ def test_battery_storage_efficiency_sensor(
             "14:00:00",
             "14:15:00",  # todo: change to "14:00:00" after timely-beliefs makes it possible to resample to a certain frequency and event resolution simultaneously
         ),
-        # A simple case, SOC constraint sensor in the sample resolution as the power sensor.
+        # A simple case, SOC constraint sensor in the same resolution as the power sensor.
         (
             "soc-targets (15min)",
             "14:00:00",
