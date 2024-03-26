@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from timely_beliefs import BeliefsDataFrame
+from pandas.api.typing import DataFrameGroupBy
+from typing import Dict, List
 
 from humanize.time import naturaldelta
 
@@ -56,8 +57,10 @@ def get_sensors(
     return db.session.scalars(sensor_query).all()
 
 
-def _get_sensor_bdf(sensor: Sensor, staleness_search: dict) -> BeliefsDataFrame | None:
-    """Get bdf for a given sensor with given search parameters."""
+def _get_sensor_bdfs_by_source(
+    sensor: Sensor, staleness_search: dict
+) -> DataFrameGroupBy | None:
+    """Get bdf split by source for a given sensor with given search parameters."""
     bdf = TimedBelief.search(
         sensors=sensor,
         most_recent_events_only=True,
@@ -65,25 +68,42 @@ def _get_sensor_bdf(sensor: Sensor, staleness_search: dict) -> BeliefsDataFrame 
     )
     if bdf.empty:
         return None
-    return bdf
+    return bdf.groupby(level=["source"], group_keys=False)
 
 
-def get_most_recent_knowledge_time(
-    sensor: Sensor, staleness_search: dict
-) -> datetime | None:
-    """Get the knowledge time of the sensor's most recent event.
+def get_staleness_start_times(
+    sensor: Sensor, staleness_search: dict, now: datetime
+) -> Dict[str, timedelta] | None:
+    """Get staleness start times for a given sensor by source.
+    For scheduler and forecaster sources staleness start is latest event start time.
 
+    For other sources staleness start is the knowledge time of the sensor's most recent event.
     This knowledge time represents when you could have known about the event
     (specifically, when you could have formed an ex-post belief about it).
     """
-    staleness_bdf = _get_sensor_bdf(sensor=sensor, staleness_search=staleness_search)
-    return None if staleness_bdf is None else staleness_bdf.knowledge_times[-1]
+    staleness_bdfs = _get_sensor_bdfs_by_source(
+        sensor=sensor, staleness_search=staleness_search
+    )
+    if staleness_bdfs is None:
+        return None
+
+    start_times = dict()
+    for source, bdf in staleness_bdfs:
+        time_column = "knowledge_times"
+        source = str(source)
+        if source in ("scheduler", "forecaster"):
+            # filter to get only future events
+            bdf = bdf[bdf.event_starts > now]
+            time_column = "event_starts"
+        start_times[source] = getattr(bdf, time_column)[-1] if not bdf.empty else None
+
+    return start_times
 
 
-def get_staleness(
+def get_stalenesses(
     sensor: Sensor, staleness_search: dict, now: datetime
-) -> timedelta | None:
-    """Get the staleness of the sensor.
+) -> Dict[str, timedelta] | None:
+    """Get the staleness of the sensor split by source.
 
     The staleness is defined relative to the knowledge time of the most recent event, rather than to its belief time.
     Basically, that means that we don't really care when the data arrived,
@@ -97,44 +117,50 @@ def get_staleness(
 
     # Mask beliefs before now
     staleness_search = staleness_search.copy()  # no inplace operations
-    beliefs_before = staleness_search.get("beliefs_before")
-    if beliefs_before is not None:
-        staleness_search["beliefs_before"] = min(beliefs_before, now)
-    else:
-        staleness_search["beliefs_before"] = now
-
-    staleness_start_time = get_most_recent_knowledge_time(
-        sensor=sensor, staleness_search=staleness_search
+    staleness_search["beliefs_before"] = min(
+        now, staleness_search.get("beliefs_before", now)
     )
-    if staleness_start_time is not None:
-        staleness = now - staleness_start_time
-    else:
-        staleness = None
 
-    return staleness
+    staleness_start_times = get_staleness_start_times(
+        sensor=sensor, staleness_search=staleness_search, now=now
+    )
+    if staleness_start_times is None:
+        return None
+
+    stalenesses = dict()
+    for source, start_time in staleness_start_times.items():
+        stalenesses[str(source)] = None if start_time is None else now - start_time
+
+    return stalenesses
 
 
 def get_status_specs(sensor: Sensor) -> dict:
     """Get status specs from a given sensor."""
 
     # Check for explicitly defined status specs
-    status_specs = sensor.attributes.get("status_specs")
-    if status_specs is None:
-        # Default to status specs for economical sensors with daily updates
-        if sensor.knowledge_horizon_fnc == "x_days_ago_at_y_oclock":
-            status_specs = {"staleness_search": {}, "max_staleness": "P1D"}
-        else:
-            # Default to status specs indicating immediate staleness after knowledge time
-            status_specs = {"staleness_search": {}, "max_staleness": "PT0H"}
+    status_specs = sensor.attributes.get("status_specs", dict())
+    if status_specs:
+        return status_specs
+
+    status_specs["staleness_search"] = {}
+    # Consider forecast or schedule data stale if it is less than 12 hours in the future
+    status_specs["max_future_staleness"] = "-PT12H"
+
+    # Default to status specs for economical sensors with daily updates
+    if sensor.knowledge_horizon_fnc == "x_days_ago_at_y_oclock":
+        status_specs["max_staleness"] = "P1D"
+    else:
+        # Default to status specs indicating immediate staleness after knowledge time
+        status_specs["max_staleness"] = "PT0H"
     return status_specs
 
 
-def get_status(
+def get_statuses(
     sensor: Sensor,
     now: datetime,
     status_specs: dict | None = None,
-) -> dict:
-    """Get the status of the sensor
+) -> List[Dict]:
+    """Get the status of the sensor by source type.
     Main part of result here is a stale value, which is True if the sensor is stale, False otherwise.
     Other values are just context information for the stale value.
     """
@@ -142,37 +168,54 @@ def get_status(
         status_specs = get_status_specs(sensor=sensor)
     status_specs = StatusSchema().load(status_specs)
     max_staleness = status_specs.pop("max_staleness")
+    max_future_staleness = status_specs.pop("max_future_staleness")
     staleness_search = status_specs.pop("staleness_search")
-    staleness: timedelta = get_staleness(
+    stalenesses = get_stalenesses(
         sensor=sensor,
         staleness_search=staleness_search,
         now=now,
     )
-    if staleness is not None:
-        staleness_since = now - staleness
-        stale = staleness > max_staleness
-        reason = (
-            "" if stale else "not "
-        ) + f"more than {naturaldelta(max_staleness)} old"
-        staleness = staleness if staleness > timedelta(0) else -staleness
-    else:
-        staleness_since = None
-        stale = True
-        reason = "no data recorded"
-    status = dict(
-        staleness=staleness,
-        stale=stale,
-        staleness_since=staleness_since,
-        reason=reason,
-    )
-    return status
+
+    statuses = list()
+    for source, staleness in (stalenesses or {None: None}).items():
+        if staleness is None:
+            staleness_since = None
+            stale = True
+            reason = "no data recorded"
+        else:
+            max_staleness = (
+                max_staleness if staleness > timedelta(0) else max_future_staleness
+            )
+            staleness_since = now - staleness
+            stale = staleness > max_staleness
+            comparison = "more" if staleness > timedelta(0) else "less"
+            timeline = "old" if staleness > timedelta(0) else "in the future"
+            max_staleness = (
+                max_staleness if max_staleness > timedelta(0) else -max_staleness
+            )
+            reason = (
+                "" if stale else "not "
+            ) + f"{comparison} than {naturaldelta(max_staleness)} {timeline}"
+            staleness = staleness if staleness > timedelta(0) else -staleness
+
+        statuses.append(
+            dict(
+                staleness=staleness,
+                stale=stale,
+                staleness_since=staleness_since,
+                reason=reason,
+                source=source,
+            )
+        )
+
+    return statuses
 
 
 def build_sensor_status_data(
     asset: Asset,
     now: datetime = None,
 ) -> list:
-    """Get data connectivity status information for each sensor in given asset and its children
+    """Get data connectivity status information for each sensor split by source in given asset and its children
     Returns a list of dictionaries, each containing the following keys:
     - id: sensor id
     - name: sensor name
@@ -181,6 +224,7 @@ def build_sensor_status_data(
     - stale: whether the sensor is stale
     - staleness_since: time since sensor data is considered stale
     - reason: reason for staleness
+    - source: source of the sensor data
     """
     if not now:
         now = server_now()
@@ -188,12 +232,13 @@ def build_sensor_status_data(
     sensors = []
     for asset in (asset, *asset.child_assets):
         for sensor in asset.sensors:
-            sensor_status = get_status(
+            sensor_statuses = get_statuses(
                 sensor=sensor,
                 now=now,
             )
-            sensor_status["name"] = sensor.name
-            sensor_status["id"] = sensor.id
-            sensor_status["asset_name"] = asset.name
-            sensors.append(sensor_status)
+            for sensor_status in sensor_statuses:
+                sensor_status["name"] = sensor.name
+                sensor_status["id"] = sensor.id
+                sensor_status["asset_name"] = asset.name
+                sensors.append(sensor_status)
     return sensors
