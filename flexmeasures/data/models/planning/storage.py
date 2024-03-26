@@ -173,6 +173,41 @@ class MetaStorageScheduler(Scheduler):
                 sensor=inflexible_sensor,
             )
 
+        # fetch SOC constraints from sensors
+        if isinstance(soc_targets, Sensor):
+            soc_targets = get_continuous_series_sensor_or_quantity(
+                quantity_or_sensor=soc_targets,
+                actuator=sensor,
+                unit="MWh",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                as_instantaneous_events=True,
+                boundary_policy="first",
+            )
+        if isinstance(soc_minima, Sensor):
+            soc_minima = get_continuous_series_sensor_or_quantity(
+                quantity_or_sensor=soc_minima,
+                actuator=sensor,
+                unit="MWh",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                as_instantaneous_events=True,
+                boundary_policy="max",
+            )
+        if isinstance(soc_maxima, Sensor):
+            soc_maxima = get_continuous_series_sensor_or_quantity(
+                quantity_or_sensor=soc_maxima,
+                actuator=sensor,
+                unit="MWh",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                as_instantaneous_events=True,
+                boundary_policy="min",
+            )
+
         device_constraints[0] = add_storage_constraints(
             start,
             end,
@@ -451,7 +486,8 @@ class MetaStorageScheduler(Scheduler):
               this function would become a class method with a @post_load decorator.
         """
         soc_targets = self.flex_model.get("soc_targets")
-        if soc_targets:
+
+        if soc_targets and not isinstance(soc_targets, Sensor):
             max_target_datetime = max([soc_target["end"] for soc_target in soc_targets])
             if max_target_datetime > self.end:
                 max_server_horizon = get_max_planning_horizon(self.resolution)
@@ -466,6 +502,11 @@ class MetaStorageScheduler(Scheduler):
         min_target = None
         max_target = None
         soc_targets_label = "soc_targets" if deserialized_names else "soc-targets"
+
+        # if the SOC targets are defined as a Sensor, we don't get min max values
+        if isinstance(self.flex_model.get(soc_targets_label), dict):
+            return None, None
+
         if (
             soc_targets_label in self.flex_model
             and len(self.flex_model[soc_targets_label]) > 0
@@ -650,16 +691,17 @@ def build_device_soc_values(
 
     Should set NaN anywhere where there is no target.
 
-    SOC values should be indexed by their due date. For example, for quarter-hourly targets between 5 and 6 AM:
-    >>> df = pd.Series(data=[1, 2, 2.5, 3], index=pd.date_range(datetime(2010,1,1,5), datetime(2010,1,1,6), freq=timedelta(minutes=15), inclusive="right"))
+    SOC values should be indexed by their due date. For example, for quarter-hourly targets from 5 to 6 AM:
+    >>> df = pd.Series(data=[1, 1.5, 2, 2.5, 3], index=pd.date_range(pd.Timestamp("2010-01-01T05"), pd.Timestamp("2010-01-01T06"), freq=pd.Timedelta("PT15M"), inclusive="both"))
     >>> print(df)
-        2010-01-01 05:15:00    1.0
-        2010-01-01 05:30:00    2.0
-        2010-01-01 05:45:00    2.5
-        2010-01-01 06:00:00    3.0
-        Freq: 15T, dtype: float64
+    2010-01-01 05:00:00    1.0
+    2010-01-01 05:15:00    1.5
+    2010-01-01 05:30:00    2.0
+    2010-01-01 05:45:00    2.5
+    2010-01-01 06:00:00    3.0
+    Freq: 15T, dtype: float64
 
-    TODO: this function could become the deserialization method of a new SOCValueSchema (targets, plural), which wraps SOCValueSchema.
+    TODO: this function could become the deserialization method of a new TimedEventSchema (targets, plural), which wraps TimedEventSchema.
 
     """
     if isinstance(soc_values, pd.Series):  # some tests prepare it this way
