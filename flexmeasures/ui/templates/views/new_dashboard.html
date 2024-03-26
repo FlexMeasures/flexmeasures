@@ -111,7 +111,6 @@
     // create markers, keep them in separate lists (by asset type) to be put into layers
 
     {% for asset_group_name in asset_groups %}
-    {% if asset_group_name not in aggregate_type_groups %}
         var {{ asset_groups[asset_group_name].parameterized_name }}_markers = [];
     
     {% for asset in asset_groups[asset_group_name].assets if asset.location %}
@@ -161,7 +160,6 @@
     {{ asset_groups[asset_group_name].parameterized_name }}_markers.push(marker_for_{{ (asset.id) }});
                 }
     {% endfor %}
-    {% endif %}
     {% endfor %}
 
     // create Map with tiles
@@ -178,13 +176,11 @@
 
     // add a layer for each asset type
     {% for asset_group_name in asset_groups %}
-    {% if asset_group_name not in aggregate_type_groups %}
     {% if asset_groups[asset_group_name].count > 0 %}
     var {{ asset_groups[asset_group_name].parameterized_name }}_layer = new L.LayerGroup({{ asset_groups[asset_group_name].parameterized_name }}_markers);
     mcgLayerSupportGroup.checkIn({{ asset_groups[asset_group_name].parameterized_name }}_layer);
     control.addOverlay({{ asset_groups[asset_group_name].parameterized_name }}_layer, "{{ asset_group_name | capitalize }}")
     {{ asset_groups[asset_group_name].parameterized_name }}_layer.addTo(assetMap);
-    {% endif %}
     {% endif %}
     {% endfor %}
     mcgLayerSupportGroup.addTo(assetMap);

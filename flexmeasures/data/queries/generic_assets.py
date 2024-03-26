@@ -120,16 +120,21 @@ def get_asset_group_queries(
     asset_queries = {}
 
     # 1. Custom asset groups by combinations of asset types
+    asset_types_to_remove = []
     if custom_aggregate_type_groups:
         for asset_type_group_name, asset_types in custom_aggregate_type_groups.items():
             asset_queries[asset_type_group_name] = query_assets_by_type(asset_types)
+            # Remember subgroups
+            asset_types_to_remove += asset_types
 
     # 2. Include a group per asset type - using the pluralised asset type name
     if group_by_type:
         for asset_type in db.session.scalars(select(GenericAssetType)).all():
-            asset_queries[pluralize(asset_type.name)] = query_assets_by_type(
-                asset_type.name
-            )
+            # Add asset type as a group if not already covered by custom group
+            if asset_type.name not in asset_types_to_remove:
+                asset_queries[pluralize(asset_type.name)] = query_assets_by_type(
+                    asset_type.name
+                )
 
     # 3. Include a group per account (admins only)  # TODO: we can later adjust this for accounts who admin certain others, not all
     if group_by_account and user_has_admin_access(current_user, "read"):
