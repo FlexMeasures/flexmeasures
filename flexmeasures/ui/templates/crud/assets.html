@@ -12,9 +12,9 @@
             <div class="header-action-button">
                 <div>
                     {% if user_can_create_assets %}
-                        <form action="/assets/new" method="get">
-                            <button class="btn btn-sm btn-responsive btn-success create-button" type="submit">Create new asset</button>
-                        </form>
+                    <form action="/assets/new" method="get">
+                        <button class="btn btn-sm btn-responsive btn-success create-button" type="submit">Create new asset</button>
+                    </form>
                     {% endif %}
                 </div>
             </div>
@@ -35,6 +35,7 @@
                             <th>Asset id</th>
                             <th>Account</th>
                             <th class="no-sort">Sensors</th>
+                            <th class="no-sort">Status</th>
                             <th class="hidden">URL</th>
                         </tr>
                     </thead>
@@ -62,6 +63,11 @@
                             </td>
                             <td>
                                 {{ asset.sensors | length }}
+                            </td>
+                            <td>
+                                <a href="/assets/{{ asset.id }}/status">
+                                    <button type="button" class="btn">Status</button>
+                                </a>
                             </td>
                             <td class="hidden">
                                 /assets/{{ asset.id }}

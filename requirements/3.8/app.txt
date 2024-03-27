@@ -124,7 +124,7 @@ importlib-metadata==7.0.1
     #   alembic
     #   flask
     #   timely-beliefs
-importlib-resources==6.1.1
+importlib-resources==6.3.2
     # via
     #   alembic
     #   jsonschema
