@@ -168,7 +168,16 @@ class PandasReporter(Reporter):
         # filing the missing indexes with default values:
         if "belief_time" not in bdf.index.names:
             if belief_horizon is not None:
-                belief_time = bdf["event_start"] + bdf.event_resolution - belief_horizon
+                # In case that all the index but `event_start` are dropped
+                if (
+                    isinstance(bdf.index, pd.DatetimeIndex)
+                    and bdf.index.name == "event_start"
+                ):
+                    event_start = bdf.index
+                else:
+                    event_start = bdf.index.get_event_values("event_start")
+
+                belief_time = event_start + bdf.event_resolution - belief_horizon
             else:
                 belief_time = [belief_time] * len(bdf)
             bdf["belief_time"] = belief_time

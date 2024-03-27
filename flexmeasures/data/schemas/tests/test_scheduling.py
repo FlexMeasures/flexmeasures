@@ -11,9 +11,9 @@ from flexmeasures.data.schemas.scheduling.process import (
     ProcessType,
 )
 from flexmeasures.data.schemas.scheduling.storage import (
-    SOCValueSchema,
     StorageFlexModelSchema,
 )
+from flexmeasures.data.schemas.sensors import TimedEventSchema
 
 
 @pytest.mark.parametrize(
@@ -84,7 +84,7 @@ from flexmeasures.data.schemas.scheduling.storage import (
     ],
 )
 def test_soc_value_field(timing_input, expected_start, expected_end):
-    data = SOCValueSchema(timezone="Europe/Amsterdam").load(
+    data = TimedEventSchema(timezone="Europe/Amsterdam").load(
         {
             "value": 3,
             **timing_input,
