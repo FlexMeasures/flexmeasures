@@ -159,8 +159,8 @@ def test_value_field_invalid(deserialization_input, error_msg):
             True,
         ),
         (
-            # Last event start at 2015-01-02T07:45+01, with knowledge time 2015-01-02T08:00+01, 40 minutes from now
-            "2015-01-02T07:20+01",
+            # Last event start at 2015-01-01T23:00:00+00:00, with knowledge time 2015-01-01T23:15:00+00:00, 40 minutes from now
+            "2015-01-01T22:35+01",
             "production",
             "Seita",
             None,  # Not known yet
@@ -175,8 +175,8 @@ def test_value_field_invalid(deserialization_input, error_msg):
             False,
         ),
         (
-            # Last event start of Seita's belief at 2015-01-02T07:45+01, with knowledge time 2015-01-02T08:00+01, 2 minutes from now
-            "2015-01-02T07:58+01",
+            # Last event start of Seita's belief at 2015-01-01T23:00:00+00:00, with knowledge time 2015-01-01T23:15:00+00:00, 2 minutes from now
+            "2015-01-01T23:13+01",
             "production",
             "Seita",
             None,  # Not known yet

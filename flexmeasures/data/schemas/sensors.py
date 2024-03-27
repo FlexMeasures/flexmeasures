@@ -1,9 +1,19 @@
 from __future__ import annotations
-from marshmallow import Schema, fields, validate, validates, ValidationError
+from marshmallow import (
+    Schema,
+    fields,
+    validate,
+    validates,
+    ValidationError,
+    validates_schema,
+)
+from marshmallow.validate import Validator
 from pint import DimensionalityError
 
 import json
 import re
+import isodate
+import pandas as pd
 
 from flexmeasures.data import ma, db
 from flexmeasures.data.models.generic_assets import GenericAsset
@@ -14,7 +24,7 @@ from flexmeasures.data.schemas.utils import (
     with_appcontext_if_needed,
 )
 from flexmeasures.utils.unit_utils import is_valid_unit, ur, units_are_convertible
-from flexmeasures.data.schemas.times import DurationField
+from flexmeasures.data.schemas.times import DurationField, AwareDateTimeField
 
 
 class JSON(fields.Field):
@@ -26,6 +36,84 @@ class JSON(fields.Field):
 
     def _serialize(self, value, attr, data, **kwargs) -> str:
         return json.dumps(value)
+
+
+class TimedEventSchema(Schema):
+    value = fields.Float(required=True)
+    datetime = AwareDateTimeField(required=False)
+    start = AwareDateTimeField(required=False)
+    end = AwareDateTimeField(required=False)
+    duration = DurationField(required=False)
+
+    def __init__(
+        self,
+        timezone: str | None = None,
+        value_validator: Validator | None = None,
+        *args,
+        **kwargs,
+    ):
+        """A time period (or single point) with a value.
+
+        :param timezone:  Optionally, set a timezone to be able to interpret nominal durations.
+        """
+        self.timezone = timezone
+        self.value_validator = value_validator
+        super().__init__(*args, **kwargs)
+
+    @validates("value")
+    def validate_value(self, _value):
+        if self.value_validator is not None:
+            self.value_validator(_value)
+
+    @validates_schema
+    def check_time_window(self, data: dict, **kwargs):
+        """Checks whether a complete time interval can be derived from the timing fields.
+
+        The data is updated in-place, guaranteeing that the 'start' and 'end' fields are filled out.
+        """
+        dt = data.get("datetime")
+        start = data.get("start")
+        end = data.get("end")
+        duration = data.get("duration")
+
+        if dt is not None:
+            if any([p is not None for p in (start, end, duration)]):
+                raise ValidationError(
+                    "If using the 'datetime' field, no 'start', 'end' or 'duration' is expected."
+                )
+            data["start"] = dt
+            data["end"] = dt
+        elif duration is not None:
+            if self.timezone is None and isinstance(duration, isodate.Duration):
+                raise ValidationError(
+                    "Cannot interpret nominal duration used in the 'duration' field without a known timezone."
+                )
+            elif all([p is None for p in (start, end)]) or all(
+                [p is not None for p in (start, end)]
+            ):
+                raise ValidationError(
+                    "If using the 'duration' field, either 'start' or 'end' is expected."
+                )
+            if start is not None:
+                grounded = DurationField.ground_from(
+                    duration, pd.Timestamp(start).tz_convert(self.timezone)
+                )
+                data["start"] = start
+                data["end"] = start + grounded
+            else:
+                grounded = DurationField.ground_from(
+                    -duration, pd.Timestamp(end).tz_convert(self.timezone)
+                )
+                data["start"] = end + grounded
+                data["end"] = end
+        else:
+            if any([p is None for p in (start, end)]):
+                raise ValidationError(
+                    "Missing field(s) to describe timing: use the 'datetime' field, "
+                    "or a combination of 2 fields of 'start', 'end' and 'duration'."
+                )
+            data["start"] = start
+            data["end"] = end
 
 
 class SensorSchemaMixin(Schema):
@@ -78,15 +166,35 @@ class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
 class SensorIdField(MarshmallowClickMixin, fields.Int):
     """Field that deserializes to a Sensor and serializes back to an integer."""
 
+    def __init__(self, *args, unit: str | ur.Quantity | None = None, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        if isinstance(unit, str):
+            self.to_unit = ur.Quantity(unit)
+        elif isinstance(unit, ur.Quantity):
+            self.to_unit = unit
+        else:
+            self.to_unit = None
+
     @with_appcontext_if_needed()
     def _deserialize(self, value: int, attr, obj, **kwargs) -> Sensor:
         """Turn a sensor id into a Sensor."""
         sensor = db.session.get(Sensor, value)
         if sensor is None:
             raise FMValidationError(f"No sensor found with id {value}.")
+
         # lazy loading now (sensor is somehow not in session after this)
         sensor.generic_asset
         sensor.generic_asset.generic_asset_type
+
+        # if the units are defined, check if the sensor data is convertible to the target units
+        if self.to_unit is not None and not units_are_convertible(
+            sensor.unit, str(self.to_unit.units)
+        ):
+            raise FMValidationError(
+                f"Cannot convert {sensor.unit} to {self.to_unit.units}"
+            )
+
         return sensor
 
     def _serialize(self, sensor: Sensor, attr, data, **kwargs) -> int:
@@ -126,20 +234,9 @@ class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
                 raise FMValidationError(
                     "Dictionary provided but `sensor` key not found."
                 )
-
-            sensor = db.session.get(Sensor, value["sensor"])
-
-            if sensor is None:
-                raise FMValidationError(f"No sensor found with id {value['sensor']}.")
-
-            # lazy loading now (sensor is somehow not in session after this)
-            sensor.generic_asset
-            sensor.generic_asset.generic_asset_type
-
-            if not units_are_convertible(sensor.unit, str(self.to_unit.units)):
-                raise FMValidationError(
-                    f"Cannot convert {sensor.unit} to {self.to_unit.units}"
-                )
+            sensor = SensorIdField(unit=self.to_unit)._deserialize(
+                value["sensor"], None, None
+            )
 
             return sensor
 
@@ -185,6 +282,57 @@ class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
             _value = value
 
         return super().convert(_value, param, ctx, **kwargs)
+
+
+class TimeSeriesOrSensor(MarshmallowClickMixin, fields.Field):
+    def __init__(
+        self,
+        unit,
+        *args,
+        timezone: str | None = None,
+        value_validator: Validator | None = None,
+        **kwargs,
+    ):
+        """
+        The timezone is only used in case a time series is specified and one
+        of the *timed events* in the time series uses a nominal duration, such as "P1D".
+        """
+        super().__init__(*args, **kwargs)
+        self.timezone = timezone
+        self.value_validator = value_validator
+        self.unit = ur.Quantity(unit)
+
+    @with_appcontext_if_needed()
+    def _deserialize(
+        self, value: str | dict[str, int], attr, obj, **kwargs
+    ) -> list[dict] | Sensor:
+
+        if isinstance(value, dict):
+            if "sensor" not in value:
+                raise FMValidationError(
+                    "Dictionary provided but `sensor` key not found."
+                )
+
+            sensor = SensorIdField(unit=self.unit)._deserialize(
+                value["sensor"], None, None
+            )
+
+            return sensor
+
+        elif isinstance(value, list):
+            field = fields.List(
+                fields.Nested(
+                    TimedEventSchema(
+                        timezone=self.timezone, value_validator=self.value_validator
+                    )
+                )
+            )
+
+            return field._deserialize(value, None, None)
+        else:
+            raise FMValidationError(
+                f"Unsupported value type. `{type(value)}` was provided but only dict and list are supported."
+            )
 
 
 class RepurposeValidatorToIgnoreSensors(validate.Validator):
