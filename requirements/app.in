@@ -68,3 +68,4 @@ flask>=1.0, <3.0
 werkzeug<=2.2.3
 vl-convert-python
 Pillow>=10.0.1  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/91
+pandas-stubs

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from pandas.api.typing import DataFrameGroupBy
+from pandas.core.groupby.generic import DataFrameGroupBy
 from typing import Dict, List
 
 from humanize.time import naturaldelta
