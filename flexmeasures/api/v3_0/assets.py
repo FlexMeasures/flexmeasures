@@ -18,6 +18,8 @@ from flexmeasures.api.common.schemas.generic_assets import AssetIdField
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.utils.coding_utils import flatten_unique
 from flexmeasures.ui.utils.view_utils import set_session_variables
+from flexmeasures.auth.policy import check_access
+from werkzeug.exceptions import Forbidden, Unauthorized
 
 
 asset_schema = AssetSchema()
@@ -38,15 +40,12 @@ class AssetAPI(FlaskView):
     @route("", methods=["GET"])
     @use_kwargs(
         {
-            "account": AccountIdField(
-                data_key="account_id", load_default=AccountIdField.load_current
-            ),
+            "account": AccountIdField(data_key="account_id", load_default=None),
         },
         location="query",
     )
-    @permission_required_for_context("read", ctx_arg_name="account")
     @as_json
-    def index(self, account: Account):
+    def index(self, account: Account | None):
         """List all assets owned by a certain account.
 
         .. :quickref: Asset; Download asset list
@@ -80,7 +79,24 @@ class AssetAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        return assets_schema.dump(account.generic_assets), 200
+
+        if account is not None:
+            check_access(account, "read")
+            accounts = [account]
+        else:
+            accounts = []
+            for account in db.session.scalars(select(Account)).all():
+                try:
+                    check_access(account, "read")
+                    accounts.append(account)
+                except (Forbidden, Unauthorized):
+                    pass
+
+        assets = []
+        for account in accounts:
+            assets.extend(account.generic_assets)
+
+        return assets_schema.dump(assets), 200
 
     @route("/public", methods=["GET"])
     @as_json

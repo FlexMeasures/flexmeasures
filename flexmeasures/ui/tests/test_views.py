@@ -25,6 +25,11 @@ def test_assets_responds(client, requests_mock, as_prosumer_user1):
         status_code=200,
         json=[],
     )
+    requests_mock.get(
+        "http://localhost//api/v3_0/assets/public",
+        status_code=200,
+        json=[],
+    )
     assets_page = client.get(url_for("AssetCrudUI:index"), follow_redirects=True)
     assert assets_page.status_code == 200
     assert b"Asset overview" in assets_page.data

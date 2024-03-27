@@ -20,7 +20,7 @@ def logout(client):
 
 
 def mock_asset_response(
-    asset_id: int = 1,
+    asset_id: int = 2,
     account_id: int = 1,
     as_list: bool = True,
     multiple: bool = False,
@@ -38,6 +38,7 @@ def mock_asset_response(
         if multiple:
             asset2 = copy.deepcopy(asset)
             asset2["name"] = "TestAsset2"
+            asset2["id"] += 1
             asset_list.append(asset2)
         return asset_list
     return asset

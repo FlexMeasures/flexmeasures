@@ -208,8 +208,18 @@ def get_assets_by_account(account_id: int | str | None) -> list[GenericAsset]:
 
 
 def get_all_assets() -> list[GenericAsset]:
-    get_assets_response = InternalApi().get(url_for("AssetAPI:index"))
-    asset_ids = [GenericAsset.id.in_(ad["id"] for ad in get_assets_response.json())]
+    get_assets_response = InternalApi().get(url_for("AssetAPI:index")).json()
+    get_assets_response_public = InternalApi().get(url_for("AssetAPI:public")).json()
+
+    assets = []
+    if isinstance(get_assets_response, list):
+        assets.extend(get_assets_response)
+
+    if isinstance(get_assets_response_public, list):
+        assets.extend(get_assets_response_public)
+
+    asset_ids = [GenericAsset.id.in_(ad["id"] for ad in assets)]
+
     return db.session.scalars(select(GenericAsset).where(*asset_ids)).all()
 
 
