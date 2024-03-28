@@ -272,13 +272,15 @@ def multiply_dataframe_with_deterministic_beliefs(
     if df1.empty and df2.empty:
         return df1
 
-    df = (df1["event_value"] * df2["event_value"] * multiplication_factor).to_frame(
-        name="event_value"
-    )  # type: ignore
+    multiplied_df = pd.Series(
+        df1["event_value"] * df2["event_value"] * multiplication_factor
+    )
+
+    df = multiplied_df.to_frame(name="event_value")
     if "belief_horizon" in df1.columns and "belief_horizon" in df2.columns:
         df["belief_horizon"] = (
-            df1["belief_horizon"]
-            .rename("belief_horizon1")  # type: ignore
+            pd.Series(df1["belief_horizon"])
+            .rename("belief_horizon1")
             .to_frame()
             .join(df2["belief_horizon"], how="outer")
             .min(axis=1)
