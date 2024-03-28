@@ -117,6 +117,12 @@ In the case of the scheduler that we ran in the previous tutorial, which did not
 
 .. note:: You can add arbitrary sensors to a chart using the attribute ``sensors_to_show``. See :ref:`view_asset-data` for more.
 
+A nice feature is that you can check the data connectivity status of your building asset. Now that we have made the schedule, both lamps are green. You can also view it in `FlexMeasures UI <http://localhost:5000/assets/1/status>`_ :
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/screenshot_building_status.png
+    :align: center
+|
+
 We hope this part of the tutorial shows how to incorporate a limited grid connection rather easily with FlexMeasures. There are more ways to model such settings, but this is a straightforward one.
 
 This tutorial showed a quick way to add an inflexible load (like solar power) and a grid connection.
