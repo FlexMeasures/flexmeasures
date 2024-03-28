@@ -12,6 +12,7 @@ import pytz
 from click_default_group import DefaultGroup
 
 from flexmeasures.utils.time_utils import get_most_recent_hour, get_timezone
+from flexmeasures import Asset, Account, Sensor
 
 
 class MsgStyle(object):
@@ -216,3 +217,54 @@ def abort(message: str):
 
 def done(message: str):
     click.secho(message, **MsgStyle.SUCCESS)
+
+
+def get_path(entity: Asset | Account | Sensor | None) -> list[str]:
+    if isinstance(entity, Sensor):
+        return get_path(entity.generic_asset) + [entity.name]
+    elif isinstance(entity, Asset):
+        if entity.parent_asset_id is not None:
+            return get_path(entity.parent_asset) + [entity.name]
+        else:
+            return get_path(entity.owner) + [entity.name]
+    elif isinstance(entity, Account):
+        return [entity.name]
+
+    return []
+
+
+def path_to_str(path: list, delimiter="/") -> str:
+    return delimiter.join(path)
+
+
+def are_all_equal(paths: list):
+    v = [path_to_str(p) for p in paths]
+    return len(set(v)) == 1
+
+
+def reduce_entity_paths(asset_paths: list[list[str]]) -> list[str]:
+    reduced_entities = 0
+
+    max_reduced_entities = min([len(p) for p in asset_paths]) - 2
+
+    # find the detail level that makes all the asset paths different
+    while (
+        are_all_equal([p[:reduced_entities] for p in asset_paths])
+        and reduced_entities <= max_reduced_entities
+    ):
+        reduced_entities += 1
+
+    return [path_to_str(p[reduced_entities - 1 : -1]) for p in asset_paths]
+
+
+def get_sensor_aliases(sensors: list[Sensor], duplicates: list[str]) -> dict:
+    aliases = {}
+
+    for duplicate_name in set(duplicates):
+        duplicated_sensors = [s for s in sensors if s.name == duplicate_name]
+        entity_paths = reduce_entity_paths([get_path(s) for s in duplicated_sensors])
+
+        for i, sensor in enumerate(duplicated_sensors):
+            aliases[sensor.id] = f"{sensor.name} ({entity_paths[i]})"
+
+    return aliases

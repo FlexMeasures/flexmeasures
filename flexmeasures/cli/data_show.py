@@ -33,7 +33,11 @@ from flexmeasures.data.services.time_series import simplify_index
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
 from flexmeasures.cli.utils import MsgStyle, validate_unique
 from flexmeasures.utils.coding_utils import delete_key_recursive
-from flexmeasures.cli.utils import DeprecatedOptionsCommand, DeprecatedOption
+from flexmeasures.cli.utils import (
+    DeprecatedOptionsCommand,
+    DeprecatedOption,
+    get_sensor_aliases,
+)
 
 
 @click.group("show")
@@ -591,10 +595,10 @@ def plot_beliefs(
         df.columns = [f"{s.name} (ID {s.id})" for s in sensors]
     else:
         duplicates = find_duplicates(sensors, "name")
+        sensor_aliases = get_sensor_aliases(sensors, duplicates)
+
         if duplicates:
-            df.columns = [
-                f"{s.name} (ID {s.id})" if s.name in duplicates else s for s in sensors
-            ]
+            df.columns = [sensor_aliases.get(s.id, s.name) for s in sensors]
             click.secho(
                 f"The following sensor names are duplicated: {duplicates}. To distinguish them, their plot labels will include their IDs. To include IDs for all sensors, use the --include-ids flag.",
                 **MsgStyle.WARN,
