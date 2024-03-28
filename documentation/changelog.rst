@@ -9,7 +9,7 @@ v0.21.0 | April XX, 2024
 New features
 -------------   
 
-* Add asset/<id>/status page to view asset statuses [see `PR #41 <https://github.com/FlexMeasures/flexmeasures/pull/941/>`_]
+* Add asset/<id>/status page to view asset statuses [see `PR #941 <https://github.com/FlexMeasures/flexmeasures/pull/941/>`_]
 
 Bugfixes
 -----------
