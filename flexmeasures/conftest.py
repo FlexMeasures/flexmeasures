@@ -11,6 +11,7 @@ import numpy as np
 from flask import request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_security import roles_accepted
+from pytest_mock import MockerFixture
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
 
 from werkzeug.exceptions import (
@@ -325,7 +326,13 @@ def create_sources(db) -> dict[str, DataSource]:
     db.session.add(seita_source)
     entsoe_source = DataSource(name="ENTSO-E", type="demo script")
     db.session.add(entsoe_source)
-    return {"Seita": seita_source, "ENTSO-E": entsoe_source}
+    dummy_schedule_source = DataSource(name="DummySchedule", type="demo script")
+    db.session.add(dummy_schedule_source)
+    return {
+        "Seita": seita_source,
+        "ENTSO-E": entsoe_source,
+        "DummySchedule": dummy_schedule_source,
+    }
 
 
 @pytest.fixture(scope="module")
@@ -648,6 +655,28 @@ def add_market_prices_common(
         values=[-50] * 8 + [60] * 16,
         source=setup_sources["Seita"],
     )
+
+    # consumption prices for staleness tests
+    time_slots = initialize_index(
+        start=pd.Timestamp("2016-01-01").tz_localize("Europe/Amsterdam"),
+        end=pd.Timestamp("2016-01-03").tz_localize("Europe/Amsterdam"),
+        resolution="1H",
+    )
+    values_today = [
+        random() * (1 + np.sin(x * 2 * np.pi / 24)) for x in range(len(time_slots))
+    ]
+
+    today_beliefs = [
+        TimedBelief(
+            event_start=dt,
+            belief_horizon=timedelta(hours=0),
+            event_value=val,
+            source=setup_sources["Seita"],
+            sensor=setup_markets["epex_da"],
+        )
+        for dt, val in zip(time_slots, values_today)
+    ]
+    db.session.add_all(today_beliefs)
 
     return {
         "epex_da": setup_markets["epex_da"],
@@ -1013,7 +1042,7 @@ def create_weather_sensors(db: SQLAlchemy, generic_asset_types) -> dict[str, Sen
         unit="°C",
     )
     db.session.add(temp_sensor)
-    return {"wind": wind_sensor, "temperature": temp_sensor}
+    return {"wind": wind_sensor, "temperature": temp_sensor, "asset": weather_station}
 
 
 @pytest.fixture(scope="module")
@@ -1177,6 +1206,23 @@ def capacity_sensors(db, add_battery_assets, setup_sources):
 
     db.session.commit()
 
+    time_slots = pd.date_range(
+        datetime(2016, 1, 2), datetime(2016, 1, 2, 7, 45), freq="15T"
+    ).tz_localize("Europe/Amsterdam")
+    values = [250] * 4 * 4 + [150] * 4 * 4
+    beliefs = [
+        TimedBelief(
+            event_start=dt,
+            event_value=val,
+            sensor=production_capacity_sensor,
+            source=setup_sources["DummySchedule"],
+            belief_time="2015-01-02T00:00+01",
+        )
+        for dt, val in zip(time_slots, values)
+    ]
+    db.session.add_all(beliefs)
+    db.session.commit()
+
     yield dict(
         production=production_capacity_sensor,
         consumption=consumption_capacity_sensor,
@@ -1203,3 +1249,8 @@ def add_beliefs(
         for dt, val in zip(time_slots, values)
     ]
     db.session.add_all(beliefs)
+
+
+@pytest.fixture
+def mock_get_status(mocker: MockerFixture):
+    return mocker.patch("flexmeasures.data.services.sensors.get_status", autospec=True)
