@@ -48,6 +48,10 @@ class FlexContextSchema(Schema):
     def check_prices(self, data: dict, **kwargs):
         """Check whether the flex-context contains at most 1 consumption price and at most 1 production price field."""
         if "consumption_price_sensor" in data and "consumption_price" in data:
-            raise ValidationError("Must pass either consumption-price or consumption-price-sensor.")
+            raise ValidationError(
+                "Must pass either consumption-price or consumption-price-sensor."
+            )
         if "production_price_sensor" in data and "production_price" in data:
-            raise ValidationError("Must pass either production-price or production-price-sensor.")
+            raise ValidationError(
+                "Must pass either production-price or production-price-sensor."
+            )
