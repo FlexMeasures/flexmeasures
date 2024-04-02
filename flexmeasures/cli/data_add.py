@@ -2005,11 +2005,12 @@ def add_toy_account(kind: str, name: str):
         asset_type: str,
         sensor_name: str,
         unit: str = "MW",
+        parent_asset_id: int | None = None,
         **asset_attributes,
     ):
         asset_kwargs = dict()
-        if asset_attributes.get("parent_asset_id"):
-            asset_kwargs["parent_asset_id"] = asset_attributes.pop("parent_asset_id")
+        if parent_asset_id is not None:
+            asset_kwargs["parent_asset_id"] = parent_asset_id
 
         asset = get_or_create_model(
             GenericAsset,
@@ -2053,10 +2054,10 @@ def add_toy_account(kind: str, name: str):
             "toy-battery",
             "battery",
             "discharging",
+            parent_asset_id=building_asset.id,
             capacity_in_mw=0.5,
             min_soc_in_mwh=0.05,
             max_soc_in_mwh=0.45,
-            parent_asset_id=building_asset.id,
         )
 
         # create solar
