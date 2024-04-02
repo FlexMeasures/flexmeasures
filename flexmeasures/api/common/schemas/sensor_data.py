@@ -101,7 +101,6 @@ class SensorDataDescriptionSchema(ma.Schema):
 
 
 class GetSensorDataSchema(SensorDataDescriptionSchema):
-
     resolution = DurationField(required=False)
     source = SourceIdField(required=False)
 

@@ -192,9 +192,14 @@ def show_generic_asset(asset):
     """
     Show asset info and list sensors
     """
-    click.echo(f"======{len(asset.name) * '='}========")
+    separator_num = 18 if asset.parent_asset is not None else 8
+    click.echo(f"======{len(asset.name) * '='}{separator_num * '='}")
     click.echo(f"Asset {asset.name} (ID: {asset.id})")
-    click.echo(f"======{len(asset.name) * '='}========\n")
+    if asset.parent_asset is not None:
+        click.echo(
+            f"Child of asset {asset.parent_asset.name} (ID: {asset.parent_asset.id})"
+        )
+    click.echo(f"======{len(asset.name) * '='}{separator_num * '='}\n")
 
     asset_data = [
         (
@@ -204,6 +209,23 @@ def show_generic_asset(asset):
         )
     ]
     click.echo(tabulate(asset_data, headers=["Type", "Location", "Attributes"]))
+
+    child_asset_data = [
+        (
+            child.id,
+            child.name,
+            child.generic_asset_type.name,
+        )
+        for child in asset.child_assets
+    ]
+    click.echo()
+    click.echo(f"======{len(asset.name) * '='}===================")
+    click.echo(f"Child assets of {asset.name} (ID: {asset.id})")
+    click.echo(f"======{len(asset.name) * '='}===================\n")
+    if child_asset_data:
+        click.echo(tabulate(child_asset_data, headers=["Id", "Name", "Type"]))
+    else:
+        click.secho("No children assets ...", **MsgStyle.WARN)
 
     click.echo()
     sensors = db.session.scalars(

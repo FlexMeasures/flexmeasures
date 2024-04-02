@@ -54,7 +54,6 @@ partial_sensor_schema = SensorSchema(partial=True, exclude=["generic_asset_id"])
 
 
 class SensorAPI(FlaskView):
-
     route_base = "/sensors"
     trailing_slash = False
     decorators = [auth_required()]
