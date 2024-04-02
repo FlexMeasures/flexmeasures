@@ -65,10 +65,13 @@ pytest==8.0.0
     #   -r requirements/test.in
     #   pytest-cov
     #   pytest-flask
+    #   pytest-mock
     #   pytest-sugar
 pytest-cov==4.1.0
     # via -r requirements/test.in
 pytest-flask==1.3.0
+    # via -r requirements/test.in
+pytest-mock==3.12.0
     # via -r requirements/test.in
 pytest-sugar==1.0.0
     # via -r requirements/test.in

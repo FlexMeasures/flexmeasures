@@ -4,7 +4,7 @@ import copy
 import json
 
 from flask import url_for, current_app
-from flask_classful import FlaskView
+from flask_classful import FlaskView, route
 from flask_wtf import FlaskForm
 from flask_security import login_required, current_user
 from wtforms import StringField, DecimalField, SelectField
@@ -24,6 +24,7 @@ from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.crud.api_wrapper import InternalApi
+from flexmeasures.data.services.sensors import build_sensor_status_data
 
 
 """
@@ -312,6 +313,21 @@ class AssetCrudUI(FlaskView):
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
             user_can_create_assets=user_can_create_assets(),
             user_can_delete_asset=user_can_delete(asset),
+        )
+
+    @login_required
+    @route("/<id>/status")
+    def status(self, id: str):
+        """GET from /assets/<id>/status to show the staleness of the asset's sensors."""
+
+        get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_one", id=id))
+        asset_dict = get_asset_response.json()
+
+        asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
+        status_data = build_sensor_status_data(asset)
+
+        return render_flexmeasures_template(
+            "views/status.html", asset=asset, sensors=status_data
         )
 
     @login_required

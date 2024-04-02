@@ -121,7 +121,7 @@ importlib-metadata==7.0.1
     #   -r requirements/app.in
     #   flask
     #   timely-beliefs
-importlib-resources==6.1.1
+importlib-resources==6.3.2
     # via matplotlib
 inflect==6.0.2
     # via -r requirements/app.in
