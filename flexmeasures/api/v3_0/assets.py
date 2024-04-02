@@ -42,13 +42,23 @@ class AssetAPI(FlaskView):
     @route("", methods=["GET"])
     @use_kwargs(
         {
-            "account": AccountIdField(data_key="account_id", load_default=None),
+            "account": AccountIdField(
+                data_key="account_id", load_default=AccountIdField.load_current
+            ),
+        },
+        location="query",
+    )
+    @use_kwargs(
+        {
+            "all_accessible": fields.Bool(
+                data_key="all_accessible", load_default=False
+            ),
         },
         location="query",
     )
     @as_json
-    def index(self, account: Account | None):
-        """List all assets owned by a certain account.
+    def index(self, account: Account | None, all_accessible: bool):
+        """List all assets owned or accesible by a certain account.
 
         .. :quickref: Asset; Download asset list
 
@@ -82,10 +92,7 @@ class AssetAPI(FlaskView):
         :status 422: UNPROCESSABLE_ENTITY
         """
 
-        if account is not None:
-            check_access(account, "read")
-            accounts = [account]
-        else:
+        if all_accessible:
             accounts = []
             for account in db.session.scalars(select(Account)).all():
                 try:
@@ -93,6 +100,9 @@ class AssetAPI(FlaskView):
                     accounts.append(account)
                 except (Forbidden, Unauthorized):
                     pass
+        else:
+            check_access(account, "read")
+            accounts = [account]
 
         assets = []
         for account in accounts:
