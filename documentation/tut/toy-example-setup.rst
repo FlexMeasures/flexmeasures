@@ -195,13 +195,10 @@ If you want, you can inspect what you created:
     Child assets of toy-building (ID: 2)
     ====================================
 
-    Type     Location           Attributes
-    -------  -----------------  -------------------------------
-    battery  (52.374, 4.88969)  capacity_in_mw: 0.5
-                                min_soc_in_mwh: 0.05
-                                max_soc_in_mwh: 0.45
-                                sensors_to_show: [56, [58, 57]]
-    solar    (52.374, 4.88969)
+    Id       Name               Type
+    -------  -----------------  ----------------------------
+    3        toy-battery        battery
+    4        toy-solar          solar
 
     No sensors in asset ...
 
