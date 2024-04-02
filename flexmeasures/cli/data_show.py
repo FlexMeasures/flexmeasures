@@ -533,6 +533,13 @@ def chart(
     help="Include sensor IDs in the plot's legend labels and the file's column headers. "
     "NB non-unique sensor names will always show an ID.",
 )
+@click.option(
+    "--reduce-paths",
+    "reduce_paths",
+    default=True,
+    type=bool,
+    help="Whether to include the full path to the entity or a reduced version of it.",
+)
 def plot_beliefs(
     sensors: list[Sensor],
     start: datetime,
@@ -544,6 +551,7 @@ def plot_beliefs(
     filepath: str | None,
     source_types: list[str] = None,
     include_ids: bool = False,
+    reduce_paths: bool = True,
 ):
     """
     Show a simple plot of belief data directly in the terminal, and optionally, save the data to a CSV file.
@@ -595,7 +603,9 @@ def plot_beliefs(
         df.columns = [f"{s.name} (ID {s.id})" for s in sensors]
     else:
         duplicates = find_duplicates(sensors, "name")
-        sensor_aliases = get_sensor_aliases(sensors, duplicates)
+        sensor_aliases = get_sensor_aliases(
+            sensors, duplicates, reduce_paths=reduce_paths
+        )
 
         if duplicates:
             df.columns = [sensor_aliases.get(s.id, s.name) for s in sensors]

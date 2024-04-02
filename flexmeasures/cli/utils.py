@@ -12,7 +12,7 @@ import pytz
 from click_default_group import DefaultGroup
 
 from flexmeasures.utils.time_utils import get_most_recent_hour, get_timezone
-from flexmeasures import Asset, Account, Sensor
+from flexmeasures import Sensor
 
 
 class MsgStyle(object):
@@ -219,50 +219,82 @@ def done(message: str):
     click.secho(message, **MsgStyle.SUCCESS)
 
 
-def get_path(entity: Asset | Account | Sensor | None) -> list[str]:
-    if isinstance(entity, Sensor):
-        return get_path(entity.generic_asset) + [entity.name]
-    elif isinstance(entity, Asset):
-        if entity.parent_asset_id is not None:
-            return get_path(entity.parent_asset) + [entity.name]
-        else:
-            return get_path(entity.owner) + [entity.name]
-    elif isinstance(entity, Account):
-        return [entity.name]
+def path_to_str(path: list, separator: str = ">") -> str:
+    """
+    Converts a list representing a path to a string format, using a specified separator.
+    """
 
-    return []
+    return separator.join(path)
 
 
-def path_to_str(path: list, delimiter="/") -> str:
-    return delimiter.join(path)
+def are_all_equal(paths: list[list[str]]) -> bool:
+    """
+    Checks if all given entity paths represent the same path.
+    """
+    return len(set(path_to_str(p) for p in paths)) == 1
 
 
-def are_all_equal(paths: list):
-    v = [path_to_str(p) for p in paths]
-    return len(set(v)) == 1
+def reduce_entity_paths(asset_paths: list[list[str]]) -> list[list[str]]:
+    """
+    Simplifies a list of entity paths by trimming their common ancestor.
 
+    Examples:
+    >>> reduce_entity_paths([["Account1", "Asset1"], ["Account2", "Asset2"]])
+    [["Account1", "Asset1"], ["Account2", "Asset2"]]
 
-def reduce_entity_paths(asset_paths: list[list[str]]) -> list[str]:
+    >>> reduce_entity_paths([["Asset1"], ["Asset2"]])
+    [["Asset1"], ["Asset2"]]
+
+    >>> reduce_entity_paths([["Asset1"], ["Asset1"]])
+    [["Asset1"], ["Asset1"]]
+
+    >>> reduce_entity_paths([["Asset1", "Asset2"], ["Asset1"]])
+    [["Asset1"], ["Asset1", "Asset2"]]
+    """
     reduced_entities = 0
 
-    max_reduced_entities = min([len(p) for p in asset_paths]) - 2
+    # At least we need to leave one entity in each list
+    max_reduced_entities = min([len(p) - 1 for p in asset_paths])
 
-    # find the detail level that makes all the asset paths different
+    # Find the common path
     while (
         are_all_equal([p[:reduced_entities] for p in asset_paths])
         and reduced_entities <= max_reduced_entities
     ):
         reduced_entities += 1
 
-    return [path_to_str(p[reduced_entities - 1 : -1]) for p in asset_paths]
+    return [p[reduced_entities - 1 :] for p in asset_paths]
 
 
-def get_sensor_aliases(sensors: list[Sensor], duplicates: list[str]) -> dict:
+def get_sensor_aliases(
+    sensors: list[Sensor],
+    duplicates: list[str],
+    reduce_paths: bool = True,
+    separator: str = "/",
+) -> dict:
+    """
+    Generates aliases for sensors with duplicate names by appending a unique path to each sensor's name.
+
+    Parameters:
+    :param sensors: A list of Sensor objects.
+    :param duplicates: A list of sensor names that have duplicates and for which aliases need to be generated.
+    :param reduce_paths: Flag indicating whether to reduce each sensor's entity path. Defaults to True.
+    :param separator: The character or string used to separate entities within each sensor's path. Defaults to "/".
+
+    :return: A dictionary mapping sensor IDs to their generated aliases.
+    """
+
     aliases = {}
 
-    for duplicate_name in set(duplicates):
-        duplicated_sensors = [s for s in sensors if s.name == duplicate_name]
-        entity_paths = reduce_entity_paths([get_path(s) for s in duplicated_sensors])
+    for duplicate in duplicates:
+        duplicated_sensors = [s for s in sensors if s.name == duplicate]
+        entity_paths = [
+            s.generic_asset.get_path(separator=separator).split(separator)
+            for s in duplicated_sensors
+        ]
+        if reduce_paths:
+            entity_paths = reduce_entity_paths(entity_paths)
+        entity_paths = [path_to_str(p, separator=separator) for p in entity_paths]
 
         for i, sensor in enumerate(duplicated_sensors):
             aliases[sensor.id] = f"{sensor.name} ({entity_paths[i]})"
