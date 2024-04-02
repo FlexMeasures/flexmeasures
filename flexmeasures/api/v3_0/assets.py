@@ -58,12 +58,13 @@ class AssetAPI(FlaskView):
     )
     @as_json
     def index(self, account: Account | None, all_accessible: bool):
-        """List all assets owned or accesible by a certain account.
+        """List all assets owned or accessible by a certain account.
 
         .. :quickref: Asset; Download asset list
 
         This endpoint returns all accessible assets for the account of the user.
         The `account_id` query parameter can be used to list assets from a different account.
+        The `all_accessible` query parameter can be used to list all the assets accessible by the requesting user. Defaults to `false`.
 
         **Example response**
 
