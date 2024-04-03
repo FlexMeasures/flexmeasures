@@ -68,6 +68,3 @@ flask>=1.0, <3.0
 werkzeug<=2.2.3
 vl-convert-python
 Pillow>=10.0.1  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/91
-# Need this dependency to import DataFrameGroupBy from pandas.core.groupby.generic instead of pandas.api.typing
-# This is for python 3.8 compatibility only
-pandas-stubs

@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from pandas.core.groupby.generic import DataFrameGroupBy
-from typing import Dict, List
+from timely_beliefs import BeliefsDataFrame
 
-from humanize.time import naturaldelta
+from humanize.time import precisedelta
 
 from flexmeasures.data.models.time_series import TimedBelief
 
@@ -59,21 +58,27 @@ def get_sensors(
 
 def _get_sensor_bdfs_by_source(
     sensor: Sensor, staleness_search: dict
-) -> DataFrameGroupBy | None:
-    """Get bdf split by source for a given sensor with given search parameters."""
-    bdf = TimedBelief.search(
-        sensors=sensor,
-        most_recent_events_only=True,
-        **staleness_search,
-    )
-    if bdf.empty:
-        return None
-    return bdf.groupby(level=["source"], group_keys=False)
+) -> dict[str, BeliefsDataFrame] | None:
+    """Get bdf split by source type for a given sensor with given search parameters.
+    For now we use 'user', 'forecaster', 'scheduler' and 'reporter' source types
+    """
+    bdfs_by_source = dict()
+    for source_type in ("user", "forecaster", "scheduler", "reporter"):
+        bdf = TimedBelief.search(
+            sensors=sensor,
+            most_recent_events_only=True,
+            source_types=[source_type],
+            **staleness_search,
+        )
+        if not bdf.empty:
+            bdfs_by_source[source_type] = bdf
+
+    return None if not bdfs_by_source else bdfs_by_source
 
 
 def get_staleness_start_times(
     sensor: Sensor, staleness_search: dict, now: datetime
-) -> Dict[str, timedelta] | None:
+) -> dict[str, timedelta] | None:
     """Get staleness start times for a given sensor by source.
     For scheduler and forecaster sources staleness start is latest event start time.
 
@@ -88,7 +93,7 @@ def get_staleness_start_times(
         return None
 
     start_times = dict()
-    for source, bdf in staleness_bdfs:
+    for source, bdf in staleness_bdfs.items():
         time_column = "knowledge_times"
         source = str(source)
         if source in ("scheduler", "forecaster"):
@@ -102,7 +107,7 @@ def get_staleness_start_times(
 
 def get_stalenesses(
     sensor: Sensor, staleness_search: dict, now: datetime
-) -> Dict[str, timedelta] | None:
+) -> dict[str, timedelta] | None:
     """Get the staleness of the sensor split by source.
 
     The staleness is defined relative to the knowledge time of the most recent event, rather than to its belief time.
@@ -159,7 +164,7 @@ def get_statuses(
     sensor: Sensor,
     now: datetime,
     status_specs: dict | None = None,
-) -> List[Dict]:
+) -> list[dict]:
     """Get the status of the sensor by source type.
     Main part of result here is a stale value, which is True if the sensor is stale, False otherwise.
     Other values are just context information for the stale value.
@@ -183,19 +188,16 @@ def get_statuses(
             stale = True
             reason = "no data recorded"
         else:
-            max_staleness = (
+            max_source_staleness = (
                 max_staleness if staleness > timedelta(0) else max_future_staleness
             )
             staleness_since = now - staleness
-            stale = staleness > max_staleness
+            stale = staleness > max_source_staleness
             comparison = "more" if staleness > timedelta(0) else "less"
             timeline = "old" if staleness > timedelta(0) else "in the future"
-            max_staleness = (
-                max_staleness if max_staleness > timedelta(0) else -max_staleness
-            )
             reason = (
                 "" if stale else "not "
-            ) + f"{comparison} than {naturaldelta(max_staleness)} {timeline}"
+            ) + f"{comparison} than {precisedelta(max_source_staleness)} {timeline}"
             staleness = staleness if staleness > timedelta(0) else -staleness
 
         statuses.append(

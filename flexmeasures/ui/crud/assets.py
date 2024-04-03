@@ -303,7 +303,7 @@ class AssetCrudUI(FlaskView):
         )
 
     @login_required
-    @route("/<id>/status/")
+    @route("/<id>/status")
     def status(self, id: str):
         """GET from /assets/<id>/status to show the staleness of the asset's sensors."""
 

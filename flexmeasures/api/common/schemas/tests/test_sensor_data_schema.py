@@ -131,72 +131,33 @@ def test_value_field_invalid(deserialization_input, error_msg):
     assert error_msg in str(ve)
 
 
+# knowledge time 2016-01-01T12:00+01
 @pytest.mark.parametrize(
-    "now, sensor_type, source_name, expected_staleness, expected_stale",
+    "now, expected_staleness, expected_stale",
     [
         (
-            # Last event start at 2016-01-01T23:00+01, with knowledge time 2016-01-01T12:00+01, 12 hours from now
+            # Knowledge time 12 hours from now
             "2016-01-01T00:00+01",
-            "market",
-            None,
             None,  # Not known yet
             True,
         ),
         (
-            # Last event start at 2016-01-01T23:00+01, with knowledge time 2016-01-01T12:00+01, 12 hours and 18 minutes ago
+            # Knowledge time 12 hours and 18 minutes ago
             "2016-01-02T00:18+01",
-            "market",
-            None,
             timedelta(hours=12, minutes=18),
             True,
         ),
         (
-            # Last event start at 2016-01-01T23:00+01, with knowledge time 2016-01-01T12:00+01, 1 day and 12 hours ago
+            # Knowledge time 1 day and 12 hours ago
             "2016-01-03T00:00+01",
-            "market",
-            None,
             timedelta(days=1, hours=12),
             True,
         ),
         (
-            # Last event start at 2015-01-01T23:00:00+00:00, with knowledge time 2015-01-01T23:15:00+00:00, 40 minutes from now
-            "2015-01-01T22:35+01",
-            "production",
-            "Seita",
-            None,  # Not known yet
-            True,
-        ),
-        (
-            # Last event start at 2015-01-02T07:45+01, with knowledge time 2015-01-02T08:00+01, 40 minutes ago (but still less than max PT1H allowed)
-            "2015-01-02T08:40+01",
-            "production",
-            "Seita",
-            timedelta(minutes=40),
+            # Knowledge time 1 min ago
+            "2016-01-01T12:01+01",
+            timedelta(minutes=1),
             False,
-        ),
-        (
-            # Last event start of Seita's belief at 2015-01-01T23:00:00+00:00, with knowledge time 2015-01-01T23:15:00+00:00, 2 minutes from now
-            "2015-01-01T23:13+01",
-            "production",
-            "Seita",
-            None,  # Not known yet
-            True,
-        ),
-        (
-            # Last event start of Seita's belief at 2015-01-02T07:45+01, with knowledge time 2015-01-02T08:00+01, 4 hours and 42 minutes ago
-            "2015-01-02T12:42+01",
-            "production",
-            "Seita",
-            timedelta(hours=4, minutes=42),
-            True,
-        ),
-        (
-            # Last event start of DummyScheduler's belief at 2016-01-02T07:45+01, with knowledge time 2016-01-02T08:00+01, 13 hours ago
-            "2016-01-02T21:00+01",
-            "production",
-            "DummySchedule",
-            timedelta(hours=13),
-            True,
         ),
     ],
 )
@@ -204,23 +165,12 @@ def test_get_status_single_source(
     add_market_prices,
     capacity_sensors,
     now,
-    sensor_type,
-    source_name,
     expected_staleness,
     expected_stale,
 ):
-    if sensor_type == "market":
-        sensor = add_market_prices["epex_da"]
-        deserialized_staleness_search = dict()
-        serialized_staleness_search = {}
-    elif sensor_type == "production":
-        sensor = capacity_sensors["production"]
-        deserialized_staleness_search = dict()
-        serialized_staleness_search = {}
-        for source in sensor.data_sources:
-            if source.name == source_name:
-                deserialized_staleness_search = dict(source=source)
-                serialized_staleness_search = {"source": source.id}
+    sensor = add_market_prices["epex_da"]
+    deserialized_staleness_search = dict()
+    serialized_staleness_search = {}
 
     now = pd.Timestamp(now)
     stalenesses = get_stalenesses(
@@ -229,11 +179,11 @@ def test_get_status_single_source(
     if stalenesses is not None:
         stalenesses.pop("forecaster", None)
 
-    source_name = source_name if source_name else "Seita"
+    source_type = "reporter"
     if expected_staleness is None:
         assert stalenesses is None
     else:
-        assert stalenesses == {source_name: expected_staleness}
+        assert stalenesses == {source_type: expected_staleness}
 
     status_specs = {
         "staleness_search": serialized_staleness_search,
@@ -258,14 +208,14 @@ def test_get_status_single_source(
     if stalenesses is None:
         assert sensor_status["source"] is None
     else:
-        assert sensor_status["source"] == source_name
+        assert sensor_status["source"] == source_type
 
 
 # both sources have the same data
 # max_staleness for forecaster is 12 hours
-# max_staleness for Seita is 1 day
+# max_staleness for reporter is 1 day
 @pytest.mark.parametrize(
-    "now, expected_forecaster_staleness, expected_forecaster_stale, expect_forecaster_reason, expected_seita_staleness, expected_seita_stale, expect_seita_reason",
+    "now, expected_forecaster_staleness, expected_forecaster_stale, expect_forecaster_reason, expected_reporter_staleness, expected_reporter_stale, expect_reporter_reason",
     [
         (
             # Both stale
@@ -277,7 +227,7 @@ def test_get_status_single_source(
             "less than 12 hours in the future",
             timedelta(days=1, hours=1),
             True,
-            "more than a day old",
+            "more than 1 day old",
         ),
         (
             # Both not stale
@@ -289,10 +239,10 @@ def test_get_status_single_source(
             "not less than 12 hours in the future",
             timedelta(hours=22),
             False,
-            "not more than a day old",
+            "not more than 1 day old",
         ),
         (
-            # Seita not stale, forecaster stale
+            # Reporter not stale, forecaster stale
             # Last event start at 2016-01-02T23:00+01,
             # with knowledge time 2016-01-01T12:00+01, 1 day ago
             "2016-01-02T12:00+01",
@@ -301,7 +251,7 @@ def test_get_status_single_source(
             "less than 12 hours in the future",
             timedelta(days=1),
             False,
-            "not more than a day old",
+            "not more than 1 day old",
         ),
     ],
 )
@@ -311,9 +261,9 @@ def test_get_status_multi_source(
     expected_forecaster_staleness,
     expected_forecaster_stale,
     expect_forecaster_reason,
-    expected_seita_staleness,
-    expected_seita_stale,
-    expect_seita_reason,
+    expected_reporter_staleness,
+    expected_reporter_stale,
+    expect_reporter_reason,
 ):
     sensor = add_market_prices["epex_da"]
     now = pd.Timestamp(now)
@@ -324,10 +274,10 @@ def test_get_status_multi_source(
     )
     assert len(sensor_statuses) == 2
     for sensor_status in sensor_statuses:
-        if sensor_status["source"] == "Seita":
-            assert sensor_status["staleness"] == expected_seita_staleness
-            assert sensor_status["stale"] == expected_seita_stale
-            assert sensor_status["reason"] == expect_seita_reason
+        if sensor_status["source"] == "reporter":
+            assert sensor_status["staleness"] == expected_reporter_staleness
+            assert sensor_status["stale"] == expected_reporter_stale
+            assert sensor_status["reason"] == expect_reporter_reason
         else:
             assert sensor_status["staleness"] == expected_forecaster_staleness
             assert sensor_status["stale"] == expected_forecaster_stale
