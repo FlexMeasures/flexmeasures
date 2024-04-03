@@ -4,6 +4,7 @@ import json
 
 from flask import current_app
 from flask_classful import FlaskView, route
+from flask_login import current_user
 from flask_security import auth_required
 from flask_json import as_json
 from marshmallow import fields
@@ -42,9 +43,7 @@ class AssetAPI(FlaskView):
     @route("", methods=["GET"])
     @use_kwargs(
         {
-            "account": AccountIdField(
-                data_key="account_id", load_default=AccountIdField.load_current
-            ),
+            "account": AccountIdField(data_key="account_id", load_default=None),
         },
         location="query",
     )
@@ -95,13 +94,18 @@ class AssetAPI(FlaskView):
 
         if all_accessible:
             accounts = []
-            for account in db.session.scalars(select(Account)).all():
+            for _account in db.session.scalars(select(Account)).all():
                 try:
-                    check_access(account, "read")
-                    accounts.append(account)
+                    check_access(_account, "read")
+                    accounts.append(_account)
                 except (Forbidden, Unauthorized):
-                    pass
+                    # re-raise exception if the account is provided
+                    # but the requesting user has no read access to it.
+                    if _account == account:
+                        raise
         else:
+            if account is None:
+                account = current_user.account
             check_access(account, "read")
             accounts = [account]
 
