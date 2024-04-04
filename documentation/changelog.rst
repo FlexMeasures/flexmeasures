@@ -9,8 +9,7 @@ v0.21.0 | April XX, 2024
 New features
 -------------   
 
-* Split asset/<id>/status page result by data source type [see `PR #1022 <https://github.com/FlexMeasures/flexmeasures/pull/1022/>`_]
-* Add asset/<id>/status page to view asset statuses [see `PR #941 <https://github.com/FlexMeasures/flexmeasures/pull/941/>`_]
+* Add asset/<id>/status page to view asset statuses [see `PR #941 <https://github.com/FlexMeasures/flexmeasures/pull/941/>`_ and `PR #1022 <https://github.com/FlexMeasures/flexmeasures/pull/1022/>`_]
 
 Bugfixes
 -----------

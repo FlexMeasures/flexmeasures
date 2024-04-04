@@ -224,10 +224,10 @@ def test_get_status_single_source(
             "2016-01-02T13:00+01",
             timedelta(hours=10),
             True,
-            "less than 12 hours in the future",
+            "most recent data is 10 hours in the future, but should be more than 12 hours in the future",
             timedelta(days=1, hours=1),
             True,
-            "more than 1 day old",
+            "most recent data is 1 day and 1 hour old, but should not be more than 1 day old",
         ),
         (
             # Both not stale
@@ -236,10 +236,10 @@ def test_get_status_single_source(
             "2016-01-02T10:00+01",
             timedelta(hours=13),
             False,
-            "not less than 12 hours in the future",
+            "most recent data is 13 hours in the future, which is not less than 12 hours in the future",
             timedelta(hours=22),
             False,
-            "not more than 1 day old",
+            "most recent data is 22 hours old, which is not more than 1 day old",
         ),
         (
             # Reporter not stale, forecaster stale
@@ -248,10 +248,10 @@ def test_get_status_single_source(
             "2016-01-02T12:00+01",
             timedelta(hours=11),
             True,
-            "less than 12 hours in the future",
+            "most recent data is 11 hours in the future, but should be more than 12 hours in the future",
             timedelta(days=1),
             False,
-            "not more than 1 day old",
+            "most recent data is 1 day old, which is not more than 1 day old",
         ),
     ],
 )

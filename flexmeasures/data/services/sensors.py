@@ -193,12 +193,16 @@ def get_statuses(
             )
             staleness_since = now - staleness
             stale = staleness > max_source_staleness
-            comparison = "more" if staleness > timedelta(0) else "less"
             timeline = "old" if staleness > timedelta(0) else "in the future"
-            reason = (
-                "" if stale else "not "
-            ) + f"{comparison} than {precisedelta(max_source_staleness)} {timeline}"
+            reason_part = ""
+            if staleness > timedelta(0):
+                reason_part = (
+                    "which is not more" if not stale else "but should not be more"
+                )
+            else:
+                reason_part = "which is not less" if not stale else "but should be more"
             staleness = staleness if staleness > timedelta(0) else -staleness
+            reason = f"most recent data is {precisedelta(staleness)} {timeline}, {reason_part} than {precisedelta(max_source_staleness)} {timeline}"
 
         statuses.append(
             dict(
