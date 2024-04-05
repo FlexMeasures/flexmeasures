@@ -60,6 +60,9 @@
                 </div>
                 {% endif %}
             </div>
+            <form action="/assets/{{ asset.id }}/status" method="get">
+                <button id="asset-status-button" class="btn btn-sm btn-responsive" type="submit">Asset status</button>
+            </form>
             <div class="sidepanel-container">
                 <div class="left-sidepanel-label">Select dates</div>
                 <div class="sidepanel left-sidepanel">
@@ -192,6 +195,7 @@
                             <th>Account</th>
                             <th>Sensors</th>
                             <th class="hidden">URL</th>
+                            <th class="no-sort"></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -221,6 +225,11 @@
                             </td>
                             <td class="hidden">
                                 /assets/{{ child.id }}
+                            </td>
+                            <td>
+                                <a href="/assets/{{ child.id }}/status">
+                                    <button type="button" class="btn">Status</button>
+                                </a>
                             </td>
                         </tr>
                         {% endfor %}
