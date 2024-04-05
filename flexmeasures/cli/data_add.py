@@ -1168,8 +1168,15 @@ def create_schedule(ctx):
     "--soc-at-start",
     "soc_at_start",
     type=QuantityField("%", validate=validate.Range(min=0, max=1)),
-    required=True,
+    required=False,
     help="State of charge (e.g 32.8%, or 0.328) at the start of the schedule.",
+)
+@click.option(
+    "--soc",
+    "soc",
+    type=QuantityOrSensor("MWh"),
+    required=False,
+    help="State of charge (e.g sensor:<id>, or 0.328) at the start of the schedule.",
 )
 @click.option(
     "--soc-target",
@@ -1304,7 +1311,8 @@ def add_schedule_for_storage(  # noqa C901
     site_production_capacity: ur.Quantity | Sensor | None,
     start: datetime,
     duration: timedelta,
-    soc_at_start: ur.Quantity,
+    soc_at_start: ur.Quantity | None,
+    soc: ur.Quantity | Sensor | None,
     charging_efficiency: ur.Quantity | Sensor | None,
     discharging_efficiency: ur.Quantity | Sensor | None,
     soc_gain: ur.Quantity | Sensor | None,
@@ -1354,7 +1362,8 @@ def add_schedule_for_storage(  # noqa C901
         )
         raise click.Abort()
     capacity_str = f"{power_sensor.get_attribute('max_soc_in_mwh')} MWh"
-    soc_at_start = convert_units(soc_at_start.magnitude, soc_at_start.units, "MWh", capacity=capacity_str)  # type: ignore
+    if soc_at_start is not None:
+        soc_at_start = convert_units(soc_at_start.magnitude, soc_at_start.units, "MWh", capacity=capacity_str)  # type: ignore
     soc_targets = []
     for soc_target_tuple in soc_target_strings:
         soc_target_value_str, soc_target_datetime_str = soc_target_tuple
@@ -1381,6 +1390,7 @@ def add_schedule_for_storage(  # noqa C901
         belief_time=server_now(),
         resolution=power_sensor.event_resolution,
         flex_model={
+            "soc": soc,
             "soc-at-start": soc_at_start,
             "soc-targets": soc_targets,
             "soc-min": soc_min,

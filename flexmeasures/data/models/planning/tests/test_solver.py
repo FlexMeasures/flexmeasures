@@ -223,6 +223,7 @@ def run_test_charge_discharge_sign(
         end,
         resolution,
         soc_at_start,
+        soc_sensor,
         device_constraints,
         ems_constraints,
         commitment_quantities,
@@ -1074,6 +1075,7 @@ def test_numerical_errors(app_with_each_solver, setup_planning_test_data, db):
         end,
         resolution,
         soc_at_start,
+        soc_sensor,
         device_constraints,
         ems_constraints,
         commitment_quantities,
@@ -1256,6 +1258,7 @@ def test_capacity(
         end,
         resolution,
         soc_at_start,
+        soc_sensor,
         device_constraints,
         ems_constraints,
         commitment_quantities,
@@ -1546,8 +1549,8 @@ def test_battery_power_capacity_as_sensor(
     )
 
     data_to_solver = scheduler._prepare()
-    device_constraints = data_to_solver[5][0]
-    ems_constraints = data_to_solver[6]
+    device_constraints = data_to_solver[6][0]
+    ems_constraints = data_to_solver[7]
 
     assert all(device_constraints["derivative min"].values == expected_production)
     assert all(device_constraints["derivative max"].values == expected_consumption)
@@ -1586,7 +1589,7 @@ def test_battery_bothways_power_capacity_as_sensor(
     )
 
     data_to_solver = scheduler._prepare()
-    device_constraints = data_to_solver[5][0]
+    device_constraints = data_to_solver[6][0]
 
     max_capacity = (
         capacity_sensors["power_capacity"]
@@ -1616,7 +1619,7 @@ def get_efficiency_problem_device_constraints(
     )
 
     scheduler_data = scheduler._prepare()
-    return scheduler_data[5][0]
+    return scheduler_data[6][0]
 
 
 def test_dis_charging_efficiency_as_sensor(
@@ -1755,9 +1758,9 @@ def test_battery_stock_delta_quantity(
     scheduler_info = scheduler._prepare()
 
     if expected_delta is not None:
-        assert all(scheduler_info[5][0]["stock delta"] == expected_delta)
+        assert all(scheduler_info[6][0]["stock delta"] == expected_delta)
     else:
-        assert all(scheduler_info[5][0]["stock delta"].isna())
+        assert all(scheduler_info[6][0]["stock delta"].isna())
 
 
 @pytest.mark.parametrize(
@@ -1810,9 +1813,9 @@ def test_battery_efficiency_quantity(
     scheduler_info = scheduler._prepare()
 
     if efficiency is not None:
-        assert all(scheduler_info[5][0]["efficiency"] == expected_efficiency)
+        assert all(scheduler_info[6][0]["efficiency"] == expected_efficiency)
     else:
-        assert all(scheduler_info[5][0]["efficiency"].isna())
+        assert all(scheduler_info[6][0]["efficiency"].isna())
 
 
 @pytest.mark.parametrize(
@@ -1869,4 +1872,4 @@ def test_battery_storage_efficiency_sensor(
     )
 
     scheduler_info = scheduler._prepare()
-    assert all(scheduler_info[5][0]["efficiency"] == expected_efficiency)
+    assert all(scheduler_info[6][0]["efficiency"] == expected_efficiency)

@@ -145,11 +145,22 @@ class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
 
         elif isinstance(value, str):
             try:
+                try:
+                    float(value)
+                    return value
+                except ValueError:
+                    pass
                 return ur.Quantity(value).to(self.to_unit)
             except DimensionalityError as e:
                 raise FMValidationError(
                     f"Cannot convert value `{value}` to '{self.to_unit}'"
                 ) from e
+        elif (
+            isinstance(value, Sensor)
+            or isinstance(value, int)
+            or isinstance(value, float)
+        ):
+            return value
         else:
             if self.default_src_unit is not None:
                 return self._deserialize(

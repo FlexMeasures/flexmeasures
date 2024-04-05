@@ -22,9 +22,6 @@ from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.utils.unit_utils import ur, convert_units
 from pint.errors import UndefinedUnitError, DimensionalityError
 
-from flexmeasures.data.services.utils import get_or_create_model
-from flexmeasures.utils.calculations import integrate_time_series
-
 
 def initialize_df(
     columns: list[str],
@@ -431,23 +428,12 @@ def nanmin_of_series_and_value(s: pd.Series, value: float | pd.Series) -> pd.Ser
     return s.fillna(value).clip(upper=value)
 
 
-def create_soc_schedule(
-    sensor: Sensor, data: pd.Series, soc_at_start: float
-) -> tuple[pd.Series, Sensor]:
-    """Generates a state of charge (SOC) schedule from provided data and creates or retrieves an SOC sensor."""
-    asset = db.session.scalars(
-        select(Asset).filter_by(id=sensor.generic_asset_id)
-    ).one_or_none()
-
-    soc_schedule = integrate_time_series(data, soc_at_start, decimal_precision=6)
-
-    soc_sensor = get_or_create_model(
-        Sensor,
-        name="soc schedule",
-        generic_asset=asset,
-        unit="MWh",
-        timezone=sensor.timezone,
-        event_resolution=timedelta(minutes=15),
-    )
-
-    return soc_schedule, soc_sensor
+def get_sensor_soc_value(sensor: Sensor, start: datetime):
+    soc_value = db.session.execute(
+        select(TimedBelief).filter_by(sensor_id=sensor.id, event_start=start)
+    ).scalar_one_or_none()
+    if soc_value is not None:
+        soc_value = soc_value.event_value
+    else:
+        soc_value = 0
+    return soc_value
