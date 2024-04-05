@@ -444,7 +444,7 @@ def nanmin_of_series_and_value(s: pd.Series, value: float | pd.Series) -> pd.Ser
     return s.fillna(value).clip(upper=value)
 
 
-def get_sensor_soc_value(sensor: Sensor, start: datetime):
+def get_soc_sensor_value(sensor: Sensor, start: datetime):
     soc_value = db.session.execute(
         select(TimedBelief).filter_by(sensor_id=sensor.id, event_start=start)
     ).scalar_one_or_none()

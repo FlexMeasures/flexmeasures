@@ -21,7 +21,7 @@ from flexmeasures.data.models.planning.utils import (
     get_power_values,
     fallback_charging_policy,
     get_continuous_series_sensor_or_quantity,
-    get_sensor_soc_value,
+    get_soc_sensor_value,
 )
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
 from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
@@ -98,7 +98,7 @@ class MetaStorageScheduler(Scheduler):
         soc_sensor = None
         if isinstance(soc, Sensor):
             soc_sensor = soc
-            soc_at_start = get_sensor_soc_value(soc, start)
+            soc_at_start = get_soc_sensor_value(soc, start)
         elif (isinstance(soc, float) or isinstance(soc, int)) and soc > 0:
             soc_at_start = soc
         # Check for required Sensor attributes
