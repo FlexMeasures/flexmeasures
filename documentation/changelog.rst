@@ -10,6 +10,8 @@ New features
 -------------   
 
 * Add asset/<id>/status page to view asset statuses [see `PR #41 <https://github.com/FlexMeasures/flexmeasures/pull/941/>`_]
+* In `flexmeasures show beliefs`, the entity path (`<Account name>/<Asset 1>/.../<Asset>`) is used to differentiate between duplicated sensors names [see `PR #1026 <https://github.com/FlexMeasures/flexmeasures/pull/1026/>`_]
+
 
 Bugfixes
 -----------
