@@ -236,6 +236,36 @@
                 </table>
             </div>
         </div>
+        <div class="row">
+            <div class="copy-url" title="Click to copy URL to clipboard">
+                <script>
+                    function copyUrl() {
+                        if (!window.getSelection) {
+                            alert('Please copy the URL from the location bar.');
+                            return;
+                        }
+                        const dummy = document.createElement('p');
+                        dummy.textContent = window.location.href;
+                        document.body.appendChild(dummy);
+
+                        const range = document.createRange();
+                        range.setStartBefore(dummy);
+                        range.setEndAfter(dummy);
+
+                        const selection = window.getSelection();
+                        // First clear, in case the user already selected some other text
+                        selection.removeAllRanges();
+                        selection.addRange(range);
+
+                        document.execCommand('copy');
+                        document.body.removeChild(dummy);
+                    }
+                </script>
+                <a href="#" onclick="copyUrl()">
+                    <i class="fa fa-link"></i>
+                </a>
+            </div>
+        </div>
         <div class="col-sm-2">
             <div class="replay-container">
                 <div id="replay" title="Press 'p' to play/pause/resume or 's' to stop." class="stopped"></div>
