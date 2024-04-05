@@ -7,6 +7,7 @@ from flask import url_for, current_app, request
 from flask_classful import FlaskView, route
 from flask_wtf import FlaskForm
 from flask_security import login_required, current_user
+from webargs.flaskparser import use_kwargs
 from wtforms import StringField, DecimalField, SelectField
 from wtforms.validators import DataRequired, optional
 from sqlalchemy import select
@@ -15,6 +16,7 @@ from flexmeasures.auth.policy import user_has_admin_access
 from flexmeasures.data import db
 from flexmeasures.auth.error_handling import unauthorized_handler
 from flexmeasures.auth.policy import check_access
+from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.models.generic_assets import (
     GenericAssetType,
     GenericAsset,
@@ -267,8 +269,15 @@ class AssetCrudUI(FlaskView):
             user_can_create_assets=user_can_create_assets(),
         )
 
+    @use_kwargs(
+        {
+            "start_time": AwareDateTimeField(format="iso", required=False),
+            "end_time": AwareDateTimeField(format="iso", required=False),
+        },
+        location="query",
+    )
     @login_required
-    def get(self, id: str):
+    def get(self, id: str, **kwargs):
         """GET from /assets/<id> where id can be 'new' (and thus the form for asset creation is shown)
         The following query parameters are supported:
          - start_time: minimum time of the events to be shown

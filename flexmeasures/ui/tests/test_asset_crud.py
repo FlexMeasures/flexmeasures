@@ -67,8 +67,8 @@ def test_asset_page(db, client, setup_assets, requests_mock, as_prosumer_user1):
         url_for(
             "AssetCrudUI:get",
             id=asset.id,
-            start_time="2022-10-01T00:00:00",
-            end_time="2022-10-02T:00:00",
+            start_time="2022-10-01T00:00:00+02:00",
+            end_time="2022-10-02T00:00:00+02:00",
         ),
         follow_redirects=True,
     )
@@ -76,9 +76,13 @@ def test_asset_page(db, client, setup_assets, requests_mock, as_prosumer_user1):
     assert str(mock_asset["latitude"]).encode() in asset_page.data
     assert str(mock_asset["longitude"]).encode() in asset_page.data
     assert (
-        "storeStartDate = new Date('2022-10-01T00:00:00')".encode() in asset_page.data
+        "storeStartDate = new Date('2022-10-01T00:00:00+02:00')".encode()
+        in asset_page.data
     )
-    assert "storeEndDate = new Date('2022-10-02T:00:00')".encode() in asset_page.data
+    assert (
+        "storeEndDate = new Date('2022-10-02T00:00:00+02:00')".encode()
+        in asset_page.data
+    )
 
 
 def test_edit_asset(db, client, setup_assets, requests_mock, as_admin):
