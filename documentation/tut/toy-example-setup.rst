@@ -173,18 +173,41 @@ If you want, you can inspect what you created:
 
     All assets:
     
-    ID  Name         Type     Location
+    ID  Name           Type     Location
     ----  -----------  -------  -----------------
-    2  toy-battery  battery  (52.374, 4.88969)
-    3  toy-solar    solar    (52.374, 4.88969)
+    2  toy-building   building  (52.374, 4.88969)
+    3  toy-battery    battery   (52.374, 4.88969)
+    4  toy-solar      solar     (52.374, 4.88969)
 
 .. code-block:: bash
 
     $ flexmeasures show asset --id 2
 
     =========================
-    Asset toy-battery (ID: 2)
+    Asset toy-building (ID: 2)
     =========================
+
+    Type      Location           Attributes
+    -------   -----------------  ----------------------------
+    building  (52.374, 4.88969)
+
+    ====================================
+    Child assets of toy-building (ID: 2)
+    ====================================
+
+    Id       Name               Type
+    -------  -----------------  ----------------------------
+    3        toy-battery        battery
+    4        toy-solar          solar
+
+    No sensors in asset ...
+
+    $ flexmeasures show asset --id 3
+
+    ==================================
+    Asset toy-battery (ID: 3)
+    Child of asset toy-building (ID: 2)
+    ==================================
 
     Type     Location           Attributes
     -------  -----------------  ----------------------------
@@ -193,12 +216,17 @@ If you want, you can inspect what you created:
                                 max_soc_in_mwh: 0.45
                                 sensors_to_show: [1, [3, 2]]
 
+    ====================================
+    Child assets of toy-battery (ID: 3)
+    ====================================
+
+    No children assets ...
+
     All sensors in asset:
     
     ID  Name         Unit    Resolution    Timezone          Attributes
     ----  -----------  ------  ------------  ----------------  ------------
     2  discharging  MW      15 minutes    Europe/Amsterdam
-
 
 
 Yes, that is quite a large battery :)

@@ -20,7 +20,7 @@ from flexmeasures.data.models.planning.storage import (
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.planning.tests.utils import check_constraints
 from flexmeasures.data.models.planning.utils import initialize_series, initialize_df
-from flexmeasures.data.schemas.scheduling.storage import SOCValueSchema
+from flexmeasures.data.schemas.sensors import TimedEventSchema
 from flexmeasures.utils.calculations import (
     apply_stock_changes_and_losses,
     integrate_time_series,
@@ -1317,7 +1317,7 @@ def test_build_device_soc_values(caplog, soc_values, log_message, expected_num_t
 
     # Convert SoC datetimes to periods with a start and end.
     for soc in soc_values:
-        SOCValueSchema().check_time_window(soc)
+        TimedEventSchema().check_time_window(soc)
 
     with caplog.at_level(logging.WARNING):
         device_values = build_device_soc_values(
@@ -1873,3 +1873,101 @@ def test_battery_storage_efficiency_sensor(
 
     scheduler_info = scheduler._prepare()
     assert all(scheduler_info[6][0]["efficiency"] == expected_efficiency)
+
+
+@pytest.mark.parametrize(
+    "sensor_name, expected_start, expected_end",
+    [
+        # A value defined in a coarser resolution is upsampled to match the power sensor resolution.
+        (
+            "soc-targets (1h)",
+            "14:00:00",
+            "15:00:00",
+        ),
+        # A value defined in a finer resolution is downsampled to match the power sensor resolution.
+        # Only a single value coincides with the power sensor resolution.
+        pytest.param(
+            "soc-targets (5min)",
+            "14:00:00",
+            "14:00:00",  # not "14:15:00"
+            marks=pytest.mark.xfail(
+                reason="timely-beliefs doesn't yet make it possible to resample to a certain frequency and event resolution simultaneously"
+            ),
+        ),
+        # A simple case, SOC constraint sensor in the same resolution as the power sensor.
+        (
+            "soc-targets (15min)",
+            "14:00:00",
+            "14:15:00",
+        ),
+        # For an instantaneous sensor, the value is set to the interval containing the instantaneous event.
+        (
+            "soc-targets (instantaneous)",
+            "14:00:00",
+            "14:00:00",
+        ),
+        # This is an event at 14:05:00 with a duration of 15min.
+        # This constraint should span the intervals from 14:00 to 14:15 and from 14:15 to 14:30, but we are not reindexing properly.
+        pytest.param(
+            "soc-targets (15min lagged)",
+            "14:00:00",
+            "14:15:00",
+            marks=pytest.mark.xfail(
+                reason="we should re-index the series so that values of the original index that overlap are used."
+            ),
+        ),
+    ],
+)
+def test_add_storage_constraint_from_sensor(
+    add_battery_assets,
+    add_soc_targets,
+    sensor_name,
+    expected_start,
+    expected_end,
+    db,
+):
+    """
+    Test the handling of different values for the target SOC constraints as sensors in the StorageScheduler.
+    """
+    _, battery = get_sensors_from_db(db, add_battery_assets)
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+    soc_targets = add_soc_targets[sensor_name]
+
+    flex_model = {
+        "soc-max": 2,
+        "soc-min": 0,
+        "roundtrip-efficiency": 1,
+        "production-capacity": "0kW",
+        "soc-at-start": 0,
+    }
+
+    flex_model["soc-targets"] = {"sensor": soc_targets.id}
+
+    scheduler: Scheduler = StorageScheduler(
+        battery, start, end, resolution, flex_model=flex_model
+    )
+
+    scheduler_info = scheduler._prepare()
+    storage_constraints = scheduler_info[5][0]
+
+    expected_target_start = pd.Timedelta(expected_start) + start
+    expected_target_end = pd.Timedelta(expected_end) + start
+    expected_soc_target_value = 0.5 * timedelta(hours=1) / resolution
+
+    # convert dates from UTC to local time (Europe/Amsterdam)
+    equals = storage_constraints["equals"].tz_convert(tz)
+
+    # check that no value before expected_target_start is non-nan
+    assert all(equals[: expected_target_start - resolution].isna())
+
+    # check that no value after expected_target_end is non-nan
+    assert all(equals[expected_target_end + resolution :].isna())
+
+    # check that the values in the (expected_target_start, expected_target_end) are equal to the expected value
+    assert all(
+        equals[expected_target_start + resolution : expected_target_end]
+        == expected_soc_target_value
+    )

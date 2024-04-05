@@ -110,6 +110,7 @@
                             <th>Asset ID</th>
                             <th>Account</th>
                             <th>Sensors</th>
+                            <th class="no-sort">Status</th>
                             <th class="text-right no-sort">
                                 {% if user_can_create_assets %}
                                 <form action="/assets/new" method="get">
@@ -147,6 +148,11 @@
                             </td>
                             <td>
                                 {{ asset.sensors | length }}
+                            </td>
+                            <td>
+                                <a href="/assets/{{ asset.id }}/status">
+                                    <button type="button" class="btn">Status</button>
+                                </a>
                             </td>
                             <td class="text-right">
                             </td>

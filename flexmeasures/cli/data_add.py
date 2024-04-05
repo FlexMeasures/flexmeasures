@@ -2015,8 +2015,13 @@ def add_toy_account(kind: str, name: str):
         asset_type: str,
         sensor_name: str,
         unit: str = "MW",
+        parent_asset_id: int | None = None,
         **asset_attributes,
     ):
+        asset_kwargs = dict()
+        if parent_asset_id is not None:
+            asset_kwargs["parent_asset_id"] = parent_asset_id
+
         asset = get_or_create_model(
             GenericAsset,
             name=asset_name,
@@ -2024,6 +2029,7 @@ def add_toy_account(kind: str, name: str):
             owner=db.session.get(Account, account_id),
             latitude=location[0],
             longitude=location[1],
+            **asset_kwargs,
         )
         if len(asset_attributes) > 0:
             asset.attributes = asset_attributes
@@ -2041,12 +2047,24 @@ def add_toy_account(kind: str, name: str):
         )
         return sensor
 
+    # create building asset
+    building_asset = get_or_create_model(
+        GenericAsset,
+        name="toy-building",
+        generic_asset_type=asset_types["building"],
+        owner=db.session.get(Account, account_id),
+        latitude=location[0],
+        longitude=location[1],
+    )
+    db.session.flush()
+
     if kind == "battery":
         # create battery
         discharging_sensor = create_asset_with_one_sensor(
             "toy-battery",
             "battery",
             "discharging",
+            parent_asset_id=building_asset.id,
             capacity_in_mw=0.5,
             min_soc_in_mwh=0.05,
             max_soc_in_mwh=0.45,
@@ -2054,9 +2072,7 @@ def add_toy_account(kind: str, name: str):
 
         # create solar
         production_sensor = create_asset_with_one_sensor(
-            "toy-solar",
-            "solar",
-            "production",
+            "toy-solar", "solar", "production", parent_asset_id=building_asset.id
         )
 
         # add day-ahead price sensor and PV production sensor to show on the battery's asset page
@@ -2128,7 +2144,7 @@ def add_toy_account(kind: str, name: str):
         grid_connection_capacity = get_or_create_model(
             Sensor,
             name="grid connection capacity",
-            generic_asset=nl_zone,
+            generic_asset=building_asset,
             timezone="Europe/Amsterdam",
             event_resolution="P1Y",
             unit="MW",
@@ -2156,9 +2172,7 @@ def add_toy_account(kind: str, name: str):
         db.session.commit()
 
         headroom = create_asset_with_one_sensor(
-            "toy-battery",
-            "battery",
-            "headroom",
+            "toy-battery", "battery", "headroom", parent_asset_id=building_asset.id
         )
 
         db.session.commit()
