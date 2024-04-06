@@ -640,7 +640,7 @@ def plot_beliefs(
             )
             click.secho(message, **MsgStyle.WARN)
         sensor_aliases = get_sensor_aliases(
-            sensors, duplicates, reduce_paths=reduce_paths
+            sensors, [s.name for s in sensors], reduce_paths=reduce_paths
         )
         df.columns = [sensor_aliases.get(s.id, s.name) for s in sensors]
 

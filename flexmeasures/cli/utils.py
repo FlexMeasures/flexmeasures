@@ -290,13 +290,13 @@ def get_sensor_aliases(
         duplicated_sensors = [s for s in sensors if s.name == duplicate]
         entity_paths = [
             s.generic_asset.get_path(separator=separator).split(separator)
-            for s in duplicated_sensors
+            for s in sensors
         ]
         if reduce_paths:
             entity_paths = reduce_entity_paths(entity_paths)
         entity_paths = [path_to_str(p, separator=separator) for p in entity_paths]
 
-        for i, sensor in enumerate(duplicated_sensors):
+        for i, sensor in enumerate(sensors):
             aliases[sensor.id] = f"{sensor.name} ({entity_paths[i]})"
 
     return aliases
