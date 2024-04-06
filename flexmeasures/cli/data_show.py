@@ -623,23 +623,26 @@ def plot_beliefs(
             **MsgStyle.WARN,
         )
 
-    # Decide whether to include sensor IDs (always include them in case of non-unique sensor names)
+    # Decide whether to include sensor IDs
     if include_ids:
         df.columns = [f"{s.name} (ID {s.id})" for s in sensors]
     else:
+        # In case of non-unique sensor names, show more of the sensor's ancestry
         duplicates = find_duplicates(sensors, "name")
+        if duplicates:
+            message = "The following sensor name"
+            message += "s are " if len(duplicates) > 1 else " is "
+            message += (
+                f"duplicated: {join_words_into_a_list(duplicates)}. "
+                f"To distinguish the sensors, their plot labels will include more parent assets and their account, as needed. "
+                f"To show the full path for each sensor, use the --full-path flag. "
+                f"Or to uniquely label them by their ID instead, use the --include-ids flag."
+            )
+            click.secho(message, **MsgStyle.WARN)
         sensor_aliases = get_sensor_aliases(
             sensors, duplicates, reduce_paths=reduce_paths
         )
-
-        if duplicates:
-            df.columns = [sensor_aliases.get(s.id, s.name) for s in sensors]
-            click.secho(
-                f"The following sensor names are duplicated: {duplicates}. To distinguish them, their plot labels will include their IDs. To include IDs for all sensors, use the --include-ids flag.",
-                **MsgStyle.WARN,
-            )
-        else:
-            df.columns = [s.name for s in sensors]
+        df.columns = [sensor_aliases.get(s.id, s.name) for s in sensors]
 
     # Convert to the requested or default timezone
     if timezone is not None:
