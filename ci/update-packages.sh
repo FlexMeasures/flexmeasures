@@ -52,6 +52,7 @@ cd $TEMP_DIR
 
 for PYTHON_VERSION in "${PYTHON_VERSIONS[@]}"
 do
+    echo "Working on dependencies for Python $PYTHON_VERSION ..."
     # Check if container exists and remove it
     docker container inspect flexmeasures-update-packages-$PYTHON_VERSION > /dev/null 2>&1 && docker rm --force flexmeasures-update-packages-$PYTHON_VERSION
     # Build the docker image

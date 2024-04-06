@@ -1,6 +1,5 @@
 from marshmallow import Schema, fields, validate
 
-from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.schemas.sources import DataSourceIdField
 
 from flexmeasures.data.schemas import AwareDateTimeField, DurationField
@@ -46,13 +45,11 @@ class BeliefsSearchConfigSchema(Schema):
     using the method flexmeasures.data.models.time_series:Sensor.search_beliefs
     """
 
-    sensor = SensorIdField(required=True)
-    alias = fields.Str()
-
     event_starts_after = AwareDateTimeField()
     event_ends_before = AwareDateTimeField()
 
-    belief_time = AwareDateTimeField()
+    beliefs_before = AwareDateTimeField()
+    beliefs_after = AwareDateTimeField()
 
     horizons_at_least = DurationField()
     horizons_at_most = DurationField()
@@ -68,3 +65,9 @@ class BeliefsSearchConfigSchema(Schema):
     one_deterministic_belief_per_event_per_source = fields.Boolean()
     resolution = DurationField()
     sum_multiple = fields.Boolean()
+
+
+class StatusSchema(Schema):
+    max_staleness = DurationField(required=True)
+
+    staleness_search = fields.Nested(BeliefsSearchConfigSchema(), required=True)
