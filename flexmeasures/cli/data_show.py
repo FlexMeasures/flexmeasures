@@ -33,6 +33,7 @@ from flexmeasures.data.services.time_series import simplify_index
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
 from flexmeasures.cli.utils import MsgStyle, validate_unique
 from flexmeasures.utils.coding_utils import delete_key_recursive
+from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 from flexmeasures.cli.utils import (
     DeprecatedOptionsCommand,
     DeprecatedOption,
@@ -649,7 +650,7 @@ def plot_beliefs(
     if len(sensors) == 1:
         title = f"Beliefs for Sensor '{sensors[0].name}' (ID {sensors[0].id}).\n"
     else:
-        title = f"Beliefs for Sensor(s) [{', '.join([s.name for s in sensors])}], (ID(s): [{', '.join([str(s.id) for s in sensors])}]).\n"
+        title = f"Beliefs for Sensors {join_words_into_a_list([s.name + ' (ID ' + str(s.id) + ')' for s in sensors])}.\n"
     title += f"Data spans {naturaldelta(duration)} and starts at {start}."
     if belief_time_before:
         title += f"\nOnly beliefs made before: {belief_time_before}."
