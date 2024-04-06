@@ -556,11 +556,13 @@ def chart(
     "NB non-unique sensor names will always show an ID.",
 )
 @click.option(
-    "--reduce-paths",
+    "--reduced-paths/--full-paths",
     "reduce_paths",
     default=True,
     type=bool,
-    help="Whether to include the full path to the entity or a reduced version of it.",
+    help="Whether to include the full path to the asset that the sensor belongs to"
+    "which shows any parent assets and their account), "
+    "or a reduced version of the path, which shows as much detail as is needed to distinguish the sensors).",
 )
 def plot_beliefs(
     sensors: list[Sensor],
