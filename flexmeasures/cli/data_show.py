@@ -639,9 +639,7 @@ def plot_beliefs(
                 f"Or to uniquely label them by their ID instead, use the --include-ids flag."
             )
             click.secho(message, **MsgStyle.WARN)
-        sensor_aliases = get_sensor_aliases(
-            sensors, [s.name for s in sensors], reduce_paths=reduce_paths
-        )
+        sensor_aliases = get_sensor_aliases(sensors, reduce_paths=reduce_paths)
         df.columns = [sensor_aliases.get(s.id, s.name) for s in sensors]
 
     # Convert to the requested or default timezone
