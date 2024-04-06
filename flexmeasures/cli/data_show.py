@@ -562,8 +562,8 @@ def chart(
     default=True,
     type=bool,
     help="Whether to include the full path to the asset that the sensor belongs to"
-    "which shows any parent assets and their account), "
-    "or a reduced version of the path, which shows as much detail as is needed to distinguish the sensors).",
+    "which shows any parent assets and their account, "
+    "or a reduced version of the path, which shows as much detail as is needed to distinguish the sensors.",
 )
 def plot_beliefs(
     sensors: list[Sensor],
