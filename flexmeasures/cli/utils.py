@@ -290,8 +290,8 @@ def get_sensor_aliases(
     entity_paths = [path_to_str(p, separator=separator) for p in entity_paths]
 
     aliases = {
-        sensor.id: f"{sensor.name} ({entity_paths[i]})"
-        for i, sensor in enumerate(sensors)
+        sensor.id: f"{sensor.name} ({path})"
+        for path, sensor in zip(entity_paths, sensors)
     }
 
     return aliases
