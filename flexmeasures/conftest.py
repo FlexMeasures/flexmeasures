@@ -328,10 +328,16 @@ def create_sources(db) -> dict[str, DataSource]:
     db.session.add(entsoe_source)
     dummy_schedule_source = DataSource(name="DummySchedule", type="demo script")
     db.session.add(dummy_schedule_source)
+    forecaster_source = DataSource(name="forecaster name", type="forecaster")
+    db.session.add(forecaster_source)
+    reporter_source = DataSource(name="reporter name", type="reporter")
+    db.session.add(reporter_source)
     return {
         "Seita": seita_source,
         "ENTSO-E": entsoe_source,
         "DummySchedule": dummy_schedule_source,
+        "forecaster": forecaster_source,
+        "reporter": reporter_source,
     }
 
 
@@ -677,6 +683,30 @@ def add_market_prices_common(
         for dt, val in zip(time_slots, values_today)
     ]
     db.session.add_all(today_beliefs)
+
+    today_forecaster_beliefs = [
+        TimedBelief(
+            event_start=dt,
+            belief_horizon=timedelta(hours=0),
+            event_value=val,
+            source=setup_sources["forecaster"],
+            sensor=setup_markets["epex_da"],
+        )
+        for dt, val in zip(time_slots, values_today)
+    ]
+    db.session.add_all(today_forecaster_beliefs)
+
+    today_reporter_beliefs = [
+        TimedBelief(
+            event_start=dt,
+            belief_horizon=timedelta(hours=0),
+            event_value=val,
+            source=setup_sources["reporter"],
+            sensor=setup_markets["epex_da"],
+        )
+        for dt, val in zip(time_slots, values_today)
+    ]
+    db.session.add_all(today_reporter_beliefs)
 
     return {
         "epex_da": setup_markets["epex_da"],
@@ -1252,5 +1282,7 @@ def add_beliefs(
 
 
 @pytest.fixture
-def mock_get_status(mocker: MockerFixture):
-    return mocker.patch("flexmeasures.data.services.sensors.get_status", autospec=True)
+def mock_get_statuses(mocker: MockerFixture):
+    return mocker.patch(
+        "flexmeasures.data.services.sensors.get_statuses", autospec=True
+    )
