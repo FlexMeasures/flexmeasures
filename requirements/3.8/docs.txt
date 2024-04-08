@@ -29,7 +29,7 @@ idna==3.6
     #   requests
 imagesize==1.4.1
     # via sphinx
-importlib-metadata==7.0.1
+importlib-metadata==7.1.0
     # via
     #   -c requirements/3.8/app.txt
     #   sphinx
@@ -41,7 +41,7 @@ markupsafe==2.1.5
     # via
     #   -c requirements/3.8/app.txt
     #   jinja2
-packaging==23.2
+packaging==24.0
     # via
     #   -c requirements/3.8/app.txt
     #   sphinx
@@ -96,11 +96,11 @@ sphinxcontrib-qthelp==1.0.3
     # via sphinx
 sphinxcontrib-serializinghtml==1.1.5
     # via sphinx
-urllib3==2.2.0
+urllib3==2.2.1
     # via
     #   -c requirements/3.8/app.txt
     #   requests
-zipp==3.17.0
+zipp==3.18.1
     # via
     #   -c requirements/3.8/app.txt
     #   importlib-metadata
