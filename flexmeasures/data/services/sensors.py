@@ -96,11 +96,18 @@ def get_staleness_start_times(
     for source, bdf in staleness_bdfs.items():
         time_column = "knowledge_times"
         source = str(source)
+        is_data_ok = True
         if source in ("scheduler", "forecaster"):
             # filter to get only future events
-            bdf = bdf[bdf.event_starts > now]
+            bdf_filtered = bdf[bdf.event_starts > now]
             time_column = "event_starts"
-        start_times[source] = getattr(bdf, time_column)[-1] if not bdf.empty else None
+            if bdf_filtered.empty:
+                is_data_ok = False
+                bdf_filtered = bdf
+        start_times[source] = (
+            is_data_ok,
+            getattr(bdf_filtered, time_column)[-1] if not bdf_filtered.empty else None,
+        )
 
     return start_times
 
@@ -133,8 +140,11 @@ def get_stalenesses(
         return None
 
     stalenesses = dict()
-    for source, start_time in staleness_start_times.items():
-        stalenesses[str(source)] = None if start_time is None else now - start_time
+    for source, (is_data_ok, start_time) in staleness_start_times.items():
+        stalenesses[str(source)] = (
+            is_data_ok,
+            None if start_time is None else now - start_time,
+        )
 
     return stalenesses
 
@@ -182,11 +192,14 @@ def get_statuses(
     )
 
     statuses = list()
-    for source, staleness in (stalenesses or {None: None}).items():
-        if staleness is None:
-            staleness_since = None
+    for source, (is_data_ok, staleness) in (
+        stalenesses or {None: (True, None)}
+    ).items():
+        if staleness is None or not is_data_ok:
+            staleness_since = now - staleness if not is_data_ok else None
             stale = True
-            reason = "no data recorded"
+            reason = "no data recorded" if staleness is None else "Found no future data"
+            staleness = None
         else:
             max_source_staleness = (
                 max_staleness if staleness > timedelta(0) else max_future_staleness

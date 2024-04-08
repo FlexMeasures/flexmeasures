@@ -3,6 +3,7 @@ import pytest
 
 from marshmallow import ValidationError
 import pandas as pd
+from unittest import mock
 
 from flexmeasures.api.common.schemas.sensor_data import (
     SingleValueField,
@@ -183,7 +184,7 @@ def test_get_status_single_source(
     if expected_staleness is None:
         assert stalenesses is None
     else:
-        assert stalenesses == {source_type: expected_staleness}
+        assert stalenesses == {source_type: (mock.ANY, expected_staleness)}
 
     status_specs = {
         "staleness_search": serialized_staleness_search,
@@ -252,6 +253,18 @@ def test_get_status_single_source(
             timedelta(days=1),
             False,
             "most recent data is 1 day old, which is not more than 1 day old",
+        ),
+        (
+            # Both stale, no data in the future
+            # Last event start at 2016-01-02T23:00+01,
+            # with knowledge time 2016-01-01T12:00+01, 2 days ago
+            "2016-01-03T12:00+01",
+            None,
+            True,
+            "Found no future data",
+            timedelta(days=2),
+            True,
+            "most recent data is 2 days old, but should not be more than 1 day old",
         ),
     ],
 )
