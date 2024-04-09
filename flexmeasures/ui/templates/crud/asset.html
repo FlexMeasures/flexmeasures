@@ -176,7 +176,10 @@
                             const dummy = document.createElement('p');
 
                             var startDate = encodeURIComponent(toIsoString(picker.getStartDate().toJSDate()));
-                            var endDate = encodeURIComponent(toIsoString(picker.getEndDate().toJSDate()));
+                            // add 1 day to end date as datepicker does not include the end date day
+                            var endDate = picker.getEndDate();
+                            endDate.setDate(endDate.getDate() + 1);
+                            endDate = encodeURIComponent(toIsoString(endDate.toJSDate()));
                             var base_url = window.location.href.split("?")[0];
                             dummy.textContent = `${base_url}?start_time=${startDate}&end_time=${endDate}`
                             document.body.appendChild(dummy);
