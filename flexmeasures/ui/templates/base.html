@@ -46,11 +46,6 @@
     {% endblock %}
 </head>
 
-<script>
-    // Define picker as a global variable
-    var picker;
-</script>
-
 <body>
 
     {% block body %}
@@ -196,6 +191,10 @@
     {% block sensorChartSetup %}
 
     <!-- Render Charts -->
+    <script>
+        // Define picker as a global variable so that other code on the page can access it, e.g. get the times
+        var picker;
+    </script>
     <script type="module" type="text/javascript">
 
     // Import local js (the FM version is used for cache-busting, causing the browser to fetch the updated version from the server)

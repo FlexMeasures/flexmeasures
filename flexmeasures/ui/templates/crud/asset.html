@@ -148,7 +148,7 @@
             </div>
             <div id="sensorchart" class="card" style="width: 100%;"></div>
             <div class="row">
-                <div class="copy-url" title="Click to copy URL to clipboard">
+                <div class="copy-url" title="Click to copy the URL to the current time range to clipboard.">
                     <script>
                         function toIsoString(date) {
                             var tzo = -date.getTimezoneOffset(),
@@ -175,8 +175,8 @@
                             }
                             const dummy = document.createElement('p');
 
-                            var startDate = toIsoString(picker.getStartDate().toJSDate());
-                            var endDate = toIsoString(picker.getEndDate().toJSDate());
+                            var startDate = encodeURIComponent(toIsoString(picker.getStartDate().toJSDate()));
+                            var endDate = encodeURIComponent(toIsoString(picker.getEndDate().toJSDate()));
                             var base_url = window.location.href.split("?")[0];
                             dummy.textContent = `${base_url}?start_time=${startDate}&end_time=${endDate}`
                             document.body.appendChild(dummy);
@@ -199,7 +199,7 @@
                     <a href="#" onclick="copyUrl(event)" style="display: block; text-align: center;">
                         <i class="fa fa-link"></i>
                     </a>
-                    <div id="message" style="display: none; text-align: center;">URL to this view has been copied to your clipboard.</div>
+                    <div id="message" style="display: none; text-align: center;">The URL to the time range currently shown has been copied to your clipboard.</div>
                 </div>
             </div>
             <div class="sensors-asset card">
