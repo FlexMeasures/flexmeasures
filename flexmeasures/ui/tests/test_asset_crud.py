@@ -85,6 +85,54 @@ def test_asset_page(db, client, setup_assets, requests_mock, as_prosumer_user1):
     )
 
 
+@pytest.mark.parametrize(
+    "args, error",
+    [
+        (
+            {"start_time": "2022-10-01T00:00:00+02:00"},
+            "Both start_time and end_time must be provided together.",
+        ),
+        (
+            {"end_time": "2022-10-01T00:00:00+02:00"},
+            "Both start_time and end_time must be provided together.",
+        ),
+        (
+            {
+                "start_time": "2022-10-01T00:00:00+02:00",
+                "end_time": "2022-10-01T00:00:00+02:00",
+            },
+            "start_time must be before end_time.",
+        ),
+        (
+            {
+                "start_time": "2022-10-01T00:00:00",
+                "end_time": "2022-10-02T00:00:00+02:00",
+            },
+            "Not a valid aware datetime",
+        ),
+    ],
+)
+def test_asset_page_dates_validation(
+    db, client, setup_assets, requests_mock, as_prosumer_user1, args, error
+):
+    user = find_user_by_email("test_prosumer_user@seita.nl")
+    asset = user.account.generic_assets[0]
+    db.session.expunge(user)
+    mock_asset = mock_asset_response(as_list=False)
+
+    requests_mock.get(f"{api_path_assets}/{asset.id}", status_code=200, json=mock_asset)
+    asset_page = client.get(
+        url_for(
+            "AssetCrudUI:get",
+            id=asset.id,
+            **args,
+        ),
+        follow_redirects=True,
+    )
+    assert error.encode() in asset_page.data
+    assert "UNPROCESSABLE_ENTITY".encode() in asset_page.data
+
+
 def test_edit_asset(db, client, setup_assets, requests_mock, as_admin):
     mock_asset = mock_asset_response(as_list=False)
     requests_mock.patch(f"{api_path_assets}/1", status_code=200, json=mock_asset)

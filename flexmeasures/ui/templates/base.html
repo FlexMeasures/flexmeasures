@@ -46,6 +46,11 @@
     {% endblock %}
 </head>
 
+<script>
+    // Define picker as a global variable
+    var picker;
+</script>
+
 <body>
 
     {% block body %}
@@ -349,7 +354,7 @@
 
     // Create date range picker and the logic for a new date range selection (mostly, fetching data and displaying the chart for it)
     const date = Date();
-    const picker = new Litepicker({
+    picker = new Litepicker({
         element: document.getElementById('datepicker'),
         plugins: ['ranges', 'keyboardnav'],
         ranges: {
