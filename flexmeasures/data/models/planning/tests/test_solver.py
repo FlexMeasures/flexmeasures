@@ -1951,7 +1951,7 @@ def test_add_storage_constraint_from_sensor(
     )
 
     scheduler_info = scheduler._prepare()
-    storage_constraints = scheduler_info[5][0]
+    storage_constraints = scheduler_info[6][0]
 
     expected_target_start = pd.Timedelta(expected_start) + start
     expected_target_end = pd.Timedelta(expected_end) + start

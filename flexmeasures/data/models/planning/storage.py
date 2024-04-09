@@ -21,7 +21,7 @@ from flexmeasures.data.models.planning.utils import (
     get_power_values,
     fallback_charging_policy,
     get_continuous_series_sensor_or_quantity,
-    get_soc_sensor_value,
+    # get_soc_sensor_value,
 )
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
 from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
@@ -98,9 +98,10 @@ class MetaStorageScheduler(Scheduler):
         soc_sensor = None
         if isinstance(soc, Sensor):
             soc_sensor = soc
-            soc_at_start = get_soc_sensor_value(soc, start)
-        elif (isinstance(soc, float) or isinstance(soc, int)) and soc > 0:
-            soc_at_start = soc
+        #     soc_at_start = get_soc_sensor_value(soc, start)
+        # elif (isinstance(soc, float) or isinstance(soc, int)) and soc > 0:
+        #     soc_at_start = soc
+
         # Check for required Sensor attributes
         power_capacity_in_mw = self.flex_model.get(
             "power_capacity_in_mw",
@@ -454,14 +455,14 @@ class MetaStorageScheduler(Scheduler):
         # If that doesn't work, we set the starting soc to 0 (some assets don't use the concept of a state of charge,
         # and without soc targets and limits the starting soc doesn't matter).
 
-        if "soc" in self.flex_model:
-            if (
-                self.flex_model["soc"] is not None
-                and self.flex_model["soc-at-start"] is not None
-            ):
-                raise Exception(
-                    "Both 'soc-at-start' and 'soc' parameters are provided, however, only one of them is necessary."
-                )
+        # if "soc" in self.flex_model:
+        #     if (
+        #         self.flex_model["soc"] is not None
+        #         and self.flex_model["soc-at-start"] is not None
+        #     ):
+        #         raise Exception(
+        #             "Both 'soc-at-start' and 'soc' parameters are provided, however, only one of them is necessary."
+        #         )
 
         if (
             "soc-at-start" not in self.flex_model
@@ -477,8 +478,8 @@ class MetaStorageScheduler(Scheduler):
             else:
                 self.flex_model["soc-at-start"] = 0
 
-        if "soc" not in self.flex_model or self.flex_model["soc"] is None:
-            self.flex_model["soc"] = 0
+        if self.flex_model.get("soc") is None:
+            self.flex_model["soc"] = "0 MWh"
 
         # soc-unit
         if "soc-unit" not in self.flex_model or self.flex_model["soc-unit"] is None:
@@ -612,12 +613,20 @@ class StorageFallbackScheduler(MetaStorageScheduler):
         storage_schedule = fallback_charging_policy(
             sensor, device_constraints[0], start, end, resolution
         )
-        soc_schedule = integrate_time_series(storage_schedule, soc_at_start)
+        if soc_sensor is not None:
+            soc_schedule = integrate_time_series(
+                storage_schedule,
+                soc_at_start,
+                down_efficiency=device_constraints[0]["derivative down efficiency"],
+                up_efficiency=device_constraints[0]["derivative up efficiency"],
+                storage_efficiency=device_constraints[0]["efficiency"],
+            )
 
         # Round schedule
         if self.round_to_decimals:
             storage_schedule = storage_schedule.round(self.round_to_decimals)
-            soc_schedule = soc_schedule.round(self.round_to_decimals)
+            if soc_sensor is not None:
+                soc_schedule = soc_schedule.round(self.round_to_decimals)
 
         if self.return_multiple:
             data_list = [
@@ -681,12 +690,20 @@ class StorageScheduler(MetaStorageScheduler):
 
         # Obtain the storage schedule from all device schedules within the EMS
         storage_schedule = ems_schedule[0]
-        soc_schedule = integrate_time_series(storage_schedule, soc_at_start)
+        if soc_sensor is not None:
+            soc_schedule = integrate_time_series(
+                storage_schedule,
+                soc_at_start,
+                down_efficiency=device_constraints[0]["derivative down efficiency"],
+                up_efficiency=device_constraints[0]["derivative up efficiency"],
+                storage_efficiency=device_constraints[0]["efficiency"],
+            )
 
         # Round schedule
         if self.round_to_decimals:
             storage_schedule = storage_schedule.round(self.round_to_decimals)
-            soc_schedule = soc_schedule.round(self.round_to_decimals)
+            if soc_sensor is not None:
+                soc_schedule = soc_schedule.round(self.round_to_decimals)
 
         if self.return_multiple:
             data_list = [

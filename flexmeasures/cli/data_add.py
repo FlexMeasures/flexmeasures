@@ -1311,7 +1311,7 @@ def add_schedule_for_storage(  # noqa C901
     site_production_capacity: ur.Quantity | Sensor | None,
     start: datetime,
     duration: timedelta,
-    soc_at_start: ur.Quantity | None,
+    soc_at_start: ur.Quantity,
     soc: ur.Quantity | Sensor | None,
     charging_efficiency: ur.Quantity | Sensor | None,
     discharging_efficiency: ur.Quantity | Sensor | None,
