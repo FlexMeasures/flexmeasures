@@ -20,6 +20,8 @@ from flask_cors import CORS
 from redis import Redis
 from rq import Queue
 
+from flexmeasures.data.services.job_cache import JobCache
+
 
 def create(  # noqa C901
     env: str | None = None,
@@ -100,6 +102,7 @@ def create(  # noqa C901
         # labelling=Queue(connection=redis_conn, name="labelling"),
         # alerting=Queue(connection=redis_conn, name="alerting"),
     )
+    app.job_cache = JobCache(app.redis_connection, app.queues)
 
     # Some basic security measures
 

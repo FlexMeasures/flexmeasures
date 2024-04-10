@@ -119,6 +119,7 @@ def create_forecasting_jobs(
         jobs.append(job)
         if enqueue:
             current_app.queues["forecasting"].enqueue_job(job)
+            current_app.job_cache.add(sensor_id, job.id)
     return jobs
 
 
