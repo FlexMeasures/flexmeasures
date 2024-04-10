@@ -10,6 +10,7 @@ New features
 -------------   
 
 * Add asset/<id>/status page to view asset statuses [see `PR #41 <https://github.com/FlexMeasures/flexmeasures/pull/941/>`_]
+* Support start_date and end_date query parameters for GET asset/<id> [see `PR #1030 <https://github.com/FlexMeasures/flexmeasures/pull/1030/>`_]
 
 Bugfixes
 -----------
