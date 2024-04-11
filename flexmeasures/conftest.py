@@ -1095,7 +1095,7 @@ def clean_redis(app):
     app.queues["forecasting"].empty()
     for job_id in failed.get_job_ids():
         failed.remove(app.queues["forecasting"].fetch_job(job_id))
-    app.job_cache.connection.flushdb()
+    app.redis_connection.flushdb()
 
 
 @pytest.fixture(scope="session", autouse=True)

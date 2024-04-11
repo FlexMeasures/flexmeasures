@@ -198,10 +198,11 @@ def create_scheduling_job(
     )
     scheduler.deserialize_config()
 
+    asset_or_sensor_data = get_asset_or_sensor_ref(asset_or_sensor)
     job = Job.create(
         make_schedule,
         kwargs=dict(
-            asset_or_sensor=get_asset_or_sensor_ref(asset_or_sensor),
+            asset_or_sensor=asset_or_sensor_data,
             scheduler_specs=scheduler_specs,
             **scheduler_kwargs,
         ),
@@ -220,7 +221,7 @@ def create_scheduling_job(
         on_failure=Callback(trigger_optional_fallback),
     )
 
-    job.meta["asset_or_sensor"] = get_asset_or_sensor_ref(asset_or_sensor)
+    job.meta["asset_or_sensor"] = asset_or_sensor_data
     job.meta["scheduler_kwargs"] = scheduler_kwargs
     job.save_meta()
 
@@ -230,6 +231,12 @@ def create_scheduling_job(
     # with job_status=None, we ensure that only fresh new jobs are enqueued (in the contrary they should be requeued)
     if enqueue and not job_status:
         current_app.queues["scheduling"].enqueue_job(job)
+        current_app.job_cache.add(
+            asset_or_sensor_data["id"],
+            job.id,
+            "scheduling",
+            asset_or_sensor_data["class"].lower(),
+        )
 
     return job
 

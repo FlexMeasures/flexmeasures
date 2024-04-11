@@ -1,14 +1,17 @@
 # flake8: noqa: E402
 from __future__ import annotations
 
+import pytz
 import unittest
-from unittest.mock import MagicMock
 
 from datetime import datetime, timedelta
+from unittest.mock import MagicMock, patch
+from rq.job import NoSuchJobError
 
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.services.job_cache import JobCache
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
+from flexmeasures.data.services.scheduling import create_scheduling_job
 from flexmeasures.utils.time_utils import as_server_time
 
 
@@ -33,48 +36,55 @@ def test_cache_on_create_forecasting_jobs(db, run_as_cli, app, setup_test_data):
         custom_model_params=custom_model_params(),
     )
 
-    assert app.job_cache.get(wind_device_1.id) == [job[0]]
+    assert app.job_cache.get(wind_device_1.id, "forecasting", "sensor") == [job[0]]
+
+
+def test_cache_on_create_scheduling_jobs(db, app, add_battery_assets, setup_test_data):
+    """Test we add job to cache on creating scheduling job + get job from cache"""
+    battery = add_battery_assets["Test battery"].sensors[0]
+    tz = pytz.timezone("Europe/Amsterdam")
+    start, end = tz.localize(datetime(2015, 1, 2)), tz.localize(datetime(2015, 1, 3))
+
+    job = create_scheduling_job(
+        asset_or_sensor=battery,
+        start=start,
+        end=end,
+        belief_time=start,
+        resolution=timedelta(minutes=15),
+    )
+
+    assert app.job_cache.get(battery.id, "scheduling", "sensor") == [job]
 
 
 class TestJobCache(unittest.TestCase):
     def setUp(self):
         self.connection = MagicMock(spec_set=["sadd", "smembers", "srem"])
-        self.queues = {
-            "forecasting": MagicMock(spec_set=["fetch_job"]),
-            "scheduling": MagicMock(spec_set=["fetch_job"]),
-        }
-        self.job_cache = JobCache(self.connection, self.queues)
-        self.job_cache.add("sensor_id", "job_id")
+        self.job_cache = JobCache(self.connection)
+        self.job_cache.add("sensor_id", "job_id", "forecasting", "sensor")
+        self.cache_key = "forecasting:sensor:sensor_id"
+        self.mock_redis_job = MagicMock(spec_set=["fetch"])
 
     def test_add(self):
         """Test adding to cache"""
-        self.connection.sadd.assert_called_with("sensor_id", "job_id")
+        self.connection.sadd.assert_called_with(self.cache_key, "job_id")
 
     def test_get_empty_queue(self):
         """Test getting from cache with empty queue"""
-        self.queues["forecasting"].fetch_job.return_value = None
-        self.queues["scheduling"].fetch_job.return_value = None
         self.connection.smembers.return_value = [b"job_id"]
 
-        assert self.job_cache.get("sensor_id") == []
-        assert self.connection.srem.call_count == 1
+        self.mock_redis_job.fetch.side_effect = NoSuchJobError
+        with patch("flexmeasures.data.services.job_cache.Job", new=self.mock_redis_job):
+            assert self.job_cache.get("sensor_id", "forecasting", "sensor") == []
+            assert self.connection.srem.call_count == 1
 
-    def test_get_non_empty_forecasting_queue(self):
+    def test_get_non_empty_queue(self):
         """Test getting from cache with non empty forecasting queue"""
         forecasting_job = MagicMock()
-        self.queues["forecasting"].fetch_job.return_value = forecasting_job
-        self.queues["scheduling"].fetch_job.return_value = None
         self.connection.smembers.return_value = [b"job_id"]
 
-        assert self.job_cache.get("sensor_id") == [forecasting_job]
-        assert self.connection.srem.call_count == 0
-
-    def test_get_non_empty_scheduling_queue(self):
-        """Test getting from cache with non empty scheduling queue"""
-        scheduling_job = MagicMock()
-        self.queues["scheduling"].fetch_job.return_value = scheduling_job
-        self.queues["forecasting"].fetch_job.return_value = None
-        self.connection.smembers.return_value = [b"job_id"]
-
-        assert self.job_cache.get("sensor_id") == [scheduling_job]
-        assert self.connection.srem.call_count == 0
+        self.mock_redis_job.fetch.return_value = forecasting_job
+        with patch("flexmeasures.data.services.job_cache.Job", new=self.mock_redis_job):
+            assert self.job_cache.get("sensor_id", "forecasting", "sensor") == [
+                forecasting_job
+            ]
+            assert self.connection.srem.call_count == 0

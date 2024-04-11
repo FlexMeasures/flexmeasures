@@ -102,7 +102,7 @@ def create(  # noqa C901
         # labelling=Queue(connection=redis_conn, name="labelling"),
         # alerting=Queue(connection=redis_conn, name="alerting"),
     )
-    app.job_cache = JobCache(app.redis_connection, app.queues)
+    app.job_cache = JobCache(app.redis_connection)
 
     # Some basic security measures
 
