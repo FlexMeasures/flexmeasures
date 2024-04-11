@@ -268,35 +268,30 @@ def reduce_entity_paths(asset_paths: list[list[str]]) -> list[list[str]]:
 
 def get_sensor_aliases(
     sensors: list[Sensor],
-    duplicates: list[str],
     reduce_paths: bool = True,
     separator: str = "/",
 ) -> dict:
     """
-    Generates aliases for sensors with duplicate names by appending a unique path to each sensor's name.
+    Generates aliases for all sensors by appending a unique path to each sensor's name.
 
     Parameters:
-    :param sensors: A list of Sensor objects.
-    :param duplicates: A list of sensor names that have duplicates and for which aliases need to be generated.
-    :param reduce_paths: Flag indicating whether to reduce each sensor's entity path. Defaults to True.
-    :param separator: The character or string used to separate entities within each sensor's path. Defaults to "/".
+    :param sensors:         A list of Sensor objects.
+    :param reduce_paths:    Flag indicating whether to reduce each sensor's entity path. Defaults to True.
+    :param separator:       Character or string used to separate entities within each sensor's path. Defaults to "/".
 
     :return: A dictionary mapping sensor IDs to their generated aliases.
     """
 
-    aliases = {}
+    entity_paths = [
+        s.generic_asset.get_path(separator=separator).split(separator) for s in sensors
+    ]
+    if reduce_paths:
+        entity_paths = reduce_entity_paths(entity_paths)
+    entity_paths = [path_to_str(p, separator=separator) for p in entity_paths]
 
-    for duplicate in duplicates:
-        duplicated_sensors = [s for s in sensors if s.name == duplicate]
-        entity_paths = [
-            s.generic_asset.get_path(separator=separator).split(separator)
-            for s in duplicated_sensors
-        ]
-        if reduce_paths:
-            entity_paths = reduce_entity_paths(entity_paths)
-        entity_paths = [path_to_str(p, separator=separator) for p in entity_paths]
-
-        for i, sensor in enumerate(duplicated_sensors):
-            aliases[sensor.id] = f"{sensor.name} ({entity_paths[i]})"
+    aliases = {
+        sensor.id: f"{sensor.name} ({path})"
+        for path, sensor in zip(entity_paths, sensors)
+    }
 
     return aliases
