@@ -55,6 +55,88 @@
                         {% endfor %}
                     </tbody>
                 </table>
+                <h3>Latest scheduling jobs of {{ asset.name }}</h3>
+                <table class="table table-striped table-responsive paginate nav-on-click">
+                    <thead>
+                        <tr>
+                            <th>Job id</th>
+                            <th>Asset id</th>
+                            <th>Asset type</th>
+                            <th class="text-right no-sort">Status</th>
+                            <th class="hidden">URL</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for job in scheduling_jobs: %}
+                        <tr title="View data">
+                            <td>
+                                {{ job.job_id }}
+                            </td>
+                            <td>
+                                {{ job.asset_id }}
+                            </td>
+                            <td>
+                                {{ job.asset_type }}
+                            </td>
+                            <td class="text-right">
+                                <span title="{{ job['err'] is none and job['status'] or job['status'] + ' : ' + job['err'] }}">
+                                    {% if job["status"] == "finished" %}
+                                    🟢
+                                    {% elif job["status"] == "failed" %}
+                                    🔴
+                                    {% else %}
+                                    🟡
+                                    {% endif %}
+                                </span>
+                            </td>
+                            <td class="hidden">
+                                https://seita.energy/tasks/0/view/job/{{ job.job_id }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <h3>Latest forecasting jobs of {{ asset.name }}</h3>
+                <table class="table table-striped table-responsive paginate nav-on-click">
+                    <thead>
+                        <tr>
+                            <th>Job id</th>
+                            <th>Asset id</th>
+                            <th>Asset type</th>
+                            <th class="text-right no-sort">Status</th>
+                            <th class="hidden">URL</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for job in forecasting_jobs: %}
+                        <tr title="View data">
+                            <td>
+                                {{ job.job_id }}
+                            </td>
+                            <td>
+                                {{ job.asset_id }}
+                            </td>
+                            <td>
+                                {{ job.asset_type }}
+                            </td>
+                            <td class="text-right">
+                                <span title="{{ job['err'] is none and job['status'] or job['status'] + ' : ' + job['err'] }}">
+                                    {% if job["status"] == "finished" %}
+                                    🟢
+                                    {% elif job["status"] == "failed" %}
+                                    🔴
+                                    {% else %}
+                                    🟡
+                                    {% endif %}
+                                </span>
+                            </td>
+                            <td class="hidden">
+                                https://seita.energy/tasks/0/view/job/{{ job.job_id }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>

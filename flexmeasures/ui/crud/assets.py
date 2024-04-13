@@ -26,7 +26,10 @@ from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.crud.api_wrapper import InternalApi
-from flexmeasures.data.services.sensors import build_sensor_status_data
+from flexmeasures.data.services.sensors import (
+    build_sensor_status_data,
+    build_asset_jobs_data,
+)
 
 
 """
@@ -321,8 +324,22 @@ class AssetCrudUI(FlaskView):
         asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
         status_data = build_sensor_status_data(asset)
 
+        # add data abount max_jobs_num forecasting and scheduling jobs
+        jobs_data = build_asset_jobs_data(asset)
+        max_jobs_num = 10
+        scheduling_jobs = [job for job in jobs_data if job["job_type"] == "scheduling"][
+            :max_jobs_num
+        ]
+        forecasting_jobs = [
+            job for job in jobs_data if job["job_type"] == "forecasting"
+        ][:max_jobs_num]
+
         return render_flexmeasures_template(
-            "views/status.html", asset=asset, sensors=status_data
+            "views/status.html",
+            asset=asset,
+            sensors=status_data,
+            scheduling_jobs=scheduling_jobs,
+            forecasting_jobs=forecasting_jobs,
         )
 
     @login_required

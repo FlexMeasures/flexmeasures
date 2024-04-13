@@ -1,5 +1,6 @@
-from datetime import timedelta
+from datetime import timedelta, datetime
 import pytest
+import pytz
 
 from marshmallow import ValidationError
 import pandas as pd
@@ -9,12 +10,16 @@ from flexmeasures.api.common.schemas.sensor_data import (
     PostSensorDataSchema,
     GetSensorDataSchema,
 )
+from flexmeasures.data.services.forecasting import create_forecasting_jobs
+from flexmeasures.data.services.scheduling import create_scheduling_job
 from flexmeasures.data.services.sensors import (
     get_staleness,
     get_status,
     build_sensor_status_data,
+    build_asset_jobs_data,
 )
 from flexmeasures.data.schemas.reporting import StatusSchema
+from flexmeasures.utils.time_utils import as_server_time
 
 
 @pytest.mark.parametrize(
@@ -268,3 +273,46 @@ def test_build_asset_status_data(mock_get_status, add_weather_sensors):
             "asset_name": asset.name,
         },
     ]
+
+
+def custom_model_params():
+    """little training as we have little data, turn off transformations until they let this test run (TODO)"""
+    return dict(
+        training_and_testing_period=timedelta(hours=2),
+        outcome_var_transformation=None,
+        regressor_transformation={},
+    )
+
+
+def test_build_asset_jobs_data(db, app, add_battery_assets):
+    # """Test we get both types of jobs for a battery asset."""
+    battery_asset = add_battery_assets["Test battery"]
+    battery = battery_asset.sensors[0]
+    tz = pytz.timezone("Europe/Amsterdam")
+    start, end = tz.localize(datetime(2015, 1, 2)), tz.localize(datetime(2015, 1, 3))
+
+    scheduling_job = create_scheduling_job(
+        asset_or_sensor=battery,
+        start=start,
+        end=end,
+        belief_time=start,
+        resolution=timedelta(minutes=15),
+    )
+    forecasting_jobs = create_forecasting_jobs(
+        start_of_roll=as_server_time(datetime(2015, 1, 1, 6)),
+        end_of_roll=as_server_time(datetime(2015, 1, 1, 7)),
+        horizons=[timedelta(hours=1)],
+        sensor_id=battery.id,
+        custom_model_params=custom_model_params(),
+    )
+
+    jobs_data = build_asset_jobs_data(battery_asset)
+    assert sorted([j["job_type"] for j in jobs_data]) == ["forecasting", "scheduling"]
+    for job_data in jobs_data:
+        if job_data["job_type"] == "forecasting":
+            assert job_data["job_id"] == forecasting_jobs[0].id
+        else:
+            assert job_data["job_id"] == scheduling_job.id
+        assert job_data["status"] == "queued"
+        assert job_data["asset_type"] == "sensor"
+        assert job_data["asset_id"] == battery.id

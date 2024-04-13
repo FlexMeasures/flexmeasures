@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from flask import current_app
 from timely_beliefs import BeliefsDataFrame
 
 from humanize.time import naturaldelta
@@ -197,3 +198,78 @@ def build_sensor_status_data(
             sensor_status["asset_name"] = asset.name
             sensors.append(sensor_status)
     return sensors
+
+
+def build_asset_jobs_data(
+    asset: Asset,
+) -> list:
+    """Get data connectivity status information for each sensor in given asset and its children
+    Returns a list of dictionaries, each containing the following keys:
+    - id: sensor id
+    - name: sensor name
+    - asset_name: asset name
+    - staleness: staleness of the sensor (for how long the sensor data is stale)
+    - stale: whether the sensor is stale
+    - staleness_since: time since sensor data is considered stale
+    - reason: reason for staleness
+    """
+
+    jobs = list()
+
+    # try to get scheduling jobs for asset first (only scheduling jobs can be stored by asset id)
+    jobs.append(
+        (
+            "scheduling",
+            "asset",
+            asset.id,
+            current_app.job_cache.get(asset.id, "scheduling", "asset"),
+        )
+    )
+
+    for sensor in asset.sensors:
+        jobs.append(
+            (
+                "scheduling",
+                "sensor",
+                sensor.id,
+                current_app.job_cache.get(sensor.id, "scheduling", "sensor"),
+            )
+        )
+        jobs.append(
+            (
+                "forecasting",
+                "sensor",
+                sensor.id,
+                current_app.job_cache.get(sensor.id, "forecasting", "sensor"),
+            )
+        )
+
+    jobs_data = list()
+    for job_type, asset_type, asset_id, jobs in jobs:
+        for job in jobs:
+            e = job.meta.get(
+                "exception",
+                Exception(
+                    "The job does not state why it failed. "
+                    "The worker may be missing an exception handler, "
+                    "or its exception handler is not storing the exception as job meta data."
+                ),
+            )
+            job_err = (
+                f"Scheduling job failed with {type(e).__name__}: {e}"
+                if job.is_failed
+                else None
+            )
+
+            jobs_data.append(
+                {
+                    "job_id": job.id,
+                    "job_type": job_type,
+                    "asset_type": asset_type,
+                    "asset_id": asset_id,
+                    "status": job.get_status(),
+                    "err": job_err,
+                }
+            )
+
+    return jobs_data
