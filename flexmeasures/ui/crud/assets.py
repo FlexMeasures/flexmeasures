@@ -3,10 +3,11 @@ from __future__ import annotations
 import copy
 import json
 
-from flask import url_for, current_app
+from flask import url_for, current_app, request
 from flask_classful import FlaskView, route
 from flask_wtf import FlaskForm
 from flask_security import login_required, current_user
+from webargs.flaskparser import use_kwargs
 from wtforms import StringField, DecimalField, SelectField
 from wtforms.validators import DataRequired, optional
 from sqlalchemy import select
@@ -15,6 +16,7 @@ from flexmeasures.auth.policy import user_has_admin_access
 from flexmeasures.data import db
 from flexmeasures.auth.error_handling import unauthorized_handler
 from flexmeasures.auth.policy import check_access
+from flexmeasures.data.schemas import StartEndTimeSchema
 from flexmeasures.data.models.generic_assets import (
     GenericAssetType,
     GenericAsset,
@@ -267,10 +269,14 @@ class AssetCrudUI(FlaskView):
             user_can_create_assets=user_can_create_assets(),
         )
 
+    @use_kwargs(StartEndTimeSchema, location="query")
     @login_required
-    def get(self, id: str):
-        """GET from /assets/<id> where id can be 'new' (and thus the form for asset creation is shown)"""
-
+    def get(self, id: str, **kwargs):
+        """GET from /assets/<id> where id can be 'new' (and thus the form for asset creation is shown)
+        The following query parameters are supported (should be used only together):
+         - start_time: minimum time of the events to be shown
+         - end_time: maximum time of the events to be shown
+        """
         if id == "new":
             if not user_can_create_assets():
                 return unauthorized_handler(None, [])
@@ -300,6 +306,8 @@ class AssetCrudUI(FlaskView):
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
             user_can_create_assets=user_can_create_assets(),
             user_can_delete_asset=user_can_delete(asset),
+            event_starts_after=request.args.get("start_time"),
+            event_ends_before=request.args.get("end_time"),
         )
 
     @login_required
