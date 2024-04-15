@@ -172,7 +172,7 @@ def get_status(
 def build_sensor_status_data(
     asset: Asset,
     now: datetime = None,
-) -> list:
+) -> list[dict]:
     """Get data connectivity status information for each sensor in given asset and its children
     Returns a list of dictionaries, each containing the following keys:
     - id: sensor id
@@ -202,16 +202,15 @@ def build_sensor_status_data(
 
 def build_asset_jobs_data(
     asset: Asset,
-) -> list:
-    """Get data connectivity status information for each sensor in given asset and its children
+) -> list[dict]:
+    """Get all jobs data for an asset
     Returns a list of dictionaries, each containing the following keys:
-    - id: sensor id
-    - name: sensor name
-    - asset_name: asset name
-    - staleness: staleness of the sensor (for how long the sensor data is stale)
-    - stale: whether the sensor is stale
-    - staleness_since: time since sensor data is considered stale
-    - reason: reason for staleness
+    - job_id: id of a job
+    - job_type: type of a job (scheduling or forecasting)
+    - sensor_or_asset_class: type of an asset that is linked to the job (asset or sensor)
+    - asset_id: id of sensor or asset
+    - status: job status (e.g finished, failed, etc)
+    - err: job error (equals to None when there was no error for a job)
     """
 
     jobs = list()
@@ -245,7 +244,7 @@ def build_asset_jobs_data(
         )
 
     jobs_data = list()
-    for job_type, asset_type, asset_id, jobs in jobs:
+    for job_type, sensor_or_asset_class, asset_id, jobs in jobs:
         for job in jobs:
             e = job.meta.get(
                 "exception",
@@ -265,7 +264,7 @@ def build_asset_jobs_data(
                 {
                     "job_id": job.id,
                     "job_type": job_type,
-                    "asset_type": asset_type,
+                    "sensor_or_asset_class": sensor_or_asset_class,
                     "asset_id": asset_id,
                     "status": job.get_status(),
                     "err": job_err,

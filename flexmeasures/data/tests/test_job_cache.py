@@ -60,7 +60,9 @@ class TestJobCache(unittest.TestCase):
     def setUp(self):
         self.connection = MagicMock(spec_set=["sadd", "smembers", "srem"])
         self.job_cache = JobCache(self.connection)
-        self.job_cache.add("sensor_id", "job_id", "forecasting", "sensor")
+        self.job_cache.add(
+            "sensor_id", "job_id", queue="forecasting", asset_or_sensor_type="sensor"
+        )
         self.cache_key = "forecasting:sensor:sensor_id"
         self.mock_redis_job = MagicMock(spec_set=["fetch"])
 

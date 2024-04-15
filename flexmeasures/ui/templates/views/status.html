@@ -61,28 +61,28 @@
                         <tr>
                             <th>Job id</th>
                             <th>Asset id</th>
-                            <th>Asset type</th>
+                            <th>Sensor or asset</th>
                             <th class="text-right no-sort">Status</th>
                             <th class="hidden">URL</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for job in scheduling_jobs: %}
+                        {% for job_data in scheduling_job_data: %}
                         <tr title="View data">
                             <td>
-                                {{ job.job_id }}
+                                {{ job_data.job_id }}
                             </td>
                             <td>
-                                {{ job.asset_id }}
+                                {{ job_data.asset_id }}
                             </td>
                             <td>
-                                {{ job.asset_type }}
+                                {{ job_data.sensor_or_asset_class }}
                             </td>
                             <td class="text-right">
-                                <span title="{{ job['err'] is none and job['status'] or job['status'] + ' : ' + job['err'] }}">
-                                    {% if job["status"] == "finished" %}
+                                <span title="{{ job_data['err'] is none and job_data['status'] or job_data['status'] + ' : ' + job_data['err'] }}">
+                                    {% if job_data["status"] == "finished" %}
                                     🟢
-                                    {% elif job["status"] == "failed" %}
+                                    {% elif job_data["status"] == "failed" %}
                                     🔴
                                     {% else %}
                                     🟡
@@ -90,7 +90,7 @@
                                 </span>
                             </td>
                             <td class="hidden">
-                                https://seita.energy/tasks/0/view/job/{{ job.job_id }}
+                                https://seita.energy/tasks/0/view/job/{{ job_data.job_id }}
                             </td>
                         </tr>
                         {% endfor %}
@@ -102,28 +102,28 @@
                         <tr>
                             <th>Job id</th>
                             <th>Asset id</th>
-                            <th>Asset type</th>
+                            <th>Sensor or asset</th>
                             <th class="text-right no-sort">Status</th>
                             <th class="hidden">URL</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for job in forecasting_jobs: %}
+                        {% for job_data in forecasting_job_data: %}
                         <tr title="View data">
                             <td>
-                                {{ job.job_id }}
+                                {{ job_data.job_id }}
                             </td>
                             <td>
-                                {{ job.asset_id }}
+                                {{ job_data.asset_id }}
                             </td>
                             <td>
-                                {{ job.asset_type }}
+                                {{ job_data.sensor_or_asset_class }}
                             </td>
                             <td class="text-right">
-                                <span title="{{ job['err'] is none and job['status'] or job['status'] + ' : ' + job['err'] }}">
-                                    {% if job["status"] == "finished" %}
+                                <span title="{{ job_data['err'] is none and job_data['status'] or job_data['status'] + ' : ' + job_data['err'] }}">
+                                    {% if job_data["status"] == "finished" %}
                                     🟢
-                                    {% elif job["status"] == "failed" %}
+                                    {% elif job_data["status"] == "failed" %}
                                     🔴
                                     {% else %}
                                     🟡
@@ -131,7 +131,7 @@
                                 </span>
                             </td>
                             <td class="hidden">
-                                https://seita.energy/tasks/0/view/job/{{ job.job_id }}
+                                https://seita.energy/tasks/0/view/job/{{ job_data.job_id }}
                             </td>
                         </tr>
                         {% endfor %}

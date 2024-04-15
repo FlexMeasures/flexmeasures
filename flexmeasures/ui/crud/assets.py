@@ -327,10 +327,10 @@ class AssetCrudUI(FlaskView):
         # add data abount max_jobs_num forecasting and scheduling jobs
         jobs_data = build_asset_jobs_data(asset)
         max_jobs_num = 10
-        scheduling_jobs = [job for job in jobs_data if job["job_type"] == "scheduling"][
-            :max_jobs_num
-        ]
-        forecasting_jobs = [
+        scheduling_job_data = [
+            job_data for job_data in jobs_data if job_data["job_type"] == "scheduling"
+        ][:max_jobs_num]
+        forecasting_job_data = [
             job for job in jobs_data if job["job_type"] == "forecasting"
         ][:max_jobs_num]
 
@@ -338,8 +338,8 @@ class AssetCrudUI(FlaskView):
             "views/status.html",
             asset=asset,
             sensors=status_data,
-            scheduling_jobs=scheduling_jobs,
-            forecasting_jobs=forecasting_jobs,
+            scheduling_job_data=scheduling_job_data,
+            forecasting_job_data=forecasting_job_data,
         )
 
     @login_required

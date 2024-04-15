@@ -2,28 +2,50 @@
 Logic around storing and retrieving jobs from redis cache.
 """
 
+import redis
+
 from rq.job import Job, NoSuchJobError
 
 
 class JobCache:
-    def __init__(self, connection):
+    """
+    Class is used for storing jobs and retrieving them from redis cache.
+    Need it to be able to get jobs for particular asset (and display them on status page).
+    Keeps cache up to date by removing jobs that are not found in redis - were removed by TTL.
+    Stores jobs by asset or sensor id, queue and asset or sensor type, cache key can look like this
+        - forecasting:sensor:1 (forecasting jobs can be stored by sensor only)
+        - scheduling:sensor:2
+        - scheduling:asset:3
+    """
+
+    def __init__(self, connection: redis.Redis):
         self.connection = connection
 
-    def _get_cache_key(self, asset_or_sensor_id, queue, asset_or_sensor_type):
+    def _get_cache_key(
+        self, asset_or_sensor_id: int, queue: str, asset_or_sensor_type: str
+    ) -> str:
         return f"{queue}:{asset_or_sensor_type}:{asset_or_sensor_id}"
 
-    def add(self, asset_or_sensor_id, job_id, queue, asset_or_sensor_type):
+    def add(
+        self,
+        asset_or_sensor_id: int,
+        job_id: str,
+        queue: str = None,
+        asset_or_sensor_type: str = None,
+    ):
         cache_key = self._get_cache_key(asset_or_sensor_id, queue, asset_or_sensor_type)
         self.connection.sadd(cache_key, job_id)
 
-    def _get_job(self, job_id):
+    def _get_job(self, job_id: str) -> Job:
         try:
             job = Job.fetch(job_id, connection=self.connection)
         except NoSuchJobError:
             return None
         return job
 
-    def get(self, asset_or_sensor_id, queue, asset_or_sensor_type):
+    def get(
+        self, asset_or_sensor_id: int, queue: str, asset_or_sensor_type: str
+    ) -> list[Job]:
         job_ids_to_remove, jobs = list(), list()
         cache_key = self._get_cache_key(asset_or_sensor_id, queue, asset_or_sensor_type)
         for job_id in self.connection.smembers(cache_key):

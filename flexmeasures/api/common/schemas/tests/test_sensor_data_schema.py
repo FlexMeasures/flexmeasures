@@ -314,5 +314,5 @@ def test_build_asset_jobs_data(db, app, add_battery_assets):
         else:
             assert job_data["job_id"] == scheduling_job.id
         assert job_data["status"] == "queued"
-        assert job_data["asset_type"] == "sensor"
+        assert job_data["sensor_or_asset_class"] == "sensor"
         assert job_data["asset_id"] == battery.id
