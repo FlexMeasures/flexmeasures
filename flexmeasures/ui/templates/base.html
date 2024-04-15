@@ -499,6 +499,10 @@
     });
 
     window.addEventListener('keypress', function(e) {
+        // Do nothing if typing in an input field or textarea
+        if (e.target.tagName.toLowerCase() === 'input' || e.target.tagName.toLowerCase() === 'textarea') {
+            return;
+        }
         // Start/pause/resume replay with 'p'
         if (e.key==='p') {
             toggleReplay();
