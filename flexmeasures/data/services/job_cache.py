@@ -4,7 +4,13 @@ Logic around storing and retrieving jobs from redis cache.
 
 import redis
 
+from redis.exceptions import ConnectionError
 from rq.job import Job, NoSuchJobError
+
+
+class NoRedisConfigured(Exception):
+    def __init__(self, message="Redis not configured"):
+        super().__init__(message)
 
 
 class JobCache:
@@ -26,6 +32,12 @@ class JobCache:
     ) -> str:
         return f"{queue}:{asset_or_sensor_type}:{asset_or_sensor_id}"
 
+    def _check_redis_connection(self):
+        try:
+            self.connection.ping()  # Check if the Redis connection is okay
+        except (ConnectionError, ConnectionRefusedError):
+            raise NoRedisConfigured
+
     def add(
         self,
         asset_or_sensor_id: int,
@@ -33,6 +45,7 @@ class JobCache:
         queue: str = None,
         asset_or_sensor_type: str = None,
     ):
+        self._check_redis_connection()
         cache_key = self._get_cache_key(asset_or_sensor_id, queue, asset_or_sensor_type)
         self.connection.sadd(cache_key, job_id)
 
@@ -46,6 +59,8 @@ class JobCache:
     def get(
         self, asset_or_sensor_id: int, queue: str, asset_or_sensor_type: str
     ) -> list[Job]:
+        self._check_redis_connection()
+
         job_ids_to_remove, jobs = list(), list()
         cache_key = self._get_cache_key(asset_or_sensor_id, queue, asset_or_sensor_type)
         for job_id in self.connection.smembers(cache_key):

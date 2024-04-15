@@ -137,6 +137,9 @@
                         {% endfor %}
                     </tbody>
                 </table>
+                {% if redis_connection_err is not none %}
+                    <div class="warning">{{ redis_connection_err }}</div>
+                {% endif %}
             </div>
         </div>
     </div>

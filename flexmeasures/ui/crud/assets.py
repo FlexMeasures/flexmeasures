@@ -17,6 +17,7 @@ from flexmeasures.data import db
 from flexmeasures.auth.error_handling import unauthorized_handler
 from flexmeasures.auth.policy import check_access
 from flexmeasures.data.schemas import StartEndTimeSchema
+from flexmeasures.data.services.job_cache import NoRedisConfigured
 from flexmeasures.data.models.generic_assets import (
     GenericAssetType,
     GenericAsset,
@@ -325,14 +326,22 @@ class AssetCrudUI(FlaskView):
         status_data = build_sensor_status_data(asset)
 
         # add data abount max_jobs_num forecasting and scheduling jobs
-        jobs_data = build_asset_jobs_data(asset)
-        max_jobs_num = 10
-        scheduling_job_data = [
-            job_data for job_data in jobs_data if job_data["job_type"] == "scheduling"
-        ][:max_jobs_num]
-        forecasting_job_data = [
-            job for job in jobs_data if job["job_type"] == "forecasting"
-        ][:max_jobs_num]
+        redis_connection_err = None
+        scheduling_job_data, forecasting_job_data = list(), list()
+        try:
+            jobs_data = build_asset_jobs_data(asset)
+        except NoRedisConfigured as e:
+            redis_connection_err = e.args[0]
+        else:
+            max_jobs_num = 10
+            scheduling_job_data = [
+                job_data
+                for job_data in jobs_data
+                if job_data["job_type"] == "scheduling"
+            ][:max_jobs_num]
+            forecasting_job_data = [
+                job for job in jobs_data if job["job_type"] == "forecasting"
+            ][:max_jobs_num]
 
         return render_flexmeasures_template(
             "views/status.html",
@@ -340,6 +349,7 @@ class AssetCrudUI(FlaskView):
             sensors=status_data,
             scheduling_job_data=scheduling_job_data,
             forecasting_job_data=forecasting_job_data,
+            redis_connection_err=redis_connection_err,
         )
 
     @login_required
