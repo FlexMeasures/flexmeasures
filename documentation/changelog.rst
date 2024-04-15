@@ -4,6 +4,15 @@ FlexMeasures Changelog
 **********************
 
 
+v0.20.1 | April XX, 2024
+============================
+
+Bugfixes
+-----------
+
+* Prevent **p**lay/**p**ause/**s**top of replays when editing a text field in the UI [see `PR #1024 <https://github.com/FlexMeasures/flexmeasures/pull/1024>`_]
+
+
 v0.20.0 | March 26, 2024
 ============================
 
