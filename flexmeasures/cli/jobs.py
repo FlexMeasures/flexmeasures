@@ -12,6 +12,7 @@ from flask import current_app as app
 from flask.cli import with_appcontext
 from rq import Queue, Worker
 from sqlalchemy.orm import configure_mappers
+from tabulate import tabulate
 
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
@@ -98,10 +99,23 @@ def show_queues():
     """
 
     configure_mappers()
-    for q in app.queues.values():
-        click.echo(
-            f"Queue {q.name} has {q.count} jobs (and {q.failed_job_registry.count} jobs have failed)."
+    queue_data = [
+        (
+            q.name,
+            q.started_job_registry.count,
+            q.count,
+            q.deferred_job_registry.count,
+            q.scheduled_job_registry.count,
+            q.failed_job_registry.count,
         )
+        for q in app.queues.values()
+    ]
+    click.echo(
+        tabulate(
+            queue_data,
+            headers=["Queue", "Started", "Queued", "Deferred", "Scheduled", "Failed"],
+        )
+    )
 
 
 @fm_jobs.command("clear-queue")
