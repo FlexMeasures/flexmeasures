@@ -307,12 +307,12 @@ def test_build_asset_jobs_data(db, app, add_battery_assets):
     )
 
     jobs_data = build_asset_jobs_data(battery_asset)
-    assert sorted([j["job_type"] for j in jobs_data]) == ["forecasting", "scheduling"]
+    assert sorted([j["queue"] for j in jobs_data]) == ["forecasting", "scheduling"]
     for job_data in jobs_data:
-        if job_data["job_type"] == "forecasting":
+        if job_data["queue"] == "forecasting":
             assert job_data["job_id"] == forecasting_jobs[0].id
         else:
             assert job_data["job_id"] == scheduling_job.id
         assert job_data["status"] == "queued"
-        assert job_data["sensor_or_asset_class"] == "sensor"
+        assert job_data["asset_or_sensor_type"] == "sensor"
         assert job_data["asset_id"] == battery.id

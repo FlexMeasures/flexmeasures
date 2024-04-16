@@ -325,7 +325,7 @@ class AssetCrudUI(FlaskView):
         asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
         status_data = build_sensor_status_data(asset)
 
-        # add data abount max_jobs_num forecasting and scheduling jobs
+        # add data about forecasting and scheduling jobs
         redis_connection_err = None
         scheduling_job_data, forecasting_job_data = list(), list()
         try:
@@ -333,15 +333,12 @@ class AssetCrudUI(FlaskView):
         except NoRedisConfigured as e:
             redis_connection_err = e.args[0]
         else:
-            max_jobs_num = 10
             scheduling_job_data = [
-                job_data
-                for job_data in jobs_data
-                if job_data["job_type"] == "scheduling"
-            ][:max_jobs_num]
+                jd for jd in jobs_data if jd["queue"] == "scheduling"
+            ]
             forecasting_job_data = [
-                job for job in jobs_data if job["job_type"] == "forecasting"
-            ][:max_jobs_num]
+                jd for jd in jobs_data if jd["queue"] == "forecasting"
+            ]
 
         return render_flexmeasures_template(
             "views/status.html",

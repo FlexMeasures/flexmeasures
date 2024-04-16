@@ -206,11 +206,12 @@ def build_asset_jobs_data(
     """Get all jobs data for an asset
     Returns a list of dictionaries, each containing the following keys:
     - job_id: id of a job
-    - job_type: type of a job (scheduling or forecasting)
-    - sensor_or_asset_class: type of an asset that is linked to the job (asset or sensor)
+    - queue: job queue (scheduling or forecasting)
+    - asset_or_sensor_type: type of an asset that is linked to the job (asset or sensor)
     - asset_id: id of sensor or asset
     - status: job status (e.g finished, failed, etc)
     - err: job error (equals to None when there was no error for a job)
+    - enqueued_at: time when the job was enqueued
     """
 
     jobs = list()
@@ -244,7 +245,8 @@ def build_asset_jobs_data(
         )
 
     jobs_data = list()
-    for job_type, sensor_or_asset_class, asset_id, jobs in jobs:
+    # Building the actual return list - we also unpack lists of jobs, each to its own entry, and we add error info
+    for queue, asset_or_sensor_type, asset_id, jobs in jobs:
         for job in jobs:
             e = job.meta.get(
                 "exception",
@@ -263,11 +265,12 @@ def build_asset_jobs_data(
             jobs_data.append(
                 {
                     "job_id": job.id,
-                    "job_type": job_type,
-                    "sensor_or_asset_class": sensor_or_asset_class,
+                    "queue": queue,
+                    "asset_or_sensor_type": asset_or_sensor_type,
                     "asset_id": asset_id,
                     "status": job.get_status(),
                     "err": job_err,
+                    "enqueued_at": job.enqueued_at,
                 }
             )
 
