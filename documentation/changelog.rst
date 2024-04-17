@@ -9,9 +9,8 @@ v0.21.0 | April XX, 2024
 New features
 -------------   
 
-* Add `asset/<id>/status` page to view asset statuses [see `PR #41 <https://github.com/FlexMeasures/flexmeasures/pull/941/>`_]
+* Add `asset/<id>/status` page to view asset statuses [see `PR #41 <https://github.com/FlexMeasures/flexmeasures/pull/941/>`_ and `PR #1035 <https://github.com/FlexMeasures/flexmeasures/pull/1035/>`_]
 * Support `start_date` and `end_date` query parameters for the asset page [see `PR #1030 <https://github.com/FlexMeasures/flexmeasures/pull/1030/>`_]
-* Add scheduling and forecasting job tables to `asset/<id>/status` [see `PR #1035 <https://github.com/FlexMeasures/flexmeasures/pull/1035/>`_]
 
 Bugfixes
 -----------
