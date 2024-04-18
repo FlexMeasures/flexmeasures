@@ -2,6 +2,8 @@
 Logic around storing and retrieving jobs from redis cache.
 """
 
+from __future__ import annotations
+
 import redis
 
 from redis.exceptions import ConnectionError

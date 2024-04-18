@@ -1,0 +1,9 @@
+2024-04-18 08:53:46.951 UTC [11611] LOG:  starting PostgreSQL 13.14 on x86_64-apple-darwin23.2.0, compiled by Apple clang version 15.0.0 (clang-1500.1.0.2.5), 64-bit
+2024-04-18 08:53:46.956 UTC [11611] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2024-04-18 08:53:46.956 UTC [11611] LOG:  listening on IPv6 address "::1", port 5432
+2024-04-18 08:53:46.959 UTC [11611] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2024-04-18 08:53:46.994 UTC [11612] LOG:  database system was shut down at 2024-04-17 19:13:40 UTC
+2024-04-18 08:53:47.035 UTC [11611] LOG:  database system is ready to accept connections
+2024-04-18 20:32:23.661 UTC [28169] ERROR:  duplicate key value violates unique constraint "timed_belief_pkey"
+2024-04-18 20:32:23.661 UTC [28169] DETAIL:  Key (source_id, event_start, belief_horizon, cumulative_probability, sensor_id)=(4, 2021-06-06 22:00:00+00, 00:00:00, 0.5, 1) already exists.
+2024-04-18 20:32:23.661 UTC [28169] STATEMENT:  INSERT INTO timed_belief (source_id, event_start, belief_horizon, cumulative_probability, event_value, sensor_id) VALUES (4, '2021-06-07T00:00:00+02:00'::timestamptz, '0 days 0.000000 seconds'::interval, 0.5, 600.0, 1)
