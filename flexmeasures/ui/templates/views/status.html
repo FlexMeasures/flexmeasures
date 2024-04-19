@@ -82,11 +82,12 @@
                             <td>
                                 {{ job_data.asset_or_sensor_type }}
                             </td>
-                            <td>
+                            <td title="Enqueued at: {{ job_data.enqueued_at}}">
                                 {{ job_data.enqueued_at | naturalized_datetime }}
                             </td>
-                            <td class="text-right">
-                                <span title="{{ job_data['err'] is none and job_data['status'] or job_data['status'] + ' : ' + job_data['err'] }}">
+                            <td class="text-right"
+                                title="{{ job_data['err'] is none and job_data['status'] or job_data['status'] + ' : ' + job_data['err'] }}">
+                                <span>
                                     {% if job_data["status"] == "finished" %}
                                     🟢
                                     {% elif job_data["status"] == "failed" %}
@@ -127,11 +128,12 @@
                             <td>
                                 {{ job_data.asset_or_sensor_type }}
                             </td>
-                            <td>
+                            <td title="Enqueued at: {{ job_data.enqueued_at}}">
                                 {{ job_data.enqueued_at | naturalized_datetime }}
                             </td>
-                            <td class="text-right">
-                                <span title="{{ job_data['err'] is none and job_data['status'] or job_data['status'] + ' : ' + job_data['err'] }}">
+                            <td class="text-right"
+                                title="{{ job_data['err'] is none and job_data['status'] or job_data['status'] + ' : ' + job_data['err'] }}">
+                                <span>
                                     {% if job_data["status"] == "finished" %}
                                     🟢
                                     {% elif job_data["status"] == "failed" %}
