@@ -9,7 +9,7 @@ v0.21.0 | April XX, 2024
 New features
 -------------   
 
-* Add `asset/<id>/status` page to view asset statuses [see `PR #41 <https://github.com/FlexMeasures/flexmeasures/pull/941/>`_]
+* Add `asset/<id>/status` page to view asset statuses [see `PR #41 <https://github.com/FlexMeasures/flexmeasures/pull/941/>`_ and `PR #1035 <https://github.com/FlexMeasures/flexmeasures/pull/1035/>`_]
 * Support `start_date` and `end_date` query parameters for the asset page [see `PR #1030 <https://github.com/FlexMeasures/flexmeasures/pull/1030/>`_]
 
 Bugfixes
@@ -18,6 +18,16 @@ Bugfixes
 Infrastructure / Support
 ----------------------
 
+* Include started, deferred and scheduled jobs in the overview printed by the CLI command ``flexmeasures jobs show-queues`` [see `PR #1036 <https://github.com/FlexMeasures/flexmeasures/pull/1036/>`_]
+
+
+v0.20.1 | April XX, 2024
+============================
+
+Bugfixes
+-----------
+
+* Prevent **p**lay/**p**ause/**s**top of replays when editing a text field in the UI [see `PR #1024 <https://github.com/FlexMeasures/flexmeasures/pull/1024>`_]
 
 
 v0.20.0 | March 26, 2024
