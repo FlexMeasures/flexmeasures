@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 from datetime import datetime, timedelta
 from copy import deepcopy, copy
+from packaging.version import Version
 
 from flask import current_app
 import timely_beliefs as tb
@@ -38,6 +39,7 @@ class PandasReporter(Reporter):
         input: dict,
         resolution: timedelta | None = None,
         belief_time: datetime | None = None,
+        use_latest_version_only: bool = False,
     ):
         """
         Fetches the time_beliefs from the database
@@ -58,12 +60,22 @@ class PandasReporter(Reporter):
             event_ends_before = _input_search_parameters.pop("event_ends_before", end)
             resolution = _input_search_parameters.pop("resolution", resolution)
             belief_time = _input_search_parameters.pop("belief_time", belief_time)
+            sources = None
+
+            if use_latest_version_only:
+                sources = sensor.data_sources
+                if len(sources) > 0:
+                    sources = max(
+                        sources,
+                        key=lambda x: Version(x.version if x.version else "0.0.0"),
+                    )
 
             bdf = sensor.search_beliefs(
                 event_starts_after=event_starts_after,
                 event_ends_before=event_ends_before,
                 resolution=resolution,
                 beliefs_before=belief_time,
+                source=sources,
                 **_input_search_parameters,
             )
 
@@ -89,13 +101,16 @@ class PandasReporter(Reporter):
         belief_time: datetime | None = kwargs.get("belief_time", None)
         belief_horizon: timedelta | None = kwargs.get("belief_horizon", None)
         output: list[dict[str, Any]] = kwargs.get("output")
+        use_latest_version_only: bool = kwargs.get("use_latest_version_only", False)
 
         # by default, use the minimum resolution among the input sensors
         if resolution is None:
             resolution = min([i["sensor"].event_resolution for i in input])
 
         # fetch sensor data
-        self.fetch_data(start, end, input, resolution, belief_time)
+        self.fetch_data(
+            start, end, input, resolution, belief_time, use_latest_version_only
+        )
 
         if belief_time is None:
             belief_time = server_now()
