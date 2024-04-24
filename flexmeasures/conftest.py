@@ -23,7 +23,7 @@ from werkzeug.exceptions import (
 )
 
 from flexmeasures.app import create as create_app
-from flexmeasures.auth.policy import ADMIN_ROLE
+from flexmeasures.auth.policy import ADMIN_ROLE, ADMIN_READER_ROLE
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
 from flexmeasures.data.models.data_sources import DataSource
@@ -196,7 +196,7 @@ def setup_roles_users_fresh_db(fresh_db, setup_accounts_fresh_db) -> dict[str, U
 def create_roles_users(db, test_accounts) -> dict[str, User]:
     """Create a minimal set of roles and users"""
     new_users: list[User] = []
-    # Two Prosumer users
+    # 3 Prosumer users: 2 plain ones, 1 account admin
     new_users.append(
         create_user(
             username="Test Prosumer User",
@@ -216,6 +216,14 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
             user_roles=dict(name="account-admin", description="Admin for this account"),
         )
     )
+    new_users.append(
+        create_user(
+            username="Test Another Plain Prosumer User",
+            email="test_prosumer_user_3@seita.nl",
+            account_name=test_accounts["Prosumer"].name,
+            password="testtest",
+        )
+    )
     # A user on an account without any special rights
     new_users.append(
         create_user(
@@ -223,6 +231,16 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
             email="test_dummy_user_3@seita.nl",
             account_name=test_accounts["Dummy"].name,
             password="testtest",
+        )
+    )
+    # Account admin on dummy account
+    new_users.append(
+        create_user(
+            username="Test Dummy Account Admin",
+            email="test_dummy_account_admin@seita.nl",
+            account_name=test_accounts["Dummy"].name,
+            password="testtest",
+            user_roles=dict(name="account-admin", description="Admin for this account"),
         )
     )
     # A supplier user
@@ -245,6 +263,20 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
             password="testtest",
             user_roles=dict(
                 name=ADMIN_ROLE, description="A user who can do everything."
+            ),
+        )
+    )
+    # One platform admin reader
+    new_users.append(
+        create_user(
+            username="Test Admin Reader User",
+            email="test_admin_reader_user@seita.nl",
+            account_name=test_accounts[
+                "Dummy"
+            ].name,  # the account does not give rights
+            password="testtest",
+            user_roles=dict(
+                name=ADMIN_READER_ROLE, description="A user who can do everything."
             ),
         )
     )

@@ -1,7 +1,9 @@
 from flask import url_for
 from flask_login import current_user, logout_user
+from sqlalchemy import select
 import pytest
 
+from flexmeasures.data.models.user import AuditLog
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.api.tests.utils import UserContext
 
@@ -73,6 +75,44 @@ def test_get_one_user(client, setup_api_test_data, requesting_user, status_code)
 
 
 @pytest.mark.parametrize(
+    "requesting_user, status_code",
+    [
+        (None, 401),  # no auth is not allowed
+        ("test_prosumer_user@seita.nl", 200),  # gets themselves
+        (
+            "test_prosumer_user_2@seita.nl",
+            200,
+        ),  # account-admin can view his account users
+        (
+            "test_dummy_account_admin@seita.nl",
+            403,
+        ),  # account-admin cannot view other account users
+        (
+            "test_prosumer_user_3@seita.nl",
+            403,
+        ),  # plain user cant view his account users
+        ("test_dummy_user_3@seita.nl", 403),  # plain user cant view other account users
+        ("test_admin_user@seita.nl", 200),  # admin can do this from another account
+        (
+            "test_admin_reader_user@seita.nl",
+            200,
+        ),  # admin reader can do this from another account
+    ],
+    indirect=["requesting_user"],
+)
+def test_get_one_user_audit_log(
+    client, setup_api_test_data, requesting_user, status_code
+):
+    requesting_user_id = find_user_by_email("test_prosumer_user@seita.nl").id
+
+    get_user_response = client.get(url_for("UserAPI:auditlog", id=requesting_user_id))
+    print("Server responded with:\n%s" % get_user_response.data)
+    assert get_user_response.status_code == status_code
+    if status_code == 200:
+        assert get_user_response.json["audit_logs"] is not None
+
+
+@pytest.mark.parametrize(
     "requesting_user, requested_user, status_code",
     [
         (
@@ -95,7 +135,7 @@ def test_get_one_user(client, setup_api_test_data, requesting_user, status_code)
     indirect=["requesting_user"],
 )
 def test_edit_user(
-    requesting_user, requested_user, status_code, client, setup_api_test_data
+    db, requesting_user, requested_user, status_code, client, setup_api_test_data
 ):
     with UserContext(requested_user) as u:
         requested_user_id = u.id
@@ -110,6 +150,14 @@ def test_edit_user(
         user = find_user_by_email(requested_user)
         assert user.active is False
         assert user.id == requested_user_id
+
+        assert db.session.execute(
+            select(AuditLog).filter_by(
+                affected_user_id=user.id,
+                event=f"User {user.username} set active to False",
+                active_user_id=requesting_user.id,
+            )
+        ).scalar_one_or_none()
 
 
 @pytest.mark.parametrize(

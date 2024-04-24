@@ -75,3 +75,41 @@ def test_get_one_account(client, setup_api_test_data, requesting_user, status_co
         assert get_account_response.json["account_roles"] == [
             {"id": 1, "name": "Prosumer"}
         ]
+
+
+@pytest.mark.parametrize(
+    "requesting_user, status_code",
+    [
+        (None, 401),  # no auth is not allowed
+        (
+            "test_prosumer_user@seita.nl",
+            403,
+        ),  # non account admin cant view account audit log
+        (
+            "test_prosumer_user_2@seita.nl",
+            200,
+        ),  # account-admin can view his account audit log
+        (
+            "test_dummy_account_admin@seita.nl",
+            403,
+        ),  # account-admin cannot view other account audit logs
+        ("test_admin_user@seita.nl", 200),  # admin can view another account audit log
+        (
+            "test_admin_reader_user@seita.nl",
+            200,
+        ),  # admin reader can view another account audit log
+    ],
+    indirect=["requesting_user"],
+)
+def test_get_one_account_audit_log(
+    client, setup_api_test_data, requesting_user, status_code
+):
+    """Get one account"""
+    test_user_account_id = find_user_by_email("test_prosumer_user@seita.nl").account.id
+    get_account_response = client.get(
+        url_for("AccountAPI:auditlog", id=test_user_account_id),
+    )
+    print("Server responded with:\n%s" % get_account_response.data)
+    assert get_account_response.status_code == status_code
+    if status_code == 200:
+        assert get_account_response.json["audit_logs"] is not None

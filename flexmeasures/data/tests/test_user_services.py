@@ -1,7 +1,7 @@
 import pytest
 from sqlalchemy import select, func
 
-from flexmeasures.data.models.user import User, Role
+from flexmeasures.data.models.user import User, Role, AuditLog
 from flexmeasures.data.services.users import (
     create_user,
     find_user_by_email,
@@ -41,6 +41,50 @@ def test_create_user(
     assert fresh_db.session.execute(
         select(DataSource).filter_by(name=user.username)
     ).scalar_one_or_none()
+
+    user_audit_log = (
+        fresh_db.session.query(AuditLog)
+        .filter_by(affected_user_id=user.id)
+        .one_or_none()
+    )
+    assert user_audit_log.event == "User new_user created"
+    assert user_audit_log.affected_account_id is None
+    assert user_audit_log.active_user_id is None
+
+    assert not fresh_db.session.execute(
+        select(AuditLog).filter_by(
+            affected_account_id=setup_accounts_fresh_db["Prosumer"].id
+        )
+    ).scalar_one_or_none()
+
+
+def test_create_user_no_account(
+    fresh_db, setup_accounts_fresh_db, setup_roles_users_fresh_db, app
+):
+    """Create a user"""
+    user = create_user(
+        email="new_user@seita.nl",
+        password="testtest",
+        account_name="new_account",
+        user_roles=["SomeRole"],
+    )
+
+    user_audit_log = (
+        fresh_db.session.query(AuditLog)
+        .filter_by(event="User new_user created")
+        .one_or_none()
+    )
+    assert user_audit_log.affected_user_id == user.id
+    assert user_audit_log.affected_account_id is None
+
+    account_audit_log = (
+        fresh_db.session.query(AuditLog)
+        .filter_by(event="Account new_account created")
+        .one_or_none()
+    )
+    assert account_audit_log.affected_user_id is None
+    assert account_audit_log.affected_account_id is not None
+    assert account_audit_log.active_user_id is None
 
 
 def test_create_invalid_user(
@@ -127,3 +171,12 @@ def test_delete_user(fresh_db, setup_roles_users_fresh_db, setup_assets_fresh_db
 
     num_beliefs_after = fresh_db.session.scalar(beliefs_query)
     assert num_beliefs_after == num_beliefs_before
+
+    user_audit_log = (
+        fresh_db.session.query(AuditLog)
+        .filter_by(event="User Test Prosumer User deleted")
+        .one_or_none()
+    )
+    assert user_audit_log.affected_user_id is None
+    assert user_audit_log.affected_account_id is None
+    assert user_audit_log.active_user_id is None

@@ -7,16 +7,18 @@ from flask_security.recoverable import send_reset_password_instructions
 from flask_json import as_json
 from werkzeug.exceptions import Forbidden
 
-from flexmeasures.data.models.user import User as UserModel, Account
+from flexmeasures.data.models.user import User as UserModel, Account, AuditLog
 from flexmeasures.api.common.schemas.users import AccountIdField, UserIdField
 from flexmeasures.data.schemas.users import UserSchema
 from flexmeasures.data.services.users import (
     get_users,
     set_random_password,
     remove_cookie_and_token_access,
+    get_audit_log_records,
 )
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
+from flexmeasures.utils.time_utils import server_now
 
 """
 API endpoints to manage users.
@@ -193,6 +195,17 @@ class UserAPI(FlaskView):
             setattr(user, k, v)
             if k == "active" and v is False:
                 remove_cookie_and_token_access(user)
+            if k == "active":
+                active_user_id = (
+                    current_user.id if hasattr(current_user, "id") else None
+                )
+                user_audit_log = AuditLog(
+                    event_datetime=server_now(),
+                    event=f"User {user.username} set active to {v}",
+                    active_user_id=active_user_id,
+                    affected_user_id=user.id,
+                )
+                db.session.add(user_audit_log)
         db.session.add(user)
         try:
             db.session.commit()
@@ -234,3 +247,21 @@ class UserAPI(FlaskView):
 
         # commit only if sending instructions worked, as well
         db.session.commit()
+
+    @route("/<id>/auditlog")
+    @use_kwargs({"user": UserIdField(data_key="id")}, location="path")
+    @permission_required_for_context(
+        "read",
+        ctx_arg_name="user",
+        pass_ctx_to_loader=True,
+        ctx_loader=AuditLog.user_acl,
+    )
+    @as_json
+    def auditlog(self, id: int, user: UserModel):
+        """API endpoint to get a user audit log."""
+        audit_logs = get_audit_log_records(user)
+        audit_logs = [
+            {k: getattr(log, k) for k in ("event", "event_datetime", "active_user_id")}
+            for log in audit_logs
+        ]
+        return {"audit_logs": audit_logs}, 200

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% set active_page = "accounts" %}
+
+{% block title %} Account {{ account.id }} actions history {% endblock %}
+
+{% block divs %}
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="sensors-asset card">
+            <h3>History of actions for account {{ account.id }}</h3>
+            <table class="table table-striped table-responsive paginate nav-on-click" title="View data">
+                <thead>
+                    <tr>
+                        <th>Event Name</th>
+                        <th>Event Datetime</th>
+                        <th>Active user id</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for audit_log in audit_logs: %}
+                    <tr>
+                        <td>
+                            {{ audit_log.event }}
+                        </td>
+                        <td>
+                            {{ audit_log.event_datetime }}
+                        </td>
+                        <td>
+                            {{ audit_log.active_user_id }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
