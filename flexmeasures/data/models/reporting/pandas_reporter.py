@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from copy import deepcopy, copy
 
 from flask import current_app
+from flexmeasures.utils.unit_utils import convert_units
 import timely_beliefs as tb
 import pandas as pd
 from flexmeasures.data.models.reporting import Reporter
@@ -30,6 +31,12 @@ class PandasReporter(Reporter):
     final_df_output: str = None
 
     data: dict[str, tb.BeliefsDataFrame | pd.DataFrame] = None
+
+    def _get_input_target_unit(self, name : str) -> str | None:
+        for required_input in self._config["required_input"]:
+            if name in required_input.get("name"):
+                return required_input.get("unit")
+        return None
 
     def fetch_data(
         self,
@@ -70,6 +77,10 @@ class PandasReporter(Reporter):
             # store data source as local variable
             for source in bdf.sources.unique():
                 self.data[f"source_{source.id}"] = source
+
+            unit = self._get_input_target_unit(name)
+            if unit is not None:
+                bdf *= convert_units(1, from_unit=sensor.unit, to_unit=unit, event_resolution=sensor.event_resolution)
 
             # store BeliefsDataFrame as local variable
             self.data[name] = bdf
