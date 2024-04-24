@@ -43,6 +43,8 @@ class PandasReporter(Reporter):
         Fetches the time_beliefs from the database
         """
 
+        droplevels = self._config.get("droplevels", False)
+
         self.data = {}
         for input_search_parameters in input:
             _input_search_parameters = input_search_parameters.copy()
@@ -70,6 +72,9 @@ class PandasReporter(Reporter):
             # store data source as local variable
             for source in bdf.sources.unique():
                 self.data[f"source_{source.id}"] = source
+
+            if droplevels:
+                bdf = bdf.droplevel([1,2,3])
 
             # store BeliefsDataFrame as local variable
             self.data[name] = bdf

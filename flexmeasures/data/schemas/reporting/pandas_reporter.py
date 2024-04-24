@@ -88,6 +88,8 @@ class PandasReporterConfigSchema(ReporterConfigSchema):
     )
     transformations = fields.List(fields.Nested(PandasMethodCall()), required=True)
 
+    droplevels = fields.Bool(required=False, default=False)
+
     @validates_schema
     def validate_chaining(self, data, **kwargs):
         """
