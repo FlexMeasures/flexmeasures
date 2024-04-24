@@ -194,13 +194,13 @@ class StorageFlexModelSchema(Schema):
                 data["soc_min"] /= 1000.0
             if data.get("soc_max") is not None:
                 data["soc_max"] /= 1000.0
-            if data.get("soc_targets"):
+            if not isinstance(data.get("soc_targets"), Sensor):
                 for target in data["soc_targets"]:
                     target["value"] /= 1000.0
-            if data.get("soc_minima"):
+            if not isinstance(data.get("soc_minima"), Sensor):
                 for minimum in data["soc_minima"]:
                     minimum["value"] /= 1000.0
-            if data.get("soc_maxima"):
+            if not isinstance(data.get("soc_maxima"), Sensor):
                 for maximum in data["soc_maxima"]:
                     maximum["value"] /= 1000.0
             data["soc_unit"] = "MWh"
