@@ -74,7 +74,7 @@ class PandasReporter(Reporter):
                 self.data[f"source_{source.id}"] = source
 
             if droplevels:
-                bdf = bdf.droplevel([1,2,3])
+                bdf = bdf.droplevel([1, 2, 3])
 
             # store BeliefsDataFrame as local variable
             self.data[name] = bdf
