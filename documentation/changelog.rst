@@ -19,7 +19,7 @@ Infrastructure / Support
 ----------------------
 
 * Include started, deferred and scheduled jobs in the overview printed by the CLI command ``flexmeasures jobs show-queues`` [see `PR #1036 <https://github.com/FlexMeasures/flexmeasures/pull/1036/>`_]
-
+* Make it as convenient to clear deferred or scheduled jobs from a queue as it was to clear failed jobs from a queue [see `PR #1037 <https://github.com/FlexMeasures/flexmeasures/pull/1037/>`_]
 
 v0.20.1 | April XX, 2024
 ============================
