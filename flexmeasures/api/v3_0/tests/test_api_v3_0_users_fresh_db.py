@@ -4,7 +4,7 @@ from sqlalchemy import select
 
 from flexmeasures.api.tests.utils import UserContext
 from flexmeasures.data.services.users import find_user_by_email
-from flexmeasures.data.models.user import AuditLog
+from flexmeasures.data.models.audit_log import AuditLog
 
 
 @pytest.mark.parametrize(

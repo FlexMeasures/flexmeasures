@@ -113,3 +113,30 @@ def test_get_one_account_audit_log(
     assert get_account_response.status_code == status_code
     if status_code == 200:
         assert get_account_response.json["audit_logs"] is not None
+
+
+@pytest.mark.parametrize(
+    "requesting_user, status_code",
+    [
+        # Consultant users can see the audit log of all users in the client accounts.
+        ("test_consultant@seita.nl", 200),
+        # Has no consultant role.
+        ("test_consultancy_user_without_consultant_access@seita.nl", 403),
+    ],
+    indirect=["requesting_user"],
+)
+def test_get_one_user_audit_log_consultant(
+    client, setup_api_test_data, requesting_user, status_code
+):
+    """Check correctness of consultant account audit log access rules"""
+    test_user_account_id = find_user_by_email(
+        "test_consultant_client@seita.nl"
+    ).account.id
+
+    get_account_response = client.get(
+        url_for("AccountAPI:auditlog", id=test_user_account_id),
+    )
+    print("Server responded with:\n%s" % get_account_response.data)
+    assert get_account_response.status_code == status_code
+    if status_code == 200:
+        assert get_account_response.json["audit_logs"] is not None

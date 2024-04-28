@@ -23,6 +23,7 @@ def upgrade():
         sa.Column("event_datetime", sa.DateTime(), nullable=True),
         sa.Column("event", sa.String(length=255), nullable=True),
         sa.Column("active_user_id", sa.Integer(), nullable=True),
+        sa.Column("active_user_name", sa.String(length=255), nullable=True),
         sa.Column("affected_user_id", sa.Integer(), nullable=True),
         sa.Column("affected_account_id", sa.Integer(), nullable=True),
         sa.ForeignKeyConstraint(

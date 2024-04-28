@@ -7,7 +7,8 @@ from flask_security.recoverable import send_reset_password_instructions
 from flask_json import as_json
 from werkzeug.exceptions import Forbidden
 
-from flexmeasures.data.models.user import User as UserModel, Account, AuditLog
+from flexmeasures.data.models.audit_log import AuditLog
+from flexmeasures.data.models.user import User as UserModel, Account
 from flexmeasures.api.common.schemas.users import AccountIdField, UserIdField
 from flexmeasures.data.schemas.users import UserSchema
 from flexmeasures.data.services.users import (
@@ -196,14 +197,19 @@ class UserAPI(FlaskView):
             if k == "active" and v is False:
                 remove_cookie_and_token_access(user)
             if k == "active":
-                active_user_id = (
-                    current_user.id if hasattr(current_user, "id") else None
-                )
+                active_user_id, active_user_name = None, None
+                if hasattr(current_user, "id"):
+                    active_user_id, active_user_name = (
+                        current_user.id,
+                        current_user.username,
+                    )
                 user_audit_log = AuditLog(
                     event_datetime=server_now(),
                     event=f"User {user.username} set active to {v}",
                     active_user_id=active_user_id,
+                    active_user_name=active_user_name,
                     affected_user_id=user.id,
+                    affected_account_id=user.account_id,
                 )
                 db.session.add(user_audit_log)
         db.session.add(user)
@@ -254,14 +260,17 @@ class UserAPI(FlaskView):
         "read",
         ctx_arg_name="user",
         pass_ctx_to_loader=True,
-        ctx_loader=AuditLog.user_acl,
+        ctx_loader=AuditLog.user_table_acl,
     )
     @as_json
     def auditlog(self, id: int, user: UserModel):
         """API endpoint to get a user audit log."""
         audit_logs = get_audit_log_records(user)
         audit_logs = [
-            {k: getattr(log, k) for k in ("event", "event_datetime", "active_user_id")}
+            {
+                k: getattr(log, k)
+                for k in ("event", "event_datetime", "active_user_name")
+            }
             for log in audit_logs
         ]
         return {"audit_logs": audit_logs}, 200

@@ -297,6 +297,15 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
             password="testtest",
         )
     )
+    # Consultancy client account user
+    new_users.append(
+        create_user(
+            username="Test Consultancy Client User",
+            email="test_consultant_client@seita.nl",
+            account_name=test_accounts["ConsultancyClient"].name,
+            password="testtest",
+        )
+    )
     return {user.username: user.id for user in new_users}
 
 

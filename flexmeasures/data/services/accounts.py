@@ -3,7 +3,8 @@ from __future__ import annotations
 from sqlalchemy import select, func
 
 from flexmeasures.data import db
-from flexmeasures.data.models.user import Account, AccountRole, AuditLog
+from flexmeasures.data.models.audit_log import AuditLog
+from flexmeasures.data.models.user import Account, AccountRole
 from flexmeasures.data.models.generic_assets import GenericAsset
 
 
@@ -44,7 +45,7 @@ def get_account_roles(account_id: int) -> list[AccountRole]:
     return account.account_roles
 
 
-def get_audit_log_records(account: Account):
+def get_audit_log_records(account: Account) -> list[AuditLog]:
     """
     Get history of account actions
     """

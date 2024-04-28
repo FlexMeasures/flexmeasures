@@ -3,7 +3,7 @@ from flask_login import current_user, logout_user
 from sqlalchemy import select
 import pytest
 
-from flexmeasures.data.models.user import AuditLog
+from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.api.tests.utils import UserContext
 
@@ -48,9 +48,9 @@ def test_get_users_inactive(
     assert get_users_response.status_code == 200
     assert isinstance(get_users_response.json, list)
     if include_inactive is False:
-        assert len(get_users_response.json) == 2
+        assert len(get_users_response.json) == 3
     else:
-        assert len(get_users_response.json) == 4
+        assert len(get_users_response.json) == 5
 
 
 @pytest.mark.parametrize(
@@ -113,6 +113,29 @@ def test_get_one_user_audit_log(
 
 
 @pytest.mark.parametrize(
+    "requesting_user, status_code",
+    [
+        # Consultant users can see the audit log of all users in the client accounts.
+        ("test_consultant@seita.nl", 200),
+        # Has no consultant role.
+        ("test_consultancy_user_without_consultant_access@seita.nl", 403),
+    ],
+    indirect=["requesting_user"],
+)
+def test_get_one_user_audit_log_consultant(
+    client, setup_api_test_data, requesting_user, status_code
+):
+    """Check correctness of consultant account audit log access rules"""
+    requesting_user_id = find_user_by_email("test_consultant_client@seita.nl").id
+
+    get_user_response = client.get(url_for("UserAPI:auditlog", id=requesting_user_id))
+    print("Server responded with:\n%s" % get_user_response.data)
+    assert get_user_response.status_code == status_code
+    if status_code == 200:
+        assert get_user_response.json["audit_logs"] is not None
+
+
+@pytest.mark.parametrize(
     "requesting_user, requested_user, status_code",
     [
         (
@@ -156,6 +179,7 @@ def test_edit_user(
                 affected_user_id=user.id,
                 event=f"User {user.username} set active to False",
                 active_user_id=requesting_user.id,
+                affected_account_id=user.account_id,
             )
         ).scalar_one_or_none()
 
