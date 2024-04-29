@@ -4,7 +4,7 @@ FlexMeasures Changelog
 **********************
 
 
-v0.20.1 | April XX, 2024
+v0.20.1 | May 7, 2024
 ============================
 
 Bugfixes
