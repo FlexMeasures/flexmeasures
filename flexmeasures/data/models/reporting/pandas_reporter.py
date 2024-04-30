@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Any
 from datetime import datetime, timedelta
 from copy import deepcopy, copy
-from packaging.version import Version
 
 from flask import current_app
 import timely_beliefs as tb
@@ -14,6 +13,7 @@ from flexmeasures.data.schemas.reporting.pandas_reporter import (
     PandasReporterParametersSchema,
 )
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.data_sources import keep_latest_version
 from flexmeasures.utils.time_utils import server_now
 
 
@@ -60,22 +60,28 @@ class PandasReporter(Reporter):
             event_ends_before = _input_search_parameters.pop("event_ends_before", end)
             resolution = _input_search_parameters.pop("resolution", resolution)
             belief_time = _input_search_parameters.pop("belief_time", belief_time)
-            sources = None
+            source = _input_search_parameters.pop(
+                "source", _input_search_parameters.pop("sources", None)
+            )
 
-            if use_latest_version_only:
-                sources = sensor.data_sources
-                if len(sources) > 0:
-                    sources = max(
-                        sources,
-                        key=lambda x: Version(x.version if x.version else "0.0.0"),
-                    )
+            if use_latest_version_only and source is None:
+                source = sensor.search_data_sources(
+                    event_starts_after=start,
+                    event_ends_before=end,
+                    source_types=_input_search_parameters.get("source_types"),
+                    exclude_source_types=_input_search_parameters.get(
+                        "exclude_source_types"
+                    ),
+                )
+                if len(source) > 0:
+                    source = keep_latest_version(source)
 
             bdf = sensor.search_beliefs(
                 event_starts_after=event_starts_after,
                 event_ends_before=event_ends_before,
                 resolution=resolution,
                 beliefs_before=belief_time,
-                source=sources,
+                source=source,
                 **_input_search_parameters,
             )
 

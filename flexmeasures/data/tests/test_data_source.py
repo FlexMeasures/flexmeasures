@@ -2,6 +2,8 @@ import pytest
 
 from flexmeasures.data.models.reporting import Reporter
 
+from flexmeasures.data.models.data_sources import keep_latest_version, DataSource
+
 from datetime import datetime
 from pytz import UTC
 
@@ -143,3 +145,16 @@ def test_data_generator_save_parameters(
     # from the method call (e.g. field `b``)
     assert dg2._parameters["b"] == parameters_2["b"]
     assert dg2._parameters["start"].isoformat() == parameters_2["start"]
+
+
+def test_keep_last_version():
+    s1 = DataSource(name="s1", model="model 1", type="forecaster", version="0.1.0")
+    s2 = DataSource(name="s1", model="model 1", type="forecaster")
+
+    s3 = DataSource(name="s1", model="model 2", type="forecaster")
+
+    # the data source with no version is assumed to have version 0.0.0
+    assert keep_latest_version([s1, s2]) == [s1]
+
+    # sources with different models are preserved
+    assert keep_latest_version([s1, s2, s3]) == [s1, s3]
