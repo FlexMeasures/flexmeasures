@@ -181,16 +181,12 @@ def test_delete_user(fresh_db, setup_roles_users_fresh_db, setup_assets_fresh_db
 
     user_deletion_audit_log = (
         fresh_db.session.query(AuditLog)
-        .filter_by(event="User Test Prosumer User created test")
+        .filter_by(event="User Test Prosumer User deleted")
         .one_or_none()
     )
     assert user_deletion_audit_log.affected_user_id is None
     assert user_deletion_audit_log.affected_account_id == prosumer_account_id
     assert user_deletion_audit_log.active_user_id is None
 
-    user_creation_audit_log = (
-        fresh_db.session.query(AuditLog)
-        .filter_by(event="User Test Prosumer User created test")
-        .one_or_none()
-    )
+    fresh_db.session.refresh(user_creation_audit_log)
     assert user_creation_audit_log.affected_user_id is None

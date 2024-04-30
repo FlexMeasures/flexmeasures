@@ -109,7 +109,7 @@ def test_get_one_user_audit_log(
     print("Server responded with:\n%s" % get_user_response.data)
     assert get_user_response.status_code == status_code
     if status_code == 200:
-        assert get_user_response.json["audit_logs"] is not None
+        assert get_user_response.json[0] is not None
 
 
 @pytest.mark.parametrize(
@@ -132,7 +132,7 @@ def test_get_one_user_audit_log_consultant(
     print("Server responded with:\n%s" % get_user_response.data)
     assert get_user_response.status_code == status_code
     if status_code == 200:
-        assert get_user_response.json["audit_logs"] is not None
+        assert get_user_response.json[0] is not None
 
 
 @pytest.mark.parametrize(
@@ -177,7 +177,7 @@ def test_edit_user(
         assert db.session.execute(
             select(AuditLog).filter_by(
                 affected_user_id=user.id,
-                event=f"User {user.username} set active to False",
+                event=f"Active status set to 'False' for user {user.username}",
                 active_user_id=requesting_user.id,
                 affected_account_id=user.account_id,
             )

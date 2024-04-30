@@ -48,17 +48,6 @@ def render_user(user: User | None, asset_count: int = 0, msg: str | None = None)
     )
 
 
-def render_user_audit_log(audit_logs, user: User | None):
-    user_form = UserForm()
-    user_form.process(obj=user)
-    return render_flexmeasures_template(
-        "crud/user_audit_log.html",
-        user=user,
-        user_form=user_form,
-        audit_logs=audit_logs,
-    )
-
-
 def process_internal_api_response(
     user_data: dict, user_id: int | None = None, make_obj=False
 ) -> User | dict:
@@ -181,4 +170,8 @@ class UserCrudUI(FlaskView):
         user: User = get_user(id)
         audit_log_response = InternalApi().get(url_for("UserAPI:auditlog", id=id))
         audit_logs_response = audit_log_response.json()
-        return render_user_audit_log(audit_logs_response["audit_logs"], user)
+        return render_flexmeasures_template(
+            "crud/user_audit_log.html",
+            user=user,
+            audit_logs=audit_logs_response,
+        )

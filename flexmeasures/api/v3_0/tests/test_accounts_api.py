@@ -112,7 +112,7 @@ def test_get_one_account_audit_log(
     print("Server responded with:\n%s" % get_account_response.data)
     assert get_account_response.status_code == status_code
     if status_code == 200:
-        assert get_account_response.json["audit_logs"] is not None
+        assert get_account_response.json[0] is not None
 
 
 @pytest.mark.parametrize(
@@ -139,4 +139,4 @@ def test_get_one_user_audit_log_consultant(
     print("Server responded with:\n%s" % get_account_response.data)
     assert get_account_response.status_code == status_code
     if status_code == 200:
-        assert get_account_response.json["audit_logs"] is not None
+        assert get_account_response.json[0] is not None

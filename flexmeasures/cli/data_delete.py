@@ -15,7 +15,6 @@ from sqlalchemy import delete, func, select
 
 
 from flexmeasures.data import db
-from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts, User
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
@@ -106,9 +105,6 @@ def delete_account(id: int, force: bool):
     for asset in account.generic_assets:
         click.echo(f"Deleting generic asset {asset} (and sensors & beliefs) ...")
         db.session.execute(delete(GenericAsset).filter_by(id=asset.id))
-    db.session.query(AuditLog).filter_by(affected_account_id=account.id).update(
-        {AuditLog.affected_account_id: None}, synchronize_session="fetch"
-    )
     account_name = account.name
     db.session.execute(delete(Account).filter_by(id=account.id))
     db.session.commit()

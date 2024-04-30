@@ -30,16 +30,19 @@ def upgrade():
             ["active_user_id"],
             ["fm_user.id"],
             name=op.f("audit_log_active_user_id_fm_user_fkey"),
+            ondelete="SET NULL",
         ),
         sa.ForeignKeyConstraint(
             ["affected_account_id"],
             ["account.id"],
             name=op.f("audit_log_affected_account_id_account_fkey"),
+            ondelete="SET NULL",
         ),
         sa.ForeignKeyConstraint(
             ["affected_user_id"],
             ["fm_user.id"],
             name=op.f("audit_log_affected_user_id_fm_user_fkey"),
+            ondelete="SET NULL",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("audit_log_pkey")),
     )

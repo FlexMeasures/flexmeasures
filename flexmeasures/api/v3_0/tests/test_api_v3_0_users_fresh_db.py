@@ -43,7 +43,7 @@ def test_user_reset_password(
         assert db.session.execute(
             select(AuditLog).filter_by(
                 affected_user_id=user2.id,
-                event=f"User {user2.username} reset password",
+                event=f"Password reset for user {user2.username}",
                 active_user_id=requesting_user.id,
             )
         ).scalar_one_or_none()

@@ -123,12 +123,13 @@ class AccountAPI(FlaskView):
         **Example response**
 
         .. sourcecode:: json
-
-            {
-                'event': 'User test user deleted',
-                'event_datetime': '2021-01-01T00:00:00',
-                'active_user_id': 1,
-            }
+            [
+                {
+                    'event': 'User test user deleted',
+                    'event_datetime': '2021-01-01T00:00:00',
+                    'active_user_id': 1,
+                }
+            ]
 
         :reqheader Authorization: The authentication token
         :reqheader Content-Type: application/json
@@ -144,4 +145,4 @@ class AccountAPI(FlaskView):
             {k: getattr(log, k) for k in ("event", "event_datetime", "active_user_id")}
             for log in audit_logs
         ]
-        return {"audit_logs": audit_logs}, 200
+        return audit_logs, 200

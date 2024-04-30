@@ -18,10 +18,14 @@ class AuditLog(db.Model, AuthModelMixin):
     event_datetime = Column(DateTime())
     event = Column(String(255))
     active_user_name = Column(String(255))
-    active_user_id = Column("active_user_id", Integer(), ForeignKey("fm_user.id"))
-    affected_user_id = Column("affected_user_id", Integer(), ForeignKey("fm_user.id"))
+    active_user_id = Column(
+        "active_user_id", Integer(), ForeignKey("fm_user.id", ondelete="SET NULL")
+    )
+    affected_user_id = Column(
+        "affected_user_id", Integer(), ForeignKey("fm_user.id", ondelete="SET NULL")
+    )
     affected_account_id = Column(
-        "affected_account_id", Integer(), ForeignKey("account.id")
+        "affected_account_id", Integer(), ForeignKey("account.id", ondelete="SET NULL")
     )
 
     @classmethod
@@ -77,8 +81,6 @@ class AuditLog(db.Model, AuthModelMixin):
                 return {
                     "read": [
                         (f"account:{self.account_id}", "role:account-admin"),
-                        "role:admin",
-                        "role:admin-reader",
                         (f"account:{self.consultancy_account_id}", "role:consultant"),
                     ],
                 }

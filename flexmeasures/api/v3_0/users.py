@@ -205,7 +205,7 @@ class UserAPI(FlaskView):
                     )
                 user_audit_log = AuditLog(
                     event_datetime=server_now(),
-                    event=f"User {user.username} set active to {v}",
+                    event=f"Active status set to '{v}' for user {user.username}",
                     active_user_id=active_user_id,
                     active_user_name=active_user_name,
                     affected_user_id=user.id,
@@ -264,7 +264,27 @@ class UserAPI(FlaskView):
     )
     @as_json
     def auditlog(self, id: int, user: UserModel):
-        """API endpoint to get a user audit log."""
+        """API endpoint to get history of user actions.
+        **Example response**
+
+        .. sourcecode:: json
+            [
+                {
+                    'event': 'User test user deleted',
+                    'event_datetime': '2021-01-01T00:00:00',
+                    'active_user_name': 'Test user',
+                }
+            ]
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 200: PROCESSED
+        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
+        """
         audit_logs = get_audit_log_records(user)
         audit_logs = [
             {
@@ -273,4 +293,4 @@ class UserAPI(FlaskView):
             }
             for log in audit_logs
         ]
-        return {"audit_logs": audit_logs}, 200
+        return audit_logs, 200

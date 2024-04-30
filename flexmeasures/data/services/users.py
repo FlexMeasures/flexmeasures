@@ -224,7 +224,7 @@ def set_random_password(user: User):
         active_user_id, active_user_name = current_user.id, current_user.username
     user_audit_log = AuditLog(
         event_datetime=server_now(),
-        event=f"User {user.username} reset password",
+        event=f"Password reset for user {user.username}",
         active_user_id=active_user_id,
         active_user_name=active_user_name,
         affected_user_id=user.id,
@@ -254,10 +254,6 @@ def delete_user(user: User):
     """
     if hasattr(current_user, "id") and user.id == current_user.id:
         raise Exception("You cannot delete yourself.")
-
-    db.session.query(AuditLog).filter_by(affected_user_id=user.id).update(
-        {AuditLog.affected_user_id: None}, synchronize_session="fetch"
-    )
 
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
     user_datastore.delete_user(user)
