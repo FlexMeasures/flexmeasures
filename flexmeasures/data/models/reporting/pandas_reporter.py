@@ -74,7 +74,11 @@ class PandasReporter(Reporter):
                 self.data[f"source_{source.id}"] = source
 
             if droplevels:
+                # dropping belief_time, source and cummulative_probability columns
                 bdf = bdf.droplevel([1, 2, 3])
+                assert (
+                    bdf.index.is_unique
+                ), "BeliefDataframe has more than one row per event."
 
             # store BeliefsDataFrame as local variable
             self.data[name] = bdf
