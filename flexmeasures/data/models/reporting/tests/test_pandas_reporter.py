@@ -129,7 +129,7 @@ def test_reporter_repeated(setup_dummy_data):
 
 def test_reporter_empty(setup_dummy_data):
     """check that calling compute with missing data returns an empty report"""
-    s1, s2, s3, s3, report_sensor, daily_report_sensor = setup_dummy_data
+    s1, s2, s3, s4, report_sensor, daily_report_sensor = setup_dummy_data
 
     config = dict(
         required_input=[{"name": "sensor_1"}],
