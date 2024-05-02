@@ -1231,6 +1231,74 @@ def capacity_sensors(db, add_battery_assets, setup_sources):
     )
 
 
+@pytest.fixture(scope="module")
+def soc_sensors(db, add_battery_assets, setup_sources) -> tuple:
+    """
+    soc_maxim
+    """
+    battery = add_battery_assets["Test battery with dynamic power capacity"]
+
+    soc_maxima = Sensor(
+        name="soc_maxima",
+        generic_asset=battery,
+        unit="kWh",
+        event_resolution=timedelta(0),
+        attributes={"consumption_is_positive": True},
+    )
+
+    soc_minima = Sensor(
+        name="soc_minima",
+        generic_asset=battery,
+        unit="MWh",
+        event_resolution=timedelta(0),
+        attributes={"consumption_is_positive": True},
+    )
+
+    soc_targets = Sensor(
+        name="soc_targets",
+        generic_asset=battery,
+        unit="MWh",
+        event_resolution=timedelta(0),
+        attributes={"consumption_is_positive": True},
+    )
+
+    db.session.add_all([soc_maxima, soc_minima, soc_targets])
+    db.session.flush()
+
+    time_slots = pd.date_range(
+        datetime(2015, 1, 1, 2), datetime(2015, 1, 2), freq="15T"
+    ).tz_localize("Europe/Amsterdam")
+
+    values = np.arange(len(time_slots)) / (len(time_slots) - 1)
+    values = values * 5
+
+    add_beliefs(
+        db=db,
+        sensor=soc_maxima,
+        time_slots=time_slots,
+        values=values * 1000,  # MWH -> kWh
+        source=setup_sources["Seita"],
+    )
+
+    add_beliefs(
+        db=db,
+        sensor=soc_minima,
+        time_slots=time_slots,
+        values=values,
+        source=setup_sources["Seita"],
+    )
+
+    add_beliefs(
+        db=db,
+        sensor=soc_targets,
+        time_slots=time_slots,
+        values=values,
+        source=setup_sources["Seita"],
+    )
+
+    yield (soc_maxima, soc_minima, soc_targets, values)
+
+
 def add_beliefs(
     db,
     sensor: Sensor,
