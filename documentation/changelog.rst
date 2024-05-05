@@ -11,6 +11,7 @@ New features
 
 * Add `asset/<id>/status` page to view asset statuses [see `PR #41 <https://github.com/FlexMeasures/flexmeasures/pull/941/>`_ and `PR #1035 <https://github.com/FlexMeasures/flexmeasures/pull/1035/>`_]
 * Support `start_date` and `end_date` query parameters for the asset page [see `PR #1030 <https://github.com/FlexMeasures/flexmeasures/pull/1030/>`_]
+* Add `account/<id>/auditlog` and `user/<id>/auditlog` to view user and account related actions [see `PR #1042 <https://github.com/FlexMeasures/flexmeasures/pull/1042>`_]
 
 Bugfixes
 -----------
