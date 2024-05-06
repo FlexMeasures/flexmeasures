@@ -1234,8 +1234,9 @@ def capacity_sensors(db, add_battery_assets, setup_sources):
 
 @pytest.fixture(scope="module")
 def soc_sensors(db, add_battery_assets, setup_sources) -> tuple:
-    """
-    Add battery sensors for instantaneous soc-minima, soc-maxima and soc-targets.
+    """Add battery sensors for instantaneous soc-maxima (in kWh), soc-maxima (in MWh) and soc-targets (in MWh).
+
+    The SoC values on each sensor linearly increase from 0 to 5 MWh.
     """
     battery = add_battery_assets["Test battery with dynamic power capacity"]
 
