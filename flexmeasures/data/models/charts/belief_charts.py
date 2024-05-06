@@ -458,7 +458,7 @@ def chart_for_multiple_sensors(
         # Set up shared tooltip
         shared_tooltip = [
             dict(
-                field="sensor.name",
+                field="sensor.description",
                 type="nominal",
                 title="Sensor",
             ),
