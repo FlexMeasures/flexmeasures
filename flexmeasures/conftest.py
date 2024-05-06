@@ -1244,7 +1244,6 @@ def soc_sensors(db, add_battery_assets, setup_sources) -> tuple:
         generic_asset=battery,
         unit="kWh",
         event_resolution=timedelta(0),
-        attributes={"consumption_is_positive": True},
     )
 
     soc_minima = Sensor(
@@ -1252,7 +1251,6 @@ def soc_sensors(db, add_battery_assets, setup_sources) -> tuple:
         generic_asset=battery,
         unit="MWh",
         event_resolution=timedelta(0),
-        attributes={"consumption_is_positive": True},
     )
 
     soc_targets = Sensor(
@@ -1260,7 +1258,6 @@ def soc_sensors(db, add_battery_assets, setup_sources) -> tuple:
         generic_asset=battery,
         unit="MWh",
         event_resolution=timedelta(0),
-        attributes={"consumption_is_positive": True},
     )
 
     db.session.add_all([soc_maxima, soc_minima, soc_targets])
