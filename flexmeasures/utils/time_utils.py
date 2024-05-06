@@ -99,6 +99,8 @@ def naturalized_datetime_str(
     The dt parameter (as well as the now parameter if you use it)
     can be either naive or tz-aware. We assume UTC in the naive case.
     If dt parameter is a string it is expected to look like 'Sun, 28 Apr 2024 08:55:58 GMT'.
+    String format is supported for case when we make json from internal api response
+    e.g ui/crud/users auditlog router
 
     We use the `humanize` library to generate a human-friendly string.
     If dt is not longer ago than 24 hours, we use humanize.naturaltime (e.g. "3 hours ago"),
