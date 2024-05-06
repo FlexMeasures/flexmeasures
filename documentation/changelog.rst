@@ -11,6 +11,7 @@ Bugfixes
 -----------
 
 * Prevent **p**lay/**p**ause/**s**top of replays when editing a text field in the UI [see `PR #1024 <https://github.com/FlexMeasures/flexmeasures/pull/1024>`_]
+* Skip unit conversion of :abbr:`SoC (state of charge)` related fields that are defined as sensors in a ``flex-model`` (specifically, ``soc-maxima``, ``soc-minima`` and ``soc-targets`` [see `PR #1047 <https://github.com/FlexMeasures/flexmeasures/pull/1047>`_]
 
 
 v0.20.0 | March 26, 2024
@@ -128,7 +129,7 @@ New features
 * Better navigation experience through listings (sensors / assets / users / accounts) in the :abbr:`UI (user interface)`, by heading to the selected entity upon a click (or CTRL + click) anywhere within a row [see `PR #923 <https://github.com/FlexMeasures/flexmeasures/pull/923>`_]
 * Introduce a breadcrumb to navigate through assets and sensor pages using its child-parent relationship [see `PR #930 <https://github.com/FlexMeasures/flexmeasures/pull/930>`_]
 * Define device-level power constraints as sensors to create schedules with changing power limits [see `PR #897 <https://github.com/FlexMeasures/flexmeasures/pull/897>`_]
-* Allow to provide external storage usage or gain components using the ``soc-usage`` and ``soc-gain`` fields of the `flex-model` [see `PR #906 <https://github.com/FlexMeasures/flexmeasures/pull/906>`_]
+* Allow to provide external storage usage or gain components using the ``soc-usage`` and ``soc-gain`` fields of the ``flex-model`` [see `PR #906 <https://github.com/FlexMeasures/flexmeasures/pull/906>`_]
 * Define time-varying charging and discharging efficiencies as sensors or as constant values which allows to define the :abbr:`COP (coefficient of performance)` [see `PR #933 <https://github.com/FlexMeasures/flexmeasures/pull/933>`_]
 
 Infrastructure / Support
