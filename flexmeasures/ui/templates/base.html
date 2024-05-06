@@ -191,6 +191,10 @@
     {% block sensorChartSetup %}
 
     <!-- Render Charts -->
+    <script>
+        // Define picker as a global variable so that other code on the page can access it, e.g. get the times
+        var picker;
+    </script>
     <script type="module" type="text/javascript">
 
     // Import local js (the FM version is used for cache-busting, causing the browser to fetch the updated version from the server)
@@ -349,7 +353,7 @@
 
     // Create date range picker and the logic for a new date range selection (mostly, fetching data and displaying the chart for it)
     const date = Date();
-    const picker = new Litepicker({
+    picker = new Litepicker({
         element: document.getElementById('datepicker'),
         plugins: ['ranges', 'keyboardnav'],
         ranges: {
@@ -495,6 +499,10 @@
     });
 
     window.addEventListener('keypress', function(e) {
+        // Do nothing if typing in an input field or textarea
+        if (e.target.tagName.toLowerCase() === 'input' || e.target.tagName.toLowerCase() === 'textarea') {
+            return;
+        }
         // Start/pause/resume replay with 'p'
         if (e.key==='p') {
             toggleReplay();

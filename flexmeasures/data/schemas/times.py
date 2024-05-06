@@ -4,7 +4,7 @@ import json
 from datetime import datetime, timedelta
 
 from flask import current_app
-from marshmallow import fields, Schema
+from marshmallow import fields, Schema, validates_schema
 from marshmallow.exceptions import ValidationError
 import isodate
 from isodate.isoerror import ISO8601Error
@@ -108,3 +108,19 @@ class TimeIntervalField(MarshmallowClickMixin, fields.Dict):
             raise ValidationError()
 
         return TimeIntervalSchema().load(v)
+
+
+class StartEndTimeSchema(Schema):
+    start_time = AwareDateTimeField(required=False)
+    end_time = AwareDateTimeField(required=False)
+
+    @validates_schema
+    def validate(self, data, **kwargs):
+        if not (data.get("start_time") or data.get("end_time")):
+            return
+        if not (data.get("start_time") and data.get("end_time")):
+            raise ValidationError(
+                "Both start_time and end_time must be provided together."
+            )
+        if data["start_time"] >= data["end_time"]:
+            raise ValidationError("start_time must be before end_time.")
