@@ -103,6 +103,12 @@
                 </table>
             </div>
         </div>
+        <div>
+            <form action="/users/auditlog/{{ user.id }}" method="get">
+                    <button class="btn btn-sm btn-responsive btn-info delete-button" type="submit"
+                     title="View history of user actions.">Audit log</button>
+            </form>
+        </div>
         <div class="col-sm-2"></div>
     </div>
 </div>

@@ -3,6 +3,12 @@
 {% block title %} Account overview {% endblock %} 
 {% block divs %}
 
+<div>
+    <form action="/accounts/auditlog/{{ account.id }}" method="get">
+            <button class="btn btn-sm btn-responsive btn-info delete-button" type="submit"
+             title="View history of user actions.">Audit log</button>
+    </form>
+</div>
 <div class="container-fluid">
     <div class="row">
         <div class="col-sm-2"></div>
