@@ -1974,9 +1974,9 @@ def test_soc_maxima_minima_targets(db, add_battery_assets, soc_sensors):
     """
     Check that the SOC maxima, minima and targets can be defined as sensors in the StorageScheduler.
 
-    The SOC is forced to follow a certain trayectory both by means of the SOC target and by setting SOC maxima = SOC minima = SOC targets.
+    The SOC is forced to follow a certain trajectory both by means of the SOC target and by setting SOC maxima = SOC minima = SOC targets.
 
-    Moreover, the SOC maxima constraint is defined in MWh to check that the unit conversion works well.
+    Moreover, the SOC maxima constraints are defined in MWh to check that the unit conversion works well.
     """
     power = add_battery_assets["Test battery with dynamic power capacity"].sensors[0]
     epex_da = get_test_sensor(db)

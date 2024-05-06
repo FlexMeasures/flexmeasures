@@ -1235,7 +1235,7 @@ def capacity_sensors(db, add_battery_assets, setup_sources):
 @pytest.fixture(scope="module")
 def soc_sensors(db, add_battery_assets, setup_sources) -> tuple:
     """
-    soc_maxim
+    Add battery sensors for instantaneous soc-minima, soc-maxima and soc-targets.
     """
     battery = add_battery_assets["Test battery with dynamic power capacity"]
 
@@ -1277,7 +1277,7 @@ def soc_sensors(db, add_battery_assets, setup_sources) -> tuple:
         db=db,
         sensor=soc_maxima,
         time_slots=time_slots,
-        values=values * 1000,  # MWH -> kWh
+        values=values * 1000,  # MWh -> kWh
         source=setup_sources["Seita"],
     )
 
@@ -1297,14 +1297,14 @@ def soc_sensors(db, add_battery_assets, setup_sources) -> tuple:
         source=setup_sources["Seita"],
     )
 
-    yield (soc_maxima, soc_minima, soc_targets, values)
+    yield soc_maxima, soc_minima, soc_targets, values
 
 
 def add_beliefs(
     db,
     sensor: Sensor,
     time_slots: pd.DatetimeIndex,
-    values: list[int | float],
+    values: list[int | float] | np.ndarray,
     source: DataSource,
 ):
     beliefs = [
