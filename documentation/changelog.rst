@@ -29,6 +29,7 @@ Bugfixes
 -----------
 
 * Prevent **p**lay/**p**ause/**s**top of replays when editing a text field in the UI [see `PR #1024 <https://github.com/FlexMeasures/flexmeasures/pull/1024>`_]
+* Prevent the time window in the UI from moving to the latest data when refreshing the asset page [see `PR #1046 <https://github.com/FlexMeasures/flexmeasures/pull/1046>`_ and `PR #1056 <https://github.com/FlexMeasures/flexmeasures/pull/1056>`_]
 * Skip unit conversion of :abbr:`SoC (state of charge)` related fields that are defined as sensors in a ``flex-model`` (specifically, ``soc-maxima``, ``soc-minima`` and ``soc-targets`` [see `PR #1047 <https://github.com/FlexMeasures/flexmeasures/pull/1047>`_]
 
 
