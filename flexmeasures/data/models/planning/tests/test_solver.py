@@ -1968,3 +1968,73 @@ def test_add_storage_constraint_from_sensor(
         equals[expected_target_start + resolution : expected_target_end]
         == expected_soc_target_value
     )
+
+
+def test_soc_maxima_minima_targets(db, add_battery_assets, soc_sensors):
+    """
+    Check that the SOC maxima, minima and targets can be defined as sensors in the StorageScheduler.
+
+    The SOC is forced to follow a certain trajectory both by means of the SOC target and by setting SOC maxima = SOC minima = SOC targets.
+
+    Moreover, the SOC maxima constraints are defined in MWh to check that the unit conversion works well.
+    """
+    power = add_battery_assets["Test battery with dynamic power capacity"].sensors[0]
+    epex_da = get_test_sensor(db)
+
+    soc_maxima, soc_minima, soc_targets, values = soc_sensors
+
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+    soc_at_start = 0.0
+    soc_max = 10
+    soc_min = 0
+
+    flex_model = {
+        "soc-at-start": soc_at_start,
+        "soc-max": soc_max,
+        "soc-min": soc_min,
+        "power-capacity": "2 MW",
+        "production-capacity": "2 MW",
+        "consumption-capacity": "2 MW",
+        "storage-efficiency": 1,
+        "charging-efficiency": "100%",
+        "discharging-efficiency": "100%",
+    }
+
+    def compute_schedule(flex_model):
+        scheduler: Scheduler = StorageScheduler(
+            power,
+            start,
+            end,
+            resolution,
+            flex_model=flex_model,
+            flex_context={
+                "site-power-capacity": "100 MW",
+                "production-price-sensor": epex_da.id,
+                "consumption-price-sensor": epex_da.id,
+            },
+        )
+        return scheduler.compute()
+
+    flex_model["soc-targets"] = {"sensor": soc_targets.id}
+    schedule = compute_schedule(flex_model)
+
+    soc = check_constraints(power, schedule, soc_at_start)
+
+    # soc targets are achieved
+    assert all(abs(soc[9:].values - values[:-1]) < 1e-5)
+
+    # remove soc-targets and use soc-maxima and soc-minima
+    del flex_model["soc-targets"]
+    flex_model["soc-minima"] = {"sensor": soc_minima.id}
+    flex_model["soc-maxima"] = {"sensor": soc_maxima.id}
+    schedule = compute_schedule(flex_model)
+
+    soc = check_constraints(power, schedule, soc_at_start)
+
+    # soc-maxima and soc-minima constraints are respected
+    # this yields the same results as with the SOC targets
+    # because soc-maxima = soc-minima = soc-targets
+    assert all(abs(soc[9:].values - values[:-1]) < 1e-5)

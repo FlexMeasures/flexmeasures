@@ -65,3 +65,17 @@ class AccountCrudUI(FlaskView):
             users=users,
             include_inactive=include_inactive,
         )
+
+    @login_required
+    def auditlog(self, account_id: str):
+        """/accounts/auditlog/<account_id>"""
+        account = get_account(account_id)
+        audit_log_response = InternalApi().get(
+            url_for("AccountAPI:auditlog", id=account_id)
+        )
+        audit_logs_response = audit_log_response.json()
+        return render_flexmeasures_template(
+            "crud/account_audit_log.html",
+            audit_logs=audit_logs_response,
+            account=account,
+        )

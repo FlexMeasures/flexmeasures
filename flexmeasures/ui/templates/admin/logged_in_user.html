@@ -103,6 +103,14 @@
             </div>
         </div>
         <div class="col-sm-2"></div>
+        <form action="/accounts/auditlog/{{ logged_in_user.account.id }}" method="get">
+            <button class="btn btn-sm btn-responsive btn-info delete-button" type="submit"
+             title="View history of account actions.">Account audit log</button>
+        </form>
+        <form action="/users/auditlog/{{ logged_in_user.id }}" method="get">
+            <button class="btn btn-sm btn-responsive btn-info delete-button" type="submit"
+             title="View history of user actions.">User audit log</button>
+        </form>
     </div>
 </div>
 

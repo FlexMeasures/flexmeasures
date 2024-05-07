@@ -1,8 +1,10 @@
 import pytest
 from flask import url_for, request
+from sqlalchemy import select
 
 from flexmeasures.api.tests.utils import UserContext
 from flexmeasures.data.services.users import find_user_by_email
+from flexmeasures.data.models.audit_log import AuditLog
 
 
 @pytest.mark.parametrize(
@@ -18,7 +20,7 @@ from flexmeasures.data.services.users import find_user_by_email
     indirect=["requesting_user"],
 )
 def test_user_reset_password(
-    app, client, setup_inactive_user, requesting_user, status_code
+    db, app, client, setup_inactive_user, requesting_user, status_code
 ):
     """
     Reset the password of User 2.
@@ -37,6 +39,14 @@ def test_user_reset_password(
         assert pwd_reset_response.status_code == status_code
         if status_code != 200:
             return
+
+        assert db.session.execute(
+            select(AuditLog).filter_by(
+                affected_user_id=user2.id,
+                event=f"Password reset for user {user2.username}",
+                active_user_id=requesting_user.id,
+            )
+        ).scalar_one_or_none()
 
         user2 = find_user_by_email("test_prosumer_user_2@seita.nl")
         assert len(outbox) == 2
