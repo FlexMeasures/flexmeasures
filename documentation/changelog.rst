@@ -11,10 +11,13 @@ New features
 
 * Add `asset/<id>/status` page to view asset statuses [see `PR #41 <https://github.com/FlexMeasures/flexmeasures/pull/941/>`_ and `PR #1035 <https://github.com/FlexMeasures/flexmeasures/pull/1035/>`_]
 * Support `start_date` and `end_date` query parameters for the asset page [see `PR #1030 <https://github.com/FlexMeasures/flexmeasures/pull/1030/>`_]
+* Add `account/<id>/auditlog` and `user/<id>/auditlog` to view user and account related actions [see `PR #1042 <https://github.com/FlexMeasures/flexmeasures/pull/1042>`_]
 * In `flexmeasures show beliefs`, the entity path (`<Account name>/<Asset 1>/.../<Asset>`) is used to differentiate between duplicated sensors names [see `PR #1026 <https://github.com/FlexMeasures/flexmeasures/pull/1026/>`_]
 
 Bugfixes
 -----------
+
+* Prevent the time window in the UI from moving to the latest data when refreshing the asset page [see `PR #1046 <https://github.com/FlexMeasures/flexmeasures/pull/1046>`_ and `PR #1056 <https://github.com/FlexMeasures/flexmeasures/pull/1056>`_]
 
 Infrastructure / Support
 ----------------------
@@ -22,13 +25,15 @@ Infrastructure / Support
 * Include started, deferred and scheduled jobs in the overview printed by the CLI command ``flexmeasures jobs show-queues`` [see `PR #1036 <https://github.com/FlexMeasures/flexmeasures/pull/1036/>`_]
 * Make it as convenient to clear deferred or scheduled jobs from a queue as it was to clear failed jobs from a queue [see `PR #1037 <https://github.com/FlexMeasures/flexmeasures/pull/1037/>`_]
 
-v0.20.1 | April XX, 2024
+
+v0.20.1 | May 7, 2024
 ============================
 
 Bugfixes
 -----------
 
 * Prevent **p**lay/**p**ause/**s**top of replays when editing a text field in the UI [see `PR #1024 <https://github.com/FlexMeasures/flexmeasures/pull/1024>`_]
+* Skip unit conversion of :abbr:`SoC (state of charge)` related fields that are defined as sensors in a ``flex-model`` (specifically, ``soc-maxima``, ``soc-minima`` and ``soc-targets`` [see `PR #1047 <https://github.com/FlexMeasures/flexmeasures/pull/1047>`_]
 
 
 v0.20.0 | March 26, 2024
@@ -146,7 +151,7 @@ New features
 * Better navigation experience through listings (sensors / assets / users / accounts) in the :abbr:`UI (user interface)`, by heading to the selected entity upon a click (or CTRL + click) anywhere within a row [see `PR #923 <https://github.com/FlexMeasures/flexmeasures/pull/923>`_]
 * Introduce a breadcrumb to navigate through assets and sensor pages using its child-parent relationship [see `PR #930 <https://github.com/FlexMeasures/flexmeasures/pull/930>`_]
 * Define device-level power constraints as sensors to create schedules with changing power limits [see `PR #897 <https://github.com/FlexMeasures/flexmeasures/pull/897>`_]
-* Allow to provide external storage usage or gain components using the ``soc-usage`` and ``soc-gain`` fields of the `flex-model` [see `PR #906 <https://github.com/FlexMeasures/flexmeasures/pull/906>`_]
+* Allow to provide external storage usage or gain components using the ``soc-usage`` and ``soc-gain`` fields of the ``flex-model`` [see `PR #906 <https://github.com/FlexMeasures/flexmeasures/pull/906>`_]
 * Define time-varying charging and discharging efficiencies as sensors or as constant values which allows to define the :abbr:`COP (coefficient of performance)` [see `PR #933 <https://github.com/FlexMeasures/flexmeasures/pull/933>`_]
 
 Infrastructure / Support
