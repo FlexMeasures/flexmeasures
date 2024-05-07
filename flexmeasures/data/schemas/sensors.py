@@ -246,7 +246,12 @@ class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
                     f"Cannot convert value `{value}` to '{self.to_unit}'"
                 ) from e
         elif isinstance(value, Sensor):
-            return value
+            sensor = value
+            if not units_are_convertible(sensor.unit, str(self.to_unit.units)):
+                raise FMValidationError(
+                    f"Cannot convert {sensor.unit} to {self.to_unit.units}"
+                )
+            return sensor
         elif self.default_src_unit is not None:
             return self._deserialize(
                 f"{value} {self.default_src_unit}", attr, obj, **kwargs
