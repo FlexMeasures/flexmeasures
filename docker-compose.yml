@@ -88,7 +88,12 @@ services:
     volumes:
       # a place for config and plugin code
       - ./flexmeasures-instance/:/usr/var/flexmeasures-instance/:ro
-    command: flexmeasures jobs run-worker --name flexmeasures-worker --queue forecasting\|scheduling
+      - ./flexmeasures-instance/:/app/instance/:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command: 
+    - |
+      pip install -r instance/requirements.txt
+      flexmeasures jobs run-worker --name flexmeasures-worker --queue forecasting\|scheduling
   test-db:
     image: postgres
     expose:
