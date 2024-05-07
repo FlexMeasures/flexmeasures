@@ -227,7 +227,7 @@ class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
 
     @with_appcontext_if_needed()
     def _deserialize(
-        self, value: str | dict[str, int], attr, obj, **kwargs
+        self, value: str | dict[str, int] | Sensor, attr, obj, **kwargs
     ) -> ur.Quantity | Sensor:
         if isinstance(value, dict):
             if "sensor" not in value:
