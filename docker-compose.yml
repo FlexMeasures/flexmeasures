@@ -66,7 +66,7 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
     - |
-      pip install -r instance/requirements.txt
+      pip install -r /usr/var/flexmeasures-instance/requirements.txt
       flexmeasures db upgrade
       flexmeasures add toy-account --name 'Docker Toy Account'
       gunicorn --bind 0.0.0.0:5000 --worker-tmp-dir /dev/shm --workers 2 --threads 4 wsgi:application
@@ -88,11 +88,10 @@ services:
     volumes:
       # a place for config and plugin code
       - ./flexmeasures-instance/:/usr/var/flexmeasures-instance/:ro
-      - ./flexmeasures-instance/:/app/instance/:ro
     entrypoint: ["/bin/sh", "-c"]
     command: 
     - |
-      pip install -r instance/requirements.txt
+      pip install -r /usr/var/flexmeasures-instance/requirements.txt
       flexmeasures jobs run-worker --name flexmeasures-worker --queue forecasting\|scheduling
   test-db:
     image: postgres
