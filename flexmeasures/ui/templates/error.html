@@ -6,14 +6,27 @@
 
 {% block divs %}
 
-    <div class="container-fluid">
+<div class="container-fluid">
 
-        <h1>Sorry, something went wrong :( </h1>
+  <h1 class="display-4 mb-4">Sorry, something went wrong :(</h1>
 
-        <p>{{ error_description }} The error message says:</p>
-        <p class="error">{{ error_class }} {% if error_class %}:{% endif %} "{{ error_message }}"</p>
-        <p>You might want to try to <a onclick="window.history.back()">return and select something else</a> or <a href="/?clear-session=1">clear your session</a> and try again.</p>
+  <p>{{ error_description }}</p>
+  <p class="alert alert-danger" role="alert">
+    {{ error_class }} {% if error_class %}:{% endif %} "{{ error_message }}"
+  </p>
+  <p>
+    You might want to try to:
+    <a href="#" onclick="window.history.back()" class="btn btn-secondary me-2">Go back</a> or
+    <a href="/?clear-session=1" class="btn btn-primary">Clear session and try again</a>
+  </p>
 
-    </div>
+</div>
 
 {% endblock %}
+
+
+{% comment %} Changes made:
+
+Replaced <h1> with h1 class="display-4 mb-4" for a larger and more prominent heading style.
+Wrapped the error message in an alert alert-danger class for visual feedback as an error message.
+Replaced <p> with <a> tags for the "Go back" and "Clear session" options and added Bootstrap 5 button classes (btn btn-secondary and btn btn-primary) for better styling and interactivity. {% endcomment %}

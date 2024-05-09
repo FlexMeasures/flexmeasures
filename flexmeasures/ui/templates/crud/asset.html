@@ -33,7 +33,7 @@
         <div class="alert alert-info" id="dstwarn" style="display:none;"></div>
     </div>
     <div class="row">
-        <div class="col-sm-2 on-top-md">
+        <div class="col-md-2 on-top-md">
             <div class="header-action-button">
                 {% if user_can_create_assets %}
                 <div class="">
@@ -83,7 +83,7 @@
 
                                 <div class="form-group">
                                     {{ asset_form.name.label(class="col-sm-3 control-label") }}
-                                    <div class="col-sm-3">
+                                    <div class="col-md-3">
                                         {{ asset_form.name(class_="form-control") }}
                                         {% for error in asset_form.errors.name %}
                                         <span style="color: red;">[{{error}}]</span>
@@ -92,7 +92,7 @@
                                 </div>
                                 <div class="form-group">
                                     {{ asset_form.latitude.label(class="col-sm-6 control-label") }}
-                                    <div class="col-sm-6">
+                                    <div class="col-md-6">
                                         {{ asset_form.latitude(class_="form-control") }}
                                         {% for error in asset_form.errors.latitude %}
                                         <span style="color: red;">[{{error}}]</span>
@@ -101,7 +101,7 @@
                                 </div>
                                 <div class="form-group">
                                     {{ asset_form.longitude.label(class="col-sm-6 control-label") }}
-                                    <div class="col-sm-6">
+                                    <div class="col-md-6">
                                         {{ asset_form.longitude(class_="form-control") }}
                                         {% for error in asset_form.errors.longitude %}
                                         <span style="color: red;">[{{error}}]</span>
@@ -110,21 +110,21 @@
                                 </div>
                                 <div class="form-group">
                                     <label for="assset-type" class="col-sm-6 control-label">Asset Type</label>
-                                     <div class="col-sm-6">
+                                     <div class="col-md-6">
                                         <input class="form-control" id="asset-type-id" name="asset-type" type="text"
                                             value="{{ asset.generic_asset_type.name }}" disabled></input>
                                      </div>
                                 </div>
                                 <div class="form-group">
                                     <label for="asset-id" class="col-sm-6 control-label">Asset id</label>
-                                    <div class="col-sm-6">
+                                    <div class="col-md-6">
                                         <input class="form-control" id="asset-id" name="asset-id" type="text" value="{{ asset.id }}"
                                             disabled></input>
                                     </div>
                                 </div>
                                 <div class="form-group">
                                     {{ asset_form.attributes.label(class="col-sm-3 control-label") }}
-                                    <div class="col-sm-3">
+                                    <div class="col-md-3">
                                         {{ asset_form.attributes(class_="form-control") }}
                                         {% for error in asset_form.errors.attributes %}
                                         <span style="color: red;">[{{error}}]</span>
@@ -141,7 +141,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-sm-8">
+        <div class="col-md-8">
             <div id="spinner" hidden="hidden">
                 <i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i>
                 <span class="sr-only">Loading...</span>
@@ -313,7 +313,7 @@
                 </table>
             </div>
         </div>
-        <div class="col-sm-2">
+        <div class="col-md-2">
             <div class="replay-container">
                 <div id="replay" title="Press 'p' to play/pause/resume or 's' to stop." class="stopped"></div>
                 <div id="replay-time"></div>
