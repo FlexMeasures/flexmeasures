@@ -42,6 +42,23 @@ class GenericAssetType(db.Model):
         return "<GenericAssetType %s: %r>" % (self.id, self.name)
 
 
+class GenericAssetInflexibleSensorRelationship(db.Model):
+    """Links assets to inflexible sensors."""
+
+    __tablename__ = "assets_inflexible_sensors"
+
+    id = db.Column(db.Integer(), primary_key=True)
+    generic_asset_id = db.Column(db.Integer, db.ForeignKey("generic_asset.id"))
+    inflexible_sensor_id = db.Column(db.Integer, db.ForeignKey("sensor.id"))
+    __table_args__ = (
+        db.UniqueConstraint(
+            "inflexible_sensor_id",
+            "generic_asset_id",
+            name="assets_inflexible_sensors_key",
+        ),
+    )
+
+
 class GenericAsset(db.Model, AuthModelMixin):
     """An asset is something that has economic value.
 
@@ -87,11 +104,34 @@ class GenericAsset(db.Model, AuthModelMixin):
         backref=db.backref("generic_assets", lazy=True),
     )
 
+    consumption_price_sensor_id = db.Column(
+        db.Integer, db.ForeignKey("sensor.id", ondelete="SET NULL"), nullable=True
+    )
+    consumption_price_sensor = db.relationship(
+        "Sensor",
+        foreign_keys=[consumption_price_sensor_id],
+        backref=db.backref("generic_assets_by_consumption_price_sensor_id", lazy=True),
+    )
+
+    production_price_sensor_id = db.Column(
+        db.Integer, db.ForeignKey("sensor.id", ondelete="SET NULL"), nullable=True
+    )
+    production_price_sensor = db.relationship(
+        "Sensor",
+        foreign_keys=[production_price_sensor_id],
+        backref=db.backref("generic_assets_by_production_price_sensor_id", lazy=True),
+    )
+
     # Many-to-many relationships
     annotations = db.relationship(
         "Annotation",
         secondary="annotations_assets",
         backref=db.backref("assets", lazy="dynamic"),
+    )
+    inflexible_device_sensors = db.relationship(
+        "Sensor",
+        secondary="assets_inflexible_sensors",
+        backref=db.backref("assets_for_inflexible_sensor", lazy="dynamic"),
     )
 
     def __acl__(self):
@@ -206,6 +246,30 @@ class GenericAsset(db.Model, AuthModelMixin):
     def set_attribute(self, attribute: str, value):
         if self.has_attribute(attribute):
             self.attributes[attribute] = value
+
+    def get_consumption_price_sensor(self):
+        """Searches for consumption_price_sensor upwards on the asset tree"""
+        if self.consumption_price_sensor:
+            return self.consumption_price_sensor
+        if self.parent_asset:
+            return self.parent_asset.get_consumption_price_sensor()
+        return None
+
+    def get_production_price_sensor(self):
+        """Searches for production_price_sensor upwards on the asset tree"""
+        if self.production_price_sensor:
+            return self.production_price_sensor
+        if self.parent_asset:
+            return self.parent_asset.get_production_price_sensor()
+        return None
+
+    def get_inflexible_device_sensors(self):
+        """Searches for inflexible_device_sensors upwards on the asset tree"""
+        if self.inflexible_device_sensors:
+            return self.inflexible_device_sensors
+        if self.parent_asset:
+            return self.parent_asset.get_inflexible_device_sensors()
+        return []
 
     @property
     def has_power_sensors(self) -> bool:

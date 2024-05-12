@@ -59,6 +59,8 @@ class AssetForm(FlaskForm):
         render_kw={"placeholder": "--Click the map or enter a longitude--"},
     )
     attributes = StringField("Other attributes (JSON)", default="{}")
+    production_price_sensor_id = SelectField("Production price sensor", coerce=int)
+    consumption_price_sensor_id = SelectField("Consumption price sensor", coerce=int)
 
     def validate_on_submit(self):
         if (
@@ -70,6 +72,16 @@ class AssetForm(FlaskForm):
             )
         if hasattr(self, "account_id") and self.account_id.data == -1:
             del self.account_id  # asset will be public
+        if (
+            hasattr(self, "production_price_sensor_id")
+            and self.production_price_sensor_id.data == -1
+        ):
+            self.production_price_sensor_id.data = None
+        if (
+            hasattr(self, "consumption_price_sensor_id")
+            and self.consumption_price_sensor_id.data == -1
+        ):
+            self.consumption_price_sensor_id.data = None
         return super().validate_on_submit()
 
     def to_json(self) -> dict:
@@ -123,6 +135,27 @@ def with_options(form: AssetForm | NewAssetForm) -> AssetForm | NewAssetForm:
             (account.id, account.name)
             for account in db.session.scalars(select(Account)).all()
         ]
+    return form
+
+
+def with_price_sensors(asset: GenericAsset, form: AssetForm) -> AssetForm:
+    sensor_ids = set()
+    for child_asset in (asset, *asset.offspring):
+        sensor_ids.update([sensor.id for sensor in child_asset.sensors])
+
+    for sensor_name in ("production_price", "consumption_price"):
+        sensor_id = getattr(asset, sensor_name + "_sensor_id")
+        choices = [*{*sensor_ids, sensor_id}]
+        choices = [(id, id) for id in choices if id is not None]
+        choices = choices + [(-1, "--Select sensor id--")]
+        form_sensor = getattr(form, sensor_name + "_sensor_id")
+        form_sensor.choices = choices
+        if sensor_id is None:
+            form_sensor.default = (-1, "--Select sensor id--")
+        else:
+            form_sensor.default = (sensor_id, sensor_id)
+        setattr(form, sensor_name + "_sensor_id", form_sensor)
+
     return form
 
 
@@ -296,10 +329,11 @@ class AssetCrudUI(FlaskView):
 
         get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_one", id=id))
         asset_dict = get_asset_response.json()
+        asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
 
         asset_form = with_options(AssetForm())
+        asset_form = with_price_sensors(asset, asset_form)
 
-        asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
         asset_form.process(data=process_internal_api_response(asset_dict))
 
         return render_flexmeasures_template(
@@ -411,9 +445,10 @@ class AssetCrudUI(FlaskView):
                 )
 
         else:
+            asset = db.session.get(GenericAsset, id)
             asset_form = with_options(AssetForm())
+            asset_form = with_price_sensors(asset, asset_form)
             if not asset_form.validate_on_submit():
-                asset = db.session.get(GenericAsset, id)
                 # Display the form data, but set some extra data which the page wants to show.
                 asset_info = asset_form.to_json()
                 asset_info["id"] = id

@@ -123,6 +123,24 @@
                                     </div>
                                 </div>
                                 <div class="form-group">
+                                    {{ asset_form.consumption_price_sensor_id.label(class="col-sm-3 control-label") }}
+                                    <div class="col-sm-3">
+                                        {{ asset_form.consumption_price_sensor_id(class_="form-control") }}
+                                        {% for error in asset_form.errors.consumption_price_sensor_id %}
+                                        <span style="color: red;">[{{error}}]</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    {{ asset_form.production_price_sensor_id.label(class="col-sm-3 control-label") }}
+                                    <div class="col-sm-3">
+                                        {{ asset_form.production_price_sensor_id(class_="form-control") }}
+                                        {% for error in asset_form.errors.production_price_sensor_id %}
+                                        <span style="color: red;">[{{error}}]</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                <div class="form-group">
                                     {{ asset_form.attributes.label(class="col-sm-3 control-label") }}
                                     <div class="col-sm-3">
                                         {{ asset_form.attributes(class_="form-control") }}

@@ -45,6 +45,8 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
     attributes = JSON(required=False)
     parent_asset_id = fields.Int(required=False, allow_none=True)
     child_assets = ma.Nested("GenericAssetSchema", many=True, dumb_only=True)
+    production_price_sensor_id = fields.Int(required=False, allow_none=True)
+    consumption_price_sensor_id = fields.Int(required=False, allow_none=True)
 
     class Meta:
         model = GenericAsset
