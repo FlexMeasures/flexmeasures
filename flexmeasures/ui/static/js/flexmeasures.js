@@ -234,7 +234,7 @@ function ready() {
 
     $(document.body).css('padding-top', $('#topnavbar').height());
     $(window).resize(function () {
-        $(document.body).css('padding-top', $('#topnavbar').height());
+        $(document.body).css('padding-top', $('#').height());
     });
 
 
@@ -242,7 +242,7 @@ function ready() {
 
     $('table').floatThead({
         position: 'absolute',
-        top: $('#topnavbar').height(),
+        top: $('#').height(),
         scrollContainer: true
     });
 

@@ -53,46 +53,50 @@
     {% block nav %}
 
     <nav class="navbar navbar-expand-lg fixed-top mt-0" id="topnavbar">
-        <div id="navbar-container" class="container-fluid">
-            <div class="navbar-header">
-                <button type="button" class="navbar-toggler collapsed" data-toggle="collapse"
-                    data-target="#bs-example-navbar-collapse-1" aria-expanded="false" aria-label="Toggle navigation">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                <span class="navbar-brand">
-                    <a href="/">
-                        <span class="navbar-tool-name">
-                        {% if menu_logo %}
-                            <img id="navbar-logo" src="{{menu_logo}}"/>
-                        {% else %}
-                            <img id="navbar-logo" src="https://artwork.lfenergy.org/projects/flexmeasures/horizontal/white/flexmeasures-horizontal-white.svg" alt="FlexMeasures"/>
-                        {% endif %}
-                        </span>
-                    </a>
+        <div class="container-fluid" id="navbar-container">
+          <div class="navbar-header">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+              <span class="navbar-toggler-icon"></span>
+            </button>
+            <span class="navbar-brand">
+              <a href="/">
+                <span class="navbar-tool-name">
+                  {% if menu_logo %}
+                    <img id="navbar-logo" src="{{menu_logo}}"/>
+                  {% else %}
+                    <img id="navbar-logo" src="https://artwork.lfenergy.org/projects/flexmeasures/horizontal/white/flexmeasures-horizontal-white.svg" alt="FlexMeasures"/>
+                  {% endif %}
                 </span>
-            </div>
-            <div class="collapse navbar-collapse  ms-auto" id="navbarSupportedContent">
-                <ul class="nav navbar-nav">
-                    {% for href, id, caption, tooltip, icon in navigation_bar %}
-                    {% if id == "tasks" %}
-                    <li {% if id == active_page %} class="active" {% endif %} class="dropdown">
-                        <a class="dropdown-toggle" data-toggle="dropdown" href="#"><span class="fa fa-tasks"
-                                aria-hidden="true"></span>
-                            Tasks
-                            <span class="caret"></span></a>
-                        <ul class="dropdown-menu">
-                            {% for queue in queue_names %}
-                                <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
-                                    {% if not current_user.has_role('anonymous') %}href="/tasks/0/view/jobs/{{ queue }}/started/10/1"
-                                    {% endif %}>{{ queue | capitalize }}</a></li>
-                            {% endfor %}
-                            <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
-                                    {% if not current_user.has_role('anonymous') %}href="/tasks/"
-                                    {% endif %}>Overview</a></li>
-                        </ul>
+              </a>
+            </span>
+          </div>
+          <div class="collapse navbar-collapse justify-content-end" id="navbarSupportedContent">
+            <ul class="navbar-nav">
+              {% for href, id, caption, tooltip, icon in navigation_bar %}
+                {% if id == "tasks" %}
+                <li  {% if id == active_page %} class="active nav-item dropdown" {% endif %}>
+                  <a class="nav-link dropdown-toggle" data-toggle="dropdown" href="#" aria-expanded="false">
+                    <span class="fa fa-tasks" aria-hidden="true"></span>
+                    Tasks
+                  </a>
+                  <span class="caret"></span></a>
+                  <ul class="dropdown-menu">
+                    {% for queue in queue_names %}
+                      <li {% if current_user.has_role('anonymous') %}class="disabled"{% endif %}>
+                        <a class="dropdown-item" {% if not current_user.has_role('anonymous') %}href="/tasks/0/view/jobs/{{ queue }}/started/10/1"{% endif %}>
+                          {{ queue | capitalize }}
+                        </a>
+                      </li>
+                    {% endfor %}
+                    <li {% if current_user.has_role('anonymous') %}class="disabled"{% endif %}>
+                      <a class="dropdown-item" {% if not current_user.has_role('anonymous') %}href="/tasks/"{% endif %}>
+                        Overview
+                      </a>
                     </li>
-                    {% else %}
-                    <li {% if id == active_page %} class="active" {% endif %} data-toggle="tooltip" title="{{ tooltip }}" data-placement="bottom"
+                  </ul>
+                </li>
+                {% else %}
+                <li {% if id == active_page %} class="active" {% endif %} data-toggle="tooltip" title="{{ tooltip }}" data-placement="bottom"
                         {% if id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users')) %}
                         class="disabled" {% endif %}>
                         <a {% if not ( id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users')) ) %}href="/{{ href|e }}"
@@ -106,13 +110,15 @@
                             {% endif %}
 
                         </a>
-                    </li>
-                    {% endif %}
-                    {% endfor %}
-                </ul>
-            </div>
+                </li>
+                {% endif %}
+              {% endfor %}
+            </ul>
+          </div>
         </div>
-    </nav>
+      </nav>
+      
+      
 
     {% endblock nav %}
 
