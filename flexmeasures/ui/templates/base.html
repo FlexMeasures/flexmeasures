@@ -52,12 +52,15 @@
 
     {% block nav %}
 
-    <nav class="navbar navbar-expand-lg fixed-top mt-0 navbar-default mb-2" id="topnavbar">
+    <nav class="navbar navbar-expand-lg fixed-top mt-0 navbar-default mb-2 navbar-fixed-top" id="topnavbar">
         <div class="container-fluid" id="navbar-container">
           <div class="navbar-header">
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
-              <span class="navbar-toggler-icon"></span>
-            </button>
+            <button type="button" class="navbar-toggle" data-bs-toggle="collapse" data-bs-target="#bs-example-navbar-collapse-1" aria-controls="bs-example-navbar-collapse-1" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+            </button>            
             <span class="navbar-brand">
               <a href="/">
                 <span class="navbar-tool-name">
@@ -71,7 +74,7 @@
             </span>
           </div>
           <div class="collapse navbar-collapse justify-content-end" id="navbarSupportedContent">
-            <ul class="navbar-nav">
+            <ul class="nav navbar-nav">
               {% for href, id, caption, tooltip, icon in navigation_bar %}
                 {% if id == "tasks" %}
                 <li {% if id == active_page %} class="nav-item dropdown active" {% else %} class="nav-item dropdown" {% endif %}>
