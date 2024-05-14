@@ -234,7 +234,7 @@ function ready() {
 
     $(document.body).css('padding-top', $('#topnavbar').height());
     $(window).resize(function () {
-        $(document.body).css('padding-top', $('#').height());
+        $(document.body).css('padding-top', $('#topnavbar').height());
     });
 
 

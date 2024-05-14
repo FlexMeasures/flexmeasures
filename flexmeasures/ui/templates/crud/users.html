@@ -36,7 +36,7 @@
               <th>Last Login</th>
               <th>Last Seen</th>
               <th>Active</th>
-              <th class="d-none">URL</th>
+              <th class="d-none invisible" style="display:none;">URL</th>
             </tr>
           </thead>
           <tbody>
@@ -68,7 +68,7 @@
               <td>
                 {{ user.active }}
               </td>
-              <td class="d-none">
+              <td class="d-none invisible" style="display:none;">
                 /users/{{ user.id }}
               </td>
             </tr>

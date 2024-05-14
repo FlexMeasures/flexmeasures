@@ -8,7 +8,7 @@
 
 <div class="container-fluid">
   <div class="row">
-    <div class="col-md-2 d-flex flex-column justify-content-center align-items-start">
+    <div class="col-md-2 d-flex flex-column align-items-start">
       <div class="header-action-button">
         <div>
           {% if user_can_create_assets %}
@@ -67,7 +67,7 @@
                   <button type="button" class="btn btn-primary">Status</button>
                 </a>
               </td>
-              <td class="d-none invisible">
+              <td class="d-none invisible" style="display:none">
                 /assets/{{ asset.id }}
               </td>
             </tr>
