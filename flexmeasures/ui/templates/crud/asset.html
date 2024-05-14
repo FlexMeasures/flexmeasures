@@ -7,15 +7,17 @@
 
 
 {% block divs %}
-<nav aria-label="breadcrumb" class="pl-3">
+<nav aria-label="breadcrumb">
     <ol class="breadcrumb">
       {% for breadcrumb in breadcrumb_info["ancestors"] %}
-        <li class="breadcrumb-item{% if loop.last %} active{% endif %}">
+      <li class="breadcrumb-item{% if loop.last %} dropdown active{% endif %}" {% if loop.last %}aria-current="page"{% endif %}>
           {% if breadcrumb["url"] is not none and not loop.last %}
             <a href="{{ breadcrumb['url'] }}">{{ breadcrumb['name'] }}</a>
           {% else %}
             <div class="dropdown">
-              <a class="breadcrumb-dropdown-toggle" href="#" role="button" id="breadcrumbDropdown" data-bs-toggle="dropdown" aria-expanded="false">{{ breadcrumb['name'] }}</a>
+                <a href="#" class="btn breadcrumb-dropdown-toggle" id="breadcrumbDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                    {{ breadcrumb['name'] }} <i class="fa fa-caret-down"></i>
+                </a>
               <ul class="dropdown-menu" aria-labelledby="breadcrumbDropdown">
                 {% for sibling in breadcrumb_info["siblings"] %}
                   <li><a class="dropdown-item" href="{{ sibling['url'] }}">{{ sibling["name"] }}</a></li>
@@ -27,6 +29,7 @@
       {% endfor %}
     </ol>
   </nav>
+  
   
 
 
@@ -232,7 +235,7 @@
                             <th class="text-right">Unit</th>
                             <th class="text-right">Resolution</th>
                             <th class="text-right no-sort">Entity address</th>
-                            <th class="hidden">URL</th>
+                            <th class="hidden d-none invisible" style="display:none;">URL</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -253,7 +256,7 @@
                             <td class="text-right">
                                 {{ sensor.entity_address }}
                             </td>
-                            <td class="hidden">
+                            <td class="hidden d-none invisible" style="display:none;">
                                 /sensors/{{ sensor.id }}
                             </td>
                         </tr>
@@ -273,7 +276,7 @@
                             <th>Asset ID</th>
                             <th>Account</th>
                             <th>Sensors</th>
-                            <th class="hidden">URL</th>
+                            <th class="hidden d-none invisible" style="display:none;">URL</th>
                             <th class="no-sort"></th>
                         </tr>
                     </thead>
@@ -302,7 +305,7 @@
                             <td>
                                 {{ child.sensors | length }}
                             </td>
-                            <td class="hidden">
+                            <td class="hidden d-none invisible" style="display:none;">
                                 /assets/{{ child.id }}
                             </td>
                             <td>
