@@ -18,7 +18,7 @@
                         <th>Assets</th>
                         <th>Users</th>
                         <th>Roles</th>
-                        <th class="hidden d-none invisible" style="display:none">URL</th>
+                        <th class="hidden d-none invisible" style="display:none;">URL</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -39,7 +39,7 @@
                         <td>
                             {{ account.account_roles | map(attribute='name') | join(", ") }}
                         </td>
-                        <td class="hidden d-none invisible" style="display:none">
+                        <td class="hidden d-none invisible" style="display:none;">
                             /accounts/{{ account.id }}
                         </td>
                     </tr>
