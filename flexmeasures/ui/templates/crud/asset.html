@@ -7,6 +7,14 @@
 
 
 {% block divs %}
+<style>                               
+    .breadcrumb-item a {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 200px;
+    }
+  </style> 
 <nav aria-label="breadcrumb">
     <ol class="breadcrumb">
       {% for breadcrumb in breadcrumb_info["ancestors"] %}
