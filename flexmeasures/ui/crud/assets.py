@@ -8,9 +8,16 @@ from flask_classful import FlaskView, route
 from flask_wtf import FlaskForm
 from flask_security import login_required, current_user
 from webargs.flaskparser import use_kwargs
-from wtforms import StringField, DecimalField, SelectField
+from wtforms import (
+    StringField,
+    DecimalField,
+    SelectField,
+    SelectMultipleField,
+    ValidationError,
+)
 from wtforms.validators import DataRequired, optional
 from sqlalchemy import select
+from sqlalchemy.sql.expression import or_
 from flexmeasures.auth.policy import user_has_admin_access
 
 from flexmeasures.data import db
@@ -22,6 +29,7 @@ from flexmeasures.data.models.generic_assets import (
     GenericAssetType,
     GenericAsset,
     get_center_location_of_assets,
+    GenericAssetInflexibleSensorRelationship,
 )
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.time_series import Sensor
@@ -61,6 +69,15 @@ class AssetForm(FlaskForm):
     attributes = StringField("Other attributes (JSON)", default="{}")
     production_price_sensor_id = SelectField("Production price sensor", coerce=int)
     consumption_price_sensor_id = SelectField("Consumption price sensor", coerce=int)
+    inflexible_device_sensor_ids = SelectMultipleField(
+        "Inflexible device sensors", coerce=int, validate_choice=False
+    )
+
+    def validate_inflexible_device_sensor_ids(form, field):
+        if field.data and len(field.data) > 1 and -1 in field.data:
+            raise ValidationError(
+                "No sensor choice is not allowed together with sensor ids."
+            )
 
     def validate_on_submit(self):
         if (
@@ -72,17 +89,20 @@ class AssetForm(FlaskForm):
             )
         if hasattr(self, "account_id") and self.account_id.data == -1:
             del self.account_id  # asset will be public
+        result = super().validate_on_submit()
         if (
             hasattr(self, "production_price_sensor_id")
+            and self.production_price_sensor_id is not None
             and self.production_price_sensor_id.data == -1
         ):
             self.production_price_sensor_id.data = None
         if (
             hasattr(self, "consumption_price_sensor_id")
+            and self.consumption_price_sensor_id is not None
             and self.consumption_price_sensor_id.data == -1
         ):
             self.consumption_price_sensor_id.data = None
-        return super().validate_on_submit()
+        return result
 
     def to_json(self) -> dict:
         """turn form data into a JSON we can POST to our internal API"""
@@ -138,16 +158,14 @@ def with_options(form: AssetForm | NewAssetForm) -> AssetForm | NewAssetForm:
     return form
 
 
-def with_price_sensors(asset: GenericAsset, form: AssetForm) -> AssetForm:
-    sensor_ids = set()
-    for child_asset in (asset, *asset.offspring):
-        sensor_ids.update([sensor.id for sensor in child_asset.sensors])
-
+def with_sensors(
+    asset: GenericAsset, allowed_sensor_ids: list[int], form: AssetForm
+) -> AssetForm:
     for sensor_name in ("production_price", "consumption_price"):
-        sensor_id = getattr(asset, sensor_name + "_sensor_id")
-        choices = [*{*sensor_ids, sensor_id}]
+        sensor_id = getattr(asset, sensor_name + "_sensor_id") if asset else None
+        choices = [*{*allowed_sensor_ids, sensor_id}]
         choices = [(id, id) for id in choices if id is not None]
-        choices = choices + [(-1, "--Select sensor id--")]
+        choices = [(-1, "--Select sensor id--")] + choices
         form_sensor = getattr(form, sensor_name + "_sensor_id")
         form_sensor.choices = choices
         if sensor_id is None:
@@ -155,6 +173,25 @@ def with_price_sensors(asset: GenericAsset, form: AssetForm) -> AssetForm:
         else:
             form_sensor.default = (sensor_id, sensor_id)
         setattr(form, sensor_name + "_sensor_id", form_sensor)
+
+    if asset:
+        linked_sensors = GenericAssetInflexibleSensorRelationship.query.filter(
+            GenericAssetInflexibleSensorRelationship.generic_asset_id == asset.id
+        ).all()
+        linked_sensor_ids = [sensor.inflexible_sensor_id for sensor in linked_sensors]
+    else:
+        linked_sensor_ids = []
+
+    choices = {*allowed_sensor_ids, *linked_sensor_ids}
+    choices = [(id, id) for id in choices if id is not None]
+    choices = [(-1, "--Select sensor id--")] + choices
+    if not linked_sensor_ids:
+        default = [-1]
+    else:
+        default = linked_sensor_ids
+
+    form.inflexible_device_sensor_ids.choices = choices
+    form.inflexible_device_sensor_ids.default = default
 
     return form
 
@@ -319,6 +356,8 @@ class AssetCrudUI(FlaskView):
                 return unauthorized_handler(None, [])
 
             asset_form = with_options(NewAssetForm())
+            allowed_sensor_ids = get_allowed_sensor_ids(None)
+            asset_form = with_sensors(None, allowed_sensor_ids, asset_form)
             return render_flexmeasures_template(
                 "crud/asset_new.html",
                 asset_form=asset_form,
@@ -332,7 +371,8 @@ class AssetCrudUI(FlaskView):
         asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
 
         asset_form = with_options(AssetForm())
-        asset_form = with_price_sensors(asset, asset_form)
+        allowed_sensor_ids = get_allowed_sensor_ids(asset.account_id)
+        asset_form = with_sensors(asset, allowed_sensor_ids, asset_form)
 
         asset_form.process(data=process_internal_api_response(asset_dict))
 
@@ -398,6 +438,10 @@ class AssetCrudUI(FlaskView):
             account, account_error = _set_account(asset_form)
             asset_type, asset_type_error = _set_asset_type(asset_form)
 
+            account_id = account.id if account else None
+            allowed_sensor_ids = get_allowed_sensor_ids(account_id)
+            asset_form = with_sensors(None, allowed_sensor_ids, asset_form)
+
             form_valid = asset_form.validate_on_submit()
 
             # Fill up the form with useful errors for the user
@@ -447,10 +491,14 @@ class AssetCrudUI(FlaskView):
         else:
             asset = db.session.get(GenericAsset, id)
             asset_form = with_options(AssetForm())
-            asset_form = with_price_sensors(asset, asset_form)
+            allowed_sensor_ids = get_allowed_sensor_ids(asset.account_id)
+            asset_form = with_sensors(asset, allowed_sensor_ids, asset_form)
             if not asset_form.validate_on_submit():
                 # Display the form data, but set some extra data which the page wants to show.
                 asset_info = asset_form.to_json()
+                asset_info = {
+                    k: v for k, v in asset_info.items() if k not in asset_form.errors
+                }
                 asset_info["id"] = id
                 asset_info["account_id"] = asset.account_id
                 asset = process_internal_api_response(
@@ -550,3 +598,30 @@ def _set_asset_type(
     else:
         current_app.logger.error(asset_type_error)
     return asset_type, asset_type_error
+
+
+def get_allowed_sensor_ids(account_id: int | None) -> list[int]:
+    """
+    Return a list of sensor ids which the user can add
+    as consumption_price_sensor_id, production_price_sensor_id or inflexible_device_sensors.
+    """
+    if not account_id:
+        assets = db.session.scalars(
+            select(GenericAsset).filter(GenericAsset.account_id.is_(None))
+        ).all()
+    else:
+        assets = db.session.scalars(
+            select(GenericAsset).filter(
+                or_(
+                    GenericAsset.account_id == account_id,
+                    GenericAsset.account_id.is_(None),
+                )
+            )
+        ).all()
+
+    sensors = list()
+    for asset in assets:
+        sensors += asset.sensors
+
+    energy_sensor_units = {"/MWh", "/kWh"}
+    return [sensor.id for sensor in sensors if sensor.unit[-4:] in energy_sensor_units]
