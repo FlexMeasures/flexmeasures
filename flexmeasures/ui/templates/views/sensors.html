@@ -7,12 +7,17 @@
 
 
 {% block divs %}
-<style>                               
+<style>
+  .breadcrumb {
+    display: flex;
+    flex-wrap: nowrap;
+  
+  }                               
   .breadcrumb-item a {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 200px;
+    max-width: 300px;
   }
 </style> 
       <nav aria-label="breadcrumb">

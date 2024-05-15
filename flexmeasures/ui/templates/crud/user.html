@@ -11,18 +11,17 @@
 <div class="container-fluid">
   <div class="row">
     <div class="col-md-2 on-top-md">
-      <div class="header-action-button">
-        <div>
+      <div class="header-action-button d-block">
+        <div class="">
           <form action="/users/toggle_active/{{ user.id }}" method="get">
-            <button class="btn btn-sm btn-outline-{{ user.active ? 'warning' : 'success' }} mb-2 delete-button" type="submit"
-              title="Toggle activation status of this user.">
-              {% if user.active %} Deactivate user {% else %} Activate user {% endif %}
+            <button class="btn btn-sm btn-responsive {% if user.active %} btn-warning  {% else %} btn-success {% endif %} delete-button mb-3" type="submit" title="Toggle activation status of this user.">
+                {% if user.active %} Deactivate user {% else %} Activate user {% endif %}
             </button>
           </form>
         </div>
         <div>
           <form action="/users/reset_password_for/{{ user.id }}" method="get">
-            <button class="btn btn-sm btn-outline-info delete-button" type="submit"
+            <button class="btn btn-sm btn-responsive btn-info delete-button" type="submit"
               title="Reset the password and send instructions how to choose a new one.">Reset password</button>
           </form>
         </div>

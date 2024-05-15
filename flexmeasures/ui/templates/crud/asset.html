@@ -7,12 +7,17 @@
 
 
 {% block divs %}
-<style>                               
+<style>
+    .breadcrumb {
+        display: flex;
+        flex-wrap: nowrap;
+      
+      }                              
     .breadcrumb-item a {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      max-width: 200px;
+      max-width: 300px;
     }
   </style> 
 <nav aria-label="breadcrumb">
@@ -48,11 +53,11 @@
     </div>
     <div class="row">
         <div class="col-md-2 on-top-md">
-            <div class="header-action-button">
+            <div class="header-action-button d-block">
                 {% if user_can_create_assets %}
                 <div class="">
                     <form action="/assets/new" method="get">
-                        <button class="btn btn-sm btn-responsive btn-success create-button" type="submit">Create new asset</button>
+                        <button class="btn btn-sm btn-responsive btn-success create-button mb-3" type="submit">Create new asset</button>
                     </form>
                 </div>
                 {% endif %}
