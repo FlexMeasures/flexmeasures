@@ -5,8 +5,9 @@ from flask_json import as_json
 
 from flexmeasures.auth.policy import user_has_admin_access
 from flexmeasures.auth.decorators import permission_required_for_context
+from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import Account
-from flexmeasures.data.services.accounts import get_accounts
+from flexmeasures.data.services.accounts import get_accounts, get_audit_log_records
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.data.schemas.account import AccountSchema
 
@@ -107,3 +108,41 @@ class AccountAPI(FlaskView):
         """
 
         return account_schema.dump(account), 200
+
+    @route("/<id>/auditlog", methods=["GET"])
+    @use_kwargs({"account": AccountIdField(data_key="id")}, location="path")
+    @permission_required_for_context(
+        "read",
+        ctx_arg_name="account",
+        pass_ctx_to_loader=True,
+        ctx_loader=AuditLog.account_table_acl,
+    )
+    @as_json
+    def auditlog(self, id: int, account: Account):
+        """API endpoint to get history of account actions.
+        **Example response**
+
+        .. sourcecode:: json
+            [
+                {
+                    'event': 'User test user deleted',
+                    'event_datetime': '2021-01-01T00:00:00',
+                    'active_user_id': 1,
+                }
+            ]
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 200: PROCESSED
+        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+        audit_logs = get_audit_log_records(account)
+        audit_logs = [
+            {k: getattr(log, k) for k in ("event", "event_datetime", "active_user_id")}
+            for log in audit_logs
+        ]
+        return audit_logs, 200
