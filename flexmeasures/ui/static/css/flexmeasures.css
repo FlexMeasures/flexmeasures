@@ -214,6 +214,10 @@ p.error {
     color: var(--secondary-color);
 }
 
+.navbar{
+    padding-top : 0 !important;
+    padding-bottom: 0 !important;
+}
 .navbar-default {
     background-color: var(--nav-default-background-color);
     border: none;
