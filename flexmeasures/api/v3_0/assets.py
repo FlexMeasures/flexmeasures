@@ -15,6 +15,7 @@ from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
 from flexmeasures.data.services.scheduling import create_scheduling_job
@@ -490,8 +491,14 @@ class AssetAPI(FlaskView):
         :status 422: UNPROCESSABLE_ENTITY
         """
         end_of_schedule = start_of_schedule + duration
+        for sensor_flex_model in flex_model:
+            sensor_id = sensor_flex_model.get("sensor")
+            if sensor_id is None:
+                return invalid_flex_config(f"Missing 'sensor' in flex-model list item: {sensor_flex_model}.")
+            sensor = SensorIdField().deserialize(sensor_id)
+
         scheduler_kwargs = dict(
-            asset_or_sensor=asset,
+            asset_or_sensor=sensor,
             start=start_of_schedule,
             end=end_of_schedule,
             resolution=sensor.event_resolution,
