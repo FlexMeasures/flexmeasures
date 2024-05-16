@@ -497,6 +497,8 @@ class AssetAPI(FlaskView):
                 return invalid_flex_config(f"Missing 'sensor' in flex-model list item: {sensor_flex_model}.")
             sensor = SensorIdField().deserialize(sensor_id)
 
+            # todo make sure each sensor lives under the asset
+
             scheduler_kwargs = dict(
                 asset_or_sensor=sensor,
                 start=start_of_schedule,
@@ -519,6 +521,7 @@ class AssetAPI(FlaskView):
 
         db.session.commit()
 
+        # todo: make a 'done job' and pass that job's ID here
         response = dict(schedule=job.id)
         d, s = request_processed()
         return dict(**response, **d), s
