@@ -27,12 +27,11 @@
                 {% if breadcrumb["url"] is not none and not loop.last %}
                 <a href="{{ breadcrumb['url'] }}">{{ breadcrumb['name'] }}</a>
                 {% else %}
-                <a href="#" class="btn breadcrumb-dropdown-toggle" id="breadcrumbDropdown{{ loop.index }}" data-bs-toggle="dropdown" aria-expanded="false">
-                    {{ breadcrumb['name'] }} <i class="fa fa-caret-down"></i>
+                <a href="#" class="dropdown-toggle" data-bs-toggle="dropdown">{{ breadcrumb['name'] }}<span><i class="fa fa-caret-down"></i></span>
                 </a>
-                <ul class="dropdown-menu" aria-labelledby="breadcrumbDropdown{{ loop.index }}">
+                <ul class="dropdown-menu">
                     {% for sibling in breadcrumb_info["siblings"] %}
-                    <li><a class="dropdown-item" href="{{ sibling['url'] }}">{{ sibling["name"] }}</a></li>
+                    <li><a href="{{ sibling['url'] }}">{{ sibling["name"] }}</a></li>
                     {% endfor %}
                 </ul>
                 {% endif %}
@@ -238,6 +237,7 @@
             </div>
             <div class="sensors-asset card">
                 <h3>All sensors for {{ asset.name }}</h3>
+                <div class="table-responsive">
                 <table class="table table-striped table-responsive paginate nav-on-click" title="View data">
                     <thead>
                         <tr>
@@ -275,10 +275,11 @@
                     </tbody>
                 </table>
             </div>
+            </div>
                 
             <div class="sensors-asset card">
                 <h3>All child assets for {{ asset.name }}</h3>
-                
+                <div class="table-responsive">
                 <table class="table table-striped table-responsive paginate nav-on-click w-100 mx-auto" title="View this asset">
                     <thead>
                         <tr>
@@ -328,6 +329,7 @@
                         {% endfor %}
                     </tbody>
                 </table>
+            </div>
             </div>
         </div>
         <div class="col-md-2">
