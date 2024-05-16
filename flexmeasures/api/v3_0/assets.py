@@ -497,25 +497,25 @@ class AssetAPI(FlaskView):
                 return invalid_flex_config(f"Missing 'sensor' in flex-model list item: {sensor_flex_model}.")
             sensor = SensorIdField().deserialize(sensor_id)
 
-        scheduler_kwargs = dict(
-            asset_or_sensor=sensor,
-            start=start_of_schedule,
-            end=end_of_schedule,
-            resolution=sensor.event_resolution,
-            belief_time=belief_time,  # server time if no prior time was sent
-            flex_model=flex_model,
-            flex_context=flex_context,
-        )
-
-        try:
-            job = create_scheduling_job(
-                **scheduler_kwargs,
-                enqueue=True,
+            scheduler_kwargs = dict(
+                asset_or_sensor=sensor,
+                start=start_of_schedule,
+                end=end_of_schedule,
+                resolution=sensor.event_resolution,
+                belief_time=belief_time,  # server time if no prior time was sent
+                flex_model=flex_model,
+                flex_context=flex_context,
             )
-        except ValidationError as err:
-            return invalid_flex_config(err.messages)
-        except ValueError as err:
-            return invalid_flex_config(str(err))
+
+            try:
+                job = create_scheduling_job(
+                    **scheduler_kwargs,
+                    enqueue=True,
+                )
+            except ValidationError as err:
+                return invalid_flex_config(err.messages)
+            except ValueError as err:
+                return invalid_flex_config(str(err))
 
         db.session.commit()
 
