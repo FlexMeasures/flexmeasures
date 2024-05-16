@@ -11,7 +11,7 @@
 <div class="container-fluid">
   <div class="row">
     <div class="col-md-2 on-top-md">
-      <div class="header-action-button d-block">
+      <div class="header-action-button">
         <div class="">
           <form action="/users/toggle_active/{{ user.id }}" method="get">
             <button class="btn btn-sm btn-responsive {% if user.active %} btn-warning  {% else %} btn-success {% endif %} delete-button mb-3" type="submit" title="Toggle activation status of this user.">

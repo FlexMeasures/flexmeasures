@@ -20,29 +20,27 @@
       max-width: 300px;
     }
   </style> 
-<nav aria-label="breadcrumb">
-    <ol class="breadcrumb">
-      {% for breadcrumb in breadcrumb_info["ancestors"] %}
-      <li class="breadcrumb-item{% if loop.last %} dropdown active{% endif %}" {% if loop.last %}aria-current="page"{% endif %}>
-          {% if breadcrumb["url"] is not none and not loop.last %}
-            <a href="{{ breadcrumb['url'] }}">{{ breadcrumb['name'] }}</a>
-          {% else %}
-            <div class="dropdown">
-                <a href="#" class="btn breadcrumb-dropdown-toggle" id="breadcrumbDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            {% for breadcrumb in breadcrumb_info["ancestors"] %}
+            <li class="breadcrumb-item{% if loop.last %} dropdown active{% endif %}" {% if loop.last %}aria-current="page"{% endif %}>
+                {% if breadcrumb["url"] is not none and not loop.last %}
+                <a href="{{ breadcrumb['url'] }}">{{ breadcrumb['name'] }}</a>
+                {% else %}
+                <a href="#" class="btn breadcrumb-dropdown-toggle" id="breadcrumbDropdown{{ loop.index }}" data-bs-toggle="dropdown" aria-expanded="false">
                     {{ breadcrumb['name'] }} <i class="fa fa-caret-down"></i>
                 </a>
-              <ul class="dropdown-menu" aria-labelledby="breadcrumbDropdown">
-                {% for sibling in breadcrumb_info["siblings"] %}
-                  <li><a class="dropdown-item" href="{{ sibling['url'] }}">{{ sibling["name"] }}</a></li>
-                {% endfor %}
-              </ul>
-            </div>
-          {% endif %}
-        </li>
-      {% endfor %}
-    </ol>
-  </nav>
-  
+                <ul class="dropdown-menu" aria-labelledby="breadcrumbDropdown{{ loop.index }}">
+                    {% for sibling in breadcrumb_info["siblings"] %}
+                    <li><a class="dropdown-item" href="{{ sibling['url'] }}">{{ sibling["name"] }}</a></li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ol>
+    </nav>
+
   
 
 
@@ -53,7 +51,7 @@
     </div>
     <div class="row">
         <div class="col-md-2 on-top-md">
-            <div class="header-action-button d-block">
+            <div class="header-action-button">
                 {% if user_can_create_assets %}
                 <div class="">
                     <form action="/assets/new" method="get">

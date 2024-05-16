@@ -19,27 +19,26 @@
     text-overflow: ellipsis;
     max-width: 300px;
   }
-</style> 
+</style>
+
       <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
-          {% for breadcrumb in breadcrumb_info["ancestors"] %}
-          <li class="breadcrumb-item{% if loop.last %} dropdown active{% endif %}" {% if loop.last %}aria-current="page"{% endif %}>
-              {% if breadcrumb["url"] is not none and not loop.last %}
+            {% for breadcrumb in breadcrumb_info["ancestors"] %}
+            <li class="breadcrumb-item{% if loop.last %} dropdown active{% endif %}" {% if loop.last %}aria-current="page"{% endif %}>
+                {% if breadcrumb["url"] is not none and not loop.last %}
                 <a href="{{ breadcrumb['url'] }}">{{ breadcrumb['name'] }}</a>
-              {% else %}
-                <div class="dropdown">
-                    <a href="#" class="btn breadcrumb-dropdown-toggle" id="breadcrumbDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                        {{ breadcrumb['name'] }} <i class="fa fa-caret-down"></i>
-                    </a>
-                  <ul class="dropdown-menu" aria-labelledby="breadcrumbDropdown">
+                {% else %}
+                <a href="#" class="btn breadcrumb-dropdown-toggle" id="breadcrumbDropdown{{ loop.index }}" data-bs-toggle="dropdown" aria-expanded="false">
+                    {{ breadcrumb['name'] }} <i class="fa fa-caret-down"></i>
+                </a>
+                <ul class="dropdown-menu" aria-labelledby="breadcrumbDropdown{{ loop.index }}">
                     {% for sibling in breadcrumb_info["siblings"] %}
-                      <li><a class="dropdown-item" href="{{ sibling['url'] }}">{{ sibling["name"] }}</a></li>
+                    <li><a class="dropdown-item" href="{{ sibling['url'] }}">{{ sibling["name"] }}</a></li>
                     {% endfor %}
-                  </ul>
-                </div>
-              {% endif %}
+                </ul>
+                {% endif %}
             </li>
-          {% endfor %}
+            {% endfor %}
         </ol>
       </nav>
 
