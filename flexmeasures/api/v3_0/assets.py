@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from datetime import datetime, timedelta
 import json
 
 from flask import current_app
@@ -12,7 +15,7 @@ from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset
-from flexmeasures.data.schemas import AwareDateTimeField
+from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
 from flexmeasures.api.common.schemas.generic_assets import AssetIdField
 from flexmeasures.api.common.schemas.users import AccountIdField
@@ -321,7 +324,7 @@ class AssetAPI(FlaskView):
 
     @route("/<id>/schedules/trigger", methods=["POST"])
     @use_kwargs(
-        {"sensor": SensorIdField(data_key="id")},
+        {"asset": AssetIdField(data_key="id")},
         location="path",
     )
     @use_kwargs(
@@ -338,16 +341,16 @@ class AssetAPI(FlaskView):
         },
         location="json",
     )
-    @permission_required_for_context("create-children", ctx_arg_name="sensor")
+    @permission_required_for_context("create-children", ctx_arg_name="asset")
     def trigger_schedule(
-            self,
-            sensor: Sensor,
-            start_of_schedule: datetime,
-            duration: timedelta,
-            belief_time: datetime | None = None,
-            flex_model: dict | None = None,
-            flex_context: dict | None = None,
-            **kwargs,
+        self,
+        asset: GenericAsset,
+        start_of_schedule: datetime,
+        duration: timedelta,
+        belief_time: datetime | None = None,
+        flex_model: dict | None = None,
+        flex_context: dict | None = None,
+        **kwargs,
     ):
         """
         Trigger FlexMeasures to create a schedule.
