@@ -318,3 +318,186 @@ class AssetAPI(FlaskView):
         """
         sensors = flatten_unique(asset.sensors_to_show)
         return asset.search_beliefs(sensors=sensors, as_json=True, **kwargs)
+
+    @route("/<id>/schedules/trigger", methods=["POST"])
+    @use_kwargs(
+        {"sensor": SensorIdField(data_key="id")},
+        location="path",
+    )
+    @use_kwargs(
+        {
+            "start_of_schedule": AwareDateTimeField(
+                data_key="start", format="iso", required=True
+            ),
+            "belief_time": AwareDateTimeField(format="iso", data_key="prior"),
+            "duration": PlanningDurationField(
+                load_default=PlanningDurationField.load_default
+            ),
+            "flex_model": fields.Dict(data_key="flex-model"),
+            "flex_context": fields.Dict(required=False, data_key="flex-context"),
+        },
+        location="json",
+    )
+    @permission_required_for_context("create-children", ctx_arg_name="sensor")
+    def trigger_schedule(
+            self,
+            sensor: Sensor,
+            start_of_schedule: datetime,
+            duration: timedelta,
+            belief_time: datetime | None = None,
+            flex_model: dict | None = None,
+            flex_context: dict | None = None,
+            **kwargs,
+    ):
+        """
+        Trigger FlexMeasures to create a schedule.
+
+        .. :quickref: Schedule; Trigger scheduling job
+
+        Trigger FlexMeasures to create a schedule for this sensor.
+        The assumption is that this sensor is the power sensor on a flexible asset.
+
+        In this request, you can describe:
+
+        - the schedule's main features (when does it start, what unit should it report, prior to what time can we assume knowledge)
+        - the flexibility model for the sensor (state and constraint variables, e.g. current state of charge of a battery, or connection capacity)
+        - the flexibility context which the sensor operates in (other sensors under the same EMS which are relevant, e.g. prices)
+
+        For details on flexibility model and context, see :ref:`describing_flexibility`.
+        Below, we'll also list some examples.
+
+        .. note:: This endpoint does not support to schedule an EMS with multiple flexible sensors at once. This will happen in another endpoint.
+                  See https://github.com/FlexMeasures/flexmeasures/issues/485. Until then, it is possible to call this endpoint for one flexible endpoint at a time
+                  (considering already scheduled sensors as inflexible).
+
+        The length of the schedule can be set explicitly through the 'duration' field.
+        Otherwise, it is set by the config setting :ref:`planning_horizon_config`, which defaults to 48 hours.
+        If the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.
+        Finally, the schedule length is limited by :ref:`max_planning_horizon_config`, which defaults to 2520 steps of the sensor's resolution.
+        Targets that exceed the max planning horizon are not accepted.
+
+        The appropriate algorithm is chosen by FlexMeasures (based on asset type).
+        It's also possible to use custom schedulers and custom flexibility models, see :ref:`plugin_customization`.
+
+        If you have ideas for algorithms that should be part of FlexMeasures, let us know: https://flexmeasures.io/get-in-touch/
+
+        **Example request A**
+
+        This message triggers a schedule for a storage asset, starting at 10.00am, at which the state of charge (soc) is 12.1 kWh.
+
+        .. code-block:: json
+
+            {
+                "start": "2015-06-02T10:00:00+00:00",
+                "flex-model": {
+                    "soc-at-start": 12.1,
+                    "soc-unit": "kWh"
+                }
+            }
+
+        **Example request B**
+
+        This message triggers a 24-hour schedule for a storage asset, starting at 10.00am,
+        at which the state of charge (soc) is 12.1 kWh, with a target state of charge of 25 kWh at 4.00pm.
+
+        The charging efficiency is constant (120%) and the discharging efficiency is determined by the contents of sensor
+        with id 98. If just the ``roundtrip-efficiency`` is known, it can be described with its own field.
+        The global minimum and maximum soc are set to 10 and 25 kWh, respectively.
+        To guarantee a minimum SOC in the period prior, the sensor with ID 300 contains beliefs at 2.00pm and 3.00pm, for 15kWh and 20kWh, respectively.
+        Storage efficiency is set to 99.99%, denoting the state of charge left after each time step equal to the sensor's resolution.
+        Aggregate consumption (of all devices within this EMS) should be priced by sensor 9,
+        and aggregate production should be priced by sensor 10,
+        where the aggregate power flow in the EMS is described by the sum over sensors 13, 14 and 15
+        (plus the flexible sensor being optimized, of course).
+
+
+        The battery consumption power capacity is limited by sensor 42 and the production capacity is constant (30 kW).
+        Finally, the site consumption capacity is limited by sensor 32.
+
+        Note that, if forecasts for sensors 13, 14 and 15 are not available, a schedule cannot be computed.
+
+        .. code-block:: json
+
+            {
+                "start": "2015-06-02T10:00:00+00:00",
+                "duration": "PT24H",
+                "flex-model": {
+                    "soc-at-start": 12.1,
+                    "soc-unit": "kWh",
+                    "soc-targets": [
+                        {
+                            "value": 25,
+                            "datetime": "2015-06-02T16:00:00+00:00"
+                        },
+                    ],
+                    "soc-minima": {"sensor" : 300},
+                    "soc-min": 10,
+                    "soc-max": 25,
+                    "charging-efficiency": "120%",
+                    "discharging-efficiency": {"sensor": 98},
+                    "storage-efficiency": 0.9999,
+                    "power-capacity": "25kW",
+                    "consumption-capacity" : {"sensor": 42},
+                    "production-capacity" : "30 kW"
+                },
+                "flex-context": {
+                    "consumption-price-sensor": 9,
+                    "production-price-sensor": 10,
+                    "inflexible-device-sensors": [13, 14, 15],
+                    "site-power-capacity": "100kW",
+                    "site-production-capacity": "80kW",
+                    "site-consumption-capacity": {"sensor": 32}
+                }
+            }
+
+        **Example response**
+
+        This message indicates that the scheduling request has been processed without any error.
+        A scheduling job has been created with some Universally Unique Identifier (UUID),
+        which will be picked up by a worker.
+        The given UUID may be used to obtain the resulting schedule: see /sensors/<id>/schedules/<uuid>.
+
+        .. sourcecode:: json
+
+            {
+                "status": "PROCESSED",
+                "schedule": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
+                "message": "Request has been processed."
+            }
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 200: PROCESSED
+        :status 400: INVALID_DATA
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 405: INVALID_METHOD
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+        end_of_schedule = start_of_schedule + duration
+        scheduler_kwargs = dict(
+            sensor=sensor,
+            start=start_of_schedule,
+            end=end_of_schedule,
+            resolution=sensor.event_resolution,
+            belief_time=belief_time,  # server time if no prior time was sent
+            flex_model=flex_model,
+            flex_context=flex_context,
+        )
+
+        try:
+            job = create_scheduling_job(
+                **scheduler_kwargs,
+                enqueue=True,
+            )
+        except ValidationError as err:
+            return invalid_flex_config(err.messages)
+        except ValueError as err:
+            return invalid_flex_config(str(err))
+
+        db.session.commit()
+
+        response = dict(schedule=job.id)
+        d, s = request_processed()
+        return dict(**response, **d), s
