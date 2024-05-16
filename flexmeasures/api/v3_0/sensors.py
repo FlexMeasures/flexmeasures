@@ -363,7 +363,7 @@ class SensorAPI(FlaskView):
         """
         end_of_schedule = start_of_schedule + duration
         scheduler_kwargs = dict(
-            sensor=sensor,
+            asset_or_sensor=sensor,
             start=start_of_schedule,
             end=end_of_schedule,
             resolution=sensor.event_resolution,
@@ -465,7 +465,6 @@ class SensorAPI(FlaskView):
                 )
                 return unrecognized_event(job.meta["fallback_job_id"], "fallback-job")
 
-        scheduler_info_msg = ""
         scheduler_info = job.meta.get("scheduler_info", dict(scheduler=""))
         scheduler_info_msg = f"{scheduler_info['scheduler']} was used."
 
