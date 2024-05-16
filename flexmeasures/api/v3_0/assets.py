@@ -7,7 +7,7 @@ from flask import current_app
 from flask_classful import FlaskView, route
 from flask_security import auth_required
 from flask_json import as_json
-from marshmallow import fields
+from marshmallow import fields, ValidationError
 from webargs.flaskparser import use_kwargs, use_args
 from sqlalchemy import select, delete
 
@@ -17,8 +17,13 @@ from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
+from flexmeasures.data.services.scheduling import create_scheduling_job
 from flexmeasures.api.common.schemas.generic_assets import AssetIdField
 from flexmeasures.api.common.schemas.users import AccountIdField
+from flexmeasures.api.common.responses import (
+    invalid_flex_config,
+    request_processed,
+)
 from flexmeasures.utils.coding_utils import flatten_unique
 from flexmeasures.ui.utils.view_utils import set_session_variables
 
@@ -486,7 +491,7 @@ class AssetAPI(FlaskView):
         """
         end_of_schedule = start_of_schedule + duration
         scheduler_kwargs = dict(
-            sensor=sensor,
+            asset_or_sensor=asset,
             start=start_of_schedule,
             end=end_of_schedule,
             resolution=sensor.event_resolution,
