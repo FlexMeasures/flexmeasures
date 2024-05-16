@@ -357,26 +357,26 @@ class AssetAPI(FlaskView):
 
         .. :quickref: Schedule; Trigger scheduling job
 
-        Trigger FlexMeasures to create a schedule for this sensor.
-        The assumption is that this sensor is the power sensor on a flexible asset.
+        Trigger FlexMeasures to create a schedule for this asset.
+        The assumption is that this is a flexible asset containing multiple power sensors.
 
         In this request, you can describe:
 
         - the schedule's main features (when does it start, what unit should it report, prior to what time can we assume knowledge)
-        - the flexibility model for the sensor (state and constraint variables, e.g. current state of charge of a battery, or connection capacity)
-        - the flexibility context which the sensor operates in (other sensors under the same EMS which are relevant, e.g. prices)
+        - the flexibility models for the asset's relevant sensors (state and constraint variables, e.g. current state of charge of a battery, or connection capacity)
+        - the flexibility context which the asset operates in (other sensors under the same EMS which are relevant, e.g. prices)
 
         For details on flexibility model and context, see :ref:`describing_flexibility`.
         Below, we'll also list some examples.
 
-        .. note:: This endpoint does not support to schedule an EMS with multiple flexible sensors at once. This will happen in another endpoint.
-                  See https://github.com/FlexMeasures/flexmeasures/issues/485. Until then, it is possible to call this endpoint for one flexible endpoint at a time
+        .. note:: This endpoint support scheduling an EMS with multiple flexible sensors at once,
+                  but internally, it does so sequentially
                   (considering already scheduled sensors as inflexible).
 
         The length of the schedule can be set explicitly through the 'duration' field.
         Otherwise, it is set by the config setting :ref:`planning_horizon_config`, which defaults to 48 hours.
         If the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.
-        Finally, the schedule length is limited by :ref:`max_planning_horizon_config`, which defaults to 2520 steps of the sensor's resolution.
+        Finally, the schedule length is limited by :ref:`max_planning_horizon_config`, which defaults to 2520 steps of each sensor's resolution.
         Targets that exceed the max planning horizon are not accepted.
 
         The appropriate algorithm is chosen by FlexMeasures (based on asset type).
@@ -392,10 +392,13 @@ class AssetAPI(FlaskView):
 
             {
                 "start": "2015-06-02T10:00:00+00:00",
-                "flex-model": {
-                    "soc-at-start": 12.1,
-                    "soc-unit": "kWh"
-                }
+                "flex-model": [
+                    {
+                        "sensor": 931,
+                        "soc-at-start": 12.1,
+                        "soc-unit": "kWh"
+                    }
+                ]
             }
 
         **Example request B**
@@ -424,25 +427,28 @@ class AssetAPI(FlaskView):
             {
                 "start": "2015-06-02T10:00:00+00:00",
                 "duration": "PT24H",
-                "flex-model": {
-                    "soc-at-start": 12.1,
-                    "soc-unit": "kWh",
-                    "soc-targets": [
-                        {
-                            "value": 25,
-                            "datetime": "2015-06-02T16:00:00+00:00"
-                        },
-                    ],
-                    "soc-minima": {"sensor" : 300},
-                    "soc-min": 10,
-                    "soc-max": 25,
-                    "charging-efficiency": "120%",
-                    "discharging-efficiency": {"sensor": 98},
-                    "storage-efficiency": 0.9999,
-                    "power-capacity": "25kW",
-                    "consumption-capacity" : {"sensor": 42},
-                    "production-capacity" : "30 kW"
-                },
+                "flex-model": [
+                    {
+                        "sensor": 931,
+                        "soc-at-start": 12.1,
+                        "soc-unit": "kWh",
+                        "soc-targets": [
+                            {
+                                "value": 25,
+                                "datetime": "2015-06-02T16:00:00+00:00"
+                            },
+                        ],
+                        "soc-minima": {"sensor" : 300},
+                        "soc-min": 10,
+                        "soc-max": 25,
+                        "charging-efficiency": "120%",
+                        "discharging-efficiency": {"sensor": 98},
+                        "storage-efficiency": 0.9999,
+                        "power-capacity": "25kW",
+                        "consumption-capacity" : {"sensor": 42},
+                        "production-capacity" : "30 kW"
+                    },
+                ],
                 "flex-context": {
                     "consumption-price-sensor": 9,
                     "production-price-sensor": 10,
@@ -458,7 +464,7 @@ class AssetAPI(FlaskView):
         This message indicates that the scheduling request has been processed without any error.
         A scheduling job has been created with some Universally Unique Identifier (UUID),
         which will be picked up by a worker.
-        The given UUID may be used to obtain the resulting schedule: see /sensors/<id>/schedules/<uuid>.
+        The given UUID may be used to obtain the resulting schedule: see /assets/<id>/schedules/<uuid>.
 
         .. sourcecode:: json
 
