@@ -3,7 +3,28 @@
 FlexMeasures Changelog
 **********************
 
-v0.21.0 | April 16, 2024
+v0.22.0 | July XX, 2024
+============================
+
+New features
+-------------   
+
+Bugfixes
+-----------
+
+Infrastructure / Support
+----------------------
+
+
+v0.21.1 | May XX, 2024
+============================
+
+Bugfixes
+-----------
+
+
+
+v0.21.0 | May 16, 2024
 ============================
 
 .. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/021-service-better-status-and-audit/>`_.
