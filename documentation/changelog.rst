@@ -37,7 +37,7 @@ v0.20.1 | May 7, 2024
 Bugfixes
 -----------
 
-* Prevent **p**lay/**p**ause/**s**top of replays when editing a text field in the UI [see `PR #1024 <https://github.com/FlexMeasures/flexmeasures/pull/1024>`_]
+* Prevent **p**\ lay/**p**\ ause/**s**\ top of replays when editing a text field in the UI [see `PR #1024 <https://github.com/FlexMeasures/flexmeasures/pull/1024>`_]
 * Skip unit conversion of :abbr:`SoC (state of charge)` related fields that are defined as sensors in a ``flex-model`` (specifically, ``soc-maxima``, ``soc-minima`` and ``soc-targets`` [see `PR #1047 <https://github.com/FlexMeasures/flexmeasures/pull/1047>`_]
 
 
