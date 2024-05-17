@@ -4,9 +4,7 @@ from flexmeasures.data.schemas.sensors import QuantityOrSensor, SensorIdField
 
 
 class FlexContextSchema(Schema):
-    """
-    This schema lists fields that can be used to describe sensors in the optimised portfolio
-    """
+    """This schema defines fields that provide context to the portfolio to be optimized."""
 
     ems_power_capacity_in_mw = QuantityOrSensor(
         "MW",
