@@ -494,7 +494,9 @@ class AssetAPI(FlaskView):
         for sensor_flex_model in flex_model:
             sensor_id = sensor_flex_model.get("sensor")
             if sensor_id is None:
-                return invalid_flex_config(f"Missing 'sensor' in flex-model list item: {sensor_flex_model}.")
+                return invalid_flex_config(
+                    f"Missing 'sensor' in flex-model list item: {sensor_flex_model}."
+                )
             sensor = SensorIdField().deserialize(sensor_id)
 
             # todo make sure each sensor lives under the asset
