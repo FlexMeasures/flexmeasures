@@ -359,9 +359,9 @@ class AssetAPI(FlaskView):
         **kwargs,
     ):
         """
-        Trigger FlexMeasures to create a schedule.
+        Trigger FlexMeasures to create a schedule for a collection of flexible devices.
 
-        .. :quickref: Schedule; Trigger scheduling job
+        .. :quickref: Schedule; Trigger scheduling job for multiple devices
 
         Trigger FlexMeasures to create a schedule for this asset.
         The assumption is that this is a flexible asset containing multiple power sensors.
