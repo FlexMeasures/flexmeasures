@@ -11,10 +11,12 @@ import importlib.util
 from importlib.abc import Loader
 from typing import Type
 import inspect
+from copy import deepcopy
 
 
 from flask import current_app
 import click
+from jsonschema import ValidationError
 from rq import get_current_job, Callback
 from rq.job import Job
 import timely_beliefs as tb
@@ -30,6 +32,7 @@ from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.generic_assets import GenericAsset as Asset
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.utils import get_data_source, save_to_db
+from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.data.services.utils import (
     job_cache,
@@ -150,6 +153,7 @@ def create_scheduling_job(
     requeue: bool = False,
     force_new_job_creation: bool = False,
     scheduler_specs: dict | None = None,
+    depends_on: Job | list[Job] | None = None,
     **scheduler_kwargs,
 ) -> Job:
     """
@@ -219,6 +223,7 @@ def create_scheduling_job(
             ).total_seconds()
         ),  # NB job.cleanup docs says a negative number of seconds means persisting forever
         on_failure=Callback(trigger_optional_fallback),
+        depends_on=depends_on,
     )
 
     job.meta["asset_or_sensor"] = asset_or_sensor
@@ -239,6 +244,99 @@ def create_scheduling_job(
         )
 
     return job
+
+
+def cb_done_sequential_scheduling_job(jobs_ids: list[str]):
+    """
+    TODO: add logic
+    """
+
+    # jobs = [Job.fetch(job_id) for job_id in jobs_ids]
+    pass
+
+
+def create_sequential_scheduling_job(
+    asset_or_sensor: Asset | Sensor | None = None,
+    sensor: Sensor | None = None,
+    job_id: str | None = None,
+    enqueue: bool = True,
+    requeue: bool = False,
+    force_new_job_creation: bool = False,
+    scheduler_specs: dict | None = None,
+    depends_on: list[Job] | None = None,
+    **scheduler_kwargs,
+):
+    flex_model = scheduler_kwargs["flex_model"]
+    jobs = []
+    previous_sensors = []
+    previous_job = depends_on
+    for child_flex_model in flex_model:
+        sensor_id = child_flex_model.pop("sensor")
+        if sensor_id is None:
+            raise ValidationError(
+                f"Missing 'sensor' in flex-model list item: {child_flex_model}."
+            )
+
+        sensor = SensorIdField().deserialize(sensor_id)
+
+        # todo make sure each sensor lives under the asset
+
+        current_scheduler_kwargs = deepcopy(scheduler_kwargs)
+
+        current_scheduler_kwargs["flex_model"] = child_flex_model
+        current_scheduler_kwargs["flex_context"]["inflexible-device-sensors"].extend(
+            previous_sensors
+        )
+        current_scheduler_kwargs["resolution"] = sensor.event_resolution
+        current_scheduler_kwargs["sensor"] = sensor
+
+        job = create_scheduling_job(
+            **current_scheduler_kwargs,
+            scheduler_specs=scheduler_specs,
+            requeue=requeue,
+            job_id=job_id,
+            enqueue=enqueue,
+            depends_on=previous_job,
+            force_new_job_creation=force_new_job_creation,
+        )
+        jobs.append(job)
+        previous_sensors.append(sensor.id)
+        previous_job = job
+
+    # create that triggers when the last job is done
+    job = Job.create(
+        func=cb_done_sequential_scheduling_job,
+        args=([j.id for j in jobs],),
+        depends_on=previous_job,
+        ttl=int(
+            current_app.config.get(
+                "FLEXMEASURES_JOB_TTL", timedelta(-1)
+            ).total_seconds()
+        ),
+        result_ttl=int(
+            current_app.config.get(
+                "FLEXMEASURES_PLANNING_TTL", timedelta(-1)
+            ).total_seconds()
+        ),  # NB job.cleanup docs says a negative number of seconds means persisting forever
+        connection=current_app.queues["scheduling"].connection,
+    )
+
+    job_status = job.get_status(refresh=True)
+
+    jobs.append(job)
+
+    # with job_status=None, we ensure that only fresh new jobs are enqueued (in the contrary they should be requeued)
+    if enqueue and not job_status:
+        for job in jobs:
+            current_app.queues["scheduling"].enqueue_job(job)
+            current_app.job_cache.add(
+                asset_or_sensor["id"],
+                job.id,
+                queue="scheduling",
+                asset_or_sensor_type=asset_or_sensor["class"].lower(),
+            )
+
+    return jobs
 
 
 def make_schedule(

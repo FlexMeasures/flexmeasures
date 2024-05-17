@@ -15,10 +15,11 @@ from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset
-from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
-from flexmeasures.data.services.scheduling import create_scheduling_job
+from flexmeasures.data.services.scheduling import (
+    create_sequential_scheduling_job,
+)
 from flexmeasures.api.common.schemas.generic_assets import AssetIdField
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.responses import (
@@ -491,35 +492,22 @@ class AssetAPI(FlaskView):
         :status 422: UNPROCESSABLE_ENTITY
         """
         end_of_schedule = start_of_schedule + duration
-        for sensor_flex_model in flex_model:
-            sensor_id = sensor_flex_model.get("sensor")
-            if sensor_id is None:
-                return invalid_flex_config(
-                    f"Missing 'sensor' in flex-model list item: {sensor_flex_model}."
-                )
-            sensor = SensorIdField().deserialize(sensor_id)
 
-            # todo make sure each sensor lives under the asset
-
-            scheduler_kwargs = dict(
-                asset_or_sensor=sensor,
-                start=start_of_schedule,
-                end=end_of_schedule,
-                resolution=sensor.event_resolution,
-                belief_time=belief_time,  # server time if no prior time was sent
-                flex_model=flex_model,
-                flex_context=flex_context,
+        scheduler_kwargs = dict(
+            start=start_of_schedule,
+            end=end_of_schedule,
+            belief_time=belief_time,  # server time if no prior time was sent
+            flex_model=flex_model,
+            flex_context=flex_context,
+        )
+        try:
+            job = create_sequential_scheduling_job(
+                asset_or_sensor=asset, enqueue=True, **scheduler_kwargs
             )
-
-            try:
-                job = create_scheduling_job(
-                    **scheduler_kwargs,
-                    enqueue=True,
-                )
-            except ValidationError as err:
-                return invalid_flex_config(err.messages)
-            except ValueError as err:
-                return invalid_flex_config(str(err))
+        except ValidationError as err:
+            return invalid_flex_config(err.messages)
+        except ValueError as err:
+            return invalid_flex_config(str(err))
 
         # todo: make a 'done job' and pass that job's ID here
         response = dict(schedule=job.id)
