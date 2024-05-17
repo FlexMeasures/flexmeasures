@@ -51,13 +51,17 @@
     {% block body %}
 
     {% block nav %}
+    <style>
+        .white-color {
+            color: white !important; 
+        }
+
+    </style>
     <nav class="navbar navbar-expand-lg fixed-top mt-0 navbar-default mb-2 navbar-fixed-top" id="topnavbar">
         <div class="container-fluid" id="navbar-container">
-          <div class="navbar-header">
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-              </button>           
-            <span class="navbar-brand">
+        
+                     
+            <div class="navbar-brand">
               <a href="/">
                 <span class="navbar-tool-name">
                   {% if menu_logo %}
@@ -67,8 +71,19 @@
                   {% endif %}
                 </span>
               </a>
-            </span>
+            </div>
+            <div
+            class="navbar-toggler border-0"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent"
+            aria-expanded="false"
+            aria-label="Toggle navigation"
+          >
+          <i class="fa fa-bars white-color"></i>
           </div>
+         
           <div class="collapse navbar-collapse justify-content-end" id="navbarSupportedContent">
             <ul class="nav navbar-nav">
               {% for href, id, caption, tooltip, icon in navigation_bar %}
@@ -112,7 +127,7 @@
             </ul>
           </div>
         </div>
-      </nav>
+      </nav>
       
       
 
