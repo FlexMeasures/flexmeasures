@@ -239,7 +239,10 @@ def test_efficiency_pair(
         ),
     ],
 )
-def test_flex_context_schema(db, app, setup_site_capacity_sensor, flex_context, fails):
+@pytest.mark.parametrize(
+    "requesting_user", ["dummy_user@seita.nl"], indirect=True
+)
+def test_flex_context_schema(db, app, setup_site_capacity_sensor, flex_context, fails, dummy_user, requesting_user):
     schema = FlexContextSchema()
 
     # Replace sensor name with sensor ID
