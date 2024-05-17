@@ -178,7 +178,10 @@ def permission_required_for_context(
             elif ctx_arg_pos is not None:
                 context_from_args = args[ctx_arg_pos]
             elif ctx_arg_name is not None:
-                context_from_args = kwargs[ctx_arg_name]
+                context_from_args = kwargs.get(ctx_arg_name)
+                # skip check in case (optional) argument was not passed
+                if context_from_args is None:
+                    return fn(*args, **kwargs)
             elif len(args) > 0:
                 context_from_args = args[0]
 
