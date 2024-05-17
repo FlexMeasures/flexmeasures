@@ -521,8 +521,6 @@ class AssetAPI(FlaskView):
             except ValueError as err:
                 return invalid_flex_config(str(err))
 
-        db.session.commit()
-
         # todo: make a 'done job' and pass that job's ID here
         response = dict(schedule=job.id)
         d, s = request_processed()

@@ -382,8 +382,6 @@ class SensorAPI(FlaskView):
         except ValueError as err:
             return invalid_flex_config(str(err))
 
-        db.session.commit()
-
         response = dict(schedule=job.id)
         d, s = request_processed()
         return dict(**response, **d), s
