@@ -557,7 +557,8 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
 
         if event_ends_before:
             q = q.filter(
-                TimedBelief.event_start <= event_ends_before - self.event_resolution
+                TimedBelief.event_start
+                <= pd.Timestamp(event_ends_before) - self.event_resolution
             )
 
         if source_types:
