@@ -13,6 +13,7 @@ from flexmeasures.data.schemas.reporting.pandas_reporter import (
     PandasReporterParametersSchema,
 )
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.data_sources import keep_latest_version
 from flexmeasures.utils.time_utils import server_now
 
 
@@ -38,6 +39,7 @@ class PandasReporter(Reporter):
         input: dict,
         resolution: timedelta | None = None,
         belief_time: datetime | None = None,
+        use_latest_version_only: bool = False,
     ):
         """
         Fetches the time_beliefs from the database
@@ -58,12 +60,28 @@ class PandasReporter(Reporter):
             event_ends_before = _input_search_parameters.pop("event_ends_before", end)
             resolution = _input_search_parameters.pop("resolution", resolution)
             belief_time = _input_search_parameters.pop("belief_time", belief_time)
+            source = _input_search_parameters.pop(
+                "source", _input_search_parameters.pop("sources", None)
+            )
+
+            if use_latest_version_only and source is None:
+                source = sensor.search_data_sources(
+                    event_starts_after=start,
+                    event_ends_before=end,
+                    source_types=_input_search_parameters.get("source_types"),
+                    exclude_source_types=_input_search_parameters.get(
+                        "exclude_source_types"
+                    ),
+                )
+                if len(source) > 0:
+                    source = keep_latest_version(source)
 
             bdf = sensor.search_beliefs(
                 event_starts_after=event_starts_after,
                 event_ends_before=event_ends_before,
                 resolution=resolution,
                 beliefs_before=belief_time,
+                source=source,
                 **_input_search_parameters,
             )
 
@@ -89,13 +107,16 @@ class PandasReporter(Reporter):
         belief_time: datetime | None = kwargs.get("belief_time", None)
         belief_horizon: timedelta | None = kwargs.get("belief_horizon", None)
         output: list[dict[str, Any]] = kwargs.get("output")
+        use_latest_version_only: bool = kwargs.get("use_latest_version_only", False)
 
         # by default, use the minimum resolution among the input sensors
         if resolution is None:
             resolution = min([i["sensor"].event_resolution for i in input])
 
         # fetch sensor data
-        self.fetch_data(start, end, input, resolution, belief_time)
+        self.fetch_data(
+            start, end, input, resolution, belief_time, use_latest_version_only
+        )
 
         if belief_time is None:
             belief_time = server_now()
