@@ -89,6 +89,8 @@ class MetaStorageScheduler(Scheduler):
 
         consumption_price_sensor = self.flex_context.get("consumption_price_sensor")
         production_price_sensor = self.flex_context.get("production_price_sensor")
+        consumption_price = self.flex_context.get("consumption_price")
+        production_price = self.flex_context.get("production_price")
         inflexible_device_sensors = self.flex_context.get(
             "inflexible_device_sensors", []
         )
@@ -119,22 +121,48 @@ class MetaStorageScheduler(Scheduler):
         )
 
         # Check for known prices or price forecasts, trimming planning window accordingly
-        up_deviation_prices, (start, end) = get_prices(
-            (start, end),
-            resolution,
-            beliefs_before=belief_time,
-            price_sensor=consumption_price_sensor,
-            sensor=sensor,
-            allow_trimmed_query_window=False,
-        )
-        down_deviation_prices, (start, end) = get_prices(
-            (start, end),
-            resolution,
-            beliefs_before=belief_time,
-            price_sensor=production_price_sensor,
-            sensor=sensor,
-            allow_trimmed_query_window=False,
-        )
+        if consumption_price is not None:
+            up_deviation_prices = get_continuous_series_sensor_or_quantity(
+                quantity_or_sensor=consumption_price,
+                actuator=sensor,
+                unit=consumption_price.unit
+                if isinstance(consumption_price, Sensor)
+                else str(consumption_price.units),
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                fallback_attribute="market_id",
+            ).to_frame()
+        else:
+            up_deviation_prices, (start, end) = get_prices(
+                (start, end),
+                resolution,
+                beliefs_before=belief_time,
+                price_sensor=consumption_price_sensor,
+                sensor=sensor,
+                allow_trimmed_query_window=False,
+            )
+        if production_price is not None:
+            down_deviation_prices = get_continuous_series_sensor_or_quantity(
+                quantity_or_sensor=production_price,
+                actuator=sensor,
+                unit=production_price.unit
+                if isinstance(production_price, Sensor)
+                else str(production_price.units),
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                fallback_attribute="market_id",
+            ).to_frame()
+        else:
+            down_deviation_prices, (start, end) = get_prices(
+                (start, end),
+                resolution,
+                beliefs_before=belief_time,
+                price_sensor=production_price_sensor,
+                sensor=sensor,
+                allow_trimmed_query_window=False,
+            )
 
         start = pd.Timestamp(start).tz_convert("UTC")
         end = pd.Timestamp(end).tz_convert("UTC")

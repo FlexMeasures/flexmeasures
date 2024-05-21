@@ -212,8 +212,11 @@ class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
         For example, validate=validate.Range(min=0) will raise a ValidationError in case of negative quantities,
         but will let pass any sensor that has recorded negative values.
 
-        :param to_unit: unit in which the sensor or quantity should be convertible to
-        :param default_src_unit: what unit to use in case of getting a numeric value
+        :param to_unit:             Unit to which the sensor or quantity should be convertible.
+                                    Units starting with '/' (e.g. '/MWh') lead to accepting any value, which will be
+                                    converted to the given unit. For example,
+                                    a quantity of 1 EUR/kWh with to_unit='/MWh' is deserialized to 1000 EUR/MWh.
+        :param default_src_unit:    What unit to use in case of getting a numeric value.
         """
 
         _validate = kwargs.pop("validate", None)
@@ -222,7 +225,12 @@ class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
             # Insert validation into self.validators so that multiple errors can be stored.
             validator = RepurposeValidatorToIgnoreSensors(_validate)
             self.validators.insert(0, validator)
-        self.to_unit = ur.Quantity(to_unit)
+        if len(to_unit) > 0 and to_unit[0] == "/":
+            self.to_unit = ur.Quantity(to_unit[1:])
+            self.any_unit = True
+        else:
+            self.to_unit = ur.Quantity(to_unit)
+            self.any_unit = False
         self.default_src_unit = default_src_unit
 
     @with_appcontext_if_needed()
@@ -238,10 +246,28 @@ class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
                 value["sensor"], None, None
             )
 
+            if sensor is None:
+                raise FMValidationError(f"No sensor found with id {value['sensor']}.")
+
+            # lazy loading now (sensor is somehow not in session after this)
+            sensor.generic_asset
+            sensor.generic_asset.generic_asset_type
+
+            if not self.any_unit and not units_are_convertible(
+                sensor.unit, str(self.to_unit.units)
+            ):
+                raise FMValidationError(
+                    f"Cannot convert {sensor.unit} to {self.to_unit.units}"
+                )
+
             return sensor
 
         elif isinstance(value, str):
             try:
+                if self.any_unit:
+                    return (
+                        ur.Quantity(value) * self.to_unit
+                    ).to_base_units() / ur.Quantity(self.to_unit)
                 return ur.Quantity(value).to(self.to_unit)
             except DimensionalityError as e:
                 raise FMValidationError(

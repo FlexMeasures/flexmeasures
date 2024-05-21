@@ -6,32 +6,36 @@ from marshmallow import ValidationError
 
 
 @pytest.mark.parametrize(
-    "sensor_id, src_quantity, dst_unit, fails",
+    "sensor_id, src_quantity, dst_unit, fails, exp_dst_quantity",
     [
         # deserialize a sensor
-        (1, None, "MWh", False),
-        (1, None, "kWh", False),
-        (1, None, "kW", False),
-        (1, None, "EUR", True),
-        (2, None, "EUR/kWh", False),
-        (2, None, "EUR", True),
+        (1, None, "MWh", False, None),
+        (1, None, "kWh", False, None),
+        (1, None, "kW", False, None),
+        (1, None, "EUR", True, None),
+        (2, None, "EUR/kWh", False, None),
+        (2, None, "EUR", True, None),
         # deserialize a quantity
-        (None, "1MWh", "MWh", False),
-        (None, "1 MWh", "kWh", False),
-        (None, "1 MWh", "kW", True),
-        (None, "100 EUR/MWh", "EUR/kWh", False),
-        (None, "100 EUR/MWh", "EUR", True),
+        (None, "1MWh", "MWh", False, "1 MWh"),
+        (None, "1 MWh", "kWh", False, "1000.0 kWh"),
+        (None, "1 MWh", "kW", True, None),
+        (None, "100 EUR/MWh", "EUR/kWh", False, "0.1 EUR/kWh"),
+        (None, "100 EUR/MWh", "EUR", True, None),
+        (None, "1 EUR/kWh", "/MWh", False, "1000.0 EUR/MWh"),
     ],
 )
 def test_quantity_or_sensor_deserialize(
-    setup_dummy_sensors, sensor_id, src_quantity, dst_unit, fails
+    setup_dummy_sensors, sensor_id, src_quantity, dst_unit, fails, exp_dst_quantity
 ):
 
     schema = QuantityOrSensor(to_unit=dst_unit)
 
     try:
         if sensor_id is None:
-            schema.deserialize(src_quantity)
+            dst_quantity = schema.deserialize(src_quantity)
+            if dst_quantity is not None:
+                assert dst_quantity == ur.Quantity(exp_dst_quantity)
+                assert str(dst_quantity) == exp_dst_quantity
         else:
             schema.deserialize({"sensor": sensor_id})
         assert not fails
