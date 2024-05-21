@@ -150,11 +150,17 @@ def test_data_generator_save_parameters(
 def test_keep_last_version():
     s1 = DataSource(name="s1", model="model 1", type="forecaster", version="0.1.0")
     s2 = DataSource(name="s1", model="model 1", type="forecaster")
-
     s3 = DataSource(name="s1", model="model 2", type="forecaster")
+    s4 = DataSource(name="s1", model="model 2", type="scheduler")
 
     # the data source with no version is assumed to have version 0.0.0
     assert keep_latest_version([s1, s2]) == [s1]
 
     # sources with different models are preserved
     assert keep_latest_version([s1, s2, s3]) == [s1, s3]
+
+    # two sources with the same model but different types
+    assert keep_latest_version([s3, s4]) == [s3, s4]
+
+    # repeated source
+    assert keep_latest_version([s1, s1]) == [s1]
