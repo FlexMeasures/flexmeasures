@@ -160,7 +160,7 @@ class AssetForm(FlaskForm):
         }
 
     def get_allowed_inflexible_sensor_data(
-        self, account_id: int | None
+        self, account_id: Optional[int]
     ) -> dict[int, str]:
         """
         Return a list of sensors which the user can add
@@ -205,7 +205,7 @@ class AssetForm(FlaskForm):
             setattr(self, sensor_name + "_sensor_id", form_sensor)
 
     def with_inflexible_sensors(
-        self, asset: GenericAsset, account_id: int | None
+        self, asset: GenericAsset, account_id: Optional[int]
     ) -> None:
         allowed_inflexible_sensor_data = self.get_allowed_inflexible_sensor_data(
             account_id
@@ -246,7 +246,7 @@ class AssetForm(FlaskForm):
     def with_sensors(
         self,
         asset: GenericAsset,
-        account_id: int | None,
+        account_id: Optional[int],
     ) -> None:
         self.with_price_senors(asset, account_id)
         self.with_inflexible_sensors(asset, account_id)
