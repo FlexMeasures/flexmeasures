@@ -71,7 +71,7 @@
                             <th>Last Login</th>
                             <th>Last Seen</th>
                             <th>Active</th>
-                            <th class="hidden d-none invisible" style="display:none;">URL</th>
+                            <th class="d-none" style="display:none;">URL</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -99,7 +99,7 @@
                             <td>
                                 {{ user.active }}
                             </td>
-                            <td class="hidden d-none invisible" style="display:none;">
+                            <td class="d-none" style="display:none;">
                                 /users/{{ user.id }}
                             </td>
                         </tr>
@@ -130,7 +130,7 @@
                                 </form>
                                 {% endif %}
                             </th>
-                            <th class="hidden d-none invisible" style="display:none;">URL</th>
+                            <th class="d-none" style="display:none;">URL</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -165,7 +165,7 @@
                             </td>
                             <td class="text-right">
                             </td>
-                            <td cclass="hidden d-none invisible" style="display:none;">
+                            <td class="d-none" style="display:none;">
                                 /assets/{{ asset.id }}
                             </td>
                         </tr>
