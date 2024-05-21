@@ -502,7 +502,7 @@ class GenericAsset(db.Model, AuthModelMixin):
             sensors_to_show = [40, 35, 41, [42, 44], 43, 45]
 
         In case the field is missing, defaults to two of the asset's sensors,
-        which will be shown together (e.g. sharing the same y-axes) in case they share the same unit.
+        which will be shown together (e.g. sharing the same y-axis) in case they share the same unit.
         """
         if not self.has_attribute("sensors_to_show"):
             sensors_to_show = self.sensors[:2]
