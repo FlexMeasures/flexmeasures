@@ -3,6 +3,15 @@
 FlexMeasures Changelog
 **********************
 
+v0.22.0 | June XX, 2024
+============================
+
+New features
+-------------   
+
+* `PandasReporter` accepts the parameter `use_latest_version_only` to filter input data [see `PR #1045 <https://github.com/FlexMeasures/flexmeasures/pull/1045/>`_]
+
+
 v0.21.0 | April 16, 2024
 ============================
 
