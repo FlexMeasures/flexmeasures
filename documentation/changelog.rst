@@ -19,7 +19,7 @@ v0.21.0 | May 16, 2024
 New features
 -------------   
 
-* Add `asset/<id>/status` page to view asset statuses [see `PR #41 <https://github.com/FlexMeasures/flexmeasures/pull/941>`_ and `PR #1035 <https://github.com/FlexMeasures/flexmeasures/pull/1035>`_]
+* Add `asset/<id>/status` page to view asset statuses [see `PR #941 <https://github.com/FlexMeasures/flexmeasures/pull/941>`_ and `PR #1035 <https://github.com/FlexMeasures/flexmeasures/pull/1035>`_]
 * Add `account/<id>/auditlog` and `user/<id>/auditlog` to view user and account related actions [see `PR #1042 <https://github.com/FlexMeasures/flexmeasures/pull/1042>`_]
 * Support `start_date` and `end_date` query parameters for the asset page [see `PR #1030 <https://github.com/FlexMeasures/flexmeasures/pull/1030>`_]
 * In plots, add the asset name to the title of the tooltip to improve the identification of the lines [see `PR #1054 <https://github.com/FlexMeasures/flexmeasures/pull/1054>`_]
