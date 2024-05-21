@@ -3,6 +3,15 @@
 FlexMeasures Changelog
 **********************
 
+v0.21.1 |
+============================
+
+New features
+-------------   
+
+* Add price sensors and inflexible device sensors to GenericAsset [see `PR #1059 <https://github.com/FlexMeasures/flexmeasures/pull/1059/>`_]
+
+
 v0.21.0 | April 16, 2024
 ============================
 
