@@ -3,6 +3,15 @@
 FlexMeasures Changelog
 **********************
 
+v0.22.0 | June XX, 2024
+============================
+
+New features
+-------------   
+
+* Add option `droplevels` to the `PandasReporter` to drop all the levels except the `event_start` and `event_value` [see `PR #1043 <https://github.com/FlexMeasures/flexmeasures/pull/1043/>`_]
+
+
 v0.21.0 | April XX, 2024
 ============================
 
