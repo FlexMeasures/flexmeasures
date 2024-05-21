@@ -553,10 +553,14 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         q = select(DataSource).join(TimedBelief).filter(TimedBelief.sensor == self)
 
         if event_starts_after:
-            q = q.filter(TimedBelief.event_start >= event_starts_after)
+            q = q.filter(
+                TimedBelief.event_start >= event_starts_after - self.event_resolution
+            )
 
         if event_ends_before:
-            q = q.filter(TimedBelief.event_start <= event_ends_before)
+            q = q.filter(
+                TimedBelief.event_start <= event_ends_before + self.event_resolution
+            )
 
         if source_types:
             q = q.filter(DataSource.type.in_(source_types))
