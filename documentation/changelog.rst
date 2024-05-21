@@ -21,7 +21,7 @@ Infrastructure / Support
 * `flexmeasures show beliefs` uses the entity path (`<Account>/../<Sensor>`) in case of duplicated sensors [see `PR #1026 <https://github.com/FlexMeasures/flexmeasures/pull/1026/>`_]
 
 
-v0.21.0 | April 16, 2024
+v0.21.0 | May 16, 2024
 ============================
 
 .. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/021-service-better-status-and-audit/>`_.
@@ -29,13 +29,13 @@ v0.21.0 | April 16, 2024
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
 
 New features
--------------   
+-------------
 
-* Add `asset/<id>/status` page to view asset statuses [see `PR #41 <https://github.com/FlexMeasures/flexmeasures/pull/941/>`_ and `PR #1035 <https://github.com/FlexMeasures/flexmeasures/pull/1035/>`_]
+* Add `asset/<id>/status` page to view asset statuses [see `PR #941 <https://github.com/FlexMeasures/flexmeasures/pull/941>`_ and `PR #1035 <https://github.com/FlexMeasures/flexmeasures/pull/1035>`_]
 * Add `account/<id>/auditlog` and `user/<id>/auditlog` to view user and account related actions [see `PR #1042 <https://github.com/FlexMeasures/flexmeasures/pull/1042>`_]
-* Support `start_date` and `end_date` query parameters for the asset page [see `PR #1030 <https://github.com/FlexMeasures/flexmeasures/pull/1030/>`_]
-* In plots, add the asset name to the title of the tooltip to improve the identification of the lines [see `PR #1054 <https://github.com/FlexMeasures/flexmeasures/pull/1054/>`_]
-* On asset page, show sensor IDs in sensor table [see `PR #1053 <https://github.com/FlexMeasures/flexmeasures/pull/1053/>`_]
+* Support `start_date` and `end_date` query parameters for the asset page [see `PR #1030 <https://github.com/FlexMeasures/flexmeasures/pull/1030>`_]
+* In plots, add the asset name to the title of the tooltip to improve the identification of the lines [see `PR #1054 <https://github.com/FlexMeasures/flexmeasures/pull/1054>`_]
+* On asset page, show sensor IDs in sensor table [see `PR #1053 <https://github.com/FlexMeasures/flexmeasures/pull/1053>`_]
 
 Bugfixes
 -----------
@@ -45,8 +45,8 @@ Bugfixes
 Infrastructure / Support
 ----------------------
 
-* Include started, deferred and scheduled jobs in the overview printed by the CLI command ``flexmeasures jobs show-queues`` [see `PR #1036 <https://github.com/FlexMeasures/flexmeasures/pull/1036/>`_]
-* Make it as convenient to clear deferred or scheduled jobs from a queue as it was to clear failed jobs from a queue [see `PR #1037 <https://github.com/FlexMeasures/flexmeasures/pull/1037/>`_]
+* Include started, deferred and scheduled jobs in the overview printed by the CLI command ``flexmeasures jobs show-queues`` [see `PR #1036 <https://github.com/FlexMeasures/flexmeasures/pull/1036>`_]
+* Make it as convenient to clear deferred or scheduled jobs from a queue as it was to clear failed jobs from a queue [see `PR #1037 <https://github.com/FlexMeasures/flexmeasures/pull/1037>`_]
 
 
 v0.20.1 | May 7, 2024
@@ -55,7 +55,7 @@ v0.20.1 | May 7, 2024
 Bugfixes
 -----------
 
-* Prevent **p**lay/**p**ause/**s**top of replays when editing a text field in the UI [see `PR #1024 <https://github.com/FlexMeasures/flexmeasures/pull/1024>`_]
+* Prevent **p**\ lay/**p**\ ause/**s**\ top of replays when editing a text field in the UI [see `PR #1024 <https://github.com/FlexMeasures/flexmeasures/pull/1024>`_]
 * Skip unit conversion of :abbr:`SoC (state of charge)` related fields that are defined as sensors in a ``flex-model`` (specifically, ``soc-maxima``, ``soc-minima`` and ``soc-targets`` [see `PR #1047 <https://github.com/FlexMeasures/flexmeasures/pull/1047>`_]
 
 
@@ -67,7 +67,7 @@ v0.20.0 | March 26, 2024
 .. warning:: From this version on, the config setting `FLEXMEASURES_FORCE_HTTPS` decides whether to enforce HTTPS on requests - and it defaults to `False`. Previously, this was governed by `Flask_ENV` or `FLEXMEASURES_ENV` being set to something else than "documentation" or "development". This new way is more clear, but you might be in need of using this setting before upgrading.
 
 New features
--------------   
+-------------
 
 * Add command ``flexmeasures edit transfer-ownership`` to transfer the ownership of an asset and its children from one account to another[see `PR #983 <https://github.com/FlexMeasures/flexmeasures/pull/983>`_]
 * Support defining the ``site-power-capacity``, ``site-consumption-capacity`` and ``site-production-capacity`` as a sensor in the API and CLI [see `PR #985 <https://github.com/FlexMeasures/flexmeasures/pull/985>`_]
@@ -116,7 +116,7 @@ v0.19.0 | February 18, 2024
 .. warning:: This version replaces FLASK_ENV with FLEXMEASURES_ENV (FLASK_ENV will still be used as a fallback).
 
 New features
--------------   
+-------------
 
 * List child assets on the asset page [see `PR #967 <https://github.com/FlexMeasures/flexmeasures/pull/967>`_]
 * Expand the UI's breadcrumb functionality with the ability to navigate directly to sibling assets and sensors using their child-parent relationship [see `PR #977 <https://github.com/FlexMeasures/flexmeasures/pull/977>`_]
