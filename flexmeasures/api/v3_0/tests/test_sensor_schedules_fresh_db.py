@@ -248,13 +248,14 @@ def test_price_sensor_priority(
         name: other_name
         for name, other_name in zip(sensor_types, reversed(sensor_types))
     }
-    sensor_attribute = f"{sensor_type}_price_sensor_id"
     used_sensor, unused_sensor = (
         f"{sensor_type}-price-sensor",
         f"{other_sensors[sensor_type]}-price-sensor",
     )
 
     price_sensor_id = None
+    sensor_attribute = f"{sensor_type}_price_sensor_id"
+    # preparation: ensure the asset actually has the price sensor set as attribute
     if asset_sensor:
         price_sensor_id = add_market_prices_fresh_db[asset_sensor].id
         battery_asset = add_battery_assets_fresh_db[asset_name]
@@ -266,6 +267,7 @@ def test_price_sensor_priority(
         setattr(building_asset, sensor_attribute, price_sensor_id)
         fresh_db.session.add(building_asset)
 
+    # Adding unused sensor to context (e.g consumption price sensor if we test production sensor)
     message["flex-context"] = {
         unused_sensor: add_market_prices_fresh_db["epex_da"].id,
         "site-power-capacity": "1 TW",  # should be big enough to avoid any infeasibilities
@@ -297,6 +299,7 @@ def test_price_sensor_priority(
         work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
 
         expect_price_sensor_id = add_market_prices_fresh_db[expect_sensor].id
+        # get_prices is called twice: 1st call has consumption price sensor, 2nd call has production price sensor
         call_num = 0 if sensor_type == "consumption" else 1
         call_args = mock_storage_get_prices.call_args_list[call_num]
         assert call_args[1]["price_sensor"].id == expect_price_sensor_id
@@ -343,7 +346,7 @@ def test_inflexible_device_sensors_priority(
     }
     if context_sensor_num:
         other_asset = add_battery_assets_fresh_db["Test small battery"]
-        context_sensors = add_inflexible_device_sensors(
+        context_sensors = setup_inflexible_device_sensors(
             fresh_db, other_asset, "other asset senssors", context_sensor_num
         )
         message["flex-context"]["inflexible-device-sensors"] = [
@@ -351,13 +354,13 @@ def test_inflexible_device_sensors_priority(
         ]
     if asset_sensor_num:
         battery_asset = add_battery_assets_fresh_db[asset_name]
-        battery_sensors = add_inflexible_device_sensors(
+        battery_sensors = setup_inflexible_device_sensors(
             fresh_db, battery_asset, "battery asset sensors", asset_sensor_num
         )
         link_sensors(fresh_db, battery_asset, battery_sensors)
     if parent_sensor_num:
         building_asset = add_battery_assets_fresh_db["Test building"]
-        building_sensors = add_inflexible_device_sensors(
+        building_sensors = setup_inflexible_device_sensors(
             fresh_db, building_asset, "building asset sensors", parent_sensor_num
         )
         link_sensors(fresh_db, building_asset, building_sensors)
@@ -385,11 +388,13 @@ def test_inflexible_device_sensors_priority(
     ) as mock_storage_get_power_values:
         work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
 
+        # Counting how many times power values (for inflexible sensors) were fetched (gives us the number of sensors)
         call_args = mock_storage_get_power_values.call_args_list
         assert len(call_args) == expect_sensor_num
 
 
-def add_inflexible_device_sensors(fresh_db, asset, sensor_name, sensor_num):
+def setup_inflexible_device_sensors(fresh_db, asset, sensor_name, sensor_num):
+    """Test helper function to add sensor_num sensors to an asset"""
     sensors = list()
     for i in range(sensor_num):
         sensor = Sensor(

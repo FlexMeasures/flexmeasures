@@ -47,9 +47,12 @@ class GenericAssetInflexibleSensorRelationship(db.Model):
 
     __tablename__ = "assets_inflexible_sensors"
 
-    id = db.Column(db.Integer(), primary_key=True)
-    generic_asset_id = db.Column(db.Integer, db.ForeignKey("generic_asset.id"))
-    inflexible_sensor_id = db.Column(db.Integer, db.ForeignKey("sensor.id"))
+    generic_asset_id = db.Column(
+        db.Integer, db.ForeignKey("generic_asset.id"), primary_key=True
+    )
+    inflexible_sensor_id = db.Column(
+        db.Integer, db.ForeignKey("sensor.id"), primary_key=True
+    )
     __table_args__ = (
         db.UniqueConstraint(
             "inflexible_sensor_id",
@@ -131,7 +134,9 @@ class GenericAsset(db.Model, AuthModelMixin):
     inflexible_device_sensors = db.relationship(
         "Sensor",
         secondary="assets_inflexible_sensors",
-        backref=db.backref("assets_for_inflexible_sensor", lazy="dynamic"),
+        backref=db.backref(
+            "assets_with_this_consumption_price_context", lazy="dynamic"
+        ),
     )
 
     def __acl__(self):
@@ -264,7 +269,10 @@ class GenericAsset(db.Model, AuthModelMixin):
         return None
 
     def get_inflexible_device_sensors(self):
-        """Searches for inflexible_device_sensors upwards on the asset tree"""
+        """
+        Searches for inflexible_device_sensors upwards on the asset tree
+        This search will stop once any sensors are found (will not aggregate towards the top of the tree)
+        """
         if self.inflexible_device_sensors:
             return self.inflexible_device_sensors
         if self.parent_asset:
