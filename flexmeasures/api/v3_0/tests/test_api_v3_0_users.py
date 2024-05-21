@@ -1,7 +1,9 @@
 from flask import url_for
 from flask_login import current_user, logout_user
+from sqlalchemy import select
 import pytest
 
+from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.api.tests.utils import UserContext
 
@@ -46,9 +48,9 @@ def test_get_users_inactive(
     assert get_users_response.status_code == 200
     assert isinstance(get_users_response.json, list)
     if include_inactive is False:
-        assert len(get_users_response.json) == 2
+        assert len(get_users_response.json) == 3
     else:
-        assert len(get_users_response.json) == 4
+        assert len(get_users_response.json) == 5
 
 
 @pytest.mark.parametrize(
@@ -70,6 +72,67 @@ def test_get_one_user(client, setup_api_test_data, requesting_user, status_code)
     assert get_user_response.status_code == status_code
     if status_code == 200:
         assert get_user_response.json["username"] == "Test Prosumer User 2"
+
+
+@pytest.mark.parametrize(
+    "requesting_user, status_code",
+    [
+        (None, 401),  # no auth is not allowed
+        ("test_prosumer_user@seita.nl", 200),  # gets themselves
+        (
+            "test_prosumer_user_2@seita.nl",
+            200,
+        ),  # account-admin can view his account users
+        (
+            "test_dummy_account_admin@seita.nl",
+            403,
+        ),  # account-admin cannot view other account users
+        (
+            "test_prosumer_user_3@seita.nl",
+            403,
+        ),  # plain user cant view his account users
+        ("test_dummy_user_3@seita.nl", 403),  # plain user cant view other account users
+        ("test_admin_user@seita.nl", 200),  # admin can do this from another account
+        (
+            "test_admin_reader_user@seita.nl",
+            200,
+        ),  # admin reader can do this from another account
+    ],
+    indirect=["requesting_user"],
+)
+def test_get_one_user_audit_log(
+    client, setup_api_test_data, requesting_user, status_code
+):
+    requesting_user_id = find_user_by_email("test_prosumer_user@seita.nl").id
+
+    get_user_response = client.get(url_for("UserAPI:auditlog", id=requesting_user_id))
+    print("Server responded with:\n%s" % get_user_response.data)
+    assert get_user_response.status_code == status_code
+    if status_code == 200:
+        assert get_user_response.json[0] is not None
+
+
+@pytest.mark.parametrize(
+    "requesting_user, status_code",
+    [
+        # Consultant users can see the audit log of all users in the client accounts.
+        ("test_consultant@seita.nl", 200),
+        # Has no consultant role.
+        ("test_consultancy_user_without_consultant_access@seita.nl", 403),
+    ],
+    indirect=["requesting_user"],
+)
+def test_get_one_user_audit_log_consultant(
+    client, setup_api_test_data, requesting_user, status_code
+):
+    """Check correctness of consultant account audit log access rules"""
+    requesting_user_id = find_user_by_email("test_consultant_client@seita.nl").id
+
+    get_user_response = client.get(url_for("UserAPI:auditlog", id=requesting_user_id))
+    print("Server responded with:\n%s" % get_user_response.data)
+    assert get_user_response.status_code == status_code
+    if status_code == 200:
+        assert get_user_response.json[0] is not None
 
 
 @pytest.mark.parametrize(
@@ -95,7 +158,7 @@ def test_get_one_user(client, setup_api_test_data, requesting_user, status_code)
     indirect=["requesting_user"],
 )
 def test_edit_user(
-    requesting_user, requested_user, status_code, client, setup_api_test_data
+    db, requesting_user, requested_user, status_code, client, setup_api_test_data
 ):
     with UserContext(requested_user) as u:
         requested_user_id = u.id
@@ -110,6 +173,15 @@ def test_edit_user(
         user = find_user_by_email(requested_user)
         assert user.active is False
         assert user.id == requested_user_id
+
+        assert db.session.execute(
+            select(AuditLog).filter_by(
+                affected_user_id=user.id,
+                event=f"Active status set to 'False' for user {user.username}",
+                active_user_id=requesting_user.id,
+                affected_account_id=user.account_id,
+            )
+        ).scalar_one_or_none()
 
 
 @pytest.mark.parametrize(
