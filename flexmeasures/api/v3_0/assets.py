@@ -7,6 +7,7 @@ from flask_json import as_json
 from marshmallow import fields
 from webargs.flaskparser import use_kwargs, use_args
 from sqlalchemy import select, delete
+from typing import List
 
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
@@ -331,7 +332,7 @@ class AssetAPI(FlaskView):
         return asset.search_beliefs(sensors=sensors, as_json=True, **kwargs)
 
 
-def set_asset_sensors(asset: GenericAsset, inflexible_sensor_ids: list[int]):
+def set_asset_sensors(asset: GenericAsset, inflexible_sensor_ids: List[int]):
     sensor_links = GenericAssetInflexibleSensorRelationship.query.filter(
         GenericAssetInflexibleSensorRelationship.generic_asset_id == asset.id
     ).all()

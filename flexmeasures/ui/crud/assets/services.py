@@ -11,7 +11,7 @@ from wtforms import (
     ValidationError,
 )
 from wtforms.validators import DataRequired, optional
-from typing import Optional
+from typing import Optional, Dict
 
 from flexmeasures.data import db
 from flexmeasures.data.models.generic_assets import (
@@ -126,7 +126,7 @@ class AssetForm(FlaskForm):
 
     def get_allowed_price_sensor_data(
         self, account_id: Optional[int]
-    ) -> dict[int, str]:
+    ) -> Dict[int, str]:
         """
         Return a list of sensors which the user can add
         as consumption_price_sensor_id or production_price_sensor_id.
@@ -161,7 +161,7 @@ class AssetForm(FlaskForm):
 
     def get_allowed_inflexible_sensor_data(
         self, account_id: Optional[int]
-    ) -> dict[int, str]:
+    ) -> Dict[int, str]:
         """
         Return a list of sensors which the user can add
         as inflexible device sensors.
