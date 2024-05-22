@@ -56,10 +56,10 @@ class PandasReporterConfigSchema(ReporterConfigSchema):
 
         {
             "required_input" : [
-                {"name" : "df1}
+                {"name" : "df1", "unit" : "MWh"}
             ],
             "required_output" : [
-                {"name" : "df2"}
+                {"name" : "df2", "unit" : "kWh"}
             ],
             "transformations" : [
                 {

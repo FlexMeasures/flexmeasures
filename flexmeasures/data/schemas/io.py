@@ -69,3 +69,4 @@ class Output(Schema):
 class RequiredOutput(Schema):
     name = fields.Str(required=True)
     column = fields.Str(required=False)
+    unit = fields.Str(required=False)

@@ -167,11 +167,13 @@ def test_pandas_reporter_unit_conversion(app, setup_dummy_data):
         - kW -> kW
         - kW -> MW
         - kW -> MWh
+        - kW -> W -> kW
     """
     s1, s2, s3, s4, report_sensor, daily_report_sensor = setup_dummy_data
 
     reporter_config = dict(
         required_input=[
+            {"name": "sensor_4"},
             {"name": "sensor_4_kw"},
             {"name": "sensor_4_mw", "unit": "MW"},
             {"name": "sensor_4_mwh", "unit": "MWh"},
@@ -180,8 +182,12 @@ def test_pandas_reporter_unit_conversion(app, setup_dummy_data):
             {"name": "sensor_4_kw"},
             {"name": "sensor_4_mw"},
             {"name": "sensor_4_mwh"},
+            # Assume that the internal operations that produce sensor_4_output_w have "W"
+            {"name": "sensor_4_output_w", "unit": "W"},
         ],
-        transformations=[],
+        transformations=[
+            {"df_input": "sensor_4", "method": "copy", "df_output": "sensor_4_output_w"}
+        ],
     )
 
     reporter = PandasReporter(config=reporter_config)
@@ -189,6 +195,7 @@ def test_pandas_reporter_unit_conversion(app, setup_dummy_data):
     start = datetime(2023, 1, 1, tzinfo=utc)
     end = datetime(2023, 1, 2, tzinfo=utc)
     input = [
+        dict(name="sensor_4", sensor=s4),
         dict(name="sensor_4_kw", sensor=s4),
         dict(name="sensor_4_mw", sensor=s4),
         dict(name="sensor_4_mwh", sensor=s4),
@@ -197,16 +204,23 @@ def test_pandas_reporter_unit_conversion(app, setup_dummy_data):
         dict(name="sensor_4_kw", sensor=s4),
         dict(name="sensor_4_mw", sensor=s4),
         dict(name="sensor_4_mwh", sensor=s4),
+        dict(name="sensor_4_output_w", sensor=s4),
     ]
 
     report = reporter.compute(start=start, end=end, input=input, output=output)
     result_kw = report[0]["data"]
     result_mw = report[1]["data"]
     result_mwh = report[2]["data"]
+    result_output_w = report[3]["data"]
 
+    # MW = kW / 1000
+    assert (result_mw.event_value.values == result_kw.event_value.values / 1000).all()
+
+    # MWh = MW * 0.25 (resolution = 15 min)
+    assert (result_mwh.event_value.values == result_mw.event_value.values * 0.25).all()
+
+    # Input is in kW; the operations transform the data to produce values in W and it transforms the values to the output sensor unit (kW).
+    # In summary, Input = 1 kW -(copy the values)-> 1 W -> 0.001 kW
     assert (
-        result_mw.event_value.values == result_kw.event_value.values / 1000
-    ).all()  # MW = kW / 1000
-    assert (
-        result_mwh.event_value.values == result_mw.event_value.values * 0.25
-    ).all()  # MWh = MW * 0.25 (resolution = 15 min)
+        result_output_w.event_value.values == result_kw.event_value.values * 0.001
+    ).all()
