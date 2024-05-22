@@ -88,6 +88,8 @@ class PandasReporterConfigSchema(ReporterConfigSchema):
     )
     transformations = fields.List(fields.Nested(PandasMethodCall()), required=True)
 
+    droplevels = fields.Bool(required=False, default=False)
+
     @validates_schema
     def validate_chaining(self, data, **kwargs):
         """
@@ -139,6 +141,7 @@ class PandasReporterParametersSchema(ReporterParametersSchema):
     # for the single sensors in `input_variables`
     start = AwareDateTimeField(required=False)
     end = AwareDateTimeField(required=False)
+    use_latest_version_only = fields.Bool(required=False, default=False)
 
     @validates_schema
     def validate_time_parameters(self, data, **kwargs):
