@@ -13,6 +13,9 @@ New features
 * `PandasReporter` accepts the parameter `use_latest_version_only` to filter input data [see `PR #1045 <https://github.com/FlexMeasures/flexmeasures/pull/1045/>`_]
 
 
+* Add ``--resolution`` option to ``flexmeasures show chart`` to produce charts in different time resolutions [see `PR #XX <https://github.com/FlexMeasures/flexmeasures/pull/XX/>`_]
+
+
 v0.21.0 | April 16, 2024
 ============================
 
