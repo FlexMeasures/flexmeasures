@@ -8,24 +8,25 @@
 
 {% block divs %}
 
-    <nav class="mt-3" aria-label="breadcrumb">
-        <ol class="breadcrumb p-2">
-            {% for breadcrumb in breadcrumb_info["ancestors"] %}
-            <li class="breadcrumb-item{% if loop.last %} dropdown{% endif %} {% if loop.last %}active{% endif %}" {% if loop.last %}aria-current="page"{% endif %}>
-                {% if breadcrumb["url"] is not none and not loop.last %}
-                <a style="text-decoration:none;" href="{{ breadcrumb['url'] }}">{{ breadcrumb['name'] }}</a>
-                {% else %}
-                <a style="text-decoration:none;" href="#" class="dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">{{ breadcrumb['name'] }}</a>
-                <ul class="dropdown-menu">
-                    {% for sibling in breadcrumb_info["siblings"] %}
-                    <li><a class="dropdown-item" href="{{ sibling['url'] }}">{{ sibling["name"] }}</a></li>
-                    {% endfor %}
-                </ul>
-                {% endif %}
-            </li>
-            {% endfor %}
-        </ol>
-    </nav>
+<nav aria-label="breadcrumb ">
+    <ol class="breadcrumb p-2">
+        {% for breadcrumb in breadcrumb_info["ancestors"] %}
+        <li class="breadcrumb-item{% if loop.last %} dropdown active{% endif %}" {% if loop.last %}aria-current="page"{% endif %}>
+            {% if breadcrumb["url"] is not none and not loop.last %}
+            <a  style="text-decoration:none;" href="{{ breadcrumb['url'] }}">{{ breadcrumb['name'] }}</a>
+            {% else %}
+            <a style="text-decoration:none;" href="{{ breadcrumb['url'] }}" class="dropdown-toggle" data-bs-toggle="dropdown"  aria-expanded="false">{{ breadcrumb['name'] }}
+            </a>
+            <ul class="dropdown-menu">
+                {% for sibling in breadcrumb_info["siblings"] %}
+                <li><a  class="dropdown-item" href="{{ sibling['url'] }}">{{ sibling["name"] }}</a></li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ol>
+</nav>
 
 
 
@@ -69,7 +70,7 @@
                 <button id="asset-status-button" class="btn btn-sm btn-responsive" type="submit">Asset status</button>
             </form>
             <div class="sidepanel-container">
-                <div class="left-sidepanel-label pl-5" style="padding-left: 30px;">Select dates</div>
+                <div class="left-sidepanel-label" style="padding-left: 20px;">Select dates</div>
                 <div class="sidepanel left-sidepanel">
                     <div id="datepicker"></div>
                 </div>
