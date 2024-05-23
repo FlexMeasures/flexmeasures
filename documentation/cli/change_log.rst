@@ -5,10 +5,10 @@ FlexMeasures CLI Changelog
 **********************
 
 
-since v.0.21.0 | April 12, 2024
+since v.0.21.0 | April 16, 2024
 =================================
 
-* Include started, deferred and scheduled jobs in the overview printed by the CLI command ``flexmeasures jobs show-queues`.
+* Include started, deferred and scheduled jobs in the overview printed by the CLI command ``flexmeasures jobs show-queues``.
 
 since v.0.20.0 | March 26, 2024
 =================================
