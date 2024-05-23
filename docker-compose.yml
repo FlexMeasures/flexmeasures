@@ -60,7 +60,8 @@ services:
       FLEXMEASURES_REDIS_PASSWORD: fm-redis-pass
       LOGGING_LEVEL: INFO
     volumes:
-      # a place for config and plugin code - the mount point is for running the FlexMeasures CLI, the 2nd for gunicorn
+      # a place for config and plugin code, and custom requirements.txt
+      # the 1st mount point is for running the FlexMeasures CLI, the 2nd for gunicorn
       - ./flexmeasures-instance/:/usr/var/flexmeasures-instance/:ro
       - ./flexmeasures-instance/:/app/instance/:ro
     entrypoint: ["/bin/sh", "-c"]
@@ -86,7 +87,7 @@ services:
       FLEXMEASURES_ENV: development
       LOGGING_LEVEL: INFO 
     volumes:
-      # a place for config and plugin code
+      # a place for config and plugin code, and custom requirements.txt
       - ./flexmeasures-instance/:/usr/var/flexmeasures-instance/:ro
     entrypoint: ["/bin/sh", "-c"]
     command: 
