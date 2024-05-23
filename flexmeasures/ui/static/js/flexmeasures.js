@@ -242,7 +242,7 @@ function ready() {
 
     $('table').floatThead({
         position: 'absolute',
-        top: $('#').height(),
+        top: $('#topnavbar').height(),
         scrollContainer: true
     });
 
