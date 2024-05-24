@@ -33,7 +33,10 @@ from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset
-from flexmeasures.data.models.planning.utils import flex_context_loader, flex_model_loader
+from flexmeasures.data.models.planning.utils import (
+    flex_context_loader,
+    flex_model_loader,
+)
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField
