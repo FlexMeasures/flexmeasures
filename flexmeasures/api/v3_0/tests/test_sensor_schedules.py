@@ -427,8 +427,18 @@ def test_get_schedule_fallback_not_redirect(
 @pytest.mark.parametrize(
     "message, flex_config, field, err_msg",
     [
-        (message_for_trigger_schedule(), "flex-context", "site-consumption-capacity", "no read authorization"),
-        (message_for_trigger_schedule(), "flex-model", "site-consumption-capacity", "no read authorization"),
+        (
+            message_for_trigger_schedule(),
+            "flex-context",
+            "site-consumption-capacity",
+            "no read authorization",
+        ),
+        (
+            message_for_trigger_schedule(),
+            "flex-model",
+            "site-consumption-capacity",
+            "no read authorization",
+        ),
     ],
 )
 @pytest.mark.parametrize(
@@ -462,12 +472,25 @@ def test_trigger_schedule_with_unauthorized_sensor(
         )
         print("Server responded with:\n%s" % trigger_schedule_response.json)
         assert trigger_schedule_response.status_code == 422  # Unprocessable entity
-        assert f"{flex_config}.{field}.sensor" in trigger_schedule_response.json["message"]
-        if isinstance(trigger_schedule_response.json["message"][f"{flex_config}.{field}.sensor"], str):
+        assert (
+            f"{flex_config}.{field}.sensor" in trigger_schedule_response.json["message"]
+        )
+        if isinstance(
+            trigger_schedule_response.json["message"][f"{flex_config}.{field}.sensor"],
+            str,
+        ):
             # ValueError
-            assert err_msg in trigger_schedule_response.json["message"][f"{flex_config}.{field}.sensor"]
+            assert (
+                err_msg
+                in trigger_schedule_response.json["message"][
+                    f"{flex_config}.{field}.sensor"
+                ]
+            )
         else:
             # ValidationError (marshmallow)
             assert (
-                err_msg in trigger_schedule_response.json["message"][f"{flex_config}.{field}.sensor"][field][0]
+                err_msg
+                in trigger_schedule_response.json["message"][
+                    f"{flex_config}.{field}.sensor"
+                ][field][0]
             )

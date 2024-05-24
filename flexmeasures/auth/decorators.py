@@ -208,7 +208,8 @@ def permission_required_for_context(
             for ctx in context:
                 if isinstance(ctx, tuple):
                     c = ctx[0]  # the context
-                    origin = ctx[1]  # the context loader may narrow down the origin of the context (e.g. a nested field rather than a function argument)
+                    # the context loader may narrow down the origin of the context (e.g. a nested field rather than a function argument)
+                    origin = ctx[1]
                 else:
                     c = ctx
                     origin = ctx_arg_name
