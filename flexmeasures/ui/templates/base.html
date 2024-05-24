@@ -51,7 +51,7 @@
     {% block body %}
 
     {% block nav %}
-    <nav class="navbar navbar-expand-lg fixed-top mt-0 navbar-default mb-2 navbar-fixed-top" id="topnavbar">
+    <nav class="navbar navbar-expand-lg fixed-top mt-0 navbar-default mb-2 navbar-fixed-top " id="topnavbar">
         <div class="container-fluid" id="navbar-container">
         
                      
@@ -78,8 +78,8 @@
           <i style="color: var(--white);" class="fa fa-bars"></i>
           </div>
          
-          <div class="collapse navbar-collapse justify-content-end" id="navbarSupportedContent">
-            <ul class="nav navbar-nav">
+          <div class="collapse navbar-collapse justify-content-end flex-row" id="navbarSupportedContent">
+            <ul class="nav navbar-nav d-flex">
               {% for href, id, caption, tooltip, icon in navigation_bar %}
                 {% if id == "tasks" %}
                 <li {% if id == active_page %} class="nav-item dropdown active" {% else %} class="nav-item dropdown" {% endif %}>
@@ -121,7 +121,7 @@
             </ul>
           </div>
         </div>
-      </nav>
+    </nav>
       
       
 
