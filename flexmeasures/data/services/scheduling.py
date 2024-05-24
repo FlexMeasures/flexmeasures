@@ -276,9 +276,11 @@ def create_sequential_scheduling_job(
                 f"Missing 'sensor' in flex-model list item: {child_flex_model}."
             )
 
-        sensor = SensorIdField().deserialize(sensor_id)
-
-        # todo make sure each sensor lives under the asset
+        # get the sensor, while ensuring that it lives under the asset
+        if isinstance(asset_or_sensor, Asset):
+            sensor = SensorIdField(asset=asset_or_sensor).deserialize(sensor_id)
+        else:
+            sensor = SensorIdField().deserialize(sensor_id)
 
         current_scheduler_kwargs = deepcopy(scheduler_kwargs)
 
