@@ -457,7 +457,8 @@ def test_trigger_schedule_with_unauthorized_sensor(
 ):
     """Test triggering a schedule using a flex config that refers to a capacity sensor from a different account.
 
-    The user is not authorized to read sensors from the other account, so we expect a 403 (Forbidden) response.
+    The user is not authorized to read sensors from the other account,
+    so we expect a 422 (Unprocessable entity) response referring to the relevant flex-config field.
     """
     sensor = add_battery_assets["Test battery"].sensors[0]
     with app.test_client() as client:
