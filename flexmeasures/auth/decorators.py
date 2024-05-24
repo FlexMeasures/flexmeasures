@@ -147,7 +147,7 @@ def permission_required_for_context(
 
     The ctx_loader:
 
-      The ctx_loader can be a function without arguments or it takes the context loaded from the arguments as input (using pass_ctx_to_loader=True).
+      The ctx_loader can be a function without arguments, or it takes the context loaded from the arguments as input (using pass_ctx_to_loader=True).
       It should return the context or a list of contexts.
       A special case is useful when the arguments contain the context ID (not the instance).
       Then, the loader can be a subclass of AuthModelMixin, and this decorator will look up the instance.
@@ -171,43 +171,20 @@ def permission_required_for_context(
     def wrapper(fn):
         @wraps(fn)
         def decorated_view(*args, **kwargs):
-            # load & check context
-            context: AuthModelMixin = None
+            context = load_context(
+                ctx_arg_pos, ctx_arg_name, ctx_loader, pass_ctx_to_loader, args, kwargs
+            )
 
-            # first set context_from_args, if possible
-            context_from_args: AuthModelMixin = None
-            if ctx_arg_pos is not None and ctx_arg_name is not None:
-                context_from_args = args[ctx_arg_pos][ctx_arg_name]
-            elif ctx_arg_pos is not None:
-                context_from_args = args[ctx_arg_pos]
-            elif ctx_arg_name is not None:
-                context_from_args = kwargs.get(ctx_arg_name)
-                # skip check in case (optional) argument was not passed
-                if context_from_args is None:
-                    return fn(*args, **kwargs)
-            elif len(args) > 0:
-                context_from_args = args[0]
-
-            # if a loader is given, use that, otherwise fall back to context_from_args
-            if ctx_loader is not None:
-                if pass_ctx_to_loader:
-                    if inspect.isclass(ctx_loader) and issubclass(
-                        ctx_loader, AuthModelMixin
-                    ):
-                        context = db.session.get(ctx_loader, context_from_args)
-                    else:
-                        context = ctx_loader(context_from_args)
-                else:
-                    context = ctx_loader()
-            else:
-                context = context_from_args
+            # skip check in case (optional) argument was not passed
+            if context is None:
+                return fn(*args, **kwargs)
 
             # Check access for possibly multiple contexts
             if not isinstance(context, list):
                 context = [context]
             for ctx in context:
                 if isinstance(ctx, tuple):
-                    c = ctx[0]  # the context
+                    c = ctx[0]  # c[0] is the context, c[1] is its origin
                     # the context loader may narrow down the origin of the context (e.g. a nested field rather than a function argument)
                     origin = ctx[1]
                 else:
@@ -215,7 +192,7 @@ def permission_required_for_context(
                     origin = ctx_arg_name
                 try:
                     check_access(c, permission)
-                except Exception as e:
+                except Exception as e:  # noqa: B902
                     if error_handler:
                         return error_handler(c, permission, origin)
                     raise e
@@ -225,3 +202,35 @@ def permission_required_for_context(
         return decorated_view
 
     return wrapper
+
+
+def load_context(
+    ctx_arg_pos, ctx_arg_name, ctx_loader, pass_ctx_to_loader, args, kwargs
+) -> AuthModelMixin | None:
+
+    # first set context_from_args, if possible
+    context_from_args: AuthModelMixin | None = None
+    if ctx_arg_pos is not None and ctx_arg_name is not None:
+        context_from_args = args[ctx_arg_pos][ctx_arg_name]
+    elif ctx_arg_pos is not None:
+        context_from_args = args[ctx_arg_pos]
+    elif ctx_arg_name is not None:
+        context_from_args = kwargs.get(ctx_arg_name)
+        # skip check in case (optional) argument was not passed
+        if context_from_args is None:
+            return None
+    elif len(args) > 0:
+        context_from_args = args[0]
+
+    # if a loader is given, use that, otherwise fall back to context_from_args
+    if ctx_loader is not None:
+        if pass_ctx_to_loader:
+            if inspect.isclass(ctx_loader) and issubclass(ctx_loader, AuthModelMixin):
+                context = db.session.get(ctx_loader, context_from_args)
+            else:
+                context = ctx_loader(context_from_args)
+        else:
+            context = ctx_loader()
+    else:
+        context = context_from_args
+    return context
