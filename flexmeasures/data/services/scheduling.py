@@ -257,7 +257,6 @@ def cb_done_sequential_scheduling_job(jobs_ids: list[str]):
 
 def create_sequential_scheduling_job(
     asset_or_sensor: Asset | Sensor | None = None,
-    sensor: Sensor | None = None,
     job_id: str | None = None,
     enqueue: bool = True,
     requeue: bool = False,
