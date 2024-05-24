@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import partial
 from packaging import version
 from datetime import date, datetime, timedelta
 
@@ -443,8 +444,14 @@ def nanmin_of_series_and_value(s: pd.Series, value: float | pd.Series) -> pd.Ser
     return s.fillna(value).clip(upper=value)
 
 
-def flex_model_loader(context) -> list[tuple[Sensor, str]]:
-    sensor_ids = find_sensor_ids(context, "flex-model")
+def sensor_loader(data, parent_key: str) -> list[tuple[Sensor, str]]:
+    """Load all sensors referenced by their ID in a nested dict or list, along with the fields referring to them.
+
+    :param data:        nested dict or list
+    :param parent_key:  'flex-model' or 'flex-context'
+    :returns:           list of sensor-field tuples
+    """
+    sensor_ids = find_sensor_ids(data, parent_key)
     sensors = [
         (db.session.get(Sensor, sensor_id), field_name)
         for sensor_id, field_name in sensor_ids
@@ -452,13 +459,8 @@ def flex_model_loader(context) -> list[tuple[Sensor, str]]:
     return sensors
 
 
-def flex_context_loader(context) -> list[tuple[Sensor, str]]:
-    sensor_ids = find_sensor_ids(context, "flex-context")
-    sensors = [
-        (db.session.get(Sensor, sensor_id), field_name)
-        for sensor_id, field_name in sensor_ids
-    ]
-    return sensors
+flex_model_loader = partial(sensor_loader, parent_key="flex-model")
+flex_context_loader = partial(sensor_loader, parent_key="flex-context")
 
 
 def find_sensor_ids(data, parent_key="") -> list[tuple[int, str]]:
