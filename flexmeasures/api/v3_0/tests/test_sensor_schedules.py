@@ -428,6 +428,7 @@ def test_get_schedule_fallback_not_redirect(
     "message, flex_config, field, err_msg",
     [
         (message_for_trigger_schedule(), "flex-context", "site-consumption-capacity", "no read authorization"),
+        (message_for_trigger_schedule(), "flex-model", "site-consumption-capacity", "no read authorization"),
     ],
 )
 @pytest.mark.parametrize(
