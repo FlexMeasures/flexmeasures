@@ -84,7 +84,7 @@ def test_trigger_schedule_with_invalid_flexmodel(
         )
         print("Server responded with:\n%s" % trigger_schedule_response.json)
         check_deprecation(trigger_schedule_response, deprecation=None, sunset=None)
-        assert trigger_schedule_response.status_code == 422  # Unprocessable entity
+        assert trigger_schedule_response.status_code == 422
         assert field in trigger_schedule_response.json["message"]["json"]
         if isinstance(trigger_schedule_response.json["message"]["json"], str):
             # ValueError
