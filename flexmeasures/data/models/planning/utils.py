@@ -443,6 +443,15 @@ def nanmin_of_series_and_value(s: pd.Series, value: float | pd.Series) -> pd.Ser
     return s.fillna(value).clip(upper=value)
 
 
+def flex_model_loader(context) -> list[tuple[Sensor, str]]:
+    sensor_ids = find_sensor_ids(context, "flex-model")
+    sensors = [
+        (db.session.get(Sensor, sensor_id), field_name)
+        for sensor_id, field_name in sensor_ids
+    ]
+    return sensors
+
+
 def flex_context_loader(context) -> list[tuple[Sensor, str]]:
     sensor_ids = find_sensor_ids(context, "flex-context")
     sensors = [
