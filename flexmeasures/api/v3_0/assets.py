@@ -348,6 +348,8 @@ class AssetAPI(FlaskView):
         },
         location="json",
     )
+    # Simplification of checking for create-children access on each of the flexible sensors,
+    # which assumes each of the flexible sensors belongs to the given asset.
     @permission_required_for_context("create-children", ctx_arg_name="asset")
     def trigger_schedule(
         self,
