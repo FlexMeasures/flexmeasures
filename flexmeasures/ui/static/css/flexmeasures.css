@@ -839,6 +839,10 @@ table.dataTable.nav-on-click tbody tr:hover {
     background-color: var(--nav-current-hover-background-color) !important;
     cursor: pointer;
 }
+.table tbody tr {
+    border-top-width: 1px;
+    border-color: var(--gray);
+}
 
 /* scrolling */
 .floatThead-wrapper table {
@@ -1867,6 +1871,9 @@ div.heading-group {
 .breadcrumb {
   margin: 0px;
   background: var(--light-gray);
+}
+.breadcrumb .dropdrown {
+    z-index: 1050;
 }
 .breadcrumb .dropdown-menu li a {
     text-decoration: none;
