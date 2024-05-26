@@ -1860,6 +1860,13 @@ div.heading-group {
   margin: 0px;
   background: var(--light-gray);
 }
+.breadcrumb .dropdown-menu li a {
+    text-decoration: none;
+    color: var(--white);
+}
+.breadcrumb li a {
+    text-decoration: none;
+}
 .breadcrumb a {
   color: var(--primary-color);
 }
