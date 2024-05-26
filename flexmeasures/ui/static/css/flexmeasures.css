@@ -278,6 +278,14 @@ p.error {
     color: var(--secondary-color) !important;
 }
 
+.fa-bars{
+    color: var(--white);
+}
+
+.d-none{
+    display: none !important;
+}
+
 .navbar-default .navbar-collapse, .navbar-default .navbar-form {
     border-color: var(--primary-border-color);
 }

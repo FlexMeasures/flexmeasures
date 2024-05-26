@@ -34,8 +34,8 @@
 
 <div class="container-fluid">
     <div class="row mx-1">
-        <div class="alert alert-info" id="tzwarn" style="display:none;"></div>
-        <div class="alert alert-info" id="dstwarn" style="display:none;"></div>
+        <div class="alert alert-info d-none" id="tzwarn"></div>
+        <div class="alert alert-info d-none" id="dstwarn"></div>
     </div>
     <div class="row">
         <div class="col-md-2 on-top-md">
@@ -227,7 +227,7 @@
             <div class="sensors-asset card">
                 <h3>All sensors for {{ asset.name }}</h3>
                 <div class="table-responsive">
-                <table class="table table-striped table-responsive paginate nav-on-click" title="View data">
+                <table class="table table-striped paginate nav-on-click" title="View data">
                     <thead>
                         <tr>
                             <th>Name</th>
@@ -235,7 +235,7 @@
                             <th class="text-right">Unit</th>
                             <th class="text-right">Resolution</th>
                             <th class="text-right no-sort">Entity address</th>
-                            <th class="d-none" style="display:none;">URL</th>
+                            <th class="d-none">URL</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -256,7 +256,7 @@
                             <td class="text-right">
                                 {{ sensor.entity_address }}
                             </td>
-                            <td class="d-none" style="display:none;">
+                            <td class="d-none">
                                 /sensors/{{ sensor.id }}
                             </td>
                         </tr>
@@ -269,7 +269,7 @@
             <div class="sensors-asset card">
                 <h3>All child assets for {{ asset.name }}</h3>
                 <div class="table-responsive">
-                <table class="table table-striped table-responsive paginate nav-on-click w-100 mx-auto" title="View this asset">
+                <table class="table table-striped paginate nav-on-click w-100 mx-auto" title="View this asset">
                     <thead>
                         <tr>
                             <th><i class="left-icon">Name</i></th>

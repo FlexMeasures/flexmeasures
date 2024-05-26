@@ -27,7 +27,7 @@
           {% endif %}
         </h3>
         <div class="table-responsive">
-        <table class="table table-striped table-responsive paginate nav-on-click" title="View this asset">
+        <table class="table table-striped paginate nav-on-click" title="View this asset">
           <thead>
             <tr>
               <th scope="col"><i class="left-icon">Name</i></th>
@@ -36,7 +36,7 @@
               <th scope="col">Account</th>
               <th class="no-sort">Sensors</th>
               <th class="no-sort">Status</th>
-              <th class="d-none" style="display:none;">URL</th>
+              <th class="d-none">URL</th>
             </tr>
           </thead>
           <tbody>
@@ -68,7 +68,7 @@
                   <button type="button" class="btn btn-primary">Status</button>
                 </a>
               </td>
-              <td class="d-none" style="display:none;">
+              <td class="d-none">
                 /assets/{{ asset.id }}
               </td>
             </tr>
