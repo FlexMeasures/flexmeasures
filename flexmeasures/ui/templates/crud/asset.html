@@ -34,6 +34,12 @@
     </div>
     <div class="row">
         <div class="col-sm-2 on-top-md">
+            <div>
+                <form action="/assets/auditlog/{{ asset.id }}" method="get">
+                    <button class="btn btn-sm btn-responsive btn-info delete-button" type="submit"
+                        title="View history of asset related actions.">Audit log</button>
+                </form>
+            </div>
             <div class="header-action-button">
                 {% if user_can_create_assets %}
                 <div class="">

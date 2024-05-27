@@ -379,7 +379,11 @@ def write_audit_log_for_attribute_update(
     attribute_key, attribute_value, entity_type, asset_or_sensor
 ):
     current_user_id, current_user_name = None, None
-    if current_user.is_authenticated:
+    if (
+        current_user
+        and hasattr(current_user, "is_authenticated")
+        and current_user.is_authenticated
+    ):
         current_user_id, current_user_name = current_user.id, current_user.username
 
     old_value = asset_or_sensor.attributes.get(attribute_key)

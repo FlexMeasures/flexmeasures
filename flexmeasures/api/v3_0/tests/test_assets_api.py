@@ -179,7 +179,7 @@ def test_alter_an_asset(
     print(f"Editing Response: {asset_edit_response.json}")
     assert asset_edit_response.status_code == 200
 
-    audit_log_event = f"Updated asset '{prosumer_asset.name}': {prosumer_asset.id}. Updated fields: Field name: name, Old value: {name}, New value: other; Field name: latitude, Old value: {latitude}, New value: 11.1"
+    audit_log_event = f"Updated asset '{prosumer_asset.name}': {prosumer_asset.id} fields: Field name: name, Old value: {name}, New value: other; Field name: latitude, Old value: {latitude}, New value: 11.1"
     assert db.session.execute(
         select(AssetAuditLog).filter_by(
             event=audit_log_event,

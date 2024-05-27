@@ -726,6 +726,8 @@ class SensorAPI(FlaskView):
         """
         audit_log_data = list()
         for k, v in sensor_data.items():
+            if getattr(sensor, k) == v:
+                continue
             audit_log_data.append(
                 f"Field name: {k}, Old value: {getattr(sensor, k)}, New value: {v}"
             )
