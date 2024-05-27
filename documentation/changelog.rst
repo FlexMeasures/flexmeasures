@@ -3,7 +3,7 @@
 FlexMeasures Changelog
 **********************
 
-v0.22.0 | July XX, 2024
+v0.22.0 | June XX, 2024
 ============================
 
 New features
@@ -12,8 +12,14 @@ New features
 Bugfixes
 -----------
 
+
 Infrastructure / Support
 ----------------------
+* Add unit conversion to the input and output data of the `PandasReporter` [see `PR #1044 <https://github.com/FlexMeasures/flexmeasures/pull/1044/>`_]
+ main
+* Add option `droplevels` to the `PandasReporter` to drop all the levels except the `event_start` and `event_value` [see `PR #1043 <https://github.com/FlexMeasures/flexmeasures/pull/1043/>`_]
+* `PandasReporter` accepts the parameter `use_latest_version_only` to filter input data [see `PR #1045 <https://github.com/FlexMeasures/flexmeasures/pull/1045/>`_]
+
 
 
 v0.21.1 | May XX, 2024
@@ -25,6 +31,12 @@ Bugfixes
 
 
 v0.21.0 | May 16, 2024
+=======
+* Allow installing dependencies in docker-compose worker [see `PR #1057 <https://github.com/FlexMeasures/flexmeasures/pull/1057/>`_]
+
+
+v0.21.0 | April 16, 2024
+>>>>>>> 23f9bd308f37df38237c8becaf9e12cde090a576
 ============================
 
 .. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/021-service-better-status-and-audit/>`_.

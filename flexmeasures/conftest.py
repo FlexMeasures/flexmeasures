@@ -1339,6 +1339,45 @@ def soc_sensors(db, add_battery_assets, setup_sources) -> tuple:
     yield soc_maxima, soc_minima, soc_targets, values
 
 
+@pytest.fixture(scope="module")
+def setup_multiple_sources(db, add_battery_assets):
+    battery = add_battery_assets["Test battery with dynamic power capacity"]
+
+    test_sensor = Sensor(
+        name="test sensor",
+        generic_asset=battery,
+        unit="kW",
+        event_resolution=timedelta(minutes=15),
+    )
+
+    s1 = DataSource(name="S1", type="type 1")
+    s2 = DataSource(name="S2", type="type 2")
+    s3 = DataSource(name="S3", type="type 3")
+
+    db.session.add_all([s1, s2, s3, test_sensor])
+
+    for s in [s1, s2]:
+        add_beliefs(
+            db=db,
+            sensor=test_sensor,
+            time_slots=[pd.Timestamp("2024-01-01T10:00:00+01:00")],
+            values=[1],
+            source=s,
+        )
+
+    add_beliefs(
+        db=db,
+        sensor=test_sensor,
+        time_slots=[pd.Timestamp("2024-01-02T10:00:00+01:00")],
+        values=[1],
+        source=s3,
+    )
+
+    db.session.commit()
+
+    return test_sensor, s1, s2, s3
+
+
 def add_beliefs(
     db,
     sensor: Sensor,
