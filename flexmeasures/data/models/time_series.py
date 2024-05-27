@@ -67,6 +67,11 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         backref=db.backref("sensors", lazy="dynamic"),
     )
 
+    def get_path(self, separator: str = ">"):
+        return (
+            f"{self.generic_asset.get_path(separator=separator)}{separator}{self.name}"
+        )
+
     def __init__(
         self,
         name: str,
