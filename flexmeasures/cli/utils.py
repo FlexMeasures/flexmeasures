@@ -245,11 +245,14 @@ def reduce_entity_paths(asset_paths: list[list[str]]) -> list[list[str]]:
     >>> reduce_entity_paths([["Asset1"], ["Asset2"]])
     [["Asset1"], ["Asset2"]]
 
-    >>> reduce_entity_paths([["Asset1"], ["Asset1"]])
-    [["Asset1"], ["Asset1"]]
+    >>> reduce_entity_paths([["Account1", "Asset1"], ["Account1", "Asset2"]])
+    [["Asset1"], ["Asset2"]]
 
     >>> reduce_entity_paths([["Asset1", "Asset2"], ["Asset1"]])
     [["Asset1"], ["Asset1", "Asset2"]]
+
+    >>> reduce_entity_paths([["Account1", "Asset", "Asset1"], ["Account1", "Asset", "Asset2"]])
+    [["Asset1"], ["Asset2"]]
     """
     reduced_entities = 0
 
