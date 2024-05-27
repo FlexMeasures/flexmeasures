@@ -86,3 +86,24 @@ class AuditLog(db.Model, AuthModelMixin):
                 }
 
         return AuditLogAccess(account)
+
+
+class AssetAuditLog(db.Model, AuthModelMixin):
+    """
+    Model for storing actions that happen to an asset.
+    E.g asset creation, editing etc.
+    """
+
+    __tablename__ = "asset_audit_log"
+    id = Column(Integer, primary_key=True)
+    event_datetime = Column(DateTime())
+    event = Column(String(255))
+    active_user_name = Column(String(255))
+    active_user_id = Column(
+        "active_user_id", Integer(), ForeignKey("fm_user.id", ondelete="SET NULL")
+    )
+    affected_asset_id = Column(
+        "affected_asset_id",
+        Integer(),
+        ForeignKey("generic_asset.id", ondelete="SET NULL"),
+    )

@@ -10,6 +10,7 @@ import click
 import pandas as pd
 from flask import current_app as app
 from flask.cli import with_appcontext
+from flask_security import current_user
 import json
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.schemas.account import AccountIdField
@@ -21,9 +22,11 @@ from flexmeasures.data.schemas.attributes import validate_special_attributes
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.cli.utils import MsgStyle, DeprecatedOption, DeprecatedOptionsCommand
+from flexmeasures.utils.time_utils import server_now
 
 
 @click.group("edit")
@@ -146,9 +149,15 @@ def edit_attribute(
 
     # Set attribute
     for asset in assets:
+        write_audit_log_for_attribute_update(
+            attribute_key, attribute_value, "asset", asset
+        )
         asset.attributes[attribute_key] = attribute_value
         db.session.add(asset)
     for sensor in sensors:
+        write_audit_log_for_attribute_update(
+            attribute_key, attribute_value, "sensor", sensor
+        )
         sensor.attributes[attribute_key] = attribute_value
         db.session.add(sensor)
     db.session.commit()
@@ -205,6 +214,9 @@ def resample_sensor_data(
     event_resolution = timedelta(minutes=event_resolution_in_minutes)
     event_starts_after = pd.Timestamp(start_str)  # note that "" or None becomes NaT
     event_ends_before = pd.Timestamp(end_str)
+    current_user_id, current_user_name = None, None
+    if current_user.is_authenticated:
+        current_user_id, current_user_name = current_user.id, current_user.username
     for sensor_id in sensor_ids:
         sensor = db.session.get(Sensor, sensor_id)
         if sensor.event_resolution == event_resolution:
@@ -227,6 +239,15 @@ def resample_sensor_data(
                 + f"Data before:\n{df_original}\nData after:\n{df_resampled}\nMean before: {df_original['event_value'].mean()}\nMean after: {df_resampled['event_value'].mean()}\nContinue?",
                 abort=True,
             )
+
+        audit_log = AssetAuditLog(
+            event_datetime=server_now(),
+            event=f"Resampled sensor data for sensor '{sensor.name}': {sensor.id} to {event_resolution} from {sensor.event_resolution}",
+            active_user_id=current_user_id,
+            active_user_name=current_user_name,
+            affected_asset_id=sensor.generic_asset_id,
+        )
+        db.session.add(audit_log)
 
         # Update sensor
         sensor.event_resolution = event_resolution
@@ -267,7 +288,20 @@ def transfer_ownership(asset: Asset, new_owner: Account):
     Transfer the ownership of and asset and its children to an account.
     """
 
+    current_user_id, current_user_name = None, None
+    if current_user.is_authenticated:
+        current_user_id, current_user_name = current_user.id, current_user.username
+
     def transfer_ownership_recursive(asset: Asset, account: Account):
+        audit_log = AssetAuditLog(
+            event_datetime=server_now(),
+            event=f"Transfered ownership for asset '{asset.name}': {asset.id} from {asset.owner.id} to {account.id}",
+            active_user_id=current_user_id,
+            active_user_name=current_user_name,
+            affected_asset_id=asset.id,
+        )
+        db.session.add(audit_log)
+
         asset.owner = account
         for child in asset.child_assets:
             transfer_ownership_recursive(child, account)
@@ -339,3 +373,29 @@ def parse_attribute_value(  # noqa: C901
 def single_true(iterable) -> bool:
     i = iter(iterable)
     return any(i) and not any(i)
+
+
+def write_audit_log_for_attribute_update(
+    attribute_key, attribute_value, entity_type, asset_or_sensor
+):
+    current_user_id, current_user_name = None, None
+    if current_user.is_authenticated:
+        current_user_id, current_user_name = current_user.id, current_user.username
+
+    old_value = asset_or_sensor.attributes.get(attribute_key)
+    if entity_type == "sensor":
+        event = f"Updated sensor '{asset_or_sensor.name}': {asset_or_sensor.id} "
+        affected_asset_id = (asset_or_sensor.generic_asset_id,)
+    else:
+        event = f"Updated asset '{asset_or_sensor.name}': {asset_or_sensor.id} "
+        affected_asset_id = asset_or_sensor.id
+    event += f"attribute '{attribute_key}' to {attribute_value} from {old_value}"
+
+    audit_log = AssetAuditLog(
+        event_datetime=server_now(),
+        event=event,
+        active_user_id=current_user_id,
+        active_user_name=current_user_name,
+        affected_asset_id=affected_asset_id,
+    )
+    db.session.add(audit_log)

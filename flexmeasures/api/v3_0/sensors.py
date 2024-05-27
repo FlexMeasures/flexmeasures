@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from flask import current_app, url_for
 from flask_classful import FlaskView, route
 from flask_json import as_json
-from flask_security import auth_required
+from flask_security import auth_required, current_user
 import isodate
 from marshmallow import fields, ValidationError
 from rq.job import Job, NoSuchJobError
@@ -31,6 +31,7 @@ from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.utils.api_utils import save_and_enqueue
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
+from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
@@ -42,7 +43,7 @@ from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
     get_data_source_for_job,
 )
-from flexmeasures.utils.time_utils import duration_isoformat
+from flexmeasures.utils.time_utils import duration_isoformat, server_now
 
 
 # Instantiate schemas outside of endpoint logic to minimize response time
@@ -612,7 +613,7 @@ class SensorAPI(FlaskView):
         pass_ctx_to_loader=True,
     )
     def post(self, sensor_data: dict):
-        """Create new asset.
+        """Create new sensor.
 
         .. :quickref: Sensor; Create a new Sensor
 
@@ -657,6 +658,17 @@ class SensorAPI(FlaskView):
         sensor = Sensor(**sensor_data)
         db.session.add(sensor)
         db.session.commit()
+
+        asset = sensor_schema.context["generic_asset"]
+        audit_log = AssetAuditLog(
+            event_datetime=server_now(),
+            event=f"Created sensor '{sensor.name}': {sensor.id}",
+            active_user_id=current_user.id,
+            active_user_name=current_user.username,
+            affected_asset_id=asset.id,
+        )
+        db.session.add(audit_log)
+
         return sensor_schema.dump(sensor), 201
 
     @route("/<id>", methods=["PATCH"])
@@ -712,6 +724,22 @@ class SensorAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
+        audit_log_data = list()
+        for k, v in sensor_data.items():
+            audit_log_data.append(
+                f"Field name: {k}, Old value: {getattr(sensor, k)}, New value: {v}"
+            )
+        audit_log_event = f"Updated sensor '{sensor.name}': {sensor.id}. Updated fields: {'; '.join(audit_log_data)}"
+
+        audit_log = AssetAuditLog(
+            event_datetime=server_now(),
+            event=audit_log_event,
+            active_user_id=current_user.id,
+            active_user_name=current_user.username,
+            affected_asset_id=sensor.generic_asset_id,
+        )
+        db.session.add(audit_log)
+
         for k, v in sensor_data.items():
             setattr(sensor, k, v)
         db.session.add(sensor)
@@ -741,6 +769,16 @@ class SensorAPI(FlaskView):
 
         """Delete time series data."""
         db.session.execute(delete(TimedBelief).filter_by(sensor_id=sensor.id))
+
+        asset = sensor.generic_asset
+        audit_log = AssetAuditLog(
+            event_datetime=server_now(),
+            event=f"Deleted sensor '{sensor.name}': {sensor.id}",
+            active_user_id=current_user.id,
+            active_user_name=current_user.username,
+            affected_asset_id=asset.id,
+        )
+        db.session.add(audit_log)
 
         sensor_name = sensor.name
         db.session.execute(delete(Sensor).filter_by(id=sensor.id))

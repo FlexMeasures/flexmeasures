@@ -2,7 +2,7 @@ import json
 
 from flask import current_app
 from flask_classful import FlaskView, route
-from flask_security import auth_required
+from flask_security import auth_required, current_user
 from flask_json import as_json
 from marshmallow import fields
 from webargs.flaskparser import use_kwargs, use_args
@@ -11,12 +11,14 @@ from sqlalchemy import select, delete
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account
+from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
 from flexmeasures.api.common.schemas.generic_assets import AssetIdField
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.utils.coding_utils import flatten_unique
+from flexmeasures.utils.time_utils import server_now
 from flexmeasures.ui.utils.view_utils import set_session_variables
 
 
@@ -143,6 +145,16 @@ class AssetAPI(FlaskView):
         asset = GenericAsset(**asset_data)
         db.session.add(asset)
         db.session.commit()
+
+        audit_log = AssetAuditLog(
+            event_datetime=server_now(),
+            event=f"Created asset '{asset.name}': {asset.id}",
+            active_user_id=current_user.id,
+            active_user_name=current_user.username,
+            affected_asset_id=asset.id,
+        )
+        db.session.add(audit_log)
+
         return asset_schema.dump(asset), 201
 
     @route("/<id>", methods=["GET"])
@@ -231,6 +243,23 @@ class AssetAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
+
+        audit_log_data = list()
+        for k, v in asset_data.items():
+            audit_log_data.append(
+                f"Field name: {k}, Old value: {getattr(db_asset, k)}, New value: {v}"
+            )
+        audit_log_event = f"Updated asset '{db_asset.name}': {db_asset.id}. Updated fields: {'; '.join(audit_log_data)}"
+
+        audit_log = AssetAuditLog(
+            event_datetime=server_now(),
+            event=audit_log_event,
+            active_user_id=current_user.id,
+            active_user_name=current_user.username,
+            affected_asset_id=db_asset.id,
+        )
+        db.session.add(audit_log)
+
         for k, v in asset_data.items():
             setattr(db_asset, k, v)
         db.session.add(db_asset)
@@ -257,7 +286,16 @@ class AssetAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        asset_name = asset.name
+        asset_name, asset_id = asset.name, asset.id
+        audit_log = AssetAuditLog(
+            event_datetime=server_now(),
+            event=f"Deleted asset '{asset_name}': {asset_id}",
+            active_user_id=current_user.id,
+            active_user_name=current_user.username,
+            affected_asset_id=asset_id,
+        )
+        db.session.add(audit_log)
+
         db.session.execute(delete(GenericAsset).filter_by(id=asset.id))
         db.session.commit()
         current_app.logger.info("Deleted asset '%s'." % asset_name)
@@ -318,3 +356,44 @@ class AssetAPI(FlaskView):
         """
         sensors = flatten_unique(asset.sensors_to_show)
         return asset.search_beliefs(sensors=sensors, as_json=True, **kwargs)
+
+    @route("/<id>/auditlog")
+    @use_kwargs(
+        {"asset": AssetIdField(data_key="id")},
+        location="path",
+    )
+    @permission_required_for_context("read", ctx_arg_name="asset")
+    @as_json
+    def auditlog(self, id: int, asset: GenericAsset):
+        """API endpoint to get history of asset related actions.
+        **Example response**
+
+        .. sourcecode:: json
+            [
+                {
+                    'event': 'Asset test asset deleted',
+                    'event_datetime': '2021-01-01T00:00:00',
+                    'active_user_name': 'Test user',
+                }
+            ]
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 200: PROCESSED
+        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+        audit_logs = (
+            db.session.query(AssetAuditLog).filter_by(affected_asset_id=asset.id).all()
+        )
+        audit_logs = [
+            {
+                k: getattr(log, k)
+                for k in ("event", "event_datetime", "active_user_name")
+            }
+            for log in audit_logs
+        ]
+        return audit_logs, 200

@@ -470,6 +470,23 @@ class AssetCrudUI(FlaskView):
             msg=f"Asset {id} and assorted meter readings / forecasts have been deleted."
         )
 
+    @login_required
+    def auditlog(self, id: str):
+        """/assets/auditlog/<id>
+        View asset related actions.
+        """
+        get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_one", id=id))
+        asset_dict = get_asset_response.json()
+
+        asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
+        audit_log_response = InternalApi().get(url_for("AssetAPI:auditlog", id=id))
+        audit_logs_response = audit_log_response.json()
+        return render_flexmeasures_template(
+            "crud/asset_audit_log.html",
+            asset=asset,
+            audit_logs=audit_logs_response,
+        )
+
 
 def _set_account(asset_form: NewAssetForm) -> tuple[Account | None, str | None]:
     """Set an account for the to-be-created asset.
