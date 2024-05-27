@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from copy import deepcopy, copy
 
 from flask import current_app
+from flexmeasures.utils.unit_utils import convert_units
 import timely_beliefs as tb
 import pandas as pd
 from flexmeasures.data.models.reporting import Reporter
@@ -13,6 +14,7 @@ from flexmeasures.data.schemas.reporting.pandas_reporter import (
     PandasReporterParametersSchema,
 )
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.data_sources import keep_latest_version
 from flexmeasures.utils.time_utils import server_now
 
 
@@ -31,6 +33,18 @@ class PandasReporter(Reporter):
 
     data: dict[str, tb.BeliefsDataFrame | pd.DataFrame] = None
 
+    def _get_input_target_unit(self, name: str) -> str | None:
+        for required_input in self._config["required_input"]:
+            if name in required_input.get("name"):
+                return required_input.get("unit")
+        return None
+
+    def _get_output_target_unit(self, name: str) -> str | None:
+        for required_output in self._config["required_output"]:
+            if name in required_output.get("name"):
+                return required_output.get("unit")
+        return None
+
     def fetch_data(
         self,
         start: datetime,
@@ -38,10 +52,13 @@ class PandasReporter(Reporter):
         input: dict,
         resolution: timedelta | None = None,
         belief_time: datetime | None = None,
+        use_latest_version_only: bool = False,
     ):
         """
         Fetches the time_beliefs from the database
         """
+
+        droplevels = self._config.get("droplevels", False)
 
         self.data = {}
         for input_search_parameters in input:
@@ -58,18 +75,49 @@ class PandasReporter(Reporter):
             event_ends_before = _input_search_parameters.pop("event_ends_before", end)
             resolution = _input_search_parameters.pop("resolution", resolution)
             belief_time = _input_search_parameters.pop("belief_time", belief_time)
+            source = _input_search_parameters.pop(
+                "source", _input_search_parameters.pop("sources", None)
+            )
+
+            if use_latest_version_only and source is None:
+                source = sensor.search_data_sources(
+                    event_starts_after=start,
+                    event_ends_before=end,
+                    source_types=_input_search_parameters.get("source_types"),
+                    exclude_source_types=_input_search_parameters.get(
+                        "exclude_source_types"
+                    ),
+                )
+                if len(source) > 0:
+                    source = keep_latest_version(source)
 
             bdf = sensor.search_beliefs(
                 event_starts_after=event_starts_after,
                 event_ends_before=event_ends_before,
                 resolution=resolution,
                 beliefs_before=belief_time,
+                source=source,
                 **_input_search_parameters,
             )
 
             # store data source as local variable
             for source in bdf.sources.unique():
                 self.data[f"source_{source.id}"] = source
+
+            unit = self._get_input_target_unit(name)
+            if unit is not None:
+                bdf *= convert_units(
+                    1,
+                    from_unit=sensor.unit,
+                    to_unit=unit,
+                    event_resolution=sensor.event_resolution,
+                )
+            if droplevels:
+                # dropping belief_time, source and cummulative_probability columns
+                bdf = bdf.droplevel([1, 2, 3])
+                assert (
+                    bdf.index.is_unique
+                ), "BeliefDataframe has more than one row per event."
 
             # store BeliefsDataFrame as local variable
             self.data[name] = bdf
@@ -89,17 +137,19 @@ class PandasReporter(Reporter):
         belief_time: datetime | None = kwargs.get("belief_time", None)
         belief_horizon: timedelta | None = kwargs.get("belief_horizon", None)
         output: list[dict[str, Any]] = kwargs.get("output")
+        use_latest_version_only: bool = kwargs.get("use_latest_version_only", False)
 
         # by default, use the minimum resolution among the input sensors
         if resolution is None:
             resolution = min([i["sensor"].event_resolution for i in input])
 
         # fetch sensor data
-        self.fetch_data(start, end, input, resolution, belief_time)
+        self.fetch_data(
+            start, end, input, resolution, belief_time, use_latest_version_only
+        )
 
         if belief_time is None:
             belief_time = server_now()
-
         # apply pandas transformations to the dataframes in `self.data`
         self._apply_transformations()
 
@@ -125,6 +175,14 @@ class PandasReporter(Reporter):
             elif isinstance(output_data, tb.BeliefsSeries):
                 output_data = self._clean_belief_series(
                     output_data, belief_time, belief_horizon
+                )
+            output_unit = self._get_output_target_unit(name)
+            if output_unit is not None:
+                output_data *= convert_units(
+                    1,
+                    from_unit=output_unit,
+                    to_unit=output_data.sensor.unit,
+                    event_resolution=output_data.sensor.event_resolution,
                 )
 
             result["data"] = output_data

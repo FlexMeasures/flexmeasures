@@ -56,10 +56,10 @@ class PandasReporterConfigSchema(ReporterConfigSchema):
 
         {
             "required_input" : [
-                {"name" : "df1}
+                {"name" : "df1", "unit" : "MWh"}
             ],
             "required_output" : [
-                {"name" : "df2"}
+                {"name" : "df2", "unit" : "kWh"}
             ],
             "transformations" : [
                 {
@@ -87,6 +87,8 @@ class PandasReporterConfigSchema(ReporterConfigSchema):
         fields.Nested(RequiredOutput()), validate=validate.Length(min=1)
     )
     transformations = fields.List(fields.Nested(PandasMethodCall()), required=True)
+
+    droplevels = fields.Bool(required=False, default=False)
 
     @validates_schema
     def validate_chaining(self, data, **kwargs):
@@ -139,6 +141,7 @@ class PandasReporterParametersSchema(ReporterParametersSchema):
     # for the single sensors in `input_variables`
     start = AwareDateTimeField(required=False)
     end = AwareDateTimeField(required=False)
+    use_latest_version_only = fields.Bool(required=False, default=False)
 
     @validates_schema
     def validate_time_parameters(self, data, **kwargs):

@@ -161,3 +161,17 @@ class UserCrudUI(FlaskView):
             " and password reset instructions have been sent to the user."
             " Cookies and the API access token have also been invalidated.",
         )
+
+    @login_required
+    def auditlog(self, id: str):
+        """/users/auditlog/<id>
+        View all user actions.
+        """
+        user: User = get_user(id)
+        audit_log_response = InternalApi().get(url_for("UserAPI:auditlog", id=id))
+        audit_logs_response = audit_log_response.json()
+        return render_flexmeasures_template(
+            "crud/user_audit_log.html",
+            user=user,
+            audit_logs=audit_logs_response,
+        )
