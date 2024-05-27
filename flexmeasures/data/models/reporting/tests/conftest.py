@@ -123,26 +123,43 @@ def setup_dummy_data(db, app, generic_report):
 
     db.session.add(dummy_asset)
 
-    sensor1 = Sensor("sensor 1", generic_asset=dummy_asset, event_resolution="1h")
+    sensor1 = Sensor(
+        "sensor 1",
+        generic_asset=dummy_asset,
+        event_resolution=timedelta(hours=1),
+        unit="kW",
+    )
     db.session.add(sensor1)
-    sensor2 = Sensor("sensor 2", generic_asset=dummy_asset, event_resolution="1h")
+    sensor2 = Sensor(
+        "sensor 2", generic_asset=dummy_asset, event_resolution=timedelta(hours=1)
+    )
     db.session.add(sensor2)
     sensor3 = Sensor(
         "sensor 3",
         generic_asset=dummy_asset,
-        event_resolution="1h",
+        event_resolution=timedelta(hours=1),
         timezone="Europe/Amsterdam",
     )
     db.session.add(sensor3)
+    sensor4 = Sensor(
+        "sensor 4",
+        generic_asset=dummy_asset,
+        event_resolution=timedelta(minutes=15),
+        timezone="Europe/Amsterdam",
+        unit="kW",
+    )
+    db.session.add(sensor4)
 
     report_sensor = Sensor(
-        "report sensor", generic_asset=generic_report, event_resolution="1h"
+        "report sensor",
+        generic_asset=generic_report,
+        event_resolution=timedelta(hours=1),
     )
     db.session.add(report_sensor)
     daily_report_sensor = Sensor(
         "daily report sensor",
         generic_asset=generic_report,
-        event_resolution="1D",
+        event_resolution=timedelta(days=1),
         timezone="Europe/Amsterdam",
     )
 
@@ -161,7 +178,6 @@ def setup_dummy_data(db, app, generic_report):
     for sensor in [sensor1, sensor2]:
         for si, source in enumerate([source1, source2]):
             for t in range(10):
-                print(si)
                 beliefs.append(
                     TimedBelief(
                         event_start=datetime(2023, 4, 10, tzinfo=utc)
@@ -246,7 +262,19 @@ def setup_dummy_data(db, app, generic_report):
         )
     )
 
+    # add data for sensor 4
+    for t in range(24 * 3):
+        beliefs.append(
+            TimedBelief(
+                event_start=datetime(2023, 1, 1, tzinfo=utc) + timedelta(hours=t),
+                belief_horizon=timedelta(hours=24),
+                event_value=1,
+                sensor=sensor4,
+                source=source1,
+            )
+        )
+
     db.session.add_all(beliefs)
     db.session.commit()
 
-    yield sensor1, sensor2, sensor3, report_sensor, daily_report_sensor
+    yield sensor1, sensor2, sensor3, sensor4, report_sensor, daily_report_sensor

@@ -36,7 +36,7 @@ def test_aggregator(setup_dummy_data, aggregation_method, expected_value, db):
         7) prod: -1 = (1) * (-1)
         8) median: even number of elements, mean of the most central elements, 0 = ((1) + (-1))/2
     """
-    s1, s2, s3, report_sensor, daily_report_sensor = setup_dummy_data
+    s1, s2, s3, s4, report_sensor, daily_report_sensor = setup_dummy_data
 
     agg_reporter = AggregatorReporter(method=aggregation_method)
 
@@ -64,7 +64,7 @@ def test_aggregator(setup_dummy_data, aggregation_method, expected_value, db):
 def test_aggregator_reporter_weights(
     setup_dummy_data, weight_1, weight_2, expected_result, db
 ):
-    s1, s2, s3, report_sensor, daily_report_sensor = setup_dummy_data
+    s1, s2, s3, s4, report_sensor, daily_report_sensor = setup_dummy_data
 
     reporter_config = dict(method="sum", weights={"s1": weight_1, "sensor_2": weight_2})
 
@@ -91,7 +91,7 @@ def test_aggregator_reporter_weights(
 
 
 def test_dst_transition(setup_dummy_data, db):
-    s1, s2, s3, report_sensor, daily_report_sensor = setup_dummy_data
+    s1, s2, s3, s4, report_sensor, daily_report_sensor = setup_dummy_data
 
     agg_reporter = AggregatorReporter()
 
@@ -121,7 +121,7 @@ def test_dst_transition(setup_dummy_data, db):
 
 
 def test_resampling(setup_dummy_data, db):
-    s1, s2, s3, report_sensor, daily_report_sensor = setup_dummy_data
+    s1, s2, s3, s4, report_sensor, daily_report_sensor = setup_dummy_data
 
     agg_reporter = AggregatorReporter()
 
@@ -165,7 +165,7 @@ def test_source_transition(setup_dummy_data, db):
     array is prioritized.
 
     """
-    s1, s2, s3, report_sensor, daily_report_sensor = setup_dummy_data
+    s1, s2, s3, s4, report_sensor, daily_report_sensor = setup_dummy_data
 
     agg_reporter = AggregatorReporter()
 
