@@ -9,7 +9,6 @@ v0.22.0 | June XX, 2024
 New features
 -------------   
 
-* In `flexmeasures show beliefs`, the entity path (`<Account name>/<Asset 1>/.../<Asset>`) is used to differentiate between duplicated sensors names [see `PR #1026 <https://github.com/FlexMeasures/flexmeasures/pull/1026/>`_]
 * Add `asset/<id>/status` page to view asset statuses [see `PR #41 <https://github.com/FlexMeasures/flexmeasures/pull/941/>`_ and `PR #1035 <https://github.com/FlexMeasures/flexmeasures/pull/1035/>`_]
 * Support `start_date` and `end_date` query parameters for the asset page [see `PR #1030 <https://github.com/FlexMeasures/flexmeasures/pull/1030/>`_]
 
@@ -44,9 +43,13 @@ New features
 
 * Add `asset/<id>/status` page to view asset statuses [see `PR #41 <https://github.com/FlexMeasures/flexmeasures/pull/941/>`_ and `PR #1035 <https://github.com/FlexMeasures/flexmeasures/pull/1035/>`_]
 * Add `account/<id>/auditlog` and `user/<id>/auditlog` to view user and account related actions [see `PR #1042 <https://github.com/FlexMeasures/flexmeasures/pull/1042>`_]
+<<<<<<< HEAD
 * Support `start_date` and `end_date` query parameters for the asset page [see `PR #1030 <https://github.com/FlexMeasures/flexmeasures/pull/1030/>`_]
 * In plots, add the asset name to the title of the tooltip to improve the identification of the lines [see `PR #1054 <https://github.com/FlexMeasures/flexmeasures/pull/1054/>`_]
 * On asset page, show sensor IDs in sensor table [see `PR #1053 <https://github.com/FlexMeasures/flexmeasures/pull/1053/>`_]
+=======
+* In `flexmeasures show beliefs`, the entity path (`<Account name>/<Asset 1>/.../<Asset>`) is used to differentiate between duplicated sensors names [see `PR #1026 <https://github.com/FlexMeasures/flexmeasures/pull/1026/>`_]
+>>>>>>> origin/cli/improve-duplicate-sensor-names
 
 Bugfixes
 -----------
