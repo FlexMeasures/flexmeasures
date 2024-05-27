@@ -214,6 +214,26 @@ def get_assets_by_account(account_id: int | str | None) -> list[GenericAsset]:
     ]
 
 
+def get_all_assets() -> list[GenericAsset]:
+    get_assets_response = (
+        InternalApi()
+        .get(url_for("AssetAPI:index"), query={"all_accessible": True})
+        .json()
+    )
+    get_assets_response_public = InternalApi().get(url_for("AssetAPI:public")).json()
+
+    assets = []
+    if isinstance(get_assets_response, list):
+        assets.extend(get_assets_response)
+
+    if isinstance(get_assets_response_public, list):
+        assets.extend(get_assets_response_public)
+
+    asset_ids_filter = [GenericAsset.id.in_(ad["id"] for ad in assets)]
+
+    return db.session.scalars(select(GenericAsset).where(*asset_ids_filter)).all()
+
+
 class AssetCrudUI(FlaskView):
     """
     These views help us offer a Jinja2-based UI.
@@ -231,14 +251,7 @@ class AssetCrudUI(FlaskView):
 
         List the user's assets. For admins, list across all accounts.
         """
-        assets = []
-
-        if user_has_admin_access(current_user, "read"):
-            for account in db.session.scalars(select(Account)).all():
-                assets += get_assets_by_account(account.id)
-            assets += get_assets_by_account(account_id=None)
-        else:
-            assets = get_assets_by_account(current_user.account_id)
+        assets = get_all_assets()
 
         return render_flexmeasures_template(
             "crud/assets.html",
