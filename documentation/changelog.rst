@@ -7,17 +7,7 @@ v0.22.0 | June XX, 2024
 ============================
 
 New features
--------------   
-
-* Add `asset/<id>/status` page to view asset statuses [see `PR #41 <https://github.com/FlexMeasures/flexmeasures/pull/941/>`_ and `PR #1035 <https://github.com/FlexMeasures/flexmeasures/pull/1035/>`_]
-* Support `start_date` and `end_date` query parameters for the asset page [see `PR #1030 <https://github.com/FlexMeasures/flexmeasures/pull/1030/>`_]
-
-Bugfixes
------------
-
-
-Infrastructure / Support
-----------------------
+-------------
 * Add unit conversion to the input and output data of the `PandasReporter` [see `PR #1044 <https://github.com/FlexMeasures/flexmeasures/pull/1044/>`_]
  main
 * Add option `droplevels` to the `PandasReporter` to drop all the levels except the `event_start` and `event_value` [see `PR #1043 <https://github.com/FlexMeasures/flexmeasures/pull/1043/>`_]
@@ -25,9 +15,8 @@ Infrastructure / Support
 * `flexmeasures show beliefs` uses the entity path (`<Account>/../<Sensor>`) in case of duplicated sensors [see `PR #1026 <https://github.com/FlexMeasures/flexmeasures/pull/1026/>`_]
 
 
-
-v0.21.0 | May 16, 2024
-=========================
+Infrastructure / Support
+----------------------
 * Allow installing dependencies in docker-compose worker [see `PR #1057 <https://github.com/FlexMeasures/flexmeasures/pull/1057/>`_]
 
 
@@ -43,13 +32,9 @@ New features
 
 * Add `asset/<id>/status` page to view asset statuses [see `PR #41 <https://github.com/FlexMeasures/flexmeasures/pull/941/>`_ and `PR #1035 <https://github.com/FlexMeasures/flexmeasures/pull/1035/>`_]
 * Add `account/<id>/auditlog` and `user/<id>/auditlog` to view user and account related actions [see `PR #1042 <https://github.com/FlexMeasures/flexmeasures/pull/1042>`_]
-<<<<<<< HEAD
 * Support `start_date` and `end_date` query parameters for the asset page [see `PR #1030 <https://github.com/FlexMeasures/flexmeasures/pull/1030/>`_]
 * In plots, add the asset name to the title of the tooltip to improve the identification of the lines [see `PR #1054 <https://github.com/FlexMeasures/flexmeasures/pull/1054/>`_]
 * On asset page, show sensor IDs in sensor table [see `PR #1053 <https://github.com/FlexMeasures/flexmeasures/pull/1053/>`_]
-=======
-* In `flexmeasures show beliefs`, the entity path (`<Account name>/<Asset 1>/.../<Asset>`) is used to differentiate between duplicated sensors names [see `PR #1026 <https://github.com/FlexMeasures/flexmeasures/pull/1026/>`_]
->>>>>>> origin/cli/improve-duplicate-sensor-names
 
 Bugfixes
 -----------
