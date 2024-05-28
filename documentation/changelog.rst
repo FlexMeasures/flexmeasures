@@ -688,9 +688,6 @@ New features
 
 .. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/090-cli-developer-power/>`__.
 
-Bugfixes
------------
-
 Infrastructure / Support
 ----------------------
 * Plugins can import common FlexMeasures classes (like ``Asset`` and ``Sensor``) from a central place, using ``from flexmeasures import Asset, Sensor`` [see `PR #354 <https://www.github.com/FlexMeasures/flexmeasures/pull/354>`_]
@@ -818,9 +815,6 @@ New features
 * Add (experimental) endpoint to post sensor data for any sensor. Also supports our ongoing integration with data internally represented using the `timely beliefs <https://github.com/SeitaBV/timely-beliefs>`_ lib [see `PR #147 <https://www.github.com/FlexMeasures/flexmeasures/pull/147>`_]
 
 .. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v060-multi-tenancy-error-monitoring/>`__.
-
-Bugfixes
------------
 
 Infrastructure / Support
 ----------------------
