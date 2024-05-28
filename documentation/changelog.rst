@@ -427,7 +427,6 @@ v0.12.3 | February 28, 2023
 
 Bugfixes
 -----------
-
 - Fix premature deserialization of ``flex-context`` field for `/sensors/<id>/schedules/trigger` (POST) [see `PR #593 <https://www.github.com/FlexMeasures/flexmeasures/pull/593>`_]
 
 
