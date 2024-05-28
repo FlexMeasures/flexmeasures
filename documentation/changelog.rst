@@ -748,18 +748,12 @@ Infrastructure / Support
 v0.6.1 | October 23, 2021
 ===========================
 
-New features
------------
-
 Bugfixes
 -----------
 * Fix (dev) CLI command for adding a GenericAssetType [see `PR #173 <https://www.github.com/FlexMeasures/flexmeasures/pull/173>`_]
 * Fix (dev) CLI command for adding a Sensor [see `PR #176 <https://www.github.com/FlexMeasures/flexmeasures/pull/176>`_]
 * Fix missing conversion of data source names and ids to DataSource objects [see `PR #178 <https://www.github.com/FlexMeasures/flexmeasures/pull/178>`_]
 * Fix GetDeviceMessage to ensure chronological ordering of values [see `PR #216 <https://www.github.com/FlexMeasures/flexmeasures/pull/216>`_]
-
-Infrastructure / Support
-----------------------
 
 
 v0.6.0 | September 3, 2021
