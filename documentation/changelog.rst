@@ -66,7 +66,7 @@ New features
 * Support defining the ``site-power-capacity``, ``site-consumption-capacity`` and ``site-production-capacity`` as a sensor in the API and CLI [see `PR #985 <https://github.com/FlexMeasures/flexmeasures/pull/985>`_]
 * Support defining the ``soc-minima``, ``soc-maxima`` and ``soc-targets`` as sensors in the API [see `PR #996 <https://github.com/FlexMeasures/flexmeasures/pull/996>`_]
 * Support defining inflexible power sensors with arbitrary power and energy units [see `PR #1007 <https://github.com/FlexMeasures/flexmeasures/pull/1007>`_]
-* Support saving beliefs with a ``belief_horizon`` in the ``PandasReporter``[see `PR #1013 <https://github.com/FlexMeasures/flexmeasures/pull/1013>`_]
+* Support saving beliefs with a ``belief_horizon`` in the ``PandasReporter`` [see `PR #1013 <https://github.com/FlexMeasures/flexmeasures/pull/1013>`_]
 * Skip the check of the output event resolution in any ``Reporter`` with the field ``check_output_resolution`` [see `PR #1009 <https://github.com/FlexMeasures/flexmeasures/pull/1009>`_]
 
 Bugfixes
@@ -722,8 +722,8 @@ v0.7.0 | October 26, 2021
 
 New features
 -----------
-* Set a logo for the top left corner with the new FLEXMEASURES_MENU_LOGO_PATH setting [see `PR #184 <https://www.github.com/FlexMeasures/flexmeasures/pull/184>`_]
-* Add an extra style-sheet which applies to all pages with the new FLEXMEASURES_EXTRA_CSS_PATH setting [see `PR #185 <https://www.github.com/FlexMeasures/flexmeasures/pull/185>`_]
+* Set a logo for the top left corner with the new ``FLEXMEASURES_MENU_LOGO_PATH`` setting [see `PR #184 <https://www.github.com/FlexMeasures/flexmeasures/pull/184>`_]
+* Add an extra style-sheet which applies to all pages with the new ``FLEXMEASURES_EXTRA_CSS_PATH`` setting [see `PR #185 <https://www.github.com/FlexMeasures/flexmeasures/pull/185>`_]
 * Data sources can be further distinguished by what model (and version) they ran [see `PR #215 <https://www.github.com/FlexMeasures/flexmeasures/pull/215>`_]
 * Enable plugins to automate tests with app context [see `PR #220 <https://www.github.com/FlexMeasures/flexmeasures/pull/220>`_]
 
@@ -738,7 +738,7 @@ Bugfixes
 Infrastructure / Support
 ----------------------
 * FlexMeasures plugins can be Python packages now, and we provide `a cookie-cutter template <https://github.com/FlexMeasures/flexmeasures-plugin-template>`_ for this approach [see `PR #182 <https://www.github.com/FlexMeasures/flexmeasures/pull/182>`_]
-* Set default timezone for new users using the FLEXMEASURES_TIMEZONE config setting [see `PR #190 <https://www.github.com/FlexMeasures/flexmeasures/pull/190>`_]
+* Set default timezone for new users using the ``FLEXMEASURES_TIMEZONE`` config setting [see `PR #190 <https://www.github.com/FlexMeasures/flexmeasures/pull/190>`_]
 * To avoid databases from filling up with irrelevant information, only beliefs data representing *changed beliefs are saved*, and *unchanged beliefs are dropped* [see `PR #194 <https://www.github.com/FlexMeasures/flexmeasures/pull/194>`_]
 * Monitored CLI tasks can get better names for identification [see `PR #193 <https://www.github.com/FlexMeasures/flexmeasures/pull/193>`_]
 * Less custom logfile location, document logging for devs [see `PR #196 <https://www.github.com/FlexMeasures/flexmeasures/pull/196>`_]
@@ -750,9 +750,9 @@ v0.6.1 | October 23, 2021
 
 Bugfixes
 -----------
-* Fix (dev) CLI command for adding a GenericAssetType [see `PR #173 <https://www.github.com/FlexMeasures/flexmeasures/pull/173>`_]
-* Fix (dev) CLI command for adding a Sensor [see `PR #176 <https://www.github.com/FlexMeasures/flexmeasures/pull/176>`_]
-* Fix missing conversion of data source names and ids to DataSource objects [see `PR #178 <https://www.github.com/FlexMeasures/flexmeasures/pull/178>`_]
+* Fix (dev) CLI command for adding a ``GenericAssetType`` [see `PR #173 <https://www.github.com/FlexMeasures/flexmeasures/pull/173>`_]
+* Fix (dev) CLI command for adding a ``Sensor`` [see `PR #176 <https://www.github.com/FlexMeasures/flexmeasures/pull/176>`_]
+* Fix missing conversion of data source names and ids to ``DataSource`` objects [see `PR #178 <https://www.github.com/FlexMeasures/flexmeasures/pull/178>`_]
 * Fix GetDeviceMessage to ensure chronological ordering of values [see `PR #216 <https://www.github.com/FlexMeasures/flexmeasures/pull/216>`_]
 
 
@@ -760,7 +760,7 @@ v0.6.0 | September 3, 2021
 ===========================
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
-             In case you are using experimental developer features and have previously set up sensors, be sure to check out the upgrade instructions in `PR #157 <https://github.com/FlexMeasures/flexmeasures/pull/157>`_. Furthermore, if you want to create custom user/account relationships while upgrading (otherwise the upgrade script creates accounts based on email domains), check out the upgrade instructions in `PR #159 <https://github.com/FlexMeasures/flexmeasures/pull/159>`_. If you want to use both of these custom upgrade features, do the upgrade in two steps. First, as described in PR 157 and upgrading up to revision b6d49ed7cceb, then as described in PR 159 for the rest.
+             In case you are using experimental developer features and have previously set up sensors, be sure to check out the upgrade instructions in `PR #157 <https://github.com/FlexMeasures/flexmeasures/pull/157>`_. Furthermore, if you want to create custom user/account relationships while upgrading (otherwise the upgrade script creates accounts based on email domains), check out the upgrade instructions in `PR #159 <https://github.com/FlexMeasures/flexmeasures/pull/159>`_. If you want to use both of these custom upgrade features, do the upgrade in two steps. First, as described in PR 157 and upgrading up to revision ``b6d49ed7cceb``, then as described in PR 159 for the rest.
 
 .. warning:: The config setting ``FLEXMEASURES_LISTED_VIEWS`` has been renamed to ``FLEXMEASURES_MENU_LISTED_VIEWS``.
 
@@ -782,7 +782,7 @@ Infrastructure / Support
 * Document how to use a custom favicon in plugins [see `PR #152 <https://www.github.com/FlexMeasures/flexmeasures/pull/152>`_]
 * Allow plugins to register multiple Flask blueprints [see `PR #171 <https://www.github.com/FlexMeasures/flexmeasures/pull/171>`_]
 * Continue experimental integration with `timely beliefs <https://github.com/SeitaBV/timely-beliefs>`_ lib: link multiple sensors to a single asset [see `PR #157 <https://github.com/FlexMeasures/flexmeasures/pull/157>`_]
-* The experimental parts of the data model can now be visualised, as well, via ``make show-data-model`` (add the --dev option in Makefile) [also in `PR #157 <https://github.com/FlexMeasures/flexmeasures/pull/157>`_]
+* The experimental parts of the data model can now be visualised, as well, via ``make show-data-model`` (add the ``--dev`` option in ``Makefile``) [also in `PR #157 <https://github.com/FlexMeasures/flexmeasures/pull/157>`_]
 
 
 v0.5.0 | June 7, 2021
@@ -811,7 +811,7 @@ Infrastructure / Support
 * Re-use the database between automated tests, if possible. This shaves 2/3rd off of the time it takes for the FlexMeasures test suite to run [see `PR #115 <https://www.github.com/FlexMeasures/flexmeasures/pull/115>`_]
 * Make assets use MW as their default unit and enforce that in CLI, as well (API already did) [see `PR #108 <https://www.github.com/FlexMeasures/flexmeasures/pull/108>`_]
 * Let CLI package and plugins use Marshmallow Field definitions [see `PR #125 <https://www.github.com/FlexMeasures/flexmeasures/pull/125>`_]
-* add time_utils.get_recent_clock_time_window() function [see `PR #135 <https://www.github.com/FlexMeasures/flexmeasures/pull/135>`_]
+* Add ``time_utils.get_recent_clock_time_window`` function [see `PR #135 <https://www.github.com/FlexMeasures/flexmeasures/pull/135>`_]
 
 
 v0.4.1 | May 7, 2021
@@ -845,7 +845,7 @@ Infrastructure / Support
 ----------------------
 * Updated dependencies, including Flask-Security-Too [see `PR #82 <https://www.github.com/FlexMeasures/flexmeasures/pull/82>`_]
 * Improved documentation after user feedback [see `PR #97 <https://www.github.com/FlexMeasures/flexmeasures/pull/97>`_]
-* Begin experimental integration with `timely beliefs <https://github.com/SeitaBV/timely-beliefs>`_ lib: Sensor data as TimedBeliefs [see `PR #79 <https://www.github.com/FlexMeasures/flexmeasures/pull/79>`_ and `PR #99 <https://github.com/FlexMeasures/flexmeasures/pull/99>`_]
+* Begin experimental integration with `timely beliefs <https://github.com/SeitaBV/timely-beliefs>`_ lib: ``Sensor`` data as ``TimedBelief`` objects [see `PR #79 <https://www.github.com/FlexMeasures/flexmeasures/pull/79>`_ and `PR #99 <https://github.com/FlexMeasures/flexmeasures/pull/99>`_]
 * Add sensors with CLI command currently meant for developers only [see `PR #83 <https://github.com/FlexMeasures/flexmeasures/pull/83>`_]
 * Add data (beliefs about sensor events) with CLI command currently meant for developers only [see `PR #85 <https://github.com/FlexMeasures/flexmeasures/pull/85>`_ and `PR #103 <https://github.com/FlexMeasures/flexmeasures/pull/103>`_]
 
