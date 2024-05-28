@@ -15,7 +15,6 @@ Infrastructure / Support
 ----------------------
 * Allow installing dependencies in docker-compose worker [see `PR #1057 <https://github.com/FlexMeasures/flexmeasures/pull/1057/>`_]
 * Add unit conversion to the input and output data of the `PandasReporter` [see `PR #1044 <https://github.com/FlexMeasures/flexmeasures/pull/1044/>`_]
- main
 * Add option `droplevels` to the `PandasReporter` to drop all the levels except the `event_start` and `event_value` [see `PR #1043 <https://github.com/FlexMeasures/flexmeasures/pull/1043/>`_]
 * `PandasReporter` accepts the parameter `use_latest_version_only` to filter input data [see `PR #1045 <https://github.com/FlexMeasures/flexmeasures/pull/1045/>`_]
 * `flexmeasures show beliefs` uses the entity path (`<Account>/../<Sensor>`) in case of duplicated sensors [see `PR #1026 <https://github.com/FlexMeasures/flexmeasures/pull/1026/>`_]
