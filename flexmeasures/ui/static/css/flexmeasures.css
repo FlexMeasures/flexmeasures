@@ -975,6 +975,9 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     vertical-align: top;
     border-top: 1px solid var(--light-gray) ;
 }
+.left-sidepanel-label{
+    margin-left: 20px;
+}
 
 
 /* --- End Tables ---- */

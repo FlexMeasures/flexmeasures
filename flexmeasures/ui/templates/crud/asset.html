@@ -69,7 +69,7 @@
                 <button id="asset-status-button" class="btn btn-sm btn-responsive" type="submit">Asset status</button>
             </form>
             <div class="sidepanel-container">
-                <div class="left-sidepanel-label" style="margin-left: 20px;">Select dates</div>
+                <div class="left-sidepanel-label">Select dates</div>
                 <div class="sidepanel left-sidepanel">
                     <div id="datepicker"></div>
                 </div>
@@ -277,7 +277,7 @@
                             <th>Asset ID</th>
                             <th>Account</th>
                             <th>Sensors</th>
-                            <th class="d-none" style="display:none;">URL</th>
+                            <th class="d-none">URL</th>
                             <th class="no-sort"></th>
                         </tr>
                     </thead>
@@ -306,7 +306,7 @@
                             <td>
                                 {{ child.sensors | length }}
                             </td>
-                            <td class="d-none" style="display:none;">
+                            <td class="d-none">
                                 /assets/{{ child.id }}
                             </td>
                             <td>
