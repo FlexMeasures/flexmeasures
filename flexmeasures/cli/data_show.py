@@ -33,7 +33,12 @@ from flexmeasures.data.services.time_series import simplify_index
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
 from flexmeasures.cli.utils import MsgStyle, validate_unique
 from flexmeasures.utils.coding_utils import delete_key_recursive
-from flexmeasures.cli.utils import DeprecatedOptionsCommand, DeprecatedOption
+from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
+from flexmeasures.cli.utils import (
+    DeprecatedOptionsCommand,
+    DeprecatedOption,
+    get_sensor_aliases,
+)
 
 
 @click.group("show")
@@ -551,6 +556,15 @@ def chart(
     help="Include sensor IDs in the plot's legend labels and the file's column headers. "
     "NB non-unique sensor names will always show an ID.",
 )
+@click.option(
+    "--reduced-paths/--full-paths",
+    "reduce_paths",
+    default=True,
+    type=bool,
+    help="Whether to include the full path to the asset that the sensor belongs to"
+    "which shows any parent assets and their account, "
+    "or a reduced version of the path, which shows as much detail as is needed to distinguish the sensors.",
+)
 def plot_beliefs(
     sensors: list[Sensor],
     start: datetime,
@@ -562,6 +576,7 @@ def plot_beliefs(
     filepath: str | None,
     source_types: list[str] = None,
     include_ids: bool = False,
+    reduce_paths: bool = True,
 ):
     """
     Show a simple plot of belief data directly in the terminal, and optionally, save the data to a CSV file.
@@ -608,21 +623,24 @@ def plot_beliefs(
             **MsgStyle.WARN,
         )
 
-    # Decide whether to include sensor IDs (always include them in case of non-unique sensor names)
+    # Decide whether to include sensor IDs
     if include_ids:
         df.columns = [f"{s.name} (ID {s.id})" for s in sensors]
     else:
+        # In case of non-unique sensor names, show more of the sensor's ancestry
         duplicates = find_duplicates(sensors, "name")
         if duplicates:
-            df.columns = [
-                f"{s.name} (ID {s.id})" if s.name in duplicates else s for s in sensors
-            ]
-            click.secho(
-                f"The following sensor names are duplicated: {duplicates}. To distinguish them, their plot labels will include their IDs. To include IDs for all sensors, use the --include-ids flag.",
-                **MsgStyle.WARN,
+            message = "The following sensor name"
+            message += "s are " if len(duplicates) > 1 else " is "
+            message += (
+                f"duplicated: {join_words_into_a_list(duplicates)}. "
+                f"To distinguish the sensors, their plot labels will include more parent assets and their account, as needed. "
+                f"To show the full path for each sensor, use the --full-path flag. "
+                f"Or to uniquely label them by their ID instead, use the --include-ids flag."
             )
-        else:
-            df.columns = [s.name for s in sensors]
+            click.secho(message, **MsgStyle.WARN)
+        sensor_aliases = get_sensor_aliases(sensors, reduce_paths=reduce_paths)
+        df.columns = [sensor_aliases.get(s.id, s.name) for s in sensors]
 
     # Convert to the requested or default timezone
     if timezone is not None:
@@ -633,7 +651,7 @@ def plot_beliefs(
     if len(sensors) == 1:
         title = f"Beliefs for Sensor '{sensors[0].name}' (ID {sensors[0].id}).\n"
     else:
-        title = f"Beliefs for Sensor(s) [{', '.join([s.name for s in sensors])}], (ID(s): [{', '.join([str(s.id) for s in sensors])}]).\n"
+        title = f"Beliefs for Sensors {join_words_into_a_list([s.name + ' (ID ' + str(s.id) + ')' for s in sensors])}.\n"
     title += f"Data spans {naturaldelta(duration)} and starts at {start}."
     if belief_time_before:
         title += f"\nOnly beliefs made before: {belief_time_before}."

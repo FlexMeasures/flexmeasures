@@ -102,6 +102,9 @@ class Account(db.Model, AuthModelMixin):
             "update": f"account:{self.id}",
         }
 
+    def get_path(self, separator: str = ">"):
+        return self.name
+
     def has_role(self, role: str | AccountRole) -> bool:
         """Returns `True` if the account has the specified role.
 

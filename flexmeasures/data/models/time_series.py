@@ -67,6 +67,11 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         backref=db.backref("sensors", lazy="dynamic"),
     )
 
+    def get_path(self, separator: str = ">"):
+        return (
+            f"{self.generic_asset.get_path(separator=separator)}{separator}{self.name}"
+        )
+
     def __init__(
         self,
         name: str,
@@ -541,6 +546,33 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         """
 
         return (self.id, self.attributes, self.generic_asset.attributes)
+
+    def search_data_sources(
+        self,
+        event_starts_after: datetime_type | None = None,
+        event_ends_before: datetime_type | None = None,
+        source_types: list[str] | None = None,
+        exclude_source_types: list[str] | None = None,
+    ) -> list[DataSource]:
+
+        q = select(DataSource).join(TimedBelief).filter(TimedBelief.sensor == self)
+
+        if event_starts_after:
+            q = q.filter(TimedBelief.event_start >= event_starts_after)
+
+        if event_ends_before:
+            q = q.filter(
+                TimedBelief.event_start
+                <= pd.Timestamp(event_ends_before) - self.event_resolution
+            )
+
+        if source_types:
+            q = q.filter(DataSource.type.in_(source_types))
+
+        if exclude_source_types:
+            q = q.filter(DataSource.type.not_in(exclude_source_types))
+
+        return db.session.scalars(q).all()
 
 
 class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
