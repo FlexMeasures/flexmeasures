@@ -7,15 +7,11 @@ from flask_json import as_json
 from marshmallow import fields
 from webargs.flaskparser import use_kwargs, use_args
 from sqlalchemy import select, delete
-from typing import List
 
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account
-from flexmeasures.data.models.generic_assets import (
-    GenericAsset,
-    GenericAssetInflexibleSensorRelationship,
-)
+from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
 from flexmeasures.api.common.schemas.generic_assets import AssetIdField
@@ -150,7 +146,7 @@ class AssetAPI(FlaskView):
         # assign asset id
         db.session.flush()
 
-        set_asset_sensors(asset, inflexible_sensor_ids)
+        asset.set_inflexible_sensors(inflexible_sensor_ids)
         db.session.commit()
         return asset_schema.dump(asset), 201
 
@@ -241,7 +237,7 @@ class AssetAPI(FlaskView):
         :status 422: UNPROCESSABLE_ENTITY
         """
         inflexible_sensor_ids = asset_data.pop("inflexible_device_sensor_ids", [])
-        set_asset_sensors(db_asset, inflexible_sensor_ids)
+        db_asset.set_inflexible_sensors(inflexible_sensor_ids)
 
         for k, v in asset_data.items():
             setattr(db_asset, k, v)
@@ -330,25 +326,3 @@ class AssetAPI(FlaskView):
         """
         sensors = flatten_unique(asset.sensors_to_show)
         return asset.search_beliefs(sensors=sensors, as_json=True, **kwargs)
-
-
-def set_asset_sensors(asset: GenericAsset, inflexible_sensor_ids: List[int]):
-    sensor_links = GenericAssetInflexibleSensorRelationship.query.filter(
-        GenericAssetInflexibleSensorRelationship.generic_asset_id == asset.id
-    ).all()
-    linked_sensor_ids = {sensor.inflexible_sensor_id: sensor for sensor in sensor_links}
-    linked_sensor_ids_lst = list(linked_sensor_ids.keys())
-    if len(inflexible_sensor_ids) == 1 and inflexible_sensor_ids[0] == -1:
-        for sensor_link in sensor_links:
-            db.session.delete(sensor_link)
-        return
-
-    sensor_ids_to_link = list(set(inflexible_sensor_ids) - set(linked_sensor_ids_lst))
-    sensor_ids_to_unlink = list(set(linked_sensor_ids_lst) - set(inflexible_sensor_ids))
-    for sensor_id_to_link in sensor_ids_to_link:
-        sensor_link = GenericAssetInflexibleSensorRelationship(
-            generic_asset_id=asset.id, inflexible_sensor_id=sensor_id_to_link
-        )
-        db.session.add(sensor_link)
-    for sensor_id_to_unlink in sensor_ids_to_unlink:
-        db.session.delete(linked_sensor_ids[sensor_id_to_unlink])

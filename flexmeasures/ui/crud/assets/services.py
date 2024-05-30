@@ -21,7 +21,11 @@ from flexmeasures.data.models.generic_assets import (
 )
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.utils.unit_utils import is_energy_price_unit, is_energy_unit
+from flexmeasures.utils.unit_utils import (
+    is_energy_price_unit,
+    is_energy_unit,
+    is_power_unit,
+)
 
 
 class AssetForm(FlaskForm):
@@ -165,6 +169,8 @@ class AssetForm(FlaskForm):
         """
         Return a list of sensors which the user can add
         as inflexible device sensors.
+        This list is built using sensors with energy or power units
+        within the current account (or among public assets when account_id argument is not specified).
         For each sensor we get data as sensor_id: asset_name:sensor_name.
         """
         query = None
@@ -184,7 +190,7 @@ class AssetForm(FlaskForm):
         return {
             sensor_id: f"{asset_name}:{sensor_name}"
             for sensor_id, asset_name, sensor_name, sensor_unit in sensors_data
-            if is_energy_unit(sensor_unit)
+            if is_energy_unit(sensor_unit) or is_power_unit(sensor_unit)
         }
 
     def with_price_senors(self, asset: GenericAsset, account_id: Optional[int]) -> None:

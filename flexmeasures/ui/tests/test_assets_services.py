@@ -160,11 +160,22 @@ def test_get_allowed_price_sensor_data(
             1000,
             False,
         ),
-        # New asset sensor has different unit - do not get new asset sensors
+        # New asset sensor has energy unit - still use it
         (
             {
                 "asset_name": "No account asset",
                 "sensor_name": "No account asset sensor",
+                "sensor_unit": "kW",
+            },
+            None,
+            True,
+        ),
+        # New asset sensor has temperature unit - do not get new asset sensors
+        (
+            {
+                "asset_name": "No account asset",
+                "sensor_name": "No account asset sensor",
+                "sensor_unit": "°C",
             },
             None,
             False,

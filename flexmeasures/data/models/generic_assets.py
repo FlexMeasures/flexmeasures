@@ -113,7 +113,7 @@ class GenericAsset(db.Model, AuthModelMixin):
     consumption_price_sensor = db.relationship(
         "Sensor",
         foreign_keys=[consumption_price_sensor_id],
-        backref=db.backref("generic_assets_by_consumption_price_sensor_id", lazy=True),
+        backref=db.backref("assets_with_this_consumption_price_context", lazy=True),
     )
 
     production_price_sensor_id = db.Column(
@@ -122,7 +122,7 @@ class GenericAsset(db.Model, AuthModelMixin):
     production_price_sensor = db.relationship(
         "Sensor",
         foreign_keys=[production_price_sensor_id],
-        backref=db.backref("generic_assets_by_production_price_sensor_id", lazy=True),
+        backref=db.backref("assets_with_this_production_price_context", lazy=True),
     )
 
     # Many-to-many relationships
@@ -135,7 +135,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         "Sensor",
         secondary="assets_inflexible_sensors",
         backref=db.backref(
-            "assets_with_this_consumption_price_context", lazy="dynamic"
+            "assets_considering_this_as_inflexible_sensor_in_scheduling", lazy="dynamic"
         ),
     )
 
@@ -686,6 +686,23 @@ class GenericAsset(db.Model, AuthModelMixin):
         sensor_ids = [s.id for s in flatten_unique(sensors)]
         start, end = get_timerange(sensor_ids)
         return dict(start=start, end=end)
+
+    def set_inflexible_sensors(self, inflexible_sensor_ids: list[int]) -> None:
+        """Set inflexible sensors for this asset.
+
+        :param inflexible_sensor_ids: list of sensor ids
+        """
+        from flexmeasures.data.models.time_series import Sensor
+
+        # -1 choice corresponds to "--Select sensor id--" which means no sensor is selected
+        # and all linked sensors should be unlinked
+        if len(inflexible_sensor_ids) == 1 and inflexible_sensor_ids[0] == -1:
+            self.inflexible_device_sensors = []
+        else:
+            self.inflexible_device_sensors = Sensor.query.filter(
+                Sensor.id.in_(inflexible_sensor_ids)
+            ).all()
+        db.session.add(self)
 
 
 def create_generic_asset(generic_asset_type: str, **kwargs) -> GenericAsset:
