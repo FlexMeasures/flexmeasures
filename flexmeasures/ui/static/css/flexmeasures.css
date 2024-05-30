@@ -1895,3 +1895,6 @@ div.heading-group {
   content: " > ";
   color: var(--primary-color);
 }
+.table-responsive{
+    padding: 20px;
+}
