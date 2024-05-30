@@ -455,6 +455,8 @@ class GenericAsset(db.Model, AuthModelMixin):
                 minimum_resampling_resolution = determine_minimum_resampling_resolution(
                     [bdf.event_resolution for bdf in bdf_dict.values()]
                 )
+                if resolution is not None:
+                    minimum_resampling_resolution = resolution
                 df_dict = {}
                 for sensor, bdf in bdf_dict.items():
                     if bdf.event_resolution > timedelta(0):
