@@ -137,6 +137,14 @@ class GenericAsset(db.Model, AuthModelMixin):
         ),
     )
 
+    def get_path(self, separator: str = ">") -> str:
+        if self.parent_asset is not None:
+            return f"{self.parent_asset.get_path(separator=separator)}{separator}{self.name}"
+        elif self.owner is None:
+            return f"PUBLIC{separator}{self.name}"
+        else:
+            return f"{self.owner.get_path(separator=separator)}{separator}{self.name}"
+
     @property
     def offspring(self) -> list[GenericAsset]:
         """Returns a flattened list of all offspring, which is looked up recursively."""
