@@ -844,6 +844,38 @@ table.dataTable.nav-on-click tbody tr:hover {
     border-color: var(--gray);
 }
 
+
+table.dataTable td {
+    padding: 8px; 
+}
+
+
+table.dataTable th {
+    padding: 10px;
+}
+
+
+table.dataTable button {
+    margin: 5px; 
+}
+
+
+table.dataTable input[type="checkbox"] {
+    margin: 5px; 
+}
+
+
+div.dataTables_filter input {
+    margin-left: 5px;
+    padding: 5px; 
+}
+
+
+div.dataTables_paginate {
+    margin-top: 10px; 
+}
+
+
 /* scrolling */
 .floatThead-wrapper table {
     width: 100%;
@@ -1875,8 +1907,9 @@ div.heading-group {
   margin: 0px;
   background: var(--light-gray);
 }
-.breadcrumb .dropdrown {
+.breadcrumb .dropdown-menu {
     z-index: 1050;
+    position: absolute;
 }
 .breadcrumb .dropdown-menu li a {
     text-decoration: none;
