@@ -8,7 +8,7 @@ v0.22.0 | June XX, 2024
 
 New features
 -------------
-* On the asset page, facilitate comparison by showing default sensors of the same unit together [see `PR #1066 <https://github.com/FlexMeasures/flexmeasures/pull/1066>`_]
+* On the asset page, facilitate comparison by showing the two default sensors together if they record the same unit [see `PR #1066 <https://github.com/FlexMeasures/flexmeasures/pull/1066>`_]
 
 Infrastructure / Support
 ----------------------
