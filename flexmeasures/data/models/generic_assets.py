@@ -568,7 +568,6 @@ class GenericAsset(db.Model, AuthModelMixin):
         is set by the "sensors_to_show" field of the asset's "attributes" column.
         Valid sensors either belong to the asset itself, to other assets in the same account,
         or to public assets. In play mode, sensors from different accounts can be added.
-        In case the field is missing, defaults to two of the asset's sensors.
 
         Sensor ids can be nested to denote that sensors should be 'shown together',
         for example, layered rather than vertically concatenated.
@@ -582,9 +581,19 @@ class GenericAsset(db.Model, AuthModelMixin):
 
             sensors_to_show = [40, 35, 41, [42, 44], 43, 45]
 
+        In case the field is missing, defaults to two of the asset's sensors,
+        which will be shown together (e.g. sharing the same y-axis) in case they share the same unit.
         """
         if not self.has_attribute("sensors_to_show"):
-            return self.sensors[:2]
+            sensors_to_show = self.sensors[:2]
+            if (
+                len(sensors_to_show) == 2
+                and sensors_to_show[0].unit == sensors_to_show[1].unit
+            ):
+                # Sensors are shown together (e.g. they can share the same y-axis)
+                return [sensors_to_show]
+            # Otherwise, show separately
+            return sensors_to_show
 
         # Only allow showing sensors from assets owned by the user's organization,
         # except in play mode, where any sensor may be shown
