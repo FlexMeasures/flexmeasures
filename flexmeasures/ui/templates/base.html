@@ -225,9 +225,9 @@
     let replaySpeed = 100
     let chartType = '{{ chart_type }}';  // initial chart type from session variable
 
-    // Update chart type
+    // Update chart type picker: active state, reload data event
     document.addEventListener('DOMContentLoaded', function() {
-        var dropdownItems = document.querySelectorAll('.dropdown-item');
+        var dropdownItems = document.querySelectorAll('#chart-type-picker .dropdown-item');
         for (var i = 0; i < dropdownItems.length; i++) {
 
             // Set initial chart type
