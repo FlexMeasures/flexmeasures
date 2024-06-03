@@ -34,12 +34,6 @@
     </div>
     <div class="row">
         <div class="col-sm-2 on-top-md">
-            <div>
-                <form action="/assets/auditlog/{{ asset.id }}" method="get">
-                    <button class="btn btn-sm btn-responsive btn-info delete-button" type="submit"
-                        title="View history of asset related actions.">Audit log</button>
-                </form>
-            </div>
             <div class="header-action-button">
                 {% if user_can_create_assets %}
                 <div class="">
@@ -66,9 +60,19 @@
                 </div>
                 {% endif %}
             </div>
-            <form action="/assets/{{ asset.id }}/status" method="get">
-                <button id="asset-status-button" class="btn btn-sm btn-responsive" type="submit">Asset status</button>
-            </form>
+            <div class="header-action-button">
+                <div class="">
+                    <form action="/assets/{{ asset.id }}/status" method="get">
+                        <button id="asset-status-button" class="btn btn-sm btn-responsive" type="submit">Asset status</button>
+                    </form>
+                </div>
+                <div class="">
+                    <form action="/assets/auditlog/{{ asset.id }}" method="get">
+                        <button class="btn btn-sm btn-responsive btn-info delete-button" type="submit"
+                            title="View history of asset related actions.">Audit log</button>
+                    </form>
+                </div>
+            </div>
             <div class="sidepanel-container">
                 <div class="left-sidepanel-label">Select dates</div>
                 <div class="sidepanel left-sidepanel">

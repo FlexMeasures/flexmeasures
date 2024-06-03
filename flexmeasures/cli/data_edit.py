@@ -149,15 +149,11 @@ def edit_attribute(
 
     # Set attribute
     for asset in assets:
-        write_audit_log_for_attribute_update(
-            attribute_key, attribute_value, "asset", asset
-        )
+        AssetAuditLog.add_record_for_attribute_update(attribute_key, attribute_value, "asset", asset)
         asset.attributes[attribute_key] = attribute_value
         db.session.add(asset)
     for sensor in sensors:
-        write_audit_log_for_attribute_update(
-            attribute_key, attribute_value, "sensor", sensor
-        )
+        AssetAuditLog.add_record_for_attribute_update(attribute_key, attribute_value, "sensor", sensor)
         sensor.attributes[attribute_key] = attribute_value
         db.session.add(sensor)
     db.session.commit()
@@ -214,9 +210,6 @@ def resample_sensor_data(
     event_resolution = timedelta(minutes=event_resolution_in_minutes)
     event_starts_after = pd.Timestamp(start_str)  # note that "" or None becomes NaT
     event_ends_before = pd.Timestamp(end_str)
-    current_user_id, current_user_name = None, None
-    if current_user.is_authenticated:
-        current_user_id, current_user_name = current_user.id, current_user.username
     for sensor_id in sensor_ids:
         sensor = db.session.get(Sensor, sensor_id)
         if sensor.event_resolution == event_resolution:
@@ -240,14 +233,10 @@ def resample_sensor_data(
                 abort=True,
             )
 
-        audit_log = AssetAuditLog(
-            event_datetime=server_now(),
-            event=f"Resampled sensor data for sensor '{sensor.name}': {sensor.id} to {event_resolution} from {sensor.event_resolution}",
-            active_user_id=current_user_id,
-            active_user_name=current_user_name,
-            affected_asset_id=sensor.generic_asset_id,
+        AssetAuditLog.add_record(
+            sensor.generic_asset,
+            f"Resampled sensor data for sensor '{sensor.name}': {sensor.id} to {event_resolution} from {sensor.event_resolution}"
         )
-        db.session.add(audit_log)
 
         # Update sensor
         sensor.event_resolution = event_resolution
@@ -293,14 +282,10 @@ def transfer_ownership(asset: Asset, new_owner: Account):
         current_user_id, current_user_name = current_user.id, current_user.username
 
     def transfer_ownership_recursive(asset: Asset, account: Account):
-        audit_log = AssetAuditLog(
-            event_datetime=server_now(),
-            event=f"Transfered ownership for asset '{asset.name}': {asset.id} from {asset.owner.id} to {account.id}",
-            active_user_id=current_user_id,
-            active_user_name=current_user_name,
-            affected_asset_id=asset.id,
+        AssetAuditLog.add_record(
+            asset,
+            f"Transfered ownership for asset '{asset.name}': {asset.id} from '{asset.owner.name}': {asset.owner.id} to '{account.name}': {account.id}"
         )
-        db.session.add(audit_log)
 
         asset.owner = account
         for child in asset.child_assets:
@@ -373,33 +358,3 @@ def parse_attribute_value(  # noqa: C901
 def single_true(iterable) -> bool:
     i = iter(iterable)
     return any(i) and not any(i)
-
-
-def write_audit_log_for_attribute_update(
-    attribute_key, attribute_value, entity_type, asset_or_sensor
-):
-    current_user_id, current_user_name = None, None
-    if (
-        current_user
-        and hasattr(current_user, "is_authenticated")
-        and current_user.is_authenticated
-    ):
-        current_user_id, current_user_name = current_user.id, current_user.username
-
-    old_value = asset_or_sensor.attributes.get(attribute_key)
-    if entity_type == "sensor":
-        event = f"Updated sensor '{asset_or_sensor.name}': {asset_or_sensor.id} "
-        affected_asset_id = (asset_or_sensor.generic_asset_id,)
-    else:
-        event = f"Updated asset '{asset_or_sensor.name}': {asset_or_sensor.id} "
-        affected_asset_id = asset_or_sensor.id
-    event += f"attribute '{attribute_key}' to {attribute_value} from {old_value}"
-
-    audit_log = AssetAuditLog(
-        event_datetime=server_now(),
-        event=event,
-        active_user_id=current_user_id,
-        active_user_name=current_user_name,
-        affected_asset_id=affected_asset_id,
-    )
-    db.session.add(audit_log)

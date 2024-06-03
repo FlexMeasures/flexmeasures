@@ -146,14 +146,7 @@ class AssetAPI(FlaskView):
         db.session.add(asset)
         db.session.commit()
 
-        audit_log = AssetAuditLog(
-            event_datetime=server_now(),
-            event=f"Created asset '{asset.name}': {asset.id}",
-            active_user_id=current_user.id,
-            active_user_name=current_user.username,
-            affected_asset_id=asset.id,
-        )
-        db.session.add(audit_log)
+        AssetAuditLog.add_record(asset, f"Created asset '{asset.name}': {asset.id}")
 
         return asset_schema.dump(asset), 201
 
@@ -260,15 +253,7 @@ class AssetAPI(FlaskView):
                 f"Field name: {k}, Old value: {getattr(db_asset, k)}, New value: {v}"
             )
         audit_log_event = f"Updated asset '{db_asset.name}': {db_asset.id} fields: {'; '.join(audit_log_data)}"
-
-        audit_log = AssetAuditLog(
-            event_datetime=server_now(),
-            event=audit_log_event,
-            active_user_id=current_user.id,
-            active_user_name=current_user.username,
-            affected_asset_id=db_asset.id,
-        )
-        db.session.add(audit_log)
+        AssetAuditLog.add_record(db_asset, audit_log_event)
 
         for k, v in asset_data.items():
             setattr(db_asset, k, v)
@@ -297,14 +282,7 @@ class AssetAPI(FlaskView):
         :status 422: UNPROCESSABLE_ENTITY
         """
         asset_name, asset_id = asset.name, asset.id
-        audit_log = AssetAuditLog(
-            event_datetime=server_now(),
-            event=f"Deleted asset '{asset_name}': {asset_id}",
-            active_user_id=current_user.id,
-            active_user_name=current_user.username,
-            affected_asset_id=asset_id,
-        )
-        db.session.add(audit_log)
+        AssetAuditLog.add_record(asset, f"Deleted asset '{asset_name}': {asset_id}")
 
         db.session.execute(delete(GenericAsset).filter_by(id=asset.id))
         db.session.commit()

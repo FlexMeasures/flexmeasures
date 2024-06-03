@@ -660,14 +660,7 @@ class SensorAPI(FlaskView):
         db.session.commit()
 
         asset = sensor_schema.context["generic_asset"]
-        audit_log = AssetAuditLog(
-            event_datetime=server_now(),
-            event=f"Created sensor '{sensor.name}': {sensor.id}",
-            active_user_id=current_user.id,
-            active_user_name=current_user.username,
-            affected_asset_id=asset.id,
-        )
-        db.session.add(audit_log)
+        AssetAuditLog.add_record(asset, f"Created sensor '{sensor.name}': {sensor.id}")
 
         return sensor_schema.dump(sensor), 201
 
@@ -726,21 +719,13 @@ class SensorAPI(FlaskView):
         """
         audit_log_data = list()
         for k, v in sensor_data.items():
-            if getattr(sensor, k) == v:
-                continue
-            audit_log_data.append(
-                f"Field name: {k}, Old value: {getattr(sensor, k)}, New value: {v}"
-            )
+            if getattr(sensor, k) != v:
+                audit_log_data.append(
+                    f"Field name: {k}, Old value: {getattr(sensor, k)}, New value: {v}"
+                )
         audit_log_event = f"Updated sensor '{sensor.name}': {sensor.id}. Updated fields: {'; '.join(audit_log_data)}"
 
-        audit_log = AssetAuditLog(
-            event_datetime=server_now(),
-            event=audit_log_event,
-            active_user_id=current_user.id,
-            active_user_name=current_user.username,
-            affected_asset_id=sensor.generic_asset_id,
-        )
-        db.session.add(audit_log)
+        AssetAuditLog.add_record(sensor.generic_asset, audit_log_event)
 
         for k, v in sensor_data.items():
             setattr(sensor, k, v)
@@ -772,15 +757,7 @@ class SensorAPI(FlaskView):
         """Delete time series data."""
         db.session.execute(delete(TimedBelief).filter_by(sensor_id=sensor.id))
 
-        asset = sensor.generic_asset
-        audit_log = AssetAuditLog(
-            event_datetime=server_now(),
-            event=f"Deleted sensor '{sensor.name}': {sensor.id}",
-            active_user_id=current_user.id,
-            active_user_name=current_user.username,
-            affected_asset_id=asset.id,
-        )
-        db.session.add(audit_log)
+        AssetAuditLog.add_record(sensor.generic_asset, f"Deleted sensor '{sensor.name}': {sensor.id}")
 
         sensor_name = sensor.name
         db.session.execute(delete(Sensor).filter_by(id=sensor.id))

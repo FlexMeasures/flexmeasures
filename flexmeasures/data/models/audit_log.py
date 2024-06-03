@@ -1,10 +1,25 @@
 from __future__ import annotations
 
+from flask_security import current_user
 from sqlalchemy import DateTime, Column, Integer, String, ForeignKey
 
-from flexmeasures.data import db
-from flexmeasures.data.models.user import User, Account
 from flexmeasures.auth.policy import AuthModelMixin
+from flexmeasures.data import db
+from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.user import User, Account
+from flexmeasures.utils.time_utils import server_now
+
+
+def get_current_user_id_name():
+    current_user_id, current_user_name = None, None
+    if (
+        current_user
+        and hasattr(current_user, "is_authenticated")
+        and current_user.is_authenticated
+    ):
+        current_user_id, current_user_name = current_user.id, current_user.username
+    return current_user_id, current_user_name
 
 
 class AuditLog(db.Model, AuthModelMixin):
@@ -107,3 +122,59 @@ class AssetAuditLog(db.Model, AuthModelMixin):
         Integer(),
         ForeignKey("generic_asset.id", ondelete="SET NULL"),
     )
+
+    @classmethod
+    def add_record_for_attribute_update(
+        cls,
+        attribute_key: str,
+        attribute_value: float | int | bool | str | list | dict | None,
+        entity_type: str,
+        asset_or_sensor: GenericAsset | Sensor,
+    ) -> None:
+        """Add audit log record about asset or sensor attribute update.
+
+        :param attribute_key: attribute key to update
+        :param attribute_value: new attribute value
+        :param entity_type: 'asset' or 'sensor'
+        :param asset_or_sensor: asset or sensor object
+        """
+        current_user_id, current_user_name = get_current_user_id_name()
+
+        old_value = asset_or_sensor.attributes.get(attribute_key)
+        if entity_type == "sensor":
+            event = f"Updated sensor '{asset_or_sensor.name}': {asset_or_sensor.id} "
+            affected_asset_id = (asset_or_sensor.generic_asset_id,)
+        else:
+            event = f"Updated asset '{asset_or_sensor.name}': {asset_or_sensor.id} "
+            affected_asset_id = asset_or_sensor.id
+        event += f"attribute '{attribute_key}' to {attribute_value} from {old_value}"
+
+        audit_log = cls(
+            event_datetime=server_now(),
+            event=event,
+            active_user_id=current_user_id,
+            active_user_name=current_user_name,
+            affected_asset_id=affected_asset_id,
+        )
+        db.session.add(audit_log)
+
+    @classmethod
+    def add_record(
+        cls,
+        asset: GenericAsset | Sensor,
+        event: str,
+    ) -> None:
+        """Add audit log record about asset related crud actions.
+
+        :param asset: asset or sensor object
+        :param event: event to log
+        """
+        current_user_id, current_user_name = get_current_user_id_name()
+        audit_log = AssetAuditLog(
+            event_datetime=server_now(),
+            event=event,
+            active_user_id=current_user_id,
+            active_user_name=current_user_name,
+            affected_asset_id=asset.id,
+        )
+        db.session.add(audit_log)

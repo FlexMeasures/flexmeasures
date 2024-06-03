@@ -179,16 +179,6 @@ def test_alter_an_asset(
     print(f"Editing Response: {asset_edit_response.json}")
     assert asset_edit_response.status_code == 200
 
-    audit_log_event = f"Updated asset '{prosumer_asset.name}': {prosumer_asset.id} fields: Field name: name, Old value: {name}, New value: other; Field name: latitude, Old value: {latitude}, New value: 11.1"
-    assert db.session.execute(
-        select(AssetAuditLog).filter_by(
-            event=audit_log_event,
-            active_user_id=requesting_user.id,
-            active_user_name=requesting_user.username,
-            affected_asset_id=prosumer_asset.id,
-        )
-    ).scalar_one_or_none()
-
     # Resetting changes to keep other tests clean here
     asset_edit_response = client.patch(
         url_for("AssetAPI:patch", id=prosumer_asset.id),
@@ -199,6 +189,16 @@ def test_alter_an_asset(
     )
     print(f"Editing Response: {asset_edit_response.json}")
     assert asset_edit_response.status_code == 200
+
+    audit_log_event = f"Updated asset '{prosumer_asset.name}': {prosumer_asset.id} fields: Field name: name, Old value: {name}, New value: other; Field name: latitude, Old value: {latitude}, New value: 11.1"
+    assert db.session.execute(
+        select(AssetAuditLog).filter_by(
+            event=audit_log_event,
+            active_user_id=requesting_user.id,
+            active_user_name=requesting_user.username,
+            affected_asset_id=prosumer_asset.id,
+        )
+    ).scalar_one_or_none()
 
 
 @pytest.mark.parametrize(

@@ -198,7 +198,7 @@ def test_transfer_ownership(app, db, add_asset_with_children, add_alternative_ac
         assert child.owner == new_account
 
     for child_asset in (parent, *parent.child_assets):
-        event = f"Transfered ownership for asset '{child_asset.name}': {child_asset.id} from {old_account.id} to {new_account.id}"
+        event = f"Transfered ownership for asset '{child_asset.name}': {child_asset.id} from '{old_account.name}': {old_account.id} to '{new_account.name}': {new_account.id}"
         assert db.session.execute(
             select(AssetAuditLog).filter_by(
                 affected_asset_id=child_asset.id,

@@ -8,7 +8,7 @@ v0.22.0 | June XX, 2024
 
 New features
 -------------
-
+* Add `asset/<id>/auditlog` to view asset related actions [see `PR #1067 <https://github.com/FlexMeasures/flexmeasures/pull/1067>`_]
 
 Infrastructure / Support
 ----------------------
@@ -17,7 +17,6 @@ Infrastructure / Support
 * Add option ``droplevels`` to the ``PandasReporter`` to drop all the levels except the ``event_start`` and ``event_value`` [see `PR #1043 <https://github.com/FlexMeasures/flexmeasures/pull/1043/>`_]
 * ``PandasReporter`` accepts the parameter ``use_latest_version_only`` to filter input data [see `PR #1045 <https://github.com/FlexMeasures/flexmeasures/pull/1045/>`_]
 * ``flexmeasures show beliefs`` uses the entity path (`<Account>/../<Sensor>`) in case of duplicated sensors [see `PR #1026 <https://github.com/FlexMeasures/flexmeasures/pull/1026/>`_]
-* Add `asset/<id>/auditlog` to view asset related actions [see `PR #1067 <https://github.com/FlexMeasures/flexmeasures/pull/1067>`_]
 
 
 v0.21.0 | May 16, 2024
