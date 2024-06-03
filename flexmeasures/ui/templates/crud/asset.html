@@ -122,9 +122,8 @@
                                             disabled></input>
                                     </div>
                                 </div>
-                                <div class="form-group" style="border: 2px solid rgb(169, 176, 176); padding: 10px; margin-bottom: 10px;">
-                                    <p>Fields in this section can form part of this asset's flex context (<a href="https://flexmeasures.readthedocs.io/en/latest/features/scheduling.html#the-flex-context">flex context</a>). They can also be set in a parent asset or in the API requests.</p>
-                                    <!-- <hr style="border: 1px solid black;"> -->
+                                <div class="form-group form-group-bordered">
+                                    <p>Fields in this section can form part of this asset's <a href="https://flexmeasures.readthedocs.io/en/latest/features/scheduling.html#the-flex-context">flex context</a>. They can also be set in a parent asset or in API requests that trigger schedules.</p>
                                     {% if asset_form.consumption_price_sensor_id %}
                                         <div class="form-group">
                                             {{ asset_form.consumption_price_sensor_id.label(class="col-sm-3 control-label") }}
