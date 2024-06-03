@@ -8,7 +8,7 @@ v0.22.0 | June XX, 2024
 
 New features
 -------------
-
+* New API endpoint `[POST] /assets/(id)/schedules/trigger <api/v3_0.html#post--api-v3_0-assets-(id)-schedules-trigger>`_ to schedule a site with multiple flexible devices [see `PR #1065 <https://github.com/FlexMeasures/flexmeasures/pull/1065/>`_]
 
 Infrastructure / Support
 ----------------------
