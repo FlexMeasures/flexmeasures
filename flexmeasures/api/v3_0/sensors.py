@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from flask import current_app, url_for
 from flask_classful import FlaskView, route
 from flask_json import as_json
-from flask_security import auth_required, current_user
+from flask_security import auth_required
 import isodate
 from marshmallow import fields, ValidationError
 from rq.job import Job, NoSuchJobError
@@ -43,7 +43,7 @@ from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
     get_data_source_for_job,
 )
-from flexmeasures.utils.time_utils import duration_isoformat, server_now
+from flexmeasures.utils.time_utils import duration_isoformat
 
 
 # Instantiate schemas outside of endpoint logic to minimize response time
@@ -757,7 +757,9 @@ class SensorAPI(FlaskView):
         """Delete time series data."""
         db.session.execute(delete(TimedBelief).filter_by(sensor_id=sensor.id))
 
-        AssetAuditLog.add_record(sensor.generic_asset, f"Deleted sensor '{sensor.name}': {sensor.id}")
+        AssetAuditLog.add_record(
+            sensor.generic_asset, f"Deleted sensor '{sensor.name}': {sensor.id}"
+        )
 
         sensor_name = sensor.name
         db.session.execute(delete(Sensor).filter_by(id=sensor.id))

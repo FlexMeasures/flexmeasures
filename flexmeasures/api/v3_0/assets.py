@@ -2,7 +2,7 @@ import json
 
 from flask import current_app
 from flask_classful import FlaskView, route
-from flask_security import auth_required, current_user
+from flask_security import auth_required
 from flask_json import as_json
 from marshmallow import fields
 from webargs.flaskparser import use_kwargs, use_args
@@ -18,7 +18,6 @@ from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as Asset
 from flexmeasures.api.common.schemas.generic_assets import AssetIdField
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.utils.coding_utils import flatten_unique
-from flexmeasures.utils.time_utils import server_now
 from flexmeasures.ui.utils.view_utils import set_session_variables
 
 

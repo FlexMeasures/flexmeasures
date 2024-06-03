@@ -10,7 +10,6 @@ import click
 import pandas as pd
 from flask import current_app as app
 from flask.cli import with_appcontext
-from flask_security import current_user
 import json
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.schemas.account import AccountIdField
@@ -26,7 +25,6 @@ from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.cli.utils import MsgStyle, DeprecatedOption, DeprecatedOptionsCommand
-from flexmeasures.utils.time_utils import server_now
 
 
 @click.group("edit")
@@ -149,11 +147,15 @@ def edit_attribute(
 
     # Set attribute
     for asset in assets:
-        AssetAuditLog.add_record_for_attribute_update(attribute_key, attribute_value, "asset", asset)
+        AssetAuditLog.add_record_for_attribute_update(
+            attribute_key, attribute_value, "asset", asset
+        )
         asset.attributes[attribute_key] = attribute_value
         db.session.add(asset)
     for sensor in sensors:
-        AssetAuditLog.add_record_for_attribute_update(attribute_key, attribute_value, "sensor", sensor)
+        AssetAuditLog.add_record_for_attribute_update(
+            attribute_key, attribute_value, "sensor", sensor
+        )
         sensor.attributes[attribute_key] = attribute_value
         db.session.add(sensor)
     db.session.commit()
@@ -235,7 +237,7 @@ def resample_sensor_data(
 
         AssetAuditLog.add_record(
             sensor.generic_asset,
-            f"Resampled sensor data for sensor '{sensor.name}': {sensor.id} to {event_resolution} from {sensor.event_resolution}"
+            f"Resampled sensor data for sensor '{sensor.name}': {sensor.id} to {event_resolution} from {sensor.event_resolution}",
         )
 
         # Update sensor
@@ -277,14 +279,10 @@ def transfer_ownership(asset: Asset, new_owner: Account):
     Transfer the ownership of and asset and its children to an account.
     """
 
-    current_user_id, current_user_name = None, None
-    if current_user.is_authenticated:
-        current_user_id, current_user_name = current_user.id, current_user.username
-
     def transfer_ownership_recursive(asset: Asset, account: Account):
         AssetAuditLog.add_record(
             asset,
-            f"Transfered ownership for asset '{asset.name}': {asset.id} from '{asset.owner.name}': {asset.owner.id} to '{account.name}': {account.id}"
+            f"Transfered ownership for asset '{asset.name}': {asset.id} from '{asset.owner.name}': {asset.owner.id} to '{account.name}': {account.id}",
         )
 
         asset.owner = account
