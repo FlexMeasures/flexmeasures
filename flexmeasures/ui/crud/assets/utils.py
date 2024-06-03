@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 from flask import url_for
 from flask_security import current_user

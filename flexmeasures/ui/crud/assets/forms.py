@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import copy
 
 from flask import current_app
