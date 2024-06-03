@@ -391,7 +391,7 @@ def list_data_sources(source: DataSource | None = None, show_attributes: bool = 
     "resolution",
     type=DurationField(),
     required=False,
-    help="Resolution of the data. If not set, defaults to the minimum resolution of the sensor data.",
+    help="Resolution of the data in ISO 8601 format. If not set, defaults to the minimum resolution of the sensor data. Note: Nominal durations like 'P1D' are converted to absolute timedeltas.",
 )
 def chart(
     sensors: list[Sensor] | None = None,
