@@ -1,8 +1,9 @@
 import copy
 
+from flask import current_app
+from flask_security import current_user
 from flask_wtf import FlaskForm
 from sqlalchemy import select
-from sqlalchemy.sql.expression import or_
 from wtforms import (
     StringField,
     DecimalField,
@@ -11,8 +12,9 @@ from wtforms import (
     ValidationError,
 )
 from wtforms.validators import DataRequired, optional
-from typing import Optional, Dict
+from typing import Optional
 
+from flexmeasures.auth.policy import user_has_admin_access
 from flexmeasures.data import db
 from flexmeasures.data.models.generic_assets import (
     GenericAsset,
@@ -21,10 +23,9 @@ from flexmeasures.data.models.generic_assets import (
 )
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.utils.unit_utils import (
-    is_energy_price_unit,
-    is_energy_unit,
-    is_power_unit,
+from flexmeasures.ui.crud.assets.utils import (
+    get_allowed_price_sensor_data,
+    get_allowed_inflexible_sensor_data,
 )
 
 
@@ -128,73 +129,8 @@ class AssetForm(FlaskForm):
                 for account in db.session.scalars(select(Account)).all()
             ]
 
-    def get_allowed_price_sensor_data(
-        self, account_id: Optional[int]
-    ) -> Dict[int, str]:
-        """
-        Return a list of sensors which the user can add
-        as consumption_price_sensor_id or production_price_sensor_id.
-        For each sensor we get data as sensor_id: asset_name:sensor_name.
-        """
-        if not account_id:
-            assets = db.session.scalars(
-                select(GenericAsset).filter(GenericAsset.account_id.is_(None))
-            ).all()
-        else:
-            assets = db.session.scalars(
-                select(GenericAsset).filter(
-                    or_(
-                        GenericAsset.account_id == account_id,
-                        GenericAsset.account_id.is_(None),
-                    )
-                )
-            ).all()
-
-        sensors_data = list()
-        for asset in assets:
-            sensors_data += [
-                (sensor.id, asset.name, sensor.name, sensor.unit)
-                for sensor in asset.sensors
-            ]
-
-        return {
-            sensor_id: f"{asset_name}:{sensor_name}"
-            for sensor_id, asset_name, sensor_name, sensor_unit in sensors_data
-            if is_energy_price_unit(sensor_unit)
-        }
-
-    def get_allowed_inflexible_sensor_data(
-        self, account_id: Optional[int]
-    ) -> Dict[int, str]:
-        """
-        Return a list of sensors which the user can add
-        as inflexible device sensors.
-        This list is built using sensors with energy or power units
-        within the current account (or among public assets when account_id argument is not specified).
-        For each sensor we get data as sensor_id: asset_name:sensor_name.
-        """
-        query = None
-        if not account_id:
-            query = select(GenericAsset).filter(GenericAsset.account_id.is_(None))
-        else:
-            query = select(GenericAsset).filter(GenericAsset.account_id == account_id)
-        assets = db.session.scalars(query).all()
-
-        sensors_data = list()
-        for asset in assets:
-            sensors_data += [
-                (sensor.id, asset.name, sensor.name, sensor.unit)
-                for sensor in asset.sensors
-            ]
-
-        return {
-            sensor_id: f"{asset_name}:{sensor_name}"
-            for sensor_id, asset_name, sensor_name, sensor_unit in sensors_data
-            if is_energy_unit(sensor_unit) or is_power_unit(sensor_unit)
-        }
-
     def with_price_senors(self, asset: GenericAsset, account_id: Optional[int]) -> None:
-        allowed_price_sensor_data = self.get_allowed_price_sensor_data(account_id)
+        allowed_price_sensor_data = get_allowed_price_sensor_data(account_id)
         for sensor_name in ("production_price", "consumption_price"):
             sensor_id = getattr(asset, sensor_name + "_sensor_id") if asset else None
             if sensor_id:
@@ -213,9 +149,7 @@ class AssetForm(FlaskForm):
     def with_inflexible_sensors(
         self, asset: GenericAsset, account_id: Optional[int]
     ) -> None:
-        allowed_inflexible_sensor_data = self.get_allowed_inflexible_sensor_data(
-            account_id
-        )
+        allowed_inflexible_sensor_data = get_allowed_inflexible_sensor_data(account_id)
         linked_sensor_data = {}
         if asset:
             linked_sensors = (
@@ -265,3 +199,45 @@ class NewAssetForm(AssetForm):
         "Asset type", coerce=int, validators=[DataRequired()]
     )
     account_id = SelectField("Account", coerce=int)
+
+    def set_account(self) -> tuple[Account | None, str | None]:
+        """Set an account for the to-be-created asset.
+        Return the account (if available) and an error message"""
+        account_error = None
+
+        if self.account_id.data == -1:
+            if user_has_admin_access(current_user, "update"):
+                return None, None  # Account can be None (public asset)
+            else:
+                account_error = "Please pick an existing account."
+
+        account = db.session.execute(
+            select(Account).filter_by(id=int(self.account_id.data))
+        ).scalar_one_or_none()
+
+        if account:
+            self.account_id.data = account.id
+        else:
+            current_app.logger.error(account_error)
+        return account, account_error
+
+    def set_asset_type(self) -> tuple[GenericAssetType | None, str | None]:
+        """Set an asset type for the to-be-created asset.
+        Return the asset type (if available) and an error message."""
+        asset_type = None
+        asset_type_error = None
+
+        if int(self.generic_asset_type_id.data) == -1:
+            asset_type_error = "Pick an existing asset type."
+        else:
+            asset_type = db.session.execute(
+                select(GenericAssetType).filter_by(
+                    id=int(self.generic_asset_type_id.data)
+                )
+            ).scalar_one_or_none()
+
+        if asset_type:
+            self.generic_asset_type_id.data = asset_type.id
+        else:
+            current_app.logger.error(asset_type_error)
+        return asset_type, asset_type_error

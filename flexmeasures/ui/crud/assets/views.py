@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import json
-
 from flask import url_for, current_app, request
 from flask_classful import FlaskView, route
 from flask_security import login_required, current_user
@@ -11,19 +9,22 @@ from flexmeasures.auth.policy import user_has_admin_access
 
 from flexmeasures.data import db
 from flexmeasures.auth.error_handling import unauthorized_handler
-from flexmeasures.auth.policy import check_access
 from flexmeasures.data.schemas import StartEndTimeSchema
 from flexmeasures.data.services.job_cache import NoRedisConfigured
 from flexmeasures.data.models.generic_assets import (
-    GenericAssetType,
     GenericAsset,
     get_center_location_of_assets,
 )
 from flexmeasures.data.models.user import Account
-from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.crud.api_wrapper import InternalApi
-from flexmeasures.ui.crud.assets.services import NewAssetForm, AssetForm
+from flexmeasures.ui.crud.assets.forms import NewAssetForm, AssetForm
+from flexmeasures.ui.crud.assets.utils import (
+    process_internal_api_response,
+    user_can_create_assets,
+    user_can_delete,
+    get_assets_by_account,
+)
 from flexmeasures.data.services.sensors import (
     build_sensor_status_data,
     build_asset_jobs_data,
@@ -37,94 +38,6 @@ Note: This uses the internal dev API version
       ― if those endpoints get moved or updated to a higher version,
       we probably should change the version used here, as well.
 """
-
-
-def process_internal_api_response(
-    asset_data: dict, asset_id: int | None = None, make_obj=False
-) -> GenericAsset | dict:
-    """
-    Turn data from the internal API into something we can use to further populate the UI.
-    Either as an asset object or a dict for form filling.
-
-    If we add other data by querying the database, we make sure the asset is not in the session afterwards.
-    """
-
-    def expunge_asset():
-        # use if no insert is wanted from a previous query which flushes its results
-        if asset in db.session:
-            db.session.expunge(asset)
-
-    asset_data.pop("status", None)  # might have come from requests.response
-    if asset_id:
-        asset_data["id"] = asset_id
-    if make_obj:
-        children = asset_data.pop("child_assets", [])
-
-        asset = GenericAsset(
-            **{
-                **asset_data,
-                **{"attributes": json.loads(asset_data.get("attributes", "{}"))},
-            }
-        )  # TODO: use schema?
-        asset.generic_asset_type = db.session.get(
-            GenericAssetType, asset.generic_asset_type_id
-        )
-        expunge_asset()
-        asset.owner = db.session.get(Account, asset_data["account_id"])
-        expunge_asset()
-        db.session.flush()
-        if "id" in asset_data:
-            asset.sensors = db.session.scalars(
-                select(Sensor).filter_by(generic_asset_id=asset_data["id"])
-            ).all()
-            expunge_asset()
-        if asset_data.get("parent_asset_id", None) is not None:
-            asset.parent_asset = db.session.execute(
-                select(GenericAsset).filter(
-                    GenericAsset.id == asset_data["parent_asset_id"]
-                )
-            ).scalar_one_or_none()
-            expunge_asset()
-
-        child_assets = []
-        for child in children:
-            child.pop("child_assets")
-            child_asset = process_internal_api_response(child, child["id"], True)
-            child_assets.append(child_asset)
-        asset.child_assets = child_assets
-        expunge_asset()
-
-        return asset
-    return asset_data
-
-
-def user_can_create_assets() -> bool:
-    try:
-        check_access(current_user.account, "create-children")
-    except Exception:
-        return False
-    return True
-
-
-def user_can_delete(asset) -> bool:
-    try:
-        check_access(asset, "delete")
-    except Exception:
-        return False
-    return True
-
-
-def get_assets_by_account(account_id: int | str | None) -> list[GenericAsset]:
-    if account_id is not None:
-        get_assets_response = InternalApi().get(
-            url_for("AssetAPI:index"), query={"account_id": account_id}
-        )
-    else:
-        get_assets_response = InternalApi().get(url_for("AssetAPI:public"))
-    return [
-        process_internal_api_response(ad, make_obj=True)
-        for ad in get_assets_response.json()
-    ]
 
 
 class AssetCrudUI(FlaskView):
@@ -279,8 +192,8 @@ class AssetCrudUI(FlaskView):
             asset_form = NewAssetForm()
             asset_form.with_options()
 
-            account, account_error = _set_account(asset_form)
-            asset_type, asset_type_error = _set_asset_type(asset_form)
+            account, account_error = asset_form.set_account()
+            asset_type, asset_type_error = asset_form.set_asset_type()
 
             account_id = account.id if account else None
             asset_form.with_sensors(None, account_id)
@@ -395,49 +308,3 @@ class AssetCrudUI(FlaskView):
         return self.index(
             msg=f"Asset {id} and assorted meter readings / forecasts have been deleted."
         )
-
-
-def _set_account(asset_form: NewAssetForm) -> tuple[Account | None, str | None]:
-    """Set an account for the to-be-created asset.
-    Return the account (if available) and an error message"""
-    account_error = None
-
-    if asset_form.account_id.data == -1:
-        if user_has_admin_access(current_user, "update"):
-            return None, None  # Account can be None (public asset)
-        else:
-            account_error = "Please pick an existing account."
-
-    account = db.session.execute(
-        select(Account).filter_by(id=int(asset_form.account_id.data))
-    ).scalar_one_or_none()
-
-    if account:
-        asset_form.account_id.data = account.id
-    else:
-        current_app.logger.error(account_error)
-    return account, account_error
-
-
-def _set_asset_type(
-    asset_form: NewAssetForm,
-) -> tuple[GenericAssetType | None, str | None]:
-    """Set an asset type for the to-be-created asset.
-    Return the asset type (if available) and an error message."""
-    asset_type = None
-    asset_type_error = None
-
-    if int(asset_form.generic_asset_type_id.data) == -1:
-        asset_type_error = "Pick an existing asset type."
-    else:
-        asset_type = db.session.execute(
-            select(GenericAssetType).filter_by(
-                id=int(asset_form.generic_asset_type_id.data)
-            )
-        ).scalar_one_or_none()
-
-    if asset_type:
-        asset_form.generic_asset_type_id.data = asset_type.id
-    else:
-        current_app.logger.error(asset_type_error)
-    return asset_type, asset_type_error
