@@ -327,25 +327,19 @@ class AssetCrudUI(FlaskView):
 
         # add data about forecasting and scheduling jobs
         redis_connection_err = None
-        scheduling_job_data, forecasting_job_data = list(), list()
+        all_jobs_data = list()
         try:
             jobs_data = build_asset_jobs_data(asset)
         except NoRedisConfigured as e:
             redis_connection_err = e.args[0]
         else:
-            scheduling_job_data = [
-                jd for jd in jobs_data if jd["queue"] == "scheduling"
-            ]
-            forecasting_job_data = [
-                jd for jd in jobs_data if jd["queue"] == "forecasting"
-            ]
+            all_jobs_data = jobs_data
 
         return render_flexmeasures_template(
             "views/status.html",
             asset=asset,
             sensors=status_data,
-            scheduling_job_data=scheduling_job_data,
-            forecasting_job_data=forecasting_job_data,
+            jobs_data=all_jobs_data,
             redis_connection_err=redis_connection_err,
         )
 

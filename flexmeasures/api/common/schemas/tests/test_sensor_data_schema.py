@@ -1,4 +1,5 @@
 from datetime import timedelta, datetime
+import json
 import pytest
 import pytz
 
@@ -309,10 +310,10 @@ def test_build_asset_jobs_data(db, app, add_battery_assets):
     jobs_data = build_asset_jobs_data(battery_asset)
     assert sorted([j["queue"] for j in jobs_data]) == ["forecasting", "scheduling"]
     for job_data in jobs_data:
+        metadata = json.loads(job_data["metadata"])
         if job_data["queue"] == "forecasting":
-            assert job_data["job_id"] == forecasting_jobs[0].id
+            assert metadata["job_id"] == forecasting_jobs[0].id
         else:
-            assert job_data["job_id"] == scheduling_job.id
+            assert metadata["job_id"] == scheduling_job.id
         assert job_data["status"] == "queued"
-        assert job_data["asset_or_sensor_type"] == "sensor"
-        assert job_data["asset_id"] == battery.id
+        assert job_data["entity"] == f"sensor: {battery.name} (id: {battery.id})"

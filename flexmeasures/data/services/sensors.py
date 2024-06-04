@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta
 from flask import current_app
 from timely_beliefs import BeliefsDataFrame
@@ -222,6 +223,7 @@ def build_asset_jobs_data(
             "scheduling",
             "asset",
             asset.id,
+            asset.name,
             current_app.job_cache.get(asset.id, "scheduling", "asset"),
         )
     )
@@ -232,6 +234,7 @@ def build_asset_jobs_data(
                 "scheduling",
                 "sensor",
                 sensor.id,
+                sensor.name,
                 current_app.job_cache.get(sensor.id, "scheduling", "sensor"),
             )
         )
@@ -240,13 +243,14 @@ def build_asset_jobs_data(
                 "forecasting",
                 "sensor",
                 sensor.id,
+                sensor.name,
                 current_app.job_cache.get(sensor.id, "forecasting", "sensor"),
             )
         )
 
     jobs_data = list()
     # Building the actual return list - we also unpack lists of jobs, each to its own entry, and we add error info
-    for queue, asset_or_sensor_type, asset_id, jobs in jobs:
+    for queue, asset_or_sensor_type, entity_id, entity_name, jobs in jobs:
         for job in jobs:
             e = job.meta.get(
                 "exception",
@@ -262,12 +266,13 @@ def build_asset_jobs_data(
                 else None
             )
 
+            metadata = {**job.meta, "job_id": job.id}
             jobs_data.append(
                 {
-                    "job_id": job.id,
+                    "metadata": json.dumps(metadata, default=str),
                     "queue": queue,
                     "asset_or_sensor_type": asset_or_sensor_type,
-                    "asset_id": asset_id,
+                    "entity": f"{asset_or_sensor_type}: {entity_name} (id: {entity_id})",
                     "status": job.get_status(),
                     "err": job_err,
                     "enqueued_at": job.enqueued_at,
