@@ -272,7 +272,7 @@ def build_asset_jobs_data(
                     "metadata": json.dumps(metadata, default=str),
                     "queue": queue,
                     "asset_or_sensor_type": asset_or_sensor_type,
-                    "entity": f"{asset_or_sensor_type}: {entity_name} (id: {entity_id})",
+                    "entity": f"{asset_or_sensor_type}: {entity_name} (Id: {entity_id})",
                     "status": job.get_status(),
                     "err": job_err,
                     "enqueued_at": job.enqueued_at,
