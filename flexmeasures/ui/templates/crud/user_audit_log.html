@@ -28,7 +28,7 @@
                             {{ audit_log.event_datetime | naturalized_datetime }}
                         </td>
                         <td>
-                            {{ audit_log.active_user_name }}
+                            {{ audit_log.active_user_name }} (id: {{ audit_log.active_user_id }})
                         </td>
                     </tr>
                     {% endfor %}
