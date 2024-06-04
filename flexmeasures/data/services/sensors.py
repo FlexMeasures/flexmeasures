@@ -39,9 +39,9 @@ def get_sensors(
         account_ids = [account.id for account in account]
     else:
         account_ids = [account.id]
-    sensor_query = sensor_query.join(GenericAsset).filter(
-        Sensor.generic_asset_id == GenericAsset.id
-    )
+    sensor_query = sensor_query.join(
+        GenericAsset, GenericAsset.id == Sensor.generic_asset_id
+    ).filter(Sensor.generic_asset_id == GenericAsset.id)
     if include_public_assets:
         sensor_query = sensor_query.filter(
             sa.or_(

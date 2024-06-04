@@ -140,8 +140,13 @@ class AssetAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
+        inflexible_sensor_ids = asset_data.pop("inflexible_device_sensor_ids", [])
         asset = GenericAsset(**asset_data)
         db.session.add(asset)
+        # assign asset id
+        db.session.flush()
+
+        asset.set_inflexible_sensors(inflexible_sensor_ids)
         db.session.commit()
         return asset_schema.dump(asset), 201
 
@@ -231,6 +236,9 @@ class AssetAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
+        inflexible_sensor_ids = asset_data.pop("inflexible_device_sensor_ids", [])
+        db_asset.set_inflexible_sensors(inflexible_sensor_ids)
+
         for k, v in asset_data.items():
             setattr(db_asset, k, v)
         db.session.add(db_asset)
