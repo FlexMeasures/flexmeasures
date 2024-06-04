@@ -289,7 +289,12 @@ class UserAPI(FlaskView):
         audit_logs = [
             {
                 k: getattr(log, k)
-                for k in ("event", "event_datetime", "active_user_name")
+                for k in (
+                    "event",
+                    "event_datetime",
+                    "active_user_name",
+                    "active_user_id",
+                )
             }
             for log in audit_logs
         ]
