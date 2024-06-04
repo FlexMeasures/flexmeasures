@@ -331,11 +331,8 @@ class AssetAPI(FlaskView):
 
     @route("/<id>/schedules/trigger", methods=["POST"])
     @use_kwargs(
-        {"asset": AssetIdField(data_key="id")},
-        location="path",
-    )
-    @use_kwargs(
         {
+            "asset": AssetIdField(data_key="id"),
             "start_of_schedule": AwareDateTimeField(
                 data_key="start", format="iso", required=True
             ),
@@ -346,7 +343,7 @@ class AssetAPI(FlaskView):
             "flex_model": fields.Dict(data_key="flex-model"),
             "flex_context": fields.Dict(required=False, data_key="flex-context"),
         },
-        location="json",
+        location="args_and_json",
     )
     # Simplification of checking for create-children access on each of the flexible sensors,
     # which assumes each of the flexible sensors belongs to the given asset.
