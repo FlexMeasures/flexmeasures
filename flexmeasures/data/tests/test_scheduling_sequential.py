@@ -32,7 +32,7 @@ def test_create_sequential_jobs(db, app, flex_description_sequential, smart_buil
         "id": sensors["Test EV"].id,
         "class": "Sensor",
     }
-    # It uses the inflxible-device-sensors that are defined in the flex-conctext, exclusively.
+    # It uses the inflexible-device-sensors that are defined in the flex-context, exclusively.
     assert jobs[0].kwargs["flex_context"]["inflexible-device-sensors"] == [
         sensors["Test Solar"].id,
         sensors["Test Building"].id,
