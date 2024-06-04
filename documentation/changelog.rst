@@ -8,7 +8,8 @@ v0.22.0 | June XX, 2024
 
 New features
 -------------
-* On the asset page, facilitate comparison by showing the two default sensors together if they record the same unit [see `PR #1066 <https://github.com/FlexMeasures/flexmeasures/pull/1066>`_]
+* Flex-context (price sensors and inflexible device sensors) can now be set on the asset page (and are part of GenericAsset model) [see `PR #1059 <https://github.com/FlexMeasures/flexmeasures/pull/1059/>`_]
+* On the asset page's default view, facilitate comparison by showing the two default sensors together if they record the same unit [see `PR #1066 <https://github.com/FlexMeasures/flexmeasures/pull/1066>`_]
 
 Infrastructure / Support
 ----------------------
@@ -17,7 +18,6 @@ Infrastructure / Support
 * Add option ``droplevels`` to the ``PandasReporter`` to drop all the levels except the ``event_start`` and ``event_value`` [see `PR #1043 <https://github.com/FlexMeasures/flexmeasures/pull/1043/>`_]
 * ``PandasReporter`` accepts the parameter ``use_latest_version_only`` to filter input data [see `PR #1045 <https://github.com/FlexMeasures/flexmeasures/pull/1045/>`_]
 * ``flexmeasures show beliefs`` uses the entity path (`<Account>/../<Sensor>`) in case of duplicated sensors [see `PR #1026 <https://github.com/FlexMeasures/flexmeasures/pull/1026/>`_]
-* Add price sensors and inflexible device sensors to GenericAsset [see `PR #1059 <https://github.com/FlexMeasures/flexmeasures/pull/1059/>`_]
 
 
 v0.21.0 | May 16, 2024
