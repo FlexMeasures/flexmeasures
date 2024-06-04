@@ -1,12 +1,18 @@
+from datetime import timedelta
 from flask import url_for
 import pytest
 from isodate import parse_datetime, parse_duration
 
 import pandas as pd
 from rq.job import Job
+from unittest.mock import patch
 
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
-from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.generic_assets import (
+    GenericAsset,
+    GenericAssetInflexibleSensorRelationship,
+)
+from flexmeasures.data.models.planning.utils import get_prices, get_power_values
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.tests.utils import work_on_rq
 from flexmeasures.data.services.scheduling import (
@@ -54,8 +60,7 @@ def test_trigger_and_get_schedule(
 
     sensor = (
         Sensor.query.filter(Sensor.name == "power")
-        .join(GenericAsset)
-        .filter(GenericAsset.id == Sensor.generic_asset_id)
+        .join(GenericAsset, GenericAsset.id == Sensor.generic_asset_id)
         .filter(GenericAsset.name == asset_name)
         .one_or_none()
     )
@@ -193,3 +198,222 @@ def test_trigger_and_get_schedule(
 
     # Check whether the soc-at-start was persisted as an asset attribute
     assert sensor.generic_asset.get_attribute("soc_in_mwh") == start_soc
+
+
+@pytest.mark.parametrize(
+    "context_sensor, asset_sensor, parent_sensor, expect_sensor",
+    [
+        # Only context sensor present, use it
+        ("epex_da", None, None, "epex_da"),
+        # Only asset sensor present, use it
+        (None, "epex_da", None, "epex_da"),
+        # Have sensors both in context and on asset, use from context
+        ("epex_da_production", "epex_da", None, "epex_da_production"),
+        # No sensor in context or asset, use from parent asset
+        (None, None, "epex_da", "epex_da"),
+        # No sensor in context, have sensor on asset and parent asset, use from asset
+        (None, "epex_da", "epex_da_production", "epex_da"),
+    ],
+)
+@pytest.mark.parametrize(
+    "sensor_type",
+    [
+        "consumption",
+        "production",
+    ],
+)
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_price_sensor_priority(
+    app,
+    fresh_db,
+    add_market_prices_fresh_db,
+    add_battery_assets_fresh_db,
+    battery_soc_sensor_fresh_db,
+    add_charging_station_assets_fresh_db,
+    keep_scheduling_queue_empty,
+    context_sensor,
+    asset_sensor,
+    parent_sensor,
+    expect_sensor,
+    sensor_type,
+    requesting_user,
+):  # noqa: C901
+    message, asset_name = message_for_trigger_schedule(), "Test battery"
+    message["force_new_job_creation"] = True
+
+    sensor_types = ["consumption", "production"]
+    other_sensors = {
+        name: other_name
+        for name, other_name in zip(sensor_types, reversed(sensor_types))
+    }
+    used_sensor, unused_sensor = (
+        f"{sensor_type}-price-sensor",
+        f"{other_sensors[sensor_type]}-price-sensor",
+    )
+
+    price_sensor_id = None
+    sensor_attribute = f"{sensor_type}_price_sensor_id"
+    # preparation: ensure the asset actually has the price sensor set as attribute
+    if asset_sensor:
+        price_sensor_id = add_market_prices_fresh_db[asset_sensor].id
+        battery_asset = add_battery_assets_fresh_db[asset_name]
+        setattr(battery_asset, sensor_attribute, price_sensor_id)
+        fresh_db.session.add(battery_asset)
+    if parent_sensor:
+        price_sensor_id = add_market_prices_fresh_db[parent_sensor].id
+        building_asset = add_battery_assets_fresh_db["Test building"]
+        setattr(building_asset, sensor_attribute, price_sensor_id)
+        fresh_db.session.add(building_asset)
+
+    # Adding unused sensor to context (e.g consumption price sensor if we test production sensor)
+    message["flex-context"] = {
+        unused_sensor: add_market_prices_fresh_db["epex_da"].id,
+        "site-power-capacity": "1 TW",  # should be big enough to avoid any infeasibilities
+    }
+    if context_sensor:
+        price_sensor_id = add_market_prices_fresh_db[context_sensor].id
+        message["flex-context"][used_sensor] = price_sensor_id
+
+    # trigger a schedule through the /sensors/<id>/schedules/trigger [POST] api endpoint
+    assert len(app.queues["scheduling"]) == 0
+
+    sensor = (
+        Sensor.query.filter(Sensor.name == "power")
+        .join(GenericAsset, GenericAsset.id == Sensor.generic_asset_id)
+        .filter(GenericAsset.name == asset_name)
+        .one_or_none()
+    )
+    with app.test_client() as client:
+        trigger_schedule_response = client.post(
+            url_for("SensorAPI:trigger_schedule", id=sensor.id),
+            json=message,
+        )
+        print("Server responded with:\n%s" % trigger_schedule_response.json)
+        assert trigger_schedule_response.status_code == 200
+
+    with patch(
+        "flexmeasures.data.models.planning.storage.get_prices", wraps=get_prices
+    ) as mock_storage_get_prices:
+        work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
+
+        expect_price_sensor_id = add_market_prices_fresh_db[expect_sensor].id
+        # get_prices is called twice: 1st call has consumption price sensor, 2nd call has production price sensor
+        call_num = 0 if sensor_type == "consumption" else 1
+        call_args = mock_storage_get_prices.call_args_list[call_num]
+        assert call_args[1]["price_sensor"].id == expect_price_sensor_id
+
+
+@pytest.mark.parametrize(
+    "context_sensor_num, asset_sensor_num, parent_sensor_num, expect_sensor_num",
+    [
+        # Sensors are present in context and parent, use from context
+        (1, 0, 2, 1),
+        # No sensors in context, have in asset and parent, use asset sensors
+        (0, 1, 2, 1),
+        # No sensors in context and asset, use from parent asset
+        (0, 0, 1, 1),
+        # Have sensors everywhere, use from context
+        (1, 2, 3, 1),
+    ],
+)
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_inflexible_device_sensors_priority(
+    app,
+    fresh_db,
+    add_market_prices_fresh_db,
+    add_battery_assets_fresh_db,
+    battery_soc_sensor_fresh_db,
+    add_charging_station_assets_fresh_db,
+    keep_scheduling_queue_empty,
+    context_sensor_num,
+    asset_sensor_num,
+    parent_sensor_num,
+    expect_sensor_num,
+    requesting_user,
+):  # noqa: C901
+    message, asset_name = message_for_trigger_schedule(), "Test battery"
+    message["force_new_job_creation"] = True
+
+    price_sensor_id = add_market_prices_fresh_db["epex_da"].id
+    message["flex-context"] = {
+        "consumption-price-sensor": price_sensor_id,
+        "production-price-sensor": price_sensor_id,
+        "site-power-capacity": "1 TW",  # should be big enough to avoid any infeasibilities
+    }
+    if context_sensor_num:
+        other_asset = add_battery_assets_fresh_db["Test small battery"]
+        context_sensors = setup_inflexible_device_sensors(
+            fresh_db, other_asset, "other asset senssors", context_sensor_num
+        )
+        message["flex-context"]["inflexible-device-sensors"] = [
+            sensor.id for sensor in context_sensors
+        ]
+    if asset_sensor_num:
+        battery_asset = add_battery_assets_fresh_db[asset_name]
+        battery_sensors = setup_inflexible_device_sensors(
+            fresh_db, battery_asset, "battery asset sensors", asset_sensor_num
+        )
+        link_sensors(fresh_db, battery_asset, battery_sensors)
+    if parent_sensor_num:
+        building_asset = add_battery_assets_fresh_db["Test building"]
+        building_sensors = setup_inflexible_device_sensors(
+            fresh_db, building_asset, "building asset sensors", parent_sensor_num
+        )
+        link_sensors(fresh_db, building_asset, building_sensors)
+
+    # trigger a schedule through the /sensors/<id>/schedules/trigger [POST] api endpoint
+    assert len(app.queues["scheduling"]) == 0
+
+    sensor = (
+        Sensor.query.filter(Sensor.name == "power")
+        .join(GenericAsset, GenericAsset.id == Sensor.generic_asset_id)
+        .filter(GenericAsset.name == asset_name)
+        .one_or_none()
+    )
+    with app.test_client() as client:
+        trigger_schedule_response = client.post(
+            url_for("SensorAPI:trigger_schedule", id=sensor.id),
+            json=message,
+        )
+        print("Server responded with:\n%s" % trigger_schedule_response.json)
+        assert trigger_schedule_response.status_code == 200
+
+    with patch(
+        "flexmeasures.data.models.planning.storage.get_power_values",
+        wraps=get_power_values,
+    ) as mock_storage_get_power_values:
+        work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
+
+        # Counting how many times power values (for inflexible sensors) were fetched (gives us the number of sensors)
+        call_args = mock_storage_get_power_values.call_args_list
+        assert len(call_args) == expect_sensor_num
+
+
+def setup_inflexible_device_sensors(fresh_db, asset, sensor_name, sensor_num):
+    """Test helper function to add sensor_num sensors to an asset"""
+    sensors = list()
+    for i in range(sensor_num):
+        sensor = Sensor(
+            name=f"{sensor_name}-{i}",
+            generic_asset=asset,
+            event_resolution=timedelta(hours=1),
+            unit="MW",
+            attributes={"capacity_in_mw": 2},
+        )
+        fresh_db.session.add(sensor)
+        sensors.append(sensor)
+    fresh_db.session.flush()
+
+    return sensors
+
+
+def link_sensors(fresh_db, asset, sensors):
+    for sensor in sensors:
+        asset_inflexible_sensor_relationship = GenericAssetInflexibleSensorRelationship(
+            generic_asset_id=asset.id, inflexible_sensor_id=sensor.id
+        )
+        fresh_db.session.add(asset_inflexible_sensor_relationship)
