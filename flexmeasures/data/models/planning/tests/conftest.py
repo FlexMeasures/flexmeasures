@@ -6,6 +6,8 @@ import pytest
 from timely_beliefs.sensors.func_store.knowledge_horizons import at_date
 import pandas as pd
 
+from sqlalchemy import select
+
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.planning.utils import initialize_index
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
@@ -95,7 +97,12 @@ def building(db, setup_accounts, setup_markets) -> GenericAsset:
     """
     Set up a building.
     """
-    building_type = GenericAssetType(name="building")
+    building_type = db.session.execute(
+        select(GenericAssetType).filter_by(name="building")
+    ).scalar_one_or_none()
+    if not building_type:
+        # create_test_battery_assets might have created it already
+        building_type = GenericAssetType(name="battery")
     db.session.add(building_type)
     building = GenericAsset(
         name="building",
