@@ -221,6 +221,7 @@ class SensorAPI(FlaskView):
             ),
             "flex_model": fields.Dict(data_key="flex-model"),
             "flex_context": fields.Dict(required=False, data_key="flex-context"),
+            "force_new_job_creation": fields.Boolean(required=False),
         },
         location="json",
     )
@@ -233,6 +234,7 @@ class SensorAPI(FlaskView):
         belief_time: datetime | None = None,
         flex_model: dict | None = None,
         flex_context: dict | None = None,
+        force_new_job_creation: bool | None = False,
         **kwargs,
     ):
         """
@@ -376,6 +378,7 @@ class SensorAPI(FlaskView):
             job = create_scheduling_job(
                 **scheduler_kwargs,
                 enqueue=True,
+                force_new_job_creation=force_new_job_creation,
             )
         except ValidationError as err:
             return invalid_flex_config(err.messages)

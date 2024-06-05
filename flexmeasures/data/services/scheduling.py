@@ -16,7 +16,6 @@ from copy import deepcopy
 
 from flask import current_app
 import click
-from jsonschema import ValidationError
 from rq import get_current_job, Callback
 from rq.job import Job
 import timely_beliefs as tb
@@ -32,7 +31,6 @@ from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.generic_assets import GenericAsset as Asset
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.utils import get_data_source, save_to_db
-from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.data.services.utils import (
     job_cache,
@@ -275,7 +273,7 @@ def cb_done_sequential_scheduling_job(jobs_ids: list[str]):
 
 
 def create_sequential_scheduling_job(
-    asset_or_sensor: Asset | Sensor | None = None,
+    asset: Asset,
     job_id: str | None = None,
     enqueue: bool = True,
     requeue: bool = False,
@@ -289,21 +287,13 @@ def create_sequential_scheduling_job(
     previous_sensors = []
     previous_job = depends_on
     for child_flex_model in flex_model:
-        sensor_id = child_flex_model.pop("sensor")
-        if sensor_id is None:
-            raise ValidationError(
-                f"Missing 'sensor' in flex-model list item: {child_flex_model}."
-            )
-
-        # get the sensor, while ensuring that it lives under the asset
-        if isinstance(asset_or_sensor, Asset):
-            sensor = SensorIdField(asset=asset_or_sensor).deserialize(sensor_id)
-        else:
-            sensor = SensorIdField().deserialize(sensor_id)
+        sensor = child_flex_model.pop("sensor")
 
         current_scheduler_kwargs = deepcopy(scheduler_kwargs)
 
-        current_scheduler_kwargs["flex_model"] = child_flex_model
+        current_scheduler_kwargs["flex_model"] = child_flex_model["sensor_flex_model"]
+        if "inflexible-device-sensors" not in current_scheduler_kwargs["flex_context"]:
+            current_scheduler_kwargs["flex_context"]["inflexible-device-sensors"] = []
         current_scheduler_kwargs["flex_context"]["inflexible-device-sensors"].extend(
             previous_sensors
         )
@@ -315,7 +305,7 @@ def create_sequential_scheduling_job(
             scheduler_specs=scheduler_specs,
             requeue=requeue,
             job_id=job_id,
-            enqueue=enqueue,
+            enqueue=False,  # we enqueue all jobs later in this method
             depends_on=previous_job,
             force_new_job_creation=force_new_job_creation,
         )
@@ -323,7 +313,7 @@ def create_sequential_scheduling_job(
         previous_sensors.append(sensor.id)
         previous_job = job
 
-    # create that triggers when the last job is done
+    # create job that triggers when the last job is done
     job = Job.create(
         func=cb_done_sequential_scheduling_job,
         args=([j.id for j in jobs],),
@@ -350,10 +340,10 @@ def create_sequential_scheduling_job(
         for job in jobs:
             current_app.queues["scheduling"].enqueue_job(job)
             current_app.job_cache.add(
-                asset_or_sensor["id"],
+                asset.id,
                 job.id,
                 queue="scheduling",
-                asset_or_sensor_type=asset_or_sensor["class"].lower(),
+                asset_or_sensor_type="asset",
             )
 
     return jobs

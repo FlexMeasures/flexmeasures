@@ -22,20 +22,22 @@ def test_create_sequential_jobs(db, app, flex_description_sequential, smart_buil
     flex_description_sequential["end"] = end
 
     jobs = create_sequential_scheduling_job(
-        asset_or_sensor=assets["Test Site"],
+        asset=assets["Test Site"],
         scheduler_specs=scheduler_specs,
         enqueue=False,
         **flex_description_sequential,
     )
 
-    assert len(jobs) == 3
+    assert (
+        len(jobs) == 3
+    ), "There should be 3 jobs: 2 jobs scheduling the 2 flexible devices in the flex-model, plus 1 'done job' to wrap things up."
 
     # The EV is scheduled firstly.
     assert jobs[0].kwargs["asset_or_sensor"] == {
         "id": sensors["Test EV"].id,
         "class": "Sensor",
     }
-    # It uses the inflxible-device-sensors that are defined in the flex-conctext, exclusively.
+    # It uses the inflexible-device-sensors that are defined in the flex-context, exclusively.
     assert jobs[0].kwargs["flex_context"]["inflexible-device-sensors"] == [
         sensors["Test Solar"].id,
         sensors["Test Building"].id,

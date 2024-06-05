@@ -330,12 +330,16 @@ def smart_building(app, fresh_db, smart_building_types):
 def flex_description_sequential(
     smart_building, setup_markets_fresh_db, add_market_prices_fresh_db
 ):
+    """This is a partially deserialized flex model.
+
+    Specifically, the main flex model is deserialized, while the sensors' individual flex models are still serialized.
+    """
     assets, sensors = smart_building
 
     return {
         "flex_model": [
             {
-                "sensor": sensors["Test EV"].id,
+                "sensor": sensors["Test EV"],
                 "consumption-capacity": "10kW",
                 "production-capacity": "0kW",
                 "power-capacity": "10kW",
@@ -353,7 +357,7 @@ def flex_description_sequential(
                 ],
             },
             {
-                "sensor": sensors["Test Battery"].id,
+                "sensor": sensors["Test Battery"],
                 "consumption-capacity": "0kW",
                 "production-capacity": "10kW",
                 "power-capacity": "10kW",

@@ -15,12 +15,15 @@ from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset
-from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
-from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
+from flexmeasures.data.schemas.generic_assets import (
+    GenericAssetSchema as AssetSchema,
+    GenericAssetIdField as AssetIdField,
+)
+from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
+from flexmeasures.data.schemas.times import AwareDateTimeField
 from flexmeasures.data.services.scheduling import (
     create_sequential_scheduling_job,
 )
-from flexmeasures.api.common.schemas.generic_assets import AssetIdField
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.responses import (
     invalid_flex_config,
@@ -150,13 +153,20 @@ class AssetAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
+        inflexible_sensor_ids = asset_data.pop("inflexible_device_sensor_ids", [])
         asset = GenericAsset(**asset_data)
         db.session.add(asset)
+        # assign asset id
+        db.session.flush()
+
+        asset.set_inflexible_sensors(inflexible_sensor_ids)
         db.session.commit()
         return asset_schema.dump(asset), 201
 
     @route("/<id>", methods=["GET"])
-    @use_kwargs({"asset": AssetIdField(data_key="id")}, location="path")
+    @use_kwargs(
+        {"asset": AssetIdField(data_key="id", status_if_not_found=404)}, location="path"
+    )
     @permission_required_for_context("read", ctx_arg_name="asset")
     @as_json
     def fetch_one(self, id, asset):
@@ -192,7 +202,10 @@ class AssetAPI(FlaskView):
 
     @route("/<id>", methods=["PATCH"])
     @use_args(partial_asset_schema)
-    @use_kwargs({"db_asset": AssetIdField(data_key="id")}, location="path")
+    @use_kwargs(
+        {"db_asset": AssetIdField(data_key="id", status_if_not_found=404)},
+        location="path",
+    )
     @permission_required_for_context("update", ctx_arg_name="db_asset")
     @as_json
     def patch(self, asset_data: dict, id: int, db_asset: GenericAsset):
@@ -241,6 +254,9 @@ class AssetAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
+        inflexible_sensor_ids = asset_data.pop("inflexible_device_sensor_ids", [])
+        db_asset.set_inflexible_sensors(inflexible_sensor_ids)
+
         for k, v in asset_data.items():
             setattr(db_asset, k, v)
         db.session.add(db_asset)
@@ -248,7 +264,9 @@ class AssetAPI(FlaskView):
         return asset_schema.dump(db_asset), 200
 
     @route("/<id>", methods=["DELETE"])
-    @use_kwargs({"asset": AssetIdField(data_key="id")}, location="path")
+    @use_kwargs(
+        {"asset": AssetIdField(data_key="id", status_if_not_found=404)}, location="path"
+    )
     @permission_required_for_context("delete", ctx_arg_name="asset")
     @as_json
     def delete(self, id: int, asset: GenericAsset):
@@ -275,7 +293,7 @@ class AssetAPI(FlaskView):
 
     @route("/<id>/chart", strict_slashes=False)  # strict on next version? see #1014
     @use_kwargs(
-        {"asset": AssetIdField(data_key="id")},
+        {"asset": AssetIdField(data_key="id", status_if_not_found=404)},
         location="path",
     )
     @use_kwargs(
@@ -305,7 +323,7 @@ class AssetAPI(FlaskView):
         "/<id>/chart_data", strict_slashes=False
     )  # strict on next version? see #1014
     @use_kwargs(
-        {"asset": AssetIdField(data_key="id")},
+        {"asset": AssetIdField(data_key="id", status_if_not_found=404)},
         location="path",
     )
     @use_kwargs(
@@ -330,24 +348,7 @@ class AssetAPI(FlaskView):
         return asset.search_beliefs(sensors=sensors, as_json=True, **kwargs)
 
     @route("/<id>/schedules/trigger", methods=["POST"])
-    @use_kwargs(
-        {"asset": AssetIdField(data_key="id")},
-        location="path",
-    )
-    @use_kwargs(
-        {
-            "start_of_schedule": AwareDateTimeField(
-                data_key="start", format="iso", required=True
-            ),
-            "belief_time": AwareDateTimeField(format="iso", data_key="prior"),
-            "duration": PlanningDurationField(
-                load_default=PlanningDurationField.load_default
-            ),
-            "flex_model": fields.Dict(data_key="flex-model"),
-            "flex_context": fields.Dict(required=False, data_key="flex-context"),
-        },
-        location="json",
-    )
+    @use_args(AssetTriggerSchema(), location="args_and_json", as_kwargs=True)
     # Simplification of checking for create-children access on each of the flexible sensors,
     # which assumes each of the flexible sensors belongs to the given asset.
     @permission_required_for_context("create-children", ctx_arg_name="asset")
@@ -503,8 +504,8 @@ class AssetAPI(FlaskView):
             flex_context=flex_context,
         )
         try:
-            job = create_sequential_scheduling_job(
-                asset_or_sensor=asset, enqueue=True, **scheduler_kwargs
+            jobs = create_sequential_scheduling_job(
+                asset=asset, enqueue=True, **scheduler_kwargs
             )
         except ValidationError as err:
             return invalid_flex_config(err.messages)
@@ -512,6 +513,6 @@ class AssetAPI(FlaskView):
             return invalid_flex_config(str(err))
 
         # todo: make a 'done job' and pass that job's ID here
-        response = dict(schedule=job.id)
+        response = dict(schedule=jobs[-1].id)
         d, s = request_processed()
         return dict(**response, **d), s
