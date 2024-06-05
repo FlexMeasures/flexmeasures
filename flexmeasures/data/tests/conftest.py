@@ -337,7 +337,7 @@ def flex_description_sequential(smart_building, setup_markets):
                     "soc-unit": "MWh",
                     "soc-min": 0.0,
                     "soc-max": 0.05,  # 50 kWh
-                }
+                },
             },
             {
                 "sensor": sensors["Test Battery"],
@@ -347,7 +347,7 @@ def flex_description_sequential(smart_building, setup_markets):
                     "soc-unit": "MWh",
                     "soc-min": 0.0,
                     "soc-max": 0.1,  # 100 kWh
-                }
+                },
             },
         ],
         "flex_context": {
