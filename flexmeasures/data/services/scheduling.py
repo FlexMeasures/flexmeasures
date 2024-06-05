@@ -312,6 +312,9 @@ def create_sequential_scheduling_job(
         connection=current_app.queues["scheduling"].connection,
     )
 
+    # Stand-in for MultiStorageScheduler
+    job.meta["scheduler_info"] = dict(scheduler="A sequential job scheduling policy")
+
     job_status = job.get_status(refresh=True)
 
     jobs.append(job)
