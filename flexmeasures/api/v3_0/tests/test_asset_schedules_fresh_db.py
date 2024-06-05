@@ -101,14 +101,16 @@ def test_asset_trigger_and_get_schedule(
     scheduler_source = get_data_source_for_job(scheduling_job)
     assert scheduler_source is not None
 
-    # try to retrieve the schedule through the /sensors/<id>/schedules/<job_id> [GET] api endpoint
+    # try to retrieve the schedule through the /assets/<id>/schedules/<job_id> [GET] api endpoint
     get_schedule_response = client.get(
-        url_for(
-            "SensorAPI:get_schedule", id=sensor.id, uuid=scheduling_job.id
-        ),  # todo: use (last?) job_id from trigger response
+        url_for("AssetAPI:get_schedule", id=sensor.id, uuid=job_id),
         query_string={"duration": "PT48H"},
     )
     print("Server responded with:\n%s" % get_schedule_response.json)
     assert get_schedule_response.status_code == 200
-    # assert get_schedule_response.json["type"] == "GetDeviceMessageResponse"
-    assert len(get_schedule_response.json["values"]) == expected_length_of_schedule
+    assert len(get_schedule_response.json["schedule"]) == len(message["flex-model"])
+    assert get_schedule_response.json["schedule"][0]["sensor"] == sensor.id
+    assert (
+        len(get_schedule_response.json["schedule"][0]["values"])
+        == expected_length_of_schedule
+    )
