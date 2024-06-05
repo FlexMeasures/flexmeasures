@@ -68,16 +68,16 @@
               </a>
             </div>
             <div
-            class="navbar-toggler border-0"
-            type="button"
-            data-bs-toggle="collapse"
-            data-bs-target="#navbarSupportedContent"
-            aria-controls="navbarSupportedContent"
-            aria-expanded="false"
-            aria-label="Toggle navigation"
-          >
-          <i class="fa fa-bars"></i>
-          </div>
+                class="navbar-toggler border-0"
+                type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#navbarSupportedContent"
+                aria-controls="navbarSupportedContent"
+                aria-expanded="false"
+                aria-label="Toggle navigation"
+            >
+                <i class="fa fa-bars"></i>
+            </div>
          
           <div class="collapse navbar-collapse justify-content-end flex-row" id="navbarSupportedContent">
             <ul class="nav navbar-nav d-flex">
@@ -86,7 +86,7 @@
                 <li {% if id == active_page %} class="nav-item dropdown active" {% else %} class="nav-item dropdown" {% endif %}>
                     <a class="nav-link dropdown-toggle" href="#" id="tasksDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                     <span class="fa fa-tasks" aria-hidden="true"></span>
-                    Tasks
+                        Tasks
                     </a>
                     <ul class="dropdown-menu" aria-labelledby="tasksDropdown">
                     {% for queue in queue_names %}
@@ -98,7 +98,7 @@
                     {% endfor %}
                     <li {% if current_user.has_role('anonymous') %} class="disabled" {% endif %}>
                         <a class="dropdown-item" {% if not current_user.has_role('anonymous') %} href="/tasks/" {% endif %}>
-                        Overview
+                            Overview
                         </a>
                     </li>
                     </ul>
@@ -110,11 +110,11 @@
                     class="disabled" {% endif %}>
                     <a {% if not ( id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users')) ) %} href="/{{ href|e }}" {% endif %}
                     {% if id == 'docs' %} target="_blank" {% endif %} class="nav-link">
-                    <span class="fa fa-{{ icon }}" aria-hidden="true"></span>
-                    {{ caption|e }}
-                    {% if not caption %}
-                        <span class="visible-xs-inline">{{ tooltip }}</span>
-                    {% endif %}
+                        <span class="fa fa-{{ icon }}" aria-hidden="true"></span>
+                        {{ caption|e }}
+                        {% if not caption %}
+                            <span class="visible-xs-inline">{{ tooltip }}</span>
+                        {% endif %}
                     </a>
                 </li>
                 {% endif %}

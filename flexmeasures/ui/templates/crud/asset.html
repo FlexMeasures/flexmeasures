@@ -227,98 +227,98 @@
             <div class="sensors-asset card">
                 <h3>All sensors for {{ asset.name }}</h3>
                 <div class="table-responsive">
-                <table class="table table-striped paginate nav-on-click" title="View data">
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>ID</th>
-                            <th class="text-right">Unit</th>
-                            <th class="text-right">Resolution</th>
-                            <th class="text-right no-sort">Entity address</th>
-                            <th class="d-none">URL</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for sensor in asset.sensors: %}
-                        <tr>
-                            <td>
-                                {{ sensor.name }}
-                            </td>
-                            <td>
-                                {{ sensor.id }}
-                            </td>
-                            <td class="text-right">
-                                {{ sensor.unit }}
-                            </td>
-                            <td class="text-right">
-                                {{ sensor.event_resolution | naturalized_timedelta }}
-                            </td>
-                            <td class="text-right">
-                                {{ sensor.entity_address }}
-                            </td>
-                            <td class="d-none">
-                                /sensors/{{ sensor.id }}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+                    <table class="table table-striped paginate nav-on-click" title="View data">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>ID</th>
+                                <th class="text-right">Unit</th>
+                                <th class="text-right">Resolution</th>
+                                <th class="text-right no-sort">Entity address</th>
+                                <th class="d-none">URL</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for sensor in asset.sensors: %}
+                            <tr>
+                                <td>
+                                    {{ sensor.name }}
+                                </td>
+                                <td>
+                                    {{ sensor.id }}
+                                </td>
+                                <td class="text-right">
+                                    {{ sensor.unit }}
+                                </td>
+                                <td class="text-right">
+                                    {{ sensor.event_resolution | naturalized_timedelta }}
+                                </td>
+                                <td class="text-right">
+                                    {{ sensor.entity_address }}
+                                </td>
+                                <td class="d-none">
+                                    /sensors/{{ sensor.id }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
                 
             <div class="sensors-asset card">
                 <h3>All child assets for {{ asset.name }}</h3>
                 <div class="table-responsive">
-                <table class="table table-striped paginate nav-on-click w-100 mx-auto" title="View this asset">
-                    <thead>
-                        <tr>
-                            <th><i class="left-icon">Name</i></th>
-                            <th>Location</th>
-                            <th>Asset ID</th>
-                            <th>Account</th>
-                            <th>Sensors</th>
-                            <th class="d-none">URL</th>
-                            <th class="no-sort"></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for child in asset.child_assets %}
-                        <tr>
-                            <td>
-                                <i class="{{ child.generic_asset_type.name | asset_icon }} left-icon">{{ child.name }}</i>
-                            </td>
-                            <td>
-                                {% if child.latitude and child.longitude %}
-                                LAT: {{ "{:,.4f}".format( child.latitude ) }} LONG:
-                                {{ "{:,.4f}".format( child.longitude ) }}
-                                {% endif %}
-                            </td>
-                            <td>
-                                {{ child.id }}
-                            </td>
-                            <td>
-                                {% if child.owner %}
-                                {{ child.owner.name }}
-                                {% else %}
-                                PUBLIC
-                                {% endif %}
-                            </td>
-                            <td>
-                                {{ child.sensors | length }}
-                            </td>
-                            <td class="d-none">
-                                /assets/{{ child.id }}
-                            </td>
-                            <td>
-                                <a href="/assets/{{ child.id }}/status">
-                                    <button type="button" class="btn">Status</button>
-                                </a>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+                    <table class="table table-striped paginate nav-on-click w-100 mx-auto" title="View this asset">
+                        <thead>
+                            <tr>
+                                <th><i class="left-icon">Name</i></th>
+                                <th>Location</th>
+                                <th>Asset ID</th>
+                                <th>Account</th>
+                                <th>Sensors</th>
+                                <th class="d-none">URL</th>
+                                <th class="no-sort"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for child in asset.child_assets %}
+                            <tr>
+                                <td>
+                                    <i class="{{ child.generic_asset_type.name | asset_icon }} left-icon">{{ child.name }}</i>
+                                </td>
+                                <td>
+                                    {% if child.latitude and child.longitude %}
+                                    LAT: {{ "{:,.4f}".format( child.latitude ) }} LONG:
+                                    {{ "{:,.4f}".format( child.longitude ) }}
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {{ child.id }}
+                                </td>
+                                <td>
+                                    {% if child.owner %}
+                                    {{ child.owner.name }}
+                                    {% else %}
+                                    PUBLIC
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {{ child.sensors | length }}
+                                </td>
+                                <td class="d-none">
+                                    /assets/{{ child.id }}
+                                </td>
+                                <td>
+                                    <a href="/assets/{{ child.id }}/status">
+                                        <button type="button" class="btn">Status</button>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
         <div class="col-md-2">
