@@ -288,7 +288,7 @@ def create_sequential_scheduling_job(
             scheduler_specs=scheduler_specs,
             requeue=requeue,
             job_id=job_id,
-            enqueue=enqueue,
+            enqueue=False,  # we enqueue all jobs later in this method
             depends_on=previous_job,
             force_new_job_creation=force_new_job_creation,
         )
@@ -323,10 +323,10 @@ def create_sequential_scheduling_job(
         for job in jobs:
             current_app.queues["scheduling"].enqueue_job(job)
             current_app.job_cache.add(
-                asset_or_sensor["id"],
+                asset_or_sensor.id,
                 job.id,
                 queue="scheduling",
-                asset_or_sensor_type=asset_or_sensor["class"].lower(),
+                asset_or_sensor_type=str(type(asset_or_sensor)).lower(),
             )
 
     return jobs
