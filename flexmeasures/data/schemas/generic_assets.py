@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from http import HTTPStatus
 
 from flask import abort
 from marshmallow import validates, ValidationError, fields, validates_schema
@@ -151,7 +152,7 @@ class GenericAssetTypeSchema(ma.SQLAlchemySchema):
 class GenericAssetIdField(MarshmallowClickMixin, fields.Int):
     """Field that deserializes to a GenericAsset and serializes back to an integer."""
 
-    def __init__(self, status_if_not_found: int | None = None, *args, **kwargs):
+    def __init__(self, status_if_not_found: HTTPStatus | None = None, *args, **kwargs):
         self.status_if_not_found = status_if_not_found
         super().__init__(*args, **kwargs)
 
@@ -162,7 +163,7 @@ class GenericAssetIdField(MarshmallowClickMixin, fields.Int):
         ).scalar_one_or_none()
         if generic_asset is None:
             message = f"No asset found with ID {value}."
-            if self.status_if_not_found == 404:
+            if self.status_if_not_found == HTTPStatus.NOT_FOUND:
                 raise abort(404, message)
             else:
                 raise FMValidationError(message)

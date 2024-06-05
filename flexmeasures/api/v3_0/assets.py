@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from http import HTTPStatus
 import json
 
 from flask import current_app
@@ -165,7 +166,12 @@ class AssetAPI(FlaskView):
 
     @route("/<id>", methods=["GET"])
     @use_kwargs(
-        {"asset": AssetIdField(data_key="id", status_if_not_found=404)}, location="path"
+        {
+            "asset": AssetIdField(
+                data_key="id", status_if_not_found=HTTPStatus.NOT_FOUND
+            )
+        },
+        location="path",
     )
     @permission_required_for_context("read", ctx_arg_name="asset")
     @as_json
@@ -203,7 +209,11 @@ class AssetAPI(FlaskView):
     @route("/<id>", methods=["PATCH"])
     @use_args(partial_asset_schema)
     @use_kwargs(
-        {"db_asset": AssetIdField(data_key="id", status_if_not_found=404)},
+        {
+            "db_asset": AssetIdField(
+                data_key="id", status_if_not_found=HTTPStatus.NOT_FOUND
+            )
+        },
         location="path",
     )
     @permission_required_for_context("update", ctx_arg_name="db_asset")
@@ -265,7 +275,12 @@ class AssetAPI(FlaskView):
 
     @route("/<id>", methods=["DELETE"])
     @use_kwargs(
-        {"asset": AssetIdField(data_key="id", status_if_not_found=404)}, location="path"
+        {
+            "asset": AssetIdField(
+                data_key="id", status_if_not_found=HTTPStatus.NOT_FOUND
+            )
+        },
+        location="path",
     )
     @permission_required_for_context("delete", ctx_arg_name="asset")
     @as_json
@@ -293,7 +308,11 @@ class AssetAPI(FlaskView):
 
     @route("/<id>/chart", strict_slashes=False)  # strict on next version? see #1014
     @use_kwargs(
-        {"asset": AssetIdField(data_key="id", status_if_not_found=404)},
+        {
+            "asset": AssetIdField(
+                data_key="id", status_if_not_found=HTTPStatus.NOT_FOUND
+            )
+        },
         location="path",
     )
     @use_kwargs(
@@ -323,7 +342,11 @@ class AssetAPI(FlaskView):
         "/<id>/chart_data", strict_slashes=False
     )  # strict on next version? see #1014
     @use_kwargs(
-        {"asset": AssetIdField(data_key="id", status_if_not_found=404)},
+        {
+            "asset": AssetIdField(
+                data_key="id", status_if_not_found=HTTPStatus.NOT_FOUND
+            )
+        },
         location="path",
     )
     @use_kwargs(
