@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pytest import UsageError
+
 import json
 
 from flask import url_for, current_app, Response
@@ -71,7 +73,12 @@ class UserContext(object):
     """
 
     def __init__(self, user_email: str):
-        self.the_user = find_user_by_email(user_email)
+        user = find_user_by_email(user_email)
+        if user is None:
+            raise UsageError(
+                f"no user with email {user_email} found - test is possible missing a fixture that sets up this user",
+            )
+        self.the_user = user
 
     def __enter__(self):
         return self.the_user

@@ -238,9 +238,9 @@ class SensorAPI(FlaskView):
         **kwargs,
     ):
         """
-        Trigger FlexMeasures to create a schedule.
+        Trigger FlexMeasures to create a schedule for a single flexible device.
 
-        .. :quickref: Schedule; Trigger scheduling job
+        .. :quickref: Schedule; Trigger scheduling job for one device
 
         Trigger FlexMeasures to create a schedule for this sensor.
         The assumption is that this sensor is the power sensor on a flexible asset.
@@ -365,7 +365,7 @@ class SensorAPI(FlaskView):
         """
         end_of_schedule = start_of_schedule + duration
         scheduler_kwargs = dict(
-            sensor=sensor,
+            asset_or_sensor=sensor,
             start=start_of_schedule,
             end=end_of_schedule,
             resolution=sensor.event_resolution,
@@ -384,8 +384,6 @@ class SensorAPI(FlaskView):
             return invalid_flex_config(err.messages)
         except ValueError as err:
             return invalid_flex_config(str(err))
-
-        db.session.commit()
 
         response = dict(schedule=job.id)
         d, s = request_processed()
@@ -468,7 +466,6 @@ class SensorAPI(FlaskView):
                 )
                 return unrecognized_event(job.meta["fallback_job_id"], "fallback-job")
 
-        scheduler_info_msg = ""
         scheduler_info = job.meta.get("scheduler_info", dict(scheduler=""))
         scheduler_info_msg = f"{scheduler_info['scheduler']} was used."
 
