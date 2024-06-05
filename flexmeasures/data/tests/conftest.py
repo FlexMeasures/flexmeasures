@@ -340,31 +340,35 @@ def flex_description_sequential(
         "flex_model": [
             {
                 "sensor": sensors["Test EV"],
-                "consumption-capacity": "10kW",
-                "production-capacity": "0kW",
-                "power-capacity": "10kW",
-                "soc-at-start": 0.00,  # 0 kWh
-                "soc-unit": "MWh",
-                "soc-min": 0.0,
-                "soc-max": 0.05,  # 50 kWh
-                "soc-targets": [
-                    {
-                        "start": "2015-01-03T00:00:00+01:00",
-                        "end": "2015-01-03T10:00:00+01:00",
-                        "value": 0.0,
-                    },
-                    {"datetime": "2015-01-03T23:45:00+01:00", "value": 0.05},
-                ],
+                "sensor_flex_model": {
+                    "consumption-capacity": "10kW",
+                    "production-capacity": "0kW",
+                    "power-capacity": "10kW",
+                    "soc-at-start": 0.00,  # 0 kWh
+                    "soc-unit": "MWh",
+                    "soc-min": 0.0,
+                    "soc-max": 0.05,  # 50 kWh
+                    "soc-targets": [
+                        {
+                            "start": "2015-01-03T00:00:00+01:00",
+                            "end": "2015-01-03T10:00:00+01:00",
+                            "value": 0.0,
+                        },
+                        {"datetime": "2015-01-03T23:45:00+01:00", "value": 0.05},
+                    ],
+                },
             },
             {
                 "sensor": sensors["Test Battery"],
-                "consumption-capacity": "0kW",
-                "production-capacity": "10kW",
-                "power-capacity": "10kW",
-                "soc-at-start": 0.1,  # Batery is initially full (100 kWh)
-                "soc-unit": "MWh",
-                "soc-min": 0.0,
-                "soc-max": 0.1,  # 100 kWh
+                "sensor_flex_model": {
+                    "consumption-capacity": "0kW",
+                    "production-capacity": "10kW",
+                    "power-capacity": "10kW",
+                    "soc-at-start": 0.1,  # Batery is initially full (100 kWh)
+                    "soc-unit": "MWh",
+                    "soc-min": 0.0,
+                    "soc-max": 0.1,  # 100 kWh
+                },
             },
         ],
         "flex_context": {

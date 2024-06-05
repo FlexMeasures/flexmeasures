@@ -117,7 +117,7 @@ def test_create_sequential_jobs_fallback(
         ),
     ):
         jobs = create_sequential_scheduling_job(
-            asset_or_sensor=assets["Test Site"],
+            asset=assets["Test Site"],
             scheduler_specs=scheduler_specs,
             enqueue=False,
             **flex_description_sequential,
