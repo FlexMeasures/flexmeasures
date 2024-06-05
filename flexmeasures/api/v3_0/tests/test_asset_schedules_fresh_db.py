@@ -47,8 +47,7 @@ def test_asset_trigger_and_get_schedule(
 
     sensor = (
         Sensor.query.filter(Sensor.name == "power")
-        .join(GenericAsset)
-        .filter(GenericAsset.id == Sensor.generic_asset_id)
+        .join(GenericAsset, GenericAsset.id == Sensor.generic_asset_id)
         .filter(GenericAsset.name == asset_name)
         .one_or_none()
     )
