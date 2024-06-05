@@ -16,11 +16,13 @@ from flexmeasures.data import db
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
-from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
+from flexmeasures.data.schemas.generic_assets import (
+    GenericAssetSchema as AssetSchema,
+    GenericAssetIdField as AssetIdField,
+)
 from flexmeasures.data.services.scheduling import (
     create_sequential_scheduling_job,
 )
-from flexmeasures.api.common.schemas.generic_assets import AssetIdField
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.responses import (
     invalid_flex_config,
@@ -156,7 +158,9 @@ class AssetAPI(FlaskView):
         return asset_schema.dump(asset), 201
 
     @route("/<id>", methods=["GET"])
-    @use_kwargs({"asset": AssetIdField(data_key="id")}, location="path")
+    @use_kwargs(
+        {"asset": AssetIdField(data_key="id", status_if_not_found=404)}, location="path"
+    )
     @permission_required_for_context("read", ctx_arg_name="asset")
     @as_json
     def fetch_one(self, id, asset):
@@ -192,7 +196,10 @@ class AssetAPI(FlaskView):
 
     @route("/<id>", methods=["PATCH"])
     @use_args(partial_asset_schema)
-    @use_kwargs({"db_asset": AssetIdField(data_key="id")}, location="path")
+    @use_kwargs(
+        {"db_asset": AssetIdField(data_key="id", status_if_not_found=404)},
+        location="path",
+    )
     @permission_required_for_context("update", ctx_arg_name="db_asset")
     @as_json
     def patch(self, asset_data: dict, id: int, db_asset: GenericAsset):
@@ -248,7 +255,9 @@ class AssetAPI(FlaskView):
         return asset_schema.dump(db_asset), 200
 
     @route("/<id>", methods=["DELETE"])
-    @use_kwargs({"asset": AssetIdField(data_key="id")}, location="path")
+    @use_kwargs(
+        {"asset": AssetIdField(data_key="id", status_if_not_found=404)}, location="path"
+    )
     @permission_required_for_context("delete", ctx_arg_name="asset")
     @as_json
     def delete(self, id: int, asset: GenericAsset):
@@ -275,7 +284,7 @@ class AssetAPI(FlaskView):
 
     @route("/<id>/chart", strict_slashes=False)  # strict on next version? see #1014
     @use_kwargs(
-        {"asset": AssetIdField(data_key="id")},
+        {"asset": AssetIdField(data_key="id", status_if_not_found=404)},
         location="path",
     )
     @use_kwargs(
@@ -305,7 +314,7 @@ class AssetAPI(FlaskView):
         "/<id>/chart_data", strict_slashes=False
     )  # strict on next version? see #1014
     @use_kwargs(
-        {"asset": AssetIdField(data_key="id")},
+        {"asset": AssetIdField(data_key="id", status_if_not_found=404)},
         location="path",
     )
     @use_kwargs(
@@ -332,7 +341,7 @@ class AssetAPI(FlaskView):
     @route("/<id>/schedules/trigger", methods=["POST"])
     @use_kwargs(
         {
-            "asset": AssetIdField(data_key="id"),
+            "asset": AssetIdField(data_key="id", status_if_not_found=404),
             "start_of_schedule": AwareDateTimeField(
                 data_key="start", format="iso", required=True
             ),

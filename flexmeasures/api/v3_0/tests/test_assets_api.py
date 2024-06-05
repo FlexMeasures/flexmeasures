@@ -63,7 +63,7 @@ def test_get_asset_nonaccount_access(
     )
     assert asset_response.status_code == exp_status
     if exp_status == 404:
-        assert "not found" in asset_response.json["message"]
+        assert asset_response.json["message"] == "No asset found with ID 8171766575."
 
 
 @pytest.mark.parametrize(
