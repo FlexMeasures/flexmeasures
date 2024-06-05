@@ -95,9 +95,27 @@
                                 </span>
                             </td>
                             <td class="text-right">
-                                <button type="button" class="btn btn-primary" onclick="copyToClipboard('{{ job_data['metadata']}}')" title="Copy to clipboard">
+                                <!-- Button -->
+                                <a href="#" class="btn btn-default btn-success" role="button" id="job-metadata-info-button"  data-target="#JobMetadataModal-{{ job_data['metadata_hash'] }}" data-toggle="modal">
                                     Info
-                                </button>
+                                </a>
+                                
+                                <!-- Modal -->
+                                <div class="modal fade" id="JobMetadataModal-{{ job_data['metadata_hash'] }}" tabindex="-1" role="dialog" aria-labelledby="JobMetadataInfo" aria-hidden="true">
+                                    <div class="modal-dialog" role="document">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title" id="JobMetadataInfo">Info</h5>
+                                                <button id="modalCloseButton" type="button" class="close" data-dismiss="modal" aria-label="Close" onmousedown="event.stopPropagation(); event.preventDefault();">
+                                                    <span aria-hidden="true">&times;</span>
+                                                </button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <pre>{{ job_data['metadata'] }}</pre>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </td>
                             <td class="hidden">
                                 /tasks/0/view/job/{{ job_data.job_id }}
@@ -122,22 +140,5 @@
     $(document).ready(function() {
         $('#scheduling_forecasting_jobs').DataTable({"order": [[ 0, "desc" ]]});
     });
-</script>
-<script>
-    function copyToClipboard(text) {
-        var textarea = document.createElement("textarea");
-        textarea.textContent = text;
-        textarea.style.position = "fixed";  // Prevent scrolling to bottom of page in MS Edge.
-        document.body.appendChild(textarea);
-        textarea.select();
-        try {
-            return document.execCommand("copy");  // Security exception may be thrown by some browsers.
-        } catch (ex) {
-            console.warn("Copy to clipboard failed.", ex);
-            return false;
-        } finally {
-            document.body.removeChild(textarea);
-        }
-    }
 </script>
 {% endblock %}
