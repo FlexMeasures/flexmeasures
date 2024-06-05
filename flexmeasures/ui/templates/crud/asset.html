@@ -36,14 +36,14 @@
         <div class="col-sm-2 on-top-md">
             <div class="header-action-button">
                 {% if user_can_create_assets %}
-                <div class="">
+                <div>
                     <form action="/assets/new" method="get">
                         <button class="btn btn-sm btn-responsive btn-success create-button" type="submit">Create new asset</button>
                     </form>
                 </div>
                 {% endif %}
                 {% if user_can_delete_asset %}
-                <div class="">
+                <div>
                     <form action="/assets/delete_with_data/{{ asset.id }}" method="get">
                         <button id="delete-asset-button" class="btn btn-sm btn-responsive btn-danger delete-button" type="submit">Delete this asset</button>
                     </form>
@@ -61,14 +61,14 @@
                 {% endif %}
             </div>
             <div class="header-action-button">
-                <div class="">
+                <div>
                     <form action="/assets/{{ asset.id }}/status" method="get">
-                        <button id="asset-status-button" class="btn btn-sm btn-responsive" type="submit">Asset status</button>
+                        <button id="asset-status-button" class="btn btn-sm btn-responsive btn-info" type="submit">Asset status</button>
                     </form>
                 </div>
-                <div class="">
+                <div>
                     <form action="/assets/auditlog/{{ asset.id }}" method="get">
-                        <button class="btn btn-sm btn-responsive btn-info delete-button" type="submit"
+                        <button class="btn btn-sm btn-responsive btn-info" type="submit"
                             title="View history of asset related actions.">Audit log</button>
                     </form>
                 </div>

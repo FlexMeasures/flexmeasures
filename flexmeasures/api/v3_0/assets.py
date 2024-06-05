@@ -240,6 +240,9 @@ class AssetAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
+        inflexible_sensor_ids = asset_data.pop("inflexible_device_sensor_ids", [])
+        db_asset.set_inflexible_sensors(inflexible_sensor_ids)
+
         audit_log_data = list()
         for k, v in asset_data.items():
             if getattr(db_asset, k) == v:
@@ -257,8 +260,6 @@ class AssetAPI(FlaskView):
             )
         audit_log_event = f"Updated asset '{db_asset.name}': {db_asset.id} fields: {'; '.join(audit_log_data)}"
         AssetAuditLog.add_record(db_asset, audit_log_event)
-        inflexible_sensor_ids = asset_data.pop("inflexible_device_sensor_ids", [])
-        db_asset.set_inflexible_sensors(inflexible_sensor_ids)
 
         for k, v in asset_data.items():
             setattr(db_asset, k, v)
@@ -385,7 +386,12 @@ class AssetAPI(FlaskView):
         audit_logs = [
             {
                 k: getattr(log, k)
-                for k in ("event", "event_datetime", "active_user_name")
+                for k in (
+                    "event",
+                    "event_datetime",
+                    "active_user_name",
+                    "active_user_id",
+                )
             }
             for log in audit_logs
         ]
