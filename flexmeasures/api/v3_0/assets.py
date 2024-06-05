@@ -497,7 +497,7 @@ class AssetAPI(FlaskView):
         )
         try:
             jobs = create_sequential_scheduling_job(
-                asset_or_sensor=asset, enqueue=True, **scheduler_kwargs
+                asset=asset, enqueue=True, **scheduler_kwargs
             )
         except ValidationError as err:
             return invalid_flex_config(err.messages)

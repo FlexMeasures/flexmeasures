@@ -19,7 +19,7 @@ def test_create_sequential_jobs(db, app, flex_description_sequential, smart_buil
     flex_description_sequential["end"] = end.isoformat()
 
     jobs = create_sequential_scheduling_job(
-        asset_or_sensor=assets["Test Site"],
+        asset=assets["Test Site"],
         scheduler_specs=scheduler_specs,
         enqueue=False,
         **flex_description_sequential,

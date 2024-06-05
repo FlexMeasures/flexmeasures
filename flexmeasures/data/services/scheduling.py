@@ -256,7 +256,7 @@ def cb_done_sequential_scheduling_job(jobs_ids: list[str]):
 
 
 def create_sequential_scheduling_job(
-    asset_or_sensor: Asset | Sensor | None = None,
+    asset: Asset,
     job_id: str | None = None,
     enqueue: bool = True,
     requeue: bool = False,
@@ -323,10 +323,10 @@ def create_sequential_scheduling_job(
         for job in jobs:
             current_app.queues["scheduling"].enqueue_job(job)
             current_app.job_cache.add(
-                asset_or_sensor.id,
+                asset.id,
                 job.id,
                 queue="scheduling",
-                asset_or_sensor_type=str(type(asset_or_sensor)).lower(),
+                asset_or_sensor_type="asset",
             )
 
     return jobs
