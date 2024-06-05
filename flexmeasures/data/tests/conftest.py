@@ -321,6 +321,10 @@ def smart_building(app, db, smart_building_types):
 
 @pytest.fixture
 def flex_description_sequential(smart_building, setup_markets):
+    """This is a partially deserialized flex model.
+
+    Specifically, the main flex model is deserialized, while the sensors' individual flex models are still serialized.
+    """
     assets, sensors = smart_building
 
     return {
