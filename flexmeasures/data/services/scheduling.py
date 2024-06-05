@@ -274,7 +274,7 @@ def create_sequential_scheduling_job(
 
         current_scheduler_kwargs = deepcopy(scheduler_kwargs)
 
-        current_scheduler_kwargs["flex_model"] = child_flex_model
+        current_scheduler_kwargs["flex_model"] = child_flex_model["sensor_flex_model"]
         current_scheduler_kwargs["flex_context"]["inflexible-device-sensors"].extend(
             previous_sensors
         )

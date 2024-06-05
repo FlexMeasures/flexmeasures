@@ -1,4 +1,4 @@
-from marshmallow import fields, validate, validates_schema, INCLUDE, Schema
+from marshmallow import fields, pre_load, validate, validates_schema, Schema
 
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.sensors import QuantityOrSensor, SensorIdField
@@ -36,6 +36,19 @@ class FlexContextSchema(Schema):
 
 class SequentialFlexModelSchema(Schema):
     sensor = SensorIdField(required=True)
+    sensor_flex_model = fields.Dict(data_key="sensor-flex-model")
+
+    @pre_load
+    def unwrap_envelope(self, data, **kwargs):
+        """Any field other than 'sensor' becomes part of the sensor's flex-model."""
+        extra = {}
+        rest = {}
+        for k, v in data.items():
+            if k not in self.fields:
+                extra[k] = v
+            else:
+                rest[k] = v
+        return {"sensor-flex-model": extra, **rest}
 
 
 class AssetTriggerSchema(Schema):
@@ -46,7 +59,7 @@ class AssetTriggerSchema(Schema):
     belief_time = AwareDateTimeField(format="iso", data_key="prior")
     duration = PlanningDurationField(load_default=PlanningDurationField.load_default)
     flex_model = fields.List(
-        fields.Nested(SequentialFlexModelSchema(unknown=INCLUDE)),
+        fields.Nested(SequentialFlexModelSchema()),
         data_key="flex-model",
     )
     flex_context = fields.Dict(required=False, data_key="flex-context")

@@ -327,19 +327,23 @@ def flex_description_sequential(smart_building, setup_markets):
         "flex_model": [
             {
                 "sensor": sensors["Test EV"],
-                "power-capacity": "10kW",
-                "soc-at-start": 0.01,  # 10 kWh
-                "soc-unit": "MWh",
-                "soc-min": 0.0,
-                "soc-max": 0.05,  # 50 kWh
+                "sensor_flex_model": {
+                    "power-capacity": "10kW",
+                    "soc-at-start": 0.01,  # 10 kWh
+                    "soc-unit": "MWh",
+                    "soc-min": 0.0,
+                    "soc-max": 0.05,  # 50 kWh
+                }
             },
             {
                 "sensor": sensors["Test Battery"],
-                "power-capacity": "20kW",
-                "soc-at-start": 0.01,  # 10 kWh
-                "soc-unit": "MWh",
-                "soc-min": 0.0,
-                "soc-max": 0.1,  # 100 kWh
+                "sensor_flex_model": {
+                    "power-capacity": "20kW",
+                    "soc-at-start": 0.01,  # 10 kWh
+                    "soc-unit": "MWh",
+                    "soc-min": 0.0,
+                    "soc-max": 0.1,  # 100 kWh
+                }
             },
         ],
         "flex_context": {
