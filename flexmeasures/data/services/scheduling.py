@@ -296,7 +296,7 @@ def create_sequential_scheduling_job(
         previous_sensors.append(sensor.id)
         previous_job = job
 
-    # create that triggers when the last job is done
+    # create job that triggers when the last job is done
     job = Job.create(
         func=cb_done_sequential_scheduling_job,
         args=([j.id for j in jobs],),
