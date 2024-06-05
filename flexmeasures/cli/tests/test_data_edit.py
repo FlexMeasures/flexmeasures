@@ -125,7 +125,7 @@ def test_transfer_ownership(app, db, add_asset_with_children, add_alternative_ac
 
     from flexmeasures.cli.data_edit import transfer_ownership
 
-    parent = add_asset_with_children["parent"]
+    parent = add_asset_with_children["Supplier"]["parent"]
     old_account = parent.owner
     new_account = add_alternative_account
 

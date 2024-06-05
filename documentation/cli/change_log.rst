@@ -4,6 +4,12 @@
 FlexMeasures CLI Changelog
 **********************
 
+since v.0.22.0 | June XX, 2024
+=================================
+
+
+* Add ``--resolution`` option to ``flexmeasures show chart`` to produce charts in different time resolutions.
+
 
 since v.0.21.0 | April 16, 2024
 =================================

@@ -1513,6 +1513,12 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     margin-top: 30px;
 }
 
+.asset-form .form-group-bordered {
+    border: 2px solid rgb(169, 176, 176);
+    padding: 10px;
+    margin-bottom: 10px;
+}
+
 /* ---- End Asset Form ---- */
 
 
