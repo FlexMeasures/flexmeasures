@@ -58,6 +58,8 @@ def load_data(request, schema):
         # Avoid clashes
         for key in json_params:
             if key in newdata:
-                raise FMValidationError(message=f"{key} already set in the URL path or query parameters")
+                raise FMValidationError(
+                    message=f"{key} already set in the URL path or query parameters"
+                )
         newdata.update(json_params)
     return MultiDictProxy(newdata, schema)
