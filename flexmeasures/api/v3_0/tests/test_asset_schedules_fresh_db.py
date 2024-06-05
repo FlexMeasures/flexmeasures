@@ -37,8 +37,8 @@ def test_asset_trigger_and_get_schedule(
     # Include the price sensor and site-power-capacity in the flex-context explicitly, to test deserialization
     price_sensor_id = add_market_prices_fresh_db["epex_da"].id
     message["flex-context"] = {
-        "consumption-price-sensor": price_sensor_id,
-        "production-price-sensor": price_sensor_id,
+        "consumption-price": {"sensor": price_sensor_id},
+        "production-price": {"sensor": price_sensor_id},
         "site-power-capacity": "1 TW",  # should be big enough to avoid any infeasibilities
     }
 
