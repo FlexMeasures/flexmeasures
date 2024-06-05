@@ -52,7 +52,7 @@ class SequentialFlexModelSchema(Schema):
 
 
 class AssetTriggerSchema(Schema):
-    asset = GenericAssetIdField(data_key="id", status_if_not_found=404)
+    asset = GenericAssetIdField(data_key="id")
     start_of_schedule = AwareDateTimeField(
         data_key="start", format="iso", required=True
     )
