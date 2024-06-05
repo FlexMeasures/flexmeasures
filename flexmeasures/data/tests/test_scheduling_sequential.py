@@ -22,7 +22,7 @@ def test_create_sequential_jobs(db, app, flex_description_sequential, smart_buil
         asset_or_sensor=assets["Test Site"],
         scheduler_specs=scheduler_specs,
         enqueue=False,
-        **flex_description_sequential
+        **flex_description_sequential,
     )
 
     assert len(jobs) == 3
