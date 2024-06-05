@@ -15,11 +15,12 @@ from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset
-from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
 from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema as AssetSchema,
     GenericAssetIdField as AssetIdField,
 )
+from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
+from flexmeasures.data.schemas.times import AwareDateTimeField
 from flexmeasures.data.services.scheduling import (
     create_sequential_scheduling_job,
 )
@@ -339,21 +340,7 @@ class AssetAPI(FlaskView):
         return asset.search_beliefs(sensors=sensors, as_json=True, **kwargs)
 
     @route("/<id>/schedules/trigger", methods=["POST"])
-    @use_kwargs(
-        {
-            "asset": AssetIdField(data_key="id", status_if_not_found=404),
-            "start_of_schedule": AwareDateTimeField(
-                data_key="start", format="iso", required=True
-            ),
-            "belief_time": AwareDateTimeField(format="iso", data_key="prior"),
-            "duration": PlanningDurationField(
-                load_default=PlanningDurationField.load_default
-            ),
-            "flex_model": fields.Dict(data_key="flex-model"),
-            "flex_context": fields.Dict(required=False, data_key="flex-context"),
-        },
-        location="args_and_json",
-    )
+    @use_args(AssetTriggerSchema(), location="args_and_json", as_kwargs=True)
     # Simplification of checking for create-children access on each of the flexible sensors,
     # which assumes each of the flexible sensors belongs to the given asset.
     @permission_required_for_context("create-children", ctx_arg_name="asset")
