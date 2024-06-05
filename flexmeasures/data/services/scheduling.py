@@ -9,7 +9,7 @@ import os
 import sys
 import importlib.util
 from importlib.abc import Loader
-from typing import Type
+from typing import Callable, Type
 import inspect
 from copy import deepcopy
 
@@ -102,6 +102,15 @@ def load_custom_scheduler(scheduler_specs: dict) -> type:
     return scheduler_class
 
 
+def success_callback(job, connection, result, *args, **kwargs):
+    queue = current_app.queues["scheduling"]
+    orginal_job = Job.fetch(job.meta["original_job_id"])
+
+    # requeue deferred jobs
+    for dependent_job_ids in orginal_job.dependent_ids:
+        queue.deferred_job_registry.requeue(dependent_job_ids)
+
+
 def trigger_optional_fallback(job, connection, type, value, traceback):
     """Create a fallback schedule job when the error is of type InfeasibleProblemException"""
 
@@ -136,8 +145,15 @@ def trigger_optional_fallback(job, connection, type, value, traceback):
                 force_new_job_creation=True,
                 enqueue=False,
                 scheduler_specs=scheduler_specs,
+                success_callback=Callback(success_callback),
                 **scheduler_kwargs,
             )
+
+            # keep track of the id of the original (non-fallback) job
+            fallback_job.meta["original_job_id"] = job.meta.get(
+                "original_job_id", job.id
+            )
+            fallback_job.save_meta()
 
             job.meta["fallback_job_id"] = fallback_job.id
             job.save_meta()
@@ -154,6 +170,7 @@ def create_scheduling_job(
     force_new_job_creation: bool = False,
     scheduler_specs: dict | None = None,
     depends_on: Job | list[Job] | None = None,
+    success_callback: Callable | None = None,
     **scheduler_kwargs,
 ) -> Job:
     """
@@ -176,6 +193,7 @@ def create_scheduling_job(
     :param requeue:                 if True, requeues the job in case it is not new and had previously failed
                                     (this argument is used by the @job_cache decorator)
     :param force_new_job_creation:  if True, this attribute forces a new job to be created (skipping cache)
+    :param success_callback:        callback function that runs on success.
                                     (this argument is used by the @job_cache decorator)
     :returns: the job
 
@@ -223,6 +241,7 @@ def create_scheduling_job(
             ).total_seconds()
         ),  # NB job.cleanup docs says a negative number of seconds means persisting forever
         on_failure=Callback(trigger_optional_fallback),
+        on_success=success_callback,
         depends_on=depends_on,
     )
 
@@ -264,7 +283,7 @@ def create_sequential_scheduling_job(
     scheduler_specs: dict | None = None,
     depends_on: list[Job] | None = None,
     **scheduler_kwargs,
-):
+) -> list[Job]:
     flex_model = scheduler_kwargs["flex_model"]
     jobs = []
     previous_sensors = []

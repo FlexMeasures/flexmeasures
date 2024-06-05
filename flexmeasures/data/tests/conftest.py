@@ -230,21 +230,25 @@ def test_reporter(app, db, add_nearby_weather_sensors):
 
 
 @pytest.fixture
-def smart_building_types(app, db):
+def smart_building_types(app, fresh_db, setup_generic_asset_types_fresh_db):
     site = AssetType(name="site")
-    solar = AssetType(name="solar")
     building = AssetType(name="building")
-    battery = AssetType(name="battery")
     ev = AssetType(name="ev")
 
-    db.session.add_all([site, solar, building, battery, ev])
-    db.session.flush()
+    fresh_db.session.add_all([site, building, ev])
+    fresh_db.session.flush()
 
-    return (site, solar, building, battery, ev)
+    return (
+        site,
+        setup_generic_asset_types_fresh_db["solar"],
+        building,
+        setup_generic_asset_types_fresh_db["battery"],
+        ev,
+    )
 
 
 @pytest.fixture
-def smart_building(app, db, smart_building_types):
+def smart_building(app, fresh_db, smart_building_types):
     """
     Topology of the sytstem:
 
@@ -269,36 +273,39 @@ def smart_building(app, db, smart_building_types):
     site, solar, building, battery, ev = smart_building_types
     coordinates = {"latitude": 0, "longitude": 0}
 
-    test_site = Asset(name="Test Site", generic_asset_type=site, **coordinates)
-    db.session.add(test_site)
-    db.session.flush()
+    test_site = Asset(name="Test Site", generic_asset_type_id=site.id, **coordinates)
+    fresh_db.session.add(test_site)
+    fresh_db.session.flush()
 
     test_building = Asset(
         name="Test Building",
-        generic_asset_type=building,
-        parent_asset_id=site.id,
+        generic_asset_type_id=building.id,
+        parent_asset_id=test_site.id,
         **coordinates,
     )
     test_solar = Asset(
         name="Test Solar",
-        generic_asset_type=solar,
-        parent_asset_id=site.id,
+        generic_asset_type_id=solar.id,
+        parent_asset_id=test_site.id,
         **coordinates,
     )
     test_battery = Asset(
         name="Test Battery",
-        generic_asset_type=battery,
-        parent_asset_id=site.id,
+        generic_asset_type_id=battery.id,
+        parent_asset_id=test_site.id,
         **coordinates,
     )
     test_ev = Asset(
-        name="Test EV", generic_asset_type=ev, parent_asset_id=site.id, **coordinates
+        name="Test EV",
+        generic_asset_type_id=ev.id,
+        parent_asset_id=test_site.id,
+        **coordinates,
     )
 
     assets = (test_site, test_building, test_solar, test_battery, test_ev)
 
-    db.session.add_all(assets)
-    db.session.flush()
+    fresh_db.session.add_all(assets)
+    fresh_db.session.flush()
 
     sensors = []
 
@@ -307,47 +314,63 @@ def smart_building(app, db, smart_building_types):
         sensor = Sensor(
             name="power",
             unit="MW",
-            event_resolution="PT15M",
+            event_resolution=timedelta(minutes=15),
             generic_asset=asset,
-            # TODO: add knowledge horizon function?
+            timezone="Europe/Amsterdam",
         )
         sensors.append(sensor)
 
-    db.session.add_all(sensors)
-    db.session.flush()
+    fresh_db.session.add_all(sensors)
+    fresh_db.session.flush()
     asset_names = [asset.name for asset in assets]
     return dict(zip(asset_names, assets)), dict(zip(asset_names, sensors))
 
 
 @pytest.fixture
-def flex_description_sequential(smart_building, setup_markets):
+def flex_description_sequential(
+    smart_building, setup_markets_fresh_db, add_market_prices_fresh_db
+):
     assets, sensors = smart_building
 
     return {
         "flex_model": [
             {
                 "sensor": sensors["Test EV"].id,
+                "consumption-capacity": "10kW",
+                "production-capacity": "0kW",
                 "power-capacity": "10kW",
-                "soc-at-start": 0.01,  # 10 kWh
+                "soc-at-start": 0.00,  # 0 kWh
                 "soc-unit": "MWh",
                 "soc-min": 0.0,
                 "soc-max": 0.05,  # 50 kWh
+                "soc-targets": [
+                    {
+                        "start": "2015-01-03T00:00:00+01:00",
+                        "end": "2015-01-03T10:00:00+01:00",
+                        "value": 0.0,
+                    },
+                    {"datetime": "2015-01-03T23:45:00+01:00", "value": 0.05},
+                ],
             },
             {
                 "sensor": sensors["Test Battery"].id,
-                "power-capacity": "20kW",
-                "soc-at-start": 0.01,  # 10 kWh
+                "consumption-capacity": "0kW",
+                "production-capacity": "10kW",
+                "power-capacity": "10kW",
+                "soc-at-start": 0.1,  # Batery is initially full (100 kWh)
                 "soc-unit": "MWh",
                 "soc-min": 0.0,
                 "soc-max": 0.1,  # 100 kWh
             },
         ],
         "flex_context": {
-            "consumption-price-sensor": setup_markets["epex_da"].id,
-            "production-price-sensor": setup_markets["epex_da_production"].id,
+            "consumption-price-sensor": setup_markets_fresh_db["epex_da"].id,
+            "production-price-sensor": setup_markets_fresh_db["epex_da"].id,
             "inflexible-device-sensors": [
                 sensors["Test Solar"].id,
                 sensors["Test Building"].id,
             ],
+            "site-production-capacity": "0kW",
+            "site-consumption-capacity": "100kW",
         },
     }
