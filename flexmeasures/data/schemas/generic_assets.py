@@ -163,8 +163,6 @@ class GenericAssetIdField(MarshmallowClickMixin, fields.Int):
             else:
                 raise FMValidationError(message)
 
-        # lazy loading now (asset is somehow not in session after this)
-        generic_asset.generic_asset_type
         return generic_asset
 
     def _serialize(self, asset: GenericAsset, attr, data, **kwargs) -> int:
