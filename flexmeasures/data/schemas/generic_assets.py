@@ -14,7 +14,6 @@ from flexmeasures.data.schemas.locations import LatitudeField, LongitudeField
 from flexmeasures.data.schemas.utils import (
     FMValidationError,
     MarshmallowClickMixin,
-    with_appcontext_if_needed,
 )
 from flexmeasures.auth.policy import user_has_admin_access
 from flexmeasures.cli import is_running as running_as_cli

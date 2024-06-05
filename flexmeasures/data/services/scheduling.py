@@ -16,7 +16,6 @@ from copy import deepcopy
 
 from flask import current_app
 import click
-from jsonschema import ValidationError
 from rq import get_current_job, Callback
 from rq.job import Job
 import timely_beliefs as tb
@@ -32,7 +31,6 @@ from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.generic_assets import GenericAsset as Asset
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.utils import get_data_source, save_to_db
-from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.data.services.utils import (
     job_cache,
