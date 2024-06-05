@@ -8,6 +8,8 @@ v0.22.0 | June XX, 2024
 
 New features
 -------------
+* Flex-context (price sensors and inflexible device sensors) can now be set on the asset page (and are part of GenericAsset model) [see `PR #1059 <https://github.com/FlexMeasures/flexmeasures/pull/1059/>`_]
+* On the asset page's default view, facilitate comparison by showing the two default sensors together if they record the same unit [see `PR #1066 <https://github.com/FlexMeasures/flexmeasures/pull/1066>`_]
 * New API endpoint `[POST] /assets/(id)/schedules/trigger <api/v3_0.html#post--api-v3_0-assets-(id)-schedules-trigger>`_ to schedule a site with multiple flexible devices [see `PR #1065 <https://github.com/FlexMeasures/flexmeasures/pull/1065/>`_]
 
 Infrastructure / Support
@@ -62,7 +64,7 @@ v0.20.0 | March 26, 2024
 
 New features
 -------------
-* Add command ``flexmeasures edit transfer-ownership`` to transfer the ownership of an asset and its children from one account to another[see `PR #983 <https://github.com/FlexMeasures/flexmeasures/pull/983>`_]
+* Add command ``flexmeasures edit transfer-ownership`` to transfer the ownership of an asset and its children from one account to another [see `PR #983 <https://github.com/FlexMeasures/flexmeasures/pull/983>`_]
 * Support defining the ``site-power-capacity``, ``site-consumption-capacity`` and ``site-production-capacity`` as a sensor in the API and CLI [see `PR #985 <https://github.com/FlexMeasures/flexmeasures/pull/985>`_]
 * Support defining the ``soc-minima``, ``soc-maxima`` and ``soc-targets`` as sensors in the API [see `PR #996 <https://github.com/FlexMeasures/flexmeasures/pull/996>`_]
 * Support defining inflexible power sensors with arbitrary power and energy units [see `PR #1007 <https://github.com/FlexMeasures/flexmeasures/pull/1007>`_]
