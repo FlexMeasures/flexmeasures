@@ -25,7 +25,9 @@ def test_create_sequential_jobs(db, app, flex_description_sequential, smart_buil
         **flex_description_sequential,
     )
 
-    assert len(jobs) == 3
+    assert (
+        len(jobs) == 3
+    ), "There should be 3 jobs: 2 jobs scheduling the 2 flexible devices in the flex-model, plus 1 'done job' to wrap things up."
 
     # The EV is scheduled firstly.
     assert jobs[0].kwargs["asset_or_sensor"] == {
