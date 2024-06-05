@@ -326,7 +326,7 @@ def flex_description_sequential(smart_building, setup_markets):
     return {
         "flex_model": [
             {
-                "sensor": sensors["Test EV"].id,
+                "sensor": sensors["Test EV"],
                 "power-capacity": "10kW",
                 "soc-at-start": 0.01,  # 10 kWh
                 "soc-unit": "MWh",
@@ -334,7 +334,7 @@ def flex_description_sequential(smart_building, setup_markets):
                 "soc-max": 0.05,  # 50 kWh
             },
             {
-                "sensor": sensors["Test Battery"].id,
+                "sensor": sensors["Test Battery"],
                 "power-capacity": "20kW",
                 "soc-at-start": 0.01,  # 10 kWh
                 "soc-unit": "MWh",

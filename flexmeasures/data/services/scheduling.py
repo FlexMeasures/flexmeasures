@@ -270,17 +270,7 @@ def create_sequential_scheduling_job(
     previous_sensors = []
     previous_job = depends_on
     for child_flex_model in flex_model:
-        sensor_id = child_flex_model.pop("sensor")
-        if sensor_id is None:
-            raise ValidationError(
-                f"Missing 'sensor' in flex-model list item: {child_flex_model}."
-            )
-
-        # get the sensor, while ensuring that it lives under the asset
-        if isinstance(asset_or_sensor, Asset):
-            sensor = SensorIdField(asset=asset_or_sensor).deserialize(sensor_id)
-        else:
-            sensor = SensorIdField().deserialize(sensor_id)
+        sensor = child_flex_model.pop("sensor")
 
         current_scheduler_kwargs = deepcopy(scheduler_kwargs)
 
