@@ -411,6 +411,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         | None = None,
         include_data: bool = False,
         dataset_name: str | None = None,
+        resolution: str | timedelta | None = None,
         **kwargs,
     ) -> dict:
         """Create a vega-lite chart showing sensor data.
@@ -423,6 +424,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
         :param include_data: if True, include data in the chart, or if False, exclude data
         :param dataset_name: optionally name the dataset used in the chart (the default name is sensor_<id>)
+        :param resolution: optionally set the resolution of data being displayed
         :returns: JSON string defining vega-lite chart specs
         """
         sensors = flatten_unique(self.sensors_to_show)
@@ -453,6 +455,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                 beliefs_after=beliefs_after,
                 beliefs_before=beliefs_before,
                 source=source,
+                resolution=resolution,
             )
 
             # Combine chart specs and data
@@ -481,6 +484,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         most_recent_beliefs_only: bool = True,
         most_recent_events_only: bool = False,
         as_json: bool = False,
+        resolution: timedelta | None = None,
     ) -> BeliefsDataFrame | str:
         """Search all beliefs about events for all sensors of this asset
 
@@ -496,6 +500,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
         :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start)
         :param as_json: return beliefs in JSON format (e.g. for use in charts) rather than as BeliefsDataFrame
+        :param resolution: optionally set the resolution of data being displayed
         :returns: dictionary of BeliefsDataFrames or JSON string (if as_json is True)
         """
         bdf_dict = {}
@@ -513,6 +518,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                 most_recent_beliefs_only=most_recent_beliefs_only,
                 most_recent_events_only=most_recent_events_only,
                 one_deterministic_belief_per_event_per_source=True,
+                resolution=resolution,
             )
         if as_json:
             from flexmeasures.data.services.time_series import simplify_index
@@ -521,6 +527,8 @@ class GenericAsset(db.Model, AuthModelMixin):
                 minimum_resampling_resolution = determine_minimum_resampling_resolution(
                     [bdf.event_resolution for bdf in bdf_dict.values()]
                 )
+                if resolution is not None:
+                    minimum_resampling_resolution = resolution
                 df_dict = {}
                 for sensor, bdf in bdf_dict.items():
                     if bdf.event_resolution > timedelta(0):

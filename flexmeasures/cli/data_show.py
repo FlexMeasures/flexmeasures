@@ -386,6 +386,13 @@ def list_data_sources(source: DataSource | None = None, show_attributes: bool = 
     " now (current time), id (id of the sensor or asset), entity_type (either 'asset' or 'sensor')"
     " Example: 'result_file_$entity_type_$id_$now.csv' -> 'result_file_asset_1_2023-08-24T14:47:08' ",
 )
+@click.option(
+    "--resolution",
+    "resolution",
+    type=DurationField(),
+    required=False,
+    help="Resolution of the data in ISO 8601 format. If not set, defaults to the minimum resolution of the sensor data. Note: Nominal durations like 'P1D' are converted to absolute timedeltas.",
+)
 def chart(
     sensors: list[Sensor] | None = None,
     assets: list[GenericAsset] | None = None,
@@ -395,11 +402,12 @@ def chart(
     height: int | None = None,
     width: int | None = None,
     filename_template: str | None = None,
+    resolution: timedelta | None = None,
 ):
     """
     Export sensor or asset charts in PNG or SVG formats. For example:
 
-        flexmeasures show chart --start 2023-08-15T00:00:00+02:00 --end 2023-08-16T00:00:00+02:00 --asset 1 --sensor 3
+        flexmeasures show chart --start 2023-08-15T00:00:00+02:00 --end 2023-08-16T00:00:00+02:00 --asset 1 --sensor 3 --resolution P1D
     """
 
     datetime_format = "%Y-%m-%dT%H:%M:%S"
@@ -453,6 +461,7 @@ def chart(
             event_ends_before=end,
             beliefs_before=belief_time,
             include_data=True,
+            resolution=resolution,
         )
 
         # remove formatType as it relies on a custom JavaScript function
