@@ -27,7 +27,7 @@
                             <th>Asset name</th>
                             <th class="no-sort" title="This is the knowledge time of the most recent event recorded">Time of last value</th>
                             <th class="text-right no-sort">Status</th>
-                            <th class="hidden">URL</th>
+                            <th class="d-none">URL</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -51,7 +51,7 @@
                                     {% endif %}
                                 </span>
                             </td>
-                            <td class="hidden">
+                            <td class="hidden d-none invisible" style="display:none;">
                                 /sensors/{{ sensor.id }}
                             </td>
                         </tr>
@@ -67,7 +67,7 @@
                             <th>Entity</th>
                             <th class="text-right no-sort">Status</th>
                             <th class="text-right">Info</th>
-                            <th class="hidden">URL</th>
+                            <th class="d-none">URL</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -117,7 +117,7 @@
                                     </div>
                                 </div>
                             </td>
-                            <td class="hidden">
+                            <td class="hidden d-none invisible" style="display:none;">
                                 /tasks/0/view/job/{{ job_data.job_id }}
                             </td>
                         </tr>
