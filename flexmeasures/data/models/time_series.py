@@ -319,8 +319,8 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         most_recent_only: bool = None,  # deprecated
         one_deterministic_belief_per_event: bool = False,
         one_deterministic_belief_per_event_per_source: bool = False,
-        resolution: str | timedelta = None,
         as_json: bool = False,
+        resolution: str | timedelta | None = None,
     ) -> tb.BeliefsDataFrame | str:
         """Search all beliefs about events for this sensor.
 
@@ -338,6 +338,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         :param one_deterministic_belief_per_event: only return a single value per event (no probabilistic distribution and only 1 source)
         :param one_deterministic_belief_per_event_per_source: only return a single value per event per source (no probabilistic distribution)
         :param as_json: return beliefs in JSON format (e.g. for use in charts) rather than as BeliefsDataFrame
+        :param resolution: optionally set the resolution of data being displayed
         :returns: BeliefsDataFrame or JSON string (if as_json is True)
         """
         # todo: deprecate the 'most_recent_only' argument in favor of 'most_recent_beliefs_only' (announced v0.8.0)
@@ -391,6 +392,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         include_asset_annotations: bool = False,
         include_account_annotations: bool = False,
         dataset_name: str | None = None,
+        resolution: str | timedelta | None = None,
         **kwargs,
     ) -> dict:
         """Create a vega-lite chart showing sensor data.
@@ -407,6 +409,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         :param include_asset_annotations: if True and include_data is True, include asset annotations in the chart, or if False, exclude them
         :param include_account_annotations: if True and include_data is True, include account annotations in the chart, or if False, exclude them
         :param dataset_name: optionally name the dataset used in the chart (the default name is sensor_<id>)
+        :param resolution: optionally set the resolution of data being displayed
         :returns: JSON string defining vega-lite chart specs
         """
 
@@ -438,6 +441,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
                 beliefs_before=beliefs_before,
                 most_recent_beliefs_only=most_recent_beliefs_only,
                 source=source,
+                resolution=resolution,
             )
 
             # Get annotations
