@@ -7,24 +7,26 @@
 
 
 {% block divs %}
-<nav aria-label="breadcrumb">
-  <ol class="breadcrumb">
-    {% for breadcrumb in breadcrumb_info["ancestors"] %}
-      <li class="breadcrumb-item{% if loop.last %} dropdown active{% endif %}" {% if loop.last %}aria-current="page"{% endif %}>
-        {% if breadcrumb["url"] is not none and not loop.last %}
-          <a href="{{ breadcrumb['url'] }}">{{ breadcrumb['name'] }}</a>
-        {% else %}
-          <a class="dropdown-toggle" data-toggle="dropdown" href="#">{{ breadcrumb['name'] }}<span class="caret"></span></a>
-          <ul class="dropdown-menu">
-            {% for sibling in breadcrumb_info["siblings"] %}
-              <li><a href="{{ sibling['url'] }}">{{ sibling["name"] }}</a></li>
-            {% endfor %}
-          </ul>
-        {% endif %}
-      </li>
-    {% endfor %}
-  </ol>
-</nav>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb p-2">
+                {% for breadcrumb in breadcrumb_info["ancestors"] %}
+                <li class="breadcrumb-item{% if loop.last %} dropdown active{% endif %}" {% if loop.last %}aria-current="page"{% endif %}>
+                    {% if breadcrumb["url"] is not none and not loop.last %}
+                    <a href="{{ breadcrumb['url'] }}">{{ breadcrumb['name'] }}</a>
+                    {% else %}
+                    <a href="{{ breadcrumb['url'] }}" class="dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" role="button">{{ breadcrumb['name'] }}</a>
+                    <ul class="dropdown-menu">
+                        {% for sibling in breadcrumb_info["siblings"] %}
+                        <li><a class="p-3 dropdown-item" href="{{ sibling['url'] }}">{{ sibling["name"] }}</a></li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ol>
+        </nav>
+
+
       <div class="sensor-data charts text-center">
           <div class="row">
               <div class="alert alert-info" id="tzwarn" style="display:none;"></div>
@@ -37,8 +39,8 @@
                       <div class="left-sidepanel-label">Select dates</div>
                       <div class="sidepanel left-sidepanel">
                           <div id="datepicker"></div>
-                          <div class="dropdown header-action-button">
-                              <button class="btn dropdown-toggle" type="button" id="chartTypeDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                          <div id="chart-type-picker" class="dropdown header-action-button">
+                              <button class="btn dropdown-toggle" type="button" id="chartTypeDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                                   Select chart
                               </button>
                               <ul class="dropdown-menu center-aligned" aria-labelledby="chartTypeDropdown">
