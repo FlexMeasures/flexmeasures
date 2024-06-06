@@ -1,7 +1,7 @@
 """asset_audit_log
 
 Revision ID: 126d65cbe6b4
-Revises: 81cbbf42357b
+Revises: 202505c5cb06
 Create Date: 2024-05-27 15:48:07.399594
 
 """
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = "126d65cbe6b4"
-down_revision = "81cbbf42357b"
+down_revision = "202505c5cb06"
 branch_labels = None
 depends_on = None
 
