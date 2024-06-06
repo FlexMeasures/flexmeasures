@@ -8,6 +8,7 @@ from sqlalchemy import select, func
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures import Sensor
 from flexmeasures.api.v3_0.tests.utils import get_sensor_post_data
+from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.models.generic_assets import GenericAsset
 
@@ -84,6 +85,15 @@ def test_post_a_sensor(client, setup_api_test_data, requesting_user, db):
     assert sensor.unit == "kWh"
     assert sensor.attributes["capacity_in_mw"] == 0.0074
 
+    assert db.session.execute(
+        select(AssetAuditLog).filter_by(
+            affected_asset_id=post_data["generic_asset_id"],
+            event=f"Created sensor '{sensor.name}': {sensor.id}",
+            active_user_id=requesting_user.id,
+            active_user_name=requesting_user.username,
+        )
+    ).scalar_one_or_none()
+
 
 @pytest.mark.parametrize(
     "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
@@ -130,6 +140,19 @@ def test_patch_sensor(client, setup_api_test_data, requesting_user, db):
         is None
     )
     assert new_sensor.attributes["test_attribute"] == "test_attribute_value"
+
+    audit_log_event = (
+        f"Updated sensor 'some gas sensor': {sensor.id}. Updated fields: Field name: name, Old value: some gas sensor, New value: Changed name; Field name: attributes, "
+        + "Old value: {}, New value: {'test_attribute': 'test_attribute_value'}"
+    )
+    assert db.session.execute(
+        select(AssetAuditLog).filter_by(
+            event=audit_log_event,
+            active_user_id=requesting_user.id,
+            active_user_name=requesting_user.username,
+            affected_asset_id=sensor.generic_asset_id,
+        )
+    ).scalar_one_or_none()
 
 
 @pytest.mark.parametrize(
@@ -184,7 +207,8 @@ def test_patch_sensor_non_admin(client, setup_api_test_data, requesting_user, db
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_delete_a_sensor(client, setup_api_test_data, requesting_user, db):
-    existing_sensor_id = setup_api_test_data["some temperature sensor"].id
+    existing_sensor = setup_api_test_data["some temperature sensor"]
+    existing_sensor_id = existing_sensor.id
     sensor_data = db.session.scalars(
         select(TimedBelief).filter(TimedBelief.sensor_id == existing_sensor_id)
     ).all()
@@ -207,3 +231,12 @@ def test_delete_a_sensor(client, setup_api_test_data, requesting_user, db):
     assert (
         db.session.scalar(select(func.count()).select_from(Sensor)) == sensor_count - 1
     )
+
+    assert db.session.execute(
+        select(AssetAuditLog).filter_by(
+            affected_asset_id=existing_sensor.generic_asset_id,
+            event=f"Deleted sensor '{existing_sensor.name}': {existing_sensor.id}",
+            active_user_id=requesting_user.id,
+            active_user_name=requesting_user.username,
+        )
+    ).scalar_one_or_none()
