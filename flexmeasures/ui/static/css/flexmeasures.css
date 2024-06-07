@@ -1375,13 +1375,18 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     box-shadow: none;
     border-radius: 0px;
     text-align: center;
+    width: 100%;
     background: var(--primary-color);
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
     border-right: 1px solid var(--primary-border-color) !important;
-    transition: .4s;
     -webkit-border-radius: 0px;
     -moz-border-radius: 0px;
     -ms-border-radius: 0px;
     -o-border-radius: 0px;
+    transition: .4s;
     -webkit-transition: .4s;
     -moz-transition: .4s;
     -ms-transition: .4s;
@@ -1393,13 +1398,6 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 
 .header-action-button>div button:hover, .header-action-button>div button:focus {
     background: var(--primary-hover-color) !important;
-}
-
-.header-action-button>div button {
-    border-top-left-radius: 0;
-    border-top-right-radius: 0;
-    border-bottom-left-radius: 0;
-    border-bottom-right-radius: 0;
 }
 
 .header-action-button>div:first-child button {
@@ -1934,6 +1932,7 @@ div.heading-group {
   content: " > ";
   color: var(--primary-color);
 }
+
 .table-responsive{
     padding: 20px;
 }

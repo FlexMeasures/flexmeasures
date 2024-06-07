@@ -158,6 +158,8 @@ class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
             raise ValidationError(
                 f"Generic asset with id {generic_asset_id} doesn't exist."
             )
+        # Add it to context to use it for AssetAuditLog record
+        self.context["generic_asset"] = generic_asset
 
     class Meta:
         model = Sensor
