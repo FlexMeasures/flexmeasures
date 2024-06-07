@@ -3,56 +3,55 @@
 {% block title %} Account overview {% endblock %} 
 {% block divs %}
 
-<div class="pl-3">
+<div>
     <form action="/accounts/auditlog/{{ account.id }}" method="get">
-            <button class="btn btn-sm btn-responsive btn-info delete-button m-4" type="submit"
+            <button class="btn btn-sm btn-responsive btn-info delete-button" type="submit"
              title="View history of user actions.">Audit log</button>
     </form>
 </div>
 <div class="container-fluid">
     <div class="row">
-        <div class="col-md-2"></div>
-        <div class="col-md-8">
+        <div class="col-sm-2"></div>
+        <div class="col-sm-8">
             <div class="card">
                 <h3>Account</h3>
                 <small>Account: {{ account.name }}</small>
-                <div class="table-responsive">
-                    <table class="table table-striped table-responsive">
-                        <tbody>
-                            <tr>
-                                <td>
-                                    ID
-                                </td>
-                                <td>
-                                    {{ account.id }}
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>
-                                    Roles
-                                </td>
-                                <td>
-                                    {{ account.account_roles | map(attribute='name') | join(", ") }}
-                                </td>
-                            </tr>
-                            {% if account.consultancy_account_name %}
-                            <tr>
-                                <td>
-                                    Consultancy
-                                </td>
-                                <td>
-                                    {{ account.consultancy_account_name }}
-                                </td>
-                            </tr>
-                            {% endif %}
-                        </tbody>
-                    </table>
-                </div>
+
+                <table class="table table-striped table-responsive">
+                    <tbody>
+                        <tr>
+                            <td>
+                                ID
+                            </td>
+                            <td>
+                                {{ account.id }}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                Roles
+                            </td>
+                            <td>
+                                {{ account.account_roles | map(attribute='name') | join(", ") }}
+                            </td>
+                        </tr>
+                        {% if account.consultancy_account_name %}
+                        <tr>
+                            <td>
+                               Consultancy
+                            </td>
+                            <td>
+                                {{ account.consultancy_account_name }}
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
             </div>
             <div class="card">
                 <h3>Users</h3>
 
-                <form class="ms-auto form-inline" role="form" target="" method="get" id="user-list-options">
+                <form class="text-right form-inline" role="form" target="" method="get" id="user-list-options">
                     <div class="checkbox">
                         <label>
                             <input name="include_inactive" {% if include_inactive %} checked="checked" {% endif %}
@@ -60,8 +59,7 @@
                         </label>
                     </div>
                 </form>
-                <div class="table-responsive">
-                <table class="table table-responsive paginate nav-on-click" title="View/edit this user">
+                <table class="table table-striped table-responsive paginate nav-on-click" title="View/edit this user">
                     <thead>
                         <tr>
                             <th>Username</th>
@@ -71,7 +69,7 @@
                             <th>Last Login</th>
                             <th>Last Seen</th>
                             <th>Active</th>
-                            <th class="d-none">URL</th>
+                            <th class="hidden">URL</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -99,7 +97,7 @@
                             <td>
                                 {{ user.active }}
                             </td>
-                            <td class="d-none">
+                            <td class="hidden">
                                 /users/{{ user.id }}
                             </td>
                         </tr>
@@ -107,10 +105,9 @@
                     </tbody>
                 </table>
             </div>
-            </div>
             <div class="card">
                 <h3>Assets</h3>
-                <div class="table-responsive">
+
                 <table class="table table-striped table-responsive paginate nav-on-click" title="View this asset">
                     <thead>
                         <tr>
@@ -130,7 +127,7 @@
                                 </form>
                                 {% endif %}
                             </th>
-                            <th class="d-none">URL</th>
+                            <th class="hidden">URL</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -165,7 +162,7 @@
                             </td>
                             <td class="text-right">
                             </td>
-                            <td class="d-none">
+                            <td class="hidden">
                                 /assets/{{ asset.id }}
                             </td>
                         </tr>
@@ -173,11 +170,10 @@
                     </tbody>
                 </table>
             </div>
-            </div>
         </div>
     </div>
 </div>
-<div class="col-md-2"></div>
+<div class="col-sm-2"></div>
 {% block paginate_tables_script %} {{ super() }} {% endblock %}
 
 {% endblock %}
