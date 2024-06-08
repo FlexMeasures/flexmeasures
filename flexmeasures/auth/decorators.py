@@ -172,13 +172,14 @@ def permission_required_for_context(
     def wrapper(fn):
         @wraps(fn)
         def decorated_view(*args, **kwargs):
+
+            # skip check in case (optional) keyword argument was not passed
+            if ctx_arg_name is not None and kwargs.get(ctx_arg_name) is None:
+                return fn(*args, **kwargs)
+
             context = load_context(
                 ctx_arg_pos, ctx_arg_name, ctx_loader, pass_ctx_to_loader, args, kwargs
             )
-
-            # skip check in case (optional) argument was not passed
-            if context is None:
-                return fn(*args, **kwargs)
 
             # Check access for possibly multiple contexts
             if not isinstance(context, list):
