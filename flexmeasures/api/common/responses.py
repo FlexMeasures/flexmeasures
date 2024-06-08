@@ -177,6 +177,7 @@ def invalid_role(requested_access_role: str) -> ResponseTuple:
 
 def invalid_sender(
     required_permissions: list[str] | None = None,
+    field_name: str | None = None,
 ) -> ResponseTuple:
     """
     Signify that the sender is invalid to perform the request. Fits well with 403 errors.
@@ -186,7 +187,11 @@ def invalid_sender(
     if required_permissions:
         message += f" It requires {p.join(required_permissions)} permission(s)."
     return (
-        dict(result="Rejected", status="INVALID_SENDER", message=message),
+        dict(
+            result="Rejected",
+            status="INVALID_SENDER",
+            message={"json": {field_name: message}} if field_name else message,
+        ),
         FORBIDDEN_STATUS_CODE,
     )
 
@@ -275,11 +280,14 @@ def fallback_schedule_redirect(message: str, location: str) -> ResponseTuple:
 
 
 def invalid_flex_config(message: str, field_name: str | None = None) -> ResponseTuple:
+    """The flex-config is always part of the JSON payload."""
     return (
         dict(
             result="Rejected",
             status="UNPROCESSABLE_ENTITY",
-            message={field_name if field_name else "json": message},
+            message={"json": {field_name: message}}
+            if field_name
+            else {"json": message},
         ),
         422,
     )

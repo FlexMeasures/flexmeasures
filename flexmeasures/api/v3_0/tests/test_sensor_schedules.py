@@ -431,13 +431,13 @@ def test_get_schedule_fallback_not_redirect(
             message_for_trigger_schedule(),
             "flex-context",
             "site-consumption-capacity",
-            "no read authorization",
+            "requires read sensor",
         ),
         (
             message_for_trigger_schedule(),
             "flex-model",
             "site-consumption-capacity",
-            "no read authorization",
+            "requires read sensor",
         ),
     ],
 )
@@ -458,7 +458,7 @@ def test_trigger_schedule_with_unauthorized_sensor(
     """Test triggering a schedule using a flex config that refers to a capacity sensor from a different account.
 
     The user is not authorized to read sensors from the other account,
-    so we expect a 422 (Unprocessable entity) response referring to the relevant flex-config field.
+    so we expect a 403 (Forbidden) response referring to the relevant flex-config field.
     """
     sensor = add_battery_assets["Test battery"].sensors[0]
     with app.test_client() as client:
@@ -472,18 +472,21 @@ def test_trigger_schedule_with_unauthorized_sensor(
             json=message,
         )
         print("Server responded with:\n%s" % trigger_schedule_response.json)
-        assert trigger_schedule_response.status_code == 422  # Unprocessable entity
+        assert trigger_schedule_response.status_code == 403  # Forbidden
         assert (
-            f"{flex_config}.{field}.sensor" in trigger_schedule_response.json["message"]
+            f"{flex_config}.{field}.sensor"
+            in trigger_schedule_response.json["message"]["json"]
         )
         if isinstance(
-            trigger_schedule_response.json["message"][f"{flex_config}.{field}.sensor"],
+            trigger_schedule_response.json["message"]["json"][
+                f"{flex_config}.{field}.sensor"
+            ],
             str,
         ):
             # ValueError
             assert (
                 err_msg
-                in trigger_schedule_response.json["message"][
+                in trigger_schedule_response.json["message"]["json"][
                     f"{flex_config}.{field}.sensor"
                 ]
             )
@@ -491,7 +494,7 @@ def test_trigger_schedule_with_unauthorized_sensor(
             # ValidationError (marshmallow)
             assert (
                 err_msg
-                in trigger_schedule_response.json["message"][
+                in trigger_schedule_response.json["message"]["json"][
                     f"{flex_config}.{field}.sensor"
                 ][field][0]
             )

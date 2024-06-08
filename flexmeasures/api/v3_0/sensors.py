@@ -18,6 +18,7 @@ from flexmeasures.api.common.responses import (
     unrecognized_event,
     unknown_schedule,
     invalid_flex_config,
+    invalid_sender,
     fallback_schedule_redirect,
 )
 from flexmeasures.api.common.utils.validators import (
@@ -236,9 +237,9 @@ class SensorAPI(FlaskView):
         ctx_arg_name="flex_model",
         ctx_loader=flex_model_loader,
         pass_ctx_to_loader=True,
-        error_handler=lambda context, permission, origin: invalid_flex_config(
-            f"User has no {permission} authorization on sensor {context.id}",
-            origin,
+        error_handler=lambda context, permission, origin: invalid_sender(
+            required_permissions=[f"{permission} sensor {context.id}"],
+            field_name=origin,
         ),
     )
     @permission_required_for_context(
@@ -246,9 +247,9 @@ class SensorAPI(FlaskView):
         ctx_arg_name="flex_context",
         ctx_loader=flex_context_loader,
         pass_ctx_to_loader=True,
-        error_handler=lambda context, permission, origin: invalid_flex_config(
-            f"User has no {permission} authorization on sensor {context.id}",
-            origin,
+        error_handler=lambda context, permission, origin: invalid_sender(
+            required_permissions=[f"{permission} sensor {context.id}"],
+            field_name=origin,
         ),
     )
     def trigger_schedule(
