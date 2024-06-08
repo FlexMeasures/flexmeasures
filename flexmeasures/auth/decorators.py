@@ -148,7 +148,8 @@ def permission_required_for_context(
     The ctx_loader:
 
       The ctx_loader can be a function without arguments, or it takes the context loaded from the arguments as input (using pass_ctx_to_loader=True).
-      It should return the context or a list of contexts.
+      It should return the context, a list of contexts, or a list of (context, origin) tuples,
+      where an origin defines where (e.g. what API field) the context came from, to help with responding with more informative errors.
       A special case is useful when the arguments contain the context ID (not the instance).
       Then, the loader can be a subclass of AuthModelMixin, and this decorator will look up the instance.
 
