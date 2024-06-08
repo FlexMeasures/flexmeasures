@@ -6,14 +6,14 @@
 
 {% block divs %}
 
-    <div class="container-fluid">
+<div class="card p-3 mt-3 mb-3">
 
-        <h1>Sorry, something went wrong :( </h1>
+  <h1>Sorry, something went wrong :(</h1>
 
-        <p>{{ error_description }} The error message says:</p>
-        <p class="error">{{ error_class }} {% if error_class %}:{% endif %} "{{ error_message }}"</p>
-        <p>You might want to try to <a onclick="window.history.back()">return and select something else</a> or <a href="/?clear-session=1">clear your session</a> and try again.</p>
+  <p>{{ error_description }} The error message says:</p>
+  <p class="error">{{ error_class }} {% if error_class %}:{% endif %} "{{ error_message }}"</p>
+  <p>You might want to try to <a onclick="window.history.back()">return and select something else</a> or <a href="/?clear-session=1">clear your session</a> and try again.</p>
 
-    </div>
+</div>
 
 {% endblock %}

@@ -31,6 +31,7 @@ from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.utils.api_utils import save_and_enqueue
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
+from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.planning.utils import (
@@ -225,6 +226,7 @@ class SensorAPI(FlaskView):
             ),
             "flex_model": fields.Dict(data_key="flex-model"),
             "flex_context": fields.Dict(required=False, data_key="flex-context"),
+            "force_new_job_creation": fields.Boolean(required=False),
         },
         location="json",
     )
@@ -257,6 +259,7 @@ class SensorAPI(FlaskView):
         belief_time: datetime | None = None,
         flex_model: dict | None = None,
         flex_context: dict | None = None,
+        force_new_job_creation: bool | None = False,
         **kwargs,
     ):
         """
@@ -400,6 +403,7 @@ class SensorAPI(FlaskView):
             job = create_scheduling_job(
                 **scheduler_kwargs,
                 enqueue=True,
+                force_new_job_creation=force_new_job_creation,
             )
         except ValidationError as err:
             return invalid_flex_config(err.messages)
@@ -636,7 +640,7 @@ class SensorAPI(FlaskView):
         pass_ctx_to_loader=True,
     )
     def post(self, sensor_data: dict):
-        """Create new asset.
+        """Create new sensor.
 
         .. :quickref: Sensor; Create a new Sensor
 
@@ -681,6 +685,10 @@ class SensorAPI(FlaskView):
         sensor = Sensor(**sensor_data)
         db.session.add(sensor)
         db.session.commit()
+
+        asset = sensor_schema.context["generic_asset"]
+        AssetAuditLog.add_record(asset, f"Created sensor '{sensor.name}': {sensor.id}")
+
         return sensor_schema.dump(sensor), 201
 
     @route("/<id>", methods=["PATCH"])
@@ -736,6 +744,16 @@ class SensorAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
+        audit_log_data = list()
+        for k, v in sensor_data.items():
+            if getattr(sensor, k) != v:
+                audit_log_data.append(
+                    f"Field name: {k}, Old value: {getattr(sensor, k)}, New value: {v}"
+                )
+        audit_log_event = f"Updated sensor '{sensor.name}': {sensor.id}. Updated fields: {'; '.join(audit_log_data)}"
+
+        AssetAuditLog.add_record(sensor.generic_asset, audit_log_event)
+
         for k, v in sensor_data.items():
             setattr(sensor, k, v)
         db.session.add(sensor)
@@ -765,6 +783,10 @@ class SensorAPI(FlaskView):
 
         """Delete time series data."""
         db.session.execute(delete(TimedBelief).filter_by(sensor_id=sensor.id))
+
+        AssetAuditLog.add_record(
+            sensor.generic_asset, f"Deleted sensor '{sensor.name}': {sensor.id}"
+        )
 
         sensor_name = sensor.name
         db.session.execute(delete(Sensor).filter_by(id=sensor.id))

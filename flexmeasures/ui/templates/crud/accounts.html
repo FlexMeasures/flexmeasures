@@ -1,13 +1,16 @@
-{% extends "base.html" %} {% set active_page = "accounts" %} {% block title %} Account listing {% endblock %} {% block
-divs %}
+{% extends "base.html" %} 
+{% set active_page = "accounts" %} 
+{% block title %} Account listing {% endblock %} 
+{% block divs %}
 
 <div class="container-fluid">
     <div class="row">
-        <div class="col-sm-2"></div>
-        <div class="col-sm-8">
+        <div class="col-md-2"></div>
+        <div class="col-md-8">
             <div class="card">
             <h3>All Accounts
             </h3>
+            <div class="table-responsive">
             <table class="table table-striped table-responsive paginate nav-on-click" title="View this account">
                 <thead>
                     <tr>
@@ -16,7 +19,7 @@ divs %}
                         <th>Assets</th>
                         <th>Users</th>
                         <th>Roles</th>
-                        <th class="hidden">URL</th>
+                        <th class="d-none">URL</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -37,7 +40,7 @@ divs %}
                         <td>
                             {{ account.account_roles | map(attribute='name') | join(", ") }}
                         </td>
-                        <td class="hidden">
+                        <td class="d-none">
                             /accounts/{{ account.id }}
                         </td>
                     </tr>
@@ -45,9 +48,10 @@ divs %}
                 </tbody>
             </table>
         </div>
+        </div>
     </div>
 </div>
-<div class="col-sm-2"></div>
+<div class="col-md-2"></div>
 </div>
 </div>
 
