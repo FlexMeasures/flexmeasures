@@ -71,8 +71,6 @@ class Config(object):
 
     MAPBOX_ACCESS_TOKEN: str | None = None
 
-    JSONIFY_PRETTYPRINT_REGULAR: bool = False
-
     RQ_DASHBOARD_POLL_INTERVAL: int = (
         3000  # Web interface poll period for updates in ms
     )
@@ -130,6 +128,7 @@ class Config(object):
         currencysymbolmap="5.1.0",
         # todo: expand with other js versions used in FlexMeasures
     )
+    FLEXMEASURES_JSON_COMPACT = False
 
     FLEXMEASURES_FALLBACK_REDIRECT: bool = False
 
@@ -182,9 +181,9 @@ class DevelopmentConfig(Config):
     SQLALCHEMY_ECHO: bool = False
     PROPAGATE_EXCEPTIONS: bool = True
     # PRESERVE_CONTEXT_ON_EXCEPTION: bool = False  # might need this to make our transaction handling work in debug mode
-    JSONIFY_PRETTYPRINT_REGULAR: bool = True
     FLEXMEASURES_MODE: str = "development"
     FLEXMEASURES_PROFILE_REQUESTS: bool = True
+    FLEXMEASURES_JSON_COMPACT = False
 
 
 class TestingConfig(Config):
