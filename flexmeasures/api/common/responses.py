@@ -279,15 +279,10 @@ def fallback_schedule_redirect(message: str, location: str) -> ResponseTuple:
     )
 
 
-def invalid_flex_config(message: str, field_name: str | None = None) -> ResponseTuple:
-    """The flex-config is always part of the JSON payload."""
+def invalid_flex_config(message: str) -> ResponseTuple:
     return (
         dict(
-            result="Rejected",
-            status="UNPROCESSABLE_ENTITY",
-            message={"json": {field_name: message}}
-            if field_name
-            else {"json": message},
+            result="Rejected", status="UNPROCESSABLE_ENTITY", message=dict(json=message)
         ),
         422,
     )
