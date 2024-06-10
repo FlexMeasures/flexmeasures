@@ -234,4 +234,6 @@ def load_context(
             context = ctx_loader()
     else:
         context = context_from_args
+    if context is None:
+        raise LookupError(f"No context could be loaded from {context_from_args}.")
     return context
