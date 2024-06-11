@@ -96,7 +96,7 @@
                             </td>
                             <td class="text-right">
                                 <!-- Button -->
-                                <a href="#" class="btn btn-default btn-success" role="button" id="job-metadata-info-button"  data-target="#JobMetadataModal-{{ job_data['metadata_hash'] }}" data-toggle="modal">
+                                <a href="#" class="btn btn-default btn-success" role="button" id="job-metadata-info-button" data-bs-target="#JobMetadataModal-{{ job_data['metadata_hash'] }}" data-bs-toggle="modal">
                                     Info
                                 </a>
                                 
@@ -106,7 +106,7 @@
                                         <div class="modal-content">
                                             <div class="modal-header">
                                                 <h5 class="modal-title" id="JobMetadataInfo">Info</h5>
-                                                <button id="modalCloseButton" type="button" class="close" data-dismiss="modal" aria-label="Close" onmousedown="event.stopPropagation(); event.preventDefault();">
+                                                <button id="modalCloseButton" type="button" class="close" data-bs-dismiss="modal" aria-label="Close" onmousedown="event.stopPropagation(); event.preventDefault();">
                                                     <span aria-hidden="true">&times;</span>
                                                 </button>
                                             </div>
@@ -130,12 +130,8 @@
             </div>
         </div>
     </div>
-
-
 </div>
 
-
-<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js"></script>
 <!-- sort scheduling and forecasting jobs by 'Created at' column -->
 <script>
     $(document).ready(function() {
