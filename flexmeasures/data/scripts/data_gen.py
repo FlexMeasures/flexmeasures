@@ -343,8 +343,9 @@ def depopulate_prognoses(
 
     if sensor_id is not None:
         query = query.filter(TimedBelief.sensor_id == sensor_id)
-    num_forecasts_deleted = db.session.execute(query)
-
+    deletion_result = db.session.execute(query)
+    num_forecasts_deleted = deletion_result.rowcount
+    
     if not sensor_id:
         click.echo("Deleted %d Forecast Jobs" % num_forecasting_jobs_deleted)
         click.echo("Deleted %d Schedule Jobs" % num_scheduling_jobs_deleted)
