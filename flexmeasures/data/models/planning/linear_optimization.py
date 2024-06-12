@@ -34,6 +34,8 @@ def device_scheduler(  # noqa C901
     commitment_downwards_deviation_price: list[pd.Series] | list[float],
     commitment_upwards_deviation_price: list[pd.Series] | list[float],
     initial_stock: float = 0,
+    relaxed: bool = False,
+    relaxation_cost: float = 20000,
 ) -> tuple[list[pd.Series], float, SolverResults, ConcreteModel]:
     """This generic device scheduler is able to handle an EMS with multiple devices,
     with various types of constraints on the EMS level and on the device level,
@@ -273,6 +275,9 @@ def device_scheduler(  # noqa C901
         model.c, model.j, domain=NonNegativeReals, initialize=0
     )
 
+    model.ems_power_slack_upper = Var(domain=NonNegativeReals, initialize=0)
+    model.ems_power_slack_lower = Var(domain=NonNegativeReals, initialize=0)
+
     # Add constraints as a tuple of (lower bound, value, upper bound)
     def device_bounds(m, d, j):
         """Apply conversion efficiencies to conversion from flow to stock change and vice versa,
@@ -328,8 +333,26 @@ def device_scheduler(  # noqa C901
         """Derivative down if sign points down, derivative not down if sign points up."""
         return -m.device_power_down[d, j] <= M * (1 - m.device_power_sign[d, j])
 
-    def ems_derivative_bounds(m, j):
-        return m.ems_derivative_min[j], sum(m.ems_power[:, j]), m.ems_derivative_max[j]
+    def ems_derivative_lower_bound(m, j):
+
+        if relaxed:
+            return (
+                m.ems_derivative_min[j],
+                sum(m.ems_power[:, j]) + m.ems_power_slack_lower,
+                None,
+            )
+        else:
+            return m.ems_derivative_min[j], sum(m.ems_power[:, j]), None
+
+    def ems_derivative_upper_bound(m, j):
+        if relaxed:
+            return (
+                None,
+                sum(m.ems_power[:, j]) - m.ems_power_slack_upper,
+                m.ems_derivative_max[j],
+            )
+        else:
+            return None, sum(m.ems_power[:, j]), m.ems_derivative_max[j]
 
     def ems_flow_commitment_equalities(m, j):
         """Couple EMS flows (sum over devices) to commitments."""
@@ -366,7 +389,9 @@ def device_scheduler(  # noqa C901
     model.device_power_down_sign = Constraint(
         model.d, model.j, rule=device_down_derivative_sign
     )
-    model.ems_power_bounds = Constraint(model.j, rule=ems_derivative_bounds)
+    model.ems_power_upper_bound = Constraint(model.j, rule=ems_derivative_upper_bound)
+    model.ems_power_lower_bounds = Constraint(model.j, rule=ems_derivative_lower_bound)
+
     model.ems_power_commitment_equalities = Constraint(
         model.j, rule=ems_flow_commitment_equalities
     )
@@ -377,10 +402,19 @@ def device_scheduler(  # noqa C901
     # Add objective
     def cost_function(m):
         costs = 0
-        for c in m.c:
-            for j in m.j:
+        for j in m.j:
+            for c in m.c:
                 costs += m.commitment_downwards_deviation[c, j] * m.down_price[c, j]
                 costs += m.commitment_upwards_deviation[c, j] * m.up_price[c, j]
+
+        if relaxed:
+            costs += (
+                m.ems_power_slack_upper * relaxation_cost
+            )  # TODO: compute this value based on input dat
+            costs += (
+                m.ems_power_slack_lower * relaxation_cost
+            )  # TODO: compute this value based on input dat
+
         return costs
 
     model.costs = Objective(rule=cost_function, sense=minimize)

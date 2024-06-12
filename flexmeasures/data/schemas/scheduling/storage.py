@@ -117,6 +117,8 @@ class StorageFlexModelSchema(Schema):
         QuantityOrSensor("MW"), data_key="soc-usage", required=False
     )
 
+    relaxed = fields.Bool(data_key="relaxed", required=False, default=False)
+
     def __init__(self, start: datetime, sensor: Sensor, *args, **kwargs):
         """Pass the schedule's start, so we can use it to validate soc-target datetimes."""
         self.start = start
