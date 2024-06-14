@@ -21,7 +21,9 @@ click==8.1.7
     #   -c requirements/3.10/app.txt
     #   flask
 coverage[toml]==7.4.4
-    # via pytest-cov
+    # via
+    #   coverage
+    #   pytest-cov
 exceptiongroup==1.2.0
     # via pytest
 fakeredis==2.21.3
