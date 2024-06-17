@@ -114,13 +114,10 @@ def register_plugins(app: Flask):  # noqa: C901
         plugin_schedulers = get_classes_module(module.__name__, Scheduler)
 
         # add DataGenerators
-        # for legacy, we still maintain app.reporters and app.schedulers
         if plugin_reporters:
             app.data_generators["reporter"].update(plugin_reporters)
-            app.reporters.update(plugin_reporters)
         if plugin_schedulers:
             app.data_generators["scheduler"].update(plugin_schedulers)
-            app.schedulers.update(plugin_schedulers)
 
         app.config["LOADED_PLUGINS"][plugin_name] = plugin_version
     app.logger.info(f"Loaded plugins: {app.config['LOADED_PLUGINS']}")
