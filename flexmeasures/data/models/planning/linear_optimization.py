@@ -35,7 +35,7 @@ def device_scheduler(  # noqa C901
     commitment_upwards_deviation_price: list[pd.Series] | list[float],
     initial_stock: float = 0,
     relaxed: bool = False,
-    relaxation_cost: float = 20000,
+    relaxation_cost: float = 20000,  # TODO: compute this value based on input data
 ) -> tuple[list[pd.Series], float, SolverResults, ConcreteModel]:
     """This generic device scheduler is able to handle an EMS with multiple devices,
     with various types of constraints on the EMS level and on the device level,
@@ -408,12 +408,8 @@ def device_scheduler(  # noqa C901
                 costs += m.commitment_upwards_deviation[c, j] * m.up_price[c, j]
 
         if relaxed:
-            costs += (
-                m.ems_power_slack_upper * relaxation_cost
-            )  # TODO: compute this value based on input dat
-            costs += (
-                m.ems_power_slack_lower * relaxation_cost
-            )  # TODO: compute this value based on input dat
+            costs += m.ems_power_slack_upper * relaxation_cost
+            costs += m.ems_power_slack_lower * relaxation_cost
 
         return costs
 
