@@ -78,7 +78,7 @@ That's because reporters belong to a bigger category of classes that also contai
 
 .. code-block:: bash
 
-    $ flexmeasures show data-sources --show-attributes --id 5
+    $ flexmeasures show data-sources --show-attributes --id 6
 
          ID  Name          Type      User ID    Model           Version    Attributes                                  
        ----  ------------  --------  ---------  --------------  ---------  -----------------------------------------   
@@ -129,7 +129,7 @@ Finally, we can create the reporter with the following command:
        --start-offset DB,1D --end-offset DB,2D \
        --resolution PT15M
 
-Now we can visualize the headroom in the following `link <http://localhost:5000/sensor/8/>`_, which should resemble the following image.
+Now we can visualize the headroom in the following `link <http://localhost:5000/sensors/8>`_, which should resemble the following image.
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-headroom.png
     :align: center
@@ -184,7 +184,7 @@ Create report:
        --start-offset DB,1D --end-offset DB,2D
 
 
-Check the results `here <http://localhost:5000/sensor/9/>`_. The image should be similar to the one below.
+Check the results `here <http://localhost:5000/sensors/9>`_. The image should be similar to the one below.
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-inflexible.png
     :align: center
@@ -211,7 +211,7 @@ Create report:
        --parameters breakable-parameters.json \
        --start-offset DB,1D --end-offset DB,2D
 
-Check the results `here <http://localhost:5000/sensor/10/>`_. The image should be similar to the one below.
+Check the results `here <http://localhost:5000/sensors/10>`_. The image should be similar to the one below.
 
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-breakable.png
@@ -239,7 +239,7 @@ Create report:
        --parameters shiftable-parameters.json \
        --start-offset DB,1D --end-offset DB,2D
 
-Check the results `here <http://localhost:5000/sensor/11/>`_. The image should be similar to the one below.
+Check the results `here <http://localhost:5000/sensors/11>`_. The image should be similar to the one below.
 
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-shiftable.png
