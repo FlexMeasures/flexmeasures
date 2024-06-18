@@ -323,7 +323,7 @@ Let's look at the price data we just loaded:
 
 
 
-Again, we can also view these prices in the `FlexMeasures UI <http://localhost:5000/sensors/1/>`_:
+Again, we can also view these prices in the `FlexMeasures UI <http://localhost:5000/sensors/1>`_:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-prices.png
     :align: center
