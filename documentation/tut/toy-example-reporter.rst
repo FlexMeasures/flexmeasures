@@ -123,7 +123,6 @@ Finally, we can create the reporter with the following command:
 
 .. code-block:: bash
 
-    $ TOMORROW=$(date --date="next day" '+%Y-%m-%d')
     $ flexmeasures add report --reporter AggregatorReporter \
        --parameters headroom-parameters.json --config headroom-config.json \
        --start-offset DB,1D --end-offset DB,2D \
