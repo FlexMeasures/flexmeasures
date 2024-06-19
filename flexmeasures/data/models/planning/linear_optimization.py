@@ -269,8 +269,8 @@ def device_scheduler(  # noqa C901
         model.d, model.j, domain=NonPositiveReals, initialize=0
     )
     model.device_power_up = Var(model.d, model.j, domain=NonNegativeReals, initialize=0)
-    model.device_stock_slack_upper = Var(model.d, domain=NonNegativeReals, initialize=0)
-    model.device_stock_slack_lower = Var(model.d, domain=NonNegativeReals, initialize=0)
+    model.device_stock_slack_upper = Var(model.d, model.j, domain=NonNegativeReals, initialize=0)
+    model.device_stock_slack_lower = Var(model.d, model.j, domain=NonNegativeReals, initialize=0)
     model.device_power_sign = Var(model.d, model.j, domain=Binary, initialize=0)
     model.commitment_downwards_deviation = Var(
         model.c, model.j, domain=NonPositiveReals, initialize=0
@@ -297,7 +297,7 @@ def device_scheduler(  # noqa C901
         efficiencies = [m.device_efficiency[d, k] for k in range(0, j + 1)]
         to_add = 0
         if device_stock_relaxed:
-            to_add += m.device_stock_slack_lower[d]
+            to_add += m.device_stock_slack_lower[d, j]
         return (
             m.device_min[d, j],
             [
@@ -324,7 +324,7 @@ def device_scheduler(  # noqa C901
         efficiencies = [m.device_efficiency[d, k] for k in range(0, j + 1)]
         to_add = 0
         if device_stock_relaxed:
-            to_add -=  m.device_stock_slack_upper[d]
+            to_add -=  m.device_stock_slack_upper[d, j]
         return (
             None,
             [
@@ -446,9 +446,10 @@ def device_scheduler(  # noqa C901
             costs += m.ems_power_slack_upper * ems_flow_relaxation_cost
             costs += m.ems_power_slack_lower * ems_flow_relaxation_cost
         if device_stock_relaxed:
-            for d in m.d:
-                costs += m.device_stock_slack_upper[d] * stock_relaxation_cost
-                costs += m.device_stock_slack_lower[d] * stock_relaxation_cost
+            for j in m.j:
+                for d in m.d:
+                    costs += m.device_stock_slack_upper[d, j] * stock_relaxation_cost
+                    costs += m.device_stock_slack_lower[d, j] * stock_relaxation_cost
 
         return costs
 
