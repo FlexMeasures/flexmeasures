@@ -646,7 +646,7 @@ class StorageScheduler(MetaStorageScheduler):
             commitment_downwards_deviation_price,
             commitment_upwards_deviation_price,
             initial_stock=soc_at_start * (timedelta(hours=1) / resolution),
-            relaxed=self.flex_model.get("relaxed", False),
+            ems_flow_relaxed=self.flex_model.get("relaxed", False),
         )
         if scheduler_results.solver.termination_condition == "infeasible":
             raise InfeasibleProblemException()
