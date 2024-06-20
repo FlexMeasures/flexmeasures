@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import hashlib
 from datetime import datetime, timedelta
 from flask import current_app
 from timely_beliefs import BeliefsDataFrame
@@ -212,6 +214,7 @@ def build_asset_jobs_data(
     - status: job status (e.g finished, failed, etc)
     - err: job error (equals to None when there was no error for a job)
     - enqueued_at: time when the job was enqueued
+    - metadata_hash: hash of job metadata (internal field)
     """
 
     jobs = list()
@@ -222,6 +225,7 @@ def build_asset_jobs_data(
             "scheduling",
             "asset",
             asset.id,
+            asset.name,
             current_app.job_cache.get(asset.id, "scheduling", "asset"),
         )
     )
@@ -232,6 +236,7 @@ def build_asset_jobs_data(
                 "scheduling",
                 "sensor",
                 sensor.id,
+                sensor.name,
                 current_app.job_cache.get(sensor.id, "scheduling", "sensor"),
             )
         )
@@ -240,13 +245,14 @@ def build_asset_jobs_data(
                 "forecasting",
                 "sensor",
                 sensor.id,
+                sensor.name,
                 current_app.job_cache.get(sensor.id, "forecasting", "sensor"),
             )
         )
 
     jobs_data = list()
     # Building the actual return list - we also unpack lists of jobs, each to its own entry, and we add error info
-    for queue, asset_or_sensor_type, asset_id, jobs in jobs:
+    for queue, asset_or_sensor_type, entity_id, entity_name, jobs in jobs:
         for job in jobs:
             e = job.meta.get(
                 "exception",
@@ -262,15 +268,17 @@ def build_asset_jobs_data(
                 else None
             )
 
+            metadata = json.dumps({**job.meta, "job_id": job.id}, default=str, indent=4)
             jobs_data.append(
                 {
-                    "job_id": job.id,
+                    "metadata": metadata,
                     "queue": queue,
                     "asset_or_sensor_type": asset_or_sensor_type,
-                    "asset_id": asset_id,
+                    "entity": f"{asset_or_sensor_type}: {entity_name} (Id: {entity_id})",
                     "status": job.get_status(),
                     "err": job_err,
                     "enqueued_at": job.enqueued_at,
+                    "metadata_hash": hashlib.sha256(metadata.encode()).hexdigest(),
                 }
             )
 
