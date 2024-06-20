@@ -95,6 +95,10 @@ class MetaStorageScheduler(Scheduler):
             self.flex_context.get("production_price_sensor")
             or self.sensor.generic_asset.get_production_price_sensor()
         )
+        curtailable_device_sensors = (
+                self.flex_context.get("curtailable_device_sensors")
+                # or self.sensor.generic_asset.get_inflexible_device_sensors()  # todo: support setting as asset attribute?
+        )
         inflexible_device_sensors = (
             self.flex_context.get("inflexible_device_sensors")
             or self.sensor.generic_asset.get_inflexible_device_sensors()
@@ -170,16 +174,36 @@ class MetaStorageScheduler(Scheduler):
         # Set up device constraints: only one scheduled flexible device for this EMS (at index 0), plus the forecasted inflexible devices (at indices 1 to n).
         device_constraints = [
             initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
-            for i in range(1 + len(inflexible_device_sensors))
+            for i in range(1 + len(curtailable_device_sensors) + len(inflexible_device_sensors))
         ]
+
+        # Curtailable devices
+        for i, curtailable_sensor in enumerate(curtailable_device_sensors):
+            power_values = get_power_values(
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                sensor=curtailable_sensor,
+            )
+            if curtailable_sensor.get_attribute(
+                    "consumption_is_positive", False
+            ):  # FlexMeasures default is to store consumption as negative power values
+                device_constraints[i + 1]["derivative max"] = power_values
+                device_constraints[i + 1]["derivative min"] = 0
+            else:
+                device_constraints[i + 1]["derivative max"] = 0
+                device_constraints[i + 1]["derivative min"] = -power_values
+
+        # Inflexible devices
         for i, inflexible_sensor in enumerate(inflexible_device_sensors):
-            device_constraints[i + 1]["derivative equals"] = get_power_values(
+            device_constraints[i + 1 + len(curtailable_device_sensors)]["derivative equals"] = get_power_values(
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
                 sensor=inflexible_sensor,
             )
 
+        # Flexible devices
         # fetch SOC constraints from sensors
         if isinstance(soc_targets, Sensor):
             soc_targets = get_continuous_series_sensor_or_quantity(
