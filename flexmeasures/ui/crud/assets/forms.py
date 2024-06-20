@@ -18,11 +18,7 @@ from typing import Optional
 
 from flexmeasures.auth.policy import user_has_admin_access
 from flexmeasures.data import db
-from flexmeasures.data.models.generic_assets import (
-    GenericAsset,
-    GenericAssetType,
-    GenericAssetInflexibleSensorRelationship,
-)
+from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.ui.crud.assets.utils import (
@@ -154,25 +150,9 @@ class AssetForm(FlaskForm):
         allowed_inflexible_sensor_data = get_allowed_inflexible_sensor_data(account_id)
         linked_sensor_data = {}
         if asset:
-            linked_sensors = (
-                db.session.query(
-                    GenericAssetInflexibleSensorRelationship.inflexible_sensor_id,
-                    Sensor.name,
-                )
-                .join(
-                    Sensor,
-                    GenericAssetInflexibleSensorRelationship.inflexible_sensor_id
-                    == Sensor.id,
-                )
-                .filter(
-                    GenericAssetInflexibleSensorRelationship.generic_asset_id
-                    == asset.id
-                )
-                .all()
-            )
+            linked_sensors = asset.get_inflexible_device_sensors()
             linked_sensor_data = {
-                sensor_id: f"{asset.name}:{sensor_name}"
-                for sensor_id, sensor_name in linked_sensors
+                sensor.id: f"{asset.name}:{sensor.name}" for sensor in linked_sensors
             }
 
         all_sensor_data = {**allowed_inflexible_sensor_data, **linked_sensor_data}

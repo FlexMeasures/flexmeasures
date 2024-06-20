@@ -171,6 +171,26 @@ def get_status(
     return status
 
 
+def _get_sensor_asset_relation(
+    asset: Asset,
+    sensor: Sensor,
+    inflexible_device_sensors: list[Sensor],
+) -> str:
+    """Get the relation of a sensor to an asset."""
+    relations = list()
+    if sensor.generic_asset_id == asset.id:
+        relations.append("ownership")
+    if asset.consumption_price_sensor_id == sensor.id:
+        relations.append("consumption price")
+    if asset.production_price_sensor_id == sensor.id:
+        relations.append("production price")
+    inflexible_device_sensors_ids = {sensor.id for sensor in inflexible_device_sensors}
+    if sensor.id in inflexible_device_sensors_ids:
+        relations.append("inflexible device")
+
+    return ";".join(relations)
+
+
 def build_sensor_status_data(
     asset: Asset,
     now: datetime = None,
@@ -184,20 +204,41 @@ def build_sensor_status_data(
     - stale: whether the sensor is stale
     - staleness_since: time since sensor data is considered stale
     - reason: reason for staleness
+    - relation: relation of the sensor to the asset
     """
     if not now:
         now = server_now()
 
     sensors = []
-    for asset in (asset, *asset.child_assets):
-        for sensor in asset.sensors:
+    sensor_ids = set()
+    production_price_sensor = asset.get_production_price_sensor()
+    consumption_price_sensor = asset.get_consumption_price_sensor()
+    inflexible_device_sensors = asset.get_inflexible_device_sensors()
+    for asset, is_child_asset in (
+        (asset, False),
+        *[(child_asset, True) for child_asset in asset.child_assets],
+    ):
+        sensors_list = list(asset.sensors)
+        if not is_child_asset:
+            sensors_list += [
+                *asset.inflexible_device_sensors,
+                production_price_sensor,
+                consumption_price_sensor,
+            ]
+        for sensor in sensors_list:
+            if sensor is None or sensor.id in sensor_ids:
+                continue
             sensor_status = get_status(
                 sensor=sensor,
                 now=now,
             )
             sensor_status["name"] = sensor.name
             sensor_status["id"] = sensor.id
-            sensor_status["asset_name"] = asset.name
+            sensor_status["asset_name"] = sensor.generic_asset.name
+            sensor_status["relation"] = _get_sensor_asset_relation(
+                asset, sensor, inflexible_device_sensors
+            )
+            sensor_ids.add(sensor.id)
             sensors.append(sensor_status)
     return sensors
 

@@ -25,6 +25,7 @@
                         <tr>
                             <th>Name</th>
                             <th>Asset name</th>
+                            <th>Relation to asset</th>
                             <th class="no-sort" title="This is the knowledge time of the most recent event recorded">Time of last value</th>
                             <th class="text-right no-sort">Status</th>
                             <th class="d-none">URL</th>
@@ -39,6 +40,8 @@
                             <td>
                                 {{ sensor.asset_name }}
                             </td>
+                            <td>
+                                {{ sensor.relation }}
                             <td>
                                 <span title="{{ sensor['staleness_since'] }}">{{ sensor["staleness_since"] | naturalized_datetime }}</span>
                             </td>
