@@ -658,6 +658,16 @@ def add_market_prices_common(
         source=setup_sources["Seita"],
     )
 
+    add_beliefs(
+        db=db,
+        sensor=setup_markets["epex_da_production"],
+        time_slots=time_slots,
+        values=[
+            random() * (1 + np.sin(x * 2 * np.pi / 24)) for x in range(len(time_slots))
+        ],
+        source=setup_sources["Seita"],
+    )
+
     # another day of test data (8 expensive hours, 8 cheap hours, and again 8 expensive hours)
     time_slots = initialize_index(
         start=pd.Timestamp("2015-01-02").tz_localize("Europe/Amsterdam"),
@@ -760,6 +770,19 @@ def create_test_battery_assets(
     """
     Add two battery assets, set their capacity values and their initial SOC.
     """
+    building_type = GenericAssetType(name="building")
+    db.session.add(building_type)
+    test_building = GenericAsset(
+        name="building",
+        generic_asset_type=building_type,
+        owner=setup_accounts["Prosumer"],
+        attributes=dict(
+            capacity_in_mw=2,
+        ),
+    )
+    db.session.add(test_building)
+    db.session.flush()
+
     battery_type = generic_asset_types["battery"]
 
     test_battery = GenericAsset(
@@ -768,6 +791,7 @@ def create_test_battery_assets(
         generic_asset_type=battery_type,
         latitude=10,
         longitude=100,
+        parent_asset_id=test_building.id,
         attributes=dict(
             capacity_in_mw=2,
             max_soc_in_mwh=5,
@@ -891,6 +915,7 @@ def create_test_battery_assets(
 
     db.session.flush()
     return {
+        "Test building": test_building,
         "Test battery": test_battery,
         "Test battery with no known prices": test_battery_no_prices,
         "Test small battery": test_small_battery,
@@ -1337,6 +1362,45 @@ def soc_sensors(db, add_battery_assets, setup_sources) -> tuple:
     )
 
     yield soc_maxima, soc_minima, soc_targets, values
+
+
+@pytest.fixture(scope="module")
+def setup_multiple_sources(db, add_battery_assets):
+    battery = add_battery_assets["Test battery with dynamic power capacity"]
+
+    test_sensor = Sensor(
+        name="test sensor",
+        generic_asset=battery,
+        unit="kW",
+        event_resolution=timedelta(minutes=15),
+    )
+
+    s1 = DataSource(name="S1", type="type 1")
+    s2 = DataSource(name="S2", type="type 2")
+    s3 = DataSource(name="S3", type="type 3")
+
+    db.session.add_all([s1, s2, s3, test_sensor])
+
+    for s in [s1, s2]:
+        add_beliefs(
+            db=db,
+            sensor=test_sensor,
+            time_slots=[pd.Timestamp("2024-01-01T10:00:00+01:00")],
+            values=[1],
+            source=s,
+        )
+
+    add_beliefs(
+        db=db,
+        sensor=test_sensor,
+        time_slots=[pd.Timestamp("2024-01-02T10:00:00+01:00")],
+        values=[1],
+        source=s3,
+    )
+
+    db.session.commit()
+
+    return test_sensor, s1, s2, s3
 
 
 def add_beliefs(

@@ -1,13 +1,14 @@
 import json
 
 from altair.utils.html import spec_to_html
-from flask import current_app
+from flask import current_app, request
 from flask_classful import FlaskView, route
 from flask_security import auth_required, login_required
 from marshmallow import fields
 from webargs.flaskparser import use_kwargs
 
 from flexmeasures.data import db
+from flexmeasures.data.schemas import StartEndTimeSchema
 from flexmeasures.data.schemas.times import AwareDateTimeField
 from flexmeasures.api.dev.sensors import SensorAPI
 from flexmeasures import Sensor
@@ -67,12 +68,19 @@ class SensorUI(FlaskView):
             embed_options=embed_options,
         ).replace('<div id="vis"></div>', '<div id="vis" style="width: 100%;"></div>')
 
+    @use_kwargs(StartEndTimeSchema, location="query")
     @login_required
-    def get(self, id: int):
-        """GET from /sensors/<id>"""
+    def get(self, id: int, **kwargs):
+        """GET from /sensors/<id>
+        The following query parameters are supported (should be used only together):
+         - start_time: minimum time of the events to be shown
+         - end_time: maximum time of the events to be shown
+        """
         return render_flexmeasures_template(
             "views/sensors.html",
             sensor_id=id,
             msg="",
             breadcrumb_info=get_breadcrumb_info(db.session.get(Sensor, id)),
+            event_starts_after=request.args.get("start_time"),
+            event_ends_before=request.args.get("end_time"),
         )
