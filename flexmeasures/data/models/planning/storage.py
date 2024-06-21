@@ -96,8 +96,8 @@ class MetaStorageScheduler(Scheduler):
             or self.sensor.generic_asset.get_production_price_sensor()
         )
         curtailable_device_sensors = (
-                self.flex_context.get("curtailable_device_sensors")
-                # or self.sensor.generic_asset.get_inflexible_device_sensors()  # todo: support setting as asset attribute?
+            self.flex_context.get("curtailable_device_sensors")
+            # or self.sensor.generic_asset.get_inflexible_device_sensors()  # todo: support setting as asset attribute?
         )
         inflexible_device_sensors = (
             self.flex_context.get("inflexible_device_sensors")
@@ -174,7 +174,9 @@ class MetaStorageScheduler(Scheduler):
         # Set up device constraints: only one scheduled flexible device for this EMS (at index 0), plus the forecasted inflexible devices (at indices 1 to n).
         device_constraints = [
             initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
-            for i in range(1 + len(curtailable_device_sensors) + len(inflexible_device_sensors))
+            for i in range(
+                1 + len(curtailable_device_sensors) + len(inflexible_device_sensors)
+            )
         ]
 
         # Curtailable devices
@@ -185,18 +187,21 @@ class MetaStorageScheduler(Scheduler):
                 beliefs_before=belief_time,
                 sensor=curtailable_sensor,
             )
+            # breakpoint()
             if curtailable_sensor.get_attribute(
-                    "consumption_is_positive", False
+                "consumption_is_positive", False
             ):  # FlexMeasures default is to store consumption as negative power values
-                device_constraints[i + 1]["derivative max"] = power_values
-                device_constraints[i + 1]["derivative min"] = 0
-            else:
-                device_constraints[i + 1]["derivative max"] = 0
                 device_constraints[i + 1]["derivative min"] = -power_values
+                device_constraints[i + 1]["derivative max"] = 0
+            else:
+                device_constraints[i + 1]["derivative min"] = 0
+                device_constraints[i + 1]["derivative max"] = -power_values
 
         # Inflexible devices
         for i, inflexible_sensor in enumerate(inflexible_device_sensors):
-            device_constraints[i + 1 + len(curtailable_device_sensors)]["derivative equals"] = get_power_values(
+            device_constraints[i + 1 + len(curtailable_device_sensors)][
+                "derivative equals"
+            ] = get_power_values(
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
@@ -683,13 +688,26 @@ class StorageScheduler(MetaStorageScheduler):
             storage_schedule = storage_schedule.round(self.round_to_decimals)
 
         if self.return_multiple:
-            return [
+            results = [
                 {
                     "name": "storage_schedule",
                     "sensor": sensor,
                     "data": storage_schedule,
                 }
             ]
+
+            for i, curtailable_sensor in enumerate(
+                self.flex_context.get("curtailable_device_sensors", {})
+            ):
+                results.append(
+                    {
+                        "name": "storage_schedule",
+                        "sensor": curtailable_sensor,
+                        "data": ems_schedule[i + 1],
+                    }
+                )
+
+            return results
         else:
             return storage_schedule
 
