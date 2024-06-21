@@ -24,6 +24,10 @@ Infrastructure / Support
 * Add ``--resolution`` option to ``flexmeasures show chart`` to produce charts in different time resolutions [see `PR #1007 <https://github.com/FlexMeasures/flexmeasures/pull/1007/>`_]
 * Add ``FLEXMEASURES_JSON_COMPACT`` config setting and deprecate ``JSONIFY_PRETTYPRINT_REGULAR`` setting [see `PR #1090 <https://github.com/FlexMeasures/flexmeasures/pull/1090/>`_]
 
+Bugfixes
+-----------
+* Fix ordering of jobs on the asset status page [see `PR #1106 <https://github.com/FlexMeasures/flexmeasures/pull/1106>`_]
+
 
 v0.21.0 | May 16, 2024
 ============================
