@@ -68,6 +68,7 @@
                             <th class="text-right no-sort">Status</th>
                             <th class="text-right">Info</th>
                             <th class="d-none">URL</th>
+                            <th class="d-none">Created at for sort</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -118,6 +119,9 @@
                             <td class="hidden d-none invisible" style="display:none;">
                                 /tasks/0/view/job/{{ job_data.job_id }}
                             </td>
+                            <td class="hidden d-none invisible" style="display:none;">
+                                {{ job_data.enqueued_at }}
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -133,7 +137,7 @@
 <!-- sort scheduling and forecasting jobs by 'Created at' column -->
 <script>
     $(document).ready(function() {
-        $('#scheduling_forecasting_jobs').DataTable({"order": [[ 0, "desc" ]]});
+        $('#scheduling_forecasting_jobs').DataTable({"order": [[ 6, "desc" ]]});
     });
 </script>
 {% endblock %}
