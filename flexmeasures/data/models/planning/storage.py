@@ -96,7 +96,7 @@ class MetaStorageScheduler(Scheduler):
             or self.sensor.generic_asset.get_production_price_sensor()
         )
         curtailable_device_sensors = (
-            self.flex_context.get("curtailable_device_sensors")
+            self.flex_context.get("curtailable_device_sensors", [])
             # or self.sensor.generic_asset.get_inflexible_device_sensors()  # todo: support setting as asset attribute?
         )
         inflexible_device_sensors = (
@@ -697,7 +697,7 @@ class StorageScheduler(MetaStorageScheduler):
             ]
 
             for i, curtailable_sensor in enumerate(
-                self.flex_context.get("curtailable_device_sensors", {})
+                self.flex_context.get("curtailable_device_sensors", [])
             ):
                 results.append(
                     {
