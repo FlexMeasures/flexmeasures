@@ -63,8 +63,8 @@ services:
       FLEXMEASURES_ENV: development
       FLEXMEASURES_REDIS_URL: queue-db
       FLEXMEASURES_REDIS_PASSWORD: fm-redis-pass
-      MAIL_SERVER: mailhog  # MailHog mail server
-      MAIL_PORT: 1025       # MailHog mail port
+      MAIL_SERVER: mailhog   # MailHog mail server
+      MAIL_PORT: 1025        # MailHog mail port
       LOGGING_LEVEL: INFO
     volumes:
       # a place for config and plugin code, and custom requirements.txt
@@ -92,8 +92,8 @@ services:
       FLEXMEASURES_REDIS_PASSWORD: fm-redis-pass
       SECRET_KEY: notsecret
       FLEXMEASURES_ENV: development
-      MAIL_SERVER: mailhog  # MailHog mail server
-      MAIL_PORT: 1025       # MailHog mail port
+      MAIL_SERVER: mailhog   # MailHog mail server
+      MAIL_PORT: 1025        # MailHog mail port
       LOGGING_LEVEL: INFO 
     volumes:
       # a place for config and plugin code, and custom requirements.txt
