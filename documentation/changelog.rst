@@ -13,6 +13,7 @@ New features
 * On the asset page, facilitate comparison by showing the two default sensors together if they record the same unit [see `PR #1066 <https://github.com/FlexMeasures/flexmeasures/pull/1066>`_]
 * Flex-context (price sensors and inflexible device sensors) can now be set on the asset page (and are part of GenericAsset model) [see `PR #1059 <https://github.com/FlexMeasures/flexmeasures/pull/1059/>`_]
 * On the asset page's default view, facilitate comparison by showing the two default sensors together if they record the same unit [see `PR #1066 <https://github.com/FlexMeasures/flexmeasures/pull/1066>`_]
+* Add flex-context sensors to status page [see `PR #1102 <https://github.com/FlexMeasures/flexmeasures/pull/1102>`_]
 
 Infrastructure / Support
 ----------------------
@@ -24,6 +25,11 @@ Infrastructure / Support
 * ``flexmeasures show beliefs`` uses the entity path (`<Account>/../<Sensor>`) in case of duplicated sensors [see `PR #1026 <https://github.com/FlexMeasures/flexmeasures/pull/1026/>`_]
 * Add ``--resolution`` option to ``flexmeasures show chart`` to produce charts in different time resolutions [see `PR #1007 <https://github.com/FlexMeasures/flexmeasures/pull/1007/>`_]
 * Add ``FLEXMEASURES_JSON_COMPACT`` config setting and deprecate ``JSONIFY_PRETTYPRINT_REGULAR`` setting [see `PR #1090 <https://github.com/FlexMeasures/flexmeasures/pull/1090/>`_]
+
+Bugfixes
+-----------
+* Fix ordering of jobs on the asset status page [see `PR #1106 <https://github.com/FlexMeasures/flexmeasures/pull/1106>`_]
+* Relax max staleness for status page using 2 * event_resolution as default instead of immediate staleness [see `PR #1108 <https://github.com/FlexMeasures/flexmeasures/pull/1108>`_]
 
 
 v0.21.0 | May 16, 2024

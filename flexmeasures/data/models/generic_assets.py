@@ -262,6 +262,14 @@ class GenericAsset(db.Model, AuthModelMixin):
 
     def get_consumption_price_sensor(self):
         """Searches for consumption_price_sensor upwards on the asset tree"""
+
+        from flexmeasures.data.models.time_series import Sensor
+
+        # Need to load consumption_price_sensor manually as generic_asset does not get to SQLAlchemy session context.
+        if self.consumption_price_sensor_id and not self.consumption_price_sensor:
+            self.consumption_price_sensor = Sensor.query.get(
+                self.consumption_price_sensor_id
+            )
         if self.consumption_price_sensor:
             return self.consumption_price_sensor
         if self.parent_asset:
@@ -270,6 +278,14 @@ class GenericAsset(db.Model, AuthModelMixin):
 
     def get_production_price_sensor(self):
         """Searches for production_price_sensor upwards on the asset tree"""
+
+        from flexmeasures.data.models.time_series import Sensor
+
+        # Need to load production_price_sensor manually as generic_asset does not get to SQLAlchemy session context.
+        if self.production_price_sensor_id and not self.production_price_sensor:
+            self.production_price_sensor = Sensor.query.get(
+                self.production_price_sensor_id
+            )
         if self.production_price_sensor:
             return self.production_price_sensor
         if self.parent_asset:
@@ -281,6 +297,23 @@ class GenericAsset(db.Model, AuthModelMixin):
         Searches for inflexible_device_sensors upwards on the asset tree
         This search will stop once any sensors are found (will not aggregate towards the top of the tree)
         """
+
+        from flexmeasures.data.models.time_series import Sensor
+
+        # Need to load inflexible_device_sensors manually as generic_asset does not get to SQLAlchemy session context.
+        if not self.inflexible_device_sensors:
+            self.inflexible_device_sensors = (
+                db.session.query(Sensor)
+                .join(
+                    GenericAssetInflexibleSensorRelationship,
+                    GenericAssetInflexibleSensorRelationship.inflexible_sensor_id
+                    == Sensor.id,
+                )
+                .filter(
+                    GenericAssetInflexibleSensorRelationship.generic_asset_id == self.id
+                )
+                .all()
+            )
         if self.inflexible_device_sensors:
             return self.inflexible_device_sensors
         if self.parent_asset:
