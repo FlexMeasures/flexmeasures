@@ -1,18 +1,3 @@
-version: "3.4"
-
-# ------------------------------------------------------------------
-# This runs your local FlexMeasures code in a docker compose stack.
-# Two FlexMeasures instances are spun up, one for serving the web
-# UI & API, one to work on computation jobs.
-# The server is adding a toy account when it starts.
-# (user: toy-user@flexmeasures.io, password: toy-password)
-# 
-# Instead of local code (which is useful for development purposes),
-# you can also use the official (and stable) FlexMeasures docker image
-# (lfenergy/flexmeasures). Replace the two `build` directives with
-# an `image` directive.
-# ------------------------------------------------------------------
-
 services:
   dev-db:
     image: postgres
@@ -35,6 +20,12 @@ services:
       - redis-cache:/data
     environment:
      - REDIS_REPLICATION_MODE=master
+  mailhog:
+    image: mailhog/mailhog
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    restart: always
   server:
     build:
       context: .
@@ -45,6 +36,7 @@ services:
       - dev-db
       - test-db  # use -e SQLALCHEMY_TEST_DATABASE_URI=... to exec pytest
       - queue-db
+      - mailhog  # Added MailHog dependency
     restart: on-failure
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/api/v3_0/health/ready"]
@@ -58,6 +50,8 @@ services:
       FLEXMEASURES_ENV: development
       FLEXMEASURES_REDIS_URL: queue-db
       FLEXMEASURES_REDIS_PASSWORD: fm-redis-pass
+      MAIL_SERVER: mailhog  # MailHog mail server
+      MAIL_PORT: 1025       # MailHog mail port
       LOGGING_LEVEL: INFO
     volumes:
       # a place for config and plugin code, and custom requirements.txt
@@ -85,6 +79,8 @@ services:
       FLEXMEASURES_REDIS_PASSWORD: fm-redis-pass
       SECRET_KEY: notsecret
       FLEXMEASURES_ENV: development
+      MAIL_SERVER: mailhog  # MailHog mail server
+      MAIL_PORT: 1025       # MailHog mail port
       LOGGING_LEVEL: INFO 
     volumes:
       # a place for config and plugin code, and custom requirements.txt
