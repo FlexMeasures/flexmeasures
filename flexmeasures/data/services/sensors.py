@@ -4,6 +4,7 @@ import json
 import hashlib
 from datetime import datetime, timedelta
 from flask import current_app
+from isodate import duration_isoformat
 from timely_beliefs import BeliefsDataFrame
 
 from humanize.time import naturaldelta
@@ -127,8 +128,11 @@ def get_status_specs(sensor: Sensor) -> dict:
         if sensor.knowledge_horizon_fnc == "x_days_ago_at_y_oclock":
             status_specs = {"staleness_search": {}, "max_staleness": "P1D"}
         else:
-            # Default to status specs indicating immediate staleness after knowledge time
-            status_specs = {"staleness_search": {}, "max_staleness": "PT0H"}
+            # Default to status specs indicating staleness after knowledge time + 2 sensor resolutions
+            status_specs = {
+                "staleness_search": {},
+                "max_staleness": duration_isoformat(sensor.event_resolution * 2),
+            }
     return status_specs
 
 

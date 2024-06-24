@@ -259,6 +259,46 @@ def test_get_status(
     assert sensor_status["stale"] == expected_stale
 
 
+@pytest.mark.parametrize(
+    "now, expected_staleness, expected_stale, expected_stale_reason",
+    [
+        # sensor resolution is 15 min
+        (
+            # Last event start at 2016-01-02T07:45+01, with knowledge time 2016-01-02T08:00+01, 29 minutes ago
+            "2016-01-02T08:29+01",
+            timedelta(minutes=29),
+            False,
+            "not more than 30 minutes old",
+        ),
+        (
+            # Last event start at 2016-01-02T07:45+01, with knowledge time 2016-01-02T08:00+01, 31 minutes ago
+            "2016-01-02T08:31+01",
+            timedelta(minutes=31),
+            True,
+            "more than 30 minutes old",
+        ),
+    ],
+)
+def test_get_status_no_status_specs(
+    capacity_sensors,
+    now,
+    expected_staleness,
+    expected_stale,
+    expected_stale_reason,
+):
+    sensor = capacity_sensors["production"]
+    now = pd.Timestamp(now)
+    sensor_status = get_status(
+        sensor=sensor,
+        status_specs=None,
+        now=now,
+    )
+
+    assert sensor_status["staleness"] == expected_staleness
+    assert sensor_status["stale"] == expected_stale
+    assert sensor_status["reason"] == expected_stale_reason
+
+
 def test_build_asset_status_data(
     db, mock_get_status, add_weather_sensors, add_battery_assets
 ):
