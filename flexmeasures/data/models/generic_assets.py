@@ -265,6 +265,7 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         from flexmeasures.data.models.time_series import Sensor
 
+        # Need to load consumption_price_sensor manually as generic_asset does not get to SQLAlchemy session context.
         if self.consumption_price_sensor_id and not self.consumption_price_sensor:
             self.consumption_price_sensor = Sensor.query.get(
                 self.consumption_price_sensor_id
@@ -280,6 +281,7 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         from flexmeasures.data.models.time_series import Sensor
 
+        # Need to load production_price_sensor manually as generic_asset does not get to SQLAlchemy session context.
         if self.production_price_sensor_id and not self.production_price_sensor:
             self.production_price_sensor = Sensor.query.get(
                 self.production_price_sensor_id
@@ -298,6 +300,7 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         from flexmeasures.data.models.time_series import Sensor
 
+        # Need to load inflexible_device_sensors manually as generic_asset does not get to SQLAlchemy session context.
         if not self.inflexible_device_sensors:
             self.inflexible_device_sensors = (
                 db.session.query(Sensor)

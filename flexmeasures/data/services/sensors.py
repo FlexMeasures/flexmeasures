@@ -179,7 +179,7 @@ def _get_sensor_asset_relation(
     """Get the relation of a sensor to an asset."""
     relations = list()
     if sensor.generic_asset_id == asset.id:
-        relations.append("ownership")
+        relations.append("included device")
     if asset.consumption_price_sensor_id == sensor.id:
         relations.append("consumption price")
     if asset.production_price_sensor_id == sensor.id:

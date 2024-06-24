@@ -11,9 +11,6 @@ from flexmeasures.api.common.schemas.sensor_data import (
     PostSensorDataSchema,
     GetSensorDataSchema,
 )
-from flexmeasures.data.models.generic_assets import (
-    GenericAssetInflexibleSensorRelationship,
-)
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.data.services.scheduling import create_scheduling_job
@@ -283,14 +280,8 @@ def test_build_asset_status_data(
 
     asset.consumption_price_sensor_id = wind_sensor.id
     asset.production_price_sensor_id = production_price_sensor.id
+    asset.inflexible_device_sensors = [temperature_sensor]
     db.session.add(asset)
-
-    asset_inflexible_temperature_sensor_relationship = (
-        GenericAssetInflexibleSensorRelationship(
-            generic_asset_id=asset.id, inflexible_sensor_id=temperature_sensor.id
-        )
-    )
-    db.session.add(asset_inflexible_temperature_sensor_relationship)
 
     wind_speed_res, temperature_res = {"staleness": True}, {"staleness": False}
     production_price_res = {"staleness": True}
@@ -307,14 +298,14 @@ def test_build_asset_status_data(
             "name": "wind speed",
             "id": wind_sensor.id,
             "asset_name": asset.name,
-            "relation": "ownership;consumption price",
+            "relation": "included device;consumption price",
         },
         {
             **temperature_res,
             "name": "temperature",
             "id": temperature_sensor.id,
             "asset_name": asset.name,
-            "relation": "ownership;inflexible device",
+            "relation": "included device;inflexible device",
         },
         {
             **production_price_res,
