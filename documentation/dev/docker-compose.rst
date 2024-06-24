@@ -147,12 +147,14 @@ Like in the original toy tutorial, we can also check in the server container's `
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-charging.png
     :align: center
 
+
 Email Testing
 ----------------------------------
 
 To test email functionality, MailHog is included in the Docker Compose stack. You can view the emails sent by the application by navigating to http://localhost:8025/ in your browser.
 
 To verify this setup, try changing a user's password in the application. This action will trigger an email, which you can then view in `MailHog <http://localhost:8025/>`_.
+
 
 Scripting with the Docker stack
 ----------------------------------
