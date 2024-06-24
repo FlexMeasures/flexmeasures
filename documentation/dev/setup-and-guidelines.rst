@@ -176,7 +176,7 @@ To handle emails locally during development, you can use MailHog. Follow these s
    $ docker run -p 8025:8025 -p 1025:1025 --name mailhog mailhog/mailhog
    $ export MAIL_PORT=1025  # Add this to your local flexmeasures.cfg
 
-Now, emails (e.g., password-reset) are being sent via this local server. Go to http://localhost:8025.
+Now, emails (e.g., password-reset) are being sent via this local server. Go to http://localhost:8025/.
 
 Tests
 -----
