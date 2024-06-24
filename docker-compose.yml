@@ -85,6 +85,7 @@ services:
     depends_on:
       - dev-db
       - queue-db
+      - mailhog  # Add MailHog as a dependency
     restart: on-failure
     environment:
       SQLALCHEMY_DATABASE_URI: "postgresql://fm-dev-db-user:fm-dev-db-pass@dev-db:5432/fm-dev-db"
