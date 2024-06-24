@@ -11,6 +11,7 @@ from flexmeasures.api.common.schemas.sensor_data import (
     PostSensorDataSchema,
     GetSensorDataSchema,
 )
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.data.services.scheduling import create_scheduling_job
 from flexmeasures.data.services.sensors import (
@@ -298,20 +299,60 @@ def test_get_status_no_status_specs(
     assert sensor_status["reason"] == expected_stale_reason
 
 
-def test_build_asset_status_data(mock_get_status, add_weather_sensors):
+def test_build_asset_status_data(
+    db, mock_get_status, add_weather_sensors, add_battery_assets
+):
     asset = add_weather_sensors["asset"]
+    battery_asset = add_battery_assets["Test battery"]
+    wind_sensor, temperature_sensor = (
+        add_weather_sensors["wind"],
+        add_weather_sensors["temperature"],
+    )
+
+    production_price_sensor = Sensor(
+        name="production price",
+        generic_asset=battery_asset,
+        event_resolution=timedelta(minutes=5),
+        unit="EUR/MWh",
+    )
+    db.session.add(production_price_sensor)
+    db.session.flush()
+
+    asset.consumption_price_sensor_id = wind_sensor.id
+    asset.production_price_sensor_id = production_price_sensor.id
+    asset.inflexible_device_sensors = [temperature_sensor]
+    db.session.add(asset)
 
     wind_speed_res, temperature_res = {"staleness": True}, {"staleness": False}
-    mock_get_status.side_effect = (wind_speed_res, temperature_res)
+    production_price_res = {"staleness": True}
+    mock_get_status.side_effect = (
+        wind_speed_res,
+        temperature_res,
+        production_price_res,
+    )
 
     status_data = build_sensor_status_data(asset=asset)
     assert status_data == [
-        {**wind_speed_res, "name": "wind speed", "id": None, "asset_name": asset.name},
+        {
+            **wind_speed_res,
+            "name": "wind speed",
+            "id": wind_sensor.id,
+            "asset_name": asset.name,
+            "relation": "included device;consumption price",
+        },
         {
             **temperature_res,
             "name": "temperature",
-            "id": None,
+            "id": temperature_sensor.id,
             "asset_name": asset.name,
+            "relation": "included device;inflexible device",
+        },
+        {
+            **production_price_res,
+            "name": "production price",
+            "id": production_price_sensor.id,
+            "asset_name": battery_asset.name,
+            "relation": "production price",
         },
     ]
 
