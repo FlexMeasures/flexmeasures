@@ -9,11 +9,11 @@ v0.22.0 | June XX, 2024
 New features
 -------------
 * Add `asset/<id>/auditlog` to view asset related actions [see `PR #1067 <https://github.com/FlexMeasures/flexmeasures/pull/1067>`_]
-* On the `/sensor/id` page, allowto link to it with a date range and to copy current view as URL [see `PR #1094 <https://github.com/FlexMeasures/flexmeasures/pull/1094>`_]
-* On the asset page, facilitate comparison by showing the two default sensors together if they record the same unit [see `PR #1066 <https://github.com/FlexMeasures/flexmeasures/pull/1066>`_]
+* On the `/sensor/id` page, allow to link to it with a date range and to copy current view as URL [see `PR #1094 <https://github.com/FlexMeasures/flexmeasures/pull/1094>`_]
 * Flex-context (price sensors and inflexible device sensors) can now be set on the asset page (and are part of GenericAsset model) [see `PR #1059 <https://github.com/FlexMeasures/flexmeasures/pull/1059/>`_]
 * On the asset page's default view, facilitate comparison by showing the two default sensors together if they record the same unit [see `PR #1066 <https://github.com/FlexMeasures/flexmeasures/pull/1066>`_]
 * Add flex-context sensors to status page [see `PR #1102 <https://github.com/FlexMeasures/flexmeasures/pull/1102>`_]
+* Show tooltips on (mobile) touch screen [see `PR #1062 <https://github.com/FlexMeasures/flexmeasures/pull/1062>`_]
 
 Infrastructure / Support
 ----------------------
