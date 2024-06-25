@@ -662,6 +662,13 @@
     <script src="https://cdn.datatables.net/2.0.8/js/dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/2.0.8/js/dataTables.bootstrap5.min.js"></script>
 
+    <!-- Add the class touched to body when the user uses any touch event. -->
+    <script>
+        document.body.addEventListener('touchstart', function() {
+          document.body.classList.add('touched');
+        });
+    </script>
+
     {% block scripts %}
 
     <!-- External scripts -->
