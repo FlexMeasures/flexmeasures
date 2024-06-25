@@ -357,6 +357,8 @@ class GenericAsset(db.Model, AuthModelMixin):
         annotation_type: str = None,
         include_account_annotations: bool = False,
         as_frame: bool = False,
+        sensor_id: int = None,
+        relationship_module: Any = None,
     ) -> list[Annotation] | pd.DataFrame:
         """Return annotations assigned to this asset, and optionally, also those assigned to the asset's account.
 
@@ -373,6 +375,8 @@ class GenericAsset(db.Model, AuthModelMixin):
                 annotations_before=annotations_before,
                 sources=parsed_sources,
                 annotation_type=annotation_type,
+                sensor_id=sensor_id,
+                relationship_module=relationship_module,
             )
         ).all()
         if include_account_annotations and self.owner is not None:
