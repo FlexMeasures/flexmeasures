@@ -36,7 +36,7 @@ class DurationField(MarshmallowClickMixin, fields.Str):
             )
         if duration_value.seconds % 60 != 0 or duration_value.microseconds != 0:
             raise DurationValidationError(
-                "FlexMeasures only support multiples of 1 minute."
+                "FlexMeasures only supports multiples of 1 minute."
             )
         return duration_value
 
