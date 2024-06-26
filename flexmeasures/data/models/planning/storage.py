@@ -187,15 +187,8 @@ class MetaStorageScheduler(Scheduler):
                 beliefs_before=belief_time,
                 sensor=curtailable_sensor,
             )
-            # breakpoint()
-            if curtailable_sensor.get_attribute(
-                "consumption_is_positive", False
-            ):  # FlexMeasures default is to store consumption as negative power values
-                device_constraints[i + 1]["derivative min"] = -power_values
-                device_constraints[i + 1]["derivative max"] = 0
-            else:
-                device_constraints[i + 1]["derivative min"] = 0
-                device_constraints[i + 1]["derivative max"] = -power_values
+            device_constraints[i + 1]["derivative min"] = (power_values).clip(None, 0)
+            device_constraints[i + 1]["derivative max"] = (power_values).clip(0, None)
 
         # Inflexible devices
         for i, inflexible_sensor in enumerate(inflexible_device_sensors):
