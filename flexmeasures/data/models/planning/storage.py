@@ -188,8 +188,8 @@ class MetaStorageScheduler(Scheduler):
                 sensor=curtailable_sensor,
             )
             # Assume both consumption and production of device can be fully curtailed
-            device_constraints[i + 1]["derivative min"] = (power_values).clip(None, 0)
-            device_constraints[i + 1]["derivative max"] = (power_values).clip(0, None)
+            device_constraints[i + 1]["derivative min"] = power_values.clip(None, 0)
+            device_constraints[i + 1]["derivative max"] = power_values.clip(0, None)
 
         # Inflexible devices
         for i, inflexible_sensor in enumerate(inflexible_device_sensors):
