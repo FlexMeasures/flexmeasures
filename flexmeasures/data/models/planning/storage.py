@@ -187,6 +187,7 @@ class MetaStorageScheduler(Scheduler):
                 beliefs_before=belief_time,
                 sensor=curtailable_sensor,
             )
+            # Assume both consumption and production of device can be fully curtailed
             device_constraints[i + 1]["derivative min"] = (power_values).clip(None, 0)
             device_constraints[i + 1]["derivative max"] = (power_values).clip(0, None)
 
