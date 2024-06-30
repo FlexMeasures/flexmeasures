@@ -804,7 +804,14 @@ class SensorAPI(FlaskView):
         :status 422: UNPROCESSABLE_ENTITY
         """
 
-        min_event_start, max_event_start, min_value, max_value, mean_value, sum_values = db.session.execute(
+        (
+            min_event_start,
+            max_event_start,
+            min_value,
+            max_value,
+            mean_value,
+            sum_values,
+        ) = db.session.execute(
             select(
                 func.min(TimedBelief.event_start),
                 func.max(TimedBelief.event_start),
