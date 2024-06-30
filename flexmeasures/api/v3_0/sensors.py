@@ -11,7 +11,7 @@ from marshmallow import fields, ValidationError
 from rq.job import Job, NoSuchJobError
 from timely_beliefs import BeliefsDataFrame
 from webargs.flaskparser import use_args, use_kwargs
-from sqlalchemy import delete
+from sqlalchemy import delete, select, func
 
 from flexmeasures.api.common.responses import (
     request_processed,
@@ -769,3 +769,58 @@ class SensorAPI(FlaskView):
         db.session.commit()
         current_app.logger.info("Deleted sensor '%s'." % sensor_name)
         return {}, 204
+
+    @route("/<id>/stats", methods=["GET"])
+    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    @permission_required_for_context("read", ctx_arg_name="sensor")
+    @as_json
+    def get_stats(self, id, sensor):
+        """Fetch stats for a given sensor.
+
+        .. :quickref: Sensor; Get sensor stats
+
+        This endpoint fetches sensor stats for all the historical data.
+
+        **Example response**
+
+        .. sourcecode:: json
+
+            {
+                "min_event_start": "2015-06-02T10:00:00+00:00",
+                "max_event_start": "2015-10-02T10:00:00+00:00",
+                "min_value": 0.0,
+                "max_value": 100.0,
+                "mean_value": 50.0,
+                "sum_values": 500.0,
+            }
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 200: PROCESSED
+        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+
+        min_event_start, max_event_start, min_value, max_value, mean_value, sum_values = db.session.execute(
+            select(
+                func.min(TimedBelief.event_start),
+                func.max(TimedBelief.event_start),
+                func.min(TimedBelief.event_value),
+                func.max(TimedBelief.event_value),
+                func.avg(TimedBelief.event_value),
+                func.sum(TimedBelief.event_value),
+            )
+            .select_from(TimedBelief)
+            .filter(TimedBelief.sensor_id == sensor.id)
+        ).one_or_none()
+        return {
+            "min_event_start": min_event_start,
+            "max_event_start": max_event_start,
+            "min_value": min_value,
+            "max_value": max_value,
+            "mean_value": mean_value,
+            "sum_values": sum_values,
+        }, 200

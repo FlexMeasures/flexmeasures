@@ -240,3 +240,24 @@ def test_delete_a_sensor(client, setup_api_test_data, requesting_user, db):
             active_user_name=requesting_user.username,
         )
     ).scalar_one_or_none()
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_fetch_sensor_stats(
+    client, setup_api_test_data: dict[str, Sensor], requesting_user, db
+):
+    # gas sensor is setup in add_gas_measurements
+    sensor_id = 1
+    response = client.get(
+        url_for("SensorAPI:get_stats", id=sensor_id),
+    )
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 200
+    assert response.json["min_event_start"] == "Sat, 01 May 2021 22:00:00 GMT"
+    assert response.json["max_event_start"] == "Sat, 01 May 2021 22:20:00 GMT"
+    assert response.json["min_value"] == 91.3
+    assert response.json["max_value"] == 92.1
+    assert response.json["mean_value"] == 91.7
+    assert response.json["sum_values"] == 275.1
