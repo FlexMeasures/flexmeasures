@@ -170,8 +170,13 @@ class AssetForm(FlaskForm):
         asset: GenericAsset,
         account_id: Optional[int],
     ) -> None:
-        self.with_price_senors(asset, account_id)
-        self.with_inflexible_sensors(asset, account_id)
+        if current_app.config.get("FLEXMEASURES_SHOW_FLEXCONTEXT_EDIT", True):
+            self.with_price_senors(asset, account_id)
+            self.with_inflexible_sensors(asset, account_id)
+        else:
+            del self.inflexible_device_sensor_ids
+            del self.production_price_sensor_id
+            del self.consumption_price_sensor_id
 
 
 class NewAssetForm(AssetForm):
