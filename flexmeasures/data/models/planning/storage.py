@@ -693,6 +693,7 @@ class StorageScheduler(MetaStorageScheduler):
             for i, curtailable_sensor in enumerate(
                 self.flex_context.get("curtailable_device_sensors", [])
             ):
+                # todo: flip sign if output sensor stores consumption as negative values?
                 results.append(
                     {
                         "name": "storage_schedule",
