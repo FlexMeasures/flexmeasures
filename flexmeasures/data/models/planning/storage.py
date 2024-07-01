@@ -153,11 +153,11 @@ class MetaStorageScheduler(Scheduler):
         # Add tiny price slope to prefer charging now rather than later, and discharging later rather than now.
         # We penalise the future with at most 1 per thousand times the price spread.
         if prefer_charging_sooner:
-            up_deviation_prices = add_tiny_price_slope(
-                up_deviation_prices, "event_value"
+            up_deviation_prices["event_value"] = add_tiny_price_slope(
+                up_deviation_prices["event_value"]
             )
-            down_deviation_prices = add_tiny_price_slope(
-                down_deviation_prices, "event_value"
+            down_deviation_prices["event_value"] = add_tiny_price_slope(
+                down_deviation_prices["event_value"]
             )
 
         # Set up commitments to optimise for
