@@ -8,6 +8,7 @@ from flask_security import SQLAlchemySessionUserDatastore, hash_password
 from sqlalchemy import select, delete
 
 from flexmeasures import Sensor, Source, User, UserRole
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
 from flexmeasures.data.models.time_series import TimedBelief
 
@@ -150,6 +151,11 @@ def add_incineration_line(db, test_supplier_user) -> dict[str, Sensor]:
     )
     db.session.add(gas_sensor)
     add_gas_measurements(db, test_supplier_user.data_source[0], gas_sensor)
+    other_source = DataSource(name="Other source", type="demo script")
+    db.session.add(other_source)
+    db.session.flush()
+    add_gas_measurements(db, other_source, gas_sensor)
+
     temperature_sensor = Sensor(
         name="some temperature sensor",
         unit="°C",

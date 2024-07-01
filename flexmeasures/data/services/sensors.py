@@ -4,7 +4,9 @@ import json
 import hashlib
 from datetime import datetime, timedelta
 from flask import current_app
+from functools import lru_cache
 from isodate import duration_isoformat
+import time
 from timely_beliefs import BeliefsDataFrame
 
 from humanize.time import naturaldelta
@@ -16,6 +18,7 @@ import sqlalchemy as sa
 
 from flexmeasures.data import db
 from flexmeasures import Sensor, Account, Asset
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.schemas.reporting import StatusSchema
 from flexmeasures.utils.time_utils import server_now
@@ -328,3 +331,35 @@ def build_asset_jobs_data(
             )
 
     return jobs_data
+
+
+@lru_cache()
+def _get_sensor_stats(sensor: Sensor, ttl_hash=None):
+    return db.session.execute(
+        sa.select(
+            DataSource.name,
+            sa.func.min(TimedBelief.event_start),
+            sa.func.max(TimedBelief.event_start),
+            sa.func.min(TimedBelief.event_value),
+            sa.func.max(TimedBelief.event_value),
+            sa.func.avg(TimedBelief.event_value),
+            sa.func.sum(TimedBelief.event_value),
+            sa.func.count(TimedBelief.event_value),
+        )
+        .select_from(TimedBelief)
+        .join(DataSource, DataSource.id == TimedBelief.source_id)
+        .filter(TimedBelief.sensor_id == sensor.id)
+        .group_by(DataSource.name)
+    ).fetchall()
+
+
+def _get_ttl_hash(seconds=300):
+    """Return the same value withing seconds time period
+       Is needed to make LRU cache a TTL one.
+    """
+    return round(time.time() / seconds)
+
+
+def get_sensor_stats(sensor: Sensor):
+    """Get stats for a sensor"""
+    return _get_sensor_stats(sensor, ttl_hash=_get_ttl_hash())

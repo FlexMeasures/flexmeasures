@@ -38,7 +38,7 @@ from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField
 from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
-from flexmeasures.data.services.sensors import get_sensors
+from flexmeasures.data.services.sensors import get_sensors, get_sensor_stats
 from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
     get_data_source_for_job,
@@ -781,18 +781,20 @@ class SensorAPI(FlaskView):
 
         This endpoint fetches sensor stats for all the historical data.
 
-        **Example response**
+        Example response
 
         .. sourcecode:: json
 
-            {
+            [{
+                "data_source": "some data source",
                 "min_event_start": "2015-06-02T10:00:00+00:00",
                 "max_event_start": "2015-10-02T10:00:00+00:00",
                 "min_value": 0.0,
                 "max_value": 100.0,
                 "mean_value": 50.0,
                 "sum_values": 500.0,
-            }
+                "count_values": 10
+            }]
 
         :reqheader Authorization: The authentication token
         :reqheader Content-Type: application/json
@@ -804,30 +806,25 @@ class SensorAPI(FlaskView):
         :status 422: UNPROCESSABLE_ENTITY
         """
 
-        (
-            min_event_start,
-            max_event_start,
-            min_value,
-            max_value,
-            mean_value,
-            sum_values,
-        ) = db.session.execute(
-            select(
-                func.min(TimedBelief.event_start),
-                func.max(TimedBelief.event_start),
-                func.min(TimedBelief.event_value),
-                func.max(TimedBelief.event_value),
-                func.avg(TimedBelief.event_value),
-                func.sum(TimedBelief.event_value),
-            )
-            .select_from(TimedBelief)
-            .filter(TimedBelief.sensor_id == sensor.id)
-        ).one_or_none()
-        return {
-            "min_event_start": min_event_start,
-            "max_event_start": max_event_start,
-            "min_value": min_value,
-            "max_value": max_value,
-            "mean_value": mean_value,
-            "sum_values": sum_values,
-        }, 200
+        stats = get_sensor_stats(sensor)
+        return [
+            {
+                "data_source": data_source,
+                "min_event_start": min_event_start,
+                "max_event_start": max_event_start,
+                "min_value": min_value,
+                "max_value": max_value,
+                "mean_value": mean_value,
+                "sum_values": sum_values,
+                "count_values": count_values,
+            } for (
+                data_source,
+                min_event_start, 
+                max_event_start,
+                min_value,
+                max_value,
+                mean_value,
+                sum_values,
+                count_values
+            ) in stats
+        ], 200

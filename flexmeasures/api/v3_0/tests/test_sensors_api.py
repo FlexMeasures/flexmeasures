@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+import math
 
 from flask import url_for
 from sqlalchemy import select, func
@@ -11,6 +12,7 @@ from flexmeasures.api.v3_0.tests.utils import get_sensor_post_data
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.tests.utils import QueryCounter
 
 sensor_schema = SensorSchema()
 
@@ -247,17 +249,33 @@ def test_delete_a_sensor(client, setup_api_test_data, requesting_user, db):
 )
 def test_fetch_sensor_stats(
     client, setup_api_test_data: dict[str, Sensor], requesting_user, db
-):
+):  
     # gas sensor is setup in add_gas_measurements
     sensor_id = 1
-    response = client.get(
-        url_for("SensorAPI:get_stats", id=sensor_id),
-    )
-    print("Server responded with:\n%s" % response.json)
-    assert response.status_code == 200
-    assert response.json["min_event_start"] == "Sat, 01 May 2021 22:00:00 GMT"
-    assert response.json["max_event_start"] == "Sat, 01 May 2021 22:20:00 GMT"
-    assert response.json["min_value"] == 91.3
-    assert response.json["max_value"] == 92.1
-    assert response.json["mean_value"] == 91.7
-    assert response.json["sum_values"] == 275.1
+    with QueryCounter(db.session.connection()) as counter1:
+        response = client.get(
+            url_for("SensorAPI:get_stats", id=sensor_id),
+        )
+        print("Server responded with:\n%s" % response.json)
+        assert response.status_code == 200
+        response_content = response.json
+
+        assert sorted([record["data_source"] for record in response_content]) == ["Other source", "Test Supplier User"]
+        for record in response_content:
+            assert record["min_event_start"] == "Sat, 01 May 2021 22:00:00 GMT"
+            assert record["max_event_start"] == "Sat, 01 May 2021 22:20:00 GMT"
+            assert record["min_value"] == 91.3
+            assert record["max_value"] == 92.1
+            assert math.isclose(record["mean_value"], 91.7, rel_tol=1e-5), "mean_value is close to 91.7"
+            assert math.isclose(record["sum_values"], 275.1, rel_tol=1e-5), "sum_values is close to 275.1"
+            assert record["count_values"] == 3
+
+    with QueryCounter(db.session.connection()) as counter2:
+        response = client.get(
+            url_for("SensorAPI:get_stats", id=sensor_id),
+        )
+        print("Server responded with:\n%s" % response.json)
+        assert response.status_code == 200
+
+    # Check stats cache works and stats query is executed only once
+    assert counter1.count == counter2.count + 1
