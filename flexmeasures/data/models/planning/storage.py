@@ -170,6 +170,22 @@ class MetaStorageScheduler(Scheduler):
         commitment_downwards_deviation_price = [
             down_deviation_prices.loc[start : end - resolution]["event_value"]
         ]
+        device_downwards_price = [
+            initialize_series(
+                data=0,
+                start=start,
+                end=end,
+                resolution=resolution,
+            ) for d in range(1 + len(curtailable_device_sensors) + len(inflexible_device_sensors))
+        ]
+        device_upwards_price = [
+            initialize_series(
+                data=0,
+                start=start,
+                end=end,
+                resolution=resolution,
+            ) for d in range(1 + len(curtailable_device_sensors) + len(inflexible_device_sensors))
+        ]
 
         # Set up device constraints: only one scheduled flexible device for this EMS (at index 0), plus the forecasted inflexible devices (at indices 1 to n).
         device_constraints = [
@@ -190,6 +206,28 @@ class MetaStorageScheduler(Scheduler):
             # Assume both consumption and production of device can be fully curtailed
             device_constraints[i + 1]["derivative min"] = power_values.clip(None, 0)
             device_constraints[i + 1]["derivative max"] = power_values.clip(0, None)
+
+            # todo: try pricing curtailment with timing preference according to market prices?
+            # Add tiny reward for not curtailing (curtailing later preferred over curtailing sooner)
+            device_downwards_price[i + 1] = -add_tiny_price_slope(
+                device_downwards_price[i + 1], up=True
+            )  # rewards not curtailing production
+            device_upwards_price[i + 1] = add_tiny_price_slope(
+                device_upwards_price[i + 1], up=True
+            )  # rewards not curtailing consumption  # todo: test this
+            # No preference for timing
+            # device_downwards_price[i + 1] = initialize_series(
+            #     data=10**-3,
+            #     start=start,
+            #     end=end,
+            #     resolution=resolution,
+            # )
+            # device_upwards_price[i + 1] = initialize_series(
+            #     data=-10**-3,
+            #     start=start,
+            #     end=end,
+            #     resolution=resolution,
+            # )
 
         # Inflexible devices
         for i, inflexible_sensor in enumerate(inflexible_device_sensors):
@@ -438,6 +476,8 @@ class MetaStorageScheduler(Scheduler):
             commitment_quantities,
             commitment_downwards_deviation_price,
             commitment_upwards_deviation_price,
+            device_downwards_price,
+            device_upwards_price,
         )
 
     def persist_flex_model(self):
@@ -660,6 +700,8 @@ class StorageScheduler(MetaStorageScheduler):
             commitment_quantities,
             commitment_downwards_deviation_price,
             commitment_upwards_deviation_price,
+            device_downwards_price,
+            device_upwards_price,
         ) = self._prepare(skip_validation=skip_validation)
 
         ems_schedule, expected_costs, scheduler_results, _ = device_scheduler(
@@ -668,6 +710,8 @@ class StorageScheduler(MetaStorageScheduler):
             commitment_quantities,
             commitment_downwards_deviation_price,
             commitment_upwards_deviation_price,
+            device_downwards_price=device_downwards_price,
+            device_upwards_price=device_upwards_price,
             initial_stock=soc_at_start * (timedelta(hours=1) / resolution),
             ems_flow_relaxed=self.flex_model.get("relaxed", False),
         )
