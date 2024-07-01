@@ -36,7 +36,7 @@ def device_scheduler(  # noqa C901
     initial_stock: float = 0,
     ems_flow_relaxed: bool = False,
     device_stock_relaxed: bool = False,
-    ems_flow_relaxation_cost: float = 20000,  # TODO: compute this value based on input data
+    ems_flow_relaxation_cost: float = 1e9,  # TODO: compute this value based on input data
     stock_relaxation_cost: float = 20000,
 ) -> tuple[list[pd.Series], float, SolverResults, ConcreteModel]:
     """This generic device scheduler is able to handle an EMS with multiple devices,
@@ -269,8 +269,12 @@ def device_scheduler(  # noqa C901
         model.d, model.j, domain=NonPositiveReals, initialize=0
     )
     model.device_power_up = Var(model.d, model.j, domain=NonNegativeReals, initialize=0)
-    model.device_stock_slack_upper = Var(model.d, model.j, domain=NonNegativeReals, initialize=0)
-    model.device_stock_slack_lower = Var(model.d, model.j, domain=NonNegativeReals, initialize=0)
+    model.device_stock_slack_upper = Var(
+        model.d, model.j, domain=NonNegativeReals, initialize=0
+    )
+    model.device_stock_slack_lower = Var(
+        model.d, model.j, domain=NonNegativeReals, initialize=0
+    )
     model.device_power_sign = Var(model.d, model.j, domain=Binary, initialize=0)
     model.commitment_downwards_deviation = Var(
         model.c, model.j, domain=NonPositiveReals, initialize=0
@@ -305,7 +309,8 @@ def device_scheduler(  # noqa C901
                 for stock in apply_stock_changes_and_losses(
                     initial_stock, stock_changes, efficiencies
                 )
-            ][-1] + to_add,
+            ][-1]
+            + to_add,
             None,
         )
 
@@ -315,24 +320,25 @@ def device_scheduler(  # noqa C901
         and apply storage efficiencies to stock levels from one datetime to the next."""
         stock_changes = [
             (
-                    m.device_power_down[d, k] / m.device_derivative_down_efficiency[d, k]
-                    + m.device_power_up[d, k] * m.device_derivative_up_efficiency[d, k]
-                    + m.stock_delta[d, k]
+                m.device_power_down[d, k] / m.device_derivative_down_efficiency[d, k]
+                + m.device_power_up[d, k] * m.device_derivative_up_efficiency[d, k]
+                + m.stock_delta[d, k]
             )
             for k in range(0, j + 1)
         ]
         efficiencies = [m.device_efficiency[d, k] for k in range(0, j + 1)]
         to_add = 0
         if device_stock_relaxed:
-            to_add -=  m.device_stock_slack_upper[d, j]
+            to_add -= m.device_stock_slack_upper[d, j]
         return (
             None,
             [
                 stock - initial_stock
                 for stock in apply_stock_changes_and_losses(
-                initial_stock, stock_changes, efficiencies
-            )
-            ][-1] + to_add,
+                    initial_stock, stock_changes, efficiencies
+                )
+            ][-1]
+            + to_add,
             m.device_max[d, j],
         )
 
@@ -407,8 +413,12 @@ def device_scheduler(  # noqa C901
             0,
         )
 
-    model.device_energy_upper_bound = Constraint(model.d, model.j, rule=device_upper_bounds)
-    model.device_energy_lower_bound = Constraint(model.d, model.j, rule=device_lower_bounds)
+    model.device_energy_upper_bound = Constraint(
+        model.d, model.j, rule=device_upper_bounds
+    )
+    model.device_energy_lower_bound = Constraint(
+        model.d, model.j, rule=device_lower_bounds
+    )
     model.device_power_bounds = Constraint(
         model.d, model.j, rule=device_derivative_bounds
     )
