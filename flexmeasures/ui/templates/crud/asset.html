@@ -137,6 +137,7 @@
                                             disabled></input>
                                     </div>
                                 </div>
+                                {% if asset_form.consumption_price_sensor_id or asset_form.production_price_sensor_id or asset_form.inflexible_device_sensor_ids %}
                                 <div class="form-group form-group-bordered">
                                     <p>Fields in this section can form part of this asset's <a href="https://flexmeasures.readthedocs.io/en/latest/features/scheduling.html#the-flex-context">flex context</a>. They can also be set in a parent asset or in API requests that trigger schedules.</p>
                                     {% if asset_form.consumption_price_sensor_id %}
@@ -173,6 +174,7 @@
                                         </div>
                                     {% endif %}
                                 </div>
+                                {% endif %}
                                 <div class="form-group">
                                     {{ asset_form.attributes.label(class="col-sm-3 control-label") }}
                                     <div class="col-md-3">
