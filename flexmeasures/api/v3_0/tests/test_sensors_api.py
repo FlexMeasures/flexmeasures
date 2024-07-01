@@ -249,7 +249,7 @@ def test_delete_a_sensor(client, setup_api_test_data, requesting_user, db):
 )
 def test_fetch_sensor_stats(
     client, setup_api_test_data: dict[str, Sensor], requesting_user, db
-):  
+):
     # gas sensor is setup in add_gas_measurements
     sensor_id = 1
     with QueryCounter(db.session.connection()) as counter1:
@@ -260,14 +260,21 @@ def test_fetch_sensor_stats(
         assert response.status_code == 200
         response_content = response.json
 
-        assert sorted([record["data_source"] for record in response_content]) == ["Other source", "Test Supplier User"]
+        assert sorted([record["data_source"] for record in response_content]) == [
+            "Other source",
+            "Test Supplier User",
+        ]
         for record in response_content:
             assert record["min_event_start"] == "Sat, 01 May 2021 22:00:00 GMT"
             assert record["max_event_start"] == "Sat, 01 May 2021 22:20:00 GMT"
             assert record["min_value"] == 91.3
             assert record["max_value"] == 92.1
-            assert math.isclose(record["mean_value"], 91.7, rel_tol=1e-5), "mean_value is close to 91.7"
-            assert math.isclose(record["sum_values"], 275.1, rel_tol=1e-5), "sum_values is close to 275.1"
+            assert math.isclose(
+                record["mean_value"], 91.7, rel_tol=1e-5
+            ), "mean_value is close to 91.7"
+            assert math.isclose(
+                record["sum_values"], 275.1, rel_tol=1e-5
+            ), "sum_values is close to 275.1"
             assert record["count_values"] == 3
 
     with QueryCounter(db.session.connection()) as counter2:

@@ -355,7 +355,7 @@ def _get_sensor_stats(sensor: Sensor, ttl_hash=None):
 
 def _get_ttl_hash(seconds=300):
     """Return the same value withing seconds time period
-       Is needed to make LRU cache a TTL one.
+    Is needed to make LRU cache a TTL one.
     """
     return round(time.time() / seconds)
 

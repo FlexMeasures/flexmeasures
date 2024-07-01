@@ -11,7 +11,7 @@ from marshmallow import fields, ValidationError
 from rq.job import Job, NoSuchJobError
 from timely_beliefs import BeliefsDataFrame
 from webargs.flaskparser import use_args, use_kwargs
-from sqlalchemy import delete, select, func
+from sqlalchemy import delete
 
 from flexmeasures.api.common.responses import (
     request_processed,
@@ -817,14 +817,15 @@ class SensorAPI(FlaskView):
                 "mean_value": mean_value,
                 "sum_values": sum_values,
                 "count_values": count_values,
-            } for (
+            }
+            for (
                 data_source,
-                min_event_start, 
+                min_event_start,
                 max_event_start,
                 min_value,
                 max_value,
                 mean_value,
                 sum_values,
-                count_values
+                count_values,
             ) in stats
         ], 200
