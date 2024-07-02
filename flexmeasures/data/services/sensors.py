@@ -351,11 +351,18 @@ def _get_sensor_stats(sensor: Sensor, ttl_hash=None) -> dict:
         .filter(TimedBelief.sensor_id == sensor.id)
         .group_by(DataSource.name)
     ).fetchall()
-    
+
     stats = dict()
     for row in raw_stats:
         (
-            data_source, min_event_start, max_event_start, min_value, max_value, mean_value, sum_values, count_values
+            data_source,
+            min_event_start,
+            max_event_start,
+            min_value,
+            max_value,
+            mean_value,
+            sum_values,
+            count_values,
         ) = row
         stats[data_source] = {
             "min_event_start": min_event_start,

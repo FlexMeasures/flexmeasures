@@ -261,7 +261,10 @@ def test_fetch_sensor_stats(
         response_content = response.json
 
         del response_content["status"]
-        assert sorted(list(response_content.keys())) == ["Other source", "Test Supplier User"]
+        assert sorted(list(response_content.keys())) == [
+            "Other source",
+            "Test Supplier User",
+        ]
         for record in response_content.values():
             assert record["min_event_start"] == "Sat, 01 May 2021 22:00:00 GMT"
             assert record["max_event_start"] == "Sat, 01 May 2021 22:20:00 GMT"
