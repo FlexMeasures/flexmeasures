@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
+import numpy as np
 import pandas as pd
 import pytest
 from flask_security import SQLAlchemySessionUserDatastore, hash_password
@@ -154,7 +155,7 @@ def add_incineration_line(db, test_supplier_user) -> dict[str, Sensor]:
     other_source = DataSource(name="Other source", type="demo script")
     db.session.add(other_source)
     db.session.flush()
-    add_gas_measurements(db, other_source, gas_sensor)
+    add_gas_measurements(db, other_source, gas_sensor, values=[91.3, np.nan, 92.1])
 
     temperature_sensor = Sensor(
         name="some temperature sensor",
@@ -171,12 +172,12 @@ def add_incineration_line(db, test_supplier_user) -> dict[str, Sensor]:
     return {gas_sensor.name: gas_sensor, temperature_sensor.name: temperature_sensor}
 
 
-def add_gas_measurements(db, source: Source, sensor: Sensor):
+def add_gas_measurements(db, source: Source, sensor: Sensor, values=None):
     event_starts = [
         pd.Timestamp("2021-05-02T00:00:00+02:00") + timedelta(minutes=minutes)
         for minutes in range(0, 30, 10)
     ]
-    event_values = [91.3, 91.7, 92.1]
+    event_values = list(values) if values else [91.3, 91.7, 92.1]
     beliefs = [
         TimedBelief(
             sensor=sensor,

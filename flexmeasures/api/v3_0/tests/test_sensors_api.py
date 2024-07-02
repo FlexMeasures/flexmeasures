@@ -265,18 +265,27 @@ def test_fetch_sensor_stats(
             "Other source",
             "Test Supplier User",
         ]
-        for record in response_content.values():
+        for source, record in response_content.items():
             assert record["min_event_start"] == "Sat, 01 May 2021 22:00:00 GMT"
             assert record["max_event_start"] == "Sat, 01 May 2021 22:20:00 GMT"
             assert record["min_value"] == 91.3
             assert record["max_value"] == 92.1
+            if source == "Test Supplier User":
+                # values are: 91.3, 91.7, 92.1
+                sum_values = 275.1
+                count_values = 3
+            else:
+                # values are: 91.3, NaN, 92.1
+                sum_values = 183.4
+                count_values = 2
+            mean_value = 91.7
             assert math.isclose(
-                record["mean_value"], 91.7, rel_tol=1e-5
-            ), "mean_value is close to 91.7"
+                record["mean_value"], mean_value, rel_tol=1e-5
+            ), f"mean_value is close to {mean_value}"
             assert math.isclose(
-                record["sum_values"], 275.1, rel_tol=1e-5
-            ), "sum_values is close to 275.1"
-            assert record["count_values"] == 3
+                record["sum_values"], sum_values, rel_tol=1e-5
+            ), f"sum_values is close to {sum_values}"
+            assert record["count_values"] == count_values
 
     with QueryCounter(db.session.connection()) as counter2:
         response = client.get(

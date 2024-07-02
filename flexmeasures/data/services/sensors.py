@@ -349,6 +349,7 @@ def _get_sensor_stats(sensor: Sensor, ttl_hash=None) -> dict:
         .select_from(TimedBelief)
         .join(DataSource, DataSource.id == TimedBelief.source_id)
         .filter(TimedBelief.sensor_id == sensor.id)
+        .filter(TimedBelief.event_value != float("NaN"))  # Exclude NaN values
         .group_by(DataSource.name)
     ).fetchall()
 
