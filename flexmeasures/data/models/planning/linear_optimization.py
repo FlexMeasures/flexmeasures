@@ -155,6 +155,9 @@ def device_scheduler(  # noqa C901
     def device_price_up_select(m, d, j):
         return device_upwards_price[d].iloc[j]
 
+    def device_future_rewards_select(m, d):
+        return 10**-3
+
     def commitment_quantity_select(m, c, j):
         return commitment_quantities[c].iloc[j]
 
@@ -251,6 +254,7 @@ def device_scheduler(  # noqa C901
     model.down_price = Param(model.c, model.j, initialize=price_down_select)
     model.device_up_price = Param(model.d, model.j, initialize=device_price_up_select)
     model.device_down_price = Param(model.d, model.j, initialize=device_price_down_select)
+    model.device_future_rewards_price = Param(model.d, initialize=device_future_rewards_select)
     model.commitment_quantity = Param(
         model.c, model.j, initialize=commitment_quantity_select
     )
@@ -466,6 +470,29 @@ def device_scheduler(  # noqa C901
             for d in m.d:
                 costs += m.device_power_down[d, j] * m.device_down_price[d, j]
                 costs += m.device_power_up[d, j] * m.device_up_price[d, j]
+
+        # for d in m.d:
+        for d in [0]:  # only apply to storage devices
+            # todo: refactor this code block, which is used in device_upper_bounds and device_lower_bounds, too
+            stock_changes = [
+                (
+                        m.device_power_down[d, k] / m.device_derivative_down_efficiency[d, k]
+                        + m.device_power_up[d, k] * m.device_derivative_up_efficiency[d, k]
+                        + m.stock_delta[d, k]
+                )
+                for k in range(0, m.j[-1] + 1)
+            ]
+            efficiencies = [m.device_efficiency[d, k] for k in range(0, m.j[-1] + 1)]
+            to_add = 0
+            if device_stock_relaxed:
+                to_add -= m.device_stock_slack_upper[d, m.j[-1]]
+            final_stock = [
+                stock - initial_stock
+                for stock in apply_stock_changes_and_losses(
+                    initial_stock, stock_changes, efficiencies
+                )
+            ][-1] + to_add
+            costs -= final_stock * m.device_future_rewards_price[d]
 
         if ems_flow_relaxed:
             costs += m.ems_power_slack_upper * ems_flow_relaxation_cost
