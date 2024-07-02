@@ -318,14 +318,13 @@ def device_scheduler(  # noqa C901
         if device_stock_relaxed:
             to_add += m.device_stock_slack_lower[d, j]
         return (
-            m.device_min[d, j],
+            m.device_min[d, j] - to_add,
             [
                 stock - initial_stock
                 for stock in apply_stock_changes_and_losses(
                     initial_stock, stock_changes, efficiencies
                 )
-            ][-1]
-            + to_add,
+            ][-1],
             None,
         )
 
@@ -352,9 +351,8 @@ def device_scheduler(  # noqa C901
                 for stock in apply_stock_changes_and_losses(
                     initial_stock, stock_changes, efficiencies
                 )
-            ][-1]
-            + to_add,
-            m.device_max[d, j],
+            ][-1],
+            m.device_max[d, j] - to_add,
         )
 
     def device_derivative_bounds(m, d, j):
