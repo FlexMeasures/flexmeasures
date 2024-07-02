@@ -33,6 +33,29 @@
               <div class="alert alert-info" id="dstwarn" style="display:none;"></div>
               <div class="alert alert-info" id="sourcewarn" style="display:none;"></div>
           </div>
+          <div class="sensor-basic-info-container">
+            <div class="sensor-basic-info">
+                <h3>Sensor '{{ sensor["name"] }}' info</h3>
+                <table class="table table-striped">
+                    <tr>
+                        <th>Unit</th>
+                        <td>{{ sensor.unit }}</td>
+                    </tr>
+                    <tr>
+                        <th>Event resolution</th>
+                        <td>{{ sensor.event_resolution }}</td>
+                    </tr>
+                    <tr>
+                        <th>Timezone</th>
+                        <td>{{ sensor.timezone }}</td>
+                    </tr>
+                    <tr>
+                        <th>Knowledge horizon type</th>
+                        <td>{{ sensor.knowledge_horizon_fnc }}</td>
+                    </tr>
+                </table>
+            </div>
+          </div>
           <div class="row on-top-md">
               <div class="col-sm-2">
                   <div class="sidepanel-container">
