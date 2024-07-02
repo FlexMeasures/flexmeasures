@@ -463,11 +463,9 @@ def device_scheduler(  # noqa C901
                 costs += m.device_power_down[d, j] * m.device_down_price[d, j]
                 costs += m.device_power_up[d, j] * m.device_up_price[d, j]
 
-        with m.j[-1] as j:
-            for d in m.d:
-                # todo: refactor this code block, which is used in device_upper_bounds and device_lower_bounds, too
-                final_stock_change = _get_stock_change(m, d, j)
-                costs -= final_stock_change * m.device_future_rewards_price[d]
+        for d in m.d:
+            final_stock_change = _get_stock_change(m, d, m.j[-1])
+            costs -= final_stock_change * m.device_future_rewards_price[d]
 
         if ems_flow_relaxed:
             costs += m.ems_power_slack_upper * ems_flow_relaxation_cost
