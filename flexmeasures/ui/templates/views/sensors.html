@@ -33,48 +33,26 @@
               <div class="alert alert-info" id="dstwarn" style="display:none;"></div>
               <div class="alert alert-info" id="sourcewarn" style="display:none;"></div>
           </div>
-          <style>
-            .container {
-                display: flex;
-            }
-
-            .sensor-basic-info {
-                flex: 1;
-                max-width: 50%;
-            }
-
-            .sensor-data {
-                flex: 1;
-            }
-        </style>
-          <div class="container">
+          <div class="sensor-basic-info-container">
             <div class="sensor-basic-info">
                 <h3>Sensor '{{ sensor["name"] }}' info</h3>
                 <table class="table table-striped">
-                    <thead>
-                        <tr>
-                            <th>Unit</th>
-                            <th>Event resolution</th>
-                            <th>Timezone</th>
-                            <th>Knowledge horizon type</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr title="View data">
-                            <td>
-                                {{ sensor.unit }}
-                            </td>
-                            <td>
-                                {{ sensor.event_resolution }}
-                            </td>
-                            <td>
-                                {{ sensor.timezone }}
-                            </td>
-                            <td>
-                                {{ sensor.knowledge_horizon_fnc }}
-                            </td>
-                        </tr>
-                    </tbody>
+                    <tr>
+                        <th>Unit</th>
+                        <td>{{ sensor.unit }}</td>
+                    </tr>
+                    <tr>
+                        <th>Event resolution</th>
+                        <td>{{ sensor.event_resolution }}</td>
+                    </tr>
+                    <tr>
+                        <th>Timezone</th>
+                        <td>{{ sensor.timezone }}</td>
+                    </tr>
+                    <tr>
+                        <th>Knowledge horizon type</th>
+                        <td>{{ sensor.knowledge_horizon_fnc }}</td>
+                    </tr>
                 </table>
             </div>
           </div>

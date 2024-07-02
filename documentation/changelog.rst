@@ -3,6 +3,20 @@
 FlexMeasures Changelog
 **********************
 
+v0.23.0 | July XX, 2024
+============================
+
+New features
+-------------
+* Add basic sensor info to sensor page [see `PR #1115 <https://github.com/FlexMeasures/flexmeasures/pull/1115>`_]
+
+Infrastructure / Support
+----------------------
+
+Bugfixes
+-----------
+
+
 v0.22.0 | June 29, 2024
 ============================
 
