@@ -301,38 +301,8 @@ def device_scheduler(  # noqa C901
     model.ems_power_slack_upper = Var(domain=NonNegativeReals, initialize=0)
     model.ems_power_slack_lower = Var(domain=NonNegativeReals, initialize=0)
 
-    # Add lower constraints as a tuple of (lower bound, value)
-    def device_lower_bounds(m, d, j):
-        """Apply conversion efficiencies to conversion from flow to stock change and vice versa,
-        and apply storage efficiencies to stock levels from one datetime to the next."""
-        stock_changes = [
-            (
-                m.device_power_down[d, k] / m.device_derivative_down_efficiency[d, k]
-                + m.device_power_up[d, k] * m.device_derivative_up_efficiency[d, k]
-                + m.stock_delta[d, k]
-            )
-            for k in range(0, j + 1)
-        ]
-        efficiencies = [m.device_efficiency[d, k] for k in range(0, j + 1)]
-        final_stock_change = [
-            stock - initial_stock
-            for stock in apply_stock_changes_and_losses(
-            initial_stock, stock_changes, efficiencies
-        )
-        ][-1]
-        stock_slack = 0
-        if device_stock_relaxed:
-            stock_slack += m.device_stock_slack_lower[d, j]
-        return (
-            m.device_min[d, j] - stock_slack,
-            final_stock_change,
-            None,
-        )
-
-    # Add upper constraints as a tuple of (value, upper bound)
-    def device_upper_bounds(m, d, j):
-        """Apply conversion efficiencies to conversion from flow to stock change and vice versa,
-        and apply storage efficiencies to stock levels from one datetime to the next."""
+    def _get_stock_change(m, d, j):
+        """Determine final stock change of device d until time j."""
         stock_changes = [
             (
                 m.device_power_down[d, k] / m.device_derivative_down_efficiency[d, k]
@@ -348,6 +318,27 @@ def device_scheduler(  # noqa C901
                 initial_stock, stock_changes, efficiencies
             )
         ][-1]
+        return final_stock_change
+
+    # Add lower constraints as a tuple of (lower bound, value)
+    def device_lower_bounds(m, d, j):
+        """Apply conversion efficiencies to conversion from flow to stock change and vice versa,
+        and apply storage efficiencies to stock levels from one datetime to the next."""
+        final_stock_change = _get_stock_change(m, d, j)
+        stock_slack = 0
+        if device_stock_relaxed:
+            stock_slack += m.device_stock_slack_lower[d, j]
+        return (
+            m.device_min[d, j] - stock_slack,
+            final_stock_change,
+            None,
+        )
+
+    # Add upper constraints as a tuple of (value, upper bound)
+    def device_upper_bounds(m, d, j):
+        """Apply conversion efficiencies to conversion from flow to stock change and vice versa,
+        and apply storage efficiencies to stock levels from one datetime to the next."""
+        final_stock_change = _get_stock_change(m, d, j)
         stock_slack = 0
         if device_stock_relaxed:
             stock_slack += m.device_stock_slack_upper[d, j]
@@ -475,21 +466,7 @@ def device_scheduler(  # noqa C901
         with m.j[-1] as j:
             for d in m.d:
                 # todo: refactor this code block, which is used in device_upper_bounds and device_lower_bounds, too
-                stock_changes = [
-                    (
-                            m.device_power_down[d, k] / m.device_derivative_down_efficiency[d, k]
-                            + m.device_power_up[d, k] * m.device_derivative_up_efficiency[d, k]
-                            + m.stock_delta[d, k]
-                    )
-                    for k in range(0, j + 1)
-                ]
-                efficiencies = [m.device_efficiency[d, k] for k in range(0, j + 1)]
-                final_stock_change = [
-                    stock - initial_stock
-                    for stock in apply_stock_changes_and_losses(
-                        initial_stock, stock_changes, efficiencies
-                    )
-                ][-1]
+                final_stock_change = _get_stock_change(m, d, j)
                 costs -= final_stock_change * m.device_future_rewards_price[d]
 
         if ems_flow_relaxed:
