@@ -186,6 +186,13 @@ class MetaStorageScheduler(Scheduler):
                 resolution=resolution,
             ) for d in range(1 + len(curtailable_device_sensors) + len(inflexible_device_sensors))
         ]
+        device_future_reward = [
+            0
+            for d in range(1 + len(curtailable_device_sensors) + len(inflexible_device_sensors))
+        ]
+
+        # Add a tiny expected future reward for having more state of charge at the end of the planning window
+        device_future_reward[0] = 10 ** -3
 
         # Set up device constraints: only one scheduled flexible device for this EMS (at index 0), plus the forecasted inflexible devices (at indices 1 to n).
         device_constraints = [
@@ -478,6 +485,7 @@ class MetaStorageScheduler(Scheduler):
             commitment_upwards_deviation_price,
             device_downwards_price,
             device_upwards_price,
+            device_future_reward,
         )
 
     def persist_flex_model(self):
@@ -702,6 +710,7 @@ class StorageScheduler(MetaStorageScheduler):
             commitment_upwards_deviation_price,
             device_downwards_price,
             device_upwards_price,
+            device_future_reward,
         ) = self._prepare(skip_validation=skip_validation)
 
         ems_schedule, expected_costs, scheduler_results, _ = device_scheduler(
@@ -712,6 +721,7 @@ class StorageScheduler(MetaStorageScheduler):
             commitment_upwards_deviation_price,
             device_downwards_price=device_downwards_price,
             device_upwards_price=device_upwards_price,
+            device_future_reward=device_future_reward,
             initial_stock=soc_at_start * (timedelta(hours=1) / resolution),
             ems_flow_relaxed=self.flex_model.get("relaxed", False),
         )

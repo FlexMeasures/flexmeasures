@@ -35,6 +35,7 @@ def device_scheduler(  # noqa C901
     commitment_upwards_deviation_price: list[pd.Series] | list[float],
     device_downwards_price: list[pd.Series],
     device_upwards_price: list[pd.Series],
+    device_future_reward: list[float],
     initial_stock: float = 0,
     ems_flow_relaxed: bool = False,
     device_stock_relaxed: bool = False,
@@ -156,7 +157,7 @@ def device_scheduler(  # noqa C901
         return device_upwards_price[d].iloc[j]
 
     def device_future_rewards_select(m, d):
-        return 10**-3
+        return device_future_reward[d]
 
     def commitment_quantity_select(m, c, j):
         return commitment_quantities[c].iloc[j]
@@ -471,8 +472,7 @@ def device_scheduler(  # noqa C901
                 costs += m.device_power_down[d, j] * m.device_down_price[d, j]
                 costs += m.device_power_up[d, j] * m.device_up_price[d, j]
 
-        # for d in m.d:
-        for d in [0]:  # only apply to storage devices
+        for d in m.d:
             # todo: refactor this code block, which is used in device_upper_bounds and device_lower_bounds, too
             stock_changes = [
                 (
