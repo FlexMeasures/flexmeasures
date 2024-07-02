@@ -334,8 +334,8 @@ def build_asset_jobs_data(
 
 
 @lru_cache()
-def _get_sensor_stats(sensor: Sensor, ttl_hash=None):
-    return db.session.execute(
+def _get_sensor_stats(sensor: Sensor, ttl_hash=None) -> dict:
+    raw_stats = db.session.execute(
         sa.select(
             DataSource.name,
             sa.func.min(TimedBelief.event_start),
@@ -351,15 +351,33 @@ def _get_sensor_stats(sensor: Sensor, ttl_hash=None):
         .filter(TimedBelief.sensor_id == sensor.id)
         .group_by(DataSource.name)
     ).fetchall()
+    
+    stats = dict()
+    for row in raw_stats:
+        (
+            data_source, min_event_start, max_event_start, min_value, max_value, mean_value, sum_values, count_values
+        ) = row
+        stats[data_source] = {
+            "min_event_start": min_event_start,
+            "max_event_start": max_event_start,
+            "min_value": min_value,
+            "max_value": max_value,
+            "mean_value": mean_value,
+            "sum_values": sum_values,
+            "count_values": count_values,
+        }
+    return stats
 
 
-def _get_ttl_hash(seconds=300):
-    """Return the same value withing seconds time period
-    Is needed to make LRU cache a TTL one.
+def _get_ttl_hash(seconds=120) -> int:
+    """Returns the same value within "seconds" time period
+    Is needed to make LRU cache a TTL one
+    (lru_cache is used when call arguments are the same,
+    here we ensure that call arguments are the same in "seconds" period of time).
     """
     return round(time.time() / seconds)
 
 
-def get_sensor_stats(sensor: Sensor):
+def get_sensor_stats(sensor: Sensor) -> dict:
     """Get stats for a sensor"""
     return _get_sensor_stats(sensor, ttl_hash=_get_ttl_hash())

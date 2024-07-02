@@ -785,16 +785,17 @@ class SensorAPI(FlaskView):
 
         .. sourcecode:: json
 
-            [{
-                "data_source": "some data source",
-                "min_event_start": "2015-06-02T10:00:00+00:00",
-                "max_event_start": "2015-10-02T10:00:00+00:00",
-                "min_value": 0.0,
-                "max_value": 100.0,
-                "mean_value": 50.0,
-                "sum_values": 500.0,
-                "count_values": 10
-            }]
+            {
+                "some data source": {
+                    "min_event_start": "2015-06-02T10:00:00+00:00",
+                    "max_event_start": "2015-10-02T10:00:00+00:00",
+                    "min_value": 0.0,
+                    "max_value": 100.0,
+                    "mean_value": 50.0,
+                    "sum_values": 500.0,
+                    "count_values": 10
+                }
+            }
 
         :reqheader Authorization: The authentication token
         :reqheader Content-Type: application/json
@@ -806,26 +807,4 @@ class SensorAPI(FlaskView):
         :status 422: UNPROCESSABLE_ENTITY
         """
 
-        stats = get_sensor_stats(sensor)
-        return [
-            {
-                "data_source": data_source,
-                "min_event_start": min_event_start,
-                "max_event_start": max_event_start,
-                "min_value": min_value,
-                "max_value": max_value,
-                "mean_value": mean_value,
-                "sum_values": sum_values,
-                "count_values": count_values,
-            }
-            for (
-                data_source,
-                min_event_start,
-                max_event_start,
-                min_value,
-                max_value,
-                mean_value,
-                sum_values,
-                count_values,
-            ) in stats
-        ], 200
+        return get_sensor_stats(sensor), 200
