@@ -33,6 +33,8 @@ def device_scheduler(  # noqa C901
     commitment_quantities: list[pd.Series],
     commitment_downwards_deviation_price: list[pd.Series] | list[float],
     commitment_upwards_deviation_price: list[pd.Series] | list[float],
+    device_downwards_price: list[pd.Series],
+    device_upwards_price: list[pd.Series],
     initial_stock: float = 0,
     ems_flow_relaxed: bool = False,
     device_stock_relaxed: bool = False,
@@ -147,6 +149,12 @@ def device_scheduler(  # noqa C901
     def price_up_select(m, c, j):
         return commitment_upwards_deviation_price[c].iloc[j]
 
+    def device_price_down_select(m, d, j):
+        return device_downwards_price[d].iloc[j]
+
+    def device_price_up_select(m, d, j):
+        return device_upwards_price[d].iloc[j]
+
     def commitment_quantity_select(m, c, j):
         return commitment_quantities[c].iloc[j]
 
@@ -241,6 +249,8 @@ def device_scheduler(  # noqa C901
 
     model.up_price = Param(model.c, model.j, initialize=price_up_select)
     model.down_price = Param(model.c, model.j, initialize=price_down_select)
+    model.device_up_price = Param(model.d, model.j, initialize=device_price_up_select)
+    model.device_down_price = Param(model.d, model.j, initialize=device_price_down_select)
     model.commitment_quantity = Param(
         model.c, model.j, initialize=commitment_quantity_select
     )
@@ -451,6 +461,11 @@ def device_scheduler(  # noqa C901
             for c in m.c:
                 costs += m.commitment_downwards_deviation[c, j] * m.down_price[c, j]
                 costs += m.commitment_upwards_deviation[c, j] * m.up_price[c, j]
+
+        for j in m.j:
+            for d in m.d:
+                costs += m.device_power_down[d, j] * m.device_down_price[d, j]
+                costs += m.device_power_up[d, j] * m.device_up_price[d, j]
 
         if ems_flow_relaxed:
             costs += m.ems_power_slack_upper * ems_flow_relaxation_cost

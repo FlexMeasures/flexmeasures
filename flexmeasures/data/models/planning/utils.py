@@ -70,21 +70,20 @@ def initialize_index(
         )
 
 
-def add_tiny_price_slope(
-    prices: pd.DataFrame, col_name: str = "event_value", d: float = 10**-3
-) -> pd.DataFrame:
-    """Add tiny price slope to col_name to represent e.g. inflation as a simple linear price increase.
+def add_tiny_price_slope(prices: pd.Series, d: float = 10**-3, up: bool = True) -> pd.Series:
+    """Add tiny price slope to represent e.g. inflation as a simple linear price increase.
     This is meant to break ties, when multiple time slots have equal prices, in favour of acting sooner.
     We penalise the future with at most d times the price spread (1 per thousand by default).
     """
-    price_spread = prices[col_name].max() - prices[col_name].min()
+    price_spread = prices.max() - prices.min()
     if price_spread > 0:
         max_penalty = price_spread * d
     else:
         max_penalty = d
-    prices[col_name] = prices[col_name] + np.linspace(
-        0, max_penalty, prices[col_name].size
-    )
+    if up:
+        prices = prices + np.linspace(0, max_penalty, prices.size)
+    else:
+        prices = prices + np.linspace(max_penalty, 0, prices.size)
     return prices
 
 
