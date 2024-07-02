@@ -314,17 +314,18 @@ def device_scheduler(  # noqa C901
             for k in range(0, j + 1)
         ]
         efficiencies = [m.device_efficiency[d, k] for k in range(0, j + 1)]
+        final_stock_change = [
+            stock - initial_stock
+            for stock in apply_stock_changes_and_losses(
+            initial_stock, stock_changes, efficiencies
+        )
+        ][-1]
         stock_slack = 0
         if device_stock_relaxed:
             stock_slack += m.device_stock_slack_lower[d, j]
         return (
             m.device_min[d, j] - stock_slack,
-            [
-                stock - initial_stock
-                for stock in apply_stock_changes_and_losses(
-                    initial_stock, stock_changes, efficiencies
-                )
-            ][-1],
+            final_stock_change,
             None,
         )
 
@@ -341,17 +342,18 @@ def device_scheduler(  # noqa C901
             for k in range(0, j + 1)
         ]
         efficiencies = [m.device_efficiency[d, k] for k in range(0, j + 1)]
+        final_stock_change = [
+            stock - initial_stock
+            for stock in apply_stock_changes_and_losses(
+                initial_stock, stock_changes, efficiencies
+            )
+        ][-1]
         stock_slack = 0
         if device_stock_relaxed:
             stock_slack += m.device_stock_slack_upper[d, j]
         return (
             None,
-            [
-                stock - initial_stock
-                for stock in apply_stock_changes_and_losses(
-                    initial_stock, stock_changes, efficiencies
-                )
-            ][-1],
+            final_stock_change,
             m.device_max[d, j] + stock_slack,
         )
 
@@ -482,13 +484,13 @@ def device_scheduler(  # noqa C901
                     for k in range(0, j + 1)
                 ]
                 efficiencies = [m.device_efficiency[d, k] for k in range(0, j + 1)]
-                final_stock = [
+                final_stock_change = [
                     stock - initial_stock
                     for stock in apply_stock_changes_and_losses(
                         initial_stock, stock_changes, efficiencies
                     )
                 ][-1]
-                costs -= final_stock * m.device_future_rewards_price[d]
+                costs -= final_stock_change * m.device_future_rewards_price[d]
 
         if ems_flow_relaxed:
             costs += m.ems_power_slack_upper * ems_flow_relaxation_cost
