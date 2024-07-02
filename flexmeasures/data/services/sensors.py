@@ -4,7 +4,9 @@ import json
 import hashlib
 from datetime import datetime, timedelta
 from flask import current_app
+from functools import lru_cache
 from isodate import duration_isoformat
+import time
 from timely_beliefs import BeliefsDataFrame
 
 from humanize.time import naturaldelta
@@ -16,6 +18,7 @@ import sqlalchemy as sa
 
 from flexmeasures.data import db
 from flexmeasures import Sensor, Account, Asset
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.schemas.reporting import StatusSchema
 from flexmeasures.utils.time_utils import server_now
@@ -328,3 +331,61 @@ def build_asset_jobs_data(
             )
 
     return jobs_data
+
+
+@lru_cache()
+def _get_sensor_stats(sensor: Sensor, ttl_hash=None) -> dict:
+    raw_stats = db.session.execute(
+        sa.select(
+            DataSource.name,
+            sa.func.min(TimedBelief.event_start),
+            sa.func.max(TimedBelief.event_start),
+            sa.func.min(TimedBelief.event_value),
+            sa.func.max(TimedBelief.event_value),
+            sa.func.avg(TimedBelief.event_value),
+            sa.func.sum(TimedBelief.event_value),
+            sa.func.count(TimedBelief.event_value),
+        )
+        .select_from(TimedBelief)
+        .join(DataSource, DataSource.id == TimedBelief.source_id)
+        .filter(TimedBelief.sensor_id == sensor.id)
+        .filter(TimedBelief.event_value != float("NaN"))  # Exclude NaN values
+        .group_by(DataSource.name)
+    ).fetchall()
+
+    stats = dict()
+    for row in raw_stats:
+        (
+            data_source,
+            min_event_start,
+            max_event_start,
+            min_value,
+            max_value,
+            mean_value,
+            sum_values,
+            count_values,
+        ) = row
+        stats[data_source] = {
+            "min_event_start": min_event_start,
+            "max_event_start": max_event_start,
+            "min_value": min_value,
+            "max_value": max_value,
+            "mean_value": mean_value,
+            "sum_values": sum_values,
+            "count_values": count_values,
+        }
+    return stats
+
+
+def _get_ttl_hash(seconds=120) -> int:
+    """Returns the same value within "seconds" time period
+    Is needed to make LRU cache a TTL one
+    (lru_cache is used when call arguments are the same,
+    here we ensure that call arguments are the same in "seconds" period of time).
+    """
+    return round(time.time() / seconds)
+
+
+def get_sensor_stats(sensor: Sensor) -> dict:
+    """Get stats for a sensor"""
+    return _get_sensor_stats(sensor, ttl_hash=_get_ttl_hash())
