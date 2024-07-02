@@ -482,15 +482,12 @@ def device_scheduler(  # noqa C901
                     for k in range(0, j + 1)
                 ]
                 efficiencies = [m.device_efficiency[d, k] for k in range(0, j + 1)]
-                to_add = 0
-                if device_stock_relaxed:
-                    to_add -= m.device_stock_slack_upper[d, j]
                 final_stock = [
                     stock - initial_stock
                     for stock in apply_stock_changes_and_losses(
                         initial_stock, stock_changes, efficiencies
                     )
-                ][-1] + to_add
+                ][-1]
                 costs -= final_stock * m.device_future_rewards_price[d]
 
         if ems_flow_relaxed:
