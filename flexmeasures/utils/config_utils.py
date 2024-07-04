@@ -176,11 +176,18 @@ def read_env_vars(app: Flask):
     - Logging settings
     - access tokens
     - plugins (handled in plugin utils)
+    - json compactness
     """
     for var in (
         required
         + list(warnable.keys())
-        + ["LOGGING_LEVEL", "MAPBOX_ACCESS_TOKEN", "SENTRY_SDN", "FLEXMEASURES_PLUGINS"]
+        + [
+            "LOGGING_LEVEL",
+            "MAPBOX_ACCESS_TOKEN",
+            "SENTRY_SDN",
+            "FLEXMEASURES_PLUGINS",
+            "FLEXMEASURES_JSON_COMPACT",
+        ]
     ):
         app.config[var] = os.getenv(var, app.config.get(var, None))
     # DEBUG in env can come in as a string ("True") so make sure we don't trip here

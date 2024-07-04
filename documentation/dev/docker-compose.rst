@@ -46,12 +46,13 @@ Check ``docker ps`` or ``docker-compose ps`` to see if your containers are runni
 .. code-block:: bash
 
     $ docker ps
-    CONTAINER ID   IMAGE                 COMMAND                  CREATED          STATUS                             PORTS                    NAMES
-    beb9bf567303   flexmeasures_server   "bash -c 'flexmeasur…"   44 seconds ago   Up 38 seconds (health: starting)   0.0.0.0:5000->5000/tcp   flexmeasures-server-1
-    e36cd54a7fd5   flexmeasures_worker   "flexmeasures jobs r…"   44 seconds ago   Up 5 seconds                       5000/tcp                 flexmeasures-worker-1
-    c9985de27f68   postgres              "docker-entrypoint.s…"   45 seconds ago   Up 40 seconds                      5432/tcp                 flexmeasures-test-db-1
-    03582d37230e   postgres              "docker-entrypoint.s…"   45 seconds ago   Up 40 seconds                      5432/tcp                 flexmeasures-dev-db-1
-    792ec3d86e71   redis                 "docker-entrypoint.s…"   45 seconds ago   Up 40 seconds                      0.0.0.0:6379->6379/tcp   flexmeasures-queue-db-1
+    CONTAINER ID   IMAGE                 COMMAND                  CREATED          STATUS                             PORTS                                            NAMES
+    beb9bf567303   flexmeasures_server   "bash -c 'flexmeasur…"   44 seconds ago   Up 38 seconds (health: starting)   0.0.0.0:5000->5000/tcp                           flexmeasures-server-1
+    e36cd54a7fd5   flexmeasures_worker   "flexmeasures jobs r…"   44 seconds ago   Up 5 seconds                       5000/tcp                                         flexmeasures-worker-1
+    c9985de27f68   postgres              "docker-entrypoint.s…"   45 seconds ago   Up 40 seconds                      5432/tcp                                         flexmeasures-test-db-1
+    03582d37230e   postgres              "docker-entrypoint.s…"   45 seconds ago   Up 40 seconds                      5432/tcp                                         flexmeasures-dev-db-1
+    25024ada1590   mailhog/mailhog       "MailHog"                45 seconds ago   Up 40 seconds                      0.0.0.0:1025->1025/tcp, 0.0.0.0:8025->8025/tcp   flexmeasures-mailhog-1
+    792ec3d86e71   redis                 "docker-entrypoint.s…"   45 seconds ago   Up 40 seconds                      0.0.0.0:6379->6379/tcp                           flexmeasures-queue-db-1
 
 
 The FlexMeasures server container has a health check implemented, which is reflected in this output and you can see which ports are available on your machine to interact.
@@ -145,6 +146,14 @@ Like in the original toy tutorial, we can also check in the server container's `
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-charging.png
     :align: center
+
+
+Email Testing
+----------------------------------
+
+To test email functionality, MailHog is included in the Docker Compose stack. You can view the emails sent by the application by navigating to http://localhost:8025/ in your browser.
+
+To verify this setup, try changing a user's password in the application. This action will trigger an email, which you can then view in `MailHog <http://localhost:8025/>`_.
 
 
 Scripting with the Docker stack

@@ -8,6 +8,7 @@ from flask import current_app
 
 class RequiredInput(Schema):
     name = fields.Str(required=True)
+    unit = fields.Str(required=False)
 
 
 class Input(Schema):
@@ -68,3 +69,4 @@ class Output(Schema):
 class RequiredOutput(Schema):
     name = fields.Str(required=True)
     column = fields.Str(required=False)
+    unit = fields.Str(required=False)

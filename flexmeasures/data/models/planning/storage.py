@@ -87,10 +87,17 @@ class MetaStorageScheduler(Scheduler):
         storage_efficiency = self.flex_model.get("storage_efficiency")
         prefer_charging_sooner = self.flex_model.get("prefer_charging_sooner", True)
 
-        consumption_price_sensor = self.flex_context.get("consumption_price_sensor")
-        production_price_sensor = self.flex_context.get("production_price_sensor")
-        inflexible_device_sensors = self.flex_context.get(
-            "inflexible_device_sensors", []
+        consumption_price_sensor = (
+            self.flex_context.get("consumption_price_sensor")
+            or self.sensor.generic_asset.get_consumption_price_sensor()
+        )
+        production_price_sensor = (
+            self.flex_context.get("production_price_sensor")
+            or self.sensor.generic_asset.get_production_price_sensor()
+        )
+        inflexible_device_sensors = (
+            self.flex_context.get("inflexible_device_sensors")
+            or self.sensor.generic_asset.get_inflexible_device_sensors()
         )
 
         # Check for required Sensor attributes

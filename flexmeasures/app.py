@@ -160,6 +160,19 @@ def create(  # noqa C901
 
     register_auth_at(app)
 
+    # This needs to happen here because for unknown reasons, Security(app)
+    # and FlaskJSON() will set this to False on their own
+    if app.config.get("FLEXMEASURES_JSON_COMPACT", False) in (
+        True,
+        "True",
+        "true",
+        "1",
+        "yes",
+    ):
+        app.json.compact = True
+    else:
+        app.json.compact = False
+
     # Register the CLI
 
     from flexmeasures.cli import register_at as register_cli_at

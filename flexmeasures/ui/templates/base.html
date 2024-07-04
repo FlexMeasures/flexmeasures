@@ -22,8 +22,8 @@
     <link href="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.css" rel="stylesheet" />
     <link href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" rel="stylesheet" />
     <link href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" rel="stylesheet" />
-    <!-- Bootstrap -->
-    <link href="https://ajax.aspnetcdn.com/ajax/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet" />
+    <!-- Latest Bootstrap link-->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     <!-- Fonts -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"
         rel="stylesheet" />
@@ -39,6 +39,7 @@
     <link href="{{ url_for('flexmeasures_ui.static', filename='css/external/rq-dashboard-bootstrap.min.css') }}" rel="stylesheet" />
     {% elif active_page in ("assets", "users", "accounts") %}
     <link href="https://cdn.datatables.net/1.10.22/css/jquery.dataTables.min.css" rel="stylesheet" />
+    <link href="https://cdn.datatables.net/buttons/3.0.2/css/buttons.bootstrap5.min.css" rel="stylesheet"/>
     {% endif %}
     {% if extra_css %}
     <link href="{{ extra_css }}" rel="stylesheet" />
@@ -51,79 +52,87 @@
     {% block body %}
 
     {% block nav %}
-
-    <nav class="navbar navbar-default navbar-fixed-top" id="topnavbar">
-        <div id="navbar-container" class="container-fluid">
-            <div class="navbar-header">
-                <button type="button" class="navbar-toggle collapsed" data-toggle="collapse"
-                    data-target="#bs-example-navbar-collapse-1" aria-expanded="false">
-                    <span class="sr-only">Toggle navigation</span>
-                    <span class="icon-bar"></span>
-                    <span class="icon-bar"></span>
-                    <span class="icon-bar"></span>
-                </button>
-                <span class="navbar-brand">
-                    <a href="/">
-                        <span class="navbar-tool-name">
-                        {% if menu_logo %}
-                            <img id="navbar-logo" src="{{menu_logo}}"/>
-                        {% else %}
-                            <img id="navbar-logo" src="https://artwork.lfenergy.org/projects/flexmeasures/horizontal/white/flexmeasures-horizontal-white.svg" alt="FlexMeasures"/>
-                        {% endif %}
-                        </span>
-                    </a>
+    <nav class="navbar navbar-expand-lg fixed-top mt-0 navbar-default mb-2 navbar-fixed-top " id="topnavbar">
+        <div class="container-fluid" id="navbar-container">
+        
+                     
+            <div class="navbar-brand">
+              <a href="/">
+                <span class="navbar-tool-name">
+                  {% if menu_logo %}
+                    <img id="navbar-logo" src="{{menu_logo}}"/>
+                  {% else %}
+                    <img id="navbar-logo" src="https://artwork.lfenergy.org/projects/flexmeasures/horizontal/white/flexmeasures-horizontal-white.svg" alt="FlexMeasures"/>
+                  {% endif %}
                 </span>
+              </a>
             </div>
-            <div class="collapse navbar-collapse  navbar-right" id="bs-example-navbar-collapse-1">
-                <ul class="nav navbar-nav">
-                    {% for href, id, caption, tooltip, icon in navigation_bar %}
-                    {% if id == "tasks" %}
-                    <li {% if id == active_page %} class="active" {% endif %} class="dropdown">
-                        <a class="dropdown-toggle" data-toggle="dropdown" href="#"><span class="fa fa-tasks"
-                                aria-hidden="true"></span>
-                            Tasks
-                            <span class="caret"></span></a>
-                        <ul class="dropdown-menu">
-                            {% for queue in queue_names %}
-                                <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
-                                    {% if not current_user.has_role('anonymous') %}href="/tasks/0/view/jobs/{{ queue }}/started/10/1"
-                                    {% endif %}>{{ queue | capitalize }}</a></li>
-                            {% endfor %}
-                            <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
-                                    {% if not current_user.has_role('anonymous') %}href="/tasks/"
-                                    {% endif %}>Overview</a></li>
-                        </ul>
-                    </li>
-                    {% else %}
-                    <li {% if id == active_page %} class="active" {% endif %} data-toggle="tooltip" title="{{ tooltip }}" data-placement="bottom"
-                        {% if id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users')) %}
-                        class="disabled" {% endif %}>
-                        <a {% if not ( id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users')) ) %}href="/{{ href|e }}"
-                            {% endif %}{% if id == 'docs' %} target="_blank" {% endif %}>
-                            <span class="fa fa-{{ icon }}" aria-hidden="true"></span>
-                            {{ caption|e }}
-
-                            {# use tooltip as caption for small screens #}
-                            {% if not caption %}
-                            <span class="visible-xs-inline">{{ tooltip }}</span>
-                            {% endif %}
-
+            <div
+                class="navbar-toggler border-0"
+                type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#navbarSupportedContent"
+                aria-controls="navbarSupportedContent"
+                aria-expanded="false"
+                aria-label="Toggle navigation"
+            >
+                <i class="fa fa-bars"></i>
+            </div>
+         
+          <div class="collapse navbar-collapse justify-content-end flex-row" id="navbarSupportedContent">
+            <ul class="nav navbar-nav d-flex">
+              {% for href, id, caption, tooltip, icon in navigation_bar %}
+                {% if id == "tasks" %}
+                <li {% if id == active_page %} class="nav-item dropdown active" {% else %} class="nav-item dropdown" {% endif %}>
+                    <a class="nav-link dropdown-toggle" href="#" id="tasksDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <span class="fa fa-tasks" aria-hidden="true"></span>
+                        Tasks
+                    </a>
+                    <ul class="dropdown-menu" aria-labelledby="tasksDropdown">
+                    {% for queue in queue_names %}
+                        <li {% if current_user.has_role('anonymous') %} class="disabled" {% endif %}>
+                        <a class="dropdown-item" {% if not current_user.has_role('anonymous') %} href="/tasks/0/view/jobs/{{ queue }}/started/10/1" {% endif %}>
+                            {{ queue | capitalize }}
+                        </a>
+                        </li>
+                    {% endfor %}
+                    <li {% if current_user.has_role('anonymous') %} class="disabled" {% endif %}>
+                        <a class="dropdown-item" {% if not current_user.has_role('anonymous') %} href="/tasks/" {% endif %}>
+                            Overview
                         </a>
                     </li>
-                    {% endif %}
-                    {% endfor %}
-                </ul>
-            </div>
+                    </ul>
+                </li>
+                {% else %}
+                <li {% if id == active_page %} class="nav-item active" {% else %} class="nav-item" {% endif %}
+                    data-bs-toggle="tooltip" title="{{ tooltip }}" data-placement="bottom"
+                    {% if id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users')) %}
+                    class="disabled" {% endif %}>
+                    <a {% if not ( id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users')) ) %} href="/{{ href|e }}" {% endif %}
+                    {% if id == 'docs' %} target="_blank" {% endif %} class="nav-link">
+                        <span class="fa fa-{{ icon }}" aria-hidden="true"></span>
+                        {{ caption|e }}
+                        {% if not caption %}
+                            <span class="visible-xs-inline">{{ tooltip }}</span>
+                        {% endif %}
+                    </a>
+                </li>
+                {% endif %}
+                {% endfor %}
+            </ul>
+          </div>
         </div>
-    </nav>
+    </nav>
+      
+      
 
     {% endblock nav %}
 
     {% if message and message != "" %}
-    <div class="col-sm-12 alert alert-info">{{ message}} </div>
+    <div class="col-md-12 alert alert-info">{{ message}} </div>
     {% endif %}
     {% if (msg is defined) and msg %}
-    <div class="col-sm-12 alert alert-info">{{ msg }}</div>
+    <div class="col-md-12 alert alert-info">{{ msg }}</div>
     {% endif %}
 
     <!-- loading this earlier so templates can use it -->
@@ -136,10 +145,10 @@
     {% block forecastpicker %}
 
     <div class="form-group row">
-        <div class="col-sm-2">
-            <div class="col-sm-1"><i class="icon-binoculars center-icon"></i></div>
+        <div class="col-md-2">
+            <div class="col-md-1"><i class="icon-binoculars center-icon"></i></div>
         </div>
-        <div class="col-sm-10">
+        <div class="col-md-10">
             <label class="control-label">Forecast (rolling)</label>
             <!--<div class="btn-group btn-group-justified" role="group" aria-label="...">-->
             <!--<a role="button" href="#" class="btn btn-default forecast-toggle active" forecast-type="rolling">Rolling</a>-->
@@ -216,9 +225,9 @@
     let replaySpeed = 100
     let chartType = '{{ chart_type }}';  // initial chart type from session variable
 
-    // Update chart type
+    // Update chart type picker: active state, reload data event
     document.addEventListener('DOMContentLoaded', function() {
-        var dropdownItems = document.querySelectorAll('.dropdown-item');
+        var dropdownItems = document.querySelectorAll('#chart-type-picker .dropdown-item');
         for (var i = 0; i < dropdownItems.length; i++) {
 
             // Set initial chart type
@@ -649,7 +658,16 @@
 
 
     {#- Scripts used by all views (e.g. by navigation menu) -#}
-    <script src="https://ajax.aspnetcdn.com/ajax/bootstrap/3.3.7/bootstrap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <script src="https://cdn.datatables.net/2.0.8/js/dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/2.0.8/js/dataTables.bootstrap5.min.js"></script>
+
+    <!-- Add the class touched to body when the user uses any touch event. -->
+    <script>
+        document.body.addEventListener('touchstart', function() {
+          document.body.classList.add('touched');
+        });
+    </script>
 
     {% block scripts %}
 
@@ -689,17 +707,15 @@
                 {% endblock copyright_notice %}
 
                 {% block about %}
-                <a href="#" data-toggle="modal" data-target="#About">About FlexMeasures</a>.
+                <a href="#" data-bs-toggle="modal" data-bs-target="#About">About FlexMeasures</a>.
                 <!-- The modal -->
                 <div class="modal fade" id="About" tabindex="-1" role="dialog" aria-labelledby="modalLabelLarge" aria-hidden="true">
                 <div class="modal-dialog modal-lg">
                 <div class="modal-content">
 
                 <div class="modal-header">
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                    </button>
                     <h4 class="modal-title" id="modalLabelLarge">About FlexMeasures</h4>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
 
                 <div class="modal-body">
@@ -758,7 +774,7 @@
                 {% endblock about %}
 
                 {% block credits %}
-                <a href="#" data-toggle="modal" data-target="#Credits">Credits</a>.
+                <a href="#" data-bs-toggle="modal" data-bs-target="#Credits">Credits</a>.
 
                 <!-- The modal -->
                 <div class="modal fade" id="Credits" tabindex="-1" role="dialog" aria-labelledby="modalLabelLarge" aria-hidden="true">
@@ -766,22 +782,20 @@
                 <div class="modal-content">
 
                 <div class="modal-header">
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                    </button>
                     <h4 class="modal-title" id="modalLabelLarge">Credits</h4>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
 
                 <div class="modal-body">
                     <div class="row">
-                        <div class="col-sm-6">
+                        <div class="col-md-6">
                             <h3>Images from <a href="https://seita.nl">Seita</a></h3>
                             <div>FlexMeasures on laptop - image by <a href="https://drakemultimedia.nl/" title="Bobby Drake">Bobby Drake</a></div>
                             <h3>Images from <a href="https://unsplash.com/" title="Unsplash">Unsplash</a></h3>
                             <div>Tesla charging station - image by <a href="https://www.chasealewis.com/" title="Chase Lewis">Chase Lewis</a></div>
                             <div>Wind turbines on top of mountain - image by <a href="https://www.tbk-f.com/" title="TJ K.">TJ K.</a></div>
                         </div>
-                        <div class="col-sm-6">
+                        <div class="col-md-6">
                             <h3>Icons from <a href="https://www.flaticon.com/" title="Flaticon">Flaticon</a></h3>
                             <div><a href="https://www.flaticon.com/free-icon/wind-power_1085695">Wind turbine</a> - icon by <a href="https://www.flaticon.com/authors/good-ware" title="Good Ware">Good Ware</a> (made to spin by Seita)</div>
                             <div><a href="https://www.flaticon.com/search?word=currency&author_id=258">Coins</a> - icons by <a href="https://www.flaticon.com/authors/pixelmeetup" title="Pixelmeetup">Pixelmeetup</a></div>
@@ -819,9 +833,11 @@
                 {% endif %}
                 {% endblock technical_info %}
             </div>
+            {% block logo %}
             <div>
                 <a href="https://flexmeasures.io/"><img src="https://artwork.lfenergy.org/projects/flexmeasures/icon/white/flexmeasures-icon-white.svg" alt="FlexMeasures" class="footer-logo"></a>
             </div>
+            {% endblock logo %}
         </div>
     </footer>
     {% endblock body %}

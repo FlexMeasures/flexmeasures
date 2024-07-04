@@ -92,7 +92,7 @@ Finally, we'll schedule the process using the SHIFTABLE policy.
 Results
 ---------
 
-The image below shows the resulting schedules following each of the three policies. You will see similar results in your `FlexMeasures UI <http://localhost:5000/assets/4/>`_. 
+The image below shows the resulting schedules following each of the three policies. You will see similar results in your `FlexMeasures UI <http://localhost:5000/assets/5>`_. 
 
  
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/asset-view-process.png

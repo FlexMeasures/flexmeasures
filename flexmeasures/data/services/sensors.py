@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import json
+import hashlib
 from datetime import datetime, timedelta
 from flask import current_app
+from isodate import duration_isoformat
 from timely_beliefs import BeliefsDataFrame
 
 from humanize.time import naturaldelta
@@ -38,9 +41,9 @@ def get_sensors(
         account_ids = [account.id for account in account]
     else:
         account_ids = [account.id]
-    sensor_query = sensor_query.join(GenericAsset).filter(
-        Sensor.generic_asset_id == GenericAsset.id
-    )
+    sensor_query = sensor_query.join(
+        GenericAsset, GenericAsset.id == Sensor.generic_asset_id
+    ).filter(Sensor.generic_asset_id == GenericAsset.id)
     if include_public_assets:
         sensor_query = sensor_query.filter(
             sa.or_(
@@ -125,8 +128,11 @@ def get_status_specs(sensor: Sensor) -> dict:
         if sensor.knowledge_horizon_fnc == "x_days_ago_at_y_oclock":
             status_specs = {"staleness_search": {}, "max_staleness": "P1D"}
         else:
-            # Default to status specs indicating immediate staleness after knowledge time
-            status_specs = {"staleness_search": {}, "max_staleness": "PT0H"}
+            # Default to status specs indicating staleness after knowledge time + 2 sensor resolutions
+            status_specs = {
+                "staleness_search": {},
+                "max_staleness": duration_isoformat(sensor.event_resolution * 2),
+            }
     return status_specs
 
 
@@ -169,6 +175,26 @@ def get_status(
     return status
 
 
+def _get_sensor_asset_relation(
+    asset: Asset,
+    sensor: Sensor,
+    inflexible_device_sensors: list[Sensor],
+) -> str:
+    """Get the relation of a sensor to an asset."""
+    relations = list()
+    if sensor.generic_asset_id == asset.id:
+        relations.append("included device")
+    if asset.consumption_price_sensor_id == sensor.id:
+        relations.append("consumption price")
+    if asset.production_price_sensor_id == sensor.id:
+        relations.append("production price")
+    inflexible_device_sensors_ids = {sensor.id for sensor in inflexible_device_sensors}
+    if sensor.id in inflexible_device_sensors_ids:
+        relations.append("inflexible device")
+
+    return ";".join(relations)
+
+
 def build_sensor_status_data(
     asset: Asset,
     now: datetime = None,
@@ -182,20 +208,41 @@ def build_sensor_status_data(
     - stale: whether the sensor is stale
     - staleness_since: time since sensor data is considered stale
     - reason: reason for staleness
+    - relation: relation of the sensor to the asset
     """
     if not now:
         now = server_now()
 
     sensors = []
-    for asset in (asset, *asset.child_assets):
-        for sensor in asset.sensors:
+    sensor_ids = set()
+    production_price_sensor = asset.get_production_price_sensor()
+    consumption_price_sensor = asset.get_consumption_price_sensor()
+    inflexible_device_sensors = asset.get_inflexible_device_sensors()
+    for asset, is_child_asset in (
+        (asset, False),
+        *[(child_asset, True) for child_asset in asset.child_assets],
+    ):
+        sensors_list = list(asset.sensors)
+        if not is_child_asset:
+            sensors_list += [
+                *asset.inflexible_device_sensors,
+                production_price_sensor,
+                consumption_price_sensor,
+            ]
+        for sensor in sensors_list:
+            if sensor is None or sensor.id in sensor_ids:
+                continue
             sensor_status = get_status(
                 sensor=sensor,
                 now=now,
             )
             sensor_status["name"] = sensor.name
             sensor_status["id"] = sensor.id
-            sensor_status["asset_name"] = asset.name
+            sensor_status["asset_name"] = sensor.generic_asset.name
+            sensor_status["relation"] = _get_sensor_asset_relation(
+                asset, sensor, inflexible_device_sensors
+            )
+            sensor_ids.add(sensor.id)
             sensors.append(sensor_status)
     return sensors
 
@@ -212,6 +259,7 @@ def build_asset_jobs_data(
     - status: job status (e.g finished, failed, etc)
     - err: job error (equals to None when there was no error for a job)
     - enqueued_at: time when the job was enqueued
+    - metadata_hash: hash of job metadata (internal field)
     """
 
     jobs = list()
@@ -222,6 +270,7 @@ def build_asset_jobs_data(
             "scheduling",
             "asset",
             asset.id,
+            asset.name,
             current_app.job_cache.get(asset.id, "scheduling", "asset"),
         )
     )
@@ -232,6 +281,7 @@ def build_asset_jobs_data(
                 "scheduling",
                 "sensor",
                 sensor.id,
+                sensor.name,
                 current_app.job_cache.get(sensor.id, "scheduling", "sensor"),
             )
         )
@@ -240,13 +290,14 @@ def build_asset_jobs_data(
                 "forecasting",
                 "sensor",
                 sensor.id,
+                sensor.name,
                 current_app.job_cache.get(sensor.id, "forecasting", "sensor"),
             )
         )
 
     jobs_data = list()
     # Building the actual return list - we also unpack lists of jobs, each to its own entry, and we add error info
-    for queue, asset_or_sensor_type, asset_id, jobs in jobs:
+    for queue, asset_or_sensor_type, entity_id, entity_name, jobs in jobs:
         for job in jobs:
             e = job.meta.get(
                 "exception",
@@ -262,15 +313,17 @@ def build_asset_jobs_data(
                 else None
             )
 
+            metadata = json.dumps({**job.meta, "job_id": job.id}, default=str, indent=4)
             jobs_data.append(
                 {
-                    "job_id": job.id,
+                    "metadata": metadata,
                     "queue": queue,
                     "asset_or_sensor_type": asset_or_sensor_type,
-                    "asset_id": asset_id,
+                    "entity": f"{asset_or_sensor_type}: {entity_name} (Id: {entity_id})",
                     "status": job.get_status(),
                     "err": job_err,
                     "enqueued_at": job.enqueued_at,
+                    "metadata_hash": hashlib.sha256(metadata.encode()).hexdigest(),
                 }
             )
 

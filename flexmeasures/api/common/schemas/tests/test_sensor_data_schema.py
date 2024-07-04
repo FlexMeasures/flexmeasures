@@ -1,4 +1,5 @@
 from datetime import timedelta, datetime
+import json
 import pytest
 import pytz
 
@@ -10,6 +11,7 @@ from flexmeasures.api.common.schemas.sensor_data import (
     PostSensorDataSchema,
     GetSensorDataSchema,
 )
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.data.services.scheduling import create_scheduling_job
 from flexmeasures.data.services.sensors import (
@@ -257,20 +259,100 @@ def test_get_status(
     assert sensor_status["stale"] == expected_stale
 
 
-def test_build_asset_status_data(mock_get_status, add_weather_sensors):
+@pytest.mark.parametrize(
+    "now, expected_staleness, expected_stale, expected_stale_reason",
+    [
+        # sensor resolution is 15 min
+        (
+            # Last event start at 2016-01-02T07:45+01, with knowledge time 2016-01-02T08:00+01, 29 minutes ago
+            "2016-01-02T08:29+01",
+            timedelta(minutes=29),
+            False,
+            "not more than 30 minutes old",
+        ),
+        (
+            # Last event start at 2016-01-02T07:45+01, with knowledge time 2016-01-02T08:00+01, 31 minutes ago
+            "2016-01-02T08:31+01",
+            timedelta(minutes=31),
+            True,
+            "more than 30 minutes old",
+        ),
+    ],
+)
+def test_get_status_no_status_specs(
+    capacity_sensors,
+    now,
+    expected_staleness,
+    expected_stale,
+    expected_stale_reason,
+):
+    sensor = capacity_sensors["production"]
+    now = pd.Timestamp(now)
+    sensor_status = get_status(
+        sensor=sensor,
+        status_specs=None,
+        now=now,
+    )
+
+    assert sensor_status["staleness"] == expected_staleness
+    assert sensor_status["stale"] == expected_stale
+    assert sensor_status["reason"] == expected_stale_reason
+
+
+def test_build_asset_status_data(
+    db, mock_get_status, add_weather_sensors, add_battery_assets
+):
     asset = add_weather_sensors["asset"]
+    battery_asset = add_battery_assets["Test battery"]
+    wind_sensor, temperature_sensor = (
+        add_weather_sensors["wind"],
+        add_weather_sensors["temperature"],
+    )
+
+    production_price_sensor = Sensor(
+        name="production price",
+        generic_asset=battery_asset,
+        event_resolution=timedelta(minutes=5),
+        unit="EUR/MWh",
+    )
+    db.session.add(production_price_sensor)
+    db.session.flush()
+
+    asset.consumption_price_sensor_id = wind_sensor.id
+    asset.production_price_sensor_id = production_price_sensor.id
+    asset.inflexible_device_sensors = [temperature_sensor]
+    db.session.add(asset)
 
     wind_speed_res, temperature_res = {"staleness": True}, {"staleness": False}
-    mock_get_status.side_effect = (wind_speed_res, temperature_res)
+    production_price_res = {"staleness": True}
+    mock_get_status.side_effect = (
+        wind_speed_res,
+        temperature_res,
+        production_price_res,
+    )
 
     status_data = build_sensor_status_data(asset=asset)
     assert status_data == [
-        {**wind_speed_res, "name": "wind speed", "id": None, "asset_name": asset.name},
+        {
+            **wind_speed_res,
+            "name": "wind speed",
+            "id": wind_sensor.id,
+            "asset_name": asset.name,
+            "relation": "included device;consumption price",
+        },
         {
             **temperature_res,
             "name": "temperature",
-            "id": None,
+            "id": temperature_sensor.id,
             "asset_name": asset.name,
+            "relation": "included device;inflexible device",
+        },
+        {
+            **production_price_res,
+            "name": "production price",
+            "id": production_price_sensor.id,
+            "asset_name": battery_asset.name,
+            "relation": "production price",
         },
     ]
 
@@ -309,10 +391,10 @@ def test_build_asset_jobs_data(db, app, add_battery_assets):
     jobs_data = build_asset_jobs_data(battery_asset)
     assert sorted([j["queue"] for j in jobs_data]) == ["forecasting", "scheduling"]
     for job_data in jobs_data:
+        metadata = json.loads(job_data["metadata"])
         if job_data["queue"] == "forecasting":
-            assert job_data["job_id"] == forecasting_jobs[0].id
+            assert metadata["job_id"] == forecasting_jobs[0].id
         else:
-            assert job_data["job_id"] == scheduling_job.id
+            assert metadata["job_id"] == scheduling_job.id
         assert job_data["status"] == "queued"
-        assert job_data["asset_or_sensor_type"] == "sensor"
-        assert job_data["asset_id"] == battery.id
+        assert job_data["entity"] == f"sensor: {battery.name} (Id: {battery.id})"
