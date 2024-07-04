@@ -41,6 +41,8 @@ def device_scheduler(  # noqa C901
     device_stock_relaxed: bool = False,
     ems_flow_relaxation_cost: float = 1e9,  # TODO: compute this value based on input data
     stock_relaxation_cost: float = 20000,
+    ems_soft_limit: bool = True,
+    ems_flow_soft_relaxation_cost: float = 0,
 ) -> tuple[list[pd.Series], float, SolverResults, ConcreteModel]:
     """This generic device scheduler is able to handle an EMS with multiple devices,
     with various types of constraints on the EMS level and on the device level,
@@ -218,6 +220,28 @@ def device_scheduler(  # noqa C901
         else:
             return v
 
+    def ems_derivative_soft_min_select(m, j):
+        v = ems_constraints["derivative min"].iloc[j]
+
+        if "derivative soft min" in ems_constraints.columns:
+            v = np.nanmax([ems_constraints["derivative soft min"].iloc[j], v])
+
+        if np.isnan(v):
+            return -infinity
+        else:
+            return v
+
+    def ems_derivative_soft_max_select(m, j):
+        v = ems_constraints["derivative max"].iloc[j]
+
+        if "derivative soft max" in ems_constraints.columns:
+            v = np.nanmin([ems_constraints["derivative soft max"].iloc[j], v])
+
+        if np.isnan(v):
+            return infinity
+        else:
+            return v
+
     def device_efficiency(m, d, j):
         """Assume perfect efficiency if no efficiency information is available."""
         try:
@@ -254,8 +278,12 @@ def device_scheduler(  # noqa C901
     model.up_price = Param(model.c, model.j, initialize=price_up_select)
     model.down_price = Param(model.c, model.j, initialize=price_down_select)
     model.device_up_price = Param(model.d, model.j, initialize=device_price_up_select)
-    model.device_down_price = Param(model.d, model.j, initialize=device_price_down_select)
-    model.device_future_rewards_price = Param(model.d, initialize=device_future_rewards_select)
+    model.device_down_price = Param(
+        model.d, model.j, initialize=device_price_down_select
+    )
+    model.device_future_rewards_price = Param(
+        model.d, initialize=device_future_rewards_select
+    )
     model.commitment_quantity = Param(
         model.c, model.j, initialize=commitment_quantity_select
     )
@@ -269,6 +297,15 @@ def device_scheduler(  # noqa C901
     )
     model.ems_derivative_max = Param(model.j, initialize=ems_derivative_max_select)
     model.ems_derivative_min = Param(model.j, initialize=ems_derivative_min_select)
+
+    if ems_soft_limit:
+        model.ems_derivative_soft_min = Param(
+            model.j, initialize=ems_derivative_soft_min_select
+        )
+        model.ems_derivative_soft_max = Param(
+            model.j, initialize=ems_derivative_soft_max_select
+        )
+
     model.device_efficiency = Param(model.d, model.j, initialize=device_efficiency)
     model.device_derivative_down_efficiency = Param(
         model.d, model.j, initialize=device_derivative_down_efficiency
@@ -300,6 +337,10 @@ def device_scheduler(  # noqa C901
 
     model.ems_power_slack_upper = Var(domain=NonNegativeReals, initialize=0)
     model.ems_power_slack_lower = Var(domain=NonNegativeReals, initialize=0)
+
+    if ems_soft_limit:
+        model.ems_power_margin_lower = Var(domain=NonNegativeReals, initialize=0)
+        model.ems_power_margin_upper = Var(domain=NonNegativeReals, initialize=0)
 
     def _get_stock_change(m, d, j):
         """Determine final stock change of device d until time j."""
@@ -390,6 +431,34 @@ def device_scheduler(  # noqa C901
         else:
             return m.ems_derivative_min[j], sum(m.ems_power[:, j]), None
 
+    def ems_derivative_soft_margin_lower(m, j):
+        return (
+            0,
+            m.ems_power_margin_lower,
+            m.ems_derivative_soft_min[j] - m.ems_derivative_min[j],
+        )
+
+    def ems_derivative_soft_margin_upper(m, j):
+        return (
+            0,
+            m.ems_power_margin_upper,
+            m.ems_derivative_max[j] - m.ems_derivative_soft_max[j],
+        )
+
+    def ems_derivative_soft_lower_bound(m, j):
+        return (
+            m.ems_derivative_soft_min[j] - m.ems_power_margin_lower,
+            sum(m.ems_power[:, j]),
+            None,
+        )
+
+    def ems_derivative_soft_upper_bound(m, j):
+        return (
+            None,
+            sum(m.ems_power[:, j]),
+            m.ems_derivative_soft_max[j] + m.ems_power_margin_upper,
+        )
+
     def ems_derivative_upper_bound(m, j):
         if ems_flow_relaxed:
             return (
@@ -440,8 +509,23 @@ def device_scheduler(  # noqa C901
     model.device_power_down_sign = Constraint(
         model.d, model.j, rule=device_down_derivative_sign
     )
-    model.ems_power_upper_bound = Constraint(model.j, rule=ems_derivative_upper_bound)
+    model.ems_power_upper_bounds = Constraint(model.j, rule=ems_derivative_upper_bound)
     model.ems_power_lower_bounds = Constraint(model.j, rule=ems_derivative_lower_bound)
+
+    if ems_soft_limit:
+        model.ems_power_soft_upper_bounds = Constraint(
+            model.j, rule=ems_derivative_soft_upper_bound
+        )
+        model.ems_power_soft_lower_bounds = Constraint(
+            model.j, rule=ems_derivative_soft_lower_bound
+        )
+
+        model.ems_derivative_soft_margin_lower = Constraint(
+            model.j, rule=ems_derivative_soft_margin_lower
+        )
+        model.ems_derivative_soft_margin_upper = Constraint(
+            model.j, rule=ems_derivative_soft_margin_upper
+        )
 
     model.ems_power_commitment_equalities = Constraint(
         model.j, rule=ems_flow_commitment_equalities
@@ -475,6 +559,10 @@ def device_scheduler(  # noqa C901
                 for d in m.d:
                     costs += m.device_stock_slack_upper[d, j] * stock_relaxation_cost
                     costs += m.device_stock_slack_lower[d, j] * stock_relaxation_cost
+
+        if ems_soft_limit:
+            costs += m.ems_power_margin_lower * ems_flow_soft_relaxation_cost
+            costs += m.ems_power_margin_upper * ems_flow_soft_relaxation_cost
 
         return costs
 

@@ -26,6 +26,20 @@ class FlexContextSchema(Schema):
         data_key="site-consumption-capacity",
         validate=validate.Range(min=0),
     )
+
+    ems_soft_production_capacity_in_mw = QuantityOrSensor(
+        "MW",
+        required=False,
+        data_key="site-soft-production-capacity",
+        validate=validate.Range(min=0),
+    )
+    ems_soft_consumption_capacity_in_mw = QuantityOrSensor(
+        "MW",
+        required=False,
+        data_key="site-soft-consumption-capacity",
+        validate=validate.Range(min=0),
+    )
+
     consumption_price_sensor = SensorIdField(data_key="consumption-price-sensor")
     production_price_sensor = SensorIdField(data_key="production-price-sensor")
     curtailable_device_sensors = fields.List(

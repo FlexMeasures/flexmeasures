@@ -176,7 +176,10 @@ class MetaStorageScheduler(Scheduler):
                 start=start,
                 end=end,
                 resolution=resolution,
-            ) for d in range(1 + len(curtailable_device_sensors) + len(inflexible_device_sensors))
+            )
+            for d in range(
+                1 + len(curtailable_device_sensors) + len(inflexible_device_sensors)
+            )
         ]
         device_upwards_price = [
             initialize_series(
@@ -184,15 +187,20 @@ class MetaStorageScheduler(Scheduler):
                 start=start,
                 end=end,
                 resolution=resolution,
-            ) for d in range(1 + len(curtailable_device_sensors) + len(inflexible_device_sensors))
+            )
+            for d in range(
+                1 + len(curtailable_device_sensors) + len(inflexible_device_sensors)
+            )
         ]
         device_future_reward = [
             0
-            for d in range(1 + len(curtailable_device_sensors) + len(inflexible_device_sensors))
+            for d in range(
+                1 + len(curtailable_device_sensors) + len(inflexible_device_sensors)
+            )
         ]
 
         # Add a tiny expected future reward for having more state of charge at the end of the planning window
-        device_future_reward[0] = 10 ** -3
+        device_future_reward[0] = 10**-3
 
         # Set up device constraints: only one scheduled flexible device for this EMS (at index 0), plus the forecasted inflexible devices (at indices 1 to n).
         device_constraints = [
@@ -472,6 +480,33 @@ class MetaStorageScheduler(Scheduler):
             max_value=ems_power_capacity_in_mw,
         )
 
+        if "ems_consumption_capacity_in_mw" in self.flex_context:
+            ems_constraints[
+                "derivative soft max"
+            ] = get_continuous_series_sensor_or_quantity(
+                quantity_or_sensor=self.flex_context.get(
+                    "ems_soft_consumption_capacity_in_mw"
+                ),
+                actuator=sensor.generic_asset,
+                unit="MW",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+            )
+        if "ems_production_capacity_in_mw" in self.flex_context:
+            ems_constraints["derivative soft min"] = (
+                -1
+            ) * get_continuous_series_sensor_or_quantity(
+                quantity_or_sensor=self.flex_context.get(
+                    "ems_soft_production_capacity_in_mw"
+                ),
+                actuator=sensor.generic_asset,
+                unit="MW",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+            )
+
         return (
             sensor,
             start,
@@ -724,6 +759,8 @@ class StorageScheduler(MetaStorageScheduler):
             device_future_reward=device_future_reward,
             initial_stock=soc_at_start * (timedelta(hours=1) / resolution),
             ems_flow_relaxed=self.flex_model.get("relaxed", False),
+            ems_soft_limit=True,
+            ems_flow_soft_relaxation_cost=10000,
         )
         if scheduler_results.solver.termination_condition == "infeasible":
             raise InfeasibleProblemException()
