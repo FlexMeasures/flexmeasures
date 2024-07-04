@@ -3,19 +3,21 @@
 FlexMeasures Changelog
 **********************
 
-v0.22.0 | June XX, 2024
+v0.22.0 | June 29, 2024
 ============================
 
 New features
 -------------
 * Add `asset/<id>/auditlog` to view asset related actions [see `PR #1067 <https://github.com/FlexMeasures/flexmeasures/pull/1067>`_]
-* On the `/sensor/id` page, allowto link to it with a date range and to copy current view as URL [see `PR #1094 <https://github.com/FlexMeasures/flexmeasures/pull/1094>`_]
-* On the asset page, facilitate comparison by showing the two default sensors together if they record the same unit [see `PR #1066 <https://github.com/FlexMeasures/flexmeasures/pull/1066>`_]
+* On the `/sensor/id` page, allow to link to it with a date range and to copy current view as URL [see `PR #1094 <https://github.com/FlexMeasures/flexmeasures/pull/1094>`_]
 * Flex-context (price sensors and inflexible device sensors) can now be set on the asset page (and are part of GenericAsset model) [see `PR #1059 <https://github.com/FlexMeasures/flexmeasures/pull/1059/>`_]
 * On the asset page's default view, facilitate comparison by showing the two default sensors together if they record the same unit [see `PR #1066 <https://github.com/FlexMeasures/flexmeasures/pull/1066>`_]
+* Add flex-context sensors to status page [see `PR #1102 <https://github.com/FlexMeasures/flexmeasures/pull/1102>`_]
+* Show tooltips on (mobile) touch screen [see `PR #1062 <https://github.com/FlexMeasures/flexmeasures/pull/1062>`_]
 
 Infrastructure / Support
 ----------------------
+* Add MailHog to docker-compose stack for testing email functionality [see `PR #1112 <https://github.com/FlexMeasures/flexmeasures/pull/1112>`_]
 * Allow installing dependencies in docker-compose worker [see `PR #1057 <https://github.com/FlexMeasures/flexmeasures/pull/1057/>`_]
 * Add unit conversion to the input and output data of the ``PandasReporter`` [see `PR #1044 <https://github.com/FlexMeasures/flexmeasures/pull/1044/>`_]
 * Add option ``droplevels`` to the ``PandasReporter`` to drop all the levels except the ``event_start`` and ``event_value`` [see `PR #1043 <https://github.com/FlexMeasures/flexmeasures/pull/1043/>`_]
@@ -24,6 +26,11 @@ Infrastructure / Support
 * Add ``--resolution`` option to ``flexmeasures show chart`` to produce charts in different time resolutions [see `PR #1007 <https://github.com/FlexMeasures/flexmeasures/pull/1007/>`_]
 * Add ``FLEXMEASURES_JSON_COMPACT`` config setting and deprecate ``JSONIFY_PRETTYPRINT_REGULAR`` setting [see `PR #1090 <https://github.com/FlexMeasures/flexmeasures/pull/1090/>`_]
 * Removed deprecated ``app.schedulers`` and ``app.forecasters`` (use ``app.data_generators["scheduler"]`` and ``app.data_generators["forecaster"]`` instead) [see `PR #1098 <https://github.com/FlexMeasures/flexmeasures/pull/1098/>`_]
+
+Bugfixes
+-----------
+* Fix ordering of jobs on the asset status page [see `PR #1106 <https://github.com/FlexMeasures/flexmeasures/pull/1106>`_]
+* Relax max staleness for status page using 2 * event_resolution as default instead of immediate staleness [see `PR #1108 <https://github.com/FlexMeasures/flexmeasures/pull/1108>`_]
 
 
 v0.21.0 | May 16, 2024
