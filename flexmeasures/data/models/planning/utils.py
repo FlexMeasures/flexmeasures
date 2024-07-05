@@ -70,7 +70,9 @@ def initialize_index(
         )
 
 
-def add_tiny_price_slope(prices: pd.Series, d: float = 10**-3, up: bool = True) -> pd.Series:
+def add_tiny_price_slope(
+    prices: pd.Series, d: float = 10**-3, up: bool = True
+) -> pd.Series:
     """Add tiny price slope to represent e.g. inflation as a simple linear price increase.
     This is meant to break ties, when multiple time slots have equal prices, in favour of acting sooner.
     We penalise the future with at most d times the price spread (1 per thousand by default).
