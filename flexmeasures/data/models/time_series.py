@@ -554,6 +554,8 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
     def search_data_sources(
         self,
         event_starts_after: datetime_type | None = None,
+        event_ends_after: datetime_type | None = None,
+        event_starts_before: datetime_type | None = None,
         event_ends_before: datetime_type | None = None,
         source_types: list[str] | None = None,
         exclude_source_types: list[str] | None = None,
@@ -561,8 +563,27 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
 
         q = select(DataSource).join(TimedBelief).filter(TimedBelief.sensor == self)
 
+        # todo: refactor to use apply_event_timing_filters from timely-beliefs
         if event_starts_after:
             q = q.filter(TimedBelief.event_start >= event_starts_after)
+
+        if not pd.isnull(event_ends_after):
+            if self.event_resolution == timedelta(0):
+                # inclusive
+                q = q.filter(TimedBelief.event_start >= event_ends_after)
+            else:
+                # exclusive
+                q = q.filter(
+                    TimedBelief.event_start > event_ends_after - self.event_resolution
+                )
+
+        if not pd.isnull(event_starts_before):
+            if self.event_resolution == timedelta(0):
+                # inclusive
+                q = q.filter(TimedBelief.event_start <= event_starts_before)
+            else:
+                # exclusive
+                q = q.filter(TimedBelief.event_start < event_starts_before)
 
         if event_ends_before:
             q = q.filter(
