@@ -777,7 +777,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 else:
                     bdf = bdf.for_each_belief(get_median_belief)
 
-            if resolution is not None:
+            if resolution is not None and resolution != bdf.event_resolution:
                 bdf = bdf.resample_events(
                     resolution, keep_only_most_recent_belief=most_recent_beliefs_only
                 )
