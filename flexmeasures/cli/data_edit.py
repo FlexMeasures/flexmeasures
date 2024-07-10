@@ -282,7 +282,9 @@ def transfer_ownership(asset: Asset, new_owner: Account):
     def transfer_ownership_recursive(asset: Asset, account: Account):
         AssetAuditLog.add_record(
             asset,
-            f"Transferred ownership for asset '{asset.name}': {asset.id} from '{asset.owner.name}': {asset.owner.id} to '{account.name}': {account.id}",
+            f"Transferred ownership for asset '{asset.name}': {asset.id} from '{asset.owner.name}': {asset.owner.id} to '{account.name}': {account.id}"
+            if asset.owner is not None
+            else f"Assign ownership to public asset '{asset.name}': {asset.id} to '{account.name}': {account.id}",
         )
 
         asset.owner = account
