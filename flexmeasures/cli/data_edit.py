@@ -282,7 +282,7 @@ def transfer_ownership(asset: Asset, new_owner: Account):
     def transfer_ownership_recursive(asset: Asset, account: Account):
         AssetAuditLog.add_record(
             asset,
-            f"Transfered ownership for asset '{asset.name}': {asset.id} from '{asset.owner.name}': {asset.owner.id} to '{account.name}': {account.id}",
+            f"Transferred ownership for asset '{asset.name}': {asset.id} from '{asset.owner.name}': {asset.owner.id} to '{account.name}': {account.id}",
         )
 
         asset.owner = account
@@ -291,7 +291,7 @@ def transfer_ownership(asset: Asset, new_owner: Account):
 
     transfer_ownership_recursive(asset, new_owner)
     click.secho(
-        f"Success! Asset `{asset}` ownership was transfered to account `{new_owner}`.",
+        f"Success! Asset `{asset}` ownership was transferred to account `{new_owner}`.",
         **MsgStyle.SUCCESS,
     )
 
