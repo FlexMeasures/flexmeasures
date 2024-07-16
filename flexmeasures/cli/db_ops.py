@@ -98,9 +98,13 @@ def dump():
     If you have a version mismatch between server and client, here is an alternative:
 
 
-    $ docker run --pull=always -it postgres:15.7 bash
-    $ docker exec -it <run this dump command>
-    $ docker cp <conainer-id>:pgbackup_flexmeasures_production_2024-06-19-1051.dump
+    $ docker run --pull=always -it postgres:15.7 bash  # use server version here
+
+    $ docker exec -it <container> <the pg_dump command (see code)>
+
+    $ docker cp <container>:<your-dump-filename> .
+
+    $ docker stop <container>; docker rm <container>
     """
     db_uri = app.config.get("SQLALCHEMY_DATABASE_URI")
     db_host_and_db_name = db_uri.split("@")[-1]
