@@ -395,7 +395,7 @@ def create_fall_dst_transition_layer(
 
 
 def chart_for_multiple_sensors(
-    sensors_to_show: list["Sensor", list["Sensor"]],  # noqa F821
+    sensors_to_show: list["Sensor"| list["Sensor"]| dict[str, "Sensor"]],  # noqa F821
     event_starts_after: datetime | None = None,
     event_ends_before: datetime | None = None,
     **override_chart_specs: dict,
@@ -432,9 +432,17 @@ def chart_for_multiple_sensors(
 
     sensors_specs = []
     for s in sensors_to_show:
+        custom_title = None
         # List the sensors that go into one row
         if isinstance(s, list):
             row_sensors: list["Sensor"] = s  # noqa F821
+        elif isinstance(s, dict):
+            # Set up custom title for sensor
+            custom_title = s['title']
+            if isinstance(s["sensor"],list):
+                row_sensors: list["Sensor"] = s["sensor"]
+            else:    
+                row_sensors: list["Sensor"] = [s["sensor"]]     
         else:
             row_sensors: list["Sensor"] = [s]  # noqa F821
 
@@ -442,14 +450,24 @@ def chart_for_multiple_sensors(
         unit = determine_shared_unit(row_sensors)
         sensor_type = determine_shared_sensor_type(row_sensors)
 
-        # Set up field definition for event values
-        event_value_field_definition = dict(
-            title=f"{capitalize(sensor_type)} ({unit})",
-            format=[".3~r", unit],
-            formatType="quantityWithUnitFormat",
-            stack=None,
-            **FIELD_DEFINITIONS["event_value"],
-        )
+        if custom_title:
+            # Set up field definition for event values
+            event_value_field_definition = dict(
+                title=f"{capitalize(custom_title)} ({unit})",
+                format=[".3~r", unit],
+                formatType="quantityWithUnitFormat",
+                stack=None,
+                **FIELD_DEFINITIONS["event_value"],
+            )
+        else:
+            # Set up field definition for event values
+            event_value_field_definition = dict(
+                title=f"{capitalize(sensor_type)} ({unit})",
+                format=[".3~r", unit],
+                formatType="quantityWithUnitFormat",
+                stack=None,
+                **FIELD_DEFINITIONS["event_value"],
+            )
         if unit == "%":
             event_value_field_definition["scale"] = dict(
                 domain={"unionWith": [0, 105]}, nice=False

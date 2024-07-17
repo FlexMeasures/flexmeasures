@@ -602,7 +602,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         return bdf_dict
 
     @property
-    def sensors_to_show(self) -> list["Sensor" | list["Sensor"]]:  # noqa F821
+    def sensors_to_show(self) -> list["Sensor" | list["Sensor"] | dict[str, "Sensor"]]:  # noqa F821
         """Sensors to show, as defined by the sensors_to_show attribute.
 
         Sensors to show are defined as a list of sensor ids, which
@@ -611,7 +611,9 @@ class GenericAsset(db.Model, AuthModelMixin):
         or to public assets. In play mode, sensors from different accounts can be added.
 
         Sensor ids can be nested to denote that sensors should be 'shown together',
-        for example, layered rather than vertically concatenated.
+        for example, layered rather than vertically concatenated. Additionally, each row of
+        sensors can be accompanied by a title.
+
         How to interpret 'shown together' is technically left up to the function returning chart specs,
         as are any restrictions regarding what sensors can be shown together, such as:
         - whether they should share the same unit
@@ -621,6 +623,14 @@ class GenericAsset(db.Model, AuthModelMixin):
         For example, this denotes showing sensors 42 and 44 together:
 
             sensors_to_show = [40, 35, 41, [42, 44], 43, 45]
+
+        And this denotes showing sensors 42 and 44 together with a custom title:
+
+            sensors_to_show = [
+                {"title": "row1 Title", "sensor": 40},
+                {"title": "row2 Title", "sensors": [42, 44]},
+                35, 41, 43, 45
+            ]
 
         In case the field is missing, defaults to two of the asset's sensors,
         which will be shown together (e.g. sharing the same y-axis) in case they share the same unit.
@@ -673,6 +683,22 @@ class GenericAsset(db.Model, AuthModelMixin):
                             if sensor_id in accessible_sensor_map
                         ]
                     )
+            elif isinstance(s, dict) and "sensor" in s:
+                # Handle dictionary format with title
+                sensor_id = s["sensor"]
+                if isinstance(sensor_id, list):
+                    inaccessible = [sid for sid in sensor_id if sid not in accessible_sensor_map]
+                    missed_sensor_ids.extend(inaccessible)
+                    if len(inaccessible) < len(sensor_id):
+                        sensors_to_show.append(
+                            {'title': s["title"], 'sensor': [accessible_sensor_map[sid] for sid in sensor_id if sid in accessible_sensor_map]}
+                        )
+                elif sensor_id not in accessible_sensor_map:
+                    missed_sensor_ids.append(sensor_id)
+                else:
+                    sensors_to_show.append(
+                        {'title': s["title"], 'sensor': accessible_sensor_map[sensor_id]}
+                    )  
             else:
                 if s not in accessible_sensor_map:
                     missed_sensor_ids.append(s)

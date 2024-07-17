@@ -116,16 +116,34 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
         if not isinstance(sensors_to_show, list):
             raise ValidationError("sensors_to_show should be a list.")
         for sensor_listing in sensors_to_show:
-            if not isinstance(sensor_listing, (int, list)):
+            if not isinstance(sensor_listing, (int, list, dict)):
                 raise ValidationError(
-                    "sensors_to_show should only contain sensor IDs (integers) or lists thereof."
+                    "sensors_to_show should only contain sensor IDs (integers), lists of sensor IDs, or dictionaries with 'title' and 'sensor' keys."
                 )
             if isinstance(sensor_listing, list):
                 for sensor_id in sensor_listing:
                     if not isinstance(sensor_id, int):
                         raise ValidationError(
-                            "sensors_to_show should only contain sensor IDs (integers) or lists thereof."
+                            "sensors_to_show should only contain sensor IDs (integers), lists of sensor IDs, or dictionaries with 'title' and 'sensor' keys."
                         )
+            if isinstance(sensor_listing, dict):
+                # Validate dictionary format
+                if "title" not in sensor_listing or "sensor" not in sensor_listing:
+                    raise ValidationError(
+                        "sensors_to_show dictionary items must contain 'title' and 'sensor' keys."
+                    )
+                if not isinstance(sensor_listing["title"], str):
+                    raise ValidationError("The 'title' value should be a string.")
+                if not isinstance(sensor_listing["sensor"], (int, list)):
+                    raise ValidationError(
+                        "The 'sensor' value should be an integer or a list of integers."
+                    )
+                if isinstance(sensor_listing["sensor"], list):
+                    for sensor_id in sensor_listing["sensor"]:
+                        if not isinstance(sensor_id, int):
+                            raise ValidationError(
+                                "The 'sensor' list should only contain sensor IDs (integers)."
+                            )
 
         # Check whether IDs represent accessible sensors
         from flexmeasures.data.schemas import SensorIdField
