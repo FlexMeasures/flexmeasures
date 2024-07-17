@@ -239,6 +239,9 @@ def run_test_charge_discharge_sign(
         commitment_quantities,
         commitment_downwards_deviation_price,
         commitment_upwards_deviation_price,
+        device_downwards_price=device_downwards_price,
+        device_upwards_price=device_upwards_price,
+        device_future_reward=device_future_reward,
         initial_stock=soc_at_start * (timedelta(hours=1) / resolution),
     )
 
