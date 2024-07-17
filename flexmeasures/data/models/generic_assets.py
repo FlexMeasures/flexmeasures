@@ -602,7 +602,9 @@ class GenericAsset(db.Model, AuthModelMixin):
         return bdf_dict
 
     @property
-    def sensors_to_show(self) -> list["Sensor" | list["Sensor"] | dict[str, "Sensor"]]:  # noqa F821
+    def sensors_to_show(
+        self,
+    ) -> list["Sensor" | list["Sensor"] | dict[str, "Sensor"]]:  # noqa F821
         """Sensors to show, as defined by the sensors_to_show attribute.
 
         Sensors to show are defined as a list of sensor ids, which
@@ -687,18 +689,30 @@ class GenericAsset(db.Model, AuthModelMixin):
                 # Handle dictionary format with title
                 sensor_id = s["sensor"]
                 if isinstance(sensor_id, list):
-                    inaccessible = [sid for sid in sensor_id if sid not in accessible_sensor_map]
+                    inaccessible = [
+                        sid for sid in sensor_id if sid not in accessible_sensor_map
+                    ]
                     missed_sensor_ids.extend(inaccessible)
                     if len(inaccessible) < len(sensor_id):
                         sensors_to_show.append(
-                            {'title': s["title"], 'sensor': [accessible_sensor_map[sid] for sid in sensor_id if sid in accessible_sensor_map]}
+                            {
+                                "title": s["title"],
+                                "sensor": [
+                                    accessible_sensor_map[sid]
+                                    for sid in sensor_id
+                                    if sid in accessible_sensor_map
+                                ],
+                            }
                         )
                 elif sensor_id not in accessible_sensor_map:
                     missed_sensor_ids.append(sensor_id)
                 else:
                     sensors_to_show.append(
-                        {'title': s["title"], 'sensor': accessible_sensor_map[sensor_id]}
-                    )  
+                        {
+                            "title": s["title"],
+                            "sensor": accessible_sensor_map[sensor_id],
+                        }
+                    )
             else:
                 if s not in accessible_sensor_map:
                     missed_sensor_ids.append(s)

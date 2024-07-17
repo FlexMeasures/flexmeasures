@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.charts.defaults import FIELD_DEFINITIONS, REPLAY_RULER
 from flexmeasures.utils.flexmeasures_inflection import (
     capitalize,
@@ -395,7 +396,7 @@ def create_fall_dst_transition_layer(
 
 
 def chart_for_multiple_sensors(
-    sensors_to_show: list["Sensor"| list["Sensor"]| dict[str, "Sensor"]],  # noqa F821
+    sensors_to_show: list["Sensor" | list["Sensor"] | dict[str, "Sensor"]],  # noqa F821
     event_starts_after: datetime | None = None,
     event_ends_before: datetime | None = None,
     **override_chart_specs: dict,
@@ -438,11 +439,11 @@ def chart_for_multiple_sensors(
             row_sensors: list["Sensor"] = s  # noqa F821
         elif isinstance(s, dict):
             # Set up custom title for sensor
-            custom_title = s['title']
-            if isinstance(s["sensor"],list):
+            custom_title = s["title"]
+            if isinstance(s["sensor"], list):
                 row_sensors: list["Sensor"] = s["sensor"]
-            else:    
-                row_sensors: list["Sensor"] = [s["sensor"]]     
+            else:
+                row_sensors: list["Sensor"] = [s["sensor"]]
         else:
             row_sensors: list["Sensor"] = [s]  # noqa F821
 
