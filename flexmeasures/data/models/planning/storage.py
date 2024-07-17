@@ -660,6 +660,9 @@ class StorageFallbackScheduler(MetaStorageScheduler):
             commitment_quantities,
             commitment_downwards_deviation_price,
             commitment_upwards_deviation_price,
+            device_downwards_price,
+            device_upwards_price,
+            device_future_reward,
         ) = self._prepare(skip_validation=skip_validation)
 
         # Fallback policy if the problem was unsolvable
