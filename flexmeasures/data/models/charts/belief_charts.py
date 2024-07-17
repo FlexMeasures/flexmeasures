@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
+from flexmeasures import Sensor
 from flexmeasures.data.models.charts.defaults import FIELD_DEFINITIONS, REPLAY_RULER
 from flexmeasures.utils.flexmeasures_inflection import (
     capitalize,
