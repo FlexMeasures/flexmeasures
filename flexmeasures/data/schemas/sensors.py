@@ -290,6 +290,7 @@ class TimeSeriesOrSensor(MarshmallowClickMixin, fields.Field):
         self,
         to_unit,
         *args,
+        default_src_unit: str | None = None,
         timezone: str | None = None,
         value_validator: Validator | None = None,
         **kwargs,
@@ -302,6 +303,7 @@ class TimeSeriesOrSensor(MarshmallowClickMixin, fields.Field):
         self.timezone = timezone
         self.value_validator = value_validator
         self.to_unit = ur.Quantity(to_unit)
+        self.default_src_unit = default_src_unit
 
     @with_appcontext_if_needed()
     def _deserialize(
@@ -330,6 +332,20 @@ class TimeSeriesOrSensor(MarshmallowClickMixin, fields.Field):
             )
 
             return field._deserialize(value, None, None)
+
+        elif isinstance(value, str):
+            try:
+                return ur.Quantity(value).to(self.to_unit)
+            except DimensionalityError as e:
+                raise FMValidationError(
+                    f"Cannot convert value `{value}` to '{self.to_unit}'"
+                ) from e
+
+        elif self.default_src_unit is not None:
+            return self._deserialize(
+                f"{value} {self.default_src_unit}", attr, obj, **kwargs
+            )
+
         else:
             raise FMValidationError(
                 f"Unsupported value type. `{type(value)}` was provided but only dict and list are supported."
