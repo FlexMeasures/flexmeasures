@@ -302,7 +302,7 @@ class TimeSeriesOrSensor(MarshmallowClickMixin, fields.Field):
         super().__init__(*args, **kwargs)
         self.timezone = timezone
         self.value_validator = value_validator
-        self.unit = ur.Quantity(to_unit)
+        self.to_unit = ur.Quantity(to_unit)
 
     @with_appcontext_if_needed()
     def _deserialize(
@@ -315,7 +315,7 @@ class TimeSeriesOrSensor(MarshmallowClickMixin, fields.Field):
                     "Dictionary provided but `sensor` key not found."
                 )
 
-            sensor = SensorIdField(unit=self.unit)._deserialize(
+            sensor = SensorIdField(unit=self.to_unit)._deserialize(
                 value["sensor"], None, None
             )
 
