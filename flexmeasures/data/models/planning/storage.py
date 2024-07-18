@@ -170,13 +170,15 @@ class MetaStorageScheduler(Scheduler):
         commitment_downwards_deviation_price = [
             down_deviation_prices.loc[start : end - resolution]["event_value"]
         ]
+        D = 1 + len(curtailable_device_sensors) + len(inflexible_device_sensors)
         device_downwards_price = [
             initialize_series(
                 data=0,
                 start=start,
                 end=end,
                 resolution=resolution,
-            ) for d in range(1 + len(curtailable_device_sensors) + len(inflexible_device_sensors))
+            )
+            for d in range(D)
         ]
         device_upwards_price = [
             initialize_series(
@@ -184,15 +186,13 @@ class MetaStorageScheduler(Scheduler):
                 start=start,
                 end=end,
                 resolution=resolution,
-            ) for d in range(1 + len(curtailable_device_sensors) + len(inflexible_device_sensors))
+            )
+            for d in range(D)
         ]
-        device_future_reward = [
-            0
-            for d in range(1 + len(curtailable_device_sensors) + len(inflexible_device_sensors))
-        ]
+        device_future_reward = [0 for d in range(D)]
 
         # Add a tiny expected future reward for having more state of charge at the end of the planning window
-        device_future_reward[0] = 10 ** -3
+        device_future_reward[0] = 10**-3
 
         # Set up device constraints: only one scheduled flexible device for this EMS (at index 0), plus the forecasted inflexible devices (at indices 1 to n).
         device_constraints = [
@@ -660,6 +660,9 @@ class StorageFallbackScheduler(MetaStorageScheduler):
             commitment_quantities,
             commitment_downwards_deviation_price,
             commitment_upwards_deviation_price,
+            device_downwards_price,
+            device_upwards_price,
+            device_future_reward,
         ) = self._prepare(skip_validation=skip_validation)
 
         # Fallback policy if the problem was unsolvable

@@ -81,8 +81,8 @@ class PandasReporter(Reporter):
 
             if use_latest_version_only and source is None:
                 source = sensor.search_data_sources(
-                    event_starts_after=start,
-                    event_ends_before=end,
+                    event_ends_after=start,
+                    event_starts_before=end,
                     source_types=_input_search_parameters.get("source_types"),
                     exclude_source_types=_input_search_parameters.get(
                         "exclude_source_types"
