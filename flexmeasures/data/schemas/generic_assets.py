@@ -109,7 +109,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
             )
 
     @validates("attributes")
-    def validate_attributes(self, attributes: dict):
+    def validate_attributes(self, attributes: dict):  # noqa C901
         sensors_to_show = attributes.get("sensors_to_show", [])
 
         # Check type

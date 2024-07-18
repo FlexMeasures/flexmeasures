@@ -630,7 +630,7 @@ class GenericAsset(db.Model, AuthModelMixin):
 
             sensors_to_show = [
                 {"title": "row1 Title", "sensor": 40},
-                {"title": "row2 Title", "sensors": [42, 44]},
+                {"title": "row2 Title", "sensor": [42, 44]},
                 35, 41, 43, 45
             ]
 

@@ -440,9 +440,9 @@ def chart_for_multiple_sensors(
             # Set up custom title for sensor
             custom_title = s["title"]
             if isinstance(s["sensor"], list):
-                row_sensors: list["Sensor"] = s["sensor"]
+                row_sensors: list["Sensor"] = s["sensor"]  # noqa F821
             else:
-                row_sensors: list["Sensor"] = [s["sensor"]]
+                row_sensors: list["Sensor"] = [s["sensor"]]  # noqa F821
         else:
             row_sensors: list["Sensor"] = [s]  # noqa F821
 
