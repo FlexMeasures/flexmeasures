@@ -370,12 +370,11 @@ class GenericAsset(db.Model, AuthModelMixin):
         parsed_sources = parse_source_arg(source)
         annotations = db.session.scalars(
             query_asset_annotations(
-                asset_id=self.id,
+                asset_or_sensor_id=self.id if sensor_id is None else sensor_id,
                 annotations_after=annotations_after,
                 annotations_before=annotations_before,
                 sources=parsed_sources,
                 annotation_type=annotation_type,
-                sensor_id=sensor_id,
                 relationship_module=relationship_module,
             )
         ).all()

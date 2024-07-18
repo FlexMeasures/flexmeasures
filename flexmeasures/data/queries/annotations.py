@@ -14,8 +14,7 @@ from flexmeasures.data.models.data_sources import DataSource
 
 
 def query_asset_annotations(
-    asset_id: int,
-    sensor_id: int,
+    asset_or_sensor_id: int,
     relationship_module,
     annotations_after: datetime | None = None,
     annotations_before: datetime | None = None,
@@ -28,12 +27,14 @@ def query_asset_annotations(
         query = query.join(
             GenericAssetAnnotationRelationship,
             GenericAssetAnnotationRelationship.annotation_id == Annotation.id,
-        ).filter(GenericAssetAnnotationRelationship.generic_asset_id == asset_id)
+        ).filter(
+            GenericAssetAnnotationRelationship.generic_asset_id == asset_or_sensor_id
+        )
     else:
         query = query.join(
             SensorAnnotationRelationship,
             SensorAnnotationRelationship.annotation_id == Annotation.id,
-        ).filter(SensorAnnotationRelationship.sensor_id == sensor_id)
+        ).filter(SensorAnnotationRelationship.sensor_id == asset_or_sensor_id)
 
     if annotations_after is not None:
         query = query.filter(
