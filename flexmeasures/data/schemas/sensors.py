@@ -249,12 +249,11 @@ class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
                 raise FMValidationError(
                     f"Cannot convert value `{value}` to '{self.to_unit}'"
                 ) from e
+        elif self.default_src_unit is not None:
+            return self._deserialize(
+                f"{value} {self.default_src_unit}", attr, obj, **kwargs
+            )
         else:
-            if self.default_src_unit is not None:
-                return self._deserialize(
-                    f"{value} {self.default_src_unit}", attr, obj, **kwargs
-                )
-
             raise FMValidationError(
                 f"Unsupported value type. `{type(value)}` was provided but only dict and str are supported."
             )
