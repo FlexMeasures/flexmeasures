@@ -289,7 +289,7 @@ class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
 class TimeSeriesOrSensor(MarshmallowClickMixin, fields.Field):
     def __init__(
         self,
-        unit,
+        to_unit,
         *args,
         timezone: str | None = None,
         value_validator: Validator | None = None,
@@ -302,7 +302,7 @@ class TimeSeriesOrSensor(MarshmallowClickMixin, fields.Field):
         super().__init__(*args, **kwargs)
         self.timezone = timezone
         self.value_validator = value_validator
-        self.unit = ur.Quantity(unit)
+        self.unit = ur.Quantity(to_unit)
 
     @with_appcontext_if_needed()
     def _deserialize(
