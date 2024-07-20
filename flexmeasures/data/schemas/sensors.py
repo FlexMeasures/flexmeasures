@@ -351,6 +351,20 @@ class TimeSeriesOrSensor(MarshmallowClickMixin, fields.Field):
                 f"Unsupported value type. `{type(value)}` was provided but only dict and list are supported."
             )
 
+    def convert(self, value, param, ctx, **kwargs):
+        # case that the click default is defined in numeric values
+        if not isinstance(value, str):
+            return super().convert(value, param, ctx, **kwargs)
+
+        _value = re.match(r"sensor:(\d+)", value)
+
+        if _value is not None:
+            _value = {"sensor": int(_value.groups()[0])}
+        else:
+            _value = value
+
+        return super().convert(_value, param, ctx, **kwargs)
+
 
 class RepurposeValidatorToIgnoreSensors(validate.Validator):
     """Validator that executes another validator (the one you initialize it with) only on non-Sensor values."""
