@@ -355,7 +355,7 @@ class TimeSeriesOrSensor(MarshmallowClickMixin, fields.Field):
 
         else:
             raise FMValidationError(
-                f"Unsupported value type. `{type(value)}` was provided but only dict and list are supported."
+                f"Unsupported value type. `{type(value)}` was provided but only dict, list and str are supported."
             )
 
     def _serialize(
