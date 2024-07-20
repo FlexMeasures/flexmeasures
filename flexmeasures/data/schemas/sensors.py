@@ -223,7 +223,10 @@ class TimeSeriesOrQuantityOrSensor(MarshmallowClickMixin, fields.Field):
         but will let pass any sensor that has recorded negative values.
 
         :param to_unit:             Unit in which the sensor or quantity should be convertible to.
-        :param default_src_unit:    What unit to use in case of getting a numeric value.
+                                    - Time series are assumed to be passed without a unit, so they aren't checked for convertibility.
+                                    - Quantities will already be converted to the given unit.
+                                    - Sensors are checked for convertibility, but the original sensor is returned, so its values are not yet converted.
+        :param default_src_unit:    What unit to use in case of getting a numeric value. Does not apply to time series or sensors.
         :param timezone:            Only used in case a time series is specified and one of the *timed events*
                                     in the time series uses a nominal duration, such as "P1D".
         """
