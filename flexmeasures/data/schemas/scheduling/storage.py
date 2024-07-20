@@ -15,7 +15,7 @@ from marshmallow.validate import OneOf, ValidationError
 
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.units import QuantityField
-from flexmeasures.data.schemas.sensors import TimeSeriesOrQuantityOrSensor, TimeSeriesOrQuantityOrSensor
+from flexmeasures.data.schemas.sensors import TimeSeriesOrQuantityOrSensor
 
 from flexmeasures.utils.unit_utils import ur
 
