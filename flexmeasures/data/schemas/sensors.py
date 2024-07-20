@@ -351,6 +351,18 @@ class TimeSeriesOrSensor(MarshmallowClickMixin, fields.Field):
                 f"Unsupported value type. `{type(value)}` was provided but only dict and list are supported."
             )
 
+    def _serialize(
+        self, value: ur.Quantity | Sensor, attr, data, **kwargs
+    ) -> str | dict[str, int]:
+        if isinstance(value, ur.Quantity):
+            return str(value.to(self.to_unit))
+        elif isinstance(value, Sensor):
+            return dict(sensor=value.id)
+        else:
+            raise FMValidationError(
+                "Serialized Quantity Or Sensor needs to be of type int, float or Sensor"
+            )
+
     def convert(self, value, param, ctx, **kwargs):
         # case that the click default is defined in numeric values
         if not isinstance(value, str):
