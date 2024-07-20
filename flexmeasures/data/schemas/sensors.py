@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+from flask import current_app
 from marshmallow import (
     Schema,
     fields,
@@ -321,3 +323,22 @@ class RepurposeValidatorToIgnoreSensors(validate.Validator):
         if not isinstance(value, Sensor):
             self.original_validator(value)
         return value
+
+
+class QuantityOrSensor(TimeSeriesOrQuantityOrSensor):
+    def __init__(self, *args, **kwargs):
+        """Deprecated class. Use `TimeSeriesOrQuantityOrSensor` instead."""
+        current_app.logger.warning(
+            f"Class `TimeSeriesOrSensor` is deprecated. Use `TimeSeriesOrQuantityOrSensor` instead."
+        )
+        super().__init__(*args, **kwargs)
+
+
+class TimeSeriesOrSensor(TimeSeriesOrQuantityOrSensor):
+    def __init__(self, *args, **kwargs):
+        """Deprecated class. Use `TimeSeriesOrQuantityOrSensor` instead."""
+        current_app.logger.warning(
+            f"Class `TimeSeriesOrSensor` is deprecated. Use `TimeSeriesOrQuantityOrSensor` instead."
+        )
+        super().__init__(*args, **kwargs)
+
