@@ -1421,9 +1421,9 @@ def add_schedule_for_storage(  # noqa C901
                 else:
                     unit = "MW"
 
-                scheduling_kwargs[key][field_name] = TimeSeriesOrQuantityOrSensor(unit)._serialize(
-                    value, None, None
-                )
+                scheduling_kwargs[key][field_name] = TimeSeriesOrQuantityOrSensor(
+                    unit
+                )._serialize(value, None, None)
 
     if as_job:
         job = create_scheduling_job(asset_or_sensor=power_sensor, **scheduling_kwargs)

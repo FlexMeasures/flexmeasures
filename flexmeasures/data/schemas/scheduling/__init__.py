@@ -1,6 +1,9 @@
 from marshmallow import Schema, fields, validate
 
-from flexmeasures.data.schemas.sensors import TimeSeriesOrQuantityOrSensor, SensorIdField
+from flexmeasures.data.schemas.sensors import (
+    TimeSeriesOrQuantityOrSensor,
+    SensorIdField,
+)
 
 
 class FlexContextSchema(Schema):

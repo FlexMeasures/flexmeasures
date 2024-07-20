@@ -344,4 +344,3 @@ class TimeSeriesOrSensor(TimeSeriesOrQuantityOrSensor):
             f"Class `TimeSeriesOrSensor` is deprecated. Use `TimeSeriesOrQuantityOrSensor` instead."
         )
         super().__init__(*args, **kwargs)
-
