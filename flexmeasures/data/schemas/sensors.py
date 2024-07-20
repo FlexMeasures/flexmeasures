@@ -246,11 +246,9 @@ class TimeSeriesOrQuantityOrSensor(MarshmallowClickMixin, fields.Field):
                 raise FMValidationError(
                     "Dictionary provided but `sensor` key not found."
                 )
-
             sensor = SensorIdField(unit=self.to_unit)._deserialize(
                 value["sensor"], None, None
             )
-
             return sensor
 
         elif isinstance(value, list):
@@ -261,7 +259,6 @@ class TimeSeriesOrQuantityOrSensor(MarshmallowClickMixin, fields.Field):
                     )
                 )
             )
-
             return field._deserialize(value, None, None)
 
         elif isinstance(value, str):
