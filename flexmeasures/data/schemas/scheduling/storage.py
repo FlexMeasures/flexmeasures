@@ -15,7 +15,7 @@ from marshmallow.validate import OneOf, ValidationError
 
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.units import QuantityField
-from flexmeasures.data.schemas.sensors import QuantityOrSensor, TimeSeriesOrSensor
+from flexmeasures.data.schemas.sensors import TimeSeriesOrQuantityOrSensor, TimeSeriesOrQuantityOrSensor
 
 from flexmeasures.utils.unit_utils import ur
 
@@ -59,30 +59,30 @@ class StorageFlexModelSchema(Schema):
     soc_min = fields.Float(validate=validate.Range(min=0), data_key="soc-min")
     soc_max = fields.Float(data_key="soc-max")
 
-    power_capacity_in_mw = QuantityOrSensor(
+    power_capacity_in_mw = TimeSeriesOrQuantityOrSensor(
         "MW", required=False, data_key="power-capacity"
     )
 
-    consumption_capacity = QuantityOrSensor(
+    consumption_capacity = TimeSeriesOrQuantityOrSensor(
         "MW", data_key="consumption-capacity", required=False
     )
-    production_capacity = QuantityOrSensor(
+    production_capacity = TimeSeriesOrQuantityOrSensor(
         "MW", data_key="production-capacity", required=False
     )
 
     # Timezone placeholder for the soc_maxima, soc_minima and soc_targets fields are overridden in __init__
-    soc_maxima = TimeSeriesOrSensor(
+    soc_maxima = TimeSeriesOrQuantityOrSensor(
         to_unit="MWh", timezone="placeholder", data_key="soc-maxima"
     )
 
-    soc_minima = TimeSeriesOrSensor(
+    soc_minima = TimeSeriesOrQuantityOrSensor(
         to_unit="MWh",
         timezone="placeholder",
         data_key="soc-minima",
         value_validator=validate.Range(min=0),
     )
 
-    soc_targets = TimeSeriesOrSensor(
+    soc_targets = TimeSeriesOrQuantityOrSensor(
         to_unit="MWh", timezone="placeholder", data_key="soc-targets"
     )
 
@@ -96,10 +96,10 @@ class StorageFlexModelSchema(Schema):
         data_key="soc-unit",
     )  # todo: allow unit to be set per field, using QuantityField("%", validate=validate.Range(min=0, max=1))
 
-    charging_efficiency = QuantityOrSensor(
+    charging_efficiency = TimeSeriesOrQuantityOrSensor(
         "%", data_key="charging-efficiency", required=False
     )
-    discharging_efficiency = QuantityOrSensor(
+    discharging_efficiency = TimeSeriesOrQuantityOrSensor(
         "%", data_key="discharging-efficiency", required=False
     )
 
@@ -107,31 +107,31 @@ class StorageFlexModelSchema(Schema):
         data_key="roundtrip-efficiency", required=False
     )
 
-    storage_efficiency = QuantityOrSensor(
+    storage_efficiency = TimeSeriesOrQuantityOrSensor(
         "%", default_src_unit="dimensionless", data_key="storage-efficiency"
     )
     prefer_charging_sooner = fields.Bool(data_key="prefer-charging-sooner")
 
-    soc_gain = fields.List(QuantityOrSensor("MW"), data_key="soc-gain", required=False)
+    soc_gain = fields.List(TimeSeriesOrQuantityOrSensor("MW"), data_key="soc-gain", required=False)
     soc_usage = fields.List(
-        QuantityOrSensor("MW"), data_key="soc-usage", required=False
+        TimeSeriesOrQuantityOrSensor("MW"), data_key="soc-usage", required=False
     )
 
     def __init__(self, start: datetime, sensor: Sensor, *args, **kwargs):
         """Pass the schedule's start, so we can use it to validate soc-target datetimes."""
         self.start = start
         self.sensor = sensor
-        self.soc_maxima = TimeSeriesOrSensor(
+        self.soc_maxima = TimeSeriesOrQuantityOrSensor(
             to_unit="MWh", timezone=sensor.timezone, data_key="soc-maxima"
         )
 
-        self.soc_minima = TimeSeriesOrSensor(
+        self.soc_minima = TimeSeriesOrQuantityOrSensor(
             to_unit="MWh",
             timezone=sensor.timezone,
             data_key="soc-minima",
             value_validator=validate.Range(min=0),
         )
-        self.soc_targets = TimeSeriesOrSensor(
+        self.soc_targets = TimeSeriesOrQuantityOrSensor(
             to_unit="MWh", timezone=sensor.timezone, data_key="soc-targets"
         )
 

@@ -1,6 +1,6 @@
 import pytest
 from flexmeasures import Sensor
-from flexmeasures.data.schemas.sensors import QuantityOrSensor
+from flexmeasures.data.schemas.sensors import TimeSeriesOrQuantityOrSensor
 from flexmeasures.utils.unit_utils import ur
 from marshmallow import ValidationError
 
@@ -27,7 +27,7 @@ def test_quantity_or_sensor_deserialize(
     setup_dummy_sensors, sensor_id, src_quantity, dst_unit, fails
 ):
 
-    schema = QuantityOrSensor(to_unit=dst_unit)
+    schema = TimeSeriesOrQuantityOrSensor(to_unit=dst_unit)
 
     try:
         if sensor_id is None:
@@ -55,7 +55,7 @@ def test_quantity_or_sensor_conversion(
     setup_dummy_sensors, src_quantity, expected_magnitude
 ):
 
-    schema = QuantityOrSensor(to_unit="MW")
+    schema = TimeSeriesOrQuantityOrSensor(to_unit="MW")
     assert schema.deserialize(src_quantity).magnitude == expected_magnitude
 
 
@@ -81,7 +81,7 @@ def test_quantity_or_sensor_field(
     setup_dummy_sensors, sensor_id, input_param, dst_unit, fails, db
 ):
 
-    field = QuantityOrSensor(to_unit=dst_unit)
+    field = TimeSeriesOrQuantityOrSensor(to_unit=dst_unit)
 
     try:
         if sensor_id is None:

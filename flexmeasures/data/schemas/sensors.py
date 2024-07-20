@@ -204,88 +204,7 @@ class SensorIdField(MarshmallowClickMixin, fields.Int):
         return sensor.id
 
 
-class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
-    def __init__(
-        self, to_unit: str, default_src_unit: str | None = None, *args, **kwargs
-    ):
-        """Field for validating, serializing and deserializing a Quantity or a Sensor.
-
-        NB any validators passed are only applied to Quantities.
-        For example, validate=validate.Range(min=0) will raise a ValidationError in case of negative quantities,
-        but will let pass any sensor that has recorded negative values.
-
-        :param to_unit: unit in which the sensor or quantity should be convertible to
-        :param default_src_unit: what unit to use in case of getting a numeric value
-        """
-
-        _validate = kwargs.pop("validate", None)
-        super().__init__(*args, **kwargs)
-        if _validate is not None:
-            # Insert validation into self.validators so that multiple errors can be stored.
-            validator = RepurposeValidatorToIgnoreSensors(_validate)
-            self.validators.insert(0, validator)
-        self.to_unit = ur.Quantity(to_unit)
-        self.default_src_unit = default_src_unit
-
-    @with_appcontext_if_needed()
-    def _deserialize(
-        self, value: str | dict[str, int], attr, obj, **kwargs
-    ) -> ur.Quantity | Sensor:
-        if isinstance(value, dict):
-            if "sensor" not in value:
-                raise FMValidationError(
-                    "Dictionary provided but `sensor` key not found."
-                )
-            sensor = SensorIdField(unit=self.to_unit)._deserialize(
-                value["sensor"], None, None
-            )
-
-            return sensor
-
-        elif isinstance(value, str):
-            try:
-                return ur.Quantity(value).to(self.to_unit)
-            except DimensionalityError as e:
-                raise FMValidationError(
-                    f"Cannot convert value `{value}` to '{self.to_unit}'"
-                ) from e
-        elif self.default_src_unit is not None:
-            return self._deserialize(
-                f"{value} {self.default_src_unit}", attr, obj, **kwargs
-            )
-        else:
-            raise FMValidationError(
-                f"Unsupported value type. `{type(value)}` was provided but only dict and str are supported."
-            )
-
-    def _serialize(
-        self, value: ur.Quantity | Sensor, attr, data, **kwargs
-    ) -> str | dict[str, int]:
-        if isinstance(value, ur.Quantity):
-            return str(value.to(self.to_unit))
-        elif isinstance(value, Sensor):
-            return dict(sensor=value.id)
-        else:
-            raise FMValidationError(
-                "Serialized Quantity Or Sensor needs to be of type int, float or Sensor"
-            )
-
-    def convert(self, value, param, ctx, **kwargs):
-        # case that the click default is defined in numeric values
-        if not isinstance(value, str):
-            return super().convert(value, param, ctx, **kwargs)
-
-        _value = re.match(r"sensor:(\d+)", value)
-
-        if _value is not None:
-            _value = {"sensor": int(_value.groups()[0])}
-        else:
-            _value = value
-
-        return super().convert(_value, param, ctx, **kwargs)
-
-
-class TimeSeriesOrSensor(MarshmallowClickMixin, fields.Field):
+class TimeSeriesOrQuantityOrSensor(MarshmallowClickMixin, fields.Field):
     def __init__(
         self,
         to_unit,
@@ -306,7 +225,12 @@ class TimeSeriesOrSensor(MarshmallowClickMixin, fields.Field):
         :param timezone:            Only used in case a time series is specified and one of the *timed events*
                                     in the time series uses a nominal duration, such as "P1D".
         """
+        _validate = kwargs.pop("validate", None)
         super().__init__(*args, **kwargs)
+        if _validate is not None:
+            # Insert validation into self.validators so that multiple errors can be stored.
+            validator = RepurposeValidatorToIgnoreSensors(_validate)
+            self.validators.insert(0, validator)
         self.timezone = timezone
         self.value_validator = value_validator
         self.to_unit = ur.Quantity(to_unit)
