@@ -259,7 +259,7 @@ class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
             )
 
     def _serialize(
-        self, value: ur.Quantity | dict[str, Sensor], attr, data, **kwargs
+        self, value: ur.Quantity | Sensor, attr, data, **kwargs
     ) -> str | dict[str, int]:
         if isinstance(value, ur.Quantity):
             return str(value.to(self.to_unit))
