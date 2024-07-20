@@ -352,15 +352,19 @@ class TimeSeriesOrSensor(MarshmallowClickMixin, fields.Field):
             )
 
     def _serialize(
-        self, value: ur.Quantity | Sensor, attr, data, **kwargs
+        self, value: ur.Quantity | Sensor | pd.Series, attr, data, **kwargs
     ) -> str | dict[str, int]:
         if isinstance(value, ur.Quantity):
             return str(value.to(self.to_unit))
         elif isinstance(value, Sensor):
             return dict(sensor=value.id)
+        elif isinstance(value, pd.Series):
+            raise NotImplementedError(
+                "Serialization of a time series from a Pandas Series is not implemented yet."
+            )
         else:
             raise FMValidationError(
-                "Serialized Quantity Or Sensor needs to be of type int, float or Sensor"
+                "Serialized quantity, sensor or time series needs to be of type int, float, Sensor or pandas.Series."
             )
 
     def convert(self, value, param, ctx, **kwargs):
