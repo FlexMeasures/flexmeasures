@@ -314,8 +314,8 @@ class TimeSeriesOrSensor(MarshmallowClickMixin, fields.Field):
 
     @with_appcontext_if_needed()
     def _deserialize(
-        self, value: str | dict[str, int], attr, obj, **kwargs
-    ) -> list[dict] | Sensor:
+        self, value: dict[str, int] | list[dict] | str, attr, obj, **kwargs
+    ) -> list[dict] | Sensor | ur.Quantity:
 
         if isinstance(value, dict):
             if "sensor" not in value:
