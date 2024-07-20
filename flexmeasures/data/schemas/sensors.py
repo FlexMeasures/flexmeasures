@@ -332,7 +332,7 @@ class QuantityOrSensor(TimeSeriesOrQuantityOrSensor):
     def __init__(self, *args, **kwargs):
         """Deprecated class. Use `TimeSeriesOrQuantityOrSensor` instead."""
         current_app.logger.warning(
-            f"Class `TimeSeriesOrSensor` is deprecated. Use `TimeSeriesOrQuantityOrSensor` instead."
+            "Class `TimeSeriesOrSensor` is deprecated. Use `TimeSeriesOrQuantityOrSensor` instead."
         )
         super().__init__(*args, **kwargs)
 
@@ -341,6 +341,6 @@ class TimeSeriesOrSensor(TimeSeriesOrQuantityOrSensor):
     def __init__(self, *args, **kwargs):
         """Deprecated class. Use `TimeSeriesOrQuantityOrSensor` instead."""
         current_app.logger.warning(
-            f"Class `TimeSeriesOrSensor` is deprecated. Use `TimeSeriesOrQuantityOrSensor` instead."
+            "Class `TimeSeriesOrSensor` is deprecated. Use `TimeSeriesOrQuantityOrSensor` instead."
         )
         super().__init__(*args, **kwargs)
