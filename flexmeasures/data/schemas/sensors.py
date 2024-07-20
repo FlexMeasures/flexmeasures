@@ -295,9 +295,16 @@ class TimeSeriesOrSensor(MarshmallowClickMixin, fields.Field):
         value_validator: Validator | None = None,
         **kwargs,
     ):
-        """
-        The timezone is only used in case a time series is specified and one
-        of the *timed events* in the time series uses a nominal duration, such as "P1D".
+        """Field for validating, serializing and deserializing a quantity, sensor or time series.
+
+        NB any validators passed are only applied to Quantities.
+        For example, validate=validate.Range(min=0) will raise a ValidationError in case of negative quantities,
+        but will let pass any sensor that has recorded negative values.
+
+        :param to_unit:             Unit in which the sensor or quantity should be convertible to.
+        :param default_src_unit:    What unit to use in case of getting a numeric value.
+        :param timezone:            Only used in case a time series is specified and one of the *timed events*
+                                    in the time series uses a nominal duration, such as "P1D".
         """
         super().__init__(*args, **kwargs)
         self.timezone = timezone
