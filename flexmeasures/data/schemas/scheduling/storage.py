@@ -54,10 +54,27 @@ class StorageFlexModelSchema(Schema):
     You can use StorageScheduler.deserialize_flex_config to get that filled in.
     """
 
-    soc_at_start = fields.Float(required=True, data_key="soc-at-start")
+    soc_at_start = QuantityField(
+        required=True,
+        to_unit="MWh",
+        default_src_unit="dimensionless",  # placeholder, overridden in __init__
+        return_magnitude=True,
+        data_key="soc-at-start",
+    )
 
-    soc_min = fields.Float(validate=validate.Range(min=0), data_key="soc-min")
-    soc_max = fields.Float(data_key="soc-max")
+    soc_min = QuantityField(
+        validate=validate.Range(min=0),
+        to_unit="MWh",
+        default_src_unit="dimensionless",  # placeholder, overridden in __init__
+        return_magnitude=True,
+        data_key="soc-min",
+    )
+    soc_max = QuantityField(
+        to_unit="MWh",
+        default_src_unit="dimensionless",  # placeholder, overridden in __init__
+        return_magnitude=True,
+        data_key="soc-max",
+    )
 
     power_capacity_in_mw = TimeSeriesOrQuantityOrSensor(
         "MW", required=False, data_key="power-capacity"
@@ -72,18 +89,25 @@ class StorageFlexModelSchema(Schema):
 
     # Timezone placeholders for the soc_maxima, soc_minima and soc_targets fields are overridden in __init__
     soc_maxima = TimeSeriesOrQuantityOrSensor(
-        to_unit="MWh", timezone="placeholder", data_key="soc-maxima"
+        to_unit="MWh",
+        default_src_unit="dimensionless",  # placeholder, overridden in __init__
+        timezone="placeholder",
+        data_key="soc-maxima",
     )
 
     soc_minima = TimeSeriesOrQuantityOrSensor(
         to_unit="MWh",
+        default_src_unit="dimensionless",  # placeholder, overridden in __init__
         timezone="placeholder",
         data_key="soc-minima",
         value_validator=validate.Range(min=0),
     )
 
     soc_targets = TimeSeriesOrQuantityOrSensor(
-        to_unit="MWh", timezone="placeholder", data_key="soc-targets"
+        to_unit="MWh",
+        default_src_unit="dimensionless",  # placeholder, overridden in __init__
+        timezone="placeholder",
+        data_key="soc-targets",
     )
 
     soc_unit = fields.Str(
@@ -94,7 +118,7 @@ class StorageFlexModelSchema(Schema):
             ]
         ),
         data_key="soc-unit",
-    )  # todo: allow unit to be set per field, using QuantityField("%", validate=validate.Range(min=0, max=1))
+    )
 
     charging_efficiency = TimeSeriesOrQuantityOrSensor(
         "%", data_key="charging-efficiency", required=False
@@ -145,6 +169,13 @@ class StorageFlexModelSchema(Schema):
         )
 
         super().__init__(*args, **kwargs)
+        if default_soc_unit is not None:
+            setattr(self.fields["soc_at_start"], "default_src_unit", default_soc_unit)
+            setattr(self.fields["soc_min"], "default_src_unit", default_soc_unit)
+            setattr(self.fields["soc_max"], "default_src_unit", default_soc_unit)
+            setattr(self.fields["soc_minima"], "default_src_unit", default_soc_unit)
+            setattr(self.fields["soc_maxima"], "default_src_unit", default_soc_unit)
+            setattr(self.fields["soc_targets"], "default_src_unit", default_soc_unit)
 
     @validates_schema
     def check_whether_targets_exceed_max_planning_horizon(self, data: dict, **kwargs):

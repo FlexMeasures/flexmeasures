@@ -674,6 +674,7 @@ def test_soc_bounds_timeseries(db, add_battery_assets):
     resolution = timedelta(hours=1)
 
     # soc parameters
+    soc_unit = "MWh"
     soc_at_start = battery.get_attribute("soc_in_mwh")
     soc_min = 0.5
     soc_max = 4.5
@@ -697,6 +698,7 @@ def test_soc_bounds_timeseries(db, add_battery_assets):
         return soc_schedule
 
     flex_model = {
+        "soc-unit": soc_unit,
         "soc-at-start": soc_at_start,
         "soc-min": soc_min,
         "soc-max": soc_max,
@@ -715,6 +717,7 @@ def test_soc_bounds_timeseries(db, add_battery_assets):
     soc_targets = [{"datetime": "2015-01-02T19:00:00+01:00", "value": 2.0}]
 
     flex_model = {
+        "soc-unit": soc_unit,
         "soc-at-start": soc_at_start,
         "soc-min": soc_min,
         "soc-max": soc_max,

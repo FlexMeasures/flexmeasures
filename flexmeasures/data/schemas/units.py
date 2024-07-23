@@ -34,24 +34,44 @@ class QuantityField(MarshmallowClickMixin, fields.Str):
         <Quantity(0.12, 'kilowatt')>
     """
 
-    def __init__(self, to_unit: str, *args, default_src_unit: str | None = None, **kwargs):
+    def __init__(
+        self,
+        to_unit: str,
+        *args,
+        default_src_unit: str | None = None,
+        return_magnitude: bool = False,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
         # Insert validation into self.validators so that multiple errors can be stored.
         validator = QuantityValidator()
         self.validators.insert(0, validator)
         self.to_unit = ur.Quantity(to_unit)
         self.default_src_unit = default_src_unit
+        self.return_magnitude = return_magnitude
 
-    def _deserialize(self, value, attr, obj, **kwargs) -> ur.Quantity:
+    def _deserialize(
+        self,
+        value,
+        attr,
+        obj,
+        return_magnitude: bool | None = None,
+        **kwargs,
+    ) -> ur.Quantity:
         """Turn a quantity describing string into a Quantity."""
+        if return_magnitude is None:
+            return_magnitude = self.return_magnitude
         if isinstance(value, str):
-            return ur.Quantity(value).to(self.to_unit)
+            q = ur.Quantity(value).to(self.to_unit)
         elif self.default_src_unit is not None:
-            return self._deserialize(
-                f"{value} {self.default_src_unit}", attr, obj, **kwargs
+            q = self._deserialize(
+                f"{value} {self.default_src_unit}", attr, obj, **kwargs, return_magnitude=False
             )
         else:
-            self._deserialize(f"{value}", attr, obj, **kwargs)
+            q = self._deserialize(f"{value}", attr, obj, **kwargs, return_magnitude=False)
+        if return_magnitude:
+            return q.magnitude
+        return q
 
     def _serialize(self, value, attr, data, **kwargs):
         """Turn a Quantity into a string in scientific format."""

@@ -46,6 +46,7 @@ class TimedEventSchema(Schema):
         required=True,
         to_unit="dimensionless",  # placeholder, overridden in __init__
         default_src_unit="dimensionless",  # placeholder, overridden in __init__
+        return_magnitude=True,  # placeholder, overridden in __init__
     )
     datetime = AwareDateTimeField(required=False)
     start = AwareDateTimeField(required=False)
@@ -58,6 +59,7 @@ class TimedEventSchema(Schema):
         value_validator: Validator | None = None,
         to_unit: str | None = None,
         default_src_unit: str | None = None,
+        return_magnitude: bool = True,
         *args,
         **kwargs,
     ):
@@ -68,8 +70,11 @@ class TimedEventSchema(Schema):
         self.timezone = timezone
         self.value_validator = value_validator
         super().__init__(*args, **kwargs)
-        setattr(self.fields["value"], "to_unit", to_unit)
-        setattr(self.fields["value"], "default_src_unit", default_src_unit)
+        if to_unit is not None:
+            setattr(self.fields["value"], "to_unit", to_unit)
+        if default_src_unit is not None:
+            setattr(self.fields["value"], "default_src_unit", default_src_unit)
+        setattr(self.fields["value"], "return_magnitude", return_magnitude)
 
     @validates("value")
     def validate_value(self, _value):
@@ -221,11 +226,14 @@ class TimeSeriesOrQuantityOrSensor(MarshmallowClickMixin, fields.Field):
         to_unit,
         *args,
         default_src_unit: str | None = None,
+        return_magnitude: bool = True,
         timezone: str | None = None,
         value_validator: Validator | None = None,
         **kwargs,
     ):
         """Field for validating, serializing and deserializing a quantity, sensor or time series.
+
+        # todo: Sensor should perhaps deserialize already to sensor data
 
         NB any validators passed are only applied to Quantities.
         For example, validate=validate.Range(min=0) will raise a ValidationError in case of negative quantities,
@@ -236,6 +244,7 @@ class TimeSeriesOrQuantityOrSensor(MarshmallowClickMixin, fields.Field):
                                     - Quantities will already be converted to the given unit.
                                     - Sensors are checked for convertibility, but the original sensor is returned, so its values are not yet converted.
         :param default_src_unit:    What unit to use in case of getting a numeric value. Does not apply to time series or sensors.
+        :param return_magnitude:    In case of getting a time series, whether the result should include the magnitude of each quantity, or each Quantity object itself
         :param timezone:            Only used in case a time series is specified and one of the *timed events*
                                     in the time series uses a nominal duration, such as "P1D".
         """
@@ -249,6 +258,7 @@ class TimeSeriesOrQuantityOrSensor(MarshmallowClickMixin, fields.Field):
         self.value_validator = value_validator
         self.to_unit = ur.Quantity(to_unit)
         self.default_src_unit = default_src_unit
+        self.return_magnitude = return_magnitude
 
     @with_appcontext_if_needed()
     def _deserialize(
@@ -266,6 +276,10 @@ class TimeSeriesOrQuantityOrSensor(MarshmallowClickMixin, fields.Field):
             return sensor
 
         elif isinstance(value, list):
+            if self.return_magnitude is True:
+                current_app.logger.warning(
+                    "Deserialized time series will include Quantity objects in the future. Set `return_magnitude=False` to trigger the new behaviour."
+                )
             field = fields.List(
                 fields.Nested(
                     TimedEventSchema(
@@ -273,6 +287,7 @@ class TimeSeriesOrQuantityOrSensor(MarshmallowClickMixin, fields.Field):
                         value_validator=self.value_validator,
                         to_unit=self.to_unit,
                         default_src_unit=self.default_src_unit,
+                        return_magnitude=self.return_magnitude,
                     )
                 )
             )

@@ -111,7 +111,11 @@ def test_time_series_field(
     input_param, dst_unit, fails, db
 ):
 
-    field = TimeSeriesOrQuantityOrSensor(to_unit=dst_unit, default_src_unit="MWh")
+    field = TimeSeriesOrQuantityOrSensor(
+        to_unit=dst_unit,
+        default_src_unit="MWh",
+        return_magnitude=False,
+    )
 
     try:
         val = field.convert(input_param, None, None)
