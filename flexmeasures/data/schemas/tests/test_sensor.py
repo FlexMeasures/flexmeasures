@@ -1,6 +1,6 @@
 import pytest
 from flexmeasures import Sensor
-from flexmeasures.data.schemas.sensors import QuantityOrSensor
+from flexmeasures.data.schemas.sensors import QuantityOrSensor, TimeSeriesOrQuantityOrSensor
 from flexmeasures.utils.unit_utils import ur
 from marshmallow import ValidationError
 
@@ -35,8 +35,8 @@ def test_quantity_or_sensor_deserialize(
         else:
             schema.deserialize({"sensor": sensor_id})
         assert not fails
-    except ValidationError:
-        assert fails
+    except ValidationError as e:
+        assert fails, e
 
 
 @pytest.mark.parametrize(
@@ -92,5 +92,32 @@ def test_quantity_or_sensor_field(
             assert val == db.session.get(Sensor, sensor_id)
 
         assert not fails
-    except Exception:
-        assert fails
+    except Exception as e:
+        assert fails, e
+
+
+@pytest.mark.parametrize(
+    "input_param, dst_unit, fails",
+    [
+        # deserialize a quantity
+        ([{"value": 1, "datetime": "2024-07-21T00:15+07"}], "MWh", False),
+        ([{"value": "1", "datetime": "2024-07-21T00:15+07"}], "MWh", True),
+        ([{"value": "1MWh", "datetime": "2024-07-21T00:15+07"}], "MWh", False),
+        ([{"value": "1000 kWh", "datetime": "2024-07-21T00:15+07"}], "MWh", False),
+        ([{"value": "1 MW", "datetime": "2024-07-21T00:15+07"}], "MWh", True),
+    ],
+)
+def test_time_series_field(
+    input_param, dst_unit, fails, db
+):
+
+    field = TimeSeriesOrQuantityOrSensor(to_unit=dst_unit, default_src_unit="MWh")
+
+    try:
+        val = field.convert(input_param, None, None)
+        assert val[0]["value"].units == ur.Unit(dst_unit)
+        assert val[0]["value"].magnitude == 1
+
+        assert not fails
+    except Exception as e:
+        assert fails, e

@@ -70,7 +70,7 @@ class StorageFlexModelSchema(Schema):
         "MW", data_key="production-capacity", required=False
     )
 
-    # Timezone placeholder for the soc_maxima, soc_minima and soc_targets fields are overridden in __init__
+    # Timezone placeholders for the soc_maxima, soc_minima and soc_targets fields are overridden in __init__
     soc_maxima = TimeSeriesOrQuantityOrSensor(
         to_unit="MWh", timezone="placeholder", data_key="soc-maxima"
     )
@@ -119,22 +119,29 @@ class StorageFlexModelSchema(Schema):
         TimeSeriesOrQuantityOrSensor("MW"), data_key="soc-usage", required=False
     )
 
-    def __init__(self, start: datetime, sensor: Sensor, *args, **kwargs):
+    def __init__(self, start: datetime, sensor: Sensor, *args, default_soc_unit: str | None = None, **kwargs):
         """Pass the schedule's start, so we can use it to validate soc-target datetimes."""
         self.start = start
         self.sensor = sensor
         self.soc_maxima = TimeSeriesOrQuantityOrSensor(
-            to_unit="MWh", timezone=sensor.timezone, data_key="soc-maxima"
+            to_unit="MWh",
+            default_src_unit=default_soc_unit,
+            timezone=sensor.timezone,
+            data_key="soc-maxima",
         )
 
         self.soc_minima = TimeSeriesOrQuantityOrSensor(
             to_unit="MWh",
+            default_src_unit=default_soc_unit,
             timezone=sensor.timezone,
             data_key="soc-minima",
             value_validator=validate.Range(min=0),
         )
         self.soc_targets = TimeSeriesOrQuantityOrSensor(
-            to_unit="MWh", timezone=sensor.timezone, data_key="soc-targets"
+            to_unit="MWh",
+            default_src_unit=default_soc_unit,
+            timezone=sensor.timezone,
+            data_key="soc-targets",
         )
 
         super().__init__(*args, **kwargs)

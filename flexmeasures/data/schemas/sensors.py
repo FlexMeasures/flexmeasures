@@ -27,6 +27,7 @@ from flexmeasures.data.schemas.utils import (
 )
 from flexmeasures.utils.unit_utils import is_valid_unit, ur, units_are_convertible
 from flexmeasures.data.schemas.times import DurationField, AwareDateTimeField
+from flexmeasures.data.schemas.units import QuantityField
 
 
 class JSON(fields.Field):
@@ -41,7 +42,11 @@ class JSON(fields.Field):
 
 
 class TimedEventSchema(Schema):
-    value = fields.Float(required=True)
+    value = QuantityField(
+        required=True,
+        to_unit="dimensionless",  # placeholder, overridden in __init__
+        default_src_unit="dimensionless",  # placeholder, overridden in __init__
+    )
     datetime = AwareDateTimeField(required=False)
     start = AwareDateTimeField(required=False)
     end = AwareDateTimeField(required=False)
@@ -51,6 +56,8 @@ class TimedEventSchema(Schema):
         self,
         timezone: str | None = None,
         value_validator: Validator | None = None,
+        to_unit: str | None = None,
+        default_src_unit: str | None = None,
         *args,
         **kwargs,
     ):
@@ -61,6 +68,8 @@ class TimedEventSchema(Schema):
         self.timezone = timezone
         self.value_validator = value_validator
         super().__init__(*args, **kwargs)
+        setattr(self.fields["value"], "to_unit", to_unit)
+        setattr(self.fields["value"], "default_src_unit", default_src_unit)
 
     @validates("value")
     def validate_value(self, _value):
@@ -260,7 +269,10 @@ class TimeSeriesOrQuantityOrSensor(MarshmallowClickMixin, fields.Field):
             field = fields.List(
                 fields.Nested(
                     TimedEventSchema(
-                        timezone=self.timezone, value_validator=self.value_validator
+                        timezone=self.timezone,
+                        value_validator=self.value_validator,
+                        to_unit=self.to_unit,
+                        default_src_unit=self.default_src_unit,
                     )
                 )
             )

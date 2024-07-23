@@ -34,16 +34,24 @@ class QuantityField(MarshmallowClickMixin, fields.Str):
         <Quantity(0.12, 'kilowatt')>
     """
 
-    def __init__(self, to_unit: str, *args, **kwargs):
+    def __init__(self, to_unit: str, *args, default_src_unit: str | None = None, **kwargs):
         super().__init__(*args, **kwargs)
         # Insert validation into self.validators so that multiple errors can be stored.
         validator = QuantityValidator()
         self.validators.insert(0, validator)
         self.to_unit = ur.Quantity(to_unit)
+        self.default_src_unit = default_src_unit
 
     def _deserialize(self, value, attr, obj, **kwargs) -> ur.Quantity:
         """Turn a quantity describing string into a Quantity."""
-        return ur.Quantity(value).to(self.to_unit)
+        if isinstance(value, str):
+            return ur.Quantity(value).to(self.to_unit)
+        elif self.default_src_unit is not None:
+            return self._deserialize(
+                f"{value} {self.default_src_unit}", attr, obj, **kwargs
+            )
+        else:
+            self._deserialize(f"{value}", attr, obj, **kwargs)
 
     def _serialize(self, value, attr, data, **kwargs):
         """Turn a Quantity into a string in scientific format."""
