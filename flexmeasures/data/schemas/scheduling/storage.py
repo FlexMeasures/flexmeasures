@@ -63,7 +63,7 @@ class StorageFlexModelSchema(Schema):
     )
 
     soc_min = QuantityField(
-        validate=validate.Range(min=0),
+        validate=validate.Range(min=0),  # change to min=ur.Quantity("0 MWh") in case return_magnitude=False
         to_unit="MWh",
         default_src_unit="dimensionless",  # placeholder, overridden in __init__
         return_magnitude=True,
@@ -226,33 +226,8 @@ class StorageFlexModelSchema(Schema):
     @post_load
     def post_load_sequence(self, data: dict, **kwargs) -> dict:
         """Perform some checks and corrections after we loaded."""
-        # currently we only handle MWh internally
-        # TODO: review when we moved away from capacity having to be described in MWh
-        if data.get("soc_unit") == "kWh":
-            data["soc_at_start"] /= 1000.0
-            if data.get("soc_min") is not None:
-                data["soc_min"] /= 1000.0
-            if data.get("soc_max") is not None:
-                data["soc_max"] /= 1000.0
-            if (
-                not isinstance(data.get("soc_targets"), Sensor)
-                and data.get("soc_targets") is not None
-            ):
-                for target in data["soc_targets"]:
-                    target["value"] /= 1000.0
-            if (
-                not isinstance(data.get("soc_minima"), Sensor)
-                and data.get("soc_minima") is not None
-            ):
-                for minimum in data["soc_minima"]:
-                    minimum["value"] /= 1000.0
-            if (
-                not isinstance(data.get("soc_maxima"), Sensor)
-                and data.get("soc_maxima") is not None
-            ):
-                for maximum in data["soc_maxima"]:
-                    maximum["value"] /= 1000.0
-            data["soc_unit"] = "MWh"
+        # currently we only handle MWh internally, and the conversion to MWh happened during deserialization
+        data["soc_unit"] = "MWh"
 
         # Convert efficiency to dimensionless (to the (0,1] range)
         if data.get("roundtrip_efficiency") is not None:

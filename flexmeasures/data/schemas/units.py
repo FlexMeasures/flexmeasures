@@ -62,6 +62,8 @@ class QuantityField(MarshmallowClickMixin, fields.Str):
         if return_magnitude is None:
             return_magnitude = self.return_magnitude
         if isinstance(value, str):
+            if not is_valid_unit(value):
+                raise ValidationError("Not a valid quantity")
             q = ur.Quantity(value).to(self.to_unit)
         elif self.default_src_unit is not None:
             q = self._deserialize(

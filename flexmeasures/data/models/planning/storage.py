@@ -420,17 +420,7 @@ class MetaStorageScheduler(Scheduler):
     def persist_flex_model(self):
         """Store new soc info as GenericAsset attributes"""
         self.sensor.generic_asset.set_attribute("soc_datetime", self.start.isoformat())
-        soc_unit = self.flex_model.get("soc_unit")
-        if soc_unit == "kWh":
-            self.sensor.generic_asset.set_attribute(
-                "soc_in_mwh", self.flex_model["soc_at_start"] / 1000
-            )
-        elif soc_unit == "MWh":
-            self.sensor.generic_asset.set_attribute(
-                "soc_in_mwh", self.flex_model["soc_at_start"]
-            )
-        else:
-            raise NotImplementedError(f"Unsupported SoC unit '{soc_unit}'.")
+        self.sensor.generic_asset.set_attribute("soc_in_mwh", self.flex_model["soc_at_start"])
 
     def deserialize_flex_config(self):
         """
