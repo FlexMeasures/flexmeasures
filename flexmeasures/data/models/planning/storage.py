@@ -470,6 +470,9 @@ class MetaStorageScheduler(Scheduler):
                 self.flex_model["soc-unit"] = self.sensor.unit
             elif self.sensor.unit in ("MW", "kW"):
                 self.flex_model["soc-unit"] = self.sensor.unit + "h"
+            else:
+                # todo: raise? Surely we must have a unit.
+                pass
 
         self.ensure_soc_min_max()
 
