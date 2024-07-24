@@ -98,25 +98,25 @@ and what constraints or preferences should be taken into account.
      - Example value
      - Description 
    * - ``soc-at-start``
-     - ``"3.1"``
+     - ``"3.1 kWh"``
      - The (estimated) state of charge at the beginning of the schedule (defaults to 0).
    * - ``soc-unit``
      - ``"kWh"`` or ``"MWh"``
-     - The unit in which all SoC related flex-model values are to be interpreted.
+     - The unit used to interpret any SoC related flex-model value that does not mention a unit itself (only applies to numeric values, so not to string values).
    * - ``soc-min``
-     - ``"2.5"``
+     - ``"2.5 kWh"``
      - A constant lower boundary for all values in the schedule (defaults to 0).
    * - ``soc-max``
-     - ``"7"``
+     - ``"7 kWh"``
      - A constant upper boundary for all values in the schedule (defaults to max soc target, if provided)
    * - ``soc-minima``
-     - ``[{"datetime": "2024-02-05T08:00:00+01:00", value: 8.2}]``
+     - ``[{"datetime": "2024-02-05T08:00:00+01:00", value: "8.2 kWh"}]``
      - Set point(s) that form lower boundaries, e.g. to target a full car battery in the morning. Can be single values or a range (defaults to NaN values).
    * - ``soc-maxima``
-     - ``{"value": 51, "start": "2024-02-05T12:00:00+01:00","end": "2024-02-05T13:30:00+01:00"}``
+     - ``{"value": "51 kWh", "start": "2024-02-05T12:00:00+01:00", "end": "2024-02-05T13:30:00+01:00"}``
      - Set point(s) that form upper boundaries at certain times. Can be single values or a range (defaults to NaN values).
    * - ``soc-targets``
-     - ``[{"datetime": "2024-02-05T08:00:00+01:00", value: 3.2}]``
+     - ``[{"datetime": "2024-02-05T08:00:00+01:00", value: "3.2 kWh"}]``
      - Exact set point(s) that the scheduler needs to realize (defaults to NaN values).
    * - ``soc-gain``
      - ``.1kWh`` 
