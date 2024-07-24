@@ -15,9 +15,13 @@ from marshmallow.validate import OneOf, ValidationError
 
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.units import QuantityField
-from flexmeasures.data.schemas.sensors import QuantityOrSensor, TimeSeriesOrSensor
+from flexmeasures.data.schemas.sensors import (
+    QuantityOrSensor,
+    TimeSeriesOrSensor,
+    QuantityOrValue,
+)
 
-from flexmeasures.utils.unit_utils import ur
+from flexmeasures.utils.unit_utils import convert_units, ur
 
 
 class EfficiencyField(QuantityField):
@@ -54,10 +58,17 @@ class StorageFlexModelSchema(Schema):
     You can use StorageScheduler.deserialize_flex_config to get that filled in.
     """
 
-    soc_at_start = fields.Float(required=True, data_key="soc-at-start")
+    soc_at_start = QuantityOrValue(
+        required=True, data_key="soc-at-start", default_src_unit="MWh", to_unit="MWh"
+    )
 
-    soc_min = fields.Float(validate=validate.Range(min=0), data_key="soc-min")
-    soc_max = fields.Float(data_key="soc-max")
+    soc_min = QuantityOrValue(
+        data_key="soc-min",
+        default_src_unit="MWh",
+        to_unit="MWh",
+        validate=validate.Range(min=0),
+    )
+    soc_max = QuantityOrValue(data_key="soc-max", default_src_unit="MWh", to_unit="MWh")
 
     power_capacity_in_mw = QuantityOrSensor(
         "MW", required=False, data_key="power-capacity"
@@ -185,34 +196,33 @@ class StorageFlexModelSchema(Schema):
 
     @post_load
     def post_load_sequence(self, data: dict, **kwargs) -> dict:
-        """Perform some checks and corrections after we loaded."""
-        # currently we only handle MWh internally
-        # TODO: review when we moved away from capacity having to be described in MWh
-        if data.get("soc_unit") == "kWh":
-            data["soc_at_start"] /= 1000.0
-            if data.get("soc_min") is not None:
-                data["soc_min"] /= 1000.0
-            if data.get("soc_max") is not None:
-                data["soc_max"] /= 1000.0
-            if (
-                not isinstance(data.get("soc_targets"), Sensor)
-                and data.get("soc_targets") is not None
-            ):
-                for target in data["soc_targets"]:
-                    target["value"] /= 1000.0
-            if (
-                not isinstance(data.get("soc_minima"), Sensor)
-                and data.get("soc_minima") is not None
-            ):
-                for minimum in data["soc_minima"]:
-                    minimum["value"] /= 1000.0
-            if (
-                not isinstance(data.get("soc_maxima"), Sensor)
-                and data.get("soc_maxima") is not None
-            ):
-                for maximum in data["soc_maxima"]:
-                    maximum["value"] /= 1000.0
-            data["soc_unit"] = "MWh"
+        """Perform some checks and corrections after we loaded.
+
+        The function converts the quantities to MWh.
+        """
+
+        for variable in [
+            "soc_min",
+            "soc_max",
+            "soc_at_start",
+            "soc_targets",
+            "soc_minima",
+            "soc_maxima",
+        ]:
+            if variable in data and data[variable] is not None:
+                if isinstance(data[variable], ur.Quantity):
+                    data[variable] = data[variable].magnitude
+                elif isinstance(data[variable], float) or isinstance(
+                    data[variable], int
+                ):
+                    source_unit = data.get("soc_unit", "MWh")
+                    data[variable] *= convert_units(1, source_unit, "MWh")
+                elif isinstance(data[variable], list):
+                    source_unit = data.get("soc_unit", "MWh")
+                    for element in data[variable]:
+                        element["value"] *= convert_units(1, source_unit, "MWh")
+
+        data["soc_unit"] = "MWh"
 
         # Convert efficiency to dimensionless (to the (0,1] range)
         if data.get("roundtrip_efficiency") is not None:

@@ -8,7 +8,7 @@ from marshmallow import (
     validates_schema,
 )
 from marshmallow.validate import Validator
-from pint import DimensionalityError
+from pint import DimensionalityError, UndefinedUnitError
 
 import json
 import re
@@ -284,6 +284,67 @@ class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
             _value = value
 
         return super().convert(_value, param, ctx, **kwargs)
+
+
+class QuantityOrValue(MarshmallowClickMixin, fields.Field):
+    def __init__(
+        self, to_unit: str, default_src_unit: str | None = None, *args, **kwargs
+    ):
+        """Field for validating, serializing and deserializing a quantity or a value (int or float).
+
+        NB any validators passed are only applied to Quantities.
+        For example, validate=validate.Range(min=0) will raise a ValidationError in case of negative quantities,
+        but will let pass any sensor that has recorded negative values.
+
+        :param to_unit: unit in which the sensor or quantity should be convertible to
+        :param default_src_unit: what unit to use in case of getting a numeric value
+        """
+
+        _validate = kwargs.pop("validate", None)
+        super().__init__(*args, **kwargs)
+        if _validate is not None:
+            # Insert validation into self.validators so that multiple errors can be stored.
+            validator = RepurposeValidatorToIgnoreSensors(_validate)
+            self.validators.insert(0, validator)
+
+        self.to_unit = ur.Quantity(to_unit)
+        self.default_src_unit = default_src_unit
+
+    @with_appcontext_if_needed()
+    def _deserialize(
+        self, value: str | float | int, attr, obj, **kwargs
+    ) -> ur.Quantity | float:
+
+        if isinstance(value, str):
+            try:
+                return ur.Quantity(value).to(self.to_unit)
+            except DimensionalityError as e:
+                raise FMValidationError(
+                    f"Cannot convert value `{value}` to '{self.to_unit}'"
+                ) from e
+            except UndefinedUnitError as e:
+                raise FMValidationError(
+                    f"Cannot interpret `{value}` as a quantity with valid units."
+                ) from e
+
+        elif isinstance(value, float) or isinstance(value, int):
+            return value
+        else:
+            raise FMValidationError(
+                f"Unsupported value type. `{type(value)}` was provided but only float, int and str are supported."
+            )
+
+    def _serialize(
+        self, value: ur.Quantity | float | int, attr, data, **kwargs
+    ) -> str | float | int:
+        if isinstance(value, ur.Quantity):
+            return str(value.to(self.to_unit))
+        elif isinstance(value, float) or isinstance(value, int):
+            return value
+        else:
+            raise FMValidationError(
+                "Serialized quantity or value needs to be of type Quatity, float or int."
+            )
 
 
 class TimeSeriesOrSensor(MarshmallowClickMixin, fields.Field):

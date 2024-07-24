@@ -264,3 +264,50 @@ def test_flex_context_schema(db, app, setup_site_capacity_sensor, flex_context, 
             )
     else:
         schema.load(flex_context)
+
+
+@pytest.mark.parametrize(
+    "soc_unit, serialized_value, expected_deserialized_value",
+    [
+        ("MWh", 1, 1),
+        ("kWh", 1000, 1),
+        ("kWh", "1MWh", 1),
+        ("MWh", "1MWh", 1),
+        ("MWh", "1000kWh", 1),
+        ("kWh", "1000kWh", 1),
+    ],
+)
+@pytest.mark.parametrize(
+    "serialized_field,  deserialized_field",
+    [
+        ("soc-min", "soc_min"),
+        ("soc-max", "soc_max"),
+        ("soc-at-start", "soc_at_start"),
+    ],
+)
+def test_flex_model_units(
+    db,
+    app,
+    setup_dummy_sensors,
+    serialized_field,
+    deserialized_field,
+    soc_unit,
+    serialized_value,
+    expected_deserialized_value,
+):
+    """
+    Test if flex-model schema deserializes the fields soc-min, soc-max an soc-at-start
+    as numeric values in MWh.
+    """
+    sensor1, _ = setup_dummy_sensors
+
+    schema = StorageFlexModelSchema(
+        sensor=sensor1,
+        start=datetime(2023, 1, 1, tzinfo=pytz.UTC),
+    )
+
+    flex_model = {"soc-unit": soc_unit, "soc-at-start": 0}
+    flex_model[serialized_field] = serialized_value
+
+    deserialized_flex_model = schema.load(flex_model)
+    assert deserialized_flex_model[deserialized_field] == expected_deserialized_value
