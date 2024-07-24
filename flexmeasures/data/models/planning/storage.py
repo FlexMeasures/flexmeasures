@@ -473,7 +473,7 @@ class MetaStorageScheduler(Scheduler):
 
         self.ensure_soc_min_max()
 
-        # Now it's time to check if our flex configurations holds up to schemas
+        # Now it's time to check if our flex configuration holds up to schemas
         self.flex_model = StorageFlexModelSchema(
             start=self.start, sensor=self.sensor, default_soc_unit=self.flex_model["soc-unit"]
         ).load(self.flex_model)
