@@ -1,6 +1,9 @@
 import pytest
 from flexmeasures import Sensor
-from flexmeasures.data.schemas.sensors import QuantityOrSensor, TimeSeriesOrQuantityOrSensor
+from flexmeasures.data.schemas.sensors import (
+    QuantityOrSensor,
+    TimeSeriesOrQuantityOrSensor,
+)
 from flexmeasures.utils.unit_utils import ur
 from marshmallow import ValidationError
 
@@ -107,9 +110,7 @@ def test_quantity_or_sensor_field(
         ([{"value": "1 MW", "datetime": "2024-07-21T00:15+07"}], "MWh", True),
     ],
 )
-def test_time_series_field(
-    input_param, dst_unit, fails, db
-):
+def test_time_series_field(input_param, dst_unit, fails, db):
 
     field = TimeSeriesOrQuantityOrSensor(
         to_unit=dst_unit,

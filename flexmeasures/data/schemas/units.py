@@ -67,10 +67,16 @@ class QuantityField(MarshmallowClickMixin, fields.Str):
             q = ur.Quantity(value).to(self.to_unit)
         elif self.default_src_unit is not None:
             q = self._deserialize(
-                f"{value} {self.default_src_unit}", attr, obj, **kwargs, return_magnitude=False
+                f"{value} {self.default_src_unit}",
+                attr,
+                obj,
+                **kwargs,
+                return_magnitude=False,
             )
         else:
-            q = self._deserialize(f"{value}", attr, obj, **kwargs, return_magnitude=False)
+            q = self._deserialize(
+                f"{value}", attr, obj, **kwargs, return_magnitude=False
+            )
         if return_magnitude:
             return q.magnitude
         return q

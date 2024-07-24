@@ -63,7 +63,9 @@ class StorageFlexModelSchema(Schema):
     )
 
     soc_min = QuantityField(
-        validate=validate.Range(min=0),  # change to min=ur.Quantity("0 MWh") in case return_magnitude=False
+        validate=validate.Range(
+            min=0
+        ),  # change to min=ur.Quantity("0 MWh") in case return_magnitude=False
         to_unit="MWh",
         default_src_unit="dimensionless",  # placeholder, overridden in __init__
         return_magnitude=True,
@@ -143,7 +145,14 @@ class StorageFlexModelSchema(Schema):
         TimeSeriesOrQuantityOrSensor("MW"), data_key="soc-usage", required=False
     )
 
-    def __init__(self, start: datetime, sensor: Sensor, *args, default_soc_unit: str | None = None, **kwargs):
+    def __init__(
+        self,
+        start: datetime,
+        sensor: Sensor,
+        *args,
+        default_soc_unit: str | None = None,
+        **kwargs,
+    ):
         """Pass the schedule's start, so we can use it to validate soc-target datetimes."""
         self.start = start
         self.sensor = sensor

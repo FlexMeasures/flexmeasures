@@ -420,7 +420,9 @@ class MetaStorageScheduler(Scheduler):
     def persist_flex_model(self):
         """Store new soc info as GenericAsset attributes"""
         self.sensor.generic_asset.set_attribute("soc_datetime", self.start.isoformat())
-        self.sensor.generic_asset.set_attribute("soc_in_mwh", self.flex_model["soc_at_start"])
+        self.sensor.generic_asset.set_attribute(
+            "soc_in_mwh", self.flex_model["soc_at_start"]
+        )
 
     def deserialize_flex_config(self):
         """
@@ -468,7 +470,9 @@ class MetaStorageScheduler(Scheduler):
 
         # Now it's time to check if our flex configuration holds up to schemas
         self.flex_model = StorageFlexModelSchema(
-            start=self.start, sensor=self.sensor, default_soc_unit=self.flex_model["soc-unit"]
+            start=self.start,
+            sensor=self.sensor,
+            default_soc_unit=self.flex_model["soc-unit"],
         ).load(self.flex_model)
         self.flex_context = FlexContextSchema().load(self.flex_context)
 
