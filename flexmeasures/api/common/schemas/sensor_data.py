@@ -5,7 +5,7 @@ from datetime import timedelta
 from flask_login import current_user
 from isodate import datetime_isoformat
 from marshmallow import fields, post_load, validates_schema, ValidationError
-from marshmallow.validate import OneOf
+from marshmallow.validate import OneOf, Length
 from marshmallow_polyfield import PolyField
 from timely_beliefs import BeliefsDataFrame
 import pandas as pd
@@ -63,7 +63,7 @@ def select_schema_to_ensure_list_of_floats(
     This ensures that we are not requiring the same flexibility from users who are retrieving data.
     """
     if isinstance(values, list):
-        return fields.List(fields.Float(allow_none=True))
+        return fields.List(fields.Float(allow_none=True), validate=Length(min=1))
     else:
         return SingleValueField()
 
@@ -268,6 +268,7 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         Currently, only upsampling is supported (e.g. converting hourly events to 15-minute events).
         """
         required_resolution = data["sensor"].event_resolution
+
         if required_resolution == timedelta(hours=0):
             # For instantaneous sensors, any event frequency is compatible
             return
@@ -344,11 +345,21 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         source = get_or_create_source(current_user)
         num_values = len(sensor_data["values"])
         event_resolution = sensor_data["duration"] / num_values
-        dt_index = pd.date_range(
-            sensor_data["start"],
-            periods=num_values,
-            freq=event_resolution,
-        )
+
+        if event_resolution == timedelta(hours=0):
+            assert (
+                num_values <= 1
+            ), "Cannot save multiple instantenous values simultaneously."
+            dt_index = pd.date_range(
+                sensor_data["start"],
+                periods=num_values,
+            )
+        else:
+            dt_index = pd.date_range(
+                sensor_data["start"],
+                periods=num_values,
+                freq=event_resolution,
+            )
         s = pd.Series(sensor_data["values"], index=dt_index)
 
         # Work out what the recording time should be
