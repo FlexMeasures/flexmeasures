@@ -233,13 +233,13 @@ def test_post_sensor_data_twice(client, setup_api_test_data, requesting_user, db
     "num_values, status_code, message, saved_rows",
     [
         (1, 200, "Request has been processed.", 1),
-        (2, 500, "Cannot save multiple instantenous values simultaneously.", 0),
+        (2, 500, "Cannot save multiple instantaneous values simultaneously.", 0),
     ],
 )
 @pytest.mark.parametrize(
     "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
 )
-def test_post_sensor_instantenous_data(
+def test_post_sensor_instantaneous_data(
     client,
     setup_api_test_data,
     num_values,
