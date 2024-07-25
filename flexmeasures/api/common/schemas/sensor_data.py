@@ -347,9 +347,11 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         event_resolution = sensor_data["duration"] / num_values
 
         if event_resolution == timedelta(hours=0):
-            assert (
-                num_values <= 1
-            ), "Cannot save multiple instantenous values simultaneously."
+            if num_values <= 1:
+                raise NotImplementedError(
+                    "Cannot save multiple instantaneous values simultaneously."
+                )
+
             dt_index = pd.date_range(
                 sensor_data["start"],
                 periods=num_values,
