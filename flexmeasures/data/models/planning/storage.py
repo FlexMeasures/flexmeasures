@@ -480,7 +480,7 @@ class MetaStorageScheduler(Scheduler):
             max_value=ems_power_capacity_in_mw,
         )
 
-        if "ems_consumption_capacity_in_mw" in self.flex_context:
+        if "ems_soft_consumption_capacity_in_mw" in self.flex_context:
             ems_constraints[
                 "derivative soft max"
             ] = get_continuous_series_sensor_or_quantity(
@@ -493,7 +493,7 @@ class MetaStorageScheduler(Scheduler):
                 resolution=resolution,
                 beliefs_before=belief_time,
             )
-        if "ems_production_capacity_in_mw" in self.flex_context:
+        if "ems_soft_production_capacity_in_mw" in self.flex_context:
             ems_constraints["derivative soft min"] = (
                 -1
             ) * get_continuous_series_sensor_or_quantity(
