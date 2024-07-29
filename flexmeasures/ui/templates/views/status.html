@@ -69,6 +69,7 @@
                             <th>Queue</th>
                             <th>Entity</th>
                             <th class="text-right no-sort">Status</th>
+                            <th class="text-right">Info</th>
                             <th class="d-none">URL</th>
                             <th class="d-none">Created at for sort</th>
                         </tr>
@@ -97,57 +98,32 @@
                                     {% endif %}
                                 </span>
                             </td>
+                            <td class="text-right">
+                                <!-- Button -->
+                                <a href="#" class="btn btn-default btn-success" role="button" id="job-metadata-info-button" data-bs-target="#JobMetadataModal-{{ job_data['metadata_hash'] }}" data-bs-toggle="modal">
+                                    Info
+                                </a>
+                                
+                                <!-- Modal -->
+                                <div class="modal fade" id="JobMetadataModal-{{ job_data['metadata_hash'] }}" tabindex="-1" role="dialog" aria-labelledby="JobMetadataInfo" aria-hidden="true">
+                                    <div class="modal-dialog" role="document">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title" id="JobMetadataInfo">Info</h5>
+                                                <button id="modalCloseButton" type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" onmousedown="event.stopPropagation(); event.preventDefault();"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <pre>{{ job_data['metadata'] }}</pre>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
                             <td class="hidden d-none invisible" style="display:none;">
                                 /tasks/0/view/job/{{ job_data.job_id }}
                             </td>
                             <td class="hidden d-none invisible" style="display:none;">
                                 {{ job_data.enqueued_at }}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-                <h3>Latest forecasting jobs of {{ asset.name }}</h3>
-                <table id="forecasting_jobs" class="table table-striped table-responsive paginate nav-on-click">
-                    <thead>
-                        <tr>
-                            <th>Job id</th>
-                            <th>Asset id</th>
-                            <th>Sensor or asset</th>
-                            <th>Created at</th>
-                            <th class="text-right no-sort">Status</th>
-                            <th class="d-none">URL</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for job_data in forecasting_job_data: %}
-                        <tr title="View data">
-                            <td>
-                                {{ job_data.job_id }}
-                            </td>
-                            <td>
-                                {{ job_data.asset_id }}
-                            </td>
-                            <td>
-                                {{ job_data.asset_or_sensor_type }}
-                            </td>
-                            <td title="Enqueued at: {{ job_data.enqueued_at}}">
-                                {{ job_data.enqueued_at | naturalized_datetime }}
-                            </td>
-                            <td class="text-right"
-                                title="{{ job_data['err'] is none and job_data['status'] or job_data['status'] + ' : ' + job_data['err'] }}">
-                                <span>
-                                    {% if job_data["status"] == "finished" %}
-                                    🟢
-                                    {% elif job_data["status"] == "failed" %}
-                                    🔴
-                                    {% else %}
-                                    🟡
-                                    {% endif %}
-                                </span>
-                            </td>
-                            <td class="d-none">
-                                /tasks/0/view/job/{{ job_data.job_id }}
                             </td>
                         </tr>
                         {% endfor %}
