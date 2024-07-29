@@ -11,10 +11,10 @@
 
 <div class="container-fluid">
     <div class="row">
-        <div class="col-sm-12">
+        <div class="col-md-12">
             {% include "security/_messages.html" %}
         </div>
-        <div class="login-form col-sm-4">
+        <div class="login-form col-md-4">
             <h1>{{ _fsdomain('Login') }}</h1>
             <form action="{{ url_for_security('login') }}" method="POST" name="login_user_form">
                 {{ login_user_form.hidden_tag() }}
@@ -27,7 +27,7 @@
                 <button class="btn btn-sm btn-responsive btn-link" type="submit">Forgot password?</button>
             </form>
             {% if FLEXMEASURES_MODE == "demo" and FLEXMEASURES_PUBLIC_DEMO_CREDENTIALS %}
-            <div class="alert alert-info col-sm-8">
+            <div class="alert alert-info col-md-8">
                 <h2>Interested in a demo?</h2>
                 <p>
                     Simply log in as our demo user.
@@ -39,7 +39,7 @@
             </div>
             {% endif %}
         </div>
-        <div class="col-sm-8">
+        <div class="col-md-8">
             {% block teaser %}
             <h1>The FlexMeasures Platform</h1>
             <div class="carousel-container">

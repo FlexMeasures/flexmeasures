@@ -8,12 +8,12 @@
 
 <div class="container-fluid">
     <div class="row">
-        <div class="col-sm-12">
+        <div class="col-md-12">
             <form action="../../assets" method="get">
                 <button class="btn btn-sm btn-responsive btn-info" type="submit">Go to asset overview</button>
             </form>
         </div>
-        <div class="col-sm-10">
+        <div class="col-md-10">
         </div>
     </div>
     <form class="new-asset-form form-horizontal" method="POST" action="/assets/create">
@@ -21,13 +21,13 @@
         {{ asset_form.hidden_tag() }}
         <fieldset>
             <div class="row">
-                <div class="col-sm-6">
+                <div class="col-md-6">
 
                     <h2> Creating a new asset </h2>
 
                     <div class="form-group">
-                        {{ asset_form.name.label(class="col-sm-6 control-label") }}
-                        <div class="col-sm-6">
+                        {{ asset_form.name.label(class="col-md-6 control-label") }}
+                        <div class="col-md-6">
                             {{ asset_form.name(class_="form-control") }}
                             {% for error in asset_form.errors.name %}
                             <span style="color: red;">[{{error}}]</span>
@@ -35,8 +35,8 @@
                         </div>
                     </div>
                     <div class="form-group">
-                        {{ asset_form.generic_asset_type_id.label(class="col-sm-6 control-label")}}
-                        <div class="col-sm-6">
+                        {{ asset_form.generic_asset_type_id.label(class="col-md-6 control-label")}}
+                        <div class="col-md-6">
                             {{ asset_form.generic_asset_type_id(class_="form-control") }}
                             {% for error in asset_form.errors.generic_asset_type_id%}
                             <span style="color: red;">[{{error}}]</span>
@@ -44,8 +44,8 @@
                         </div>
                     </div>
                     <div class="form-group">
-                        {{ asset_form.account_id.label(class="col-sm-6 control-label") }}
-                        <div class="col-sm-6">
+                        {{ asset_form.account_id.label(class="col-md-6 control-label") }}
+                        <div class="col-md-6">
                             {{ asset_form.account_id(class_="form-control") }}
                             {% for error in asset_form.errors.account_id %}
                             <span style="color: red;">[{{error}}]</span>
@@ -53,8 +53,8 @@
                         </div>
                     </div>
                     <div class="form-group">
-                        {{ asset_form.latitude.label(class="col-sm-6 control-label") }}
-                        <div class="col-sm-6">
+                        {{ asset_form.latitude.label(class="col-md-6 control-label") }}
+                        <div class="col-md-6">
                             {{ asset_form.latitude(class_="form-control") }}
                             {% for error in asset_form.errors.latitude %}
                             <span style="color: red;">[{{error}}]</span>
@@ -62,29 +62,63 @@
                         </div>
                     </div>
                     <div class="form-group">
-                        {{ asset_form.longitude.label(class="col-sm-6 control-label") }}
-                        <div class="col-sm-6">
+                        {{ asset_form.longitude.label(class="col-md-6 control-label") }}
+                        <div class="col-md-6">
                             {{ asset_form.longitude(class_="form-control") }}
                             {% for error in asset_form.errors.longitude %}
                             <span style="color: red;">[{{error}}]</span>
                             {% endfor %}
                         </div>
                     </div>
+                    <p>Fields below can form part of this asset's flex context (<a href="https://flexmeasures.readthedocs.io/en/latest/features/scheduling.html#the-flex-context">flex context</a>). They can also be set in a parent asset or in the API requests.</p>
+                    {% if asset_form.consumption_price_sensor_id %}
+                        <div class="form-group">
+                            {{ asset_form.consumption_price_sensor_id.label(class="col-sm-3 control-label") }}
+                            <div class="col-sm-3">
+                                {{ asset_form.consumption_price_sensor_id(class_="form-control") }}
+                                {% for error in asset_form.errors.consumption_price_sensor_id %}
+                                <span style="color: red;">[{{error}}]</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endif %}
+                    {% if asset_form.production_price_sensor_id %}
+                        <div class="form-group">
+                            {{ asset_form.production_price_sensor_id.label(class="col-sm-3 control-label") }}
+                            <div class="col-sm-3">
+                                {{ asset_form.production_price_sensor_id(class_="form-control") }}
+                                {% for error in asset_form.errors.production_price_sensor_id %}
+                                <span style="color: red;">[{{error}}]</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endif %}
+                    {% if asset_form.inflexible_device_sensor_ids %}
+                        <div class="form-group">
+                            {{ asset_form.inflexible_device_sensor_ids.label(class="col-sm-3 control-label") }}
+                            <div class="col-sm-3">
+                                {{ asset_form.inflexible_device_sensor_ids(class_="form-control") }}
+                                {% for error in asset_form.errors.inflexible_device_sensor_ids %}
+                                <span style="color: red;">[{{error}}]</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endif %}
                     <div class="form-group">
-                        {{ asset_form.attributes.label(class="col-sm-6 control-label") }}
-                        <div class="col-sm-6">
+                        {{ asset_form.attributes.label(class="col-md-6 control-label") }}
+                        <div class="col-md-6">
                             {{ asset_form.attributes(class_="form-control") }}
                             {% for error in asset_form.errors.attributes %}
                             <span style="color: red;">[{{error}}]</span>
                             {% endfor %}
                         </div>
                     </div>
-                    <div class="col-sm-6"></div>
-                    <div class="col-sm-6">
+                    <div class="col-md-6"></div>
+                    <div class="col-md-6">
                         <input type="submit" value="Create">
                     </div>
                 </div>
-                <div class="col-sm-6">
+                <div class="col-md-6">
                     <h3>Location</h3>
                     <small>(Click map to edit latitude and longitude in form)</small>
                     <div id="mapid"></div>

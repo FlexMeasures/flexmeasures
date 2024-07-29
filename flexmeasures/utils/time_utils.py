@@ -91,11 +91,16 @@ def localized_datetime_str(dt: datetime, dt_format: str = "%Y-%m-%d %I:%M %p") -
     return local_dt.strftime(dt_format)
 
 
-def naturalized_datetime_str(dt: datetime | None, now: datetime | None = None) -> str:
+def naturalized_datetime_str(
+    dt: datetime | str | None, now: datetime | None = None
+) -> str:
     """
     Naturalise a datetime object (into a human-friendly string).
     The dt parameter (as well as the now parameter if you use it)
     can be either naive or tz-aware. We assume UTC in the naive case.
+    If dt parameter is a string it is expected to look like 'Sun, 28 Apr 2024 08:55:58 GMT'.
+    String format is supported for case when we make json from internal api response
+    e.g ui/crud/users auditlog router
 
     We use the `humanize` library to generate a human-friendly string.
     If dt is not longer ago than 24 hours, we use humanize.naturaltime (e.g. "3 hours ago"),
@@ -106,6 +111,8 @@ def naturalized_datetime_str(dt: datetime | None, now: datetime | None = None) -
     """
     if dt is None:
         return "never"
+    if isinstance(dt, str):
+        dt = datetime.strptime(dt, "%a, %d %b %Y %H:%M:%S %Z")
     if now is None:
         now = datetime.utcnow()
     naive_utc_now = naive_utc_from(now)

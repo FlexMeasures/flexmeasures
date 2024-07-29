@@ -208,8 +208,9 @@ Then, overwrite the ``/favicon.ico`` route which FlexMeasures uses to get the fa
 .. code-block:: python
 
     from flask import send_from_directory
+    from flexmeasures.ui import flexmeasures_ui
 
-    @our_client_bp.route("/favicon.ico")
+    @flexmeasures_ui.route("/favicon.ico")
     def favicon():
         return send_from_directory(
             our_client_bp.static_folder,

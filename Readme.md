@@ -10,7 +10,8 @@
 [![Coverage](https://coveralls.io/repos/github/FlexMeasures/flexmeasures/badge.svg)](https://coveralls.io/github/FlexMeasures/flexmeasures)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/6095/badge)](https://bestpractices.coreinfrastructure.org/projects/6095)
 
-The *FlexMeasures Platform* is the intelligent & developer-friendly EMS (energy management system) to support real-time energy flexibility apps, rapidly and scalable. 
+*FlexMeasures* is an intelligent EMS (energy management system) to optimize behind-the-meter energy flexibility.
+Build your smart energy apps & services with FlexMeasures as backend for real-time orchestration! 
 
 In a nutshell, FlexMeasures turns data into optimized schedules for flexible assets like batteries and heat pumps, or for flexible industry processes:
 

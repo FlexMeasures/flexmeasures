@@ -67,6 +67,11 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         backref=db.backref("sensors", lazy="dynamic"),
     )
 
+    def get_path(self, separator: str = ">"):
+        return (
+            f"{self.generic_asset.get_path(separator=separator)}{separator}{self.name}"
+        )
+
     def __init__(
         self,
         name: str,
@@ -314,8 +319,8 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         most_recent_only: bool = None,  # deprecated
         one_deterministic_belief_per_event: bool = False,
         one_deterministic_belief_per_event_per_source: bool = False,
-        resolution: str | timedelta = None,
         as_json: bool = False,
+        resolution: str | timedelta | None = None,
     ) -> tb.BeliefsDataFrame | str:
         """Search all beliefs about events for this sensor.
 
@@ -333,6 +338,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         :param one_deterministic_belief_per_event: only return a single value per event (no probabilistic distribution and only 1 source)
         :param one_deterministic_belief_per_event_per_source: only return a single value per event per source (no probabilistic distribution)
         :param as_json: return beliefs in JSON format (e.g. for use in charts) rather than as BeliefsDataFrame
+        :param resolution: optionally set the resolution of data being displayed
         :returns: BeliefsDataFrame or JSON string (if as_json is True)
         """
         # todo: deprecate the 'most_recent_only' argument in favor of 'most_recent_beliefs_only' (announced v0.8.0)
@@ -386,6 +392,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         include_asset_annotations: bool = False,
         include_account_annotations: bool = False,
         dataset_name: str | None = None,
+        resolution: str | timedelta | None = None,
         **kwargs,
     ) -> dict:
         """Create a vega-lite chart showing sensor data.
@@ -402,6 +409,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         :param include_asset_annotations: if True and include_data is True, include asset annotations in the chart, or if False, exclude them
         :param include_account_annotations: if True and include_data is True, include account annotations in the chart, or if False, exclude them
         :param dataset_name: optionally name the dataset used in the chart (the default name is sensor_<id>)
+        :param resolution: optionally set the resolution of data being displayed
         :returns: JSON string defining vega-lite chart specs
         """
 
@@ -433,6 +441,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
                 beliefs_before=beliefs_before,
                 most_recent_beliefs_only=most_recent_beliefs_only,
                 source=source,
+                resolution=resolution,
             )
 
             # Get annotations
@@ -541,6 +550,54 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         """
 
         return (self.id, self.attributes, self.generic_asset.attributes)
+
+    def search_data_sources(
+        self,
+        event_starts_after: datetime_type | None = None,
+        event_ends_after: datetime_type | None = None,
+        event_starts_before: datetime_type | None = None,
+        event_ends_before: datetime_type | None = None,
+        source_types: list[str] | None = None,
+        exclude_source_types: list[str] | None = None,
+    ) -> list[DataSource]:
+
+        q = select(DataSource).join(TimedBelief).filter(TimedBelief.sensor == self)
+
+        # todo: refactor to use apply_event_timing_filters from timely-beliefs
+        if event_starts_after:
+            q = q.filter(TimedBelief.event_start >= event_starts_after)
+
+        if not pd.isnull(event_ends_after):
+            if self.event_resolution == timedelta(0):
+                # inclusive
+                q = q.filter(TimedBelief.event_start >= event_ends_after)
+            else:
+                # exclusive
+                q = q.filter(
+                    TimedBelief.event_start > event_ends_after - self.event_resolution
+                )
+
+        if not pd.isnull(event_starts_before):
+            if self.event_resolution == timedelta(0):
+                # inclusive
+                q = q.filter(TimedBelief.event_start <= event_starts_before)
+            else:
+                # exclusive
+                q = q.filter(TimedBelief.event_start < event_starts_before)
+
+        if event_ends_before:
+            q = q.filter(
+                TimedBelief.event_start
+                <= pd.Timestamp(event_ends_before) - self.event_resolution
+            )
+
+        if source_types:
+            q = q.filter(DataSource.type.in_(source_types))
+
+        if exclude_source_types:
+            q = q.filter(DataSource.type.not_in(exclude_source_types))
+
+        return db.session.scalars(q).all()
 
 
 class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
@@ -720,7 +777,8 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 else:
                     bdf = bdf.for_each_belief(get_median_belief)
 
-            if resolution is not None:
+            # NB resampling will be triggered if resolutions are not an exact match (also in case of str vs timedelta)
+            if resolution is not None and resolution != bdf.event_resolution:
                 bdf = bdf.resample_events(
                     resolution, keep_only_most_recent_belief=most_recent_beliefs_only
                 )

@@ -107,7 +107,7 @@ def human_sorted(alist: list, attr: Any | None = None, reverse: bool = False):
             # List of objects, to be sorted by attribute
             sorted_list = sorted(
                 alist,
-                key=lambda k: natural_keys(str(getattr(k, attr))),
+                key=lambda k: natural_keys(str(getattr(k, str(attr)))),
                 reverse=reverse,
             )
     return sorted_list
