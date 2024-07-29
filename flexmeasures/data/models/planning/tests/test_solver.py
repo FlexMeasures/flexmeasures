@@ -228,6 +228,9 @@ def run_test_charge_discharge_sign(
         commitment_quantities,
         commitment_downwards_deviation_price,
         commitment_upwards_deviation_price,
+        device_downwards_price,
+        device_upwards_price,
+        device_future_reward,
     ) = scheduler._prepare(skip_validation=True)
 
     _, _, results, model = device_scheduler(
@@ -236,6 +239,9 @@ def run_test_charge_discharge_sign(
         commitment_quantities,
         commitment_downwards_deviation_price,
         commitment_upwards_deviation_price,
+        device_downwards_price=device_downwards_price,
+        device_upwards_price=device_upwards_price,
+        device_future_reward=device_future_reward,
         initial_stock=soc_at_start * (timedelta(hours=1) / resolution),
     )
 
@@ -1079,6 +1085,9 @@ def test_numerical_errors(app_with_each_solver, setup_planning_test_data, db):
         commitment_quantities,
         commitment_downwards_deviation_price,
         commitment_upwards_deviation_price,
+        device_downwards_price,
+        device_upwards_price,
+        device_future_reward,
     ) = scheduler._prepare(skip_validation=True)
 
     _, _, results, model = device_scheduler(
@@ -1087,6 +1096,9 @@ def test_numerical_errors(app_with_each_solver, setup_planning_test_data, db):
         commitment_quantities,
         commitment_downwards_deviation_price,
         commitment_upwards_deviation_price,
+        device_downwards_price=device_downwards_price,
+        device_upwards_price=device_upwards_price,
+        device_future_reward=device_future_reward,
         initial_stock=soc_at_start * (timedelta(hours=1) / resolution),
     )
 
@@ -1261,6 +1273,9 @@ def test_capacity(
         commitment_quantities,
         commitment_downwards_deviation_price,
         commitment_upwards_deviation_price,
+        device_downwards_price,
+        device_upwards_price,
+        device_future_reward,
     ) = scheduler._prepare(skip_validation=True)
 
     assert all(device_constraints[0]["derivative min"] == -expected_capacity)
