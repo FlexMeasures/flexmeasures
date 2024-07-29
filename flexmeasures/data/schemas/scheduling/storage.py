@@ -117,7 +117,10 @@ class StorageFlexModelSchema(Schema):
         QuantityOrSensor("MW"), data_key="soc-usage", required=False
     )
 
-    relaxed = fields.Bool(data_key="relaxed", required=False, default=False)
+    future_reward = fields.Float(data_key="future-reward", required=False, default=None)
+    soc_devition_penalty = fields.Float(
+        data_key="soc-devition-penalty", required=False, default=None
+    )
 
     def __init__(self, start: datetime, sensor: Sensor, *args, **kwargs):
         """Pass the schedule's start, so we can use it to validate soc-target datetimes."""

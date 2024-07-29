@@ -40,6 +40,13 @@ class FlexContextSchema(Schema):
         validate=validate.Range(min=0),
     )
 
+    ems_power_limit_relaxation_cost = fields.Float(
+        data_key="power-limit-deviation-cost", required=False, default=None
+    )
+    ems_soft_power_limit_relaxation_cost = fields.Float(
+        data_key="soft-power-limit-deviation-cost", required=False, default=None
+    )
+
     consumption_price_sensor = SensorIdField(data_key="consumption-price-sensor")
     production_price_sensor = SensorIdField(data_key="production-price-sensor")
     curtailable_device_sensors = fields.List(
