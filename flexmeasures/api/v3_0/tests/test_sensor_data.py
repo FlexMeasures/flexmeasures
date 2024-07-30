@@ -233,7 +233,12 @@ def test_post_sensor_data_twice(client, setup_api_test_data, requesting_user, db
     "num_values, status_code, message, saved_rows",
     [
         (1, 200, "Request has been processed.", 1),
-        (2, 500, "Cannot save multiple instantaneous values simultaneously.", 0),
+        (
+            2,
+            500,
+            "Cannot save multiple instantaneous values that overlap. That is, two values spanning the same moment (a zero duration). Try sending a single value or defininin a non-zero duration.",
+            0,
+        ),
     ],
 )
 @pytest.mark.parametrize(
