@@ -2,8 +2,12 @@ from flask import url_for, current_app, request
 from flask_classful import FlaskView, route
 from flask_security import login_required, current_user
 from webargs.flaskparser import use_kwargs
-from sqlalchemy import select
+from sqlalchemy import select, func
 
+from marshmallow import fields
+import marshmallow.validate as validate
+
+from flexmeasures.api.v3_0.assets import get_acessible_accounts
 from flexmeasures.data import db
 from flexmeasures.auth.error_handling import unauthorized_handler
 from flexmeasures.data.schemas import StartEndTimeSchema
@@ -12,6 +16,7 @@ from flexmeasures.data.models.generic_assets import (
     GenericAsset,
     get_center_location_of_assets,
 )
+from flexmeasures.ui.utils.view_utils import ICON_MAPPING
 from flexmeasures.data.models.user import Account
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.crud.api_wrapper import InternalApi
@@ -27,21 +32,19 @@ from flexmeasures.data.services.sensors import (
 )
 
 
-def get_all_assets() -> list[GenericAsset]:
+def get_all_assets(page: int = 1, per_page=10) -> list[GenericAsset]:
     get_assets_response = (
         InternalApi()
-        .get(url_for("AssetAPI:index"), query={"all_accessible": True})
+        .get(
+            url_for("AssetAPI:index"),
+            query={"all_accessible": True, "page": page, "per_page": per_page},
+        )
         .json()
     )
-
-    get_assets_response_public = InternalApi().get(url_for("AssetAPI:public")).json()
 
     assets = []
     if isinstance(get_assets_response, list):
         assets.extend(get_assets_response)
-
-    if isinstance(get_assets_response_public, list):
-        assets.extend(get_assets_response_public)
 
     asset_ids_filter = [GenericAsset.id.in_(ad["id"] for ad in assets)]
 
@@ -57,6 +60,17 @@ Note: This uses the internal dev API version
 """
 
 
+def get_num_accessible_assets():
+    accounts = get_acessible_accounts()
+    account_ids = [a.id for a in accounts]
+
+    return db.session.execute(
+        select(func.count()).where(
+            GenericAsset.account_id.in_(account_ids) | GenericAsset.account_id.is_(None)
+        )
+    ).scalar_one_or_none()
+
+
 class AssetCrudUI(FlaskView):
     """
     These views help us offer a Jinja2-based UI.
@@ -68,17 +82,27 @@ class AssetCrudUI(FlaskView):
     route_base = "/assets"
     trailing_slash = False
 
+    @use_kwargs(
+        {
+            "page": fields.Int(
+                required=False, validate=validate.Range(min=1), default=1
+            ),
+            "per_page": fields.Int(
+                required=False, validate=validate.Range(min=1), default=10
+            ),
+        },
+    )
     @login_required
-    def index(self, msg=""):
+    def index(self, msg="", **kwargs):
         """GET from /assets
 
         List the user's assets. For admins, list across all accounts.
         """
 
-        assets = get_all_assets()
         return render_flexmeasures_template(
             "crud/assets.html",
-            assets=assets,
+            num_assets=get_num_accessible_assets(),
+            asset_icon_name=ICON_MAPPING,
             message=msg,
             user_can_create_assets=user_can_create_assets(),
         )
