@@ -27,7 +27,7 @@ from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
 from flexmeasures.data.schemas.scheduling import FlexContextSchema
 from flexmeasures.utils.time_utils import get_max_planning_horizon
 from flexmeasures.utils.coding_utils import deprecated
-from flexmeasures.utils.unit_utils import ur
+from flexmeasures.utils.unit_utils import ur, convert_units
 
 
 class MetaStorageScheduler(Scheduler):
@@ -592,6 +592,7 @@ class StorageFallbackScheduler(MetaStorageScheduler):
         storage_schedule = fallback_charging_policy(
             sensor, device_constraints[0], start, end, resolution
         )
+        storage_schedule = convert_units(storage_schedule, "MW", sensor.unit)
 
         # Round schedule
         if self.round_to_decimals:
@@ -649,6 +650,7 @@ class StorageScheduler(MetaStorageScheduler):
 
         # Obtain the storage schedule from all device schedules within the EMS
         storage_schedule = ems_schedule[0]
+        storage_schedule = convert_units(storage_schedule, "MW", sensor.unit)
 
         # Round schedule
         if self.round_to_decimals:
