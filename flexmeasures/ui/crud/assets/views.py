@@ -1,3 +1,4 @@
+from __future__ import annotations
 from flask import url_for, current_app, request
 from flask_classful import FlaskView, route
 from flask_security import login_required, current_user
