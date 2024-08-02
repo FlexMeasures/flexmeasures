@@ -71,6 +71,8 @@ With the flexibility context, we aim to describe the system in which the flexibl
 .. note:: If no (symmetric, consumption and production) site capacity is defined (also not as defaults), the scheduler will not enforce any bound on the site power. The flexible device can still has its own power limit defined in its flex-model.
 
 
+.. _flex_models_and_schedulers:
+
 The flex-models & corresponding schedulers
 -------------------------------------------
 
