@@ -181,7 +181,7 @@ You can also review the current flex-model for storage in the code, at ``flexmea
 Shiftable loads (processes)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-For *processes* that can be shifted or interrupted, but have to happen at a constant rate (of consumption), FlexMeasures provides the ``ShiftableLoad`` scheduler.
+For *processes* that can be shifted or interrupted, but have to happen at a constant rate (of consumption), FlexMeasures provides the ``ProcessScheduler``.
 Some examples from practice (usually industry) could be:
 
 - A centrifuge's daily work of combing through sludge water. Depends on amount of sludge present.
