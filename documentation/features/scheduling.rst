@@ -215,6 +215,8 @@ You can review the current flex-model for processes in the code, at ``flexmeasur
 
 You can add new shiftable-process schedules with the CLI command ``flexmeasures add schedule for-process``.
 
+.. note:: Currently, the ``ProcessScheduler`` uses only the ``consumption-price-sensor`` field of the flex-context, so it ignores any site capacities and inflexible devices.
+
 
 Work on other schedulers
 --------------------------
