@@ -55,6 +55,7 @@ class StorageFlexModelSchema(Schema):
     """
 
     soc_at_start = fields.Float(required=True, data_key="soc-at-start")
+    soc = QuantityOrSensor("MWh", data_key="soc", required=False)
 
     soc_min = fields.Float(validate=validate.Range(min=0), data_key="soc-min")
     soc_max = fields.Float(data_key="soc-max")
