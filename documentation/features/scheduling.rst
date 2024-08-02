@@ -29,6 +29,7 @@ Some parts of it can be persisted on the asset & sensor model as attributes (tha
 
 Let's dive into the details ― what can you tell FlexMeasures about your optimization problem?
 
+
 The flex-context
 -----------------
 
@@ -175,7 +176,6 @@ For a hands-on tutorial on using some of the storage flex-model fields, head ove
 
 Finally, are you interested in the linear programming details behind the storage scheduler? Then head over to :ref:`storage_device_scheduler`!
 You can also review the current flex-model for storage in the code, at ``flexmeasures.data.schemas.scheduling.storage.StorageFlexModelSchema``.
-
 
 
 Shiftable loads (processes)
