@@ -210,8 +210,8 @@ Some examples from practice (usually industry) could be:
      - ``[{"start": "2015-01-02T08:00:00+01:00", "duration": "PT2H"}]`` 
      - Time periods in which the load cannot be scheduled to run.
    * - ``process_type``
-     - ``INFLEXIBLE``, ``BREAKABLE`` or ``SHIFTABLE``
-     - Is the load inflexible? Or is there flexibility, to interrupt or shift it? 
+     - ``INFLEXIBLE``, ``SHIFTABLE`` or ``BREAKABLE``
+     - Is the load inflexible and should it run as soon as possible? Or can the process's start time be shifted? Or can it even be broken up into smaller segments?
 
 You can review the current flex-model for processes in the code, at ``flexmeasures.data.schemas.scheduling.process.ProcessSchedulerFlexModelSchema``.
 
