@@ -118,8 +118,8 @@ class StorageFlexModelSchema(Schema):
     )
 
     future_reward = fields.Float(data_key="future-reward", required=False, default=None)
-    soc_devition_penalty = fields.Float(
-        data_key="soc-devition-penalty", required=False, default=None
+    soc_deviation_penalty = fields.Float(
+        data_key="soc-deviation-penalty", required=False, default=None
     )
 
     def __init__(self, start: datetime, sensor: Sensor, *args, **kwargs):

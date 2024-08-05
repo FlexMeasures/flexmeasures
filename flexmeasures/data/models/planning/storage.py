@@ -759,7 +759,7 @@ class StorageScheduler(MetaStorageScheduler):
             ems_flow_soft_derivative_cost=self.flex_context.get(
                 "ems_soft_power_limit_relaxation_cost", None
             ),
-            stock_relaxation_cost=self.flex_model.get("soc_devition_penalty", None),
+            stock_relaxation_cost=self.flex_model.get("soc_deviation_penalty", None),
         )
         if scheduler_results.solver.termination_condition == "infeasible":
             raise InfeasibleProblemException()
