@@ -6,6 +6,11 @@ FlexMeasures Changelog
 v0.22.0 | June 29, 2024
 ============================
 
+Bugfixes
+-----------
+
+* Add authorization check on sensors referred to in ``flex-model`` and ``flex-context`` fields [see `PR #1071 <https://github.com/FlexMeasures/flexmeasures/pull/1071>`_]
+
 New features
 -------------
 * Add `asset/<id>/auditlog` to view asset related actions [see `PR #1067 <https://github.com/FlexMeasures/flexmeasures/pull/1067>`_]
