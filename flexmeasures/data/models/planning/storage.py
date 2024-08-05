@@ -192,7 +192,7 @@ class MetaStorageScheduler(Scheduler):
         device_future_reward = [0 for d in range(D)]
 
         # Add a tiny expected future reward for having more state of charge at the end of the planning window
-        device_future_reward[0] = 10**-3
+        device_future_reward[0] = self.flex_model.get("future_reward", 0.0)
 
         # Set up device constraints: only one scheduled flexible device for this EMS (at index 0), plus the forecasted inflexible devices (at indices 1 to n).
         device_constraints = [
@@ -472,6 +472,33 @@ class MetaStorageScheduler(Scheduler):
             max_value=ems_power_capacity_in_mw,
         )
 
+        if "ems_soft_consumption_capacity_in_mw" in self.flex_context:
+            ems_constraints[
+                "derivative soft max"
+            ] = get_continuous_series_sensor_or_quantity(
+                quantity_or_sensor=self.flex_context.get(
+                    "ems_soft_consumption_capacity_in_mw"
+                ),
+                actuator=sensor.generic_asset,
+                unit="MW",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+            )
+        if "ems_soft_production_capacity_in_mw" in self.flex_context:
+            ems_constraints["derivative soft min"] = (
+                -1
+            ) * get_continuous_series_sensor_or_quantity(
+                quantity_or_sensor=self.flex_context.get(
+                    "ems_soft_production_capacity_in_mw"
+                ),
+                actuator=sensor.generic_asset,
+                unit="MW",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+            )
+
         return (
             sensor,
             start,
@@ -726,7 +753,13 @@ class StorageScheduler(MetaStorageScheduler):
             device_upwards_price=device_upwards_price,
             device_future_reward=device_future_reward,
             initial_stock=soc_at_start * (timedelta(hours=1) / resolution),
-            ems_flow_relaxed=self.flex_model.get("relaxed", False),
+            ems_flow_relaxation_cost=self.flex_context.get(
+                "ems_power_limit_relaxation_cost", None
+            ),
+            ems_flow_soft_derivative_cost=self.flex_context.get(
+                "ems_soft_power_limit_relaxation_cost", None
+            ),
+            stock_relaxation_cost=self.flex_model.get("soc_deviation_penalty", None),
         )
         if scheduler_results.solver.termination_condition == "infeasible":
             raise InfeasibleProblemException()
