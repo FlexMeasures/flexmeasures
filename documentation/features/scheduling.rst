@@ -46,7 +46,7 @@ With the flexibility context, we aim to describe the system in which the flexibl
      - Description 
    * - ``inflexible-device-sensors``
      - ``[3,4]``
-     - Power sensors that are relevant, but not flexible, such as a sensor recording rooftop solar power connected behind the main meter, whose production falls under the same contract as the flexible device(s) being scheduled.
+     - Power sensors that are relevant, but not flexible, such as a sensor recording rooftop solar power connected behind the main meter, whose production falls under the same contract as the flexible device(s) being scheduled. Their power demand cannot be adjusted but still matters for finding the best schedule for other devices.
    * - ``consumption-price-sensor``
      - ``5``
      - The sensor that defines the price of consuming energy. This sensor can be recording market prices, but also CO₂ - whatever fits your optimization problem.
