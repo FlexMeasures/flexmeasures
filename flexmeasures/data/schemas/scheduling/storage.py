@@ -185,12 +185,9 @@ class StorageFlexModelSchema(Schema):
 
         super().__init__(*args, **kwargs)
         if default_soc_unit is not None:
-            setattr(self.fields["soc_at_start"], "default_src_unit", default_soc_unit)
-            setattr(self.fields["soc_min"], "default_src_unit", default_soc_unit)
-            setattr(self.fields["soc_max"], "default_src_unit", default_soc_unit)
-            setattr(self.fields["soc_minima"], "default_src_unit", default_soc_unit)
-            setattr(self.fields["soc_maxima"], "default_src_unit", default_soc_unit)
-            setattr(self.fields["soc_targets"], "default_src_unit", default_soc_unit)
+            for field in self.fields.keys():
+                if field.startswith("soc_"):
+                    setattr(self.fields[field], "default_src_unit", default_soc_unit)
 
     @validates_schema
     def check_whether_targets_exceed_max_planning_horizon(self, data: dict, **kwargs):
