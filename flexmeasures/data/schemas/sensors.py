@@ -222,7 +222,7 @@ class SensorIdField(MarshmallowClickMixin, fields.Int):
         return sensor.id
 
 
-class TimeSeriesOrQuantityOrSensor(MarshmallowClickMixin, fields.Field):
+class VariableQuantityField(MarshmallowClickMixin, fields.Field):
     def __init__(
         self,
         to_unit,
@@ -233,7 +233,9 @@ class TimeSeriesOrQuantityOrSensor(MarshmallowClickMixin, fields.Field):
         value_validator: Validator | None = None,
         **kwargs,
     ):
-        """Field for validating, serializing and deserializing a quantity, sensor or time series.
+        """Field for validating, serializing and deserializing a variable quantity.
+
+        A variable quantity can be represented by a fixed quantity, sensor or time series.
 
         # todo: Sensor should perhaps deserialize already to sensor data
 
@@ -366,19 +368,19 @@ class RepurposeValidatorToIgnoreSensors(validate.Validator):
         return value
 
 
-class QuantityOrSensor(TimeSeriesOrQuantityOrSensor):
+class QuantityOrSensor(VariableQuantityField):
     def __init__(self, *args, **kwargs):
-        """Deprecated class. Use `TimeSeriesOrQuantityOrSensor` instead."""
+        """Deprecated class. Use `VariableQuantityField` instead."""
         current_app.logger.warning(
-            "Class `TimeSeriesOrSensor` is deprecated. Use `TimeSeriesOrQuantityOrSensor` instead."
+            "Class `TimeSeriesOrSensor` is deprecated. Use `VariableQuantityField` instead."
         )
         super().__init__(*args, **kwargs)
 
 
-class TimeSeriesOrSensor(TimeSeriesOrQuantityOrSensor):
+class TimeSeriesOrSensor(VariableQuantityField):
     def __init__(self, *args, **kwargs):
-        """Deprecated class. Use `TimeSeriesOrQuantityOrSensor` instead."""
+        """Deprecated class. Use `VariableQuantityField` instead."""
         current_app.logger.warning(
-            "Class `TimeSeriesOrSensor` is deprecated. Use `TimeSeriesOrQuantityOrSensor` instead."
+            "Class `TimeSeriesOrSensor` is deprecated. Use `VariableQuantityField` instead."
         )
         super().__init__(*args, **kwargs)

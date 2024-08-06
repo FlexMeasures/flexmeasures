@@ -15,7 +15,7 @@ from marshmallow.validate import OneOf, ValidationError
 
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.units import QuantityField
-from flexmeasures.data.schemas.sensors import TimeSeriesOrQuantityOrSensor
+from flexmeasures.data.schemas.sensors import VariableQuantityField
 
 from flexmeasures.utils.unit_utils import ur
 
@@ -78,26 +78,26 @@ class StorageFlexModelSchema(Schema):
         data_key="soc-max",
     )
 
-    power_capacity_in_mw = TimeSeriesOrQuantityOrSensor(
+    power_capacity_in_mw = VariableQuantityField(
         "MW", required=False, data_key="power-capacity"
     )
 
-    consumption_capacity = TimeSeriesOrQuantityOrSensor(
+    consumption_capacity = VariableQuantityField(
         "MW", data_key="consumption-capacity", required=False
     )
-    production_capacity = TimeSeriesOrQuantityOrSensor(
+    production_capacity = VariableQuantityField(
         "MW", data_key="production-capacity", required=False
     )
 
     # Timezone placeholders for the soc_maxima, soc_minima and soc_targets fields are overridden in __init__
-    soc_maxima = TimeSeriesOrQuantityOrSensor(
+    soc_maxima = VariableQuantityField(
         to_unit="MWh",
         default_src_unit="dimensionless",  # placeholder, overridden in __init__
         timezone="placeholder",
         data_key="soc-maxima",
     )
 
-    soc_minima = TimeSeriesOrQuantityOrSensor(
+    soc_minima = VariableQuantityField(
         to_unit="MWh",
         default_src_unit="dimensionless",  # placeholder, overridden in __init__
         timezone="placeholder",
@@ -105,7 +105,7 @@ class StorageFlexModelSchema(Schema):
         value_validator=validate.Range(min=0),
     )
 
-    soc_targets = TimeSeriesOrQuantityOrSensor(
+    soc_targets = VariableQuantityField(
         to_unit="MWh",
         default_src_unit="dimensionless",  # placeholder, overridden in __init__
         timezone="placeholder",
@@ -122,10 +122,10 @@ class StorageFlexModelSchema(Schema):
         data_key="soc-unit",
     )
 
-    charging_efficiency = TimeSeriesOrQuantityOrSensor(
+    charging_efficiency = VariableQuantityField(
         "%", data_key="charging-efficiency", required=False
     )
-    discharging_efficiency = TimeSeriesOrQuantityOrSensor(
+    discharging_efficiency = VariableQuantityField(
         "%", data_key="discharging-efficiency", required=False
     )
 
@@ -133,19 +133,19 @@ class StorageFlexModelSchema(Schema):
         data_key="roundtrip-efficiency", required=False
     )
 
-    storage_efficiency = TimeSeriesOrQuantityOrSensor(
+    storage_efficiency = VariableQuantityField(
         "%", default_src_unit="dimensionless", data_key="storage-efficiency"
     )
     prefer_charging_sooner = fields.Bool(data_key="prefer-charging-sooner")
 
     soc_gain = fields.List(
-        TimeSeriesOrQuantityOrSensor("MW"),
+        VariableQuantityField("MW"),
         data_key="soc-gain",
         required=False,
         validate=validate.Length(min=1),
     )
     soc_usage = fields.List(
-        TimeSeriesOrQuantityOrSensor("MW"),
+        VariableQuantityField("MW"),
         data_key="soc-usage",
         required=False,
         validate=validate.Length(min=1),
@@ -162,21 +162,21 @@ class StorageFlexModelSchema(Schema):
         """Pass the schedule's start, so we can use it to validate soc-target datetimes."""
         self.start = start
         self.sensor = sensor
-        self.soc_maxima = TimeSeriesOrQuantityOrSensor(
+        self.soc_maxima = VariableQuantityField(
             to_unit="MWh",
             default_src_unit=default_soc_unit,
             timezone=sensor.timezone,
             data_key="soc-maxima",
         )
 
-        self.soc_minima = TimeSeriesOrQuantityOrSensor(
+        self.soc_minima = VariableQuantityField(
             to_unit="MWh",
             default_src_unit=default_soc_unit,
             timezone=sensor.timezone,
             data_key="soc-minima",
             value_validator=validate.Range(min=0),
         )
-        self.soc_targets = TimeSeriesOrQuantityOrSensor(
+        self.soc_targets = VariableQuantityField(
             to_unit="MWh",
             default_src_unit=default_soc_unit,
             timezone=sensor.timezone,
