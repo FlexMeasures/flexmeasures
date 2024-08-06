@@ -139,10 +139,16 @@ class StorageFlexModelSchema(Schema):
     prefer_charging_sooner = fields.Bool(data_key="prefer-charging-sooner")
 
     soc_gain = fields.List(
-        TimeSeriesOrQuantityOrSensor("MW"), data_key="soc-gain", required=False
+        TimeSeriesOrQuantityOrSensor("MW"),
+        data_key="soc-gain",
+        required=False,
+        validate=validate.Length(min=1),
     )
     soc_usage = fields.List(
-        TimeSeriesOrQuantityOrSensor("MW"), data_key="soc-usage", required=False
+        TimeSeriesOrQuantityOrSensor("MW"),
+        data_key="soc-usage",
+        required=False,
+        validate=validate.Length(min=1),
     )
 
     def __init__(
