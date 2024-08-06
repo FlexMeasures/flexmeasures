@@ -259,6 +259,10 @@ class TimeSeriesOrQuantityOrSensor(MarshmallowClickMixin, fields.Field):
         self.to_unit = ur.Quantity(to_unit)
         self.default_src_unit = default_src_unit
         self.return_magnitude = return_magnitude
+        if self.return_magnitude is True:
+            current_app.logger.warning(
+                "Deserialized time series will include Quantity objects in the future. Set `return_magnitude=False` to trigger the new behaviour."
+            )
 
     @with_appcontext_if_needed()
     def _deserialize(
@@ -276,10 +280,6 @@ class TimeSeriesOrQuantityOrSensor(MarshmallowClickMixin, fields.Field):
             return sensor
 
         elif isinstance(value, list):
-            if self.return_magnitude is True:
-                current_app.logger.warning(
-                    "Deserialized time series will include Quantity objects in the future. Set `return_magnitude=False` to trigger the new behaviour."
-                )
             field = fields.List(
                 fields.Nested(
                     TimedEventSchema(
