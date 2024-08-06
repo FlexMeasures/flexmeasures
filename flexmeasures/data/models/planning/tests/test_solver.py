@@ -1724,10 +1724,10 @@ def test_battery_stock_delta_sensor(
     "gain,usage,expected_delta",
     [
         (["1 MW"], ["1MW"], 0),  # delta stock is 0 (1 MW - 1 MW)
-        (["0.5 MW", "0.5 MW"], [], 1),  # 1 MW stock gain
+        (["0.5 MW", "0.5 MW"], None, 1),  # 1 MW stock gain
         (["100 kW"], None, 0.1),  # 100 MW stock gain
-        (None, ["100 kW"], -0.1),  # 100 kW stock loss
-        ([], [], None),  # no gain defined -> no gain or loss happens
+        (None, ["100 kW"], -0.1),  # 100 kW stock usage
+        (None, None, None),  # no gain/usage defined -> no gain or usage happens
     ],
 )
 def test_battery_stock_delta_quantity(
@@ -1736,7 +1736,7 @@ def test_battery_stock_delta_quantity(
     """
     Test the stock gain field when a constant value is provided.
 
-    We expect a constant gain/loss to happen in every time period equal to the energy
+    We expect a constant gain/usage to happen in every time period equal to the energy
     value provided.
     """
     _, battery = get_sensors_from_db(db, add_battery_assets)
