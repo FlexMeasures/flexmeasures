@@ -29,6 +29,7 @@ Some parts of it can be persisted on the asset & sensor model as attributes (tha
 
 Let's dive into the details ― what can you tell FlexMeasures about your optimization problem?
 
+
 The flex-context
 -----------------
 
@@ -45,7 +46,7 @@ With the flexibility context, we aim to describe the system in which the flexibl
      - Description 
    * - ``inflexible-device-sensors``
      - ``[3,4]``
-     - Power sensors that are relevant, but not flexible, such as a sensor recording rooftop solar power connected behind the main meter, whose production falls under the same contract as the flexible device(s) being scheduled.
+     - Power sensors that are relevant, but not flexible, such as a sensor recording rooftop solar power connected behind the main meter, whose production falls under the same contract as the flexible device(s) being scheduled. Their power demand cannot be adjusted but still matters for finding the best schedule for other devices.
    * - ``consumption-price-sensor``
      - ``5``
      - The sensor that defines the price of consuming energy. This sensor can be recording market prices, but also CO₂ - whatever fits your optimization problem.
@@ -70,8 +71,17 @@ With the flexibility context, we aim to describe the system in which the flexibl
 .. note:: If no (symmetric, consumption and production) site capacity is defined (also not as defaults), the scheduler will not enforce any bound on the site power. The flexible device can still has its own power limit defined in its flex-model.
 
 
+.. _flex_models_and_schedulers:
+
 The flex-models & corresponding schedulers
 -------------------------------------------
+
+FlexMeasures comes with a storage scheduler and a process scheduler, which work with flex models for storages and loads, respectively.
+
+The storage scheduler is suitable for batteries and :abbr:`EV (electric vehicle)` chargers, and is automatically selected when scheduling an asset with one of the following asset types: "battery", "one-way_evse" and "two-way_evse".
+
+The process scheduler is suitable for shiftable, breakable and inflexible loads, and is automatically selected for asset types "process" and "load".
+
 
 Storage
 ^^^^^^^^
@@ -177,11 +187,10 @@ Finally, are you interested in the linear programming details behind the storage
 You can also review the current flex-model for storage in the code, at ``flexmeasures.data.schemas.scheduling.storage.StorageFlexModelSchema``.
 
 
-
 Shiftable loads (processes)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-For *processes* that can be shifted or interrupted, but have to happen at a constant rate (of consumption), FlexMeasures provides the ``ShiftableLoad`` scheduler.
+For *processes* that can be shifted or interrupted, but have to happen at a constant rate (of consumption), FlexMeasures provides the ``ProcessScheduler``.
 Some examples from practice (usually industry) could be:
 
 - A centrifuge's daily work of combing through sludge water. Depends on amount of sludge present.
@@ -208,12 +217,14 @@ Some examples from practice (usually industry) could be:
      - ``[{"start": "2015-01-02T08:00:00+01:00", "duration": "PT2H"}]`` 
      - Time periods in which the load cannot be scheduled to run.
    * - ``process_type``
-     - ``INFLEXIBLE``, ``BREAKABLE`` or ``SHIFTABLE``
-     - Is the load inflexible? Or is there flexibility, to interrupt or shift it? 
+     - ``INFLEXIBLE``, ``SHIFTABLE`` or ``BREAKABLE``
+     - Is the load inflexible and should it run as soon as possible? Or can the process's start time be shifted? Or can it even be broken up into smaller segments?
 
 You can review the current flex-model for processes in the code, at ``flexmeasures.data.schemas.scheduling.process.ProcessSchedulerFlexModelSchema``.
 
 You can add new shiftable-process schedules with the CLI command ``flexmeasures add schedule for-process``.
+
+.. note:: Currently, the ``ProcessScheduler`` uses only the ``consumption-price-sensor`` field of the flex-context, so it ignores any site capacities and inflexible devices.
 
 
 Work on other schedulers
@@ -222,6 +233,6 @@ Work on other schedulers
 We believe the two schedulers (and their flex-models) we describe here are covering a lot of use cases already.
 Here are some thoughts on further innovation:
 
-- Writing your own scheduler. You can always write your own scheduler(see :ref:`plugin_customization`). You then might want to add your own flex model, as well. FlexMeasures will let the scheduler decide which flexibility model is relevant and how it should be validated. 
+- Writing your own scheduler. You can always write your own scheduler (see :ref:`plugin_customization`). You then might want to add your own flex model, as well. FlexMeasures will let the scheduler decide which flexibility model is relevant and how it should be validated.
 - We also aim to model situations with more than one flexible asset, and that have different types of flexibility (e.g. EV charging and smart heating in the same site). This is ongoing architecture design work, and therefore happens in development settings, until we are happy with the outcomes. Thoughts welcome :)
 - Aggregating flexibility of a group of assets (e.g. a neighborhood) and optimizing its aggregated usage (e.g. for grid congestion support) is also an exciting direction for expansion.
