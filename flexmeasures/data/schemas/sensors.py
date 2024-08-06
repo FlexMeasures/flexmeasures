@@ -241,9 +241,8 @@ class TimeSeriesOrQuantityOrSensor(MarshmallowClickMixin, fields.Field):
         For example, validate=validate.Range(min=0) will raise a ValidationError in case of negative quantities,
         but will let pass any sensor that has recorded negative values.
 
-        :param to_unit:             Unit in which the sensor or quantity should be convertible to.
-                                    - Time series are assumed to be passed without a unit, so they aren't checked for convertibility.
-                                    - Quantities will already be converted to the given unit.
+        :param to_unit:             Unit in which the time series, quantity or sensor should be convertible to.
+                                    - Time series and quantities are converted to the given unit.
                                     - Sensors are checked for convertibility, but the original sensor is returned, so its values are not yet converted.
         :param default_src_unit:    What unit to use in case of getting a numeric value. Does not apply to time series or sensors.
         :param return_magnitude:    In case of getting a time series, whether the result should include the magnitude of each quantity, or each Quantity object itself
