@@ -235,7 +235,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
     ):
         """Field for validating, serializing and deserializing a variable quantity.
 
-        A variable quantity can be represented by a fixed quantity, sensor or time series.
+        A variable quantity can be represented by a sensor, time series or fixed quantity.
 
         # todo: Sensor should perhaps deserialize already to sensor data
 
@@ -243,9 +243,9 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         For example, validate=validate.Range(min=0) will raise a ValidationError in case of negative quantities,
         but will let pass any sensor that has recorded negative values.
 
-        :param to_unit:             Unit in which the time series, quantity or sensor should be convertible to.
-                                    - Time series and quantities are converted to the given unit.
+        :param to_unit:             Unit in which the sensor, time series or quantity should be convertible to.
                                     - Sensors are checked for convertibility, but the original sensor is returned, so its values are not yet converted.
+                                    - Time series and quantities are already converted to the given unit.
         :param default_src_unit:    What unit to use in case of getting a numeric value. Does not apply to time series or sensors.
         :param return_magnitude:    In case of getting a time series, whether the result should include the magnitude of each quantity, or each Quantity object itself
         :param timezone:            Only used in case a time series is specified and one of the *timed events*
@@ -266,7 +266,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
     @with_appcontext_if_needed()
     def _deserialize(
         self, value: dict[str, int] | list[dict] | str, attr, obj, **kwargs
-    ) -> list[dict] | Sensor | ur.Quantity:
+    ) -> Sensor | list[dict] | ur.Quantity:
 
         if isinstance(value, dict):
             return self._deserialize_dict(value)
@@ -325,16 +325,16 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         )
 
     def _serialize(
-        self, value: ur.Quantity | Sensor | pd.Series, attr, data, **kwargs
+        self, value: Sensor | pd.Series | ur.Quantity, attr, data, **kwargs
     ) -> str | dict[str, int]:
-        if isinstance(value, ur.Quantity):
-            return str(value.to(self.to_unit))
-        elif isinstance(value, Sensor):
+        if isinstance(value, Sensor):
             return dict(sensor=value.id)
         elif isinstance(value, pd.Series):
             raise NotImplementedError(
                 "Serialization of a time series from a Pandas Series is not implemented yet."
             )
+        elif isinstance(value, ur.Quantity):
+            return str(value.to(self.to_unit))
         else:
             raise FMValidationError(
                 "Serialized quantity, sensor or time series needs to be of type int, float, Sensor or pandas.Series."
