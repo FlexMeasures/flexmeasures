@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from flask import current_app
 from marshmallow import (
     Schema,
@@ -266,50 +268,60 @@ class TimeSeriesOrQuantityOrSensor(MarshmallowClickMixin, fields.Field):
     ) -> list[dict] | Sensor | ur.Quantity:
 
         if isinstance(value, dict):
-            if "sensor" not in value:
-                raise FMValidationError(
-                    "Dictionary provided but `sensor` key not found."
-                )
-            sensor = SensorIdField(unit=self.to_unit)._deserialize(
-                value["sensor"], None, None
-            )
-            return sensor
-
+            return self._deserialize_dict(value)
         elif isinstance(value, list):
-            if self.return_magnitude is True:
-                current_app.logger.warning(
-                    "Deserialized time series will include Quantity objects in the future. Set `return_magnitude=False` to trigger the new behaviour."
-                )
-            field = fields.List(
-                fields.Nested(
-                    TimedEventSchema(
-                        timezone=self.timezone,
-                        value_validator=self.value_validator,
-                        to_unit=self.to_unit,
-                        default_src_unit=self.default_src_unit,
-                        return_magnitude=self.return_magnitude,
-                    )
-                )
-            )
-            return field._deserialize(value, None, None)
-
+            return self._deserialize_list(value)
         elif isinstance(value, str):
-            try:
-                return ur.Quantity(value).to(self.to_unit)
-            except DimensionalityError as e:
-                raise FMValidationError(
-                    f"Cannot convert value `{value}` to '{self.to_unit}'"
-                ) from e
-
+            return self._deserialize_str(value)
         elif self.default_src_unit is not None:
-            return self._deserialize(
-                f"{value} {self.default_src_unit}", attr, obj, **kwargs
-            )
-
+            return self._deserialize_numeric(value, attr, obj, **kwargs)
         else:
             raise FMValidationError(
                 f"Unsupported value type. `{type(value)}` was provided but only dict, list and str are supported."
             )
+
+    def _deserialize_dict(self, value: dict[str, int]) -> Sensor:
+        """Deserialize a sensor reference to a Sensor."""
+        if "sensor" not in value:
+            raise FMValidationError("Dictionary provided but `sensor` key not found.")
+        sensor = SensorIdField(unit=self.to_unit)._deserialize(
+            value["sensor"], None, None
+        )
+        return sensor
+
+    def _deserialize_list(self, value: list[dict]) -> list[dict]:
+        """Deserialize a time series to a list of timed events."""
+        if self.return_magnitude is True:
+            current_app.logger.warning(
+                "Deserialized time series will include Quantity objects in the future. Set `return_magnitude=False` to trigger the new behaviour."
+            )
+        field = fields.List(
+            fields.Nested(
+                TimedEventSchema(
+                    timezone=self.timezone,
+                    value_validator=self.value_validator,
+                    to_unit=self.to_unit,
+                    default_src_unit=self.default_src_unit,
+                    return_magnitude=self.return_magnitude,
+                )
+            )
+        )
+        return field._deserialize(value, None, None)
+
+    def _deserialize_str(self, value: str) -> ur.Quantity:
+        """Deserialize a string to a Quantity."""
+        try:
+            return ur.Quantity(value).to(self.to_unit)
+        except DimensionalityError as e:
+            raise FMValidationError(
+                f"Cannot convert value `{value}` to '{self.to_unit}'"
+            ) from e
+
+    def _deserialize_numeric(self, value: Any, attr, obj, **kwargs) -> ur.Quantity:
+        """Try to deserialize any other value (e.g. numeric) to a Quantity, using the default_src_unit."""
+        return self._deserialize(
+            f"{value} {self.default_src_unit}", attr, obj, **kwargs
+        )
 
     def _serialize(
         self, value: ur.Quantity | Sensor | pd.Series, attr, data, **kwargs
