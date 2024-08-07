@@ -33,6 +33,44 @@
               <div class="alert alert-info" id="dstwarn" style="display:none;"></div>
               <div class="alert alert-info" id="sourcewarn" style="display:none;"></div>
           </div>
+          <div class="container">
+          <div class="row">
+          <div class="col-sm-6">
+                    <h3>Sensor stats</h3>
+                    <table id="statsTable" class="table table-striped">
+                        <tbody id="statsTableBody">
+                        </tbody>
+                    </table>
+                        <script>
+                            fetch('/api/v3_0/sensors/' + {{ sensor.id }} + '/stats')
+                                .then(response => response.json())
+                                .then(data => {
+                                    const tableBody = document.querySelector('#statsTable tbody');
+
+                                    for (const sourceKey in data) {
+                                        const stats = data[sourceKey];
+                                        Object.keys(stats).forEach(key => {
+                                            // Create a table row for each key-value pair
+                                            const row = document.createElement('tr');
+                                            const keyCell = document.createElement('th');
+                                            const valueCell = document.createElement('td');
+
+                                            keyCell.textContent = key;
+                                            valueCell.textContent = stats[key];
+
+                                            row.appendChild(keyCell);
+                                            row.appendChild(valueCell);
+                                            tableBody.appendChild(row);
+                                        });
+                                    }
+                                })
+                                .catch(error => {
+                                    console.error('Error:', error);
+                                });
+                        </script>
+                </div>
+          </div>
+          </div>
           <div class="row on-top-md">
               <div class="col-sm-2">
                   <div class="sidepanel-container">
