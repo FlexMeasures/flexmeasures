@@ -1949,13 +1949,3 @@ body.touched [title]:hover:after {
 .table-responsive{
     padding: 20px;
 }
-
-/* sensor-basic-info */
-.sensor-basic-info-container {
-    display: flex;
-}
-
-.sensor-basic-info {
-    flex: 1;
-    max-width: 50%;
-}
