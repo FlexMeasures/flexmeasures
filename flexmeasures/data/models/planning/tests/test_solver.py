@@ -2113,16 +2113,126 @@ def test_battery_storage_different_units(
     if power_sensor_name == "power (kW)":
         schedule /= 1000
 
+    # Check if constraints were met
+    if isinstance(soc_at_start, str):
+        soc_at_start = ur.Quantity(soc_at_start).to("MWh").magnitude
+    elif isinstance(soc_at_start, float) or isinstance(soc_at_start, int):
+        soc_at_start = soc_at_start * convert_units(1, soc_unit, "MWh")
+    check_constraints(battery, schedule, soc_at_start)
+
     # charge fully in the cheap price period (100 kWh -> 1000kWh)
     assert schedule[:4].sum() * 0.25 == 0.9
 
     # discharge fully in the expensive price period (1000 kWh -> 100 kWh)
     assert schedule[4:].sum() * 0.25 == -0.9
 
-    if isinstance(soc_at_start, str):
-        soc_at_start = ur.Quantity(soc_at_start).to("MWh").magnitude
-    elif isinstance(soc_at_start, float) or isinstance(soc_at_start, int):
-        soc_at_start = soc_at_start * convert_units(1, soc_unit, "MWh")
+
+@pytest.mark.parametrize(
+    "ts_field, ts_specs",
+    [
+        # The battery only has time to charge up to 950 kWh halfway
+        (
+            "power-capacity",
+            [
+                {
+                    "start": "2015-01-02T14:00+01",
+                    "end": "2015-01-02T16:00+01",
+                    "value": "850 kW",
+                }
+            ],
+        ),
+        # Same, but the event time is specified with a duration instead of an end time
+        (
+            "power-capacity",
+            [
+                {
+                    "start": "2015-01-02T14:00+01",
+                    "duration": "PT2H",
+                    "value": "850 kW",
+                }
+            ],
+        ),
+        # Can only charge up to 950 kWh halfway
+        (
+            "soc-maxima",
+            [
+                {
+                    "datetime": "2015-01-02T15:00+01",
+                    "value": "950 kWh",
+                }
+            ],
+        ),
+        # Must end up at a minimum of 200 kWh, for which it is cheapest to charge to 950 and then to discharge to 200
+        (
+            "soc-minima",
+            [
+                {
+                    "datetime": "2015-01-02T16:00+01",
+                    "value": "200 kWh",
+                }
+            ],
+        ),
+    ],
+)
+def test_battery_storage_with_time_series_in_flex_model(
+    add_battery_assets,
+    db,
+    ts_field,
+    ts_specs,
+):
+    """
+    Test scheduling a 1 MWh battery for 2h with a low -> high price transition with
+    a time series used for the various flex-model fields.
+    """
+
+    soc_min = "100 kWh"
+    soc_max = "1 MWh"
+    soc_at_start = "100 kWh"
+
+    epex_da, battery = get_sensors_from_db(
+        db,
+        add_battery_assets,
+        battery_name="Test battery",
+        power_sensor_name="power",
+    )
+    tz = pytz.timezone("Europe/Amsterdam")
+
+    # transition from cheap to expensive (90 -> 100)
+    start = tz.localize(datetime(2015, 1, 2, 14, 0, 0))
+    end = tz.localize(datetime(2015, 1, 2, 16, 0, 0))
+    resolution = timedelta(minutes=15)
+
+    flex_model = {
+        "soc-min": soc_min,
+        "soc-max": soc_max,
+        "soc-at-start": soc_at_start,
+        "roundtrip-efficiency": 1,
+        "storage-efficiency": 1,
+        "power-capacity": "1 MW",
+    }
+    flex_model[ts_field] = ts_specs
+
+    scheduler: Scheduler = StorageScheduler(
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model=flex_model,
+        flex_context={
+            "site-power-capacity": "1 MW",
+        },
+    )
+    schedule = scheduler.compute()
 
     # Check if constraints were met
+    soc_at_start = ur.Quantity(soc_at_start).to("MWh").magnitude
     check_constraints(battery, schedule, soc_at_start)
+
+    # charge 850 kWh in the cheap price period (100 kWh -> 950kWh)
+    assert schedule[:4].sum() * 0.25 == pytest.approx(0.85)
+
+    # discharge fully or to what's needed in the expensive price period (950 kWh -> 100 or 200 kWh)
+    if ts_field == "soc-minima":
+        assert schedule[4:].sum() * 0.25 == pytest.approx(-0.75)
+    else:
+        assert schedule[4:].sum() * 0.25 == pytest.approx(-0.85)

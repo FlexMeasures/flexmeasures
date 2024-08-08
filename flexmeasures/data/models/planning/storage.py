@@ -117,7 +117,7 @@ class MetaStorageScheduler(Scheduler):
             power_capacity_in_mw = ur.Quantity(f"{power_capacity_in_mw} MW")
 
         power_capacity_in_mw = get_continuous_series_sensor_or_quantity(
-            quantity_or_sensor=power_capacity_in_mw,
+            variable_quantity=power_capacity_in_mw,
             actuator=sensor,
             unit="MW",
             query_window=(start, end),
@@ -183,7 +183,7 @@ class MetaStorageScheduler(Scheduler):
         # fetch SOC constraints from sensors
         if isinstance(soc_targets, Sensor):
             soc_targets = get_continuous_series_sensor_or_quantity(
-                quantity_or_sensor=soc_targets,
+                variable_quantity=soc_targets,
                 actuator=sensor,
                 unit="MWh",
                 query_window=(start, end),
@@ -194,7 +194,7 @@ class MetaStorageScheduler(Scheduler):
             )
         if isinstance(soc_minima, Sensor):
             soc_minima = get_continuous_series_sensor_or_quantity(
-                quantity_or_sensor=soc_minima,
+                variable_quantity=soc_minima,
                 actuator=sensor,
                 unit="MWh",
                 query_window=(start, end),
@@ -205,7 +205,7 @@ class MetaStorageScheduler(Scheduler):
             )
         if isinstance(soc_maxima, Sensor):
             soc_maxima = get_continuous_series_sensor_or_quantity(
-                quantity_or_sensor=soc_maxima,
+                variable_quantity=soc_maxima,
                 actuator=sensor,
                 unit="MWh",
                 query_window=(start, end),
@@ -236,7 +236,7 @@ class MetaStorageScheduler(Scheduler):
             device_constraints[0]["derivative min"] = (
                 -1
             ) * get_continuous_series_sensor_or_quantity(
-                quantity_or_sensor=production_capacity,
+                variable_quantity=production_capacity,
                 actuator=sensor,
                 unit="MW",
                 query_window=(start, end),
@@ -251,7 +251,7 @@ class MetaStorageScheduler(Scheduler):
             device_constraints[0][
                 "derivative max"
             ] = get_continuous_series_sensor_or_quantity(
-                quantity_or_sensor=consumption_capacity,
+                variable_quantity=consumption_capacity,
                 actuator=sensor,
                 unit="MW",
                 query_window=(start, end),
@@ -269,7 +269,7 @@ class MetaStorageScheduler(Scheduler):
         for is_usage, soc_delta in zip([False, True], [soc_gain, soc_usage]):
             for component in soc_delta:
                 stock_delta_series = get_continuous_series_sensor_or_quantity(
-                    quantity_or_sensor=component,
+                    variable_quantity=component,
                     actuator=sensor,
                     unit="MW",
                     query_window=(start, end),
@@ -295,7 +295,7 @@ class MetaStorageScheduler(Scheduler):
 
         # Apply round-trip efficiency evenly to charging and discharging
         charging_efficiency = get_continuous_series_sensor_or_quantity(
-            quantity_or_sensor=self.flex_model.get("charging_efficiency"),
+            variable_quantity=self.flex_model.get("charging_efficiency"),
             actuator=sensor,
             unit="dimensionless",
             query_window=(start, end),
@@ -304,7 +304,7 @@ class MetaStorageScheduler(Scheduler):
             fallback_attribute="charging-efficiency",
         ).fillna(1)
         discharging_efficiency = get_continuous_series_sensor_or_quantity(
-            quantity_or_sensor=self.flex_model.get("discharging_efficiency"),
+            variable_quantity=self.flex_model.get("discharging_efficiency"),
             actuator=sensor,
             unit="dimensionless",
             query_window=(start, end),
@@ -333,7 +333,7 @@ class MetaStorageScheduler(Scheduler):
         ):
             device_constraints[0]["efficiency"] = (
                 get_continuous_series_sensor_or_quantity(
-                    quantity_or_sensor=storage_efficiency,
+                    variable_quantity=storage_efficiency,
                     actuator=sensor,
                     unit="dimensionless",
                     query_window=(start, end),
@@ -372,7 +372,7 @@ class MetaStorageScheduler(Scheduler):
         )
 
         ems_power_capacity_in_mw = get_continuous_series_sensor_or_quantity(
-            quantity_or_sensor=self.flex_context.get("ems_power_capacity_in_mw"),
+            variable_quantity=self.flex_context.get("ems_power_capacity_in_mw"),
             actuator=sensor.generic_asset,
             unit="MW",
             query_window=(start, end),
@@ -382,7 +382,7 @@ class MetaStorageScheduler(Scheduler):
         )
 
         ems_constraints["derivative max"] = get_continuous_series_sensor_or_quantity(
-            quantity_or_sensor=self.flex_context.get("ems_consumption_capacity_in_mw"),
+            variable_quantity=self.flex_context.get("ems_consumption_capacity_in_mw"),
             actuator=sensor.generic_asset,
             unit="MW",
             query_window=(start, end),
@@ -394,7 +394,7 @@ class MetaStorageScheduler(Scheduler):
         ems_constraints["derivative min"] = (
             -1
         ) * get_continuous_series_sensor_or_quantity(
-            quantity_or_sensor=self.flex_context.get("ems_production_capacity_in_mw"),
+            variable_quantity=self.flex_context.get("ems_production_capacity_in_mw"),
             actuator=sensor.generic_asset,
             unit="MW",
             query_window=(start, end),
