@@ -149,6 +149,10 @@ class AssetAuditLog(db.Model, AuthModelMixin):
             affected_asset_id = asset_or_sensor.id
         event += f"attribute '{attribute_key}' to {attribute_value} from {old_value}"
 
+        # Truncate event string if necessary to prevent ERROR: value too long for type character varying(255)
+        max_length = 255
+        event = event[:max_length]
+
         audit_log = cls(
             event_datetime=server_now(),
             event=event,
@@ -170,6 +174,11 @@ class AssetAuditLog(db.Model, AuthModelMixin):
         :param event: event to log
         """
         current_user_id, current_user_name = get_current_user_id_name()
+
+        # Truncate event string if necessary to prevent ERROR: value too long for type character varying(255)
+        max_length = 255
+        event = event[:max_length]
+
         audit_log = AssetAuditLog(
             event_datetime=server_now(),
             event=event,
