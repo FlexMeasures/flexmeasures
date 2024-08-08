@@ -604,7 +604,7 @@ class GenericAsset(db.Model, AuthModelMixin):
     @property
     def sensors_to_show(
         self,
-    ) -> list["Sensor" | list["Sensor"] | dict[str, "Sensor"]]:  # noqa F821
+    ) -> list["Sensor" | list["Sensor"] | dict[str, "Sensor"]]:  # noqa F821   # noqa C901
         """Sensors to show, as defined by the sensors_to_show attribute.
 
         Sensors to show are defined as a list of sensor ids, which
@@ -630,8 +630,8 @@ class GenericAsset(db.Model, AuthModelMixin):
 
             sensors_to_show = [
                 {"title": "row1 Title", "sensor": 40},
-                {"title": "row2 Title", "sensor": [42, 44]},
-                35, 41, 43, 45
+                {"title": "row2 Title", "sensors": [41, 42]},
+                [43, 44], 45, 46
             ]
 
         In case the field is missing, defaults to two of the asset's sensors,
@@ -671,7 +671,6 @@ class GenericAsset(db.Model, AuthModelMixin):
         # Build list of sensor objects that are accessible
         sensors_to_show = []
         missed_sensor_ids = []
-
         # we make sure to build in the order given by the sensors_to_show attribute, and with the same nesting
         for s in sensor_ids_to_show:
             if isinstance(s, list):
@@ -685,10 +684,19 @@ class GenericAsset(db.Model, AuthModelMixin):
                             if sensor_id in accessible_sensor_map
                         ]
                     )
-            elif isinstance(s, dict) and "sensor" in s:
-                # Handle dictionary format with title
-                sensor_id = s["sensor"]
-                if isinstance(sensor_id, list):
+            elif isinstance(s, dict):
+                if "sensor" in s:
+                    sensor_id = s["sensor"]
+
+                    sensors_to_show.append(
+                        {
+                            "title": s["title"],
+                            "sensor": accessible_sensor_map[sensor_id],
+                        }
+                    )
+                elif "sensors" in s:
+                    sensor_id = s["sensors"]
+
                     inaccessible = [
                         sid for sid in sensor_id if sid not in accessible_sensor_map
                     ]
@@ -697,7 +705,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                         sensors_to_show.append(
                             {
                                 "title": s["title"],
-                                "sensor": [
+                                "sensors": [
                                     accessible_sensor_map[sid]
                                     for sid in sensor_id
                                     if sid in accessible_sensor_map
@@ -706,13 +714,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                         )
                 elif sensor_id not in accessible_sensor_map:
                     missed_sensor_ids.append(sensor_id)
-                else:
-                    sensors_to_show.append(
-                        {
-                            "title": s["title"],
-                            "sensor": accessible_sensor_map[sensor_id],
-                        }
-                    )
+                    
             else:
                 if s not in accessible_sensor_map:
                     missed_sensor_ids.append(s)
