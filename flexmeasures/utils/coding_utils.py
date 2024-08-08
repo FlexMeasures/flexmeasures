@@ -69,7 +69,7 @@ def sort_dict(unsorted_dict: dict) -> dict:
     return sorted_dict
 
 
-# Modified flatten_unique to support new sensor format with titles
+# The parsing functionality for sensors_to_show in flatten_unique will be moved to SensorsToShowSchema.
 def flatten_unique(nested_list_of_objects: list) -> list:
     """Returns unique objects in a possibly nested (one level) list of objects.
 
@@ -78,22 +78,29 @@ def flatten_unique(nested_list_of_objects: list) -> list:
     Handles lists, individual sensor IDs, and dictionaries with sensor titles.
 
     For example:
-    >>> flatten_unique([1, [2, 20, 6], 10, {"title": "row1", "sensor": [6, 2]}, {"title": "row2", "sensor": 7}])
+    >>> flatten_unique([1, [2, 20, 6], 10, {"title": "row1", "sensors": [6, 2]}, {"title": "row2", "sensor": 7}])
     <<< [1, 2, 20, 6, 10, 7]
     """
     all_objects = []
-    for s in nested_list_of_objects:
-        if isinstance(s, list):
-            all_objects.extend(s)
-        elif isinstance(s, dict):
+    for item in nested_list_of_objects:
+        if isinstance(item, list):
+            all_objects.extend(item)
+        elif isinstance(item, dict):
             # Handle dictionary format
-            sensors = s["sensor"]
-            if isinstance(sensors, list):
-                all_objects.extend(sensors)
+            if "sensors" in item:
+                sensors = item["sensors"]
+                if isinstance(sensors, list):
+                    all_objects.extend(sensors)
+                else:
+                    raise ValueError("The 'sensors' key must be associated with a list of integers.")
+            elif "sensor" in item:
+                sensor = item["sensor"]
+                all_objects.append(sensor)
             else:
-                all_objects.append(sensors)
+                raise ValueError("Dictionary must contain either 'sensor' or 'sensors' key.")
         else:
-            all_objects.append(s)
+            all_objects.append(item)
+
     return list(dict.fromkeys(all_objects).keys())
 
 
