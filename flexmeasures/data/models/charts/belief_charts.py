@@ -439,8 +439,8 @@ def chart_for_multiple_sensors(
         elif isinstance(s, dict):
             # Set up custom title for sensor
             custom_title = s["title"]
-            if isinstance(s["sensor"], list):
-                row_sensors: list["Sensor"] = s["sensor"]  # noqa F821
+            if "sensors" in s:
+                row_sensors: list["Sensor"] = s["sensors"]  # noqa F821
             else:
                 row_sensors: list["Sensor"] = [s["sensor"]]  # noqa F821
         else:
