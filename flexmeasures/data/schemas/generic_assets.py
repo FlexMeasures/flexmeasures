@@ -31,6 +31,53 @@ class JSON(fields.Field):
         return json.dumps(value)
 
 
+class SensorsToShowSchema(ma.SQLAlchemySchema):
+    """
+    Schema for validating the sensors_to_show attribute.
+    """
+
+    def _deserialize(self, value, attr, data, **kwargs) -> list:  # noqa C901
+        """
+        Handle deserialization of different formats for sensors_to_show.
+        """
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except ValueError:
+                raise ValidationError("Invalid JSON string.")
+
+        if not isinstance(value, list):
+            raise ValidationError("sensors_to_show should be a list.")
+
+        for item in value:
+            if isinstance(item, int):
+                continue
+            elif isinstance(item, list):
+                if not all(isinstance(sensor_id, int) for sensor_id in item):
+                    raise ValidationError("All sensor IDs in a list must be integers.")
+            elif isinstance(item, dict):
+                if "title" not in item:
+                    raise ValidationError("Dictionary must contain a 'title' key.")
+                if "sensor" in item:
+                    if not isinstance(item["sensor"], int):
+                        raise ValidationError("'sensor' value must be an integer.")
+                elif "sensors" in item:
+                    if not isinstance(item["sensors"], list) or not all(
+                        isinstance(sensor_id, int) for sensor_id in item["sensors"]
+                    ):
+                        raise ValidationError(
+                            "'sensors' value must be a list of integers."
+                        )
+                else:
+                    raise ValidationError(
+                        "Dictionary must contain either 'sensor' or 'sensors' key."
+                    )
+            else:
+                raise ValidationError("Invalid item type in sensors_to_show.")
+
+        return value
+
+
 class GenericAssetSchema(ma.SQLAlchemySchema):
     """
     GenericAsset schema, with validations.
@@ -112,38 +159,13 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
     def validate_attributes(self, attributes: dict):  # noqa C901
         sensors_to_show = attributes.get("sensors_to_show", [])
 
-        # Check type
-        if not isinstance(sensors_to_show, list):
-            raise ValidationError("sensors_to_show should be a list.")
-        for sensor_listing in sensors_to_show:
-            if not isinstance(sensor_listing, (int, list, dict)):
-                raise ValidationError(
-                    "sensors_to_show should only contain sensor IDs (integers), lists of sensor IDs, or dictionaries with 'title' and 'sensor' keys."
-                )
-            if isinstance(sensor_listing, list):
-                for sensor_id in sensor_listing:
-                    if not isinstance(sensor_id, int):
-                        raise ValidationError(
-                            "sensors_to_show should only contain sensor IDs (integers), lists of sensor IDs, or dictionaries with 'title' and 'sensor' keys."
-                        )
-            if isinstance(sensor_listing, dict):
-                # Validate dictionary format
-                if "title" not in sensor_listing or "sensor" not in sensor_listing:
-                    raise ValidationError(
-                        "sensors_to_show dictionary items must contain 'title' and 'sensor' keys."
-                    )
-                if not isinstance(sensor_listing["title"], str):
-                    raise ValidationError("The 'title' value should be a string.")
-                if not isinstance(sensor_listing["sensor"], (int, list)):
-                    raise ValidationError(
-                        "The 'sensor' value should be an integer or a list of integers."
-                    )
-                if isinstance(sensor_listing["sensor"], list):
-                    for sensor_id in sensor_listing["sensor"]:
-                        if not isinstance(sensor_id, int):
-                            raise ValidationError(
-                                "The 'sensor' list should only contain sensor IDs (integers)."
-                            )
+        # Use SensorsToShowSchema to validate sensors_to_show
+        try:
+            SensorsToShowSchema()._deserialize(
+                sensors_to_show, "sensors_to_show", attributes
+            )
+        except ValidationError as err:
+            raise ValidationError(f"sensors_to_show validation error: {err.messages}")
 
         # Check whether IDs represent accessible sensors
         from flexmeasures.data.schemas import SensorIdField
