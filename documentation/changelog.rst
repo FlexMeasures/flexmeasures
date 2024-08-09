@@ -3,8 +3,25 @@
 FlexMeasures Changelog
 **********************
 
+v0.23.0 | August XX, 2024
+============================
+
+New features
+-------------
+
+Infrastructure / Support
+----------------------
+* Support new single-belief fast track (looking uup only one belief) [see `PR #1067 <https://github.com/FlexMeasures/flexmeasures/pull/1067>`_]
+
+
+Bugfixes
+-----------
+
+
 v0.22.0 | June 29, 2024
 ============================
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/022-editing-flex-context/>`_.
 
 New features
 -------------
