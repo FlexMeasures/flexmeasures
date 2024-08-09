@@ -6,6 +6,54 @@ Notation
 This page helps you to construct messages to the FlexMeasures API. Please consult the endpoint documentation first. Here we dive into topics useful across endpoints.
 
 
+Variable quantities
+^^^^^^^^^^^^^^^^^^^^^^^
+
+Many API fields deal with variable quantities, for example, flex-model and flex-context fields.
+Unless stated otherwise, values of such fields can take one of the following forms:
+
+- A fixed quantity, to describe steady constraints such as a physical power capacity.
+  For example:
+
+  .. code-block:: json
+
+     {
+         "power-capacity": "15 kW"
+     }
+
+- A variable quantity defined at specific moments in time, to describe dynamic constraints/preferences such as target states of charge.
+
+  .. code-block:: json
+
+     {
+         "soc-targets": [
+             {"datetime": "2024-02-05T08:00:00+01:00", "value": "8.2 kWh"},
+             ...
+             {"datetime": "2024-02-05T13:00:00+01:00", "value": "2.2 kWh"}
+         ]
+     }
+
+- A variable quantity defined for specific time ranges, to describe dynamic constraints/preferences such as usage forecasts.
+
+  .. code-block:: json
+
+     {
+         "soc-usage": [
+             {"start": "2024-02-05T08:00:00+01:00", "end": "2024-02-05T08:00:00+01:00", "value": "10.1 kW"},
+             ...
+             {"start": "2024-02-05T13:00:00+01:00", "end": "2024-02-05T13:15:00+01:00", "value": "10.3 kW"}
+         ]
+     }
+
+- A reference to a sensor that records a variable quantity, which allows cross-referencing to dynamic contexts that are already recorded as sensor data in FlexMeasures. For instance, a site's contracted consumption capacity that changes over time.
+
+  .. code-block:: json
+
+     {
+         "site-consumption-capacity": {"sensor": 55}
+     }
+
+
 Sensors and entity addresses
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
