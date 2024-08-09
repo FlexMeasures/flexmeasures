@@ -211,8 +211,6 @@ def create(  # noqa C901
     @app.teardown_request
     def teardown_request(exception=None):
         if app.config.get("FLEXMEASURES_PROFILE_REQUESTS", False):
-            g.start = time.time()
-
             diff = time.time() - g.start
             if all([kw not in request.url for kw in ["/static", "favicon.ico"]]):
                 app.logger.info(
