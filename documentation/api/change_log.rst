@@ -32,6 +32,9 @@ v3.0-19 | 2024-08-09
   - ``soc-gain``
   - ``soc-usage``
 
+- Added API notation section on variable quantities.
+- Updated section on scheduling; specifically, most flex-context and flex-model fields are now variable quantity fields, so a footnote now explains the few fields that aren't (yet) a variable quantity field.
+- Removed section on singular vs plural keys, which is no longer valid for crucial endpoints.
 
 v3.0-18 | 2024-03-07
 """"""""""""""""""""
