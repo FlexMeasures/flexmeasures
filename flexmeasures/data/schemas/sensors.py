@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+import numbers
 
 from flask import current_app
 from marshmallow import (
@@ -274,7 +274,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
             return self._deserialize_list(value)
         elif isinstance(value, str):
             return self._deserialize_str(value)
-        elif self.default_src_unit is not None:
+        elif isinstance(value, numbers.Real) and self.default_src_unit is not None:
             return self._deserialize_numeric(value, attr, obj, **kwargs)
         else:
             raise FMValidationError(
@@ -318,8 +318,10 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
                 f"Cannot convert value `{value}` to '{self.to_unit}'"
             ) from e
 
-    def _deserialize_numeric(self, value: Any, attr, obj, **kwargs) -> ur.Quantity:
-        """Try to deserialize any other value (e.g. numeric) to a Quantity, using the default_src_unit."""
+    def _deserialize_numeric(
+        self, value: numbers.Real, attr, obj, **kwargs
+    ) -> ur.Quantity:
+        """Try to deserialize a numeric value to a Quantity, using the default_src_unit."""
         return self._deserialize(
             f"{value} {self.default_src_unit}", attr, obj, **kwargs
         )
