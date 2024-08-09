@@ -5,7 +5,7 @@ from datetime import datetime
 
 from flask_security import UserMixin, RoleMixin
 import pandas as pd
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy import Boolean, DateTime, Column, Integer, String, ForeignKey
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -177,6 +177,20 @@ class Account(db.Model, AuthModelMixin):
         annotations = db.session.scalars(query).all()
 
         return to_annotation_frame(annotations) if as_frame else annotations
+
+    @property
+    def number_of_assets(self):
+        from flexmeasures.data.models.generic_assets import GenericAsset
+
+        return db.session.execute(
+            select(func.count()).where(GenericAsset.account_id == self.id)
+        ).scalar_one_or_none()
+
+    @property
+    def number_of_users(self):
+        return db.session.execute(
+            select(func.count()).where(User.account_id == self.id)
+        ).scalar_one_or_none()
 
 
 class RolesUsers(db.Model):

@@ -1,10 +1,15 @@
+from __future__ import annotations
+
 import json
 
 from flask import current_app
 from flask_classful import FlaskView, route
+from flask_login import current_user
 from flask_security import auth_required
 from flask_json import as_json
 from marshmallow import fields
+import marshmallow.validate as validate
+
 from webargs.flaskparser import use_kwargs, use_args
 from sqlalchemy import select, delete
 
@@ -19,11 +24,25 @@ from flexmeasures.api.common.schemas.generic_assets import AssetIdField
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.utils.coding_utils import flatten_unique
 from flexmeasures.ui.utils.view_utils import set_session_variables
+from flexmeasures.auth.policy import check_access
+from werkzeug.exceptions import Forbidden, Unauthorized
 
 
 asset_schema = AssetSchema()
 assets_schema = AssetSchema(many=True)
 partial_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
+
+
+def get_acessible_accounts() -> list[Account]:
+    accounts = []
+    for _account in db.session.scalars(select(Account)).all():
+        try:
+            check_access(_account, "read")
+            accounts.append(_account)
+        except (Forbidden, Unauthorized):
+            pass
+
+    return accounts
 
 
 class AssetAPI(FlaskView):
@@ -39,21 +58,46 @@ class AssetAPI(FlaskView):
     @route("", methods=["GET"])
     @use_kwargs(
         {
-            "account": AccountIdField(
-                data_key="account_id", load_default=AccountIdField.load_current
+            "account": AccountIdField(data_key="account_id", load_default=None),
+        },
+        location="query",
+    )
+    @use_kwargs(
+        {
+            "all_accessible": fields.Bool(
+                data_key="all_accessible", load_default=False
             ),
         },
         location="query",
     )
-    @permission_required_for_context("read", ctx_arg_name="account")
+    @use_kwargs(
+        {
+            "page": fields.Int(
+                required=False, validate=validate.Range(min=1), default=1
+            ),
+            "per_page": fields.Int(
+                required=False, validate=validate.Range(min=1), default=10
+            ),
+            "filter": fields.Str(required=False, default=None),
+        },
+        location="query",
+    )
     @as_json
-    def index(self, account: Account):
-        """List all assets owned by a certain account.
+    def index(
+        self,
+        account: Account | None,
+        all_accessible: bool,
+        page: int | None = None,
+        per_page: int | None = None,
+        filter: str | None = None,
+    ):
+        """List all assets owned or accessible by a certain account.
 
         .. :quickref: Asset; Download asset list
 
         This endpoint returns all accessible assets for the account of the user.
         The `account_id` query parameter can be used to list assets from a different account.
+        The `all_accessible` query parameter can be used to list all the assets accessible by the requesting user. Defaults to `false`.
 
         **Example response**
 
@@ -81,7 +125,40 @@ class AssetAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        return assets_schema.dump(account.generic_assets), 200
+
+        accounts = []
+        if all_accessible:
+            accounts = get_acessible_accounts()
+            if account is not None:
+                check_access(account, "read")
+        else:
+            if account is None:
+                account = current_user.account
+            check_access(account, "read")
+            accounts = [account]
+
+        filter_statement = GenericAsset.account_id.in_([a.id for a in accounts])
+
+        # add public assets if the request asks for all the accesible assets
+        if all_accessible:
+            filter_statement = filter_statement | GenericAsset.account_id.is_(None)
+
+        if filter is not None:
+            filter_statement = filter_statement & GenericAsset.name.ilike(f"%{filter}%")
+
+        query = select(GenericAsset).where(filter_statement)
+
+        # add search query for name
+        if page is not None:
+            if per_page is None:
+                per_page = 10
+            assets = db.paginate(query, per_page=per_page, page=page).items
+
+            # TODO: return total number of records. e.g. {"data" : [], "num-records" : 120, "filtered-records" : 10}
+        else:
+            assets = db.session.scalars(query).all()
+
+        return assets_schema.dump(assets), 200
 
     @route("/public", methods=["GET"])
     @as_json
