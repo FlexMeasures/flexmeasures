@@ -355,11 +355,11 @@ def _get_sensor_stats(sensor: Sensor, ttl_hash=None) -> dict:
             DataSource.name,
             sa.func.min(TimedBelief.event_start).label("min_event_start"),
             sa.func.max(TimedBelief.event_start).label("max_event_start"),
-            sa.func.count(TimedBelief.event_value).label("count_event_value"),
             subquery_for_filtered_aggregates.c.min_event_value,
             subquery_for_filtered_aggregates.c.max_event_value,
             subquery_for_filtered_aggregates.c.avg_event_value,
             subquery_for_filtered_aggregates.c.sum_event_value,
+            sa.func.count(TimedBelief.event_value).label("count_event_value"),
         )
         .select_from(TimedBelief)
         .join(DataSource, DataSource.id == TimedBelief.source_id)
