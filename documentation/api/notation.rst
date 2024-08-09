@@ -57,6 +57,7 @@ Unless stated otherwise, values of such fields can take one of the following for
          "site-consumption-capacity": {"sensor": 55}
      }
 
+  The unit of the data is specified on the sensor.
 
 Sensors and entity addresses
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
