@@ -3,6 +3,7 @@ CLI commands for populating the database
 """
 
 from __future__ import annotations
+import re
 
 from datetime import datetime, timedelta
 from typing import Type
@@ -147,7 +148,10 @@ def new_account_role(name: str, description: str):
     if role is not None:
         click.secho(f"Account role '{name}' already exists.", **MsgStyle.ERROR)
         raise click.Abort()
-    role = AccountRole(name=name, description=description)
+    role = AccountRole(
+        name=name,
+        description=description,
+    )
     db.session.add(role)
     db.session.commit()
     click.secho(
@@ -160,13 +164,23 @@ def new_account_role(name: str, description: str):
 @with_appcontext
 @click.option("--name", required=True)
 @click.option("--roles", help="e.g. anonymous,Prosumer,CPO")
+@click.option("--primary-color", help="Primary color for the user. Defaults to #1a3443")
+@click.option(
+    "--secondary-color", help="Secondary color for the user. Defaults to #f1a122"
+)
 @click.option(
     "--consultancy",
     "consultancy_account",
     type=AccountIdField(required=False),
     help="ID of the consultancy account, whose consultants will have read access to this account",
 )
-def new_account(name: str, roles: str, consultancy_account: Account | None):
+def new_account(
+    name: str,
+    roles: str,
+    consultancy_account: Account | None,
+    primary_color: str | None,
+    secondary_color: str | None,
+):
     """
     Create an account for a tenant in the FlexMeasures platform.
     """
@@ -176,7 +190,46 @@ def new_account(name: str, roles: str, consultancy_account: Account | None):
     if account is not None:
         click.secho(f"Account '{name}' already exists.", **MsgStyle.ERROR)
         raise click.Abort()
-    account = Account(name=name, consultancy_account=consultancy_account)
+
+    # Validate color format ---------------------------------------------------
+    # Regular expression for valid hex color code
+    hex_color_pattern = re.compile(r"^#?([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$")
+
+    if primary_color and not hex_color_pattern.match(primary_color):
+        click.secho("Primary color is not in valid hex format", **MsgStyle.ERROR)
+        raise click.Abort()
+
+    if secondary_color and not hex_color_pattern.match(secondary_color):
+        click.secho("Secondary color is not in valid hex format", **MsgStyle.ERROR)
+        raise click.Abort()
+
+    # make sure both colors or non are given
+    if primary_color and not secondary_color:
+        click.secho("Secondary color is missing", **MsgStyle.ERROR)
+        raise click.Abort()
+
+    if secondary_color and not primary_color:
+        click.secho("Primary color is missing", **MsgStyle.ERROR)
+        raise click.Abort()
+
+    # Add '#' if color is given and doesn't already start with it
+    primary_color = (
+        f"#{primary_color}"
+        if primary_color and not primary_color.startswith("#")
+        else primary_color
+    )
+    secondary_color = (
+        f"#{secondary_color}"
+        if secondary_color and not secondary_color.startswith("#")
+        else secondary_color
+    )
+
+    account = Account(
+        name=name,
+        consultancy_account=consultancy_account,
+        primary_color=primary_color,
+        secondary_color=secondary_color,
+    )
     db.session.add(account)
     if roles:
         for role_name in roles.split(","):
@@ -687,9 +740,9 @@ def add_beliefs(
         header=None,
         skiprows=skiprows,
         nrows=nrows,
-        usecols=[datecol, valuecol]
-        if beliefcol is None
-        else [datecol, beliefcol, valuecol],
+        usecols=(
+            [datecol, valuecol] if beliefcol is None else [datecol, beliefcol, valuecol]
+        ),
         parse_dates=True,
         na_values=na_values,
         keep_default_na=keep_default_na,

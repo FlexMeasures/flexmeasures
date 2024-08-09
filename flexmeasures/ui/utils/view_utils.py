@@ -16,6 +16,7 @@ from flexmeasures.utils import time_utils
 from flexmeasures.ui import flexmeasures_ui
 from flexmeasures.data.models.user import User, Account
 from flexmeasures.ui.utils.chart_defaults import chart_options
+from flexmeasures.ui.utils.color_defaults import get_color_settings
 
 
 def render_flexmeasures_template(html_filename: str, **variables):
@@ -90,6 +91,10 @@ def render_flexmeasures_template(html_filename: str, **variables):
 
     if "asset" in variables:
         variables["breadcrumb_info"] = get_breadcrumb_info(asset)
+
+    # add color settings
+    account = db.session.query(Account).get(current_user.account_id)
+    variables.update(get_color_settings(account))
 
     return render_template(html_filename, **variables)
 

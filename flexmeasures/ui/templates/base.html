@@ -18,6 +18,37 @@
     <link rel="icon" href="/favicon.ico" type="image/x-icon" />
     <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon" />
     {% block styles %}
+    <style>
+        :root {
+            --primary-color: {{ primary_color | default('#1a3443') }};
+            --primary-border-color: {{ primary_border_color | default('hsl(202, 44%, 11%)') }};
+            --primary-hover-color: {{ primary_hover_color | default('#152b38') }};
+            --primary-transparent: {{ primary_transparent | default('rgba(26, 52, 67, .2)') }};
+            --secondary-color: {{ secondary_color | default('#f1a122') }};
+            --secondary-hover-color: {{ secondary_hover_color | default('#ff9d00') }};
+            --secondary-transparent: {{ secondary_transparent | default('rgba(241, 161, 34, .2)') }};
+            --white: #FFF;
+            --black: #000;
+            --light-gray: #eeeeee;
+            --gray: #bbb;
+            --red: #c21431;
+            --green: #14c231;
+
+            /* colors by function */
+            --nav-default-color: var(--white);
+            --nav-default-background-color: var(--primary-color);
+            --nav-hover-color: var(--secondary-hover-color);
+            --nav-hover-background-color: var(--primary-hover-color);
+            --nav-open-color: var(--secondary-color);
+            --nav-open-background-color: var(--primary-color);
+            --nav-current-color: var(--black);
+            --nav-current-background-color: var(--secondary-color);
+            --nav-current-hover-color: var(--black);
+            --nav-current-hover-background-color: var(--secondary-hover-color);
+            --create-color: var(--green);
+            --delete-color: var(--red);
+        }
+    </style>
     <!-- Leaflet -->
     <link href="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.css" rel="stylesheet" />
     <link href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" rel="stylesheet" />
