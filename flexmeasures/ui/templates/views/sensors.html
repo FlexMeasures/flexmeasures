@@ -52,7 +52,6 @@
                         <tbody id="statsTableBody">
                         </tbody>
                     </table>
-
                     <script>
                         document.addEventListener('DOMContentLoaded', function() {
                             const spinner = document.getElementById('spinner-run-simulation');
@@ -61,6 +60,8 @@
                             const dropdownButton = document.getElementById('sourceKeyDropdown');
                             const statsHeader = document.getElementById('statsHeader');
                             const dropdownContainer = document.getElementById('sourceKeyDropdownContainer');
+                            const propertiesContainer = document.getElementById('propertiesContainer');
+                            const statsContainer = document.getElementById('statsContainer');
 
                             // Show the spinner
                             spinner.classList.remove('d-none');
@@ -100,6 +101,11 @@
                                         const firstSourceKey = Object.keys(data)[0];
                                         dropdownButton.textContent = firstSourceKey;
                                         updateTable(data[firstSourceKey]);
+                                    } else {
+                                        // If the stats table is empty, make the properties table full width
+                                        propertiesContainer.classList.remove('col-sm-6');
+                                        propertiesContainer.classList.add('col-sm-12');
+                                        statsContainer.classList.add('d-none');
                                     }
                                 })
                                 .catch(error => {
