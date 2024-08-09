@@ -120,6 +120,7 @@ class StorageFlexModelSchema(Schema):
             ]
         ),
         data_key="soc-unit",
+        required=False,
     )
 
     charging_efficiency = VariableQuantityField(
