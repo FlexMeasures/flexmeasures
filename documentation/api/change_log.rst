@@ -6,6 +6,33 @@ API change log
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
 
+v3.0-19 | 2024-08-09
+""""""""""""""""""""
+
+- Allow setting a SoC unit directly in some fields (formerly ``Float`` fields, and now ``Quantity`` fields), while still falling back on the contents of the ``soc-unit`` field, for backwards compatibility:
+
+  - ``soc-at-start``
+  - ``soc-min``
+  - ``soc-max``
+
+- Allow setting a unit directly in fields that already supported passing a time series:
+
+  - ``soc-maxima``
+  - ``soc-minima``
+  - ``soc-targets``
+
+- Allow passing a time series in fields that formerly only accepted passing a fixed quantity or a sensor reference:
+
+  - ``power-capacity``
+  - ``consumption-capacity``
+  - ``production-capacity``
+  - ``charging-efficiency``
+  - ``discharging-efficiency``
+  - ``storage-efficiency``
+  - ``soc-gain``
+  - ``soc-usage``
+
+
 v3.0-18 | 2024-03-07
 """"""""""""""""""""
 - Add support for providing a sensor definition to the ``soc-minima``, ``soc-maxima`` and ``soc-targets`` flex-model fields for `/sensors/<id>/schedules/trigger` (POST).
