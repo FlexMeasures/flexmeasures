@@ -11,7 +11,7 @@ This page helps you to construct messages to the FlexMeasures API. Please consul
 Variable quantities
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-Many API fields deal with variable quantities, for example, flex-model and flex-context fields.
+Many API fields deal with variable quantities, for example, :ref:`flex-model <flex_models_and_schedulers>` and :ref:`flex-context <flex_context>` fields.
 Unless stated otherwise, values of such fields can take one of the following forms:
 
 - A fixed quantity, to describe steady constraints such as a physical power capacity.
