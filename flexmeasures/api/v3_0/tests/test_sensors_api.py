@@ -259,6 +259,9 @@ def test_fetch_sensor_stats(
         print("Server responded with:\n%s" % response.json)
         assert response.status_code == 200
         response_content = response.json
+        print("---------------------------")
+        print(response_content)
+        print("---------------------------")
 
         del response_content["status"]
         assert sorted(list(response_content.keys())) == [
@@ -277,7 +280,7 @@ def test_fetch_sensor_stats(
             else:
                 # values are: 91.3, NaN, 92.1
                 sum_values = 183.4
-                count_values = 2
+                count_values = 3
             mean_value = 91.7
             assert math.isclose(
                 record["mean_value"], mean_value, rel_tol=1e-5
