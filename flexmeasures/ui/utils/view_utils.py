@@ -91,10 +91,10 @@ def render_flexmeasures_template(html_filename: str, **variables):
 
     if "asset" in variables:
         variables["breadcrumb_info"] = get_breadcrumb_info(asset)
-
-    # add color settings
-    account = db.session.query(Account).get(current_user.account_id)
-    variables.update(get_color_settings(account))
+    account: Account | None = (
+        current_user.account if current_user.is_authenticated else None
+    )
+    variables.update(get_color_settings(account))  # add color settings to variables
 
     return render_template(html_filename, **variables)
 

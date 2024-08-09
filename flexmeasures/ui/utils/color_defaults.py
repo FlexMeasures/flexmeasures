@@ -1,13 +1,27 @@
-def get_color_settings(account):
-    # Initialize colors with defaults
-    primary_color = (
-        account.primary_color or account.consultancy_account.primary_color or "#1a3443"
-    )
-    secondary_color = (
-        account.secondary_color
-        or account.consultancy_account.secondary_color
-        or "#f1a122"
-    )
+from flexmeasures.data.models.user import Account
+
+
+def get_color_settings(account: Account | None) -> dict:
+    primary_color: str = "#1a3443"
+    secondary_color: str = "f1a122"
+    if account:
+        """Initialize colors with defaults"""
+        primary_color = str(
+            account.primary_color
+            or (
+                account.consultancy_account
+                and account.consultancy_account.primary_color
+            )
+            or "#1a3443"
+        )
+        secondary_color = str(
+            account.secondary_color
+            or (
+                account.consultancy_account
+                and account.consultancy_account.secondary_color
+            )
+            or "#f1a122"
+        )
 
     # Compute variations
     primary_border_color = darken_color(primary_color, 7)
