@@ -41,11 +41,13 @@ Unless stated otherwise, values of such fields can take one of the following for
 
      {
          "soc-usage": [
-             {"start": "2024-02-05T08:00:00+01:00", "end": "2024-02-05T08:00:00+01:00", "value": "10.1 kW"},
+             {"start": "2024-02-05T08:00:00+01:00", "duration": "PT2H", "value": "10.1 kW"},
              ...
              {"start": "2024-02-05T13:00:00+01:00", "end": "2024-02-05T13:15:00+01:00", "value": "10.3 kW"}
          ]
      }
+
+  Note the two distinct ways of specifying a time period (``"end"`` + ``"duration"`` also works).
 
 - A reference to a sensor that records a variable quantity, which allows cross-referencing to dynamic contexts that are already recorded as sensor data in FlexMeasures. For instance, a site's contracted consumption capacity that changes over time.
 
