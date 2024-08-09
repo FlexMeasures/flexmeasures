@@ -8,7 +8,7 @@ v0.23.0 | August XX, 2024
 
 New features
 -------------
-* Allow three ways of passing a variable quantity in most of the ``flex-model`` and ``flex-context`` fields [see `PR #1127 <https://github.com/FlexMeasures/flexmeasures/pull/1127>`_]
+* Allow three ways of passing a variable quantity in most of the ``flex-model`` and ``flex-context`` fields [see `PR #1127 <https://github.com/FlexMeasures/flexmeasures/pull/1127>`_ and `PR #1138 <https://github.com/FlexMeasures/flexmeasures/pull/1138>`_]
 
 Infrastructure / Support
 ----------------------
