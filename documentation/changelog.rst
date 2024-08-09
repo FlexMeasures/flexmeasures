@@ -3,6 +3,20 @@
 FlexMeasures Changelog
 **********************
 
+v0.23.0 | July XX, 2024
+============================
+
+New features
+-------------
+* Add `api/v3_0/sensors/<id>/stats` to get sensor statistics [see `PR #1116 <https://github.com/FlexMeasures/flexmeasures/pull/1116>`_]
+
+Infrastructure / Support
+----------------------
+
+Bugfixes
+-----------
+
+
 v0.22.0 | June 29, 2024
 ============================
 
