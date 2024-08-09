@@ -6,21 +6,6 @@ Notation
 This page helps you to construct messages to the FlexMeasures API. Please consult the endpoint documentation first. Here we dive into topics useful across endpoints.
 
 
-Singular vs plural keys
-^^^^^^^^^^^^^^^^^^^^^^^
-
-Throughout this document, keys are written in singular if a single value is listed, and written in plural if multiple values are listed, for example:
-
-.. code-block:: json
-
-    {
-        "keyToValue": "this is a single value",
-        "keyToValues": ["this is a value", "and this is a second value"]
-    }
-
-The API, however, does not distinguish between singular and plural key notation.
-
-
 Sensors and entity addresses
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
