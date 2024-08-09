@@ -85,9 +85,9 @@ The flex-models & corresponding schedulers
 
 FlexMeasures comes with a storage scheduler and a process scheduler, which work with flex models for storages and loads, respectively.
 
-The storage scheduler is suitable for batteries and :abbr:`EV (electric vehicle)` chargers, and is automatically selected when scheduling an asset with one of the following asset types: "battery", "one-way_evse" and "two-way_evse".
+The storage scheduler is suitable for batteries and :abbr:`EV (electric vehicle)` chargers, and is automatically selected when scheduling an asset with one of the following asset types: ``"battery"``, ``"one-way_evse"`` and ``"two-way_evse"``.
 
-The process scheduler is suitable for shiftable, breakable and inflexible loads, and is automatically selected for asset types "process" and "load".
+The process scheduler is suitable for shiftable, breakable and inflexible loads, and is automatically selected for asset types ``"process"`` and ``"load"``.
 
 
 Storage
