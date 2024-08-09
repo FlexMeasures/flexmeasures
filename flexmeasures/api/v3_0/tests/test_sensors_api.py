@@ -259,9 +259,6 @@ def test_fetch_sensor_stats(
         print("Server responded with:\n%s" % response.json)
         assert response.status_code == 200
         response_content = response.json
-        print("---------------------------")
-        print(response_content)
-        print("---------------------------")
 
         del response_content["status"]
         assert sorted(list(response_content.keys())) == [
