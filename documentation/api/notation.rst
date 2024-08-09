@@ -6,6 +6,8 @@ Notation
 This page helps you to construct messages to the FlexMeasures API. Please consult the endpoint documentation first. Here we dive into topics useful across endpoints.
 
 
+.. _variable_quantities:
+
 Variable quantities
 ^^^^^^^^^^^^^^^^^^^^^^^
 
