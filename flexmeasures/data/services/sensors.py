@@ -335,22 +335,46 @@ def build_asset_jobs_data(
 
 @lru_cache()
 def _get_sensor_stats(sensor: Sensor, ttl_hash=None) -> dict:
+    # Subquery for filtered aggregates
+    subquery_for_filtered_aggregates = (
+        sa.select(
+            TimedBelief.source_id,
+            sa.func.max(TimedBelief.event_value).label("max_event_value"),
+            sa.func.avg(TimedBelief.event_value).label("avg_event_value"),
+            sa.func.sum(TimedBelief.event_value).label("sum_event_value"),
+            sa.func.min(TimedBelief.event_value).label("min_event_value"),
+        )
+        .filter(TimedBelief.event_value != float("NaN"))
+        .filter(TimedBelief.sensor_id == sensor.id)
+        .group_by(TimedBelief.source_id)
+        .subquery()
+    )
+
     raw_stats = db.session.execute(
         sa.select(
             DataSource.name,
-            sa.func.min(TimedBelief.event_start),
-            sa.func.max(TimedBelief.event_start),
-            sa.func.min(TimedBelief.event_value),
-            sa.func.max(TimedBelief.event_value),
-            sa.func.avg(TimedBelief.event_value),
-            sa.func.sum(TimedBelief.event_value),
-            sa.func.count(TimedBelief.event_value),
+            sa.func.min(TimedBelief.event_start).label("min_event_start"),
+            sa.func.max(TimedBelief.event_start).label("max_event_start"),
+            sa.func.count(TimedBelief.event_value).label("count_event_value"),
+            subquery_for_filtered_aggregates.c.min_event_value,
+            subquery_for_filtered_aggregates.c.max_event_value,
+            subquery_for_filtered_aggregates.c.avg_event_value,
+            subquery_for_filtered_aggregates.c.sum_event_value,
         )
         .select_from(TimedBelief)
         .join(DataSource, DataSource.id == TimedBelief.source_id)
+        .join(
+            subquery_for_filtered_aggregates,
+            subquery_for_filtered_aggregates.c.source_id == TimedBelief.source_id,
+        )
         .filter(TimedBelief.sensor_id == sensor.id)
-        .filter(TimedBelief.event_value != float("NaN"))  # Exclude NaN values
-        .group_by(DataSource.name)
+        .group_by(
+            DataSource.name,
+            subquery_for_filtered_aggregates.c.min_event_value,
+            subquery_for_filtered_aggregates.c.max_event_value,
+            subquery_for_filtered_aggregates.c.avg_event_value,
+            subquery_for_filtered_aggregates.c.sum_event_value,
+        )
     ).fetchall()
 
     stats = dict()
