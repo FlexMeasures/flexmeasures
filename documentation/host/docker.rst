@@ -48,8 +48,7 @@ The two minimal environment variables to run the container successfully are ``SQ
 In this example, we connect to a postgres database running on our local computer, so we use the host network. In the docker-compose section below, we use a Docker container for the database, as well.
 
 Browsing ``http://localhost:5000`` should work now and ask you to log in.
-
-Of course, you might not have created a user. You can use ``docker exec -it <flexmeasures-container-name> bash`` to go inside the container and use the :ref:`cli` to create everything you need. 
+Of course, you might not have created a user. You can use ``docker exec -it <flexmeasures-container-name> bash`` to go inside the container and use the :ref:`cli` to create everything you need.
 
 
 .. _docker_configuration:
