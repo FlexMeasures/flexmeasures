@@ -64,7 +64,8 @@ def _get_sensor_bdf(sensor: Sensor, staleness_search: dict) -> BeliefsDataFrame 
     """Get bdf for a given sensor with given search parameters."""
     bdf = TimedBelief.search(
         sensors=sensor,
-        most_recent_events_only=True,
+        most_recent_beliefs_only=False,
+        most_recent_only=True,
         **staleness_search,
     )
     if bdf.empty:
