@@ -82,6 +82,8 @@ Install Flexmeasures and the database
             $ docker start flexmeasures-tutorial-db
             $ docker start flexmeasures-tutorial-fm
 
+        When started, the FlexMeasures UI should be available at http://localhost:5000 in your browser.
+
         .. note:: For newer versions of macOS, port 5000 is in use by default by Control Center. You can turn this off by going to System Preferences > Sharing and untick the "Airplay Receiver" box.
                   If you don't want to do this for some reason, you can change the host port in the ``docker run`` command to some other port, for example port 5001.
                   To do this, change ``-p 5000:5000`` in the command to ``-p 5001:5000``.
