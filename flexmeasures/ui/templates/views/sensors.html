@@ -34,6 +34,29 @@
           </div>
           <div class="container">
             <div class="row">
+                <h3>{{ sensor.name }}</h3>
+                <div class="col-sm-6">
+                    <h5>Properties</h5>
+
+                    <table class="table table-striped">
+                        <tr>
+                            <th>Unit</th>
+                            <td>{{ sensor.unit }}</td>
+                        </tr>
+                        <tr>
+                            <th>Event Resolution</th>
+                            <td>{{ sensor.event_resolution }}</td>
+                        </tr>
+                        <tr>
+                            <th>Timezone</th>
+                            <td>{{ sensor.timezone }}</td>
+                        </tr>
+                        <tr>
+                            <th>Knowledge Horizon Type</th>
+                            <td>{{ sensor.knowledge_horizon_fnc }}</td>
+                        </tr>
+                    </table>
+                </div>
                 <div class="col-sm-6">
                     <span id="spinner-run-simulation" class="spinner-border spinner-border-sm d-none" role="status"></span>
                     <h5 id="statsHeader" class="d-none">Stats</h5>
@@ -150,7 +173,6 @@
                         });
                     </script>
                 </div>
-
             </div>
           </div>
           <div class="row on-top-md">

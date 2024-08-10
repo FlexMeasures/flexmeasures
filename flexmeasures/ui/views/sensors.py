@@ -81,7 +81,7 @@ class SensorUI(FlaskView):
             "views/sensors.html",
             sensor=sensor,
             msg="",
-            breadcrumb_info=get_breadcrumb_info(db.session.get(Sensor, id)),
+            breadcrumb_info=get_breadcrumb_info(sensor),
             event_starts_after=request.args.get("start_time"),
             event_ends_before=request.args.get("end_time"),
         )
