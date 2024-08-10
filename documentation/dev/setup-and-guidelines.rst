@@ -150,6 +150,17 @@ Otherwise, you need to add some other user first. Here is how we add an admin:
 (The `account` you need in the 2nd command is printed by the 1st)
 
 
+.. note:: For newer versions of macOS, port 5000 is in use by default by Control Center.
+          You can turn this off by going to System Preferences > Sharing and untick the "Airplay Receiver" box.
+          If you don't want to do this for some reason, you can change the port for locally running FlexMeasures by setting the ``FLASK_RUN_PORT`` environment variable.
+          For example, to set it to port 5001:
+
+          .. code-block:: bash
+
+              $ export FLASK_RUN_PORT=5001  # You can also add this to your local .env
+
+          If you do this, remember that you will have to go to http://localhost:5001 in your browser when you want to inspect the FlexMeasures UI.
+
 .. note::
 
     If you are on Windows, then running & developing FlexMeasures will not work 100%. For instance, the queueing only works if you install rq-win (https://github.com/michaelbrooks/rq-win) manually and the make tooling is difficult to get to work as well.
