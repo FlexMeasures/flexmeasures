@@ -25,7 +25,6 @@
                 {% endfor %}
             </ol>
         </nav>
-
       <div class="sensor-data charts text-center">
           <div class="row">
               <div class="alert alert-info" id="tzwarn" style="display:none;"></div>
@@ -33,147 +32,147 @@
               <div class="alert alert-info" id="sourcewarn" style="display:none;"></div>
           </div>
           <div class="container">
-            <div class="row">
-                <h3>{{ sensor.name }}</h3>
-                <div class="col-sm-6">
-                    <h5>Properties</h5>
-
-                    <table class="table table-striped">
-                        <tr>
-                            <th>Unit</th>
-                            <td>{{ sensor.unit }}</td>
-                        </tr>
-                        <tr>
-                            <th>Event Resolution</th>
-                            <td>{{ sensor.event_resolution }}</td>
-                        </tr>
-                        <tr>
-                            <th>Timezone</th>
-                            <td>{{ sensor.timezone }}</td>
-                        </tr>
-                        <tr>
-                            <th>Knowledge Horizon Type</th>
-                            <td>{{ sensor.knowledge_horizon_fnc }}</td>
-                        </tr>
-                    </table>
-                </div>
-                <div class="col-sm-6">
-                    <span id="spinner-run-simulation" class="spinner-border spinner-border-sm d-none" role="status"></span>
-                    <h5 id="statsHeader" class="d-none">Stats</h5>
-
-                    <!-- Dropdown for sourceKey -->
-                    <div class="dropdown mb-3 d-none" id="sourceKeyDropdownContainer">
-                        <button class="btn btn-secondary dropdown-toggle" type="button" id="sourceKeyDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                            Select Source
-                        </button>
-                        <ul class="dropdown-menu" aria-labelledby="sourceKeyDropdown" id="sourceKeyDropdownMenu">
-                        </ul>
+                <div class="row">
+                    <h3>{{ sensor.name }}</h3>
+                    <div class="col-sm-6" id="propertiesContainer">
+                        <h5>Properties</h5>
+                        <table class="table table-striped">
+                            <tr>
+                                <th>Unit</th>
+                                <td>{{ sensor.unit }}</td>
+                            </tr>
+                            <tr>
+                                <th>Event Resolution</th>
+                                <td>{{ sensor.event_resolution }}</td>
+                            </tr>
+                            <tr>
+                                <th>Timezone</th>
+                                <td>{{ sensor.timezone }}</td>
+                            </tr>
+                            <tr>
+                                <th>Knowledge Horizon Type</th>
+                                <td>{{ sensor.knowledge_horizon_fnc }}</td>
+                            </tr>
+                        </table>
                     </div>
+                    <div class="col-sm-6" id="statsContainer">
+                        <span id="spinner-run-simulation" class="spinner-border spinner-border-sm d-none" role="status"></span>
+                        <h5 id="statsHeader" class="d-none">Stats</h5>
 
-                    <table id="statsTable" class="table table-striped">
-                        <tbody id="statsTableBody">
-                        </tbody>
-                    </table>
-                    <script>
-                        document.addEventListener('DOMContentLoaded', function() {
-                            const spinner = document.getElementById('spinner-run-simulation');
-                            const tableBody = document.getElementById('statsTableBody');
-                            const dropdownMenu = document.getElementById('sourceKeyDropdownMenu');
-                            const dropdownButton = document.getElementById('sourceKeyDropdown');
-                            const statsHeader = document.getElementById('statsHeader');
-                            const dropdownContainer = document.getElementById('sourceKeyDropdownContainer');
-                            const propertiesContainer = document.getElementById('propertiesContainer');
-                            const statsContainer = document.getElementById('statsContainer');
+                        <!-- Dropdown for sourceKey -->
+                        <div class="dropdown mb-3 d-none" id="sourceKeyDropdownContainer">
+                            <button class="btn btn-secondary dropdown-toggle" type="button" id="sourceKeyDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                Select Source
+                            </button>
+                            <ul class="dropdown-menu" aria-labelledby="sourceKeyDropdown" id="sourceKeyDropdownMenu">
+                            </ul>
+                        </div>
 
-                            // Show the spinner
-                            spinner.classList.remove('d-none');
+                        <table id="statsTable" class="table table-striped">
+                            <tbody id="statsTableBody">
+                            </tbody>
+                        </table>
 
-                            fetch('/api/v3_0/sensors/' + {{ sensor.id }} + '/stats')
-                                .then(response => response.json())
-                                .then(data => {
-                                    // Remove 'status' sourceKey
-                                    delete data['status'];
+                        <script>
+                            document.addEventListener('DOMContentLoaded', function() {
+                                const spinner = document.getElementById('spinner-run-simulation');
+                                const tableBody = document.getElementById('statsTableBody');
+                                const dropdownMenu = document.getElementById('sourceKeyDropdownMenu');
+                                const dropdownButton = document.getElementById('sourceKeyDropdown');
+                                const statsHeader = document.getElementById('statsHeader');
+                                const dropdownContainer = document.getElementById('sourceKeyDropdownContainer');
+                                const propertiesContainer = document.getElementById('propertiesContainer');
+                                const statsContainer = document.getElementById('statsContainer');
 
-                                    if (Object.keys(data).length > 0) {
-                                        // Show the header and dropdown container
-                                        statsHeader.classList.remove('d-none');
-                                        dropdownContainer.classList.remove('d-none');
+                                // Show the spinner
+                                spinner.classList.remove('d-none');
 
-                                        // Populate the dropdown menu with sourceKeys
-                                        Object.keys(data).forEach(sourceKey => {
-                                            const dropdownItem = document.createElement('li');
-                                            const dropdownLink = document.createElement('a');
-                                            dropdownLink.className = 'dropdown-item';
-                                            dropdownLink.href = '#';
-                                            dropdownLink.textContent = sourceKey;
-                                            dropdownLink.dataset.sourceKey = sourceKey;
+                                fetch('/api/v3_0/sensors/' + {{ sensor.id }} + '/stats')
+                                    .then(response => response.json())
+                                    .then(data => {
+                                        // Remove 'status' sourceKey
+                                        delete data['status'];
 
-                                            dropdownLink.addEventListener('click', function(event) {
-                                                event.preventDefault();
-                                                const selectedSourceKey = event.target.dataset.sourceKey;
-                                                dropdownButton.textContent = selectedSourceKey;
-                                                updateTable(data[selectedSourceKey]);
+                                        if (Object.keys(data).length > 0) {
+                                            // Show the header and dropdown container
+                                            statsHeader.classList.remove('d-none');
+                                            dropdownContainer.classList.remove('d-none');
+
+                                            // Populate the dropdown menu with sourceKeys
+                                            Object.keys(data).forEach(sourceKey => {
+                                                const dropdownItem = document.createElement('li');
+                                                const dropdownLink = document.createElement('a');
+                                                dropdownLink.className = 'dropdown-item';
+                                                dropdownLink.href = '#';
+                                                dropdownLink.textContent = sourceKey;
+                                                dropdownLink.dataset.sourceKey = sourceKey;
+
+                                                dropdownLink.addEventListener('click', function(event) {
+                                                    event.preventDefault();
+                                                    const selectedSourceKey = event.target.dataset.sourceKey;
+                                                    dropdownButton.textContent = selectedSourceKey;
+                                                    updateTable(data[selectedSourceKey]);
+                                                });
+
+                                                dropdownItem.appendChild(dropdownLink);
+                                                dropdownMenu.appendChild(dropdownItem);
                                             });
 
-                                            dropdownItem.appendChild(dropdownLink);
-                                            dropdownMenu.appendChild(dropdownItem);
-                                        });
+                                            // Update the table with the first sourceKey's data by default
+                                            const firstSourceKey = Object.keys(data)[0];
+                                            dropdownButton.textContent = firstSourceKey;
+                                            updateTable(data[firstSourceKey]);
+                                        } else {
+                                            // If the stats table is empty, make the properties table full width
+                                            propertiesContainer.classList.remove('col-sm-6');
+                                            propertiesContainer.classList.add('col-sm-12');
+                                            statsContainer.classList.add('d-none');
+                                        }
+                                    })
+                                    .catch(error => {
+                                        console.error('Error:', error);
+                                    })
+                                    .finally(() => {
+                                        // Hide the spinner
+                                        spinner.classList.add('d-none');
+                                    });
 
-                                        // Update the table with the first sourceKey's data by default
-                                        const firstSourceKey = Object.keys(data)[0];
-                                        dropdownButton.textContent = firstSourceKey;
-                                        updateTable(data[firstSourceKey]);
-                                    } else {
-                                        // If the stats table is empty, make the properties table full width
-                                        propertiesContainer.classList.remove('col-sm-6');
-                                        propertiesContainer.classList.add('col-sm-12');
-                                        statsContainer.classList.add('d-none');
-                                    }
-                                })
-                                .catch(error => {
-                                    console.error('Error:', error);
-                                })
-                                .finally(() => {
-                                    // Hide the spinner
-                                    spinner.classList.add('d-none');
-                                });
+                                function updateTable(stats) {
+                                    tableBody.innerHTML = ''; // Clear the table body
 
-                            function updateTable(stats) {
-                                tableBody.innerHTML = ''; // Clear the table body
+                                    // This list is used to format the table content. Simple sorting is not possible.
+                                    const keys = [
+                                        "min_event_start",
+                                        "max_event_start",
+                                        "min_value",
+                                        "max_value",
+                                        "mean_value",
+                                        "sum_values",
+                                        "count_values"
+                                    ];
 
-                                // This list is used to format the table content. Simple sorting is not possible.
-                                const keys = [
-                                    "min_event_start",
-                                    "max_event_start",
-                                    "min_value",
-                                    "max_value",
-                                    "mean_value",
-                                    "sum_values",
-                                    "count_values"
-                                ];
+                                    keys.forEach(key => {
+                                        if (key in stats) {
+                                            // Create a display key by removing underscores and capitalizing words
+                                            const displayKey = key.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase());
 
-                                keys.forEach(key => {
-                                    if (key in stats) {
-                                        // Create a display key by removing underscores and capitalizing words
-                                        const displayKey = key.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase());
+                                            const row = document.createElement('tr');
+                                            const keyCell = document.createElement('th');
+                                            const valueCell = document.createElement('td');
 
-                                        const row = document.createElement('tr');
-                                        const keyCell = document.createElement('th');
-                                        const valueCell = document.createElement('td');
+                                            keyCell.textContent = displayKey;
+                                            valueCell.textContent = stats[key];
 
-                                        keyCell.textContent = displayKey;
-                                        valueCell.textContent = stats[key];
-
-                                        row.appendChild(keyCell);
-                                        row.appendChild(valueCell);
-                                        tableBody.appendChild(row);
-                                    }
-                                });
-                            }
-                        });
-                    </script>
+                                            row.appendChild(keyCell);
+                                            row.appendChild(valueCell);
+                                            tableBody.appendChild(row);
+                                        }
+                                    });
+                                }
+                            });
+                        </script>
+                    </div>
                 </div>
-            </div>
           </div>
           <div class="row on-top-md">
               <div class="col-sm-2">
