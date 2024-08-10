@@ -112,6 +112,8 @@
                     {% if id == 'docs' %} target="_blank" {% endif %} class="nav-link">
                         <span class="fa fa-{{ icon }}" aria-hidden="true"></span>
                         {{ caption|e }}
+
+                        {# use tooltip as caption for small screens #}
                         {% if not caption %}
                             <span class="d-inline d-sm-none">{{ tooltip }}</span>
                         {% endif %}
