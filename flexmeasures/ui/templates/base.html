@@ -113,7 +113,7 @@
                         <span class="fa fa-{{ icon }}" aria-hidden="true"></span>
                         {{ caption|e }}
 
-                        {# use tooltip as caption for small screens #}
+                        {# use tooltip as caption for small screens showing a collapsed menu #}
                         {% if not caption %}
                             <span class="d-inline d-sm-none">{{ tooltip }}</span>
                         {% endif %}
