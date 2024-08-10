@@ -45,6 +45,9 @@ Install Flexmeasures and the database
             $ docker pull postgres
             $ docker network create flexmeasures_network
 
+        .. note:: A tip on Linux/macOS ― You might have the ``docker`` command, but need `sudo` rights to execute it.
+                  ``alias docker='sudo docker'`` enables you to still run this tutorial.
+
         After running these commands, we can start the Postgres database and the FlexMeasures app with the following commands:
 
         .. code-block:: bash
@@ -52,13 +55,15 @@ Install Flexmeasures and the database
             $ docker run --rm --name flexmeasures-tutorial-db -e POSTGRES_PASSWORD=fm-db-passwd -e POSTGRES_DB=flexmeasures-db -d --network=flexmeasures_network postgres:latest
             $ docker run --rm --name flexmeasures-tutorial-fm --env SQLALCHEMY_DATABASE_URI=postgresql://postgres:fm-db-passwd@flexmeasures-tutorial-db:5432/flexmeasures-db --env SECRET_KEY=notsecret --env FLEXMEASURES_ENV=development --env LOGGING_LEVEL=INFO -d --network=flexmeasures_network -p 5000:5000 lfenergy/flexmeasures
 
+        When the app has started, the FlexMeasures UI should be available at http://localhost:5000 in your browser.
+
+        .. include:: ../notes/macOS-docker-port-note.rst
+
         To establish the FlexMeasures database structure, execute:
 
         .. code-block:: bash
 
             $ docker exec flexmeasures-tutorial-fm bash -c "flexmeasures db upgrade"
-
-        .. note:: A tip on Linux/macOS ― You might have the ``docker`` command, but need `sudo` rights to execute it. ``alias docker='sudo docker'`` enables you to still run this tutorial.
 
         Now - what's *very important* to remember is this: The rest of this tutorial will happen *inside* the ``flexmeasures-tutorial-fm`` container! This is how you hop inside the container and run a terminal there:
 
@@ -81,10 +86,6 @@ Install Flexmeasures and the database
 
             $ docker start flexmeasures-tutorial-db
             $ docker start flexmeasures-tutorial-fm
-
-        When started, the FlexMeasures UI should be available at http://localhost:5000 in your browser.
-
-        .. include:: ../notes/macOS-docker-port-note.rst
 
         .. note:: Got docker-compose? You could run this tutorial with 5 containers :) ― Go to :ref:`docker-compose-tutorial`.
 
