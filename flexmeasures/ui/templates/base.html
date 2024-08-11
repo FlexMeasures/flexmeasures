@@ -112,8 +112,10 @@
                     {% if id == 'docs' %} target="_blank" {% endif %} class="nav-link">
                         <span class="fa fa-{{ icon }}" aria-hidden="true"></span>
                         {{ caption|e }}
+
+                        {# use tooltip as caption for small screens showing a collapsed menu #}
                         {% if not caption %}
-                            <span class="visible-xs-inline">{{ tooltip }}</span>
+                            <span class="d-inline d-lg-none">{{ tooltip }}</span>
                         {% endif %}
                     </a>
                 </li>
@@ -122,7 +124,7 @@
             </ul>
           </div>
         </div>
-    </nav>
+    </nav>
       
       
 
