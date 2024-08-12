@@ -57,8 +57,11 @@
                     </div>
                     <div class="col-sm-6" id="statsContainer">
                         <span id="spinner-run-simulation" class="spinner-border spinner-border-sm d-none" role="status"></span>
-                        <h5 id="statsHeader" class="d-none">Stats</h5>
-
+                        <h5 id="statsHeader" class="d-none">Statistics</h5>
+                        <table id="statsTable" class="table table-striped">
+                            <tbody id="statsTableBody">
+                            </tbody>
+                        </table>
                         <!-- Dropdown for sourceKey -->
                         <div class="dropdown mb-3 d-none" id="sourceKeyDropdownContainer">
                             <button class="btn btn-secondary dropdown-toggle" type="button" id="sourceKeyDropdown" data-bs-toggle="dropdown" aria-expanded="false">
@@ -67,11 +70,6 @@
                             <ul class="dropdown-menu" aria-labelledby="sourceKeyDropdown" id="sourceKeyDropdownMenu">
                             </ul>
                         </div>
-
-                        <table id="statsTable" class="table table-striped">
-                            <tbody id="statsTableBody">
-                            </tbody>
-                        </table>
 
                         <script>
                             document.addEventListener('DOMContentLoaded', function() {
