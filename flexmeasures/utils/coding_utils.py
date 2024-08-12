@@ -1,6 +1,9 @@
 """ Various coding utils (e.g. around function decoration) """
+
 from __future__ import annotations
 
+import re
+import click
 import functools
 import time
 import inspect
@@ -165,3 +168,13 @@ def find_classes_modules(module, superclass, skiptest=True):
 
 def get_classes_module(module, superclass, skiptest=True) -> dict:
     return dict(find_classes_modules(module, superclass, skiptest=skiptest))
+
+
+def validate_color_hex(ctx, param, value):
+    if value is None:
+        return value
+    hex_pattern = re.compile(r"^#?([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$")
+    if re.match(hex_pattern, value):
+        return value
+    else:
+        raise click.BadParameter(f"{param.name} must be a valid hex color code.")

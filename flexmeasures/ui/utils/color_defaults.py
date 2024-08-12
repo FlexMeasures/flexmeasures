@@ -41,7 +41,7 @@ def get_color_settings(account: Account | None) -> dict:
     }
 
 
-def darken_color(hex_color, percentage):
+def darken_color(hex_color: str, percentage: int) -> str:
     hex_color = hex_color.lstrip("#")
     r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
     r = int(r * (1 - percentage / 100))
@@ -50,7 +50,7 @@ def darken_color(hex_color, percentage):
     return f"#{r:02x}{g:02x}{b:02x}"
 
 
-def lighten_color(hex_color, percentage):
+def lighten_color(hex_color: str, percentage: int) -> str:
     hex_color = hex_color.lstrip("#")
     r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
     r = int(r + (255 - r) * percentage / 100)
@@ -59,7 +59,7 @@ def lighten_color(hex_color, percentage):
     return f"#{r:02x}{g:02x}{b:02x}"
 
 
-def rgba_color(hex_color, alpha):
+def rgba_color(hex_color: str, alpha: float) -> str:
     hex_color = hex_color.lstrip("#")
     r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
     return f"rgba({r}, {g}, {b}, {alpha})"

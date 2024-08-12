@@ -3,7 +3,6 @@ CLI commands for populating the database
 """
 
 from __future__ import annotations
-import re
 
 from datetime import datetime, timedelta
 from typing import Type
@@ -84,6 +83,7 @@ from flexmeasures.data.services.utils import get_or_create_model
 from flexmeasures.utils import flexmeasures_inflection
 from flexmeasures.utils.time_utils import server_now, apply_offset_chain
 from flexmeasures.utils.unit_utils import convert_units, ur
+from flexmeasures.utils.coding_utils import validate_color_hex
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.data.services.utils import get_asset_or_sensor_ref
 from flexmeasures.data.models.reporting import Reporter
@@ -164,9 +164,15 @@ def new_account_role(name: str, description: str):
 @with_appcontext
 @click.option("--name", required=True)
 @click.option("--roles", help="e.g. anonymous,Prosumer,CPO")
-@click.option("--primary-color", help="Primary color for the user. Defaults to #1a3443")
 @click.option(
-    "--secondary-color", help="Secondary color for the user. Defaults to #f1a122"
+    "--primary-color",
+    callback=validate_color_hex,
+    help="Primary color to use in UI, in hex format. Defaults to FlexMeasures' primary color (#1a3443)",
+)
+@click.option(
+    "--secondary-color",
+    callback=validate_color_hex,
+    help="Secondary color to use in UI, in hex format. Defaults to FlexMeasures' secondary color (#f1a122)",
 )
 @click.option(
     "--consultancy",
@@ -191,25 +197,14 @@ def new_account(
         click.secho(f"Account '{name}' already exists.", **MsgStyle.ERROR)
         raise click.Abort()
 
-    # Validate color format ---------------------------------------------------
-    # Regular expression for valid hex color code
-    hex_color_pattern = re.compile(r"^#?([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$")
-
-    if primary_color and not hex_color_pattern.match(primary_color):
-        click.secho("Primary color is not in valid hex format", **MsgStyle.ERROR)
-        raise click.Abort()
-
-    if secondary_color and not hex_color_pattern.match(secondary_color):
-        click.secho("Secondary color is not in valid hex format", **MsgStyle.ERROR)
-        raise click.Abort()
-
-    # make sure both colors or non are given
-    if primary_color and not secondary_color:
-        click.secho("Secondary color is missing", **MsgStyle.ERROR)
-        raise click.Abort()
-
-    if secondary_color and not primary_color:
-        click.secho("Primary color is missing", **MsgStyle.ERROR)
+    # make sure both colors or none are given
+    if (primary_color and not secondary_color) or (
+        not primary_color and secondary_color
+    ):
+        click.secho(
+            "Please provide both primary_color and secondary_color, or leave both fields blank.",
+            **MsgStyle.ERROR,
+        )
         raise click.Abort()
 
     # Add '#' if color is given and doesn't already start with it
