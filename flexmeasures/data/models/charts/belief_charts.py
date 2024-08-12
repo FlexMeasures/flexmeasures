@@ -7,7 +7,6 @@ from flexmeasures.utils.flexmeasures_inflection import (
     capitalize,
     join_words_into_a_list,
 )
-from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.utils.coding_utils import flatten_unique
 from flexmeasures.utils.unit_utils import (
     is_power_unit,
