@@ -159,7 +159,12 @@
                                             const valueCell = document.createElement('td');
 
                                             keyCell.textContent = displayKey;
-                                            valueCell.textContent = stats[key];
+                                            // Round value to 2 decimal points if it's a number
+                                            if (typeof stats[key] === 'number') {
+                                                valueCell.textContent = stats[key].toFixed(2);
+                                            } else {
+                                                valueCell.textContent = stats[key];
+                                            }
 
                                             row.appendChild(keyCell);
                                             row.appendChild(valueCell);
