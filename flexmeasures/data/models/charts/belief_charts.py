@@ -84,6 +84,9 @@ def bar_chart(
                         "as": "source_name_and_id",
                     },
                 ],
+                "selection": {
+                    "scroll": {"type": "interval", "bind": "scales", "encodings": ["x"]}
+                },
             },
             REPLAY_RULER,
         ],
@@ -627,6 +630,9 @@ def create_line_layer(
                 },
             },
             "detail": [FIELD_DEFINITIONS["source"]],
+        },
+        "selection": {
+            "scroll": {"type": "interval", "bind": "scales", "encodings": ["x"]}
         },
     }
     return line_layer

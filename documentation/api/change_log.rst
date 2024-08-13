@@ -5,6 +5,10 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
+v3.0-19 | 2024-08-13
+""""""""""""""""""""
+
+-  Allow posting a single instantaneous belief as a list of one element to `/sensors/data` (POST).
 
 v3.0-19 | 2024-08-09
 """"""""""""""""""""
@@ -38,14 +42,13 @@ v3.0-19 | 2024-08-09
 
 v3.0-18 | 2024-03-07
 """"""""""""""""""""
-- Add support for providing a sensor definition to the ``soc-minima``, ``soc-maxima`` and ``soc-targets`` flex-model fields for `/sensors/<id>/schedules/trigger` (POST).
 
+- Add support for providing a sensor definition to the ``soc-minima``, ``soc-maxima`` and ``soc-targets`` flex-model fields for `/sensors/<id>/schedules/trigger` (POST).
 
 v3.0-17 | 2024-02-26
 """"""""""""""""""""
 
 - Add support for providing a sensor definition to the ``site-power-capacity``, ``site-consumption-capacity`` and ``site-production-capacity`` flex-context fields for `/sensors/<id>/schedules/trigger` (POST).
-
 
 v3.0-16 | 2024-02-26
 """"""""""""""""""""
@@ -160,7 +163,6 @@ v3.0-1 | 2022-05-08
 """""""""""""""""""
 
 - Added REST endpoint for checking application health (readiness to accept requests): `/health/ready` (GET).
-
 
 v3.0-0 | 2022-03-25
 """""""""""""""""""
