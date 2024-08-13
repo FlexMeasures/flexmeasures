@@ -167,6 +167,52 @@ class MetaStorageScheduler(Scheduler):
             down_deviation_prices.loc[start : end - resolution]["event_value"]
         ]
 
+        # Set up peak commitments
+        if self.flex_context.get("ems_peak_consumption_price", None) is not None:
+            ems_peak_consumption = get_continuous_series_sensor_or_quantity(
+                quantity_or_sensor=self.flex_context.get("ems_peak_consumption_in_mw"),
+                actuator=sensor,
+                unit="MW",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+            )
+            # ignore peak commitment, or todo: consider fillna(0) to take into account commitment by default
+            ems_peak_consumption = ems_peak_consumption.fillna(np.inf)
+            commitment_quantities.append(ems_peak_consumption)
+            ems_peak_consumption_price = self.flex_context.get(
+                "ems_peak_consumption_price"
+            )
+            commitment_upwards_deviation_price.append(
+                initialize_series(
+                    ems_peak_consumption_price, start, end, self.resolution
+                )
+            )
+            # todo: set up commitments DataFrame instead
+            # todo: add all time steps to the same group
+        if self.flex_context.get("ems_peak_production_price", None) is not None:
+            ems_peak_production = get_continuous_series_sensor_or_quantity(
+                quantity_or_sensor=self.flex_context.get("ems_peak_production_in_mw"),
+                actuator=sensor,
+                unit="MW",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+            )
+            # ignore peak commitment, or todo: consider fillna(0) to take into account commitment by default
+            ems_peak_production = ems_peak_production.fillna(np.inf)
+            commitment_quantities.append(ems_peak_production)
+            ems_peak_production_price = self.flex_context.get(
+                "ems_peak_production_price"
+            )
+            commitment_upwards_deviation_price.append(
+                initialize_series(
+                    ems_peak_production_price, start, end, self.resolution
+                )
+            )
+            # todo: set up commitments DataFrame instead
+            # todo: add all time steps to the same group
+
         # Set up device constraints: only one scheduled flexible device for this EMS (at index 0), plus the forecasted inflexible devices (at indices 1 to n).
         device_constraints = [
             initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
@@ -645,6 +691,7 @@ class StorageScheduler(MetaStorageScheduler):
             commitment_quantities,
             commitment_downwards_deviation_price,
             commitment_upwards_deviation_price,
+            # commitments=commitments,
             initial_stock=soc_at_start * (timedelta(hours=1) / resolution),
         )
         if scheduler_results.solver.termination_condition == "infeasible":
