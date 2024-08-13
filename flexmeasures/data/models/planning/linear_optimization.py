@@ -8,6 +8,7 @@ from pyomo.core import (
     ConcreteModel,
     Var,
     RangeSet,
+    Set,
     Param,
     Reals,
     NonNegativeReals,
@@ -136,6 +137,29 @@ def device_scheduler(  # noqa C901
                 % (resolution, resolution_c)
             )
 
+    def convert_commitments_to_subcommitments(
+        dfs: list[pd.DataFrame],
+    ) -> list[pd.DataFrame]:
+        """Transform commitments, each specifying a group for each time step, to sub-commitments, one per group.
+
+        We also enumerate the time steps in a new column "j".
+
+        For example, given contracts A and B (represented by 2 DataFrames), each with 3 groups,
+        we return (sub)commitments A1, A2, A3, B1, B2 and B3,
+        where A,B,C is the enumerated contract and 1,2,3 is the enumerated group.
+        """
+        all_groups = []
+        for df in dfs:
+            df["j"] = range(len(df.index))
+            groups = list(df["group"].unique())
+            for group in groups:
+                sub_commitment = df[df["group"] == group].drop(columns=["group"])
+                all_groups.append(sub_commitment)
+                # todo: raise if sub_commitment has non-unique prices or quantities
+        return all_groups
+
+    commitments: list[pd.DataFrame] = convert_commitments_to_subcommitments(commitments)
+
     bigM_columns = ["derivative max", "derivative min", "derivative equals"]
     # Compute a good value for M
     M = np.nanmax([np.nanmax(d[bigM_columns].abs()) for d in device_constraints])
@@ -158,15 +182,22 @@ def device_scheduler(  # noqa C901
     )
     model.c = RangeSet(0, len(commitments) - 1, doc="Set of commitments")
 
+    # Add 2D indices for commitment datetimes (cj)
+
+    def commitments_init(m):
+        return ((c, j) for c in m.c for j in commitments[c]["j"])
+
+    model.cj = Set(dimen=2, initialize=commitments_init)
+
     # Add parameters
-    def price_down_select(m, c, j):
-        return commitments[c]["downwards deviation price"].iloc[j]
+    def price_down_select(m, c):
+        return commitments[c]["downwards deviation price"].iloc[0]
 
-    def price_up_select(m, c, j):
-        return commitments[c]["upwards deviation price"].iloc[j]
+    def price_up_select(m, c):
+        return commitments[c]["upwards deviation price"].iloc[0]
 
-    def commitment_quantity_select(m, c, j):
-        return commitments[c]["quantity"].iloc[j]
+    def commitment_quantity_select(m, c):
+        return commitments[c]["quantity"].iloc[0]
 
     def device_max_select(m, d, j):
         min_v = device_constraints[d]["min"].iloc[j]
@@ -257,11 +288,9 @@ def device_scheduler(  # noqa C901
     def device_stock_delta(m, d, j):
         return device_constraints[d]["stock delta"].iloc[j]
 
-    model.up_price = Param(model.c, model.j, initialize=price_up_select)
-    model.down_price = Param(model.c, model.j, initialize=price_down_select)
-    model.commitment_quantity = Param(
-        model.c, model.j, initialize=commitment_quantity_select
-    )
+    model.up_price = Param(model.c, initialize=price_up_select)
+    model.down_price = Param(model.c, initialize=price_down_select)
+    model.commitment_quantity = Param(model.c, initialize=commitment_quantity_select)
     model.device_max = Param(model.d, model.j, initialize=device_max_select)
     model.device_min = Param(model.d, model.j, initialize=device_min_select)
     model.device_derivative_max = Param(
@@ -289,10 +318,10 @@ def device_scheduler(  # noqa C901
     model.device_power_up = Var(model.d, model.j, domain=NonNegativeReals, initialize=0)
     model.device_power_sign = Var(model.d, model.j, domain=Binary, initialize=0)
     model.commitment_downwards_deviation = Var(
-        model.c, model.j, domain=NonPositiveReals, initialize=0
+        model.c, domain=NonPositiveReals, initialize=0
     )
     model.commitment_upwards_deviation = Var(
-        model.c, model.j, domain=NonNegativeReals, initialize=0
+        model.c, domain=NonNegativeReals, initialize=0
     )
 
     # Add constraints as a tuple of (lower bound, value, upper bound)
@@ -357,9 +386,9 @@ def device_scheduler(  # noqa C901
         """Couple EMS flows (sum over devices) to each commitment."""
         return (
             0,
-            m.commitment_quantity[c, j]
-            + m.commitment_downwards_deviation[c, j]
-            + m.commitment_upwards_deviation[c, j]
+            m.commitment_quantity[c]
+            + m.commitment_downwards_deviation[c]
+            + m.commitment_upwards_deviation[c]
             - sum(m.ems_power[:, j]),
             0,
         )
@@ -390,7 +419,7 @@ def device_scheduler(  # noqa C901
     )
     model.ems_power_bounds = Constraint(model.j, rule=ems_derivative_bounds)
     model.ems_power_commitment_equalities = Constraint(
-        model.c, model.j, rule=ems_flow_commitment_equalities
+        model.cj, rule=ems_flow_commitment_equalities
     )
     model.device_power_equalities = Constraint(
         model.d, model.j, rule=device_derivative_equalities
@@ -400,9 +429,8 @@ def device_scheduler(  # noqa C901
     def cost_function(m):
         costs = 0
         for c in m.c:
-            for j in m.j:
-                costs += m.commitment_downwards_deviation[c, j] * m.down_price[c, j]
-                costs += m.commitment_upwards_deviation[c, j] * m.up_price[c, j]
+            costs += m.commitment_downwards_deviation[c] * m.down_price[c]
+            costs += m.commitment_upwards_deviation[c] * m.up_price[c]
         return costs
 
     model.costs = Objective(rule=cost_function, sense=minimize)
