@@ -331,13 +331,13 @@ def device_scheduler(  # noqa C901
     def ems_derivative_bounds(m, j):
         return m.ems_derivative_min[j], sum(m.ems_power[:, j]), m.ems_derivative_max[j]
 
-    def ems_flow_commitment_equalities(m, j):
-        """Couple EMS flows (sum over devices) to commitments."""
+    def ems_flow_commitment_equalities(m, c, j):
+        """Couple EMS flows (sum over devices) to each commitment."""
         return (
             0,
-            sum(m.commitment_quantity[:, j])
-            + sum(m.commitment_downwards_deviation[:, j])
-            + sum(m.commitment_upwards_deviation[:, j])
+            m.commitment_quantity[c, j]
+            + m.commitment_downwards_deviation[c, j]
+            + m.commitment_upwards_deviation[c, j]
             - sum(m.ems_power[:, j]),
             0,
         )
@@ -368,7 +368,7 @@ def device_scheduler(  # noqa C901
     )
     model.ems_power_bounds = Constraint(model.j, rule=ems_derivative_bounds)
     model.ems_power_commitment_equalities = Constraint(
-        model.j, rule=ems_flow_commitment_equalities
+        model.c, model.j, rule=ems_flow_commitment_equalities
     )
     model.device_power_equalities = Constraint(
         model.d, model.j, rule=device_derivative_equalities
