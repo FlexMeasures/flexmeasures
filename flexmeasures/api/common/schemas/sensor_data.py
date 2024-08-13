@@ -349,7 +349,7 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         if event_resolution == timedelta(hours=0):
             if num_values > 1:
                 raise NotImplementedError(
-                    "Cannot save multiple instantaneous values that overlap. That is, two values spanning the same moment (a zero duration). Try sending a single value or defininin a non-zero duration."
+                    "Cannot save multiple instantaneous values that overlap. That is, two values spanning the same moment (a zero duration). Try sending a single value or definining a non-zero duration."
                 )
 
             dt_index = pd.date_range(
