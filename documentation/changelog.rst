@@ -10,6 +10,8 @@ v0.23.0 | August XX, 2024
 New features
 -------------
 * Add basic sensor info to sensor page [see `PR #1115 <https://github.com/FlexMeasures/flexmeasures/pull/1115>`_]
+* Support zoom-in action on the asset and sensor charts [see `PR #1130 <https://github.com/FlexMeasures/flexmeasures/pull/1130>`_]
+ 
 
 Infrastructure / Support
 ----------------------
