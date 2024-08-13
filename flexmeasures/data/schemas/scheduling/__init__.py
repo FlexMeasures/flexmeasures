@@ -38,13 +38,7 @@ class FlexContextSchema(Schema):
         data_key="site-production-breach-price", required=False, default=None
     )  # in EUR/MW
 
-    # Peak commitments
-    ems_peak_production_in_mw = QuantityOrSensor(
-        "MW",
-        required=False,
-        data_key="site-peak-production",
-        validate=validate.Range(min=0),
-    )
+    # Peak consumption commitment
     ems_peak_consumption_in_mw = QuantityOrSensor(
         "MW",
         required=False,
@@ -54,6 +48,14 @@ class FlexContextSchema(Schema):
     ems_peak_consumption_price = fields.Float(
         data_key="site-peak-consumption-price", required=False, default=None
     )  # in EUR/MW
+
+    # Peak production commitment
+    ems_peak_production_in_mw = QuantityOrSensor(
+        "MW",
+        required=False,
+        data_key="site-peak-production",
+        validate=validate.Range(min=0),
+    )
     ems_peak_production_price = fields.Float(
         data_key="site-peak-production-price", required=False, default=None
     )  # in EUR/MW
