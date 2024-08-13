@@ -393,6 +393,30 @@ def device_scheduler(  # noqa C901
             0,
         )
 
+    def ems_flow_commitment_up_equalities(m, c, j):
+        """Couple EMS flows (sum over devices) to each up commitment."""
+        return (
+            0,
+            # sum(m.ems_power[:, j]) - m.commitment_quantity[c] - m.commitment_upwards_deviation[c],
+            m.commitment_quantity[c]
+            - sum(m.ems_power[:, j])
+            + m.commitment_upwards_deviation[c],
+            None,
+            # sum(m.ems_power[:, j]) - m.commitment_quantity[c] < m.commitment_upwards_deviation[c]
+        )
+
+    def ems_flow_commitment_down_equalities(m, c, j):
+        """Couple EMS flows (sum over devices) to each down commitment."""
+        return (
+            None,
+            # sum(m.ems_power[:, j]) - m.commitment_quantity[c] - m.commitment_downwards_deviation[c],
+            m.commitment_quantity[c]
+            - sum(m.ems_power[:, j])
+            + m.commitment_downwards_deviation[c],
+            0,
+            # m.commitment_downwards_deviation[c]  < sum(m.ems_power[:, j]) - m.commitment_quantity[c]
+        )
+
     def device_derivative_equalities(m, d, j):
         """Couple device flows to EMS flows per device."""
         return (
@@ -421,6 +445,12 @@ def device_scheduler(  # noqa C901
     model.ems_power_commitment_equalities = Constraint(
         model.cj, rule=ems_flow_commitment_equalities
     )
+    # model.ems_power_commitment_down_equalities = Constraint(
+    #     model.cj, rule=ems_flow_commitment_down_equalities
+    # )
+    # model.ems_power_commitment_up_equalities = Constraint(
+    #     model.cj, rule=ems_flow_commitment_up_equalities
+    # )
     model.device_power_equalities = Constraint(
         model.d, model.j, rule=device_derivative_equalities
     )
@@ -466,8 +496,8 @@ def device_scheduler(  # noqa C901
             )
         )
 
-    # model.pprint()
-    # model.display()
-    # print(results.solver.termination_condition)
-    # print(planned_costs)
+    model.pprint()
+    model.display()
+    print(results.solver.termination_condition)
+    print(planned_costs)
     return planned_power_per_device, planned_costs, results, model
