@@ -235,8 +235,8 @@ def test_post_sensor_data_twice(client, setup_api_test_data, requesting_user, db
         (1, 200, "Request has been processed.", 1),
         (
             2,
-            500,
-            "Cannot save multiple instantaneous values that overlap. That is, two values spanning the same moment (a zero duration). Try sending a single value or defininin a non-zero duration.",
+            422,
+            "Cannot save multiple instantaneous values that overlap. That is, two values spanning the same moment (a zero duration). Try sending a single value or definining a non-zero duration.",
             0,
         ),
     ],
@@ -269,5 +269,9 @@ def test_post_sensor_instantaneous_data(
     )
 
     assert response.status_code == status_code
-    assert response.json["message"] == message
+    if status_code == 422:
+        assert response.json["message"]["json"]["_schema"][0] == message
+    else:
+        assert response.json["message"] == message
+
     assert len(sensor.search_beliefs()) - rows == saved_rows

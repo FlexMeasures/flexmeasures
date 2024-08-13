@@ -281,6 +281,19 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
                 f"Resolution of {inferred_resolution} is incompatible with the sensor's required resolution of {required_resolution}."
             )
 
+    @validates_schema
+    def check_multiple_instantenous_values(self, data, **kwargs):
+        """Ensure that we are not getting multiple instantaneous values that overlap.
+        That is, two values spanning the same moment (a zero duration).
+        """
+
+        if len(data["values"]) > 1 and data["duration"] / len(
+            data["values"]
+        ) == timedelta(0):
+            raise ValidationError(
+                "Cannot save multiple instantaneous values that overlap. That is, two values spanning the same moment (a zero duration). Try sending a single value or definining a non-zero duration."
+            )
+
     @post_load()
     def post_load_sequence(self, data: dict, **kwargs) -> BeliefsDataFrame:
         """If needed, upsample and convert units, then deserialize to a BeliefsDataFrame."""
@@ -347,11 +360,6 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         event_resolution = sensor_data["duration"] / num_values
 
         if event_resolution == timedelta(hours=0):
-            if num_values > 1:
-                raise NotImplementedError(
-                    "Cannot save multiple instantaneous values that overlap. That is, two values spanning the same moment (a zero duration). Try sending a single value or definining a non-zero duration."
-                )
-
             dt_index = pd.date_range(
                 sensor_data["start"],
                 periods=num_values,
