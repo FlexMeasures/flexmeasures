@@ -5,6 +5,10 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
+v3.0-19 | 2024-08-13
+""""""""""""""""""""
+
+-  Allow posting a single instantaneous belief as a list of one element to `/sensors/data` (POST).
 
 v3.0-18 | 2024-03-07
 """"""""""""""""""""
