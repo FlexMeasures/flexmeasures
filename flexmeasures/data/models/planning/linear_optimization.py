@@ -21,7 +21,7 @@ from pyomo.environ import UnknownSolver  # noqa F401
 from pyomo.environ import value
 from pyomo.opt import SolverFactory, SolverResults
 
-from flexmeasures.data.models.planning.utils import initialize_series
+from flexmeasures.data.models.planning.utils import initialize_series, initialize_df
 from flexmeasures.utils.calculations import apply_stock_changes_and_losses
 
 infinity = float("inf")
@@ -30,9 +30,10 @@ infinity = float("inf")
 def device_scheduler(  # noqa C901
     device_constraints: list[pd.DataFrame],
     ems_constraints: pd.DataFrame,
-    commitment_quantities: list[pd.Series],
-    commitment_downwards_deviation_price: list[pd.Series] | list[float],
-    commitment_upwards_deviation_price: list[pd.Series] | list[float],
+    commitment_quantities: list[pd.Series] | None = None,
+    commitment_downwards_deviation_price: list[pd.Series] | list[float] | None = None,
+    commitment_upwards_deviation_price: list[pd.Series] | list[float] | None = None,
+    commitments: list[pd.DataFrame] | None = None,
     initial_stock: float = 0,
 ) -> tuple[list[pd.Series], float, SolverResults, ConcreteModel]:
     """This generic device scheduler is able to handle an EMS with multiple devices,
@@ -42,7 +43,7 @@ def device_scheduler(  # noqa C901
     The commitments are assumed to be with regard to the flow of energy to the device (positive for consumption,
     negative for production). The solver minimises the costs of deviating from the commitments.
 
-    Device constraints are on a device level. Handled constraints (listed by column name):
+    :param device_constraints:   Device constraints are on a device level. Handled constraints (listed by column name):
         max: maximum stock assuming an initial stock of zero (e.g. in MWh or boxes)
         min: minimum stock assuming an initial stock of zero
         equal: exact amount of stock (we do this by clamping min and max)
@@ -53,10 +54,16 @@ def device_scheduler(  # noqa C901
         derivative down efficiency: conversion efficiency of flow out of a device (flow out : stock decrease)
         derivative up efficiency: conversion efficiency of flow into a device (stock increase : flow in)
         stock delta: predefined stock delta to apply to the storage device. Positive values cause an increase and negative values a decrease
-    EMS constraints are on an EMS level. Handled constraints (listed by column name):
+    :param ems_constraints:     EMS constraints are on an EMS level. Handled constraints (listed by column name):
         derivative max: maximum flow
         derivative min: minimum flow
-    Commitments are on an EMS level. Parameter explanations:
+    :param commitments:         Commitments are on an EMS level. Handled parameter (listed by column name):
+        quantity:                   for example, 5.5
+        downwards deviation price:  10.1
+        upwards deviation price:    10.2
+        group:                      1 (defaults to the enumerate time step j)
+
+    Potentially deprecated arguments:
         commitment_quantities: amounts of flow specified in commitments (both previously ordered and newly requested)
             - e.g. in MW or boxes/h
         commitment_downwards_deviation_price: penalty for downwards deviations of the flow
@@ -76,15 +83,48 @@ def device_scheduler(  # noqa C901
     if len(device_constraints) == 0:
         return [], 0, SolverResults(), model
 
-    # Check if commitments have the same time window and resolution as the constraints
+    # Get timing from first device
     start = device_constraints[0].index.to_pydatetime()[0]
     # Workaround for https://github.com/pandas-dev/pandas/issues/53643. Was: resolution = pd.to_timedelta(device_constraints[0].index.freq)
     resolution = pd.to_timedelta(device_constraints[0].index.freq).to_pytimedelta()
     end = device_constraints[0].index.to_pydatetime()[-1] + resolution
-    if len(commitment_quantities) != 0:
-        start_c = commitment_quantities[0].index.to_pydatetime()[0]
-        resolution_c = pd.to_timedelta(commitment_quantities[0].index.freq)
-        end_c = commitment_quantities[0].index.to_pydatetime()[-1] + resolution
+
+    # Move commitments from old structure to new
+    if commitments is None:
+        commitments = []
+    if commitment_quantities is not None:
+        for quantity, down, up in zip(
+            commitment_quantities,
+            commitment_downwards_deviation_price,
+            commitment_upwards_deviation_price,
+        ):
+
+            # Turn prices per commitment into prices per commitment flow
+            if all(isinstance(price, float) for price in down) or isinstance(
+                down, float
+            ):
+                down = initialize_series(down, start, end, resolution)
+            if all(isinstance(price, float) for price in up) or isinstance(up, float):
+                up = initialize_series(up, start, end, resolution)
+
+            group = initialize_series(list(range(len(down))), start, end, resolution)
+            df = initialize_df(
+                ["quantity", "downwards deviation price", "upwards deviation price"],
+                start,
+                end,
+                resolution,
+            )
+            df["quantity"] = quantity
+            df["downwards deviation price"] = down
+            df["upwards deviation price"] = up
+            df["group"] = group
+            commitments.append(df)
+
+    # Check if commitments have the same time window and resolution as the constraints
+    for commitment in commitments:
+        start_c = commitment.index.to_pydatetime()[0]
+        resolution_c = pd.to_timedelta(commitment.index.freq)
+        end_c = commitment.index.to_pydatetime()[-1] + resolution
         if not (start_c == start and end_c == end):
             raise Exception(
                 "Not implemented for different time windows.\n(%s,%s)\n(%s,%s)"
@@ -111,40 +151,22 @@ def device_scheduler(  # noqa C901
                 "stock delta"
             ].fillna(0)
 
-    # Turn prices per commitment into prices per commitment flow
-    if len(commitment_downwards_deviation_price) != 0:
-        if all(
-            isinstance(price, float) for price in commitment_downwards_deviation_price
-        ):
-            commitment_downwards_deviation_price = [
-                initialize_series(price, start, end, resolution)
-                for price in commitment_downwards_deviation_price
-            ]
-    if len(commitment_upwards_deviation_price) != 0:
-        if all(
-            isinstance(price, float) for price in commitment_upwards_deviation_price
-        ):
-            commitment_upwards_deviation_price = [
-                initialize_series(price, start, end, resolution)
-                for price in commitment_upwards_deviation_price
-            ]
-
     # Add indices for devices (d), datetimes (j) and commitments (c)
     model.d = RangeSet(0, len(device_constraints) - 1, doc="Set of devices")
     model.j = RangeSet(
         0, len(device_constraints[0].index.to_pydatetime()) - 1, doc="Set of datetimes"
     )
-    model.c = RangeSet(0, len(commitment_quantities) - 1, doc="Set of commitments")
+    model.c = RangeSet(0, len(commitments) - 1, doc="Set of commitments")
 
     # Add parameters
     def price_down_select(m, c, j):
-        return commitment_downwards_deviation_price[c].iloc[j]
+        return commitments[c]["downwards deviation price"].iloc[j]
 
     def price_up_select(m, c, j):
-        return commitment_upwards_deviation_price[c].iloc[j]
+        return commitments[c]["upwards deviation price"].iloc[j]
 
     def commitment_quantity_select(m, c, j):
-        return commitment_quantities[c].iloc[j]
+        return commitments[c]["quantity"].iloc[j]
 
     def device_max_select(m, d, j):
         min_v = device_constraints[d]["min"].iloc[j]
