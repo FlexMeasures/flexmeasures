@@ -143,6 +143,7 @@ def device_scheduler(  # noqa C901
         """Transform commitments, each specifying a group for each time step, to sub-commitments, one per group.
 
         We also enumerate the time steps in a new column "j".
+        We also split by the direction of the deviation.
 
         For example, given contracts A and B (represented by 2 DataFrames), each with 3 groups,
         we return (sub)commitments A1, A2, A3, B1, B2 and B3,
@@ -154,8 +155,26 @@ def device_scheduler(  # noqa C901
             groups = list(df["group"].unique())
             for group in groups:
                 sub_commitment = df[df["group"] == group].drop(columns=["group"])
-                all_groups.append(sub_commitment)
-                # todo: raise if sub_commitment has non-unique prices or quantities
+
+                # Catch non-uniqueness
+                if len(sub_commitment["quantity"].unique()) > 1:
+                    raise ValueError("Cannot have non-unique quantities.")
+                if len(sub_commitment["upwards deviation price"].unique()) > 1:
+                    raise ValueError("Cannot have non-unique upwards deviation prices.")
+                if len(sub_commitment["downwards deviation price"].unique()) > 1:
+                    raise ValueError(
+                        "Cannot have non-unique downwards deviation prices."
+                    )
+                if len(sub_commitment) == 1:
+                    all_groups.append(sub_commitment)
+                else:
+                    down_commitment = sub_commitment.copy().drop(
+                        columns="upwards deviation price"
+                    )
+                    up_commitment = sub_commitment.copy().drop(
+                        columns="downwards deviation price"
+                    )
+                    all_groups.extend([down_commitment, up_commitment])
         return all_groups
 
     commitments: list[pd.DataFrame] = convert_commitments_to_subcommitments(commitments)
@@ -191,10 +210,20 @@ def device_scheduler(  # noqa C901
 
     # Add parameters
     def price_down_select(m, c):
-        return commitments[c]["downwards deviation price"].iloc[0]
+        if "downwards deviation price" not in commitments[c].columns:
+            return 0
+        price = commitments[c]["downwards deviation price"].iloc[0]
+        if np.isnan(price):
+            return 0
+        return price
 
     def price_up_select(m, c):
-        return commitments[c]["upwards deviation price"].iloc[0]
+        if "upwards deviation price" not in commitments[c].columns:
+            return 0
+        price = commitments[c]["upwards deviation price"].iloc[0]
+        if np.isnan(price):
+            return 0
+        return price
 
     def commitment_quantity_select(m, c):
         return commitments[c]["quantity"].iloc[0]
@@ -383,39 +412,26 @@ def device_scheduler(  # noqa C901
         return m.ems_derivative_min[j], sum(m.ems_power[:, j]), m.ems_derivative_max[j]
 
     def ems_flow_commitment_equalities(m, c, j):
-        """Couple EMS flows (sum over devices) to each commitment."""
+        """Couple EMS flows (sum over devices) to each commitment.
+
+        - Creates an inequality for one-sided commitments.
+        - Creates an equality for two-sided commitments and for groups of size 1.
+        """
         return (
-            0,
+            0
+            if len(commitments[c]) == 1
+            or "upwards deviation price" in commitments[c].columns
+            else None,
+            # 0 if "upwards deviation price" in commitments[c].columns else None,  # todo: possible simplification
             m.commitment_quantity[c]
             + m.commitment_downwards_deviation[c]
             + m.commitment_upwards_deviation[c]
             - sum(m.ems_power[:, j]),
-            # take max deviation within commitment group
-            0 if len(commitments[c]) == 1 else None,
-        )
-
-    def ems_flow_commitment_up_equalities(m, c, j):
-        """Couple EMS flows (sum over devices) to each up commitment."""
-        return (
-            0,
-            # sum(m.ems_power[:, j]) - m.commitment_quantity[c] - m.commitment_upwards_deviation[c],
-            m.commitment_quantity[c]
-            - sum(m.ems_power[:, j])
-            + m.commitment_upwards_deviation[c],
-            None,
-            # sum(m.ems_power[:, j]) - m.commitment_quantity[c] < m.commitment_upwards_deviation[c]
-        )
-
-    def ems_flow_commitment_down_equalities(m, c, j):
-        """Couple EMS flows (sum over devices) to each down commitment."""
-        return (
-            None,
-            # sum(m.ems_power[:, j]) - m.commitment_quantity[c] - m.commitment_downwards_deviation[c],
-            m.commitment_quantity[c]
-            - sum(m.ems_power[:, j])
-            + m.commitment_downwards_deviation[c],
-            0,
-            # m.commitment_downwards_deviation[c]  < sum(m.ems_power[:, j]) - m.commitment_quantity[c]
+            0
+            if len(commitments[c]) == 1
+            or "downwards deviation price" in commitments[c].columns
+            else None,
+            # 0 if "downwards deviation price" in commitments[c].columns else None,  # todo: possible simplification
         )
 
     def device_derivative_equalities(m, d, j):
@@ -446,12 +462,6 @@ def device_scheduler(  # noqa C901
     model.ems_power_commitment_equalities = Constraint(
         model.cj, rule=ems_flow_commitment_equalities
     )
-    # model.ems_power_commitment_down_equalities = Constraint(
-    #     model.cj, rule=ems_flow_commitment_down_equalities
-    # )
-    # model.ems_power_commitment_up_equalities = Constraint(
-    #     model.cj, rule=ems_flow_commitment_up_equalities
-    # )
     model.device_power_equalities = Constraint(
         model.d, model.j, rule=device_derivative_equalities
     )
