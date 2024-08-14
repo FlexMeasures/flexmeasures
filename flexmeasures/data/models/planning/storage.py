@@ -158,15 +158,26 @@ class MetaStorageScheduler(Scheduler):
 
         # Set up commitments to optimise for
         commitments = []
-        commitment_quantities = [initialize_series(0, start, end, self.resolution)]
+
+        commitment_quantities = initialize_series(0, start, end, self.resolution)
 
         # Todo: convert to EUR/(deviation of commitment, which is in MW)
-        commitment_upwards_deviation_price = [
-            up_deviation_prices.loc[start : end - resolution]["event_value"]
-        ]
-        commitment_downwards_deviation_price = [
-            down_deviation_prices.loc[start : end - resolution]["event_value"]
-        ]
+        commitment_upwards_deviation_price = up_deviation_prices.loc[
+            start : end - resolution
+        ]["event_value"]
+        commitment_downwards_deviation_price = down_deviation_prices.loc[
+            start : end - resolution
+        ]["event_value"]
+
+        # Set up commitments DataFrame
+        commitment = initialize_df([], start, end, self.resolution)
+        commitment["quantity"] = commitment_quantities
+        commitment["upwards deviation price"] = commitment_upwards_deviation_price
+        commitment["downwards deviation price"] = commitment_downwards_deviation_price
+        commitment["group"] = list(
+            range(len(commitment_quantities))
+        )  # add each time step to their own group
+        commitments.append(commitment)
 
         # Set up peak commitments
         if self.flex_context.get("ems_peak_consumption_price", None) is not None:
@@ -458,9 +469,7 @@ class MetaStorageScheduler(Scheduler):
             soc_at_start,
             device_constraints,
             ems_constraints,
-            commitment_quantities,
-            commitment_downwards_deviation_price,
-            commitment_upwards_deviation_price,
+            commitments,
         )
 
     def persist_flex_model(self):
@@ -632,9 +641,7 @@ class StorageFallbackScheduler(MetaStorageScheduler):
             soc_at_start,
             device_constraints,
             ems_constraints,
-            commitment_quantities,
-            commitment_downwards_deviation_price,
-            commitment_upwards_deviation_price,
+            commitments,
         ) = self._prepare(skip_validation=skip_validation)
 
         # Fallback policy if the problem was unsolvable
@@ -680,17 +687,12 @@ class StorageScheduler(MetaStorageScheduler):
             soc_at_start,
             device_constraints,
             ems_constraints,
-            commitment_quantities,
-            commitment_downwards_deviation_price,
-            commitment_upwards_deviation_price,
+            commitments,
         ) = self._prepare(skip_validation=skip_validation)
 
         ems_schedule, expected_costs, scheduler_results, _ = device_scheduler(
             device_constraints,
             ems_constraints,
-            commitment_quantities,
-            commitment_downwards_deviation_price,
-            commitment_upwards_deviation_price,
             commitments=commitments,
             initial_stock=soc_at_start * (timedelta(hours=1) / resolution),
         )
