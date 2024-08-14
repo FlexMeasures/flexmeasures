@@ -59,7 +59,7 @@ def create_bar_chart_or_histogram_specs(
         }
         y = {
             "aggregate": "count",
-            "title": "Frequency",
+            "title": "Count",
         }
     else:
         description = (f"A simple {mark_type} chart showing sensor data.",)
