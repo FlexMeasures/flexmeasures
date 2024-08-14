@@ -225,17 +225,13 @@ def run_test_charge_discharge_sign(
         soc_at_start,
         device_constraints,
         ems_constraints,
-        commitment_quantities,
-        commitment_downwards_deviation_price,
-        commitment_upwards_deviation_price,
+        commitments,
     ) = scheduler._prepare(skip_validation=True)
 
     _, _, results, model = device_scheduler(
         device_constraints,
         ems_constraints,
-        commitment_quantities,
-        commitment_downwards_deviation_price,
-        commitment_upwards_deviation_price,
+        commitments=commitments,
         initial_stock=soc_at_start * (timedelta(hours=1) / resolution),
     )
 
@@ -1076,17 +1072,13 @@ def test_numerical_errors(app_with_each_solver, setup_planning_test_data, db):
         soc_at_start,
         device_constraints,
         ems_constraints,
-        commitment_quantities,
-        commitment_downwards_deviation_price,
-        commitment_upwards_deviation_price,
+        commitments,
     ) = scheduler._prepare(skip_validation=True)
 
     _, _, results, model = device_scheduler(
         device_constraints,
         ems_constraints,
-        commitment_quantities,
-        commitment_downwards_deviation_price,
-        commitment_upwards_deviation_price,
+        commitments=commitments,
         initial_stock=soc_at_start * (timedelta(hours=1) / resolution),
     )
 
@@ -1258,9 +1250,7 @@ def test_capacity(
         soc_at_start,
         device_constraints,
         ems_constraints,
-        commitment_quantities,
-        commitment_downwards_deviation_price,
-        commitment_upwards_deviation_price,
+        commitments,
     ) = scheduler._prepare(skip_validation=True)
 
     assert all(device_constraints[0]["derivative min"] == -expected_capacity)
