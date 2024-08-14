@@ -2038,3 +2038,81 @@ def test_soc_maxima_minima_targets(db, add_battery_assets, soc_sensors):
     # this yields the same results as with the SOC targets
     # because soc-maxima = soc-minima = soc-targets
     assert all(abs(soc[9:].values - values[:-1]) < 1e-5)
+
+
+def test_multiple_commitments_per_group():
+    from flexmeasures.data.models.planning.storage import MetaStorageScheduler
+
+    start = pd.Timestamp("2020-01-01T00:00:00")
+    end = pd.Timestamp("2020-01-02T00:00:00")
+    resolution = timedelta(hours=1)
+    soc_at_start = 0.4
+    soc_max = 1
+    soc_min = 0
+
+    device_constraints = [
+        initialize_df(MetaStorageScheduler.COLUMNS, start, end, resolution)
+    ]
+    ems_constraints = initialize_df(
+        MetaStorageScheduler.COLUMNS, start, end, resolution
+    )
+    commitments = [
+        initialize_df(
+            [
+                "quantity",
+                "downwards deviation price",
+                "upwards deviation price",
+                "group",
+            ],
+            start,
+            end,
+            resolution,
+        ),
+        initialize_df(
+            [
+                "quantity",
+                "downwards deviation price",
+                "upwards deviation price",
+                "group",
+            ],
+            start,
+            end,
+            resolution,
+        ),
+    ]
+
+    device_constraints[0]["max"] = soc_max - soc_at_start
+    device_constraints[0]["min"] = soc_min - soc_at_start
+    device_constraints[0]["derivative max"] = 1
+    device_constraints[0]["derivative min"] = -1
+
+    # slope = np.arange(0, len(commitments[0])) / (len(commitments[0]) - 1)
+
+    # Day Ahead market commitment
+    commitments[0]["quantity"] = 0
+    commitments[0]["downwards deviation price"] = 100
+    commitments[0]["upwards deviation price"] = 100
+    commitments[0]["group"] = list(range(len(commitments[0])))
+
+    # Peak Power Commitment
+    commitments[1]["quantity"] = 0
+    commitments[1]["downwards deviation price"] = 100
+    commitments[1]["upwards deviation price"] = 100
+    commitments[1]["group"] = 1
+
+    _, _, results, model = device_scheduler(
+        device_constraints,
+        ems_constraints,
+        commitments=commitments,
+        initial_stock=soc_at_start,
+    )
+
+    schedule = initialize_series(
+        data=[model.ems_power[0, j].value for j in model.j],
+        start=start,
+        end=end,
+        resolution=resolution,
+    )
+
+    # Discharge the whole battery
+    assert np.isclose(sum(schedule), -0.4)
