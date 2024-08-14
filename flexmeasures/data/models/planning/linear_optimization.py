@@ -390,7 +390,8 @@ def device_scheduler(  # noqa C901
             + m.commitment_downwards_deviation[c]
             + m.commitment_upwards_deviation[c]
             - sum(m.ems_power[:, j]),
-            0,
+            # take max deviation within commitment group
+            0 if len(commitments[c]) == 1 else None,
         )
 
     def ems_flow_commitment_up_equalities(m, c, j):
