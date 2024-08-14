@@ -143,8 +143,10 @@
                     {% if id == 'docs' %} target="_blank" {% endif %} class="nav-link">
                         <span class="fa fa-{{ icon }}" aria-hidden="true"></span>
                         {{ caption|e }}
+
+                        {# use tooltip as caption for small screens showing a collapsed menu #}
                         {% if not caption %}
-                            <span class="visible-xs-inline">{{ tooltip }}</span>
+                            <span class="d-inline d-lg-none">{{ tooltip }}</span>
                         {% endif %}
                     </a>
                 </li>
@@ -153,7 +155,7 @@
             </ul>
           </div>
         </div>
-    </nav>
+    </nav>
       
       
 
@@ -360,9 +362,9 @@
         var dataDevPath = '/api/dev/asset/' + {{ asset.id }};
         var datasetName = 'asset_' + {{ asset.id }};
     {% elif active_page == "sensors" %}
-        var dataPath = '/api/dev/sensor/' + {{ sensor_id }};
-        var dataDevPath = '/api/dev/sensor/' + {{ sensor_id }};
-        var datasetName = 'sensor_' + {{ sensor_id }};
+        var dataPath = '/api/dev/sensor/' + {{ sensor.id }};
+        var dataDevPath = '/api/dev/sensor/' + {{ sensor.id }};
+        var datasetName = 'sensor_' + {{ sensor.id }};
     {% endif %}
     var elementId = 'sensorchart';
     var chartSpecsPath = dataPath + '/chart?';
