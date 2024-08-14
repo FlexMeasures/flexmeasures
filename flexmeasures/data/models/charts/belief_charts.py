@@ -15,7 +15,7 @@ from flexmeasures.utils.unit_utils import (
 )
 
 
-def create_bar_chart_or_histgram_specs(
+def create_bar_chart_or_histogram_specs(
     sensor: "Sensor",  # noqa F821
     event_starts_after: datetime | None = None,
     event_ends_before: datetime | None = None,
@@ -116,8 +116,45 @@ def histogram(
     event_ends_before: datetime | None = None,
     **override_chart_specs: dict,
 ):
+    """
+    Generates a histogram chart specification for sensor data.
+
+    Parameters:
+    -----------
+    sensor : Sensor
+        An instance of the Sensor class containing sensor data and metadata.
+    event_starts_after : datetime, optional
+        A datetime object specifying the start time filter for the events. Only events occurring after this time will be included in the histogram.
+    event_ends_before : datetime, optional
+        A datetime object specifying the end time filter for the events. Only events occurring before this time will be included in the histogram.
+    **override_chart_specs : dict
+        Additional chart specifications to override the default settings. These can include any valid Vega-Lite chart specification parameters.
+
+    Returns:
+    --------
+    dict
+        A dictionary containing the Vega-Lite chart specifications for the histogram.
+
+    Notes:
+    ------
+    - The function utilizes the `create_bar_chart_or_histogram_specs` helper function to generate the chart specifications.
+    - Axis names and headers are removed from the chart for a cleaner appearance.
+    - If `event_starts_after` and `event_ends_before` are provided, the x-axis domain is set to the specified time range.
+    - The `bin_size` parameter is configurable through the `override_chart_specs`.
+
+    Example:
+    --------
+    To create a histogram with custom bin size and event time filters:
+
+    >>> histogram(
+    ...     sensor,
+    ...     event_starts_after=datetime(2023, 1, 1),
+    ...     event_ends_before=datetime(2023, 12, 31),
+    ...     **override_chart_specs,
+    ... )
+    """
     chart_type = "histogram"
-    chart_specs = create_bar_chart_or_histgram_specs(
+    chart_specs = create_bar_chart_or_histogram_specs(
         sensor,
         event_starts_after,
         event_ends_before,
@@ -133,7 +170,7 @@ def bar_chart(
     event_ends_before: datetime | None = None,
     **override_chart_specs: dict,
 ):
-    chart_specs = create_bar_chart_or_histgram_specs(
+    chart_specs = create_bar_chart_or_histogram_specs(
         sensor,
         event_starts_after,
         event_ends_before,
