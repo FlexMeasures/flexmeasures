@@ -24,7 +24,7 @@ def create_bar_chart_or_histogram_specs(
 ):
     """
     This function generates the specifications required to visualize sensor data either as a bar chart or a histogram.
-    The chart type can be specified, and various field definitions are set up based on the sensor attributes and
+    The chart type (bar_chart or histogram) can be specified, and various field definitions are set up based on the sensor attributes and
     event time range. The resulting specifications can be customized further through additional keyword arguments.
 
     The function handles the following:
