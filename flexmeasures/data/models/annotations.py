@@ -30,7 +30,15 @@ class Annotation(db.Model):
         backref=db.backref("annotations", lazy=True),
     )
     type = db.Column(
-        db.Enum("alert", "holiday", "label", "feedback", name="annotation_type"),
+        db.Enum(
+            "alert",
+            "holiday",
+            "label",
+            "feedback",
+            "warning",
+            "error",
+            name="annotation_type",
+        ),
         nullable=False,
     )
     content = db.Column(db.String(1024), nullable=False)
