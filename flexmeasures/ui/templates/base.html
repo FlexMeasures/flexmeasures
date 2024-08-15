@@ -20,13 +20,13 @@
     {% block styles %}
     <style>
         :root {
-            --primary-color: {{ primary_color | default('#1a3443') }};
-            --primary-border-color: {{ primary_border_color | default('hsl(202, 44%, 11%)') }};
-            --primary-hover-color: {{ primary_hover_color | default('#152b38') }};
-            --primary-transparent: {{ primary_transparent | default('rgba(26, 52, 67, .2)') }};
-            --secondary-color: {{ secondary_color | default('#f1a122') }};
-            --secondary-hover-color: {{ secondary_hover_color | default('#ff9d00') }};
-            --secondary-transparent: {{ secondary_transparent | default('rgba(241, 161, 34, .2)') }};
+            --primary-color: {{ primary_color }};
+            --primary-border-color: {{ primary_border_color }};
+            --primary-hover-color: {{ primary_hover_color}};
+            --primary-transparent: {{ primary_transparent }};
+            --secondary-color: {{ secondary_color }};
+            --secondary-hover-color: {{ secondary_hover_color }};
+            --secondary-transparent: {{ secondary_transparent }};
             --white: #FFF;
             --black: #000;
             --light-gray: #eeeeee;
