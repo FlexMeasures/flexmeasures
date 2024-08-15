@@ -22,6 +22,18 @@ def create_bar_chart_or_histogram_specs(
     chart_type: str = "bar_chart",
     **override_chart_specs: dict,
 ):
+    """
+    This function generates the specifications required to visualize sensor data either as a bar chart or a histogram.
+    The chart type can be specified, and various field definitions are set up based on the sensor attributes and
+    event time range. The resulting specifications can be customized further through additional keyword arguments.
+
+    The function handles the following:
+    - Determines unit and formats for the sensor data.
+    - Configures event value and event start field definitions.
+    - Sets the appropriate mark type and interpolation based on sensor attributes.
+    - Defines chart specifications for both bar charts and histograms, including titles, axis configurations, and tooltips.
+    - Merges any additional specifications provided through keyword arguments into the final chart specifications.
+    """
     unit = sensor.unit if sensor.unit else "a.u."
     event_value_field_definition = dict(
         title=f"{capitalize(sensor.sensor_type)} ({unit})",
@@ -117,42 +129,10 @@ def histogram(
     **override_chart_specs: dict,
 ):
     """
-    Generates a histogram chart specification for sensor data.
-
-    Parameters:
-    -----------
-    sensor : Sensor
-        An instance of the Sensor class containing sensor data and metadata.
-    event_starts_after : datetime, optional
-        A datetime object specifying the start time filter for the events. Only events occurring after this time will be included in the histogram.
-    event_ends_before : datetime, optional
-        A datetime object specifying the end time filter for the events. Only events occurring before this time will be included in the histogram.
-    **override_chart_specs : dict
-        Additional chart specifications to override the default settings. These can include any valid Vega-Lite chart specification parameters.
-
-    Returns:
-    --------
-    dict
-        A dictionary containing the Vega-Lite chart specifications for the histogram.
-
-    Notes:
-    ------
-    - The function utilizes the `create_bar_chart_or_histogram_specs` helper function to generate the chart specifications.
-    - Axis names and headers are removed from the chart for a cleaner appearance.
-    - If `event_starts_after` and `event_ends_before` are provided, the x-axis domain is set to the specified time range.
-    - The `bin_size` parameter is configurable through the `override_chart_specs`.
-
-    Example:
-    --------
-    To create a histogram with custom bin size and event time filters:
-
-    >>> histogram(
-    ...     sensor,
-    ...     event_starts_after=datetime(2023, 1, 1),
-    ...     event_ends_before=datetime(2023, 12, 31),
-    ...     **override_chart_specs,
-    ... )
+    Generates specifications for a histogram chart using sensor data. This function leverages
+    the `create_bar_chart_or_histogram_specs` helper function, specifying `chart_type` as 'histogram'.
     """
+
     chart_type = "histogram"
     chart_specs = create_bar_chart_or_histogram_specs(
         sensor,
@@ -170,6 +150,11 @@ def bar_chart(
     event_ends_before: datetime | None = None,
     **override_chart_specs: dict,
 ):
+    """
+    Generates specifications for a bar chart using sensor data. This function leverages
+    the `create_bar_chart_or_histogram_specs` helper function to create the specifications.
+    """
+
     chart_specs = create_bar_chart_or_histogram_specs(
         sensor,
         event_starts_after,
