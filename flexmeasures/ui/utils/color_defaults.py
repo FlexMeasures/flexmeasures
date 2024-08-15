@@ -2,10 +2,15 @@ from flexmeasures.data.models.user import Account
 
 
 def get_color_settings(account: Account | None) -> dict:
+    """
+    This function returns the primary and secondary color settings for the UI.
+    
+    It Also provides variations of the primary and secondary colors, such as border color, hover color, and transparent color.
+    """
+    
     primary_color: str = "#1a3443"
     secondary_color: str = "f1a122"
     if account:
-        """Initialize colors with defaults"""
         primary_color = str(
             account.primary_color
             or (
