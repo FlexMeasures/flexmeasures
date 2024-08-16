@@ -98,7 +98,7 @@ def test_get_assets(
 
     if account_name == "Supplier":  # one deep dive
         turbine = {}
-        for asset in get_assets_response.json:
+        for asset in get_assets_response.json["data"]:
             if asset["name"] == "Test wind turbine":
                 turbine = asset
         assert turbine
@@ -436,8 +436,8 @@ def test_consultant_can_read(
     )
     print("Server responded with:\n%s" % get_assets_response.json)
     assert get_assets_response.status_code == 200
-    assert len(get_assets_response.json) == 1
-    assert get_assets_response.json[0]["name"] == "Test ConsultancyClient Asset"
+    assert len(get_assets_response.json["data"]) == 1
+    assert get_assets_response.json["data"][0]["name"] == "Test ConsultancyClient Asset"
 
 
 @pytest.mark.parametrize("requesting_user", ["test_consultant@seita.nl"], indirect=True)
