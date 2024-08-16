@@ -2100,14 +2100,11 @@ def test_multiple_commitments_per_group():
     # Production Capacity Breach Commitment
     commitments.append(empty_commitment.copy())
     commitments[-1]["quantity"] = -0.1
-    commitments[-1][
-        "downwards deviation price"
-    ] = (
-        -1000
-    )  # negative because breaching in the downwards (production) direction is penalized
-    commitments[-1][
-        "upwards deviation price"
-    ] = np.nan  # todo: also allow None values to model a one-sided commitment
+    # negative price because breaching in the downwards (production) direction is penalized
+    commitments[-1]["downwards deviation price"] = -1000
+    # positive price because breaching in the upwards (consumption) direction is penalized
+    # todo: also allow None values to model a one-sided commitment
+    commitments[-1]["upwards deviation price"] = np.nan
     commitments[-1]["group"] = 1
 
     schedule, results = run_scheduler()
@@ -2119,14 +2116,10 @@ def test_multiple_commitments_per_group():
     # Peak Power Commitment
     commitments.append(empty_commitment.copy())
     commitments[-1]["quantity"] = 0
-    commitments[-1][
-        "downwards deviation price"
-    ] = (
-        -80
-    )  # negative because peaking in the downwards (production) direction is penalized
-    commitments[-1][
-        "upwards deviation price"
-    ] = 80  # positive because breaching in the upwards (consumption) direction is penalized
+    # negative price because peaking in the downwards (production) direction is penalized
+    commitments[-1]["downwards deviation price"] = -80
+    # positive price because breaching in the upwards (consumption) direction is penalized
+    commitments[-1]["upwards deviation price"] = 80
     commitments[-1]["group"] = 1
 
     schedule, results = run_scheduler()
