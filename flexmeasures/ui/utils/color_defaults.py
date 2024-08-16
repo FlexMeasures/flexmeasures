@@ -1,12 +1,12 @@
+from __future__ import annotations
 from flexmeasures.data.models.user import Account
-from typing import Optional
 
 
-def get_color_settings(account: Optional[Account]) -> dict:
+def get_color_settings(account: Account | None) -> dict:
     """
     This function returns the primary and secondary color settings for the UI.
 
-    It Also provides variations of the primary and secondary colors, such as border color, hover color, and transparent color.
+    It also provides variations of the primary and secondary colors, such as border color, hover color, and transparent color.
     """
 
     primary_color: str = "#1a3443"
@@ -18,7 +18,7 @@ def get_color_settings(account: Optional[Account]) -> dict:
                 account.consultancy_account
                 and account.consultancy_account.primary_color
             )
-            or "#1a3443"
+            or primary_color
         )
         secondary_color = str(
             account.secondary_color
@@ -26,7 +26,7 @@ def get_color_settings(account: Optional[Account]) -> dict:
                 account.consultancy_account
                 and account.consultancy_account.secondary_color
             )
-            or "#f1a122"
+            or secondary_color
         )
 
     # Compute variations
