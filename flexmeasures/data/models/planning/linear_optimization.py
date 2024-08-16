@@ -507,8 +507,8 @@ def device_scheduler(  # noqa C901
             )
         )
 
-    model.pprint()
-    model.display()
-    print(results.solver.termination_condition)
-    print(planned_costs)
+    # model.pprint()
+    # model.display()
+    # print(results.solver.termination_condition)
+    # print(planned_costs)
     return planned_power_per_device, planned_costs, results, model
