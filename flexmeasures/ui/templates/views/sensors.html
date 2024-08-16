@@ -76,7 +76,7 @@
                             There is no data for this sensor yet.
                         </div>
                         <!-- Alert for errors -->
-                        <div class="alert alert-danger d-none" id="fetchErrorWarning">
+                        <div class="alert alert-danger d-none" id="fetchError">
                             There was a problem fetching statistics for this sensor's data.
                         </div>
                         <script>
@@ -89,7 +89,7 @@
                                 const propertiesContainer = document.getElementById('propertiesContainer');
                                 const statsContainer = document.getElementById('statsContainer');
                                 const noDataWarning = document.getElementById('noDataWarning');
-                                const fetchErrorWarning = document.getElementById('fetchErrorWarning');
+                                const fetchError = document.getElementById('fetchError');
 
 
                                 // Show the spinner
@@ -137,7 +137,8 @@
                                     .catch(error => {
                                         console.error('Error:', error);
                                         dropdownContainer.classList.add('d-none');
-                                        fetchErrorWarning.classList.remove('d-none');
+                                        fetchError.textContent = 'There was a problem fetching statistics for this sensor\'s data: ' + error.message;
+                                        fetchError.classList.remove('d-none');
                                     })
                                     .finally(() => {
                                         // Hide the spinner
