@@ -31,13 +31,13 @@ class FlexContextSchema(Schema):
         data_key="site-consumption-capacity",
         validate=validate.Range(min=0),
     )
-    ems_site_consumption_breach_price = fields.Float(
+    ems_consumption_breach_price = fields.Float(
         data_key="site-consumption-breach-price",
         required=False,
         validate=validate.Range(min=0),
         default=None,
     )  # in EUR/MW
-    ems_site_production_breach_price = fields.Float(
+    ems_production_breach_price = fields.Float(
         data_key="site-production-breach-price",
         required=False,
         validate=validate.Range(min=0),

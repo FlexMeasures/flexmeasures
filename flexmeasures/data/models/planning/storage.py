@@ -224,6 +224,34 @@ class MetaStorageScheduler(Scheduler):
             commitment["group"] = 0  # add all time steps to the same group
             commitments.append(commitment)
 
+        # Set up capacity breach commitments
+        ems_consumption_breach_price = self.flex_context.get(
+            "ems_consumption_breach_price"
+        )
+        ems_production_breach_price = self.flex_context.get(
+            "ems_production_breach_price"
+        )
+        if ems_consumption_breach_price is not None:
+            quantity = self.flex_context.get("ems_consumption_capacity_in_mw")
+
+            # Set up commitments DataFrame
+            commitment = initialize_df([], start, end, self.resolution)
+            commitment["quantity"] = quantity
+            commitment["upwards deviation price"] = ems_consumption_breach_price
+            commitment["downwards deviation price"] = 0
+            commitment["group"] = 0  # add all time steps to the same group
+            commitments.append(commitment)
+        if ems_production_breach_price is not None:
+            quantity = self.flex_context.get("ems_production_capacity_in_mw")
+
+            # Set up commitments DataFrame
+            commitment = initialize_df([], start, end, self.resolution)
+            commitment["quantity"] = quantity
+            commitment["upwards deviation price"] = ems_production_breach_price
+            commitment["downwards deviation price"] = 0
+            commitment["group"] = 0  # add all time steps to the same group
+            commitments.append(commitment)
+
         # Set up device constraints: only one scheduled flexible device for this EMS (at index 0), plus the forecasted inflexible devices (at indices 1 to n).
         device_constraints = [
             initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
@@ -438,28 +466,40 @@ class MetaStorageScheduler(Scheduler):
             fallback_attribute="capacity_in_mw",
         )
 
-        ems_constraints["derivative max"] = get_continuous_series_sensor_or_quantity(
-            quantity_or_sensor=self.flex_context.get("ems_consumption_capacity_in_mw"),
-            actuator=sensor.generic_asset,
-            unit="MW",
-            query_window=(start, end),
-            resolution=resolution,
-            beliefs_before=belief_time,
-            fallback_attribute="consumption_capacity_in_mw",
-            max_value=ems_power_capacity_in_mw,
-        )
-        ems_constraints["derivative min"] = (
-            -1
-        ) * get_continuous_series_sensor_or_quantity(
-            quantity_or_sensor=self.flex_context.get("ems_production_capacity_in_mw"),
-            actuator=sensor.generic_asset,
-            unit="MW",
-            query_window=(start, end),
-            resolution=resolution,
-            beliefs_before=belief_time,
-            fallback_attribute="production_capacity_in_mw",
-            max_value=ems_power_capacity_in_mw,
-        )
+        if ems_consumption_breach_price is None:
+            ems_constraints[
+                "derivative max"
+            ] = get_continuous_series_sensor_or_quantity(
+                quantity_or_sensor=self.flex_context.get(
+                    "ems_consumption_capacity_in_mw"
+                ),
+                actuator=sensor.generic_asset,
+                unit="MW",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                fallback_attribute="consumption_capacity_in_mw",
+                max_value=ems_power_capacity_in_mw,
+            )
+        else:
+            ems_constraints["derivative max"] = ems_power_capacity_in_mw
+        if ems_production_breach_price is None:
+            ems_constraints["derivative min"] = (
+                -1
+            ) * get_continuous_series_sensor_or_quantity(
+                quantity_or_sensor=self.flex_context.get(
+                    "ems_production_capacity_in_mw"
+                ),
+                actuator=sensor.generic_asset,
+                unit="MW",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                fallback_attribute="production_capacity_in_mw",
+                max_value=ems_power_capacity_in_mw,
+            )
+        else:
+            ems_constraints["derivative min"] = ems_power_capacity_in_mw
 
         return (
             sensor,
