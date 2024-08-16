@@ -298,15 +298,9 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         """Deserialize a sensor reference to a Sensor."""
         if "sensor" not in value:
             raise FMValidationError("Dictionary provided but `sensor` key not found.")
-        sensor = SensorIdField(unit=self.to_unit)._deserialize(
-            value["sensor"], None, None
-        )
-        if not self.any_unit and not units_are_convertible(
-            sensor.unit, str(self.to_unit.units)
-        ):
-            raise FMValidationError(
-                f"Cannot convert {sensor.unit} to {self.to_unit.units}"
-            )
+        sensor = SensorIdField(
+            unit=self.to_unit if not self.any_unit else None
+        ).deserialize(value["sensor"], None, None)
         return sensor
 
     def _deserialize_list(self, value: list[dict]) -> list[dict]:

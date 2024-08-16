@@ -16,6 +16,7 @@ from marshmallow import ValidationError
         (1, None, "kWh", False, None),
         (1, None, "kW", False, None),
         (1, None, "EUR", True, None),
+        (1, None, "/h", False, None),  # convertable to MWh²/h
         (2, None, "EUR/kWh", False, None),
         (2, None, "EUR", True, None),
         # deserialize a quantity
