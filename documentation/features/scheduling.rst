@@ -21,7 +21,7 @@ Describing flexibility
 To compute a schedule, FlexMeasures first needs to assess the flexibility state of the system.
 This is described by:
 
-- :ref:`flex_context` ― information about the system as a whole, in order to assess the value of activating flexibility.
+- :ref:`The flex-context <flex_context>` ― information about the system as a whole, in order to assess the value of activating flexibility.
 - :ref:`Flex-models <flex_models_and_schedulers>`  ― information about the state and possible actions of the flexible device. We will discuss these per scheduled device type.
 
 This information goes beyond the usual time series recorded by an asset's sensors. It's being sent through the API when triggering schedule computation.
