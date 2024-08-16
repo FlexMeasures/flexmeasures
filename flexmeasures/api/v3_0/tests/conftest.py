@@ -168,8 +168,20 @@ def add_incineration_line(db, test_supplier_user) -> dict[str, Sensor]:
         db, test_supplier_user.data_source[0], temperature_sensor
     )
 
+    empty_temperature_sensor = Sensor(
+        name="empty temperature sensor",
+        unit="°C",
+        event_resolution=timedelta(0),
+        generic_asset=incineration_asset,
+    )
+    db.session.add(empty_temperature_sensor)
+
     db.session.flush()  # assign sensor ids
-    return {gas_sensor.name: gas_sensor, temperature_sensor.name: temperature_sensor}
+    return {
+        gas_sensor.name: gas_sensor,
+        temperature_sensor.name: temperature_sensor,
+        empty_temperature_sensor.name: empty_temperature_sensor,
+    }
 
 
 def add_gas_measurements(db, source: Source, sensor: Sensor, values=None):
