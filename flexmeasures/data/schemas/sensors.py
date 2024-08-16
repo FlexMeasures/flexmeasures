@@ -27,7 +27,12 @@ from flexmeasures.data.schemas.utils import (
     MarshmallowClickMixin,
     with_appcontext_if_needed,
 )
-from flexmeasures.utils.unit_utils import is_valid_unit, ur, units_are_convertible
+from flexmeasures.utils.unit_utils import (
+    is_valid_unit,
+    to_preferred,
+    ur,
+    units_are_convertible,
+)
 from flexmeasures.data.schemas.times import DurationField, AwareDateTimeField
 from flexmeasures.data.schemas.units import QuantityField
 
@@ -327,9 +332,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         """Deserialize a string to a Quantity."""
         try:
             if self.any_unit:
-                return (
-                    ur.Quantity(value) * self.to_unit
-                ).to_base_units() / self.to_unit
+                return to_preferred(ur.Quantity(value) * self.to_unit) / self.to_unit
             return ur.Quantity(value).to(self.to_unit)
         except DimensionalityError as e:
             raise FMValidationError(
