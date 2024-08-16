@@ -347,10 +347,16 @@ def device_scheduler(  # noqa C901
     model.device_power_up = Var(model.d, model.j, domain=NonNegativeReals, initialize=0)
     model.device_power_sign = Var(model.d, model.j, domain=Binary, initialize=0)
     model.commitment_downwards_deviation = Var(
-        model.c, domain=NonPositiveReals, initialize=0
+        model.c,
+        domain=NonPositiveReals,
+        initialize=0,
+        # bounds=[-1000, None],  # useful for debugging, to distinguish between infeasible and unbounded problems
     )
     model.commitment_upwards_deviation = Var(
-        model.c, domain=NonNegativeReals, initialize=0
+        model.c,
+        domain=NonNegativeReals,
+        initialize=0,
+        # bounds=[None, 1000],
     )
 
     # Add constraints as a tuple of (lower bound, value, upper bound)
