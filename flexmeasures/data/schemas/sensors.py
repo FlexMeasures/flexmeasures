@@ -263,7 +263,11 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
             self.validators.insert(0, validator)
         self.timezone = timezone
         self.value_validator = value_validator
-        if len(to_unit) > 0 and to_unit[0] == "/":
+        if to_unit.startswith("/"):
+            if len(to_unit) < 2:
+                raise ValueError(
+                    f"Variable `to_unit='{to_unit}'` must define a denominator."
+                )
             self.to_unit = ur.Quantity(to_unit[1:])
             self.any_unit = True
         else:
