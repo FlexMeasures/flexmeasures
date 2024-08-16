@@ -1,7 +1,8 @@
 from flexmeasures.data.models.user import Account
+from typing import Optional
 
 
-def get_color_settings(account: Account | None) -> dict:
+def get_color_settings(account: Optional[Account]) -> dict:
     """
     This function returns the primary and secondary color settings for the UI.
 
