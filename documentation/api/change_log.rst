@@ -8,11 +8,7 @@ API change log
 v3.0-19 | 2024-08-13
 """"""""""""""""""""
 
--  Allow posting a single instantaneous belief as a list of one element to `/sensors/data` (POST).
-
-v3.0-19 | 2024-08-09
-""""""""""""""""""""
-
+- Allow posting a single instantaneous belief as a list of one element to `/sensors/data` (POST).
 - Allow setting a SoC unit directly in some fields (formerly ``Float`` fields, and now ``Quantity`` fields), while still falling back on the contents of the ``soc-unit`` field, for backwards compatibility:
 
   - ``soc-at-start``
