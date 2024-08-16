@@ -57,30 +57,40 @@
                     </div>
                     <div class="col-sm-6" id="statsContainer">
                         <span id="spinner-run-simulation" class="spinner-border spinner-border-sm d-none" role="status"></span>
-                        <h5 id="statsHeader" class="d-none">Statistics</h5>
+                        <h5 id="statsHeader">Statistics</h5>
                         <table id="statsTable" class="table table-striped">
                             <tbody id="statsTableBody">
                             </tbody>
                         </table>
                         <!-- Dropdown for sourceKey -->
                         <div class="dropdown mb-3 d-none" id="sourceKeyDropdownContainer">
+                            <h6>Select source for statistics</h6>
                             <button class="btn btn-secondary dropdown-toggle" type="button" id="sourceKeyDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                                 Select Source
                             </button>
                             <ul class="dropdown-menu" aria-labelledby="sourceKeyDropdown" id="sourceKeyDropdownMenu">
                             </ul>
                         </div>
-
+                        <!-- Alert for no data -->
+                        <div class="alert alert-warning d-none" id="noDataWarning">
+                            There is no data for this sensor yet.
+                        </div>
+                        <!-- Alert for errors -->
+                        <div class="alert alert-danger d-none" id="fetchErrorWarning">
+                            There was a problem fetching statistics for this sensor's data.
+                        </div>
                         <script>
                             document.addEventListener('DOMContentLoaded', function() {
                                 const spinner = document.getElementById('spinner-run-simulation');
                                 const tableBody = document.getElementById('statsTableBody');
                                 const dropdownMenu = document.getElementById('sourceKeyDropdownMenu');
                                 const dropdownButton = document.getElementById('sourceKeyDropdown');
-                                const statsHeader = document.getElementById('statsHeader');
                                 const dropdownContainer = document.getElementById('sourceKeyDropdownContainer');
                                 const propertiesContainer = document.getElementById('propertiesContainer');
                                 const statsContainer = document.getElementById('statsContainer');
+                                const noDataWarning = document.getElementById('noDataWarning');
+                                const fetchErrorWarning = document.getElementById('fetchErrorWarning');
+
 
                                 // Show the spinner
                                 spinner.classList.remove('d-none');
@@ -93,7 +103,6 @@
 
                                         if (Object.keys(data).length > 0) {
                                             // Show the header and dropdown container
-                                            statsHeader.classList.remove('d-none');
                                             dropdownContainer.classList.remove('d-none');
 
                                             // Populate the dropdown menu with sourceKeys
@@ -122,13 +131,13 @@
                                             updateTable(data[firstSourceKey]);
                                         } else {
                                             // If the stats table is empty, make the properties table full width
-                                            propertiesContainer.classList.remove('col-sm-6');
-                                            propertiesContainer.classList.add('col-sm-12');
-                                            statsContainer.classList.add('d-none');
+                                            noDataWarning.classList.remove('d-none');
                                         }
                                     })
                                     .catch(error => {
                                         console.error('Error:', error);
+                                        dropdownContainer.classList.add('d-none');
+                                        fetchErrorWarning.classList.remove('d-none');
                                     })
                                     .finally(() => {
                                         // Hide the spinner
@@ -160,8 +169,8 @@
 
                                             keyCell.textContent = displayKey;
                                             // Round value to 2 decimal points if it's a number
-                                            if (typeof stats[key] === 'number') {
-                                                valueCell.textContent = stats[key].toFixed(2);
+                                            if (typeof stats[key] === 'number' & key != 'count_values') {
+                                                valueCell.textContent = stats[key].toFixed(4);
                                             } else {
                                                 valueCell.textContent = stats[key];
                                             }
