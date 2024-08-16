@@ -32,10 +32,16 @@ class FlexContextSchema(Schema):
         validate=validate.Range(min=0),
     )
     ems_site_consumption_breach_price = fields.Float(
-        data_key="site-consumption-breach-price", required=False, default=None
+        data_key="site-consumption-breach-price",
+        required=False,
+        validate=validate.Range(min=0),
+        default=None,
     )  # in EUR/MW
     ems_site_production_breach_price = fields.Float(
-        data_key="site-production-breach-price", required=False, default=None
+        data_key="site-production-breach-price",
+        required=False,
+        validate=validate.Range(min=0),
+        default=None,
     )  # in EUR/MW
 
     # Peak consumption commitment
@@ -46,7 +52,10 @@ class FlexContextSchema(Schema):
         validate=validate.Range(min=0),
     )
     ems_peak_consumption_price = fields.Float(
-        data_key="site-peak-consumption-price", required=False, default=None
+        data_key="site-peak-consumption-price",
+        required=False,
+        validate=validate.Range(min=0),
+        default=None,
     )  # in EUR/MW
 
     # Peak production commitment
@@ -57,7 +66,10 @@ class FlexContextSchema(Schema):
         validate=validate.Range(min=0),
     )
     ems_peak_production_price = fields.Float(
-        data_key="site-peak-production-price", required=False, default=None
+        data_key="site-peak-production-price",
+        required=False,
+        validate=validate.Range(min=0),
+        default=None,
     )  # in EUR/MW
     # todo: group by month start (MS), something like a commitment resolution, or a list of datetimes representing splits of the commitments
 
