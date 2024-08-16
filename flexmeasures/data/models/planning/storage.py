@@ -457,7 +457,7 @@ class MetaStorageScheduler(Scheduler):
             else:
                 self.flex_model["soc-at-start"] = 0
         # soc-unit
-        if "soc-unit" not in self.flex_model or self.flex_model["soc-unit"] is None:
+        if self.flex_model.get("soc-unit") is None:
             if self.sensor.unit in ("MWh", "kWh"):
                 self.flex_model["soc-unit"] = self.sensor.unit
             elif self.sensor.unit in ("MW", "kW"):
