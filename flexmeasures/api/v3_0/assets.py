@@ -152,13 +152,28 @@ class AssetAPI(FlaskView):
         if page is not None:
             if per_page is None:
                 per_page = 10
-            assets = db.paginate(query, per_page=per_page, page=page).items
+            from flask_sqlalchemy.pagination import SelectPagination
 
-            # TODO: return total number of records. e.g. {"data" : [], "num-records" : 120, "filtered-records" : 10}
+            select_pagination: SelectPagination = db.paginate(
+                query, per_page=per_page, page=page
+            )
+
+            assets = {
+                "data": select_pagination.items,
+                "num-records": select_pagination.total,
+                "filtered-records": select_pagination.total,
+            }
         else:
             assets = db.session.scalars(query).all()
+            assets = {
+                "data": assets,
+                "num-records": len(assets),
+                "filtered-records": len(assets),
+            }
 
-        return assets_schema.dump(assets), 200
+        assets["data"] = asset_schema.dump(assets["data"], many=True)
+
+        return assets, 200
 
     @route("/public", methods=["GET"])
     @as_json

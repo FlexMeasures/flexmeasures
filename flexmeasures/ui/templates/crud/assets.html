@@ -53,7 +53,7 @@ $(document).ready(function() {
     ],
     ajax: function (data, callback, settings) {
       let filter = data["search"]["value"];
-      let url = `{{url_for("AssetAPI:index")}}?page=${data["start"] + 1}&per_page=${data["length"]}&all_accessible=true`;
+      let url = `{{url_for("AssetAPI:index")}}?page=${Math.floor((data["start"])/data["length"] ) + 1 }&per_page=${data["length"]}&all_accessible=true`;
       if (filter.length > 0) {
         url = `${url}&filter=${filter}`;
       }
@@ -63,10 +63,10 @@ $(document).ready(function() {
         success : function(response, text) {
           console.log(response)
           let clean_response = [];
-          response.forEach( (element) => clean_response.push(
+          response["data"].forEach( (element) => clean_response.push(
             new Asset(element["id"], element["name"], element["generic_asset_type"]["name"], element["sensors"], element["owner"], element["latitude"], element["longitude"])
           )) 
-          callback({"data" : clean_response, "recordsTotal" : {{num_assets}}, "recordsFiltered" :  {{num_assets}}});
+          callback({"data" : clean_response, "recordsTotal" : response["num-records"], "recordsFiltered" : response["filtered-records"]});
         },
         error : function (request, status, error) {
           console.log("Error: ", error)

@@ -48,4 +48,4 @@ def test_auth_token(monkeypatch, app, client, setup_api_test_data):
     print(response)
     assert response.status_code == 200
     logout_user()  # undo the login made by our patch during token auth
-    assert response.json == []  # admin has no assets themselves
+    assert response.json["data"] == []  # admin has no assets themselves

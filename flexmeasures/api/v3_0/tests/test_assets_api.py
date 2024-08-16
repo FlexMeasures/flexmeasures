@@ -94,7 +94,7 @@ def test_get_assets(
     )
     print("Server responded with:\n%s" % get_assets_response.json)
     assert get_assets_response.status_code == 200
-    assert len(get_assets_response.json) == num_assets
+    assert len(get_assets_response.json["data"]) == num_assets
 
     if account_name == "Supplier":  # one deep dive
         turbine = {}
