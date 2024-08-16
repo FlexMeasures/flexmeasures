@@ -304,7 +304,7 @@ def get_sensor_aliases(
 def validate_color_hex(ctx, param, value):
     """
     Validates that a given value is a valid hex color code.
-    
+
     Parameters:
     :param ctx:     Click context.
     :param param:   Click parameter. Hex value.
