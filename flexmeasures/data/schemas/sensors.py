@@ -298,7 +298,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
             value["sensor"], None, None
         )
         if not self.any_unit and not units_are_convertible(
-                sensor.unit, str(self.to_unit.units)
+            sensor.unit, str(self.to_unit.units)
         ):
             raise FMValidationError(
                 f"Cannot convert {sensor.unit} to {self.to_unit.units}"
@@ -330,7 +330,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         try:
             if self.any_unit:
                 return (
-                        ur.Quantity(value) * self.to_unit
+                    ur.Quantity(value) * self.to_unit
                 ).to_base_units() / ur.Quantity(self.to_unit)
             return ur.Quantity(value).to(self.to_unit)
         except DimensionalityError as e:

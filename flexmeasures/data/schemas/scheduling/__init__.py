@@ -29,16 +29,16 @@ class FlexContextSchema(Schema):
         data_key="site-consumption-capacity",
         validate=validate.Range(min=0),
     )
-    # todo: deprecated since flexmeasures==0.21
+    # todo: deprecated since flexmeasures==0.23
     consumption_price_sensor = SensorIdField(data_key="consumption-price-sensor")
     production_price_sensor = SensorIdField(data_key="production-price-sensor")
 
-    consumption_price = QuantityOrSensor(
+    consumption_price = VariableQuantityField(
         "/MWh",
         required=False,
         data_key="consumption-price",
     )
-    production_price = QuantityOrSensor(
+    production_price = VariableQuantityField(
         "/MWh",
         required=False,
         data_key="production-price",
