@@ -113,6 +113,7 @@ and what constraints or preferences should be taken into account.
    * - ``soc-unit``
      - ``"kWh"`` or ``"MWh"``
      - The unit used to interpret any SoC related flex-model value that does not mention a unit itself (only applies to numeric values, so not to string values).
+       However, we advise to mention the unit in each field explicitly (for instance, ``"3.1 kWh"`` rather than ``3.1``).
    * - ``soc-min``
      - ``"2.5 kWh"``
      - A constant lower boundary for all values in the schedule (defaults to 0).
