@@ -163,6 +163,14 @@ class StorageFlexModelSchema(Schema):
         """Pass the schedule's start, so we can use it to validate soc-target datetimes."""
         self.start = start
         self.sensor = sensor
+
+        # guess default soc-unit
+        if default_soc_unit is None:
+            if self.sensor.unit in ("MWh", "kWh"):
+                default_soc_unit = self.sensor.unit
+            elif self.sensor.unit in ("MW", "kW"):
+                default_soc_unit = self.sensor.unit + "h"
+
         self.soc_maxima = VariableQuantityField(
             to_unit="MWh",
             default_src_unit=default_soc_unit,
