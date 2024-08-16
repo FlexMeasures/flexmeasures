@@ -335,7 +335,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
             if self.any_unit:
                 return (
                     ur.Quantity(value) * self.to_unit
-                ).to_base_units() / ur.Quantity(self.to_unit)
+                ).to_base_units() / self.to_unit
             return ur.Quantity(value).to(self.to_unit)
         except DimensionalityError as e:
             raise FMValidationError(
