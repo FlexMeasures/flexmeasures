@@ -12,7 +12,7 @@ from marshmallow import (
     validates_schema,
 )
 from marshmallow.validate import Validator
-from pint import DimensionalityError
+from pint import DimensionalityError, UndefinedUnitError
 
 import json
 import re
@@ -335,6 +335,10 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
             raise FMValidationError(
                 f"Cannot convert value `{value}` to '{self.to_unit}'"
             ) from e
+        except (AssertionError, UndefinedUnitError) as e:
+            raise FMValidationError(
+                f"Cannot convert value `{value}` to a valid quantity. {e}"
+            )
 
     def _deserialize_numeric(
         self, value: numbers.Real, attr, obj, **kwargs

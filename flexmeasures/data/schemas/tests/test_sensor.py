@@ -26,6 +26,9 @@ from marshmallow import ValidationError
         (None, "100 EUR/MWh", "EUR/kWh", False, "0.1 EUR/kWh"),
         (None, "100 EUR/MWh", "EUR", True, None),
         (None, "1 EUR/kWh", "/MWh", False, "1000.0 EUR/MWh"),
+        (None, "/", "/MWh", True, None),
+        (None, "/", "MWh", True, None),
+        (None, "10 batteries", "MWh", True, None),
     ],
 )
 def test_quantity_or_sensor_deserialize(
