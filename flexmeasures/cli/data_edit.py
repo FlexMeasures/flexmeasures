@@ -21,6 +21,7 @@ from flexmeasures.data.schemas.attributes import validate_special_attributes
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.cli.utils import MsgStyle, DeprecatedOption, DeprecatedOptionsCommand
@@ -146,9 +147,15 @@ def edit_attribute(
 
     # Set attribute
     for asset in assets:
+        AssetAuditLog.add_record_for_attribute_update(
+            attribute_key, attribute_value, "asset", asset
+        )
         asset.attributes[attribute_key] = attribute_value
         db.session.add(asset)
     for sensor in sensors:
+        AssetAuditLog.add_record_for_attribute_update(
+            attribute_key, attribute_value, "sensor", sensor
+        )
         sensor.attributes[attribute_key] = attribute_value
         db.session.add(sensor)
     db.session.commit()
@@ -228,6 +235,11 @@ def resample_sensor_data(
                 abort=True,
             )
 
+        AssetAuditLog.add_record(
+            sensor.generic_asset,
+            f"Resampled sensor data for sensor '{sensor.name}': {sensor.id} to {event_resolution} from {sensor.event_resolution}",
+        )
+
         # Update sensor
         sensor.event_resolution = event_resolution
         db.session.add(sensor)
@@ -268,13 +280,22 @@ def transfer_ownership(asset: Asset, new_owner: Account):
     """
 
     def transfer_ownership_recursive(asset: Asset, account: Account):
+        AssetAuditLog.add_record(
+            asset,
+            (
+                f"Transferred ownership for asset '{asset.name}': {asset.id} from '{asset.owner.name}': {asset.owner.id} to '{account.name}': {account.id}"
+                if asset.owner is not None
+                else f"Assign ownership to public asset '{asset.name}': {asset.id} to '{account.name}': {account.id}"
+            ),
+        )
+
         asset.owner = account
         for child in asset.child_assets:
             transfer_ownership_recursive(child, account)
 
     transfer_ownership_recursive(asset, new_owner)
     click.secho(
-        f"Success! Asset `{asset}` ownership was transfered to account `{new_owner}`.",
+        f"Success! Asset `{asset}` ownership was transferred to account `{new_owner}`.",
         **MsgStyle.SUCCESS,
     )
 

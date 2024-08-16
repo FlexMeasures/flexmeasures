@@ -1,6 +1,9 @@
 from marshmallow import Schema, fields, validate, validates_schema, ValidationError
 
-from flexmeasures.data.schemas.sensors import QuantityOrSensor, SensorIdField
+from flexmeasures.data.schemas.sensors import (
+    VariableQuantityField,
+    SensorIdField,
+)
 
 
 class FlexContextSchema(Schema):
@@ -8,19 +11,19 @@ class FlexContextSchema(Schema):
     This schema lists fields that can be used to describe sensors in the optimised portfolio
     """
 
-    ems_power_capacity_in_mw = QuantityOrSensor(
+    ems_power_capacity_in_mw = VariableQuantityField(
         "MW",
         required=False,
         data_key="site-power-capacity",
         validate=validate.Range(min=0),
     )
-    ems_production_capacity_in_mw = QuantityOrSensor(
+    ems_production_capacity_in_mw = VariableQuantityField(
         "MW",
         required=False,
         data_key="site-production-capacity",
         validate=validate.Range(min=0),
     )
-    ems_consumption_capacity_in_mw = QuantityOrSensor(
+    ems_consumption_capacity_in_mw = VariableQuantityField(
         "MW",
         required=False,
         data_key="site-consumption-capacity",

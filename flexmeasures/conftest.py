@@ -23,7 +23,7 @@ from werkzeug.exceptions import (
 )
 
 from flexmeasures.app import create as create_app
-from flexmeasures.auth.policy import ADMIN_ROLE
+from flexmeasures.auth.policy import ADMIN_ROLE, ADMIN_READER_ROLE
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
 from flexmeasures.data.models.data_sources import DataSource
@@ -196,7 +196,7 @@ def setup_roles_users_fresh_db(fresh_db, setup_accounts_fresh_db) -> dict[str, U
 def create_roles_users(db, test_accounts) -> dict[str, User]:
     """Create a minimal set of roles and users"""
     new_users: list[User] = []
-    # Two Prosumer users
+    # 3 Prosumer users: 2 plain ones, 1 account admin
     new_users.append(
         create_user(
             username="Test Prosumer User",
@@ -216,6 +216,14 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
             user_roles=dict(name="account-admin", description="Admin for this account"),
         )
     )
+    new_users.append(
+        create_user(
+            username="Test Another Plain Prosumer User",
+            email="test_prosumer_user_3@seita.nl",
+            account_name=test_accounts["Prosumer"].name,
+            password="testtest",
+        )
+    )
     # A user on an account without any special rights
     new_users.append(
         create_user(
@@ -223,6 +231,16 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
             email="test_dummy_user_3@seita.nl",
             account_name=test_accounts["Dummy"].name,
             password="testtest",
+        )
+    )
+    # Account admin on dummy account
+    new_users.append(
+        create_user(
+            username="Test Dummy Account Admin",
+            email="test_dummy_account_admin@seita.nl",
+            account_name=test_accounts["Dummy"].name,
+            password="testtest",
+            user_roles=dict(name="account-admin", description="Admin for this account"),
         )
     )
     # A supplier user
@@ -248,6 +266,20 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
             ),
         )
     )
+    # One platform admin reader
+    new_users.append(
+        create_user(
+            username="Test Admin Reader User",
+            email="test_admin_reader_user@seita.nl",
+            account_name=test_accounts[
+                "Dummy"
+            ].name,  # the account does not give rights
+            password="testtest",
+            user_roles=dict(
+                name=ADMIN_READER_ROLE, description="A user who can do everything."
+            ),
+        )
+    )
     new_users.append(
         create_user(
             username="Test Consultant User",
@@ -262,6 +294,15 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
             username="Test Consultant User without consultant role",
             email="test_consultancy_user_without_consultant_access@seita.nl",
             account_name=test_accounts["Consultancy"].name,
+            password="testtest",
+        )
+    )
+    # Consultancy client account user
+    new_users.append(
+        create_user(
+            username="Test Consultancy Client User",
+            email="test_consultant_client@seita.nl",
+            account_name=test_accounts["ConsultancyClient"].name,
             password="testtest",
         )
     )
@@ -617,6 +658,16 @@ def add_market_prices_common(
         source=setup_sources["Seita"],
     )
 
+    add_beliefs(
+        db=db,
+        sensor=setup_markets["epex_da_production"],
+        time_slots=time_slots,
+        values=[
+            random() * (1 + np.sin(x * 2 * np.pi / 24)) for x in range(len(time_slots))
+        ],
+        source=setup_sources["Seita"],
+    )
+
     # another day of test data (8 expensive hours, 8 cheap hours, and again 8 expensive hours)
     time_slots = initialize_index(
         start=pd.Timestamp("2015-01-02").tz_localize("Europe/Amsterdam"),
@@ -719,6 +770,19 @@ def create_test_battery_assets(
     """
     Add two battery assets, set their capacity values and their initial SOC.
     """
+    building_type = GenericAssetType(name="building")
+    db.session.add(building_type)
+    test_building = GenericAsset(
+        name="building",
+        generic_asset_type=building_type,
+        owner=setup_accounts["Prosumer"],
+        attributes=dict(
+            capacity_in_mw=2,
+        ),
+    )
+    db.session.add(test_building)
+    db.session.flush()
+
     battery_type = generic_asset_types["battery"]
 
     test_battery = GenericAsset(
@@ -727,6 +791,7 @@ def create_test_battery_assets(
         generic_asset_type=battery_type,
         latitude=10,
         longitude=100,
+        parent_asset_id=test_building.id,
         attributes=dict(
             capacity_in_mw=2,
             max_soc_in_mwh=5,
@@ -753,6 +818,19 @@ def create_test_battery_assets(
         ),
     )
     db.session.add(test_battery_sensor)
+
+    test_battery_sensor_kw = Sensor(
+        name="power (kW)",
+        generic_asset=test_battery,
+        event_resolution=timedelta(minutes=15),
+        unit="kW",
+        attributes=dict(
+            daily_seasonality=True,
+            weekly_seasonality=True,
+            yearly_seasonality=True,
+        ),
+    )
+    db.session.add(test_battery_sensor_kw)
 
     test_battery_no_prices = GenericAsset(
         name="Test battery with no known prices",
@@ -850,6 +928,7 @@ def create_test_battery_assets(
 
     db.session.flush()
     return {
+        "Test building": test_building,
         "Test battery": test_battery,
         "Test battery with no known prices": test_battery_no_prices,
         "Test small battery": test_small_battery,
@@ -1095,6 +1174,7 @@ def clean_redis(app):
     app.queues["forecasting"].empty()
     for job_id in failed.get_job_ids():
         failed.remove(app.queues["forecasting"].fetch_job(job_id))
+    app.redis_connection.flushdb()
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -1231,11 +1311,116 @@ def capacity_sensors(db, add_battery_assets, setup_sources):
     )
 
 
+@pytest.fixture(scope="module")
+def soc_sensors(db, add_battery_assets, setup_sources) -> tuple:
+    """Add battery sensors for instantaneous soc-maxima (in kWh), soc-maxima (in MWh) and soc-targets (in MWh).
+
+    The SoC values on each sensor linearly increase from 0 to 5 MWh.
+    """
+    battery = add_battery_assets["Test battery with dynamic power capacity"]
+
+    soc_maxima = Sensor(
+        name="soc_maxima",
+        generic_asset=battery,
+        unit="kWh",
+        event_resolution=timedelta(0),
+    )
+
+    soc_minima = Sensor(
+        name="soc_minima",
+        generic_asset=battery,
+        unit="MWh",
+        event_resolution=timedelta(0),
+    )
+
+    soc_targets = Sensor(
+        name="soc_targets",
+        generic_asset=battery,
+        unit="MWh",
+        event_resolution=timedelta(0),
+    )
+
+    db.session.add_all([soc_maxima, soc_minima, soc_targets])
+    db.session.flush()
+
+    time_slots = pd.date_range(
+        datetime(2015, 1, 1, 2), datetime(2015, 1, 2), freq="15T"
+    ).tz_localize("Europe/Amsterdam")
+
+    values = np.arange(len(time_slots)) / (len(time_slots) - 1)
+    values = values * 5
+
+    add_beliefs(
+        db=db,
+        sensor=soc_maxima,
+        time_slots=time_slots,
+        values=values * 1000,  # MWh -> kWh
+        source=setup_sources["Seita"],
+    )
+
+    add_beliefs(
+        db=db,
+        sensor=soc_minima,
+        time_slots=time_slots,
+        values=values,
+        source=setup_sources["Seita"],
+    )
+
+    add_beliefs(
+        db=db,
+        sensor=soc_targets,
+        time_slots=time_slots,
+        values=values,
+        source=setup_sources["Seita"],
+    )
+
+    yield soc_maxima, soc_minima, soc_targets, values
+
+
+@pytest.fixture(scope="module")
+def setup_multiple_sources(db, add_battery_assets):
+    battery = add_battery_assets["Test battery with dynamic power capacity"]
+
+    test_sensor = Sensor(
+        name="test sensor",
+        generic_asset=battery,
+        unit="kW",
+        event_resolution=timedelta(minutes=15),
+    )
+
+    s1 = DataSource(name="S1", type="type 1")
+    s2 = DataSource(name="S2", type="type 2")
+    s3 = DataSource(name="S3", type="type 3")
+
+    db.session.add_all([s1, s2, s3, test_sensor])
+
+    for s in [s1, s2]:
+        add_beliefs(
+            db=db,
+            sensor=test_sensor,
+            time_slots=[pd.Timestamp("2024-01-01T10:00:00+01:00")],
+            values=[1],
+            source=s,
+        )
+
+    add_beliefs(
+        db=db,
+        sensor=test_sensor,
+        time_slots=[pd.Timestamp("2024-01-02T10:00:00+01:00")],
+        values=[1],
+        source=s3,
+    )
+
+    db.session.commit()
+
+    return test_sensor, s1, s2, s3
+
+
 def add_beliefs(
     db,
     sensor: Sensor,
     time_slots: pd.DatetimeIndex,
-    values: list[int | float],
+    values: list[int | float] | np.ndarray,
     source: DataSource,
 ):
     beliefs = [

@@ -27,7 +27,7 @@ from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
 from flexmeasures.data.schemas.scheduling import FlexContextSchema
 from flexmeasures.utils.time_utils import get_max_planning_horizon
 from flexmeasures.utils.coding_utils import deprecated
-from flexmeasures.utils.unit_utils import ur
+from flexmeasures.utils.unit_utils import ur, convert_units
 
 
 class MetaStorageScheduler(Scheduler):
@@ -87,12 +87,19 @@ class MetaStorageScheduler(Scheduler):
         storage_efficiency = self.flex_model.get("storage_efficiency")
         prefer_charging_sooner = self.flex_model.get("prefer_charging_sooner", True)
 
-        consumption_price_sensor = self.flex_context.get("consumption_price_sensor")
-        production_price_sensor = self.flex_context.get("production_price_sensor")
+        consumption_price_sensor = (
+            self.flex_context.get("consumption_price_sensor")
+            or self.sensor.generic_asset.get_consumption_price_sensor()
+        )
+        production_price_sensor = (
+            self.flex_context.get("production_price_sensor")
+            or self.sensor.generic_asset.get_production_price_sensor()
+        )
         consumption_price = self.flex_context.get("consumption_price")
         production_price = self.flex_context.get("production_price")
-        inflexible_device_sensors = self.flex_context.get(
-            "inflexible_device_sensors", []
+        inflexible_device_sensors = (
+            self.flex_context.get("inflexible_device_sensors")
+            or self.sensor.generic_asset.get_inflexible_device_sensors()
         )
 
         # Check for required Sensor attributes
@@ -112,7 +119,7 @@ class MetaStorageScheduler(Scheduler):
             power_capacity_in_mw = ur.Quantity(f"{power_capacity_in_mw} MW")
 
         power_capacity_in_mw = get_continuous_series_sensor_or_quantity(
-            quantity_or_sensor=power_capacity_in_mw,
+            variable_quantity=power_capacity_in_mw,
             actuator=sensor,
             unit="MW",
             query_window=(start, end),
@@ -204,7 +211,7 @@ class MetaStorageScheduler(Scheduler):
         # fetch SOC constraints from sensors
         if isinstance(soc_targets, Sensor):
             soc_targets = get_continuous_series_sensor_or_quantity(
-                quantity_or_sensor=soc_targets,
+                variable_quantity=soc_targets,
                 actuator=sensor,
                 unit="MWh",
                 query_window=(start, end),
@@ -215,7 +222,7 @@ class MetaStorageScheduler(Scheduler):
             )
         if isinstance(soc_minima, Sensor):
             soc_minima = get_continuous_series_sensor_or_quantity(
-                quantity_or_sensor=soc_minima,
+                variable_quantity=soc_minima,
                 actuator=sensor,
                 unit="MWh",
                 query_window=(start, end),
@@ -226,7 +233,7 @@ class MetaStorageScheduler(Scheduler):
             )
         if isinstance(soc_maxima, Sensor):
             soc_maxima = get_continuous_series_sensor_or_quantity(
-                quantity_or_sensor=soc_maxima,
+                variable_quantity=soc_maxima,
                 actuator=sensor,
                 unit="MWh",
                 query_window=(start, end),
@@ -257,7 +264,7 @@ class MetaStorageScheduler(Scheduler):
             device_constraints[0]["derivative min"] = (
                 -1
             ) * get_continuous_series_sensor_or_quantity(
-                quantity_or_sensor=production_capacity,
+                variable_quantity=production_capacity,
                 actuator=sensor,
                 unit="MW",
                 query_window=(start, end),
@@ -272,7 +279,7 @@ class MetaStorageScheduler(Scheduler):
             device_constraints[0][
                 "derivative max"
             ] = get_continuous_series_sensor_or_quantity(
-                quantity_or_sensor=consumption_capacity,
+                variable_quantity=consumption_capacity,
                 actuator=sensor,
                 unit="MW",
                 query_window=(start, end),
@@ -290,7 +297,7 @@ class MetaStorageScheduler(Scheduler):
         for is_usage, soc_delta in zip([False, True], [soc_gain, soc_usage]):
             for component in soc_delta:
                 stock_delta_series = get_continuous_series_sensor_or_quantity(
-                    quantity_or_sensor=component,
+                    variable_quantity=component,
                     actuator=sensor,
                     unit="MW",
                     query_window=(start, end),
@@ -316,7 +323,7 @@ class MetaStorageScheduler(Scheduler):
 
         # Apply round-trip efficiency evenly to charging and discharging
         charging_efficiency = get_continuous_series_sensor_or_quantity(
-            quantity_or_sensor=self.flex_model.get("charging_efficiency"),
+            variable_quantity=self.flex_model.get("charging_efficiency"),
             actuator=sensor,
             unit="dimensionless",
             query_window=(start, end),
@@ -325,7 +332,7 @@ class MetaStorageScheduler(Scheduler):
             fallback_attribute="charging-efficiency",
         ).fillna(1)
         discharging_efficiency = get_continuous_series_sensor_or_quantity(
-            quantity_or_sensor=self.flex_model.get("discharging_efficiency"),
+            variable_quantity=self.flex_model.get("discharging_efficiency"),
             actuator=sensor,
             unit="dimensionless",
             query_window=(start, end),
@@ -354,7 +361,7 @@ class MetaStorageScheduler(Scheduler):
         ):
             device_constraints[0]["efficiency"] = (
                 get_continuous_series_sensor_or_quantity(
-                    quantity_or_sensor=storage_efficiency,
+                    variable_quantity=storage_efficiency,
                     actuator=sensor,
                     unit="dimensionless",
                     query_window=(start, end),
@@ -393,7 +400,7 @@ class MetaStorageScheduler(Scheduler):
         )
 
         ems_power_capacity_in_mw = get_continuous_series_sensor_or_quantity(
-            quantity_or_sensor=self.flex_context.get("ems_power_capacity_in_mw"),
+            variable_quantity=self.flex_context.get("ems_power_capacity_in_mw"),
             actuator=sensor.generic_asset,
             unit="MW",
             query_window=(start, end),
@@ -403,7 +410,7 @@ class MetaStorageScheduler(Scheduler):
         )
 
         ems_constraints["derivative max"] = get_continuous_series_sensor_or_quantity(
-            quantity_or_sensor=self.flex_context.get("ems_consumption_capacity_in_mw"),
+            variable_quantity=self.flex_context.get("ems_consumption_capacity_in_mw"),
             actuator=sensor.generic_asset,
             unit="MW",
             query_window=(start, end),
@@ -415,7 +422,7 @@ class MetaStorageScheduler(Scheduler):
         ems_constraints["derivative min"] = (
             -1
         ) * get_continuous_series_sensor_or_quantity(
-            quantity_or_sensor=self.flex_context.get("ems_production_capacity_in_mw"),
+            variable_quantity=self.flex_context.get("ems_production_capacity_in_mw"),
             actuator=sensor.generic_asset,
             unit="MW",
             query_window=(start, end),
@@ -441,17 +448,9 @@ class MetaStorageScheduler(Scheduler):
     def persist_flex_model(self):
         """Store new soc info as GenericAsset attributes"""
         self.sensor.generic_asset.set_attribute("soc_datetime", self.start.isoformat())
-        soc_unit = self.flex_model.get("soc_unit")
-        if soc_unit == "kWh":
-            self.sensor.generic_asset.set_attribute(
-                "soc_in_mwh", self.flex_model["soc_at_start"] / 1000
-            )
-        elif soc_unit == "MWh":
-            self.sensor.generic_asset.set_attribute(
-                "soc_in_mwh", self.flex_model["soc_at_start"]
-            )
-        else:
-            raise NotImplementedError(f"Unsupported SoC unit '{soc_unit}'.")
+        self.sensor.generic_asset.set_attribute(
+            "soc_in_mwh", self.flex_model["soc_at_start"]
+        )
 
     def deserialize_flex_config(self):
         """
@@ -485,18 +484,14 @@ class MetaStorageScheduler(Scheduler):
                 )
             else:
                 self.flex_model["soc-at-start"] = 0
-        # soc-unit
-        if "soc-unit" not in self.flex_model or self.flex_model["soc-unit"] is None:
-            if self.sensor.unit in ("MWh", "kWh"):
-                self.flex_model["soc-unit"] = self.sensor.unit
-            elif self.sensor.unit in ("MW", "kW"):
-                self.flex_model["soc-unit"] = self.sensor.unit + "h"
 
         self.ensure_soc_min_max()
 
-        # Now it's time to check if our flex configurations holds up to schemas
+        # Now it's time to check if our flex configuration holds up to schemas
         self.flex_model = StorageFlexModelSchema(
-            start=self.start, sensor=self.sensor
+            start=self.start,
+            sensor=self.sensor,
+            default_soc_unit=self.flex_model.get("soc-unit"),
         ).load(self.flex_model)
         self.flex_context = FlexContextSchema().load(self.flex_context)
 
@@ -616,6 +611,7 @@ class StorageFallbackScheduler(MetaStorageScheduler):
         storage_schedule = fallback_charging_policy(
             sensor, device_constraints[0], start, end, resolution
         )
+        storage_schedule = convert_units(storage_schedule, "MW", sensor.unit)
 
         # Round schedule
         if self.round_to_decimals:
@@ -673,6 +669,7 @@ class StorageScheduler(MetaStorageScheduler):
 
         # Obtain the storage schedule from all device schedules within the EMS
         storage_schedule = ems_schedule[0]
+        storage_schedule = convert_units(storage_schedule, "MW", sensor.unit)
 
         # Round schedule
         if self.round_to_decimals:

@@ -62,6 +62,8 @@ class Account(db.Model, AuthModelMixin):
         secondary="roles_accounts",
         backref=backref("accounts", lazy="dynamic"),
     )
+    primary_color = Column(String(7), default=None)
+    secondary_color = Column(String(7), default=None)
     annotations = db.relationship(
         "Annotation",
         secondary="annotations_accounts",
@@ -102,6 +104,9 @@ class Account(db.Model, AuthModelMixin):
             "update": f"account:{self.id}",
         }
 
+    def get_path(self, separator: str = ">"):
+        return self.name
+
     def has_role(self, role: str | AccountRole) -> bool:
         """Returns `True` if the account has the specified role.
 
@@ -117,13 +122,9 @@ class Account(db.Model, AuthModelMixin):
         annotations_after: datetime | None = None,
         annotation_ends_before: datetime | None = None,  # deprecated
         annotations_before: datetime | None = None,
-        source: DataSource
-        | list[DataSource]
-        | int
-        | list[int]
-        | str
-        | list[str]
-        | None = None,
+        source: (
+            DataSource | list[DataSource] | int | list[int] | str | list[str] | None
+        ) = None,
         as_frame: bool = False,
     ) -> list[Annotation] | pd.DataFrame:
         """Return annotations assigned to this account.
