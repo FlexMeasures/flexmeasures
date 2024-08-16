@@ -166,4 +166,3 @@ def find_classes_modules(module, superclass, skiptest=True):
 
 def get_classes_module(module, superclass, skiptest=True) -> dict:
     return dict(find_classes_modules(module, superclass, skiptest=skiptest))
-
