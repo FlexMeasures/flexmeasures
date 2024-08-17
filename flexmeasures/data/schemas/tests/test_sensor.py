@@ -9,43 +9,40 @@ from marshmallow import ValidationError
 
 
 @pytest.mark.parametrize(
-    "sensor_id, src_quantity, dst_unit, fails, exp_dst_quantity",
+    "src_quantity, dst_unit, fails, exp_dst_quantity",
     [
         # deserialize a sensor
-        (1, None, "MWh", False, None),
-        (1, None, "kWh", False, None),
-        (1, None, "kW", False, None),
-        (1, None, "EUR", True, None),
-        (1, None, "/h", False, None),  # convertable to MWh²/h
-        (2, None, "EUR/kWh", False, None),
-        (2, None, "EUR", True, None),
+        ({"sensor": 1}, "MWh", False, None),
+        ({"sensor": 1}, "kWh", False, None),
+        ({"sensor": 1}, "kW", False, None),
+        ({"sensor": 1}, "EUR", True, None),
+        ({"sensor": 1}, "/h", False, None),  # convertable to MWh²/h
+        ({"sensor": 2}, "EUR/kWh", False, None),
+        ({"sensor": 2}, "EUR", True, None),
         # deserialize a quantity
-        (None, "1MWh", "MWh", False, "1 MWh"),
-        (None, "1 MWh", "kWh", False, "1000.0 kWh"),
-        (None, "1 MWh", "kW", True, None),
-        (None, "100 EUR/MWh", "EUR/kWh", False, "0.1 EUR/kWh"),
-        (None, "100 EUR/MWh", "EUR", True, None),
-        (None, "1 EUR/kWh", "/MWh", False, "1.0 kEUR/MWh"),
-        (None, "50%", "/MWh", False, "500.0 kWh/MWh"),
-        (None, "/", "/MWh", True, None),
-        (None, "/", "MWh", True, None),
-        (None, "10 batteries", "MWh", True, None),
+        ("1MWh", "MWh", False, "1 MWh"),
+        ("1 MWh", "kWh", False, "1000.0 kWh"),
+        ("1 MWh", "kW", True, None),
+        ("100 EUR/MWh", "EUR/kWh", False, "0.1 EUR/kWh"),
+        ("100 EUR/MWh", "EUR", True, None),
+        ("1 EUR/kWh", "/MWh", False, "1.0 kEUR/MWh"),
+        ("50%", "/MWh", False, "500.0 kWh/MWh"),
+        ("/", "/MWh", True, None),
+        ("/", "MWh", True, None),
+        ("10 batteries", "MWh", True, None),
     ],
 )
 def test_quantity_or_sensor_deserialize(
-    setup_dummy_sensors, sensor_id, src_quantity, dst_unit, fails, exp_dst_quantity
+    setup_dummy_sensors, src_quantity, dst_unit, fails, exp_dst_quantity
 ):
 
-    schema = QuantityOrSensor(to_unit=dst_unit)
+    schema = VariableQuantityField(to_unit=dst_unit)
 
     try:
-        if sensor_id is None:
-            dst_quantity = schema.deserialize(src_quantity)
-            if dst_quantity is not None:
-                assert dst_quantity == ur.Quantity(exp_dst_quantity)
-                assert str(dst_quantity) == exp_dst_quantity
-        else:
-            schema.deserialize({"sensor": sensor_id})
+        dst_quantity = schema.deserialize(src_quantity)
+        if isinstance(src_quantity, ur.Quantity):
+            assert dst_quantity == ur.Quantity(exp_dst_quantity)
+            assert str(dst_quantity) == exp_dst_quantity
         assert not fails
     except ValidationError as e:
         assert fails, e
