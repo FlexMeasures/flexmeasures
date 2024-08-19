@@ -20,11 +20,9 @@ from flexmeasures.data import db
 from flexmeasures.data.schemas.attributes import validate_special_attributes
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.sensors import SensorIdField
-from flexmeasures.data.models.user import Account, AccountRole
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.time_series import TimedBelief
-from flexmeasures.utils.coding_utils import validate_color_hex
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.cli.utils import MsgStyle, DeprecatedOption, DeprecatedOptionsCommand
 
@@ -302,87 +300,6 @@ def transfer_ownership(asset: Asset, new_owner: Account):
     )
 
     db.session.commit()
-
-
-@fm_edit_data.command("account")
-@with_appcontext
-@click.option(
-    "--ID", required=True, type=AccountIdField(), help="ID of the account to edit"
-)
-@click.option("--name", help="New name for the account")
-@click.option("--roles", help="e.g. anonymous,Prosumer,CPO")
-@click.option(
-    "--primary-color",
-    callback=validate_color_hex,
-    help="Primary color to use in UI, in hex format. Defaults to FlexMeasures' primary color (#1a3443)",
-)
-@click.option(
-    "--secondary-color",
-    callback=validate_color_hex,
-    help="Secondary color to use in UI, in hex format. Defaults to FlexMeasures' secondary color (#f1a122)",
-)
-@click.option(
-    "--consultancy",
-    "consultancy_account",
-    type=AccountIdField(required=False),
-    help="ID of the consultancy account, whose consultants will have read access to this account",
-)
-def edit_account(ID, name, roles, primary_color, secondary_color, consultancy_account):
-    """
-    Edit an account.
-    """
-    account = db.session.get(Account, ID)
-    if name:
-        account.name = name
-    if roles:
-        account.roles = []
-        for role in roles.split(","):
-            account.roles.append(AccountRole.query.filter_by(name=role).one())
-    # Colors
-    if primary_color:
-        # Add '#' if color is given and doesn't already start with it
-        color = (
-            f"#{primary_color}"
-            if primary_color and not primary_color.startswith("#")
-            else primary_color
-        )
-        account.primary_color = color
-    if secondary_color:
-        secondary_color = (
-            f"#{secondary_color}"
-            if secondary_color and not secondary_color.startswith("#")
-            else secondary_color
-        )
-        account.secondary_color = secondary_color
-
-    # Consultancy account
-    if account.consultancy_account_id and not consultancy_account:
-        account.consultancy_account_id = None
-
-    elif (
-        account.consultancy_account_id
-        and account.consultancy_account_id != consultancy_account.id
-    ):
-        click.secho(
-            f"Account already has a consultancy account with ID {account.consultancy_account_id}. "
-            "To change it, remove the current consultancy account first.",
-            **MsgStyle.ERROR,
-        )
-        return
-
-    if (
-        consultancy_account
-        and not db.session.query(Account).filter_by(id=consultancy_account).scalar()
-    ):
-        click.secho(
-            f"Consultancy account with ID {consultancy_account} does not exist.",
-            **MsgStyle.ERROR,
-        )
-        return
-
-    account.consultancy_account_id = consultancy_account.id
-    db.session.commit()
-    click.secho("Successfully edited account.", **MsgStyle.SUCCESS)
 
 
 app.cli.add_command(fm_edit_data)
