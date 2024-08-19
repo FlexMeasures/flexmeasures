@@ -67,7 +67,7 @@ def create_bar_chart_or_histogram_specs(
         description = "A histogram showing the distribution of sensor data."
         x = {
             **event_value_field_definition,
-            "bin": {"step": 2},
+            "bin": True,
         }
         y = {
             "aggregate": "count",
