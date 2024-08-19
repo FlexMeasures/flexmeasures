@@ -1,37 +1,7 @@
 /*
   Styling for the FlexMeasures Platform
 */
-
-:root {
-    /* colors by name */
-    --primary-color: #1a3443;
-    --primary-border-color: #102029;
-    --primary-hover-color: #152b38;
-    --primary-transparent: rgba(26, 52, 67, .2);
-    --secondary-color: #f1a122;
-    --secondary-hover-color: #ff9d00;
-    --secondary-transparent: rgba(241, 161, 34, .2);
-    --white: #FFF;
-    --black: #000;
-    --light-gray: #eeeeee;
-    --gray: #bbb;
-    --red: #c21431;
-    --green: #14c231;
-
-    /* colors by function */
-    --nav-default-color: var(--white);
-    --nav-default-background-color: var(--primary-color);
-    --nav-hover-color: var(--secondary-hover-color);
-    --nav-hover-background-color: var(--primary-hover-color);
-    --nav-open-color: var(--secondary-color);
-    --nav-open-background-color: var(--primary-color);
-    --nav-current-color: var(--black);
-    --nav-current-background-color: var(--secondary-color);
-    --nav-current-hover-color: var(--black);
-    --nav-current-hover-background-color: var(--secondary-hover-color);
-    --create-color: var(--green);
-    --delete-color: var(--red);
-}
+/* 
 
 /* devanagari */
 @font-face {
@@ -1026,15 +996,6 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     z-index: 999992 !important;
 }
 
-.close:focus, .close:hover {
-    color: var(--red);
-    transition: .3s;
-    -webkit-transition: .3s;
-    -moz-transition: .3s;
-    -ms-transition: .3s;
-    -o-transition: .3s;
-}
-
 /* ---- End Modal ---- */
 
 
@@ -1063,7 +1024,7 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
         width: calc(var(--litepicker-day-width) * 9);
         margin: 15px;
         padding: 20px 15px;
-        min-height: 60px;  // line-height + padding-top + padding-bottom
+        min-height: 60px; /* line-height + padding-top + padding-bottom */
         transition: .3s;
         -webkit-transition: .3s;
         -moz-transition: .3s;
@@ -1931,6 +1892,28 @@ div.heading-group {
 .breadcrumb-item + .breadcrumb-item::before {
   content: " > ";
   color: var(--primary-color);
+}
+
+
+/* Show tooltip titles on touch screens */
+[title] {
+	border-bottom: 1px dashed rgba(0, 0, 0, 0.2);
+	border-radius:2px;
+	position: relative;
+}
+body.touched [title]:hover > * {
+	user-select: auto
+}
+body.touched [title]:hover:after {
+	position: absolute;
+	top: 100%;
+	right: -10%;
+	content: attr(title);
+	border: 1px solid rgba(0, 0, 0, 0.2);
+	background-color: white;
+	box-shadow: 1px 1px 3px;
+	padding: 0.3em;
+	z-index: 1;
 }
 
 .table-responsive{

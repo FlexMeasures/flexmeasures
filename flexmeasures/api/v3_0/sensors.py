@@ -304,8 +304,7 @@ class SensorAPI(FlaskView):
             {
                 "start": "2015-06-02T10:00:00+00:00",
                 "flex-model": {
-                    "soc-at-start": 12.1,
-                    "soc-unit": "kWh"
+                    "soc-at-start": "12.1 kWh"
                 }
             }
 
@@ -336,17 +335,16 @@ class SensorAPI(FlaskView):
                 "start": "2015-06-02T10:00:00+00:00",
                 "duration": "PT24H",
                 "flex-model": {
-                    "soc-at-start": 12.1,
-                    "soc-unit": "kWh",
+                    "soc-at-start": "12.1 kWh",
                     "soc-targets": [
                         {
-                            "value": 25,
+                            "value": "25 kWh",
                             "datetime": "2015-06-02T16:00:00+00:00"
                         },
                     ],
                     "soc-minima": {"sensor" : 300},
-                    "soc-min": 10,
-                    "soc-max": 25,
+                    "soc-min": "10 kWh",
+                    "soc-max": "25 kWh",
                     "charging-efficiency": "120%",
                     "discharging-efficiency": {"sensor": 98},
                     "storage-efficiency": 0.9999,
