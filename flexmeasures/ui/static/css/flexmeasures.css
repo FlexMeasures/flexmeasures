@@ -981,6 +981,20 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     margin-left: 20px !important;
 }
 
+.side-dropdown{
+    margin-left: -90px !important;
+    color: var(--nav-default-color);
+    background: var(--nav-default-background-color);
+    width: calc(var(--litepicker-day-width) * 6);
+    padding: 13px 15px;
+    min-height: 40px;  // line-height + padding-top + padding-bottom
+    border-top-left-radius: 0px;
+    border-bottom-left-radius: 0px;
+    border-top-right-radius: 15px;
+    border-bottom-right-radius: 15px;
+    text-align: right;
+    position: absolute;
+}
 
 /* --- End Tables ---- */
 
