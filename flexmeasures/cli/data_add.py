@@ -62,7 +62,7 @@ from flexmeasures.data.schemas import (
     LongitudeField,
     SensorIdField,
     TimeIntervalField,
-    QuantityOrSensor,
+    VariableQuantityField,
 )
 from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.schemas.times import TimeIntervalSchema
@@ -83,7 +83,7 @@ from flexmeasures.data.services.utils import get_or_create_model
 from flexmeasures.utils import flexmeasures_inflection
 from flexmeasures.utils.time_utils import server_now, apply_offset_chain
 from flexmeasures.utils.unit_utils import convert_units, ur
-from flexmeasures.utils.coding_utils import validate_color_hex
+from flexmeasures.cli.utils import validate_color_hex
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.data.services.utils import get_asset_or_sensor_ref
 from flexmeasures.data.models.reporting import Reporter
@@ -1171,7 +1171,7 @@ def create_schedule(ctx):
 @click.option(
     "--site-power-capacity",
     "site_power_capacity",
-    type=QuantityOrSensor("MW"),
+    type=VariableQuantityField("MW"),
     required=False,
     default=None,
     help="Site consumption/production power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
@@ -1181,7 +1181,7 @@ def create_schedule(ctx):
 @click.option(
     "--site-consumption-capacity",
     "site_consumption_capacity",
-    type=QuantityOrSensor("MW"),
+    type=VariableQuantityField("MW"),
     required=False,
     default=None,
     help="Site consumption power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
@@ -1191,7 +1191,7 @@ def create_schedule(ctx):
 @click.option(
     "--site-production-capacity",
     "site_production_capacity",
-    type=QuantityOrSensor("MW"),
+    type=VariableQuantityField("MW"),
     required=False,
     default=None,
     help="Site production power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
@@ -1256,7 +1256,7 @@ def create_schedule(ctx):
 @click.option(
     "--charging-efficiency",
     "charging_efficiency",
-    type=QuantityOrSensor("%"),
+    type=VariableQuantityField("%"),
     required=False,
     default=None,
     help="Storage charging efficiency to use for the schedule."
@@ -1266,7 +1266,7 @@ def create_schedule(ctx):
 @click.option(
     "--discharging-efficiency",
     "discharging_efficiency",
-    type=QuantityOrSensor("%"),
+    type=VariableQuantityField("%"),
     required=False,
     default=None,
     help="Storage discharging efficiency to use for the schedule."
@@ -1276,7 +1276,7 @@ def create_schedule(ctx):
 @click.option(
     "--soc-gain",
     "soc_gain",
-    type=QuantityOrSensor("MW"),
+    type=VariableQuantityField("MW"),
     required=False,
     default=None,
     help="Specify the State of Charge (SoC) gain as a quantity in power units (e.g. 1 MW or 1000 kW)"
@@ -1286,7 +1286,7 @@ def create_schedule(ctx):
 @click.option(
     "--soc-usage",
     "soc_usage",
-    type=QuantityOrSensor("MW"),
+    type=VariableQuantityField("MW"),
     required=False,
     default=None,
     help="Specify the State of Charge (SoC) usage as a quantity in power units (e.g. 1 MW or 1000 kW) "
@@ -1296,7 +1296,7 @@ def create_schedule(ctx):
 @click.option(
     "--storage-power-capacity",
     "storage_power_capacity",
-    type=QuantityOrSensor("MW"),
+    type=VariableQuantityField("MW"),
     required=False,
     default=None,
     help="Storage consumption/production power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
@@ -1306,7 +1306,7 @@ def create_schedule(ctx):
 @click.option(
     "--storage-consumption-capacity",
     "storage_consumption_capacity",
-    type=QuantityOrSensor("MW"),
+    type=VariableQuantityField("MW"),
     required=False,
     default=None,
     help="Storage consumption power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
@@ -1316,7 +1316,7 @@ def create_schedule(ctx):
 @click.option(
     "--storage-production-capacity",
     "storage_production_capacity",
-    type=QuantityOrSensor("MW"),
+    type=VariableQuantityField("MW"),
     required=False,
     default=None,
     help="Storage production power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
@@ -1326,7 +1326,7 @@ def create_schedule(ctx):
 @click.option(
     "--storage-efficiency",
     "storage_efficiency",
-    type=QuantityOrSensor("%", default_src_unit="dimensionless"),
+    type=VariableQuantityField("%", default_src_unit="dimensionless"),
     required=False,
     default="100%",
     help="Storage efficiency (e.g. 95% or 0.95) to use for the schedule,"
@@ -1469,9 +1469,9 @@ def add_schedule_for_storage(  # noqa C901
                 else:
                     unit = "MW"
 
-                scheduling_kwargs[key][field_name] = QuantityOrSensor(unit)._serialize(
-                    value, None, None
-                )
+                scheduling_kwargs[key][field_name] = VariableQuantityField(
+                    unit
+                )._serialize(value, None, None)
 
     if as_job:
         job = create_scheduling_job(asset_or_sensor=power_sensor, **scheduling_kwargs)
