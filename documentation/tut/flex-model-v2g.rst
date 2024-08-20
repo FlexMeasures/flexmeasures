@@ -130,14 +130,14 @@ Alternatively, to keep the car from discharging altogether during that time, lim
 Earning by cycling
 ==================
 
-To provide an incentive for cycling the battery in response to market prices, the ``consumption-price-sensor`` and ``production-price-sensor`` fields of the flex context may be used, which define the sensor IDs under which the price data is stored that is relevant to the given site:
+To provide an incentive for cycling the battery in response to market prices, the ``consumption-price`` and ``production-price`` fields of the flex context may be used, which define the sensor IDs under which the price data is stored that is relevant to the given site:
 
 .. code-block:: json
 
     {
         "flex-context": {
-            "consumption-price-sensor": 41,
-            "production-price-sensor": 42
+            "consumption-price": {"sensor": 41},
+            "production-price": {"sensor": 42}
         }
     }
 
