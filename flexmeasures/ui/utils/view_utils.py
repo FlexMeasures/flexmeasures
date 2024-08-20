@@ -91,11 +91,14 @@ def render_flexmeasures_template(html_filename: str, **variables):
         current_user.account if current_user.is_authenticated else None
     )
 
-    # check if user has logo_url set
-    if account and account.logo_url:
-        variables["menu_logo"] = account.logo_url
-    else:
-        variables["menu_logo"] = current_app.config.get("FLEXMEASURES_MENU_LOGO_PATH")
+    # check if user/consultant has logo_url set
+    if account:
+        variables["menu_logo"] = (
+            account.logo_url
+            or (account.consultancy_account and account.consultancy_account.logo_url)
+            or current_app.config.get("FLEXMEASURES_MENU_LOGO_PATH")
+        )
+
     variables["extra_css"] = current_app.config.get("FLEXMEASURES_EXTRA_CSS_PATH")
 
     if "asset" in variables:
