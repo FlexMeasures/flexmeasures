@@ -329,7 +329,8 @@ def validate_url(ctx, param, value):
     """
     url_regex = re.compile(
         r"^(https?|ftp)://"  # Protocol: http, https, or ftp
-        r"(([A-Za-z0-9.-]+)\.([A-Za-z]{2,6})|"  # Domain name
+        r"((([A-Za-z0-9-]+\.)+[A-Za-z]{2,6})|"  # Domain name
+        r"(\d{1,3}\.){3}\d{1,3})"  # OR IPv4
     )
 
     if not url_regex.match(value):
