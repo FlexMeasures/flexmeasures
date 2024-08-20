@@ -242,7 +242,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         to_unit,
         *args,
         default_src_unit: str | None = None,
-        return_magnitude: bool = True,
+        return_magnitude: bool = False,
         timezone: str | None = None,
         value_validator: Validator | None = None,
         **kwargs,
@@ -264,8 +264,10 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
                                     - Units starting with '/' (e.g. '/MWh') lead to accepting any value, which will be
                                       converted to the given unit. For example,
                                       a quantity of 1 EUR/kWh with to_unit='/MWh' is deserialized to 1000 EUR/MWh.
-        :param default_src_unit:    What unit to use in case of getting a numeric value. Does not apply to time series or sensors.
-        :param return_magnitude:    In case of getting a time series, whether the result should include the magnitude of each quantity, or each Quantity object itself
+        :param default_src_unit:    What unit to use in case of getting a numeric value.
+                                    Does not apply to time series or sensors.
+        :param return_magnitude:    In case of getting a time series, whether the result should include
+                                    the magnitude of each quantity, or each Quantity object itself.
         :param timezone:            Only used in case a time series is specified and one of the *timed events*
                                     in the time series uses a nominal duration, such as "P1D".
         """
@@ -411,7 +413,7 @@ class QuantityOrSensor(VariableQuantityField):
         current_app.logger.warning(
             "Class `TimeSeriesOrSensor` is deprecated. Use `VariableQuantityField` instead."
         )
-        super().__init__(*args, **kwargs)
+        super().__init__(return_magnitude=False, *args, **kwargs)
 
 
 class TimeSeriesOrSensor(VariableQuantityField):
@@ -420,4 +422,4 @@ class TimeSeriesOrSensor(VariableQuantityField):
         current_app.logger.warning(
             "Class `TimeSeriesOrSensor` is deprecated. Use `VariableQuantityField` instead."
         )
-        super().__init__(*args, **kwargs)
+        super().__init__(return_magnitude=True, *args, **kwargs)
