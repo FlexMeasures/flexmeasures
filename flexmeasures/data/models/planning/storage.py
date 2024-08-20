@@ -130,7 +130,7 @@ class MetaStorageScheduler(Scheduler):
         # Check for known prices or price forecasts, trimming planning window accordingly
         if consumption_price is not None:
             up_deviation_prices = get_continuous_series_sensor_or_quantity(
-                quantity_or_sensor=consumption_price,
+                variable_quantity=consumption_price,
                 actuator=sensor,
                 unit=consumption_price.unit
                 if isinstance(consumption_price, Sensor)
@@ -151,7 +151,7 @@ class MetaStorageScheduler(Scheduler):
             )
         if production_price is not None:
             down_deviation_prices = get_continuous_series_sensor_or_quantity(
-                quantity_or_sensor=production_price,
+                variable_quantity=production_price,
                 actuator=sensor,
                 unit=production_price.unit
                 if isinstance(production_price, Sensor)
