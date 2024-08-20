@@ -78,7 +78,16 @@ class TimedEventSchema(Schema):
         self.value_validator = value_validator
         super().__init__(*args, **kwargs)
         if to_unit is not None:
-            setattr(self.fields["value"], "to_unit", to_unit)
+            if to_unit.startswith("/"):
+                if len(to_unit) < 2:
+                    raise ValueError(
+                        f"Variable `to_unit='{to_unit}'` must define a denominator."
+                    )
+                setattr(self.fields["value"], "to_unit", ur.Quantity(to_unit[1:]))
+                setattr(self.fields["value"], "any_unit", True)
+            else:
+                setattr(self.fields["value"], "to_unit", to_unit)
+                setattr(self.fields["value"], "any_unit", False)
         if default_src_unit is not None:
             setattr(self.fields["value"], "default_src_unit", default_src_unit)
         setattr(self.fields["value"], "return_magnitude", return_magnitude)
@@ -314,13 +323,14 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
             current_app.logger.warning(
                 "Deserialized time series will include Quantity objects in the future. Set `return_magnitude=False` to trigger the new behaviour."
             )
-        # todo: handle case if self.any_unit is True
         field = fields.List(
             fields.Nested(
                 TimedEventSchema(
                     timezone=self.timezone,
                     value_validator=self.value_validator,
-                    to_unit=self.to_unit,
+                    to_unit=str(self.to_unit)
+                    if not self.any_unit
+                    else ("/" + str(self.to_unit)),
                     default_src_unit=self.default_src_unit,
                     return_magnitude=self.return_magnitude,
                 )

@@ -37,11 +37,13 @@ class FlexContextSchema(Schema):
         "/MWh",
         required=False,
         data_key="consumption-price",
+        return_magnitude=False,
     )
     production_price = VariableQuantityField(
         "/MWh",
         required=False,
         data_key="production-price",
+        return_magnitude=False,
     )
     inflexible_device_sensors = fields.List(
         SensorIdField(), data_key="inflexible-device-sensors"

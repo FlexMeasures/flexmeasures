@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 from marshmallow import fields, validate, ValidationError
+from pint import DefinitionSyntaxError, DimensionalityError, UndefinedUnitError
 
-from flexmeasures.data.schemas.utils import MarshmallowClickMixin
-from flexmeasures.utils.unit_utils import is_valid_unit, ur
+from flexmeasures.data.schemas.utils import FMValidationError, MarshmallowClickMixin
+from flexmeasures.utils.unit_utils import (
+    is_valid_unit,
+    to_preferred,
+    ur,
+)
 
 
 class QuantityValidator(validate.Validator):
@@ -46,7 +51,16 @@ class QuantityField(MarshmallowClickMixin, fields.Str):
         # Insert validation into self.validators so that multiple errors can be stored.
         validator = QuantityValidator()
         self.validators.insert(0, validator)
-        self.to_unit = ur.Quantity(to_unit)
+        if to_unit.startswith("/"):
+            if len(to_unit) < 2:
+                raise ValueError(
+                    f"Variable `to_unit='{to_unit}'` must define a denominator."
+                )
+            self.to_unit = ur.Quantity(to_unit[1:])
+            self.any_unit = True
+        else:
+            self.to_unit = ur.Quantity(to_unit)
+            self.any_unit = False
         self.default_src_unit = default_src_unit
         self.return_magnitude = return_magnitude
 
@@ -64,7 +78,19 @@ class QuantityField(MarshmallowClickMixin, fields.Str):
         if isinstance(value, str):
             if not is_valid_unit(value):
                 raise ValidationError("Not a valid quantity")
-            q = ur.Quantity(value).to(self.to_unit)
+            try:
+                if self.any_unit:
+                    q = to_preferred(ur.Quantity(value) * self.to_unit) / self.to_unit
+                else:
+                    q = ur.Quantity(value).to(self.to_unit)
+            except DimensionalityError as e:
+                raise FMValidationError(
+                    f"Cannot convert value `{value}` to '{self.to_unit}'"
+                ) from e
+            except (AssertionError, DefinitionSyntaxError, UndefinedUnitError) as e:
+                raise FMValidationError(
+                    f"Cannot convert value `{value}` to a valid quantity. {e}"
+                )
         elif self.default_src_unit is not None:
             q = self._deserialize(
                 f"{value} {self.default_src_unit}",

@@ -30,19 +30,60 @@ from marshmallow import ValidationError
         ("/", "/MWh", True, None),
         ("/", "MWh", True, None),
         ("10 batteries", "MWh", True, None),
+        # deserialize a time series specification
+        (
+            [{"start": "2024-08-17T11:00+02", "duration": "PT1H", "value": "2 MWh"}],
+            "kWh",
+            False,
+            "2000.0 kWh",
+        ),
+        (
+            [
+                {
+                    "start": "2024-08-17T11:00+02",
+                    "duration": "PT1H",
+                    "value": "829.4 Wh/kWh",
+                }
+            ],
+            "/MWh",
+            False,
+            "829.4 kWh/MWh",
+        ),
+        (
+            [
+                {
+                    "start": "2024-08-17T11:00+02",
+                    "duration": "PT1H",
+                    "value": "914.7 EUR/kWh",
+                }
+            ],
+            "/MWh",
+            False,
+            "914.7 kEUR/MWh",
+        ),
+        # todo: uncomment after to_preferred gets rid of mEUR
+        # (
+        #     [{"start": "2024-08-17T11:00+02", "duration": "PT1H", "value": "120.8 EUR/MWh"}],
+        #     "/kWh",
+        #     False,
+        #     "0.1208 EUR/kWh",
+        # ),
     ],
 )
 def test_quantity_or_sensor_deserialize(
     setup_dummy_sensors, src_quantity, dst_unit, fails, exp_dst_quantity
 ):
 
-    schema = VariableQuantityField(to_unit=dst_unit)
+    schema = VariableQuantityField(to_unit=dst_unit, return_magnitude=False)
 
     try:
         dst_quantity = schema.deserialize(src_quantity)
         if isinstance(src_quantity, ur.Quantity):
             assert dst_quantity == ur.Quantity(exp_dst_quantity)
             assert str(dst_quantity) == exp_dst_quantity
+        elif isinstance(src_quantity, list):
+            assert dst_quantity[0]["value"] == ur.Quantity(exp_dst_quantity)
+            assert str(dst_quantity[0]["value"]) == exp_dst_quantity
         assert not fails
     except ValidationError as e:
         assert fails, e
