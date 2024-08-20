@@ -335,4 +335,10 @@ def validate_url(ctx, param, value):
     if not url_regex.match(value):
         raise click.BadParameter(f"'{value}' is not a valid URL.")
 
+    # check if more than 255 characters
+    if len(value) > 255:
+        raise click.BadParameter(
+            "provided logo-url is too long. Maximum length is 255 characters."
+        )
+
     return value
