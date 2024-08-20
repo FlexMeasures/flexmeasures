@@ -12,6 +12,7 @@ Furthermore, we discuss several guidelines and best practices.
     :local:
     :depth: 1
 
+|
 .. note:: Are you implementing code based on FlexMeasures, you're probably interested in :ref:`datamodel`.
 
 
@@ -148,6 +149,8 @@ Otherwise, you need to add some other user first. Here is how we add an admin:
 
 (The `account` you need in the 2nd command is printed by the 1st)
 
+
+.. include:: ../notes/macOS-port-note.rst
 
 .. note::
 
