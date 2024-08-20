@@ -2,6 +2,9 @@ import click
 import marshmallow as ma
 from click import get_current_context
 from flask.cli import with_appcontext as with_cli_appcontext
+from pint import DefinitionSyntaxError, DimensionalityError, UndefinedUnitError
+
+from flexmeasures.utils.unit_utils import to_preferred, ur
 
 
 class MarshmallowClickMixin(click.ParamType):
@@ -46,3 +49,25 @@ def with_appcontext_if_needed():
         return f
 
     return decorator
+
+
+def convert_to_quantity(
+    value: str, to_unit: ur.Quantity, any_unit: bool
+) -> ur.Quantity:
+    """Convert value to quantity in the given unit.
+
+    :param value:       Value to convert.
+    :param to_unit:     Unit to convert to.
+    :param any_unit:    If True, value can have any unit, and to_unit is used as the denominator
+    :returns:           Quantity in the desired unit.
+    """
+    try:
+        if any_unit:
+            return to_preferred(ur.Quantity(value) * to_unit) / to_unit
+        return ur.Quantity(value).to(to_unit)
+    except DimensionalityError as e:
+        raise FMValidationError(f"Cannot convert value `{value}` to '{to_unit}'") from e
+    except (AssertionError, DefinitionSyntaxError, UndefinedUnitError) as e:
+        raise FMValidationError(
+            f"Cannot convert value `{value}` to a valid quantity. {e}"
+        )

@@ -1,14 +1,9 @@
 from __future__ import annotations
 
 from marshmallow import fields, validate, ValidationError
-from pint import DefinitionSyntaxError, DimensionalityError, UndefinedUnitError
 
-from flexmeasures.data.schemas.utils import FMValidationError, MarshmallowClickMixin
-from flexmeasures.utils.unit_utils import (
-    is_valid_unit,
-    to_preferred,
-    ur,
-)
+from flexmeasures.data.schemas.utils import MarshmallowClickMixin, convert_to_quantity
+from flexmeasures.utils.unit_utils import is_valid_unit, ur
 
 
 class QuantityValidator(validate.Validator):
@@ -76,21 +71,9 @@ class QuantityField(MarshmallowClickMixin, fields.Str):
         if return_magnitude is None:
             return_magnitude = self.return_magnitude
         if isinstance(value, str):
-            if not is_valid_unit(value):
-                raise ValidationError("Not a valid quantity")
-            try:
-                if self.any_unit:
-                    q = to_preferred(ur.Quantity(value) * self.to_unit) / self.to_unit
-                else:
-                    q = ur.Quantity(value).to(self.to_unit)
-            except DimensionalityError as e:
-                raise FMValidationError(
-                    f"Cannot convert value `{value}` to '{self.to_unit}'"
-                ) from e
-            except (AssertionError, DefinitionSyntaxError, UndefinedUnitError) as e:
-                raise FMValidationError(
-                    f"Cannot convert value `{value}` to a valid quantity. {e}"
-                )
+            q = convert_to_quantity(
+                value=value, to_unit=self.to_unit, any_unit=self.any_unit
+            )
         elif self.default_src_unit is not None:
             q = self._deserialize(
                 f"{value} {self.default_src_unit}",

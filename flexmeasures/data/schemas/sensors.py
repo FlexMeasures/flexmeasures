@@ -12,7 +12,6 @@ from marshmallow import (
     validates_schema,
 )
 from marshmallow.validate import Validator
-from pint import DefinitionSyntaxError, DimensionalityError, UndefinedUnitError
 
 import json
 import re
@@ -26,10 +25,10 @@ from flexmeasures.data.schemas.utils import (
     FMValidationError,
     MarshmallowClickMixin,
     with_appcontext_if_needed,
+    convert_to_quantity,
 )
 from flexmeasures.utils.unit_utils import (
     is_valid_unit,
-    to_preferred,
     ur,
     units_are_convertible,
 )
@@ -342,18 +341,9 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
 
     def _deserialize_str(self, value: str) -> ur.Quantity:
         """Deserialize a string to a Quantity."""
-        try:
-            if self.any_unit:
-                return to_preferred(ur.Quantity(value) * self.to_unit) / self.to_unit
-            return ur.Quantity(value).to(self.to_unit)
-        except DimensionalityError as e:
-            raise FMValidationError(
-                f"Cannot convert value `{value}` to '{self.to_unit}'"
-            ) from e
-        except (AssertionError, DefinitionSyntaxError, UndefinedUnitError) as e:
-            raise FMValidationError(
-                f"Cannot convert value `{value}` to a valid quantity. {e}"
-            )
+        return convert_to_quantity(
+            value=value, to_unit=self.to_unit, any_unit=self.any_unit
+        )
 
     def _deserialize_numeric(
         self, value: numbers.Real, attr, obj, **kwargs
