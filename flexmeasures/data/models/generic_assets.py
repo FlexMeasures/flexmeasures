@@ -464,41 +464,21 @@ class GenericAsset(db.Model, AuthModelMixin):
         for sensor in sensors:
             sensor.sensor_type = sensor.get_attribute("sensor_type", sensor.name)
 
-        # Set up chart specification
-        if dataset_name is None:
-            dataset_name = "asset_" + str(self.id)
-        if event_starts_after:
-            kwargs["event_starts_after"] = event_starts_after
-        if event_ends_before:
-            kwargs["event_ends_before"] = event_ends_before
-        chart_specs = chart_type_to_chart_specs(
+        return self._gather_specs_and_data_for_chart(
+            sensors,
             chart_type,
-            sensors_to_show=self.sensors_to_show,
-            dataset_name=dataset_name,
+            event_starts_after,
+            event_ends_before,
+            beliefs_after,
+            beliefs_before,
+            source,
+            include_data,
+            dataset_name,
+            resolution,
             **kwargs,
         )
 
-        if include_data:
-            # Get data
-            data = self.search_beliefs(
-                sensors=sensors,
-                as_json=True,
-                event_starts_after=event_starts_after,
-                event_ends_before=event_ends_before,
-                beliefs_after=beliefs_after,
-                beliefs_before=beliefs_before,
-                source=source,
-                resolution=resolution,
-            )
-
-            # Combine chart specs and data
-            chart_specs["datasets"] = {
-                dataset_name: json.loads(data),
-            }
-
-        return chart_specs
-
-    def multiple_chart(
+    def charts(
         self,
         chart_type: str = "chart_for_multiple_sensors",
         event_starts_after: datetime | None = None,
@@ -517,7 +497,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         resolution: str | timedelta | None = None,
         **kwargs,
     ) -> list[dict]:
-        """Create a vega-lite chart showing sensor data.
+        """Create multiple vega-lite charts showing sensor data for nested sensor groups.
 
         :param chart_type: currently only "bar_chart" # todo: where can we properly list the available chart types?
         :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
@@ -539,47 +519,23 @@ class GenericAsset(db.Model, AuthModelMixin):
             [e] if not isinstance(e, list) else e for e in self.sensors_to_show
         ]
 
-        # Initialize an empty list to store chart_specs for each group of sensors
-        return_description = []
-
-        # Loop through each set of sensors to generate individual chart_specs
-        for sensors in nested_sensors:
-            # Set up chart specification
-            if dataset_name is None:
-                dataset_name = "asset_" + str(self.id)
-            if event_starts_after:
-                kwargs["event_starts_after"] = event_starts_after
-            if event_ends_before:
-                kwargs["event_ends_before"] = event_ends_before
-            chart_specs = chart_type_to_chart_specs(
+        return [
+            self._gather_specs_and_data_for_chart(
+                sensors,
                 chart_type,
-                sensors_to_show=[
-                    sensors
-                ],  # Wrap sensors in a list to allow multiple sensors to be displayed in the same graph
-                dataset_name=dataset_name,
+                event_starts_after,
+                event_ends_before,
+                beliefs_after,
+                beliefs_before,
+                source,
+                include_data,
+                dataset_name,
+                resolution,
+                wrap_sensors_in_list=True,
                 **kwargs,
             )
-
-            if include_data:
-                # Get data
-                data = self.search_beliefs(
-                    sensors=sensors,
-                    as_json=True,
-                    event_starts_after=event_starts_after,
-                    event_ends_before=event_ends_before,
-                    beliefs_after=beliefs_after,
-                    beliefs_before=beliefs_before,
-                    source=source,
-                    resolution=resolution,
-                )
-
-                # Combine chart specs and data
-                chart_specs["datasets"] = {
-                    dataset_name: json.loads(data),
-                }
-                return_description.append(chart_specs)
-
-        return return_description
+            for sensors in nested_sensors
+        ]
 
     def search_beliefs(
         self,
@@ -836,6 +792,79 @@ class GenericAsset(db.Model, AuthModelMixin):
                 Sensor.id.in_(inflexible_sensor_ids)
             ).all()
         db.session.add(self)
+
+    def _gather_specs_and_data_for_chart(
+        self,
+        sensors: list["Sensor"],  # noqa F821
+        chart_type: str,
+        event_starts_after: datetime | None,
+        event_ends_before: datetime | None,
+        beliefs_after: datetime | None,
+        beliefs_before: datetime | None,
+        source: DataSource
+        | list[DataSource]
+        | int
+        | list[int]
+        | str
+        | list[str]
+        | None,
+        include_data: bool,
+        dataset_name: str | None,
+        resolution: str | timedelta | None,
+        wrap_sensors_in_list: bool = False,
+        **kwargs,
+    ) -> dict:
+        """
+        Centralizes the logic for generating Vega-Lite chart specifications.
+
+        This utility function is designed to be used by both the `chart` and `charts` methods.
+
+        :param sensors: A list of sensors to be displayed in the chart.
+        :param chart_type: currently only "bar_chart" # todo: where can we properly list the available chart types?
+        :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
+        :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
+        :param beliefs_after: only return beliefs formed after this datetime (inclusive)
+        :param beliefs_before: only return beliefs formed before this datetime (inclusive)
+        :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
+        :param include_data: if True, include data in the chart, or if False, exclude data
+        :param dataset_name: optionally name the dataset used in the chart (the default name is sensor_<id>)
+        :param resolution: optionally set the resolution of data being displayed
+        :param wrap_sensors_in_list: If True, wraps the sensors in a list, which is necessary when displaying multiple sensors in a single chart.
+                                    Defaults to False.
+        :param kwargs: Additional keyword arguments that can be passed to further customize the chart specifications.
+        :return: A dictionary containing the Vega-Lite chart specification.
+        """
+
+        if dataset_name is None:
+            dataset_name = "asset_" + str(self.id)
+        if event_starts_after:
+            kwargs["event_starts_after"] = event_starts_after
+        if event_ends_before:
+            kwargs["event_ends_before"] = event_ends_before
+
+        sensors_to_show = [sensors] if wrap_sensors_in_list else self.sensors_to_show
+
+        chart_specs = chart_type_to_chart_specs(
+            chart_type,
+            sensors_to_show=sensors_to_show,
+            dataset_name=dataset_name,
+            **kwargs,
+        )
+
+        if include_data:
+            data = self.search_beliefs(
+                sensors=sensors,
+                as_json=True,
+                event_starts_after=event_starts_after,
+                event_ends_before=event_ends_before,
+                beliefs_after=beliefs_after,
+                beliefs_before=beliefs_before,
+                source=source,
+                resolution=resolution,
+            )
+            chart_specs["datasets"] = {dataset_name: json.loads(data)}
+
+        return chart_specs
 
 
 def create_generic_asset(generic_asset_type: str, **kwargs) -> GenericAsset:
