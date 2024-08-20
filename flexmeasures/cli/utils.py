@@ -331,6 +331,8 @@ def validate_url(ctx, param, value):
         r"^(https?|ftp)://"  # Protocol: http, https, or ftp
         r"((([A-Za-z0-9-]+\.)+[A-Za-z]{2,6})|"  # Domain name
         r"(\d{1,3}\.){3}\d{1,3})"  # OR IPv4
+        r"(/([A-Za-z0-9$_.+!*\'(),;?&=-]|%[0-9A-Fa-f]{2})*)*"  # Path
+        r"(:\d+)?"  # Port
     )
 
     if not url_regex.match(value):
