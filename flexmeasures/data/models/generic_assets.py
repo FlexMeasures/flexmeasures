@@ -497,7 +497,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         resolution: str | timedelta | None = None,
         **kwargs,
     ) -> list[dict]:
-        """Create multiple vega-lite charts showing sensor data for nested sensor groups.
+        """Create multiple vega-lite charts, one chart per entry in `sensors_to_show`.
 
         :param chart_type: currently only "bar_chart" # todo: where can we properly list the available chart types?
         :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
