@@ -208,7 +208,7 @@ def resample_sensor_data(
     end_str: str | None = None,
     skip_integrity_check: bool = False,
 ):
-    """Assign aaaa new event resolution to an existing sensor and resample its data accordingly."""
+    """Assign a new event resolution to an existing sensor and resample its data accordingly."""
     event_resolution = timedelta(minutes=event_resolution_in_minutes)
     event_starts_after = pd.Timestamp(start_str)  # note that "" or None becomes NaT
     event_ends_before = pd.Timestamp(end_str)
