@@ -364,7 +364,7 @@ class SensorAPI(FlaskView):
         """
         end_of_schedule = start_of_schedule + duration
         scheduler_kwargs = dict(
-            sensor=sensor,
+            asset_or_sensor=sensor,
             start=start_of_schedule,
             end=end_of_schedule,
             resolution=sensor.event_resolution,
