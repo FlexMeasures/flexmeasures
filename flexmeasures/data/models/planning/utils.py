@@ -360,7 +360,7 @@ def get_series_from_quantity_or_sensor(
             magnitude = np.nan
         else:
             magnitude = variable_quantity.to(unit).magnitude
-        time_series = pd.Series(magnitude, index=index)
+        time_series = pd.Series(magnitude, index=index, name="event_value")
     elif isinstance(variable_quantity, Sensor):
         bdf: tb.BeliefsDataFrame = TimedBelief.search(
             variable_quantity,
