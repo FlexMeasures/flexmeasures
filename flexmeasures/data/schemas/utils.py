@@ -71,5 +71,5 @@ def convert_to_quantity(value: str, to_unit: str) -> ur.Quantity:
         raise FMValidationError(f"Cannot convert value `{value}` to '{to_unit}'") from e
     except (AssertionError, DefinitionSyntaxError, UndefinedUnitError) as e:
         raise FMValidationError(
-            f"Cannot convert value `{value}` to a valid quantity. {e}"
+            f"Cannot convert value '{value}' to a valid quantity. {e}"
         )
