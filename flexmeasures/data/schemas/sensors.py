@@ -82,11 +82,7 @@ class TimedEventSchema(Schema):
                     raise ValueError(
                         f"Variable `to_unit='{to_unit}'` must define a denominator."
                     )
-                setattr(self.fields["value"], "to_unit", ur.Quantity(to_unit[1:]))
-                setattr(self.fields["value"], "any_unit", True)
-            else:
-                setattr(self.fields["value"], "to_unit", to_unit)
-                setattr(self.fields["value"], "any_unit", False)
+            setattr(self.fields["value"], "to_unit", to_unit)
         if default_src_unit is not None:
             setattr(self.fields["value"], "default_src_unit", default_src_unit)
         setattr(self.fields["value"], "return_magnitude", return_magnitude)
@@ -278,16 +274,11 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
             self.validators.insert(0, validator)
         self.timezone = timezone
         self.value_validator = value_validator
-        if to_unit.startswith("/"):
-            if len(to_unit) < 2:
-                raise ValueError(
-                    f"Variable `to_unit='{to_unit}'` must define a denominator."
-                )
-            self.to_unit = ur.Quantity(to_unit[1:])
-            self.any_unit = True
-        else:
-            self.to_unit = ur.Quantity(to_unit)
-            self.any_unit = False
+        if to_unit.startswith("/") and len(to_unit) < 2:
+            raise ValueError(
+                f"Variable `to_unit='{to_unit}'` must define a denominator."
+            )
+        self.to_unit = to_unit
         self.default_src_unit = default_src_unit
         self.return_magnitude = return_magnitude
 
@@ -314,7 +305,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         if "sensor" not in value:
             raise FMValidationError("Dictionary provided but `sensor` key not found.")
         sensor = SensorIdField(
-            unit=self.to_unit if not self.any_unit else None
+            unit=self.to_unit if not self.to_unit.startswith("/") else None
         ).deserialize(value["sensor"], None, None)
         return sensor
 
@@ -329,9 +320,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
                 TimedEventSchema(
                     timezone=self.timezone,
                     value_validator=self.value_validator,
-                    to_unit=str(self.to_unit)
-                    if not self.any_unit
-                    else ("/" + str(self.to_unit)),
+                    to_unit=self.to_unit,
                     default_src_unit=self.default_src_unit,
                     return_magnitude=self.return_magnitude,
                 )
@@ -341,9 +330,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
 
     def _deserialize_str(self, value: str) -> ur.Quantity:
         """Deserialize a string to a Quantity."""
-        return convert_to_quantity(
-            value=value, to_unit=self.to_unit, any_unit=self.any_unit
-        )
+        return convert_to_quantity(value=value, to_unit=self.to_unit)
 
     def _deserialize_numeric(
         self, value: numbers.Real, attr, obj, **kwargs

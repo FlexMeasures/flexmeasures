@@ -46,16 +46,11 @@ class QuantityField(MarshmallowClickMixin, fields.Str):
         # Insert validation into self.validators so that multiple errors can be stored.
         validator = QuantityValidator()
         self.validators.insert(0, validator)
-        if to_unit.startswith("/"):
-            if len(to_unit) < 2:
-                raise ValueError(
-                    f"Variable `to_unit='{to_unit}'` must define a denominator."
-                )
-            self.to_unit = ur.Quantity(to_unit[1:])
-            self.any_unit = True
-        else:
-            self.to_unit = ur.Quantity(to_unit)
-            self.any_unit = False
+        if to_unit.startswith("/") and len(to_unit) < 2:
+            raise ValueError(
+                f"Variable `to_unit='{to_unit}'` must define a denominator."
+            )
+        self.to_unit = to_unit
         self.default_src_unit = default_src_unit
         self.return_magnitude = return_magnitude
 
@@ -71,9 +66,7 @@ class QuantityField(MarshmallowClickMixin, fields.Str):
         if return_magnitude is None:
             return_magnitude = self.return_magnitude
         if isinstance(value, str):
-            q = convert_to_quantity(
-                value=value, to_unit=self.to_unit, any_unit=self.any_unit
-            )
+            q = convert_to_quantity(value=value, to_unit=self.to_unit)
         elif self.default_src_unit is not None:
             q = self._deserialize(
                 f"{value} {self.default_src_unit}",
@@ -92,4 +85,4 @@ class QuantityField(MarshmallowClickMixin, fields.Str):
 
     def _serialize(self, value, attr, data, **kwargs):
         """Turn a Quantity into a string in scientific format."""
-        return "{:~P}".format(value.to(self.to_unit))
+        return "{:~P}".format(value.to(ur.Quantity(self.to_unit)))

@@ -51,20 +51,22 @@ def with_appcontext_if_needed():
     return decorator
 
 
-def convert_to_quantity(
-    value: str, to_unit: ur.Quantity, any_unit: bool
-) -> ur.Quantity:
+def convert_to_quantity(value: str, to_unit: str) -> ur.Quantity:
     """Convert value to quantity in the given unit.
 
     :param value:       Value to convert.
-    :param to_unit:     Unit to convert to.
-    :param any_unit:    If True, value can have any unit, and to_unit is used as the denominator
+    :param to_unit:     Unit to convert to. If the unit starts with a '/',
+                        the value can have any unit, and the unit is used as the denominator.
     :returns:           Quantity in the desired unit.
     """
+    if to_unit.startswith("/") and len(to_unit) < 2:
+        raise ValueError(f"Variable `to_unit='{to_unit}'` must define a denominator.")
     try:
-        if any_unit:
-            return to_preferred(ur.Quantity(value) * to_unit) / to_unit
-        return ur.Quantity(value).to(to_unit)
+        if to_unit.startswith("/"):
+            return to_preferred(
+                ur.Quantity(value) * ur.Quantity(to_unit[1:])
+            ) / ur.Quantity(to_unit[1:])
+        return ur.Quantity(value).to(ur.Quantity(to_unit))
     except DimensionalityError as e:
         raise FMValidationError(f"Cannot convert value `{value}` to '{to_unit}'") from e
     except (AssertionError, DefinitionSyntaxError, UndefinedUnitError) as e:
