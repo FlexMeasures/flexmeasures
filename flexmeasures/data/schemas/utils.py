@@ -2,7 +2,6 @@ import click
 import marshmallow as ma
 from click import get_current_context
 from flask.cli import with_appcontext as with_cli_appcontext
-from marshmallow import ValidationError
 
 
 class MarshmallowClickMixin(click.ParamType):
@@ -20,7 +19,7 @@ class MarshmallowClickMixin(click.ParamType):
             raise click.exceptions.BadParameter(e, ctx=ctx, param=param)
 
 
-class FMValidationError(ValidationError):
+class FMValidationError(ma.exceptions.ValidationError):
     """
     Custom validation error class.
     It differs from the classic validation error by having two
