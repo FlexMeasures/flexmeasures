@@ -46,18 +46,20 @@ class FlexContextSchema(Schema):
         data_key="site-consumption-capacity",
         validate=validate.Range(min=0),
     )
-    ems_consumption_breach_price = fields.Float(
+    ems_consumption_breach_price = VariableQuantityField(
+        "EUR/MW",
         data_key="site-consumption-breach-price",
         required=False,
         validate=validate.Range(min=0),
         default=None,
-    )  # in EUR/MW
-    ems_production_breach_price = fields.Float(
+    )
+    ems_production_breach_price = VariableQuantityField(
+        "EUR/MW",
         data_key="site-production-breach-price",
         required=False,
         validate=validate.Range(min=0),
         default=None,
-    )  # in EUR/MW
+    )
 
     # Peak consumption commitment
     ems_peak_consumption_in_mw = VariableQuantityField(
@@ -66,12 +68,13 @@ class FlexContextSchema(Schema):
         data_key="site-peak-consumption",
         validate=validate.Range(min=0),
     )
-    ems_peak_consumption_price = fields.Float(
+    ems_peak_consumption_price = VariableQuantityField(
+        "EUR/MW",
         data_key="site-peak-consumption-price",
         required=False,
         validate=validate.Range(min=0),
         default=None,
-    )  # in EUR/MW
+    )
 
     # Peak production commitment
     ems_peak_production_in_mw = VariableQuantityField(
@@ -80,12 +83,13 @@ class FlexContextSchema(Schema):
         data_key="site-peak-production",
         validate=validate.Range(min=0),
     )
-    ems_peak_production_price = fields.Float(
+    ems_peak_production_price = VariableQuantityField(
+        "EUR/MW",
         data_key="site-peak-production-price",
         required=False,
         validate=validate.Range(min=0),
         default=None,
-    )  # in EUR/MW
+    )
     # todo: group by month start (MS), something like a commitment resolution, or a list of datetimes representing splits of the commitments
 
     inflexible_device_sensors = fields.List(
