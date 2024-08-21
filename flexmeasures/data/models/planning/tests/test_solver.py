@@ -2229,8 +2229,6 @@ def test_battery_storage_with_time_series_in_flex_model(
 
 
 def test_multiple_commitments_per_group():
-    from flexmeasures.data.models.planning.storage import MetaStorageScheduler
-
     start = pd.Timestamp("2020-01-01T00:00:00")
     end = pd.Timestamp("2020-01-02T00:00:00")
     resolution = timedelta(hours=1)
@@ -2239,11 +2237,9 @@ def test_multiple_commitments_per_group():
     soc_min = 0
 
     device_constraints = [
-        initialize_df(MetaStorageScheduler.COLUMNS, start, end, resolution)
+        initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
     ]
-    ems_constraints = initialize_df(
-        MetaStorageScheduler.COLUMNS, start, end, resolution
-    )
+    ems_constraints = initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
     empty_commitment = initialize_df(
         [
             "quantity",
