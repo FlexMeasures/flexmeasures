@@ -1,5 +1,7 @@
+from __future__ import annotations
 from flask_classful import FlaskView, route
-from webargs.flaskparser import use_kwargs
+from flexmeasures.data import db
+from webargs.flaskparser import use_kwargs, use_args
 from flask_security import current_user, auth_required
 from flask_json import as_json
 
@@ -107,6 +109,91 @@ class AccountAPI(FlaskView):
         :status 422: UNPROCESSABLE_ENTITY
         """
 
+        return account_schema.dump(account), 200
+
+    @route("/<id>", methods=["PATCH"])
+    @use_args(partial_account_schema)
+    @use_kwargs({"account": AccountIdField(data_key="id")}, location="path")
+    @permission_required_for_context("update", ctx_arg_name="account")
+    @as_json
+    def patch(self, account_data: dict, id: int, account: Account):
+        """Update an account given its identifier.
+
+        .. :quickref: Account; Update an account
+
+        This endpoint sets data for an existing account.
+
+        The following field are not allowed to be updated:
+        - id
+
+        The following field are only editable if user role is admin:
+        - consultancy_account_id
+
+        **Example request**
+
+        .. sourcecode:: json
+
+            {
+                'name': 'Test Account'
+                'primary_color': '#1a3443'
+                'primary_color': '#f1a122'
+                'logo_url': 'https://example.com/logo.png'
+                'consultancy_account_id': 2,
+            }
+
+
+        **Example response**
+
+        The whole account is returned in the response:
+
+        .. sourcecode:: json
+
+            {
+                'id': 1,
+                'name': 'Test Account'
+                'account_roles': [1, 3],
+                'primary_color': '#1a3443'
+                'primary_color': '#f1a122'
+                'logo_url': 'https://example.com/logo.png'
+                'consultancy_account_id': 2,
+            }
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 200: UPDATED
+        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+        # get existing consultancy_account_id
+        existing_consultancy_account_id: int | None = (
+            account.consultancy_account.id if account.consultancy_account else None
+        )
+
+        if not user_has_admin_access(current_user, "update"):
+            # remove consultancy_account_id from account_data
+            account_data.pop("consultancy_account_id", existing_consultancy_account_id)
+        else:
+            # Check if the consultancy_account_id has changed
+            if existing_consultancy_account_id != account_data.get(
+                "consultancy_account_id"
+            ):
+                new_consultant_acccount: Account | None = db.session.query(Account).get(
+                    account_data.get("consultancy_account_id")
+                )
+                # check if new consultant account is valid or same as the current account
+                if (
+                    not new_consultant_acccount
+                    or new_consultant_acccount.id == account.id
+                ):
+                    return {"errors": ["Invalid consultancy_account_id"]}, 400
+
+        for k, v in account_data.items():
+            setattr(account, k, v)
+
+        db.session.commit()
         return account_schema.dump(account), 200
 
     @route("/<id>/auditlog", methods=["GET"])
