@@ -13,46 +13,54 @@
     <div class="row">
         <div class="col-md-2">
             <div class="sidepanel-container">
-                <div class="left-sidepanel-label">Edit asset</div>
+                <div class="left-sidepanel-label" style="transform: translateX(-30%) !important;">Edit Account</div>
                 <div class="sidepanel left-sidepanel">
-                    <form class="form-horizontal" method="POST" action="/assets/{{ asset.id }}">
-                        {{ asset_form.csrf_token }}
-                        {{ asset_form.hidden_tag() }}
+                    <form class="form-horizontal" id="editaccount">
                         <fieldset>
                             <div class="asset-form">
+                    
+                                <h3>Edit {{ account.name }}</h3>
+                                <small>Owned by account: {{ account.name }} (ID: {{ account.id }})</small>
 
-                                <h3>Edit {{ asset.name }}</h3>
-                                <small>Owned by account: {{ asset.account_id | accountname }} (ID: {{ asset.account_id }})</small>
-
+                                <!-- AccountID field -->
                                 <div class="form-group">
                                     <div class="col-md-3">
-                                        {{ asset_form.name(class_="form-control") }}
-                                        {% for error in asset_form.errors.name %}
-                                        <span style="color: red;">[{{error}}]</span>
-                                        {% endfor %}
+                                        <label for="consultant_account_id" class="control-label">Consultant Account ID</label>
+                                        <input type="text" class="form-control" id="consultant_account_id" name="account" value="{{ account.consultancy_account_id }}"  />
                                     </div>
                                 </div>
+                    
+                                <!-- Name color field -->
                                 <div class="form-group">
-                                    {{ asset_form.latitude.label(class="col-sm-6 control-label") }}
-                                    <div class="col-md-6">
-                                        {{ asset_form.latitude(class_="form-control") }}
-                                        {% for error in asset_form.errors.latitude %}
-                                        <span style="color: red;">[{{error}}]</span>
-                                        {% endfor %}
+                                    <div class="col-md-3">
+                                        <label for="name" class="control-label">Name</label>
+                                        <input type="text" class="form-control" id="name" name="name" value="{{ account.name }}" required />
                                     </div>
                                 </div>
+                    
+                                <!-- Primary color field -->
                                 <div class="form-group">
-                                    <div class="col-md-6">
-                                        {{ asset_form.longitude(class_="form-control") }}
-                                        {% for error in asset_form.errors.longitude %}
-                                        <span style="color: red;">[{{error}}]</span>
-                                        {% endfor %}
+                                    <div class="col-md-3">
+                                        <label for="primary_color" class="control-label">Primary Color</label>
+                                        <input type="text" class="form-control" id="primary_color" name="primary_color" value="{{ account.primary_color or primary_color }}" />
                                     </div>
                                 </div>
+                    
+                                <!-- Secondary color field -->
+                                <div class="form-group">
+                                    <div class="col-md-3">
+                                        <label for="secondary_color" class="control-label">Secondary Color</label>
+                                        <input type="text" class="form-control" id="secondary_color" name="secondary_color" value="{{ account.secondary_color or secondary_color }}" />
+                                    </div>
+                                </div>
+
+
+                    
                                 <button class="btn btn-sm btn-responsive btn-success create-button" type="submit" value="Save" style="margin-top: 20px; float: right; border: 1px solid var(--light-gray);">Save</button>
                             </div>
                         </fieldset>
                     </form>
+                    
                 </div>
             </div>
         </div>
@@ -219,9 +227,47 @@
             </div>
             </div>
         </div>
+        <div class="col-md-2"></div>
     </div>
 </div>
-<div class="col-md-2"></div>
 {% block paginate_tables_script %} {{ super() }} {% endblock %}
+<script type="text/javascript">
+    const authToken = '{{auth_token}}';
+    const basePath = window.location.origin;
 
+    // Select the specific form with ID 'editaccount'
+    document.querySelector('#editaccount').addEventListener('submit', function(event) {
+        event.preventDefault(); // Prevent the default form submission
+
+        // Collect form data
+        const formData = {
+            name: document.getElementById('name').value,
+            primary_color: document.getElementById('primary_color').value,
+            secondary_color: document.getElementById('secondary_color').value,
+            consultancy_account_id: document.getElementById('consultant_account_id').value
+        };
+
+        // Send data to the API using a PATCH request
+        fetch(basePath + '/api/v3_0/accounts/5', {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': authToken
+            },
+            body: JSON.stringify(formData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status == 200) {
+                alert('Form data updated successfully!');
+            } else {
+                alert('Error: ' + (data.errors[0] || 'Failed to update.'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while updating the data.');
+        });
+    });
+</script>
 {% endblock %}

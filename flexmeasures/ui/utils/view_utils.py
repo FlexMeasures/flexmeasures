@@ -1,4 +1,5 @@
 """Utilities for views"""
+
 from __future__ import annotations
 
 import json
@@ -88,6 +89,9 @@ def render_flexmeasures_template(html_filename: str, **variables):
 
     variables["menu_logo"] = current_app.config.get("FLEXMEASURES_MENU_LOGO_PATH")
     variables["extra_css"] = current_app.config.get("FLEXMEASURES_EXTRA_CSS_PATH")
+    variables["auth_token"] = (
+        current_user.get_auth_token() if current_user.is_authenticated else None
+    )
 
     if "asset" in variables:
         variables["breadcrumb_info"] = get_breadcrumb_info(asset)
