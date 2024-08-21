@@ -451,7 +451,7 @@ def test_fallback_to_unsolvable_problem(
     soc_targets = initialize_series(np.nan, start, end, resolution, inclusive="right")
     soc_targets.loc[target_soc_datetime] = target_soc
     kwargs = {
-        "sensor": charging_station,
+        "asset_or_sensor": charging_station,
         "start": start,
         "end": end,
         "resolution": resolution,
