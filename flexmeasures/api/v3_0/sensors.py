@@ -328,8 +328,8 @@ class SensorAPI(FlaskView):
                     "production-capacity" : "30 kW"
                 },
                 "flex-context": {
-                    "consumption-price-sensor": 9,
-                    "production-price-sensor": 10,
+                    "consumption-price": {"sensor": 9},
+                    "production-price": {"sensor": 10},
                     "inflexible-device-sensors": [13, 14, 15],
                     "site-power-capacity": "100kW",
                     "site-production-capacity": "80kW",
@@ -364,7 +364,7 @@ class SensorAPI(FlaskView):
         """
         end_of_schedule = start_of_schedule + duration
         scheduler_kwargs = dict(
-            sensor=sensor,
+            asset_or_sensor=sensor,
             start=start_of_schedule,
             end=end_of_schedule,
             resolution=sensor.event_resolution,

@@ -14,6 +14,7 @@ New features
 * Added Primary and Secondary colors to account for white-labelled UI themes [see `PR #1137 <https://github.com/FlexMeasures/flexmeasures/pull/1137>`_]
 * Added Logo URL to account for white-labelled UI themes [see `PR #1145 <https://github.com/FlexMeasures/flexmeasures/pull/1145>`_]
 * Introduce the ``VariableQuantityField`` to allow three ways of passing a variable quantity in most of the ``flex-model`` and ``flex-context`` fields [see `PR #1127 <https://github.com/FlexMeasures/flexmeasures/pull/1127>`_ and `PR #1138 <https://github.com/FlexMeasures/flexmeasures/pull/1138>`_]
+* Support directly passing a fixed price in the ``flex-context`` using the new fields ``consumption-price`` and ``production-price``, which are meant to replace the ``consumption-price-sensor`` and ``production-price-sensor`` fields, respectively [see `PR #1028 <https://github.com/FlexMeasures/flexmeasures/pull/1028>`_]
 
 Infrastructure / Support
 ----------------------
