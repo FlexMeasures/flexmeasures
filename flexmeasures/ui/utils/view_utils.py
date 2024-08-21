@@ -98,6 +98,8 @@ def render_flexmeasures_template(html_filename: str, **variables):
             or (account.consultancy_account and account.consultancy_account.logo_url)
             or current_app.config.get("FLEXMEASURES_MENU_LOGO_PATH")
         )
+    else:
+        variables["menu_logo"] = current_app.config.get("FLEXMEASURES_MENU_LOGO_PATH")
 
     variables["extra_css"] = current_app.config.get("FLEXMEASURES_EXTRA_CSS_PATH")
 
