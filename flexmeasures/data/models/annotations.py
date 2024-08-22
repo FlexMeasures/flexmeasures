@@ -35,6 +35,8 @@ class Annotation(db.Model):
             "holiday",
             "label",
             "feedback",
+            "warning",
+            "error",
             name="annotation_type",
         ),
         nullable=False,
