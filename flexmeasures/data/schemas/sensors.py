@@ -12,7 +12,6 @@ from marshmallow import (
     validates_schema,
 )
 from marshmallow.validate import Validator
-from pint import DimensionalityError
 
 import json
 import re
@@ -26,8 +25,13 @@ from flexmeasures.data.schemas.utils import (
     FMValidationError,
     MarshmallowClickMixin,
     with_appcontext_if_needed,
+    convert_to_quantity,
 )
-from flexmeasures.utils.unit_utils import is_valid_unit, ur, units_are_convertible
+from flexmeasures.utils.unit_utils import (
+    is_valid_unit,
+    ur,
+    units_are_convertible,
+)
 from flexmeasures.data.schemas.times import DurationField, AwareDateTimeField
 from flexmeasures.data.schemas.units import QuantityField
 
@@ -73,6 +77,11 @@ class TimedEventSchema(Schema):
         self.value_validator = value_validator
         super().__init__(*args, **kwargs)
         if to_unit is not None:
+            if to_unit.startswith("/"):
+                if len(to_unit) < 2:
+                    raise ValueError(
+                        f"Variable `to_unit='{to_unit}'` must define a denominator."
+                    )
             setattr(self.fields["value"], "to_unit", to_unit)
         if default_src_unit is not None:
             setattr(self.fields["value"], "default_src_unit", default_src_unit)
@@ -228,7 +237,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         to_unit,
         *args,
         default_src_unit: str | None = None,
-        return_magnitude: bool = True,
+        return_magnitude: bool = False,
         timezone: str | None = None,
         value_validator: Validator | None = None,
         **kwargs,
@@ -243,11 +252,17 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         For example, validate=validate.Range(min=0) will raise a ValidationError in case of negative quantities,
         but will let pass any sensor that has recorded negative values.
 
-        :param to_unit:             Unit in which the sensor, time series or quantity should be convertible to.
-                                    - Sensors are checked for convertibility, but the original sensor is returned, so its values are not yet converted.
+        :param to_unit:             Unit to which the sensor, time series or quantity should be convertible.
+                                    - Sensors are checked for convertibility, but the original sensor is returned,
+                                      so its values are not yet converted.
                                     - Time series and quantities are already converted to the given unit.
-        :param default_src_unit:    What unit to use in case of getting a numeric value. Does not apply to time series or sensors.
-        :param return_magnitude:    In case of getting a time series, whether the result should include the magnitude of each quantity, or each Quantity object itself
+                                    - Units starting with '/' (e.g. '/MWh') lead to accepting any value, which will be
+                                      converted to the given unit. For example,
+                                      a quantity of 1 EUR/kWh with to_unit='/MWh' is deserialized to 1000 EUR/MWh.
+        :param default_src_unit:    What unit to use in case of getting a numeric value.
+                                    Does not apply to time series or sensors.
+        :param return_magnitude:    In case of getting a time series, whether the result should include
+                                    the magnitude of each quantity, or each Quantity object itself.
         :param timezone:            Only used in case a time series is specified and one of the *timed events*
                                     in the time series uses a nominal duration, such as "P1D".
         """
@@ -259,7 +274,11 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
             self.validators.insert(0, validator)
         self.timezone = timezone
         self.value_validator = value_validator
-        self.to_unit = ur.Quantity(to_unit)
+        if to_unit.startswith("/") and len(to_unit) < 2:
+            raise ValueError(
+                f"Variable `to_unit='{to_unit}'` must define a denominator."
+            )
+        self.to_unit = to_unit
         self.default_src_unit = default_src_unit
         self.return_magnitude = return_magnitude
 
@@ -285,9 +304,9 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         """Deserialize a sensor reference to a Sensor."""
         if "sensor" not in value:
             raise FMValidationError("Dictionary provided but `sensor` key not found.")
-        sensor = SensorIdField(unit=self.to_unit)._deserialize(
-            value["sensor"], None, None
-        )
+        sensor = SensorIdField(
+            unit=self.to_unit if not self.to_unit.startswith("/") else None
+        ).deserialize(value["sensor"], None, None)
         return sensor
 
     def _deserialize_list(self, value: list[dict]) -> list[dict]:
@@ -311,12 +330,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
 
     def _deserialize_str(self, value: str) -> ur.Quantity:
         """Deserialize a string to a Quantity."""
-        try:
-            return ur.Quantity(value).to(self.to_unit)
-        except DimensionalityError as e:
-            raise FMValidationError(
-                f"Cannot convert value `{value}` to '{self.to_unit}'"
-            ) from e
+        return convert_to_quantity(value=value, to_unit=self.to_unit)
 
     def _deserialize_numeric(
         self, value: numbers.Real, attr, obj, **kwargs
@@ -376,7 +390,7 @@ class QuantityOrSensor(VariableQuantityField):
         current_app.logger.warning(
             "Class `TimeSeriesOrSensor` is deprecated. Use `VariableQuantityField` instead."
         )
-        super().__init__(*args, **kwargs)
+        super().__init__(return_magnitude=False, *args, **kwargs)
 
 
 class TimeSeriesOrSensor(VariableQuantityField):
@@ -385,4 +399,4 @@ class TimeSeriesOrSensor(VariableQuantityField):
         current_app.logger.warning(
             "Class `TimeSeriesOrSensor` is deprecated. Use `VariableQuantityField` instead."
         )
-        super().__init__(*args, **kwargs)
+        super().__init__(return_magnitude=True, *args, **kwargs)

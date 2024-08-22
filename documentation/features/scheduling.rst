@@ -51,12 +51,16 @@ The full list of flex-context fields is as follows:
    * - ``inflexible-device-sensors``
      - ``[3,4]``
      - Power sensors that are relevant, but not flexible, such as a sensor recording rooftop solar power connected behind the main meter, whose production falls under the same contract as the flexible device(s) being scheduled. Their power demand cannot be adjusted but still matters for finding the best schedule for other devices. Must be a list of integers.
-   * - ``consumption-price-sensor``
-     - ``5``
-     - The sensor that defines the price of consuming energy. This sensor can be recording market prices, but also CO₂ intensity - whatever fits your optimization problem. Must be an integer.
-   * - ``production-price-sensor``
-     - ``6``
-     - The sensor that defines the price of producing energy. Must be an integer.
+   * - ``consumption-price``
+     - ``{"sensor": 5}``
+       or
+       ``"0.29 EUR/kWh"``
+     - The price of consuming energy. Can be (a sensor recording) market prices, but also CO₂ intensity - whatever fits your optimization problem. (This field replaced the ``consumption-price-sensor`` field. [#old_sensor_field]_)
+   * - ``production-price``
+     - ``{"sensor": 6}``
+       or
+       ``"0.12 EUR/kWh"``
+     - The price of producing energy. Can be (a sensor recording) market prices, but also CO₂ intensity - whatever fits your optimization problem. (This field replaced the ``production-price-sensor`` field. [#old_sensor_field]_)
    * - ``site-power-capacity``
      - ``"45kW"``
      - Maximum achievable power at the grid connection point, in either direction [#asymmetric]_ (defaults to the Asset attribute ``capacity_in_mw``).
@@ -67,9 +71,12 @@ The full list of flex-context fields is as follows:
      - ``"0kW"``
      - Maximum production power at the grid connection point [#production]_ (defaults to the Asset attribute ``production_capacity_in_mw``). If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-production-capacity`` will be used.
 
+.. [#old_sensor_field] The old field only accepted an integer (sensor ID).
 
 .. [#asymmetric] ``site-consumption-capacity`` and ``site-production-capacity`` allow defining asymmetric contracted transport capacities for each direction (i.e. production and consumption).
+
 .. [#consumption] Example: with a connection capacity (``site-power-capacity``) of 1 MVA (apparent power) and a consumption capacity (``site-consumption-capacity``) of 800 kW (active power), the scheduler will make sure that the grid outflow doesn't exceed 800 kW.
+
 .. [#production] Example: with a connection capacity (``site-power-capacity``) of 1 MVA (apparent power) and a production capacity (``site-production-capacity``) of 400 kW (active power), the scheduler will make sure that the grid inflow doesn't exceed 400 kW.
 
 .. note:: If no (symmetric, consumption and production) site capacity is defined (also not as defaults), the scheduler will not enforce any bound on the site power.
@@ -237,7 +244,7 @@ You can review the current flex-model for processes in the code, at ``flexmeasur
 
 You can add new shiftable-process schedules with the CLI command ``flexmeasures add schedule for-process``.
 
-.. note:: Currently, the ``ProcessScheduler`` uses only the ``consumption-price-sensor`` field of the flex-context, so it ignores any site capacities and inflexible devices.
+.. note:: Currently, the ``ProcessScheduler`` uses only the ``consumption-price`` field of the flex-context, so it ignores any site capacities and inflexible devices.
 
 
 Work on other schedulers
