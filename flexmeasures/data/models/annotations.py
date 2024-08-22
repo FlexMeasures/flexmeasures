@@ -159,8 +159,8 @@ class GenericAssetAnnotationRelationship(db.Model):
     __tablename__ = "annotations_assets"
 
     id = db.Column(db.Integer(), primary_key=True)
-    generic_asset_id = db.Column(db.Integer, db.ForeignKey("generic_asset.id"))
-    annotation_id = db.Column(db.Integer, db.ForeignKey("annotation.id"))
+    generic_asset_id = db.Column(db.Integer, db.ForeignKey("generic_asset.id", ondelete="CASCADE"))
+    annotation_id = db.Column(db.Integer, db.ForeignKey("annotation.id", ondelete="CASCADE"))
     __table_args__ = (
         db.UniqueConstraint(
             "annotation_id",
