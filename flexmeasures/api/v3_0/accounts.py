@@ -12,6 +12,7 @@ from flexmeasures.data.models.user import Account
 from flexmeasures.data.services.accounts import get_accounts, get_audit_log_records
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.data.schemas.account import AccountSchema
+from flexmeasures.utils.time_utils import server_now
 
 """
 API endpoints to manage accounts.
@@ -193,6 +194,16 @@ class AccountAPI(FlaskView):
         for k, v in account_data.items():
             setattr(account, k, v)
 
+        # Add Audit log
+        account_audit_log = AuditLog(
+            event_datetime=server_now(),
+            event=f"User {current_user.username} edited account details of {account.name}",
+            active_user_id=current_user.id,
+            active_user_name=current_user.username,
+            affected_user_id=current_user.id,
+            affected_account_id=account.id,
+        )
+        db.session.add(account_audit_log)
         db.session.commit()
         return account_schema.dump(account), 200
 
