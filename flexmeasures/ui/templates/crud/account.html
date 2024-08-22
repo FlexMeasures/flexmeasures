@@ -54,7 +54,13 @@
                                     </div>
                                 </div>
 
-
+                                <!-- Loo URL field -->
+                                <div class="form-group">
+                                    <div class="col-md-3">
+                                        <label for="logo_url" class="control-label">Logo URL</label>
+                                        <input type="text" class="form-control" id="logo_url" name="logo_url" value="{{ account.logo_url or menu_logo }}" />
+                                    </div>
+                                </div>
                     
                                 <button class="btn btn-sm btn-responsive btn-success create-button" type="submit" value="Save" style="margin-top: 20px; float: right; border: 1px solid var(--light-gray);">Save</button>
                             </div>
@@ -244,11 +250,11 @@
             name: document.getElementById('name').value,
             primary_color: document.getElementById('primary_color').value,
             secondary_color: document.getElementById('secondary_color').value,
-            consultancy_account_id: document.getElementById('consultant_account_id').value
+            consultancy_account_id: document.getElementById('consultant_account_id').value,
+            logo_url: document.getElementById('logo_url').value
         };
-
         // Send data to the API using a PATCH request
-        fetch(basePath + '/api/v3_0/accounts/5', {
+        fetch(basePath + '/api/v3_0/accounts/' + '{{account.id}}', {
             method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json',

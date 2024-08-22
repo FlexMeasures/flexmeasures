@@ -31,6 +31,7 @@ class AccountSchema(ma.SQLAlchemySchema):
     name = ma.auto_field(required=True)
     primary_color = ma.auto_field()
     secondary_color = ma.auto_field()
+    logo_url = ma.auto_field()
     account_roles = fields.Nested("AccountRoleSchema", exclude=("accounts",), many=True)
     consultancy_account_id = ma.auto_field()
 
