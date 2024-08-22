@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from marshmallow import fields, validate, ValidationError
 
-from flexmeasures.data.schemas.utils import MarshmallowClickMixin
+from flexmeasures.data.schemas.utils import MarshmallowClickMixin, convert_to_quantity
 from flexmeasures.utils.unit_utils import is_valid_unit, ur
 
 
@@ -46,7 +46,11 @@ class QuantityField(MarshmallowClickMixin, fields.Str):
         # Insert validation into self.validators so that multiple errors can be stored.
         validator = QuantityValidator()
         self.validators.insert(0, validator)
-        self.to_unit = ur.Quantity(to_unit)
+        if to_unit.startswith("/") and len(to_unit) < 2:
+            raise ValueError(
+                f"Variable `to_unit='{to_unit}'` must define a denominator."
+            )
+        self.to_unit = to_unit
         self.default_src_unit = default_src_unit
         self.return_magnitude = return_magnitude
 
@@ -62,9 +66,7 @@ class QuantityField(MarshmallowClickMixin, fields.Str):
         if return_magnitude is None:
             return_magnitude = self.return_magnitude
         if isinstance(value, str):
-            if not is_valid_unit(value):
-                raise ValidationError("Not a valid quantity")
-            q = ur.Quantity(value).to(self.to_unit)
+            q = convert_to_quantity(value=value, to_unit=self.to_unit)
         elif self.default_src_unit is not None:
             q = self._deserialize(
                 f"{value} {self.default_src_unit}",
@@ -83,4 +85,4 @@ class QuantityField(MarshmallowClickMixin, fields.Str):
 
     def _serialize(self, value, attr, data, **kwargs):
         """Turn a Quantity into a string in scientific format."""
-        return "{:~P}".format(value.to(self.to_unit))
+        return "{:~P}".format(value.to(ur.Quantity(self.to_unit)))
