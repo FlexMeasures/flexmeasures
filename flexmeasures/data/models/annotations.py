@@ -142,8 +142,10 @@ class AccountAnnotationRelationship(db.Model):
     __tablename__ = "annotations_accounts"
 
     id = db.Column(db.Integer(), primary_key=True)
-    account_id = db.Column(db.Integer, db.ForeignKey("account.id"))
-    annotation_id = db.Column(db.Integer, db.ForeignKey("annotation.id"))
+    account_id = db.Column(db.Integer, db.ForeignKey("account.id", ondelete="CASCADE"))
+    annotation_id = db.Column(
+        db.Integer, db.ForeignKey("annotation.id", ondelete="CASCADE")
+    )
     __table_args__ = (
         db.UniqueConstraint(
             "annotation_id",
@@ -180,8 +182,10 @@ class SensorAnnotationRelationship(db.Model):
     __tablename__ = "annotations_sensors"
 
     id = db.Column(db.Integer(), primary_key=True)
-    sensor_id = db.Column(db.Integer, db.ForeignKey("sensor.id"))
-    annotation_id = db.Column(db.Integer, db.ForeignKey("annotation.id"))
+    sensor_id = db.Column(db.Integer, db.ForeignKey("sensor.id", ondelete="CASCADE"))
+    annotation_id = db.Column(
+        db.Integer, db.ForeignKey("annotation.id", ondelete="CASCADE")
+    )
     __table_args__ = (
         db.UniqueConstraint(
             "annotation_id",
