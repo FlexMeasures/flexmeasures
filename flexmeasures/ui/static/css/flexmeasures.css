@@ -318,6 +318,7 @@ p.error {
 .dropdown-menu>li>a:not(.active) {
     color: var(--nav-default-color);
     background-color: var(--nav-default-background-color);
+    text-align: center;
 }
 .dropdown-menu>li>a.active {
     color: var(--nav-hover-color);
@@ -1014,7 +1015,7 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
         color: var(--nav-default-color) !important;
     }
     .leftside-dropup{
-    margin-left: -100px !important;
+    margin-left: -95px !important;
     color: var(--nav-default-color);
     background: var(--nav-default-background-color);
     width: calc(var(--litepicker-day-width) * 6);
