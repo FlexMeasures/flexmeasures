@@ -21,20 +21,24 @@ Describing flexibility
 To compute a schedule, FlexMeasures first needs to assess the flexibility state of the system.
 This is described by:
 
-- the ``flex-context`` ― information about the system as a whole, in order to assess the value of activating flexibility.
-- the ``flex model`` ― information about the state and possible actions of the flexible device. We will discuss these per scheduled device type.
+- :ref:`The flex-context <flex_context>` ― information about the system as a whole, in order to assess the value of activating flexibility.
+- :ref:`Flex-models <flex_models_and_schedulers>`  ― information about the state and possible actions of the flexible device. We will discuss these per scheduled device type.
 
 This information goes beyond the usual time series recorded by an asset's sensors. It's being sent through the API when triggering schedule computation.
-Some parts of it can be persisted on the asset & sensor model as attributes (that's design work in progress). 
+Some parts of it can be persisted on the asset & sensor model as attributes (that's design work in progress).
 
 Let's dive into the details ― what can you tell FlexMeasures about your optimization problem?
 
+
+.. _flex_context:
 
 The flex-context
 -----------------
 
 The ``flex-context`` is independent of the type of flexible device that is optimized.
-With the flexibility context, we aim to describe the system in which the flexible assets operate:
+With the flexibility context, we aim to describe the system in which the flexible assets operate.
+
+The full list of flex-context fields is as follows:
 
 
 .. list-table::
@@ -46,29 +50,39 @@ With the flexibility context, we aim to describe the system in which the flexibl
      - Description 
    * - ``inflexible-device-sensors``
      - ``[3,4]``
-     - Power sensors that are relevant, but not flexible, such as a sensor recording rooftop solar power connected behind the main meter, whose production falls under the same contract as the flexible device(s) being scheduled. Their power demand cannot be adjusted but still matters for finding the best schedule for other devices.
-   * - ``consumption-price-sensor``
-     - ``5``
-     - The sensor that defines the price of consuming energy. This sensor can be recording market prices, but also CO₂ - whatever fits your optimization problem.
-   * - ``production-price-sensor``
-     - ``6``
-     - The sensor that defines the price of producing energy.
+     - Power sensors that are relevant, but not flexible, such as a sensor recording rooftop solar power connected behind the main meter, whose production falls under the same contract as the flexible device(s) being scheduled. Their power demand cannot be adjusted but still matters for finding the best schedule for other devices. Must be a list of integers.
+   * - ``consumption-price``
+     - ``{"sensor": 5}``
+       or
+       ``"0.29 EUR/kWh"``
+     - The price of consuming energy. Can be (a sensor recording) market prices, but also CO₂ intensity - whatever fits your optimization problem. (This field replaced the ``consumption-price-sensor`` field. [#old_sensor_field]_)
+   * - ``production-price``
+     - ``{"sensor": 6}``
+       or
+       ``"0.12 EUR/kWh"``
+     - The price of producing energy. Can be (a sensor recording) market prices, but also CO₂ intensity - whatever fits your optimization problem. (This field replaced the ``production-price-sensor`` field. [#old_sensor_field]_)
    * - ``site-power-capacity``
      - ``"45kW"``
-     - Maximum/minimum achievable power at the grid connection point [#asymmetric]_ (defaults to the Asset attribute ``capacity_in_mw``). A constant limit, or see [#sensor_field]_.
+     - Maximum achievable power at the grid connection point, in either direction [#asymmetric]_ (defaults to the Asset attribute ``capacity_in_mw``).
    * - ``site-consumption-capacity``
      - ``"45kW"``
-     - Maximum consumption power at the grid connection point [#consumption]_ (defaults to the Asset attribute ``consumption_capacity_in_mw``). A constant limit, or see [#sensor_field]_. If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-consumption-capacity`` will be used.
+     - Maximum consumption power at the grid connection point [#consumption]_ (defaults to the Asset attribute ``consumption_capacity_in_mw``). If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-consumption-capacity`` will be used.
    * - ``site-production-capacity``
      - ``"0kW"``
-     - Maximum production power at the grid connection point [#production]_ (defaults to the Asset attribute ``production_capacity_in_mw``). A constant limit, or see [#sensor_field]_. If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-production-capacity`` will be used.
+     - Maximum production power at the grid connection point [#production]_ (defaults to the Asset attribute ``production_capacity_in_mw``). If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-production-capacity`` will be used.
 
+.. [#old_sensor_field] The old field only accepted an integer (sensor ID).
 
 .. [#asymmetric] ``site-consumption-capacity`` and ``site-production-capacity`` allow defining asymmetric contracted transport capacities for each direction (i.e. production and consumption).
-.. [#production] Example: with a connection capacity (``site-power-capacity``) of 1 MVA (apparent power) and a production capacity (``site-production-capacity``) of 400 kW (active power), the scheduler will make sure that the grid inflow doesn't exceed 400 kW.
+
 .. [#consumption] Example: with a connection capacity (``site-power-capacity``) of 1 MVA (apparent power) and a consumption capacity (``site-consumption-capacity``) of 800 kW (active power), the scheduler will make sure that the grid outflow doesn't exceed 800 kW.
 
-.. note:: If no (symmetric, consumption and production) site capacity is defined (also not as defaults), the scheduler will not enforce any bound on the site power. The flexible device can still has its own power limit defined in its flex-model.
+.. [#production] Example: with a connection capacity (``site-power-capacity``) of 1 MVA (apparent power) and a production capacity (``site-production-capacity``) of 400 kW (active power), the scheduler will make sure that the grid inflow doesn't exceed 400 kW.
+
+.. note:: If no (symmetric, consumption and production) site capacity is defined (also not as defaults), the scheduler will not enforce any bound on the site power.
+          The flexible device can still have its own power limit defined in its flex-model.
+
+For more details on the possible formats for field values, see :ref:`variable_quantities`.
 
 
 .. _flex_models_and_schedulers:
@@ -78,9 +92,9 @@ The flex-models & corresponding schedulers
 
 FlexMeasures comes with a storage scheduler and a process scheduler, which work with flex models for storages and loads, respectively.
 
-The storage scheduler is suitable for batteries and :abbr:`EV (electric vehicle)` chargers, and is automatically selected when scheduling an asset with one of the following asset types: "battery", "one-way_evse" and "two-way_evse".
+The storage scheduler is suitable for batteries and :abbr:`EV (electric vehicle)` chargers, and is automatically selected when scheduling an asset with one of the following asset types: ``"battery"``, ``"one-way_evse"`` and ``"two-way_evse"``.
 
-The process scheduler is suitable for shiftable, breakable and inflexible loads, and is automatically selected for asset types "process" and "load".
+The process scheduler is suitable for shiftable, breakable and inflexible loads, and is automatically selected for asset types ``"process"`` and ``"load"``.
 
 
 Storage
@@ -97,71 +111,77 @@ You can do a lot with this ― examples for storage devices are:
 - buffers of energy-intensive chemicals that are needed in other industry processes
 
 
-The ``flex-model`` for storage describes to the scheduler what the flexible asset's state is,
+The ``flex-model`` for storage devices describes to the scheduler what the flexible asset's state is,
 and what constraints or preferences should be taken into account.
+
+The full list of flex-model fields for the storage scheduler is as follows:
 
 .. list-table::
    :header-rows: 1
-   :widths: 20 25 90
+   :widths: 20 40 80
 
    * - Field
      - Example value
      - Description 
    * - ``soc-at-start``
-     - ``"3.1"``
-     - The (estimated) state of charge at the beginning of the schedule (defaults to 0).
+     - ``"3.1 kWh"``
+     - The (estimated) state of charge at the beginning of the schedule (defaults to 0). [#quantity_field]_
    * - ``soc-unit``
      - ``"kWh"`` or ``"MWh"``
-     - The unit in which all SoC related flex-model values are to be interpreted.
+     - The unit used to interpret any SoC related flex-model value that does not mention a unit itself (only applies to numeric values, so not to string values).
+       However, we advise to mention the unit in each field explicitly (for instance, ``"3.1 kWh"`` rather than ``3.1``).
+       Enumerated option only.
    * - ``soc-min``
-     - ``"2.5"``
-     - A constant lower boundary for all values in the schedule (defaults to 0).
+     - ``"2.5 kWh"``
+     - A constant lower boundary for all values in the schedule (defaults to 0). [#quantity_field]_
    * - ``soc-max``
-     - ``"7"``
-     - A constant upper boundary for all values in the schedule (defaults to max soc target, if provided)
+     - ``"7 kWh"``
+     - A constant upper boundary for all values in the schedule (defaults to max soc target, if provided). [#quantity_field]_
    * - ``soc-minima``
-     - ``[{"datetime": "2024-02-05T08:00:00+01:00", value: 8.2}]``
-     - Set point(s) that form lower boundaries, e.g. to target a full car battery in the morning. Can be single values or a range (defaults to NaN values).
+     - ``[{"datetime": "2024-02-05T08:00:00+01:00", value: "8.2 kWh"}]``
+     - Set points that form lower boundaries, e.g. to target a full car battery in the morning (defaults to NaN values).
    * - ``soc-maxima``
-     - ``{"value": 51, "start": "2024-02-05T12:00:00+01:00","end": "2024-02-05T13:30:00+01:00"}``
-     - Set point(s) that form upper boundaries at certain times. Can be single values or a range (defaults to NaN values).
+     - ``{"value": "51 kWh", "start": "2024-02-05T12:00:00+01:00", "end": "2024-02-05T13:30:00+01:00"}``
+     - Set points that form upper boundaries at certain times (defaults to NaN values).
    * - ``soc-targets``
-     - ``[{"datetime": "2024-02-05T08:00:00+01:00", value: 3.2}]``
+     - ``[{"datetime": "2024-02-05T08:00:00+01:00", value: "3.2 kWh"}]``
      - Exact set point(s) that the scheduler needs to realize (defaults to NaN values).
    * - ``soc-gain``
      - ``.1kWh`` 
-     - Encode SoC gain per time step. A constant gain every time step, or see [#sensor_field]_.
+     - SoC gain per time step, e.g. from a secondary energy source (defaults to zero).
    * - ``soc-usage``
-     - ``{"sensor": 23}`` 
-     - Encode SoC reduction per time step. A constant loss every time step, or see [#sensor_field]_.
+     - ``{"sensor": 23}``
+     - SoC reduction per time step, e.g. from a load or heat sink (defaults to zero).
    * - ``roundtrip-efficiency``
      - ``"90%"``
-     - Below 100%, this represents roundtrip losses (of charging & discharging), usually used for batteries. Can be percent or ratio ``[0,1]`` (defaults to 100%).
+     - Below 100%, this represents roundtrip losses (of charging & discharging), usually used for batteries. Can be percent or ratio ``[0,1]`` (defaults to 100%). [#quantity_field]_
    * - ``charging-efficiency``
      - ``".9"``
-     - Apply efficiency losses only at time of charging, not across roundtrip (defaults to 100%). A constant percentage at every step, or see [#sensor_field]_.
+     - Apply efficiency losses only at time of charging, not across roundtrip (defaults to 100%).
    * - ``discharging-efficiency``
      - ``"90%"``
-     - Apply efficiency losses only at time of discharging, not across roundtrip (defaults to 100%). A constant percentage at every step, or see [#sensor_field]_.
+     - Apply efficiency losses only at time of discharging, not across roundtrip (defaults to 100%).
    * - ``storage-efficiency``
      - ``"99.9%"``
-     - This can encode losses over time, so each time step the energy is held longer leads to higher losses (defaults to 100%). A constant percentage at every step, or see [#sensor_field]_. Also read [#storage_efficiency]_ about applying this value per time step across longer time spans.
+     - This can encode losses over time, so each time step the energy is held longer leads to higher losses (defaults to 100%). Also read [#storage_efficiency]_ about applying this value per time step across longer time spans.
    * - ``prefer-charging-sooner``
      - ``True``
-     - Policy to apply if conditions are stable (defaults to True, which also signals a preference to discharge later)
+     - Tie-breaking policy to apply if conditions are stable (defaults to True, which also signals a preference to discharge later). Boolean option only.
    * - ``power-capacity``
      - ``50kW``
-     - Device-level power constraint. How much power can be applied to this asset (defaults to the Sensor attribute ``capacity_in_mw``). A constant limit, or see [#sensor_field]_.
+     - Device-level power constraint. How much power can be applied to this asset (defaults to the Sensor attribute ``capacity_in_mw``).
    * - ``consumption-capacity``
      - ``{"sensor": 56}``
-     - Device-level power constraint on consumption. How much power can be drawn by this asset. A constant limit, or see [#sensor_field]_.
+     - Device-level power constraint on consumption. How much power can be drawn by this asset.
    * - ``production-capacity``
      - ``0kW`` (only consumption)
-     - Device-level power constraint on production. How much power can be supplied by this asset. A constant limit, or see [#sensor_field]_.
+     - Device-level power constraint on production. How much power can be supplied by this asset.
 
-.. [#sensor_field] For some fields, it is possible to supply a sensor instead of one fixed value (``{"sensor": 51}``), which allows for more dynamic contexts, for instance power limits that change over time.
+.. [#quantity_field] Can only be set as a fixed quantity.
 
 .. [#storage_efficiency] The storage efficiency (e.g. 95% or 0.95) to use for the schedule is applied over each time step equal to the sensor resolution. For example, a storage efficiency of 95 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of :math:`0.95^{1/24} = 0.997865`.
+
+For more details on the possible formats for field values, see :ref:`variable_quantities`.
 
 Usually, not the whole flexibility model is needed. FlexMeasures can infer missing values in the flex model, and even get them (as default) from the sensor's attributes.
 
@@ -224,7 +244,7 @@ You can review the current flex-model for processes in the code, at ``flexmeasur
 
 You can add new shiftable-process schedules with the CLI command ``flexmeasures add schedule for-process``.
 
-.. note:: Currently, the ``ProcessScheduler`` uses only the ``consumption-price-sensor`` field of the flex-context, so it ignores any site capacities and inflexible devices.
+.. note:: Currently, the ``ProcessScheduler`` uses only the ``consumption-price`` field of the flex-context, so it ignores any site capacities and inflexible devices.
 
 
 Work on other schedulers
