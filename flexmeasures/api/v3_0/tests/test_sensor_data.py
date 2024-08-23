@@ -3,7 +3,8 @@ from __future__ import annotations
 from datetime import timedelta
 from flask import url_for
 import pytest
-
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
 
 from flexmeasures import Sensor, Source, User
 from flexmeasures.api.v3_0.tests.utils import make_sensor_data_request_for_gas_sensor
@@ -184,8 +185,18 @@ def test_post_invalid_sensor_data(
 @pytest.mark.parametrize(
     "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
 )
-def test_post_sensor_data_twice(client, setup_api_test_data, requesting_user):
+def test_post_sensor_data_twice(client, setup_api_test_data, requesting_user, db):
     post_data = make_sensor_data_request_for_gas_sensor()
+
+    @event.listens_for(Engine, "handle_error")
+    def receive_handle_error(exception_context):
+        """
+        Check that the error that we are getting is of type IntegrityError.
+        """
+        error_info = exception_context.sqlalchemy_exception
+
+        # If the assert failed, we would get a 500 status code
+        assert error_info.__class__.__name__ == "IntegrityError"
 
     # Check that 1st time posting the data succeeds
     response = client.post(
@@ -213,3 +224,54 @@ def test_post_sensor_data_twice(client, setup_api_test_data, requesting_user):
     print(response.json)
     assert response.status_code == 403
     assert "data represents a replacement" in response.json["message"]
+
+    # at this point, the transaction has failed and needs to be rolled back.
+    db.session.rollback()
+
+
+@pytest.mark.parametrize(
+    "num_values, status_code, message, saved_rows",
+    [
+        (1, 200, "Request has been processed.", 1),
+        (
+            2,
+            422,
+            "Cannot save multiple instantaneous values that overlap. That is, two values spanning the same moment (a zero duration). Try sending a single value or definining a non-zero duration.",
+            0,
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_post_sensor_instantaneous_data(
+    client,
+    setup_api_test_data,
+    num_values,
+    status_code,
+    message,
+    saved_rows,
+    requesting_user,
+):
+    post_data = make_sensor_data_request_for_gas_sensor(
+        sensor_name="empty temperature sensor",
+        num_values=num_values,
+        unit="°C",
+        duration="PT0H",
+    )
+    sensor = setup_api_test_data["empty temperature sensor"]
+    rows = len(sensor.search_beliefs())
+
+    # Check that 1st time posting the data succeeds
+    response = client.post(
+        url_for("SensorAPI:post_data"),
+        json=post_data,
+    )
+
+    assert response.status_code == status_code
+    if status_code == 422:
+        assert response.json["message"]["json"]["_schema"][0] == message
+    else:
+        assert response.json["message"] == message
+
+    assert len(sensor.search_beliefs()) - rows == saved_rows
