@@ -53,7 +53,6 @@
                   </div>
               </div>
               <div class="col-sm-8">
-                  <h3>{{ sensor.name }}</h3>
                   <div id="sensorchart" class="card" style="width: 100%;"></div>
                   <div id="spinner" hidden="hidden">
                       <i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i>
@@ -65,6 +64,10 @@
                           <h5>Properties</h5>
 
                           <table class="table table-striped">
+                              <tr>
+                                  <th>Name</th>
+                                  <td>{{ sensor.name }}</td>
+                              </tr>
                               <tr>
                                   <th>Unit</th>
                                   <td>{{ sensor.unit }}</td>
