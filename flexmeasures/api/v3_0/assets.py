@@ -7,6 +7,8 @@ from flask_classful import FlaskView, route
 from flask_login import current_user
 from flask_security import auth_required
 from flask_json import as_json
+from flask_sqlalchemy.pagination import SelectPagination
+
 from marshmallow import fields
 import marshmallow.validate as validate
 
@@ -152,7 +154,6 @@ class AssetAPI(FlaskView):
         if page is not None:
             if per_page is None:
                 per_page = 10
-            from flask_sqlalchemy.pagination import SelectPagination
 
             select_pagination: SelectPagination = db.paginate(
                 query, per_page=per_page, page=page
