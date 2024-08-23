@@ -33,20 +33,6 @@
               <div class="alert alert-info" id="dstwarn" style="display:none;"></div>
               <div class="alert alert-info" id="sourcewarn" style="display:none;"></div>
           </div>
-          <div class="row">
-              <div class="sidepanel-container">
-                      <div id="chart-type-picker" class="leftside-dropup dropup">
-                          <button class="btn dropdown-toggle" type="button" id="chartTypeDropup" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                              Select chart
-                          </button>
-                          <ul class="dropdown-menu center-aligned" aria-labelledby="chartTypeDropup">
-                              <li><a class="dropup-item" href="#" data-chart-type="bar_chart">Bar chart</a></li>
-                              <li><a class="dropup-item" href="#" data-chart-type="daily_heatmap">Daily heatmap</a></li>
-                              <li><a class="dropup-item" href="#" data-chart-type="weekly_heatmap">Weekly heatmap</a></li>
-                          </ul>
-                      </div>
-              </div>
-          </div>
           <div class="row on-top-md">
               <div class="col-sm-2">
                   <div class="sidepanel-container">
@@ -54,6 +40,16 @@
                       <div class="sidepanel left-sidepanel">
                           <div id="datepicker"></div>
                       </div>
+                  </div>
+                  <div id="chart-type-picker" class="leftside-dropdown dropdown">
+                      <button class="btn dropdown-toggle" type="button" id="chartTypeDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                          Select chart
+                      </button>
+                      <ul class="dropdown-menu center-aligned" aria-labelledby="chartTypeDropdown">
+                          <li><a class="dropdown-item" href="#" data-chart-type="bar_chart">Bar chart</a></li>
+                          <li><a class="dropdown-item" href="#" data-chart-type="daily_heatmap">Daily heatmap</a></li>
+                          <li><a class="dropdown-item" href="#" data-chart-type="weekly_heatmap">Weekly heatmap</a></li>
+                      </ul>
                   </div>
               </div>
               <div class="col-sm-8">
