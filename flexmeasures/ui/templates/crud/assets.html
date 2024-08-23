@@ -61,7 +61,6 @@ $(document).ready(function() {
         type: "get",
         url : url, 
         success : function(response, text) {
-          console.log(response)
           let clean_response = [];
           response["data"].forEach( (element) => clean_response.push(
             new Asset(element["id"], element["name"], element["generic_asset_type"]["name"], element["sensors"], element["owner"], element["latitude"], element["longitude"])
