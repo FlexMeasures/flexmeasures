@@ -1014,18 +1014,18 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     .sidepanel label {
         color: var(--nav-default-color) !important;
     }
-    .leftside-dropup{
-    margin-left: -95px !important;
-    color: var(--nav-default-color);
-    background: var(--nav-default-background-color);
-    width: calc(var(--litepicker-day-width) * 6);
-    padding: 13px 10px;
-    min-height: 35px;  // line-height + padding-top + padding-bottom
-    border-top-left-radius: 0px;
-    border-bottom-left-radius: 0px;
-    border-top-right-radius: 15px;
-    border-bottom-right-radius: 15px;
-    text-align: right;
+    .leftside-dropdown {
+        margin-left: -95px !important;
+        color: var(--nav-default-color);
+        background: var(--nav-default-background-color);
+        width: calc(var(--litepicker-day-width) * 6);
+        padding: 13px 10px;
+        min-height: 35px;  // line-height + padding-top + padding-bottom
+        border-top-left-radius: 0px;
+        border-bottom-left-radius: 0px;
+        border-top-right-radius: 15px;
+        border-bottom-right-radius: 15px;
+        text-align: right;
     }
     .sidepanel-container {
         z-index: 20;

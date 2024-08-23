@@ -260,22 +260,22 @@
 
     // Update chart type picker: active state, reload data event
     document.addEventListener('DOMContentLoaded', function() {
-        var dropupItems = document.querySelectorAll('#chart-type-picker .dropup-item');
-        for (var i = 0; i < dropupItems.length; i++) {
+        var dropdownItems = document.querySelectorAll('#chart-type-picker .dropdown-item');
+        for (var i = 0; i < dropdownItems.length; i++) {
 
             // Set initial chart type
-            if (dropupItems[i].getAttribute('data-chart-type') === chartType) {
-                dropupItems[i].classList.add('active');
+            if (dropdownItems[i].getAttribute('data-chart-type') === chartType) {
+                dropdownItems[i].classList.add('active');
             }
 
             // Add event listener
-            dropupItems[i].addEventListener('click', function(e) {
+            dropdownItems[i].addEventListener('click', function(e) {
                 e.preventDefault();
                 chartType = this.getAttribute('data-chart-type');
 
                 // Update the active state of the dropdown items
-                var dropupItems = document.querySelectorAll('.dropup-item');
-                dropupItems.forEach(item => {
+                var dropdownItems = document.querySelectorAll('.dropdown-item');
+                dropdownItems.forEach(item => {
                     if (item === this) {
                         item.classList.add('active');
                     } else {
