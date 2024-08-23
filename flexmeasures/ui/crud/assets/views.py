@@ -33,25 +33,6 @@ from flexmeasures.data.services.sensors import (
 )
 
 
-def get_all_assets(page: int = 1, per_page=10) -> list[GenericAsset]:
-    get_assets_response = (
-        InternalApi()
-        .get(
-            url_for("AssetAPI:index"),
-            query={"all_accessible": True, "page": page, "per_page": per_page},
-        )
-        .json()
-    )
-
-    assets = []
-    if isinstance(get_assets_response, list):
-        assets.extend(get_assets_response)
-
-    asset_ids_filter = [GenericAsset.id.in_(ad["id"] for ad in assets)]
-
-    return db.session.scalars(select(GenericAsset).where(*asset_ids_filter)).all()
-
-
 """
 Asset crud view.
 
