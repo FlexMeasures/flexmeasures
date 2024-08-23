@@ -124,10 +124,10 @@ class AccountAPI(FlaskView):
 
         This endpoint sets data for an existing account.
 
-        The following field are not allowed to be updated:
+        The following fields are not allowed to be updated:
         - id
 
-        The following field are only editable if user role is admin:
+        The following fields are only editable if user role is admin:
         - consultancy_account_id
 
         **Example request**
@@ -189,15 +189,34 @@ class AccountAPI(FlaskView):
                     not new_consultant_acccount
                     or new_consultant_acccount.id == account.id
                 ):
-                    return {"errors": ["Invalid consultancy_account_id"]}, 400
+                    return {"errors": ["Invalid consultancy_account_id"]}, 422
+
+        # Track modified fields
+        modified_fields = {}
+
+        if account_data.get("name") != account.name:
+            modified_fields["name"] = account.name
+        if account_data.get("primary_color") != account.primary_color:
+            modified_fields["primary_color"] = account.primary_color
+        if account_data.get("secondary_color") != account.secondary_color:
+            modified_fields["secondary_color"] = account.secondary_color
+        if account_data.get("logo_url") != account.logo_url:
+            modified_fields["logo_url"] = account.logo_url
+        if account_data.get("consultancy_account_id") != account.consultancy_account_id:
+            modified_fields["consultancy_account_id"] = account.consultancy_account_id
+
+        # compile modified fields string
+        modified_fields_str = ", ".join([f"{k}" for k, v in modified_fields.items()])
 
         for k, v in account_data.items():
             setattr(account, k, v)
 
+        event_message = f"Account {account.name} has been updated. Modified fields: {modified_fields_str}"
+
         # Add Audit log
         account_audit_log = AuditLog(
             event_datetime=server_now(),
-            event=f"User {current_user.username} edited account details of {account.name}",
+            event=event_message,
             active_user_id=current_user.id,
             active_user_name=current_user.username,
             affected_user_id=current_user.id,
