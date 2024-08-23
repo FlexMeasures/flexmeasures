@@ -309,13 +309,19 @@ def validate_color_hex(ctx, param, value):
     :param ctx:     Click context.
     :param param:   Click parameter. Hex value.
     """
+    if isinstance(param, str):
+        param_name = param
+    else:
+        param_name = param.name
+
     if value is None:
         return value
+
     hex_pattern = re.compile(r"^#?([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$")
     if re.match(hex_pattern, value):
         return value
     else:
-        raise click.BadParameter(f"{param.name} must be a valid hex color code.")
+        raise click.BadParameter(f"{param_name} must be a valid hex color code.")
 
 
 def validate_url(ctx, param, value):

@@ -1,4 +1,6 @@
 from __future__ import annotations
+import click
+
 from flask_classful import FlaskView, route
 from flexmeasures.data import db
 from webargs.flaskparser import use_kwargs, use_args
@@ -12,6 +14,7 @@ from flexmeasures.data.models.user import Account
 from flexmeasures.data.services.accounts import get_accounts, get_audit_log_records
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.data.schemas.account import AccountSchema
+from flexmeasures.cli.utils import validate_color_hex, validate_url
 from flexmeasures.utils.time_utils import server_now
 
 """
@@ -168,45 +171,66 @@ class AccountAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        # get existing consultancy_account_id
-        existing_consultancy_account_id: int | None = (
+
+        # Get existing consultancy_account_id
+        existing_consultancy_account_id = (
             account.consultancy_account.id if account.consultancy_account else None
         )
 
         if not user_has_admin_access(current_user, "update"):
-            # remove consultancy_account_id from account_data
-            account_data.pop("consultancy_account_id", existing_consultancy_account_id)
+            # Remove consultancy_account_id from account_data if no admin access
+            account_data.pop("consultancy_account_id", None)
         else:
-            # Check if the consultancy_account_id has changed
-            if existing_consultancy_account_id != account_data.get(
-                "consultancy_account_id"
-            ):
-                new_consultant_acccount: Account | None = db.session.query(Account).get(
-                    account_data.get("consultancy_account_id")
+            # Check if consultancy_account_id has changed
+            new_consultancy_account_id = account_data.get("consultancy_account_id")
+            if existing_consultancy_account_id != new_consultancy_account_id:
+                new_consultant_account = db.session.query(Account).get(
+                    new_consultancy_account_id
                 )
-                # check if new consultant account is valid or same as the current account
+                # Validate new consultant account
                 if (
-                    not new_consultant_acccount
-                    or new_consultant_acccount.id == account.id
+                    not new_consultant_account
+                    or new_consultant_account.id == account.id
                 ):
                     return {"errors": ["Invalid consultancy_account_id"]}, 422
 
+        # Validate color values
+        for color_name in ["primary_color", "secondary_color"]:
+            color_value = account_data.get(color_name)
+            if color_value:
+                try:
+                    result = validate_color_hex(None, "color", color_value)
+                    print(f"Valid {color_name}:", result)
+                except click.BadParameter as e:
+                    print(e)
+                    return {"errors": [f"Invalid {color_name}"]}, 400
+
+        # Validate logo_url
+        logo_url = account_data.get("logo_url")
+        if logo_url:
+            try:
+                result = validate_url(None, "logo_url", logo_url)
+                print("Valid logo_url:", result)
+            except click.BadParameter as e:
+                print(e)
+                return {"errors": ["Invalid logo_url"]}, 400
+
         # Track modified fields
-        modified_fields = {}
+        fields_to_check = [
+            "name",
+            "primary_color",
+            "secondary_color",
+            "logo_url",
+            "consultancy_account_id",
+        ]
+        modified_fields = {
+            field: getattr(account, field)
+            for field in fields_to_check
+            if account_data.get(field) != getattr(account, field)
+        }
 
-        if account_data.get("name") != account.name:
-            modified_fields["name"] = account.name
-        if account_data.get("primary_color") != account.primary_color:
-            modified_fields["primary_color"] = account.primary_color
-        if account_data.get("secondary_color") != account.secondary_color:
-            modified_fields["secondary_color"] = account.secondary_color
-        if account_data.get("logo_url") != account.logo_url:
-            modified_fields["logo_url"] = account.logo_url
-        if account_data.get("consultancy_account_id") != account.consultancy_account_id:
-            modified_fields["consultancy_account_id"] = account.consultancy_account_id
-
-        # compile modified fields string
-        modified_fields_str = ", ".join([f"{k}" for k, v in modified_fields.items()])
+        # Compile modified fields string
+        modified_fields_str = ", ".join(modified_fields.keys())
 
         for k, v in account_data.items():
             setattr(account, k, v)
