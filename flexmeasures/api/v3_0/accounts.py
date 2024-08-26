@@ -199,20 +199,16 @@ class AccountAPI(FlaskView):
             color_value = account_data.get(color_name)
             if color_value:
                 try:
-                    result = validate_color_hex(None, "color", color_value)
-                    print(f"Valid {color_name}:", result)
-                except click.BadParameter as e:
-                    print(e)
+                    validate_color_hex(None, "color", color_value)
+                except click.BadParameter:
                     return {"errors": [f"Invalid {color_name}"]}, 400
 
         # Validate logo_url
         logo_url = account_data.get("logo_url")
         if logo_url:
             try:
-                result = validate_url(None, "logo_url", logo_url)
-                print("Valid logo_url:", result)
-            except click.BadParameter as e:
-                print(e)
+                validate_url(None, "logo_url", logo_url)
+            except click.BadParameter:
                 return {"errors": ["Invalid logo_url"]}, 400
 
         # Track modified fields
