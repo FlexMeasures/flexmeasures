@@ -14,7 +14,7 @@ from flexmeasures.data.models.user import Account
 from flexmeasures.data.services.accounts import get_accounts, get_audit_log_records
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.data.schemas.account import AccountSchema
-from flexmeasures.cli.utils import validate_color_hex, validate_url
+from flexmeasures.utils.validation_utils import validate_color_hex, validate_url
 from flexmeasures.utils.time_utils import server_now
 
 """
