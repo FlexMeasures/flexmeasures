@@ -15,12 +15,25 @@ from flexmeasures.utils.unit_utils import (
 )
 
 
-def bar_chart(
+def create_bar_chart_or_histogram_specs(
     sensor: "Sensor",  # noqa F821
     event_starts_after: datetime | None = None,
     event_ends_before: datetime | None = None,
+    chart_type: str = "bar_chart",
     **override_chart_specs: dict,
 ):
+    """
+    This function generates the specifications required to visualize sensor data either as a bar chart or a histogram.
+    The chart type (bar_chart or histogram) can be specified, and various field definitions are set up based on the sensor attributes and
+    event time range. The resulting specifications can be customized further through additional keyword arguments.
+
+    The function handles the following:
+    - Determines unit and formats for the sensor data.
+    - Configures event value and event start field definitions.
+    - Sets the appropriate mark type and interpolation based on sensor attributes.
+    - Defines chart specifications for both bar charts and histograms, including titles, axis configurations, and tooltips.
+    - Merges any additional specifications provided through keyword arguments into the final chart specifications.
+    """
     unit = sensor.unit if sensor.unit else "a.u."
     event_value_field_definition = dict(
         title=f"{capitalize(sensor.sensor_type)} ({unit})",
@@ -50,9 +63,23 @@ def bar_chart(
     if sensor.event_resolution == timedelta(0) and sensor.has_attribute("interpolate"):
         mark_type = "area"
         mark_interpolate = sensor.get_attribute("interpolate")
+    if chart_type == "histogram":
+        description = "A histogram showing the distribution of sensor data."
+        x = {
+            **event_value_field_definition,
+            "bin": True,
+        }
+        y = {
+            "aggregate": "count",
+            "title": "Count",
+        }
+    else:
+        description = (f"A simple {mark_type} chart showing sensor data.",)
+        x = event_start_field_definition
+        y = event_value_field_definition
+
     chart_specs = {
-        "description": f"A simple {mark_type} chart showing sensor data.",
-        # the sensor type is already shown as the y-axis title (avoid redundant info)
+        "description": description,
         "title": capitalize(sensor.name) if sensor.name != sensor.sensor_type else None,
         "layer": [
             {
@@ -63,13 +90,15 @@ def bar_chart(
                     "width": {"band": 0.999},
                 },
                 "encoding": {
-                    "x": event_start_field_definition,
-                    "y": event_value_field_definition,
+                    "x": x,
+                    "y": y,
                     "color": FIELD_DEFINITIONS["source_name"],
                     "detail": FIELD_DEFINITIONS["source"],
                     "opacity": {"value": 0.7},
                     "tooltip": [
-                        FIELD_DEFINITIONS["full_date"],
+                        FIELD_DEFINITIONS["full_date"]
+                        if chart_type != "histogram"
+                        else None,
                         {
                             **event_value_field_definition,
                             **dict(title=f"{capitalize(sensor.sensor_type)}"),
@@ -93,6 +122,48 @@ def bar_chart(
     }
     for k, v in override_chart_specs.items():
         chart_specs[k] = v
+    return chart_specs
+
+
+def histogram(
+    sensor: "Sensor",  # noqa F821
+    event_starts_after: datetime | None = None,
+    event_ends_before: datetime | None = None,
+    **override_chart_specs: dict,
+):
+    """
+    Generates specifications for a histogram chart using sensor data. This function leverages
+    the `create_bar_chart_or_histogram_specs` helper function, specifying `chart_type` as 'histogram'.
+    """
+
+    chart_type = "histogram"
+    chart_specs = create_bar_chart_or_histogram_specs(
+        sensor,
+        event_starts_after,
+        event_ends_before,
+        chart_type,
+        **override_chart_specs,
+    )
+    return chart_specs
+
+
+def bar_chart(
+    sensor: "Sensor",  # noqa F821
+    event_starts_after: datetime | None = None,
+    event_ends_before: datetime | None = None,
+    **override_chart_specs: dict,
+):
+    """
+    Generates specifications for a bar chart using sensor data. This function leverages
+    the `create_bar_chart_or_histogram_specs` helper function to create the specifications.
+    """
+
+    chart_specs = create_bar_chart_or_histogram_specs(
+        sensor,
+        event_starts_after,
+        event_ends_before,
+        **override_chart_specs,
+    )
     return chart_specs
 
 
