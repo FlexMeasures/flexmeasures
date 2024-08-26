@@ -32,80 +32,79 @@ Account overview {% endblock %} {% block divs %}
                   }})</small
                 >
 
-                <!-- AccountID field -->
                 <div class="form-group">
-                  <div class="col-md-3">
-                    <label for="consultant_account_id" class="control-label"
-                      >Consultant Account ID</label
-                    >
-                    <input
-                      type="text"
-                      class="form-control"
-                      id="consultant_account_id"
-                      name="account"
-                      value="{{ account.consultancy_account_id }}"
-                    />
+                  <div class="form-group">
+                    <div class="col-md-3">
+                      <label for="name" class="control-label">Name</label>
+                      <input
+                        type="text"
+                        class="form-control"
+                        id="name"
+                        name="name"
+                        value="{{ account.name }}"
+                        required
+                      />
+                    </div>
                   </div>
-                </div>
 
-                <!-- Name color field -->
-                <div class="form-group">
-                  <div class="col-md-3">
-                    <label for="name" class="control-label">Name</label>
-                    <input
-                      type="text"
-                      class="form-control"
-                      id="name"
-                      name="name"
-                      value="{{ account.name }}"
-                      required
-                    />
+                  <div class="form-group">
+                    <div class="col-md-3">
+                      <label for="primary_color" class="control-label"
+                        >Primary Color</label
+                      >
+                      <input
+                        type="text"
+                        class="form-control"
+                        id="primary_color"
+                        name="primary_color"
+                        value="{{ account.primary_color or primary_color }}"
+                      />
+                    </div>
                   </div>
-                </div>
 
-                <!-- Primary color field -->
-                <div class="form-group">
-                  <div class="col-md-3">
-                    <label for="primary_color" class="control-label"
-                      >Primary Color</label
-                    >
-                    <input
-                      type="text"
-                      class="form-control"
-                      id="primary_color"
-                      name="primary_color"
-                      value="{{ account.primary_color or primary_color }}"
-                    />
+                  <div class="form-group">
+                    <div class="col-md-3">
+                      <label for="secondary_color" class="control-label"
+                        >Secondary Color</label
+                      >
+                      <input
+                        type="text"
+                        class="form-control"
+                        id="secondary_color"
+                        name="secondary_color"
+                        value="{{ account.secondary_color or secondary_color }}"
+                      />
+                    </div>
                   </div>
-                </div>
 
-                <!-- Secondary color field -->
-                <div class="form-group">
-                  <div class="col-md-3">
-                    <label for="secondary_color" class="control-label"
-                      >Secondary Color</label
-                    >
-                    <input
-                      type="text"
-                      class="form-control"
-                      id="secondary_color"
-                      name="secondary_color"
-                      value="{{ account.secondary_color or secondary_color }}"
-                    />
+                  <div class="form-group">
+                    <div class="col-md-3">
+                      <label for="logo_url" class="control-label"
+                        >Logo URL</label
+                      >
+                      <input
+                        type="text"
+                        class="form-control"
+                        id="logo_url"
+                        name="logo_url"
+                        value="{{ account.logo_url or menu_logo }}"
+                      />
+                    </div>
                   </div>
-                </div>
 
-                <!-- Loo URL field -->
-                <div class="form-group">
-                  <div class="col-md-3">
-                    <label for="logo_url" class="control-label">Logo URL</label>
-                    <input
-                      type="text"
-                      class="form-control"
-                      id="logo_url"
-                      name="logo_url"
-                      value="{{ account.logo_url or menu_logo }}"
-                    />
+                  <div class="form-group">
+                    <div class="col-md-3">
+                      <label for="consultant_account_id" class="control-label"
+                        >Consultant Account</label
+                      >
+                      <input
+                        type="text"
+                        class="form-control"
+                        id="consultant_account_id"
+                        name="consultancy_account_id"
+                        value="{{ account.consultancy_account_id }}"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -304,42 +303,37 @@ Account overview {% endblock %} {% block divs %}
 {% block paginate_tables_script %} {{ super() }} {% endblock %}
 <script type="text/javascript">
   const basePath = window.location.origin;
+  const form = document.getElementById("editaccount");
 
   // Select the specific form with ID 'editaccount'
-  document
-    .querySelector("#editaccount")
-    .addEventListener("submit", function (event) {
-      event.preventDefault(); // Prevent the default form submission
+  form.addEventListener("submit", function (event) {
+    event.preventDefault(); // Prevent the default form submission
 
-      // Collect form data
-      const formData = {
-        name: document.getElementById("name").value,
-        primary_color: document.getElementById("primary_color").value,
-        secondary_color: document.getElementById("secondary_color").value,
-        consultancy_account_id: document.getElementById("consultant_account_id")
-          .value,
-        logo_url: document.getElementById("logo_url").value,
-      };
+    // Collect form data
+    const formData = new FormData(event.target);
+    console.log("jsondata: ", JSON.stringify(Object.fromEntries(formData)));
 
-      // Send data to the API using a PATCH request
-      fetch(basePath + "/api/v3_0/accounts/" + "{{account.id}}", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
+    // Send data to the API using a PATCH request
+    fetch(basePath + "/api/v3_0/accounts/" + "{{account.id}}", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(Object.fromEntries(formData)),
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        if (data.status == 200) {
+          alert("Form data updated successfully!");
+        } else {
+          console.log("Error:", data);
+          alert("Error: " + (data.errors[0] || "Failed to update."));
+        }
       })
-        .then((response) => response.json())
-        .then((data) => {
-          if (data.status == 200) {
-            alert("Form data updated successfully!");
-          } else {
-            alert("Error: " + (data.errors[0] || "Failed to update."));
-          }
-        })
-        .catch((error) => {
-          alert("An error occurred while updating the data.");
-        });
-    });
+      .catch((error) => {
+        console.log("Error:", error);
+        alert("An error occurred while updating the data.");
+      });
+  });
 </script>
 {% endblock %}
