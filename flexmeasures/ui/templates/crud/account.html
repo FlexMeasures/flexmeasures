@@ -92,6 +92,7 @@ Account overview {% endblock %} {% block divs %}
                     </div>
                   </div>
 
+                  {% if user_is_admin %}
                   <div class="form-group">
                     <div class="col-md-3">
                       <label for="consultant_account_id" class="control-label"
@@ -107,15 +108,12 @@ Account overview {% endblock %} {% block divs %}
                           value="{{ account.consultancy_account_id }}"
                           selected
                         >
-                          {% if account.consultancy_account_id %}
-                            {% for consultancy_account in accounts %}
-                              {% if consultancy_account.id == account.consultancy_account_id %}
-                                {{ consultancy_account.name }}
-                              {% endif %}
-                            {% endfor %}
-                          {% else %} 
-                            Select Account
-                          {% endif %}
+                          {% if account.consultancy_account_id %} {% for
+                          consultancy_account in accounts %} {% if
+                          consultancy_account.id ==
+                          account.consultancy_account_id %} {{
+                          consultancy_account.name }} {% endif %} {% endfor %}
+                          {% else %} Select Account {% endif %}
                         </option>
                         {% for account in accounts %}
                         <option value="{{ account.id }}">
@@ -125,6 +123,7 @@ Account overview {% endblock %} {% block divs %}
                       </select>
                     </div>
                   </div>
+                  {% endif %}
                 </div>
 
                 <button
@@ -146,6 +145,24 @@ Account overview {% endblock %} {% block divs %}
       </div>
     </div>
     <div class="col-md-8">
+      <div
+        id="toastcontainer"
+        class="toast align-items-center text-bg-primary border-0"
+        role="alert"
+        aria-live="assertive"
+        aria-atomic="true"
+      >
+        <div class="d-flex">
+          <div class="toast-body" id="toastbody"></div>
+          <button
+            type="button"
+            class="btn-close btn-close-white me-2 m-auto"
+            data-bs-dismiss="toast"
+            aria-label="Close"
+          ></button>
+        </div>
+      </div>
+
       <div class="card">
         <h3>Account</h3>
         <small>Account: {{ account.name }}</small>
@@ -323,8 +340,23 @@ Account overview {% endblock %} {% block divs %}
 <script type="text/javascript">
   const basePath = window.location.origin;
   const form = document.getElementById("editaccount");
+  const toastElement = document.getElementById("toastcontainer");
+  const toastDescription = document.getElementById("toastbody");
 
-  // Select the specific form with ID 'editaccount'
+  function showToast(message, type) {
+    var toastElList = [].slice.call(document.querySelectorAll(".toast"));
+    var toastList = toastElList.map(function (toastEl) {
+      return new bootstrap.Toast(toastEl);
+    });
+    toastList.forEach((toast) => toast.show());
+    toastDescription.innerHTML = message;
+    if (type == "error") {
+      toastElement.classList.add("text-bg-danger");
+    } else {
+      toastElement.classList.add("text-bg-success");
+    }
+  }
+
   form.addEventListener("submit", function (event) {
     event.preventDefault(); // Prevent the default form submission
 
@@ -346,13 +378,16 @@ Account overview {% endblock %} {% block divs %}
       .then((response) => response.json())
       .then((data) => {
         if (data.status == 200) {
-          alert("Form data updated successfully!");
+          showToast("Form data updated successfully!", "success");
         } else {
-          alert("Error: " + (data.errors[0] || "Failed to update."));
+          showToast(
+            "Error: " + (data.errors[0] || "Failed to update."),
+            "error"
+          );
         }
       })
       .catch((error) => {
-        alert("An error occurred while updating the data.");
+        showToast("An error occurred while updating the data.", "error");
       });
   });
 </script>
