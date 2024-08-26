@@ -295,13 +295,6 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
             return self._deserialize_str(value)
         elif isinstance(value, numbers.Real) and self.default_src_unit is not None:
             return self._deserialize_numeric(value, attr, obj, **kwargs)
-        elif isinstance(value, Sensor):
-            sensor = value
-            if not units_are_convertible(sensor.unit, str(self.to_unit.units)):
-                raise FMValidationError(
-                    f"Cannot convert {sensor.unit} to {self.to_unit.units}"
-                )
-            return sensor
         else:
             raise FMValidationError(
                 f"Unsupported value type. `{type(value)}` was provided but only dict, list and str are supported."
