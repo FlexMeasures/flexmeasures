@@ -367,7 +367,7 @@ Account overview {% endblock %} {% block divs %}
       formData.delete("consultancy_account_id");
     }
 
-    // Send data to the API using a PATCH request
+    // Make a PATCH request to the API
     fetch(basePath + "/api/v3_0/accounts/" + "{{account.id}}", {
       method: "PATCH",
       headers: {
