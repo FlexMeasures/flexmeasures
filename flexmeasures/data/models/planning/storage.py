@@ -250,7 +250,7 @@ class MetaStorageScheduler(Scheduler):
 
             # Set up commitments DataFrame
             commitment = build_commitment(
-                quantity=ems_peak_production,
+                quantity=-ems_peak_production,  # production is negative quantity
                 # negative price because peaking in the downwards (production) direction is penalized
                 down_price=-ems_peak_production_price,
                 _type="any",
