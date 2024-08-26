@@ -7,6 +7,7 @@ from __future__ import annotations
 from typing import Any
 from datetime import datetime, timedelta
 
+import re
 import click
 import pytz
 from click_default_group import DefaultGroup
@@ -154,7 +155,7 @@ def get_timerange_from_flag(
     last_7_days: bool = False,
     last_month: bool = False,
     last_year: bool = False,
-    timezone: pytz.BaseTzInfo = get_timezone(),
+    timezone: pytz.BaseTzInfo | None = None,
 ) -> tuple[datetime, datetime]:
     """This function returns a time range [start,end] of the last-X period.
     See input parameters for more details.
@@ -167,6 +168,9 @@ def get_timerange_from_flag(
     :param timezone: timezone object to represent
     :returns: start:datetime, end:datetime
     """
+
+    if timezone is None:
+        timezone = get_timezone()
 
     current_hour = get_most_recent_hour().astimezone(timezone)
 
@@ -298,3 +302,20 @@ def get_sensor_aliases(
     }
 
     return aliases
+
+
+def validate_color_hex(ctx, param, value):
+    """
+    Validates that a given value is a valid hex color code.
+
+    Parameters:
+    :param ctx:     Click context.
+    :param param:   Click parameter. Hex value.
+    """
+    if value is None:
+        return value
+    hex_pattern = re.compile(r"^#?([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$")
+    if re.match(hex_pattern, value):
+        return value
+    else:
+        raise click.BadParameter(f"{param.name} must be a valid hex color code.")
