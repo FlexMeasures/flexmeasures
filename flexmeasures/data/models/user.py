@@ -64,6 +64,7 @@ class Account(db.Model, AuthModelMixin):
     )
     primary_color = Column(String(7), default=None)
     secondary_color = Column(String(7), default=None)
+    logo_url = Column(String(255), default=None)
     annotations = db.relationship(
         "Annotation",
         secondary="annotations_accounts",
