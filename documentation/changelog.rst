@@ -9,6 +9,7 @@ v0.23.0 | August XX, 2024
 
 New features
 -------------
+* New chart type on sensor page: histogram [see `PR #1143 <https://github.com/FlexMeasures/flexmeasures/pull/1143>`_]
 * Add basic sensor info to sensor page [see `PR #1115 <https://github.com/FlexMeasures/flexmeasures/pull/1115>`_]
 * Support zoom-in action on the asset and sensor charts [see `PR #1130 <https://github.com/FlexMeasures/flexmeasures/pull/1130>`_]
 * Added Primary and Secondary colors to account for white-labelled UI themes [see `PR #1137 <https://github.com/FlexMeasures/flexmeasures/pull/1137>`_]
