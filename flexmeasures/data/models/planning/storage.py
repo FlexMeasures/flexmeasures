@@ -508,13 +508,6 @@ class MetaStorageScheduler(Scheduler):
         if self.flex_model.get("soc") is None:
             self.flex_model["soc"] = "0 MWh"
 
-        # soc-unit
-        if "soc-unit" not in self.flex_model or self.flex_model["soc-unit"] is None:
-            if self.sensor.unit in ("MWh", "kWh"):
-                self.flex_model["soc-unit"] = self.sensor.unit
-            elif self.sensor.unit in ("MW", "kW"):
-                self.flex_model["soc-unit"] = self.sensor.unit + "h"
-
         self.ensure_soc_min_max()
 
         # Now it's time to check if our flex configuration holds up to schemas
