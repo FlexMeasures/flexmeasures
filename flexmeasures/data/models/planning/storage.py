@@ -210,7 +210,7 @@ class MetaStorageScheduler(Scheduler):
         # Set up peak commitments
         if self.flex_context.get("ems_peak_consumption_price", None) is not None:
             ems_peak_consumption = get_continuous_series_sensor_or_quantity(
-                quantity_or_sensor=self.flex_context.get("ems_peak_consumption_in_mw"),
+                variable_quantity=self.flex_context.get("ems_peak_consumption_in_mw"),
                 actuator=sensor,
                 unit="MW",
                 query_window=(start, end),
@@ -233,7 +233,7 @@ class MetaStorageScheduler(Scheduler):
             commitments.append(commitment)
         if self.flex_context.get("ems_peak_production_price", None) is not None:
             ems_peak_production = get_continuous_series_sensor_or_quantity(
-                quantity_or_sensor=self.flex_context.get("ems_peak_production_in_mw"),
+                variable_quantity=self.flex_context.get("ems_peak_production_in_mw"),
                 actuator=sensor,
                 unit="MW",
                 query_window=(start, end),
