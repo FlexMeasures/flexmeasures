@@ -333,6 +333,9 @@ def validate_url(ctx, param, value):
     :param param:   Click parameter. URL value.
     :param value:   The URL to validate.
     """
+    if value is None:
+        return value
+
     url_regex = re.compile(
         r"^(https?|ftp)://"  # Protocol: http, https, or ftp
         r"((([A-Za-z0-9-]+\.)+[A-Za-z]{2,6})|"  # Domain name
