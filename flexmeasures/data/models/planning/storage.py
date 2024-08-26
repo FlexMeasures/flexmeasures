@@ -16,6 +16,7 @@ from flexmeasures.data.models.planning.linear_optimization import device_schedul
 from flexmeasures.data.models.planning.utils import (
     get_prices,
     add_tiny_price_slope,
+    initialize_index,
     initialize_series,
     initialize_df,
     get_power_values,
@@ -187,6 +188,7 @@ class MetaStorageScheduler(Scheduler):
         # Set up commitments to optimise for
         commitments = []
 
+        index = initialize_index(start, end, self.resolution)
         commitment_quantities = initialize_series(0, start, end, self.resolution)
 
         # Todo: convert to EUR/(deviation of commitment, which is in MW)
@@ -198,13 +200,12 @@ class MetaStorageScheduler(Scheduler):
         ]["event_value"]
 
         # Set up commitments DataFrame
-        commitment = initialize_df([], start, end, self.resolution)
-        commitment["quantity"] = commitment_quantities
-        commitment["upwards deviation price"] = commitment_upwards_deviation_price
-        commitment["downwards deviation price"] = commitment_downwards_deviation_price
-        commitment["group"] = list(
-            range(len(commitment_quantities))
-        )  # add each time step to their own group
+        commitment = build_commitment(
+            quantity=commitment_quantities,
+            up_price=commitment_upwards_deviation_price,
+            down_price=commitment_downwards_deviation_price,
+            index=index,
+        )
         commitments.append(commitment)
 
         # Set up peak commitments
@@ -224,12 +225,13 @@ class MetaStorageScheduler(Scheduler):
             )
 
             # Set up commitments DataFrame
-            commitment = initialize_df([], start, end, self.resolution)
-            commitment["quantity"] = ems_peak_consumption
-            # positive price because breaching in the upwards (consumption) direction is penalized
-            commitment["upwards deviation price"] = ems_peak_consumption_price
-            commitment["downwards deviation price"] = 0
-            commitment["group"] = 0  # add all time steps to the same group
+            commitment = build_commitment(
+                quantity=ems_peak_consumption,
+                # positive price because breaching in the upwards (consumption) direction is penalized
+                up_price=ems_peak_consumption_price,
+                _type="any",
+                index=index,
+            )
             commitments.append(commitment)
         if self.flex_context.get("ems_peak_production_price", None) is not None:
             ems_peak_production = get_continuous_series_sensor_or_quantity(
@@ -245,13 +247,15 @@ class MetaStorageScheduler(Scheduler):
             ems_peak_production_price = self.flex_context.get(
                 "ems_peak_production_price"
             )
+
             # Set up commitments DataFrame
-            commitment = initialize_df([], start, end, self.resolution)
-            commitment["quantity"] = ems_peak_production
-            commitment["upwards deviation price"] = 0
-            # negative price because peaking in the downwards (production) direction is penalized
-            commitment["downwards deviation price"] = -ems_peak_production_price
-            commitment["group"] = 0  # add all time steps to the same group
+            commitment = build_commitment(
+                quantity=ems_peak_production,
+                # negative price because peaking in the downwards (production) direction is penalized
+                down_price=-ems_peak_production_price,
+                _type="any",
+                index=index,
+            )
             commitments.append(commitment)
 
         # Set up capacity breach commitments
@@ -264,46 +268,44 @@ class MetaStorageScheduler(Scheduler):
         if ems_consumption_breach_price is not None:
             quantity = self.flex_context.get("ems_consumption_capacity_in_mw")
 
-            # Set up commitments DataFrame to penalize any breach (via 1 group)
-            commitment = initialize_df([], start, end, self.resolution)
-            commitment["quantity"] = quantity
-            # positive price because breaching in the upwards (consumption) direction is penalized
-            commitment["upwards deviation price"] = ems_consumption_breach_price
-            commitment["downwards deviation price"] = 0
-            commitment["group"] = 0  # add all time steps to the same group
+            # Set up commitments DataFrame to penalize any breach
+            commitment = build_commitment(
+                quantity=quantity,
+                # positive price because breaching in the upwards (consumption) direction is penalized
+                up_price=ems_consumption_breach_price,
+                _type="any",
+                index=index,
+            )
             commitments.append(commitment)
 
-            # Set up commitments DataFrame to penalize each breach (via n groups)
-            commitment = initialize_df([], start, end, self.resolution)
-            commitment["quantity"] = quantity
-            # positive price because breaching in the upwards (consumption) direction is penalized
-            commitment["upwards deviation price"] = ems_consumption_breach_price
-            commitment["downwards deviation price"] = 0
-            commitment["group"] = list(
-                range(len(commitment))
-            )  # add each time step to their own group
+            # Set up commitments DataFrame to penalize each breach
+            commitment = build_commitment(
+                quantity=quantity,
+                # positive price because breaching in the upwards (consumption) direction is penalized
+                up_price=ems_consumption_breach_price,
+                index=index,
+            )
             commitments.append(commitment)
         if ems_production_breach_price is not None:
             quantity = self.flex_context.get("ems_production_capacity_in_mw")
 
-            # Set up commitments DataFrame to penalize any breach (via 1 group)
-            commitment = initialize_df([], start, end, self.resolution)
-            commitment["quantity"] = quantity
-            # negative price because breaching in the downwards (production) direction is penalized
-            commitment["downwards deviation price"] = -ems_production_breach_price
-            commitment["upwards deviation price"] = 0
-            commitment["group"] = 0  # add all time steps to the same group
+            # Set up commitments DataFrame to penalize any breach
+            commitment = build_commitment(
+                quantity=quantity,
+                # positive price because breaching in the upwards (consumption) direction is penalized
+                down_price=-ems_production_breach_price,
+                _type="any",
+                index=index,
+            )
             commitments.append(commitment)
 
-            # Set up commitments DataFrame to penalize each breach (via n groups)
-            commitment = initialize_df([], start, end, self.resolution)
-            commitment["quantity"] = quantity
-            # negative price because breaching in the downwards (production) direction is penalized
-            commitment["downwards deviation price"] = -ems_production_breach_price
-            commitment["upwards deviation price"] = 0
-            commitment["group"] = list(
-                range(len(commitment))
-            )  # add each time step to their own group
+            # Set up commitments DataFrame to penalize each breach
+            commitment = build_commitment(
+                quantity=quantity,
+                # positive price because breaching in the upwards (consumption) direction is penalized
+                down_price=-ems_production_breach_price,
+                index=index,
+            )
             commitments.append(commitment)
 
         # Set up device constraints: only one scheduled flexible device for this EMS (at index 0), plus the forecasted inflexible devices (at indices 1 to n).
@@ -817,6 +819,31 @@ def create_constraint_violations_message(constraint_violations: list) -> str:
         message = message[:-1]
 
     return message
+
+
+def build_commitment(
+    quantity: pd.Series,
+    index: pd.DatetimeIndex,
+    up_price: float = 0,
+    down_price: float = 0,
+    _type="each",
+) -> pd.DataFrame:
+    """
+    :param _type: 'any' or 'each'. Any deviation is penalized via 1 group, whereas each deviation is penalized via n groups.
+    """
+    commitment = pd.DataFrame(index=index, columns=[])
+    commitment["quantity"] = quantity
+    commitment["upwards deviation price"] = up_price
+    commitment["downwards deviation price"] = down_price
+    if _type == "any":
+        # add all time steps to the same group
+        commitment["group"] = 0
+    elif _type == "each":
+        # add each time step to their own group
+        commitment["group"] = list(range(len(quantity)))
+    else:
+        raise ValueError(f'Commitment `_type` must be "any" or "each".')
+    return commitment
 
 
 def build_device_soc_values(
