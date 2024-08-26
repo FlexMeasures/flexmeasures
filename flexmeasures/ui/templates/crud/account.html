@@ -103,7 +103,20 @@ Account overview {% endblock %} {% block divs %}
                         id="consultant_account_id"
                         name="consultancy_account_id"
                       >
-                        <option selected>Select Account</option>
+                        <option
+                          value="{{ account.consultancy_account_id }}"
+                          selected
+                        >
+                          {% if account.consultancy_account_id %}
+                            {% for consultancy_account in accounts %}
+                              {% if consultancy_account.id == account.consultancy_account_id %}
+                                {{ consultancy_account.name }}
+                              {% endif %}
+                            {% endfor %}
+                          {% else %} 
+                            Select Account
+                          {% endif %}
+                        </option>
                         {% for account in accounts %}
                         <option value="{{ account.id }}">
                           {{ account.name }}
@@ -317,7 +330,10 @@ Account overview {% endblock %} {% block divs %}
 
     // Collect form data
     const formData = new FormData(event.target);
-    console.log("jsondata: ", JSON.stringify(Object.fromEntries(formData)));
+    //check if consultancy acccount is None to exempt it from the form data
+    if (formData.get("consultancy_account_id") == "None") {
+      formData.delete("consultancy_account_id");
+    }
 
     // Send data to the API using a PATCH request
     fetch(basePath + "/api/v3_0/accounts/" + "{{account.id}}", {
@@ -332,12 +348,10 @@ Account overview {% endblock %} {% block divs %}
         if (data.status == 200) {
           alert("Form data updated successfully!");
         } else {
-          console.log("Error:", data);
           alert("Error: " + (data.errors[0] || "Failed to update."));
         }
       })
       .catch((error) => {
-        console.log("Error:", error);
         alert("An error occurred while updating the data.");
       });
   });
