@@ -840,7 +840,7 @@ def build_commitment(
         # add each time step to their own group
         commitment["group"] = list(range(len(quantity)))
     else:
-        raise ValueError(f'Commitment `_type` must be "any" or "each".')
+        raise ValueError('Commitment `_type` must be "any" or "each".')
     return commitment
 
 
