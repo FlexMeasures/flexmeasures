@@ -63,6 +63,7 @@ def create_bar_chart_or_histogram_specs(
     if sensor.event_resolution == timedelta(0) and sensor.has_attribute("interpolate"):
         mark_type = "area"
         mark_interpolate = sensor.get_attribute("interpolate")
+    replay_ruler = REPLAY_RULER.copy()
     if chart_type == "histogram":
         description = "A histogram showing the distribution of sensor data."
         x = {
@@ -72,6 +73,13 @@ def create_bar_chart_or_histogram_specs(
         y = {
             "aggregate": "count",
             "title": "Count",
+        }
+        replay_ruler["encoding"] = {
+            "detail": {
+                "field": "belief_time",
+                "type": "temporal",
+                "title": None,
+            },
         }
     else:
         description = (f"A simple {mark_type} chart showing sensor data.",)
@@ -117,7 +125,7 @@ def create_bar_chart_or_histogram_specs(
                     "scroll": {"type": "interval", "bind": "scales", "encodings": ["x"]}
                 },
             },
-            REPLAY_RULER,
+            replay_ruler,
         ],
     }
     for k, v in override_chart_specs.items():
