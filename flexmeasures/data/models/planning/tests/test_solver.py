@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 import pytest
@@ -1025,7 +1027,7 @@ def test_infeasible_problem_error(db, add_battery_assets):
 class BatterySensors:
     price: Sensor
     power: Sensor
-    soc: Sensor
+    soc: Sensor | None
 
 
 def get_sensors_from_db(
@@ -1040,9 +1042,12 @@ def get_sensors_from_db(
     battery_power = [
         s for s in battery_assets[battery_name].sensors if s.name == power_sensor_name
     ][0]
-    battery_soc = [
-        s for s in battery_assets[battery_name].sensors if s.name == soc_sensor_name
-    ][0]
+    if any([s.name == soc_sensor_name for s in battery_assets[battery_name].sensors]):
+        battery_soc = [
+            s for s in battery_assets[battery_name].sensors if s.name == soc_sensor_name
+        ][0]
+    else:
+        battery_soc = None
     assert battery_power.get_attribute("market_id") == epex_da.id
 
     return BatterySensors(price=epex_da, power=battery_power, soc=battery_soc)
