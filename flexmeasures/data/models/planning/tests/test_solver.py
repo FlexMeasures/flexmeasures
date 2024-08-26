@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 import pytest
 import pytz
@@ -71,9 +72,9 @@ def test_battery_solver_day_1(
     battery_name,
     db,
 ):
-    epex_da, battery = get_sensors_from_db(
+    battery = get_sensors_from_db(
         db, add_battery_assets, battery_name=battery_name
-    )
+    ).power
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 1))
     end = tz.localize(datetime(2015, 1, 2))
@@ -123,7 +124,7 @@ def test_battery_solver_day_2(
     and so we expect the scheduler to only:
     - completely discharge within the last 8 hours
     """
-    _epex_da, battery = get_sensors_from_db(db, add_battery_assets)
+    battery = get_sensors_from_db(db, add_battery_assets).power
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 2))
     end = tz.localize(datetime(2015, 1, 3))
@@ -666,7 +667,7 @@ def test_soc_bounds_timeseries(db, add_battery_assets):
     """
 
     # get the sensors from the database
-    epex_da, battery = get_sensors_from_db(db, add_battery_assets)
+    battery = get_sensors_from_db(db, add_battery_assets).power
 
     # time parameters
     tz = pytz.timezone("Europe/Amsterdam")
@@ -975,7 +976,7 @@ def test_infeasible_problem_error(db, add_battery_assets):
     """Try to create a schedule with infeasible constraints. soc-max is 4.5 and soc-target is 8.0"""
 
     # get the sensors from the database
-    _epex_da, battery = get_sensors_from_db(db, add_battery_assets)
+    battery = get_sensors_from_db(db, add_battery_assets).power
 
     # time parameters
     tz = pytz.timezone("Europe/Amsterdam")
@@ -1020,17 +1021,23 @@ def test_infeasible_problem_error(db, add_battery_assets):
         compute_schedule(flex_model)
 
 
+@dataclass
+class BatterySensors:
+    price: Sensor
+    power: Sensor
+
+
 def get_sensors_from_db(
     db, battery_assets, battery_name="Test battery", power_sensor_name="power"
 ):
     # get the sensors from the database
     epex_da = get_test_sensor(db)
-    battery = [
+    battery_power = [
         s for s in battery_assets[battery_name].sensors if s.name == power_sensor_name
     ][0]
-    assert battery.get_attribute("market_id") == epex_da.id
+    assert battery_power.get_attribute("market_id") == epex_da.id
 
-    return epex_da, battery
+    return BatterySensors(price=epex_da, power=battery_power)
 
 
 def test_numerical_errors(app_with_each_solver, setup_planning_test_data, db):
@@ -1504,9 +1511,9 @@ def test_battery_power_capacity_as_sensor(
     expected_site_production,
     expected_site_consumption,
 ):
-    epex_da, battery = get_sensors_from_db(
+    battery = get_sensors_from_db(
         db, add_battery_assets, battery_name=battery_name
-    )
+    ).power
 
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 2))
@@ -1569,9 +1576,9 @@ def test_battery_bothways_power_capacity_as_sensor(
     db, add_battery_assets, add_inflexible_device_forecasts, capacity_sensors
 ):
     """Check that the charging and discharging power capacities are limited by the power capacity."""
-    epex_da, battery = get_sensors_from_db(
+    battery = get_sensors_from_db(
         db, add_battery_assets, battery_name="Test battery"
-    )
+    ).power
 
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 2))
@@ -1611,7 +1618,7 @@ def test_battery_bothways_power_capacity_as_sensor(
 def get_efficiency_problem_device_constraints(
     extra_flex_model, efficiency_sensors, add_battery_assets, db
 ) -> pd.DataFrame:
-    _, battery = get_sensors_from_db(db, add_battery_assets)
+    battery = get_sensors_from_db(db, add_battery_assets).power
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 1))
     end = tz.localize(datetime(2015, 1, 2))
@@ -1691,7 +1698,7 @@ def test_battery_stock_delta_sensor(
     With these settings, the battery needs to charge at a power or greater than the usage forecast
     to keep the SOC within bounds ([0, 2 MWh]).
     """
-    _, battery = get_sensors_from_db(db, add_battery_assets)
+    battery = get_sensors_from_db(db, add_battery_assets).power
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 1))
     end = tz.localize(datetime(2015, 1, 2))
@@ -1742,7 +1749,7 @@ def test_battery_stock_delta_quantity(
     We expect a constant gain/usage to happen in every time period equal to the energy
     value provided.
     """
-    _, battery = get_sensors_from_db(db, add_battery_assets)
+    battery = get_sensors_from_db(db, add_battery_assets).power
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 1))
     end = tz.localize(datetime(2015, 1, 2))
@@ -1800,7 +1807,7 @@ def test_battery_efficiency_quantity(
     case where the efficiency is not defined.
     """
 
-    _, battery = get_sensors_from_db(db, add_battery_assets)
+    battery = get_sensors_from_db(db, add_battery_assets).power
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 1))
     end = tz.localize(datetime(2015, 1, 2))
@@ -1856,7 +1863,7 @@ def test_battery_storage_efficiency_sensor(
     It checks if the scheduler correctly handles regular values, values exceeding 100%, negative values,
     and values with different resolutions compared to the scheduling resolution.
     """
-    _, battery = get_sensors_from_db(db, add_battery_assets)
+    battery = get_sensors_from_db(db, add_battery_assets).power
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 1))
     end = tz.localize(datetime(2015, 1, 2))
@@ -1936,7 +1943,7 @@ def test_add_storage_constraint_from_sensor(
     """
     Test the handling of different values for the target SOC constraints as sensors in the StorageScheduler.
     """
-    _, battery = get_sensors_from_db(db, add_battery_assets)
+    battery = get_sensors_from_db(db, add_battery_assets).power
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 1))
     end = tz.localize(datetime(2015, 1, 2))
@@ -2078,12 +2085,12 @@ def test_battery_storage_different_units(
         soc_max = soc_max.to(soc_unit).magnitude
         soc_at_start = soc_at_start.to(soc_unit).magnitude
 
-    epex_da, battery = get_sensors_from_db(
+    battery = get_sensors_from_db(
         db,
         add_battery_assets,
         battery_name="Test battery",
         power_sensor_name=power_sensor_name,
-    )
+    ).power
     tz = pytz.timezone("Europe/Amsterdam")
 
     # transition from cheap to expensive (90 -> 100)
@@ -2192,12 +2199,12 @@ def test_battery_storage_with_time_series_in_flex_model(
     soc_max = "1 MWh"
     soc_at_start = "100 kWh"
 
-    epex_da, battery = get_sensors_from_db(
+    battery = get_sensors_from_db(
         db,
         add_battery_assets,
         battery_name="Test battery",
         power_sensor_name="power",
-    )
+    ).power
     tz = pytz.timezone("Europe/Amsterdam")
 
     # transition from cheap to expensive (90 -> 100)
