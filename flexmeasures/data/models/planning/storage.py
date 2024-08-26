@@ -217,9 +217,8 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
+                max_value=np.inf,  # np.nan -> np.inf to ignore commitment if no quantity is given
             )
-            # ignore peak commitment, or todo: consider fillna(0) to take into account commitment by default
-            ems_peak_consumption = ems_peak_consumption.fillna(np.inf)
             ems_peak_consumption_price = self.flex_context.get(
                 "ems_peak_consumption_price"
             )
@@ -241,9 +240,8 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
+                max_value=np.inf,  # np.nan -> np.inf to ignore commitment if no quantity is given
             )
-            # ignore peak commitment, or todo: consider fillna(0) to take into account commitment by default
-            ems_peak_production = ems_peak_production.fillna(np.inf)
             ems_peak_production_price = self.flex_context.get(
                 "ems_peak_production_price"
             )
