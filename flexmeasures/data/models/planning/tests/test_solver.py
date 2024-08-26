@@ -2228,6 +2228,155 @@ def test_battery_storage_with_time_series_in_flex_model(
         assert schedule[4:].sum() * 0.25 == pytest.approx(-0.85)
 
 
+def test_unavoidable_capacity_breach():
+    """Check our ability to limit a capacity breach.
+
+    We want to check two behaviours:
+    1) The breach should be as small as possible (i.e. flattened from the top).
+    2) The breach should not be repeated if that can be avoided (i.e. no taking advantage of created slacks).
+    """
+    start = pd.Timestamp("2020-01-01T00:00:00+01")
+    end = pd.Timestamp("2020-01-02T00:00:00+01")
+    resolution = timedelta(hours=1)
+    soc_at_start = 0.4
+    soc_max = 1
+    soc_min = 0
+    power_capacity = 0.1
+
+    # This target means we must breach the consumption capacity (from 0.1 to 0.2)
+    soc_target = 0.6
+    soc_target_datetime = pd.Timestamp("2020-01-01T01:00:00+01")
+
+    device_constraints = [
+        initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
+    ]
+    ems_constraints = initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
+    empty_commitment = initialize_df(
+        [
+            "quantity",
+            "downwards deviation price",
+            "upwards deviation price",
+            "group",
+        ],
+        start,
+        end,
+        resolution,
+    )
+    commitments = []
+    commitments.append(empty_commitment.copy())
+
+    device_constraints[0]["max"] = soc_max - soc_at_start
+    device_constraints[0]["min"] = soc_min - soc_at_start
+    device_constraints[0]["derivative max"] = 1
+    device_constraints[0]["derivative min"] = -1
+
+    slope = np.arange(0, len(commitments[0])) / (len(commitments[0]) - 1)
+
+    # Introduce an amazing chance to consume without costs
+    slope[10] = -100
+
+    # Day Ahead market commitment
+    commitments[0]["quantity"] = 0
+    commitments[0]["downwards deviation price"] = 90 + slope
+    commitments[0]["upwards deviation price"] = 100 + slope
+    commitments[0]["group"] = list(range(len(commitments[0])))
+
+    # Consumption Capacity Breach Commitment (1 group, so penalized once)
+    commitments.append(empty_commitment.copy())
+    commitments[-1]["quantity"] = power_capacity
+    # positive price because breaching in the upwards (consumption) direction is penalized
+    commitments[-1]["upwards deviation price"] = 1000
+    # todo: also allow None values to model a one-sided commitment
+    commitments[-1]["downwards deviation price"] = np.nan
+    commitments[-1]["group"] = 1
+
+    def run_scheduler(device_constraints):
+        _, _, results, model = device_scheduler(
+            device_constraints,
+            ems_constraints,
+            commitments=commitments,
+            initial_stock=soc_at_start,
+        )
+        print(results.solver.termination_condition)
+
+        schedule = initialize_series(
+            data=[model.ems_power[0, j].value for j in model.j],
+            start=start,
+            end=end,
+            resolution=resolution,
+        )
+        print(schedule)
+        return schedule, results
+
+    schedule, results = run_scheduler(device_constraints)
+
+    # Discharge the whole battery, right at the end
+    assert np.isclose(sum(schedule), -0.4)
+    assert np.isclose(schedule.values[-1], -0.5)
+    # Take advantage of the free consumption
+    assert np.isclose(schedule.values[10], 0.1)
+    # Do nothing otherwise
+    assert all(np.isclose(schedule.values[:10], 0))
+    assert all(np.isclose(schedule.values[11:-1], 0))
+
+    targets = initialize_series(None, start, end, resolution)
+    targets[soc_target_datetime] = soc_target
+    # device_constraints[0]["equals"] = targets - soc_at_start
+
+    # Convert SoC datetimes to periods with a start and end.
+    soc_values = [{"datetime": soc_target_datetime, "value": soc_target}]
+    for soc in soc_values:
+        TimedEventSchema().check_time_window(soc)
+    device_constraints[0]["equals"] = build_device_soc_values(
+        soc_values=soc_values,
+        soc_at_start=soc_at_start,
+        start_of_schedule=start,
+        end_of_schedule=end,
+        resolution=resolution,
+    )
+
+    schedule, results = run_scheduler(device_constraints)
+
+    # Discharge the whole battery
+    assert np.isclose(max(schedule), 0.2)  # this is the breach
+    # the breach should happen twice:
+    # - once for reaching the SoC target, and
+    # - once for exploiting the slack that was created for reaching the SoC target
+    assert len(schedule[np.isclose(schedule, 0.2)]) == 2
+    assert np.isclose(sum(schedule), -0.4)
+    # Reach the target (from 0.4 to 0.6)
+    assert np.isclose(schedule.values[0], 0.2)
+    # Take (too much) advantage of the free consumption
+    assert np.isclose(schedule.values[10], 0.2)
+    # Do nothing otherwise
+    assert all(np.isclose(schedule.values[1:10], 0))
+    assert all(np.isclose(schedule.values[11:-1], 0))
+
+    # Consumption Capacity Breach Commitment (n groups, so penalized with every breach)
+    commitments.append(empty_commitment.copy())
+    commitments[-1]["quantity"] = power_capacity
+    # positive price because breaching in the upwards (consumption) direction is penalized
+    commitments[-1]["upwards deviation price"] = 1000
+    # todo: also allow None values to model a one-sided commitment
+    commitments[-1]["downwards deviation price"] = np.nan
+    commitments[-1]["group"] = list(range(len(commitments[0])))
+
+    schedule, results = run_scheduler(device_constraints)
+
+    # Discharge the whole battery
+    assert np.isclose(max(schedule), 0.2)  # this is the breach
+    # the breach should now happen only once, for reaching the SoC target
+    assert len(schedule[np.isclose(schedule, 0.2)]) == 1
+    assert np.isclose(sum(schedule), -0.4)
+    # Reach the target (from 0.4 to 0.6)
+    assert np.isclose(schedule.values[0], 0.2)
+    # Take advantage of the free consumption
+    assert np.isclose(schedule.values[10], 0.1)
+    # Do nothing otherwise
+    assert all(np.isclose(schedule.values[1:10], 0))
+    assert all(np.isclose(schedule.values[11:-1], 0))
+
+
 def test_multiple_commitments_per_group():
     """Check draining a battery while expanding the number of commitments:
 
@@ -2295,7 +2444,7 @@ def test_multiple_commitments_per_group():
 
     # Discharge the whole battery
     assert np.isclose(sum(schedule), -0.4)
-    assert all(np.isclose(schedule.values[-1:], [-0.4]))
+    assert np.isclose(schedule.values[-1], -0.4)
 
     # Production Capacity Breach Commitment
     commitments.append(empty_commitment.copy())

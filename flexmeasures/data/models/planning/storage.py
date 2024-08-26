@@ -264,7 +264,7 @@ class MetaStorageScheduler(Scheduler):
         if ems_consumption_breach_price is not None:
             quantity = self.flex_context.get("ems_consumption_capacity_in_mw")
 
-            # Set up commitments DataFrame
+            # Set up commitments DataFrame to penalize any breach (via 1 group)
             commitment = initialize_df([], start, end, self.resolution)
             commitment["quantity"] = quantity
             # positive price because breaching in the upwards (consumption) direction is penalized
@@ -272,16 +272,38 @@ class MetaStorageScheduler(Scheduler):
             commitment["downwards deviation price"] = 0
             commitment["group"] = 0  # add all time steps to the same group
             commitments.append(commitment)
+
+            # Set up commitments DataFrame to penalize each breach (via n groups)
+            commitment = initialize_df([], start, end, self.resolution)
+            commitment["quantity"] = quantity
+            # positive price because breaching in the upwards (consumption) direction is penalized
+            commitment["upwards deviation price"] = ems_consumption_breach_price
+            commitment["downwards deviation price"] = 0
+            commitment["group"] = list(
+                range(len(commitment))
+            )  # add each time step to their own group
+            commitments.append(commitment)
         if ems_production_breach_price is not None:
             quantity = self.flex_context.get("ems_production_capacity_in_mw")
 
-            # Set up commitments DataFrame
+            # Set up commitments DataFrame to penalize any breach (via 1 group)
             commitment = initialize_df([], start, end, self.resolution)
             commitment["quantity"] = quantity
             # negative price because breaching in the downwards (production) direction is penalized
             commitment["upwards deviation price"] = -ems_production_breach_price
             commitment["downwards deviation price"] = 0
             commitment["group"] = 0  # add all time steps to the same group
+            commitments.append(commitment)
+
+            # Set up commitments DataFrame to penalize each breach (via n groups)
+            commitment = initialize_df([], start, end, self.resolution)
+            commitment["quantity"] = quantity
+            # negative price because breaching in the downwards (production) direction is penalized
+            commitment["upwards deviation price"] = -ems_production_breach_price
+            commitment["downwards deviation price"] = 0
+            commitment["group"] = list(
+                range(len(commitment))
+            )  # add each time step to their own group
             commitments.append(commitment)
 
         # Set up device constraints: only one scheduled flexible device for this EMS (at index 0), plus the forecasted inflexible devices (at indices 1 to n).
