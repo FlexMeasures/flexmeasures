@@ -1,6 +1,7 @@
 from importlib_metadata import version, PackageNotFoundError
 
 from flexmeasures.data.models.annotations import Annotation
+from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.user import (
     Account,
     AccountRole,

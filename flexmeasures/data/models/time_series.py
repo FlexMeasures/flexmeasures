@@ -67,6 +67,11 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         backref=db.backref("sensors", lazy="dynamic"),
     )
 
+    def get_path(self, separator: str = ">"):
+        return (
+            f"{self.generic_asset.get_path(separator=separator)}{separator}{self.name}"
+        )
+
     def __init__(
         self,
         name: str,
@@ -311,11 +316,11 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         | None = None,
         most_recent_beliefs_only: bool = True,
         most_recent_events_only: bool = False,
-        most_recent_only: bool = None,  # deprecated
+        most_recent_only: bool = False,
         one_deterministic_belief_per_event: bool = False,
         one_deterministic_belief_per_event_per_source: bool = False,
-        resolution: str | timedelta = None,
         as_json: bool = False,
+        resolution: str | timedelta | None = None,
     ) -> tb.BeliefsDataFrame | str:
         """Search all beliefs about events for this sensor.
 
@@ -327,22 +332,16 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         :param beliefs_before: only return beliefs formed before this datetime (inclusive)
         :param horizons_at_least: only return beliefs with a belief horizon equal or greater than this timedelta (for example, use timedelta(0) to get ante knowledge time beliefs)
         :param horizons_at_most: only return beliefs with a belief horizon equal or less than this timedelta (for example, use timedelta(0) to get post knowledge time beliefs)
-        :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
-        :param most_recent_beliefs_only: only return the most recent beliefs for each event from each source (minimum belief horizon)
-        :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start)
+        :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources. Without this set and a most recent parameter used (see below), the results can be of any source.
+        :param most_recent_beliefs_only: only return the most recent beliefs for each event from each source (minimum belief horizon). Defaults to True.
+        :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start). Defaults to False.
+        :param most_recent_only: only return a single belief, the most recent from the most recent event. Fastest method if you only need one. Defaults to False. To use, also set most_recent_beliefs_only=False. Use with care when data uses cumulative probability (more than one belief per event_start and horizon).
         :param one_deterministic_belief_per_event: only return a single value per event (no probabilistic distribution and only 1 source)
         :param one_deterministic_belief_per_event_per_source: only return a single value per event per source (no probabilistic distribution)
         :param as_json: return beliefs in JSON format (e.g. for use in charts) rather than as BeliefsDataFrame
+        :param resolution: optionally set the resolution of data being displayed
         :returns: BeliefsDataFrame or JSON string (if as_json is True)
         """
-        # todo: deprecate the 'most_recent_only' argument in favor of 'most_recent_beliefs_only' (announced v0.8.0)
-        most_recent_beliefs_only = tb_utils.replace_deprecated_argument(
-            "most_recent_only",
-            most_recent_only,
-            "most_recent_beliefs_only",
-            most_recent_beliefs_only,
-            required_argument=False,
-        )
         bdf = TimedBelief.search(
             sensors=self,
             event_starts_after=event_starts_after,
@@ -354,6 +353,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             source=source,
             most_recent_beliefs_only=most_recent_beliefs_only,
             most_recent_events_only=most_recent_events_only,
+            most_recent_only=most_recent_only,
             one_deterministic_belief_per_event=one_deterministic_belief_per_event,
             one_deterministic_belief_per_event_per_source=one_deterministic_belief_per_event_per_source,
             resolution=resolution,
@@ -386,6 +386,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         include_asset_annotations: bool = False,
         include_account_annotations: bool = False,
         dataset_name: str | None = None,
+        resolution: str | timedelta | None = None,
         **kwargs,
     ) -> dict:
         """Create a vega-lite chart showing sensor data.
@@ -402,6 +403,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         :param include_asset_annotations: if True and include_data is True, include asset annotations in the chart, or if False, exclude them
         :param include_account_annotations: if True and include_data is True, include account annotations in the chart, or if False, exclude them
         :param dataset_name: optionally name the dataset used in the chart (the default name is sensor_<id>)
+        :param resolution: optionally set the resolution of data being displayed
         :returns: JSON string defining vega-lite chart specs
         """
 
@@ -433,6 +435,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
                 beliefs_before=beliefs_before,
                 most_recent_beliefs_only=most_recent_beliefs_only,
                 source=source,
+                resolution=resolution,
             )
 
             # Get annotations
@@ -542,6 +545,54 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
 
         return (self.id, self.attributes, self.generic_asset.attributes)
 
+    def search_data_sources(
+        self,
+        event_starts_after: datetime_type | None = None,
+        event_ends_after: datetime_type | None = None,
+        event_starts_before: datetime_type | None = None,
+        event_ends_before: datetime_type | None = None,
+        source_types: list[str] | None = None,
+        exclude_source_types: list[str] | None = None,
+    ) -> list[DataSource]:
+
+        q = select(DataSource).join(TimedBelief).filter(TimedBelief.sensor == self)
+
+        # todo: refactor to use apply_event_timing_filters from timely-beliefs
+        if event_starts_after:
+            q = q.filter(TimedBelief.event_start >= event_starts_after)
+
+        if not pd.isnull(event_ends_after):
+            if self.event_resolution == timedelta(0):
+                # inclusive
+                q = q.filter(TimedBelief.event_start >= event_ends_after)
+            else:
+                # exclusive
+                q = q.filter(
+                    TimedBelief.event_start > event_ends_after - self.event_resolution
+                )
+
+        if not pd.isnull(event_starts_before):
+            if self.event_resolution == timedelta(0):
+                # inclusive
+                q = q.filter(TimedBelief.event_start <= event_starts_before)
+            else:
+                # exclusive
+                q = q.filter(TimedBelief.event_start < event_starts_before)
+
+        if event_ends_before:
+            q = q.filter(
+                TimedBelief.event_start
+                <= pd.Timestamp(event_ends_before) - self.event_resolution
+            )
+
+        if source_types:
+            q = q.filter(DataSource.type.in_(source_types))
+
+        if exclude_source_types:
+            q = q.filter(DataSource.type.not_in(exclude_source_types))
+
+        return db.session.scalars(q).all()
+
 
 class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
     """A timed belief holds a precisely timed record of a belief about an event.
@@ -611,7 +662,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         exclude_source_types: list[str] | None = None,
         most_recent_beliefs_only: bool = True,
         most_recent_events_only: bool = False,
-        most_recent_only: bool = None,  # deprecated
+        most_recent_only: bool = False,
         one_deterministic_belief_per_event: bool = False,
         one_deterministic_belief_per_event_per_source: bool = False,
         resolution: str | timedelta = None,
@@ -632,8 +683,9 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         :param user_source_ids: Optional list of user source ids to query only specific user sources
         :param source_types: Optional list of source type names to query only specific source types *
         :param exclude_source_types: Optional list of source type names to exclude specific source types *
-        :param most_recent_beliefs_only: only return the most recent beliefs for each event from each source (minimum belief horizon)
+        :param most_recent_beliefs_only: only return the most recent beliefs for each event from each source (minimum belief horizon). Defaults to True.
         :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start)
+        :param most_recent_only: only return a single belief, the most recent from the most recent event. Fastest method if you only need one.
         :param one_deterministic_belief_per_event: only return a single value per event (no probabilistic distribution and only 1 source)
         :param one_deterministic_belief_per_event_per_source: only return a single value per event per source (no probabilistic distribution)
         :param resolution: Optional timedelta or pandas freqstr used to resample the results **
@@ -652,14 +704,6 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
             sensor,
             "sensors",
             sensors,
-        )
-        # todo: deprecate the 'most_recent_only' argument in favor of 'most_recent_beliefs_only' (announced v0.8.0)
-        most_recent_beliefs_only = tb_utils.replace_deprecated_argument(
-            "most_recent_only",
-            most_recent_only,
-            "most_recent_beliefs_only",
-            most_recent_beliefs_only,
-            required_argument=False,
         )
 
         # convert to list
@@ -695,6 +739,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 source=parsed_sources,
                 most_recent_beliefs_only=most_recent_beliefs_only,
                 most_recent_events_only=most_recent_events_only,
+                most_recent_only=most_recent_only,
                 custom_filter_criteria=source_criteria,
                 custom_join_targets=custom_join_targets,
             )
@@ -720,7 +765,8 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 else:
                     bdf = bdf.for_each_belief(get_median_belief)
 
-            if resolution is not None:
+            # NB resampling will be triggered if resolutions are not an exact match (also in case of str vs timedelta)
+            if resolution is not None and resolution != bdf.event_resolution:
                 bdf = bdf.resample_events(
                     resolution, keep_only_most_recent_belief=most_recent_beliefs_only
                 )

@@ -6,6 +6,8 @@ from sqlalchemy.ext.mutable import MutableDict
 
 import timely_beliefs as tb
 
+from packaging.version import Version
+
 from flexmeasures.data import db
 from flask import current_app
 import hashlib
@@ -363,3 +365,27 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
     def set_attribute(self, attribute: str, value):
         self.attributes[attribute] = value
+
+
+def keep_latest_version(data_sources: list[DataSource]) -> list[DataSource]:
+    """
+    Filters the given list of data sources to only include the latest version
+    of each unique combination of (name, type, and model).
+    """
+    sources = dict()
+
+    for source in data_sources:
+        key = (source.name, source.type, source.model)
+        if key not in sources:
+            sources[key] = source
+        else:
+            sources[key] = max(
+                [source, sources[key]],
+                key=lambda x: Version(x.version if x.version else "0.0.0"),
+            )
+
+    last_version_sources = []
+    for source in sources.values():
+        last_version_sources.append(source)
+
+    return last_version_sources

@@ -7,11 +7,13 @@ from __future__ import annotations
 from typing import Any
 from datetime import datetime, timedelta
 
+import re
 import click
 import pytz
 from click_default_group import DefaultGroup
 
 from flexmeasures.utils.time_utils import get_most_recent_hour, get_timezone
+from flexmeasures import Sensor
 
 
 class MsgStyle(object):
@@ -216,3 +218,101 @@ def abort(message: str):
 
 def done(message: str):
     click.secho(message, **MsgStyle.SUCCESS)
+
+
+def path_to_str(path: list, separator: str = ">") -> str:
+    """
+    Converts a list representing a path to a string format, using a specified separator.
+    """
+
+    return separator.join(path)
+
+
+def are_all_equal(paths: list[list[str]]) -> bool:
+    """
+    Checks if all given entity paths represent the same path.
+    """
+    return len(set(path_to_str(p) for p in paths)) == 1
+
+
+def reduce_entity_paths(asset_paths: list[list[str]]) -> list[list[str]]:
+    """
+    Simplifies a list of entity paths by trimming their common ancestor.
+
+    Examples:
+    >>> reduce_entity_paths([["Account1", "Asset1"], ["Account2", "Asset2"]])
+    [["Account1", "Asset1"], ["Account2", "Asset2"]]
+
+    >>> reduce_entity_paths([["Asset1"], ["Asset2"]])
+    [["Asset1"], ["Asset2"]]
+
+    >>> reduce_entity_paths([["Account1", "Asset1"], ["Account1", "Asset2"]])
+    [["Asset1"], ["Asset2"]]
+
+    >>> reduce_entity_paths([["Asset1", "Asset2"], ["Asset1"]])
+    [["Asset1"], ["Asset1", "Asset2"]]
+
+    >>> reduce_entity_paths([["Account1", "Asset", "Asset1"], ["Account1", "Asset", "Asset2"]])
+    [["Asset1"], ["Asset2"]]
+    """
+    reduced_entities = 0
+
+    # At least we need to leave one entity in each list
+    max_reduced_entities = min([len(p) - 1 for p in asset_paths])
+
+    # Find the common path
+    while (
+        are_all_equal([p[:reduced_entities] for p in asset_paths])
+        and reduced_entities <= max_reduced_entities
+    ):
+        reduced_entities += 1
+
+    return [p[reduced_entities - 1 :] for p in asset_paths]
+
+
+def get_sensor_aliases(
+    sensors: list[Sensor],
+    reduce_paths: bool = True,
+    separator: str = "/",
+) -> dict:
+    """
+    Generates aliases for all sensors by appending a unique path to each sensor's name.
+
+    Parameters:
+    :param sensors:         A list of Sensor objects.
+    :param reduce_paths:    Flag indicating whether to reduce each sensor's entity path. Defaults to True.
+    :param separator:       Character or string used to separate entities within each sensor's path. Defaults to "/".
+
+    :return: A dictionary mapping sensor IDs to their generated aliases.
+    """
+
+    entity_paths = [
+        s.generic_asset.get_path(separator=separator).split(separator) for s in sensors
+    ]
+    if reduce_paths:
+        entity_paths = reduce_entity_paths(entity_paths)
+    entity_paths = [path_to_str(p, separator=separator) for p in entity_paths]
+
+    aliases = {
+        sensor.id: f"{sensor.name} ({path})"
+        for path, sensor in zip(entity_paths, sensors)
+    }
+
+    return aliases
+
+
+def validate_color_hex(ctx, param, value):
+    """
+    Validates that a given value is a valid hex color code.
+
+    Parameters:
+    :param ctx:     Click context.
+    :param param:   Click parameter. Hex value.
+    """
+    if value is None:
+        return value
+    hex_pattern = re.compile(r"^#?([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$")
+    if re.match(hex_pattern, value):
+        return value
+    else:
+        raise click.BadParameter(f"{param.name} must be a valid hex color code.")
