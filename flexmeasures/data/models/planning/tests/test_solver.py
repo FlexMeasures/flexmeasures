@@ -1025,19 +1025,27 @@ def test_infeasible_problem_error(db, add_battery_assets):
 class BatterySensors:
     price: Sensor
     power: Sensor
+    soc: Sensor
 
 
 def get_sensors_from_db(
-    db, battery_assets, battery_name="Test battery", power_sensor_name="power"
-):
+    db,
+    battery_assets,
+    battery_name="Test battery",
+    power_sensor_name="power",
+    soc_sensor_name="state of charge (Wh)",
+) -> BatterySensors:
     # get the sensors from the database
     epex_da = get_test_sensor(db)
     battery_power = [
         s for s in battery_assets[battery_name].sensors if s.name == power_sensor_name
     ][0]
+    battery_soc = [
+        s for s in battery_assets[battery_name].sensors if s.name == soc_sensor_name
+    ][0]
     assert battery_power.get_attribute("market_id") == epex_da.id
 
-    return BatterySensors(price=epex_da, power=battery_power)
+    return BatterySensors(price=epex_da, power=battery_power, soc=battery_soc)
 
 
 def test_numerical_errors(app_with_each_solver, setup_planning_test_data, db):
@@ -2199,12 +2207,14 @@ def test_battery_storage_with_time_series_in_flex_model(
     soc_max = "1 MWh"
     soc_at_start = "100 kWh"
 
-    battery = get_sensors_from_db(
+    battery_sensors = get_sensors_from_db(
         db,
         add_battery_assets,
         battery_name="Test battery",
         power_sensor_name="power",
-    ).power
+    )
+    battery_power_sensor = battery_sensors.power
+    battery_soc_sensor = battery_sensors.soc
     tz = pytz.timezone("Europe/Amsterdam")
 
     # transition from cheap to expensive (90 -> 100)
@@ -2216,6 +2226,7 @@ def test_battery_storage_with_time_series_in_flex_model(
         "soc-min": soc_min,
         "soc-max": soc_max,
         "soc-at-start": soc_at_start,
+        "soc": {"sensor": battery_soc_sensor.id},
         "roundtrip-efficiency": 1,
         "storage-efficiency": 1,
         "power-capacity": "1 MW",
@@ -2223,7 +2234,7 @@ def test_battery_storage_with_time_series_in_flex_model(
     flex_model[ts_field] = ts_specs
 
     scheduler: Scheduler = StorageScheduler(
-        battery,
+        battery_power_sensor,
         start,
         end,
         resolution,
@@ -2231,12 +2242,15 @@ def test_battery_storage_with_time_series_in_flex_model(
         flex_context={
             "site-power-capacity": "1 MW",
         },
+        return_multiple=True,
     )
-    schedule = scheduler.compute()
+    scheduler_results = scheduler.compute()
+    schedule = scheduler_results[0]["data"]
+    soc_schedule = scheduler_results[1]["data"]
 
     # Check if constraints were met
     soc_at_start = ur.Quantity(soc_at_start).to("MWh").magnitude
-    check_constraints(battery, schedule, soc_at_start)
+    check_constraints(battery_power_sensor, schedule, soc_at_start)
 
     # charge 850 kWh in the cheap price period (100 kWh -> 950kWh)
     assert schedule[:4].sum() * 0.25 == pytest.approx(0.85)
@@ -2246,3 +2260,9 @@ def test_battery_storage_with_time_series_in_flex_model(
         assert schedule[4:].sum() * 0.25 == pytest.approx(-0.75)
     else:
         assert schedule[4:].sum() * 0.25 == pytest.approx(-0.85)
+
+    # Check final state in soc_schedule (given in the unit of the SoC sensor, which is Wh)
+    if ts_field == "soc-minima":
+        assert soc_schedule[-1] == 200 * 10**3
+    else:
+        assert soc_schedule[-1] == 100 * 10**3

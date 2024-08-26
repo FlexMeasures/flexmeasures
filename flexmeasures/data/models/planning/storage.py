@@ -651,6 +651,9 @@ class StorageFallbackScheduler(MetaStorageScheduler):
                 up_efficiency=device_constraints[0]["derivative up efficiency"],
                 storage_efficiency=device_constraints[0]["efficiency"],
             )
+            soc_schedule = convert_units(
+                soc_schedule, f"{sensor.unit}h", soc_sensor.unit
+            )
 
         # Round schedule
         if self.round_to_decimals:
@@ -728,6 +731,9 @@ class StorageScheduler(MetaStorageScheduler):
                 down_efficiency=device_constraints[0]["derivative down efficiency"],
                 up_efficiency=device_constraints[0]["derivative up efficiency"],
                 storage_efficiency=device_constraints[0]["efficiency"],
+            )
+            soc_schedule = convert_units(
+                soc_schedule, f"{sensor.unit}h", soc_sensor.unit
             )
 
         # Round schedule
