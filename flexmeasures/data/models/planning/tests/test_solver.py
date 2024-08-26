@@ -2229,6 +2229,12 @@ def test_battery_storage_with_time_series_in_flex_model(
 
 
 def test_multiple_commitments_per_group():
+    """Check draining a battery while expanding the number of commitments:
+
+    1) against increasing prices -> discharge all in the last step
+    2) also with a limited capacity -> discharge as late as possible
+    3) also with peak pricing -> discharge at a constant rate
+    """
     start = pd.Timestamp("2020-01-01T00:00:00")
     end = pd.Timestamp("2020-01-02T00:00:00")
     resolution = timedelta(hours=1)
