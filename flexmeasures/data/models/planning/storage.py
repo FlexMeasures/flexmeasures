@@ -226,6 +226,7 @@ class MetaStorageScheduler(Scheduler):
             # Set up commitments DataFrame
             commitment = initialize_df([], start, end, self.resolution)
             commitment["quantity"] = ems_peak_consumption
+            # positive price because breaching in the upwards (consumption) direction is penalized
             commitment["upwards deviation price"] = ems_peak_consumption_price
             commitment["downwards deviation price"] = 0
             commitment["group"] = 0  # add all time steps to the same group
@@ -248,7 +249,8 @@ class MetaStorageScheduler(Scheduler):
             commitment = initialize_df([], start, end, self.resolution)
             commitment["quantity"] = ems_peak_production
             commitment["upwards deviation price"] = 0
-            commitment["downwards deviation price"] = ems_peak_production_price
+            # negative price because peaking in the downwards (production) direction is penalized
+            commitment["downwards deviation price"] = -ems_peak_production_price
             commitment["group"] = 0  # add all time steps to the same group
             commitments.append(commitment)
 
@@ -265,6 +267,7 @@ class MetaStorageScheduler(Scheduler):
             # Set up commitments DataFrame
             commitment = initialize_df([], start, end, self.resolution)
             commitment["quantity"] = quantity
+            # positive price because breaching in the upwards (consumption) direction is penalized
             commitment["upwards deviation price"] = ems_consumption_breach_price
             commitment["downwards deviation price"] = 0
             commitment["group"] = 0  # add all time steps to the same group
@@ -275,7 +278,8 @@ class MetaStorageScheduler(Scheduler):
             # Set up commitments DataFrame
             commitment = initialize_df([], start, end, self.resolution)
             commitment["quantity"] = quantity
-            commitment["upwards deviation price"] = ems_production_breach_price
+            # negative price because breaching in the downwards (production) direction is penalized
+            commitment["upwards deviation price"] = -ems_production_breach_price
             commitment["downwards deviation price"] = 0
             commitment["group"] = 0  # add all time steps to the same group
             commitments.append(commitment)
