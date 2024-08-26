@@ -290,8 +290,8 @@ class MetaStorageScheduler(Scheduler):
             commitment = initialize_df([], start, end, self.resolution)
             commitment["quantity"] = quantity
             # negative price because breaching in the downwards (production) direction is penalized
-            commitment["upwards deviation price"] = -ems_production_breach_price
-            commitment["downwards deviation price"] = 0
+            commitment["downwards deviation price"] = -ems_production_breach_price
+            commitment["upwards deviation price"] = 0
             commitment["group"] = 0  # add all time steps to the same group
             commitments.append(commitment)
 
@@ -299,8 +299,8 @@ class MetaStorageScheduler(Scheduler):
             commitment = initialize_df([], start, end, self.resolution)
             commitment["quantity"] = quantity
             # negative price because breaching in the downwards (production) direction is penalized
-            commitment["upwards deviation price"] = -ems_production_breach_price
-            commitment["downwards deviation price"] = 0
+            commitment["downwards deviation price"] = -ems_production_breach_price
+            commitment["upwards deviation price"] = 0
             commitment["group"] = list(
                 range(len(commitment))
             )  # add each time step to their own group
