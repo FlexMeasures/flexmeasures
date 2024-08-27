@@ -83,7 +83,7 @@ from flexmeasures.data.services.utils import get_or_create_model
 from flexmeasures.utils import flexmeasures_inflection
 from flexmeasures.utils.time_utils import server_now, apply_offset_chain
 from flexmeasures.utils.unit_utils import convert_units, ur
-from flexmeasures.cli.utils import validate_color_hex
+from flexmeasures.cli.utils import validate_color_hex, validate_url
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.data.services.utils import get_asset_or_sensor_ref
 from flexmeasures.data.models.reporting import Reporter
@@ -175,6 +175,11 @@ def new_account_role(name: str, description: str):
     help="Secondary color to use in UI, in hex format. Defaults to FlexMeasures' secondary color (#f1a122)",
 )
 @click.option(
+    "--logo-url",
+    callback=validate_url,
+    help="Logo URL to use in UI. Defaults to FlexMeasures' logo URL",
+)
+@click.option(
     "--consultancy",
     "consultancy_account",
     type=AccountIdField(required=False),
@@ -186,6 +191,7 @@ def new_account(
     consultancy_account: Account | None,
     primary_color: str | None,
     secondary_color: str | None,
+    logo_url: str | None,
 ):
     """
     Create an account for a tenant in the FlexMeasures platform.
@@ -224,6 +230,7 @@ def new_account(
         consultancy_account=consultancy_account,
         primary_color=primary_color,
         secondary_color=secondary_color,
+        logo_url=logo_url,
     )
     db.session.add(account)
     if roles:
