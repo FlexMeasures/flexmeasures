@@ -32,7 +32,7 @@ class ProcessScheduler(Scheduler):
 
         This scheduler supports three types of `process_types`:
             - INFLEXIBLE: this process needs to be scheduled as soon as possible.
-            - BREAKABLE: this process can be divisible in smaller consumption periods.
+            - BREAKABLE: this process can be broken up into smaller segments with some idle time in between.
             - SHIFTABLE: this process can start at any time within the specified time window.
 
         The resulting schedule provides the power flow at each time period.

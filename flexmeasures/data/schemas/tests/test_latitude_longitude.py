@@ -1,7 +1,8 @@
 import pytest
 
+from marshmallow.exceptions import ValidationError
+
 from flexmeasures.data.schemas.locations import LatitudeField, LongitudeField
-from flexmeasures.data.schemas.utils import ValidationError
 
 
 @pytest.mark.parametrize(

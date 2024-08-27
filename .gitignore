@@ -48,3 +48,6 @@ poetry.lock
 .DS_Store
 
 .gitconfig.*
+
+/postgres-data
+coverage.lcov

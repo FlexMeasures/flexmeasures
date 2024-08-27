@@ -327,7 +327,7 @@ def get_quantity_from_attribute(
 
 
 def get_series_from_quantity_or_sensor(
-    quantity_or_sensor: Sensor | ur.Quantity,
+    variable_quantity: Sensor | list[dict] | ur.Quantity,
     unit: ur.Quantity | str,
     query_window: tuple[datetime, datetime],
     resolution: timedelta,
@@ -338,8 +338,11 @@ def get_series_from_quantity_or_sensor(
     """
     Get a time series given a quantity or sensor defined on a time window.
 
-    :param quantity_or_sensor:      A pint Quantity or timely-beliefs Sensor, measuring e.g. power capacity
-                                    or efficiency.
+    :param variable_quantity:       Variable quantity measuring e.g. power capacity or efficiency.
+                                    One of the following types:
+                                    - a timely-beliefs Sensor recording the data
+                                    - a list of dictionaries representing a time series specification
+                                    - a pint Quantity representing a fixed quantity
     :param unit:                    Unit of the output data.
     :param query_window:            Tuple representing the start and end of the requested data.
     :param resolution:              Time resolution of the requested data.
@@ -353,15 +356,15 @@ def get_series_from_quantity_or_sensor(
     start, end = query_window
     index = initialize_index(start=start, end=end, resolution=resolution)
 
-    if isinstance(quantity_or_sensor, ur.Quantity):
-        if np.isnan(quantity_or_sensor.magnitude):
+    if isinstance(variable_quantity, ur.Quantity):
+        if np.isnan(variable_quantity.magnitude):
             magnitude = np.nan
         else:
-            magnitude = quantity_or_sensor.to(unit).magnitude
-        time_series = pd.Series(magnitude, index=index)
-    elif isinstance(quantity_or_sensor, Sensor):
+            magnitude = variable_quantity.to(unit).magnitude
+        time_series = pd.Series(magnitude, index=index, name="event_value")
+    elif isinstance(variable_quantity, Sensor):
         bdf: tb.BeliefsDataFrame = TimedBelief.search(
-            quantity_or_sensor,
+            variable_quantity,
             event_starts_after=query_window[0],
             event_ends_before=query_window[1],
             resolution=resolution,
@@ -373,18 +376,25 @@ def get_series_from_quantity_or_sensor(
         if as_instantaneous_events:
             bdf = bdf.resample_events(timedelta(0), boundary_policy=boundary_policy)
         time_series = simplify_index(bdf).reindex(index).squeeze()
-        time_series = convert_units(time_series, quantity_or_sensor.unit, unit)
+        time_series = convert_units(time_series, variable_quantity.unit, unit)
+    elif isinstance(variable_quantity, list):
+        time_series = pd.Series(np.nan, index=index)
+        for event in variable_quantity:
+            value = event["value"]
+            start = event["start"]
+            end = event["end"]
+            time_series[start : end - resolution] = value
 
     else:
         raise TypeError(
-            f"quantity_or_sensor {quantity_or_sensor} should be a pint Quantity or timely-beliefs Sensor"
+            f"quantity_or_sensor {variable_quantity} should be a pint Quantity or timely-beliefs Sensor"
         )
 
     return time_series
 
 
 def get_continuous_series_sensor_or_quantity(
-    quantity_or_sensor: Sensor | ur.Quantity | None,
+    variable_quantity: Sensor | list[dict] | ur.Quantity | None,
     actuator: Sensor | Asset,
     unit: ur.Quantity | str,
     query_window: tuple[datetime, datetime],
@@ -395,10 +405,10 @@ def get_continuous_series_sensor_or_quantity(
     as_instantaneous_events: bool = False,
     boundary_policy: str | None = None,
 ) -> pd.Series:
-    """Creates a time series from a quantity or sensor within a specified window,
+    """Creates a time series from a sensor, time series specification, or quantity within a specified window,
     falling back to a given `fallback_attribute` and making sure no values exceed `max_value`.
 
-    :param quantity_or_sensor:      The quantity or sensor containing the data.
+    :param variable_quantity:       A sensor recording the data, a time series specification or a fixed quantity.
     :param actuator:                The actuator from which relevant defaults are retrieved.
     :param unit:                    The desired unit of the data.
     :param query_window:            The time window (start, end) to query the data.
@@ -410,15 +420,15 @@ def get_continuous_series_sensor_or_quantity(
                                     interpreted as the desired frequency of the data.
     :returns:                       time series data with missing values handled based on the chosen method.
     """
-    if quantity_or_sensor is None:
-        quantity_or_sensor = get_quantity_from_attribute(
+    if variable_quantity is None:
+        variable_quantity = get_quantity_from_attribute(
             entity=actuator,
             attribute=fallback_attribute,
             unit=unit,
         )
 
     time_series = get_series_from_quantity_or_sensor(
-        quantity_or_sensor=quantity_or_sensor,
+        variable_quantity=variable_quantity,
         unit=unit,
         query_window=query_window,
         resolution=resolution,

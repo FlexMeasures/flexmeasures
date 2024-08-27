@@ -204,7 +204,7 @@ def test_efficiency_pair(
     def load_schema():
         flex_model = {
             "storage-efficiency": 1,
-            "soc-at-start": 0,
+            "soc-at-start": "0 MWh",
         }
         for f in fields:
             flex_model[f] = "90%"

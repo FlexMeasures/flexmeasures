@@ -26,7 +26,7 @@ from flexmeasures.utils.calculations import (
     integrate_time_series,
 )
 from flexmeasures.tests.utils import get_test_sensor
-from flexmeasures.utils.unit_utils import convert_units
+from flexmeasures.utils.unit_utils import convert_units, ur
 
 TOLERANCE = 0.00001
 
@@ -680,6 +680,7 @@ def test_soc_bounds_timeseries(db, add_battery_assets):
     resolution = timedelta(hours=1)
 
     # soc parameters
+    soc_unit = "MWh"
     soc_at_start = battery.get_attribute("soc_in_mwh")
     soc_min = 0.5
     soc_max = 4.5
@@ -703,6 +704,7 @@ def test_soc_bounds_timeseries(db, add_battery_assets):
         return soc_schedule
 
     flex_model = {
+        "soc-unit": soc_unit,
         "soc-at-start": soc_at_start,
         "soc-min": soc_min,
         "soc-max": soc_max,
@@ -721,6 +723,7 @@ def test_soc_bounds_timeseries(db, add_battery_assets):
     soc_targets = [{"datetime": "2015-01-02T19:00:00+01:00", "value": 2.0}]
 
     flex_model = {
+        "soc-unit": soc_unit,
         "soc-at-start": soc_at_start,
         "soc-min": soc_min,
         "soc-max": soc_max,
@@ -1022,10 +1025,14 @@ def test_infeasible_problem_error(db, add_battery_assets):
         compute_schedule(flex_model)
 
 
-def get_sensors_from_db(db, battery_assets, battery_name="Test battery"):
+def get_sensors_from_db(
+    db, battery_assets, battery_name="Test battery", power_sensor_name="power"
+):
     # get the sensors from the database
     epex_da = get_test_sensor(db)
-    battery = battery_assets[battery_name].sensors[0]
+    battery = [
+        s for s in battery_assets[battery_name].sensors if s.name == power_sensor_name
+    ][0]
     assert battery.get_attribute("market_id") == epex_da.id
 
     return epex_da, battery
@@ -1732,10 +1739,10 @@ def test_battery_stock_delta_sensor(
     "gain,usage,expected_delta",
     [
         (["1 MW"], ["1MW"], 0),  # delta stock is 0 (1 MW - 1 MW)
-        (["0.5 MW", "0.5 MW"], [], 1),  # 1 MW stock gain
+        (["0.5 MW", "0.5 MW"], None, 1),  # 1 MW stock gain
         (["100 kW"], None, 0.1),  # 100 MW stock gain
-        (None, ["100 kW"], -0.1),  # 100 kW stock loss
-        ([], [], None),  # no gain defined -> no gain or loss happens
+        (None, ["100 kW"], -0.1),  # 100 kW stock usage
+        (None, None, None),  # no gain/usage defined -> no gain or usage happens
     ],
 )
 def test_battery_stock_delta_quantity(
@@ -1744,7 +1751,7 @@ def test_battery_stock_delta_quantity(
     """
     Test the stock gain field when a constant value is provided.
 
-    We expect a constant gain/loss to happen in every time period equal to the energy
+    We expect a constant gain/usage to happen in every time period equal to the energy
     value provided.
     """
     _, battery = get_sensors_from_db(db, add_battery_assets)
@@ -2053,3 +2060,194 @@ def test_soc_maxima_minima_targets(db, add_battery_assets, soc_sensors):
     # this yields the same results as with the SOC targets
     # because soc-maxima = soc-minima = soc-targets
     assert all(abs(soc[9:].values - values[:-1]) < 1e-5)
+
+
+@pytest.mark.parametrize("unit", [None, "MWh", "kWh"])
+@pytest.mark.parametrize("soc_unit", ["kWh", "MWh"])
+@pytest.mark.parametrize("power_sensor_name", ["power", "power (kW)"])
+def test_battery_storage_different_units(
+    add_battery_assets,
+    db,
+    power_sensor_name,
+    soc_unit,
+    unit,
+):
+    """
+    Test scheduling a 1 MWh battery for 2h with a low -> high price transition with
+    different units for the soc-min, soc-max, soc-at-start and power sensor.
+    """
+
+    soc_min = ur.Quantity("100 kWh")
+    soc_max = ur.Quantity("1 MWh")
+    soc_at_start = ur.Quantity("100 kWh")
+
+    if unit is not None:
+        soc_min = str(soc_min.to(unit))
+        soc_max = str(soc_max.to(unit))
+        soc_at_start = str(soc_at_start.to(unit))
+    else:
+        soc_min = soc_min.to(soc_unit).magnitude
+        soc_max = soc_max.to(soc_unit).magnitude
+        soc_at_start = soc_at_start.to(soc_unit).magnitude
+
+    epex_da, battery = get_sensors_from_db(
+        db,
+        add_battery_assets,
+        battery_name="Test battery",
+        power_sensor_name=power_sensor_name,
+    )
+    tz = pytz.timezone("Europe/Amsterdam")
+
+    # transition from cheap to expensive (90 -> 100)
+    start = tz.localize(datetime(2015, 1, 2, 14, 0, 0))
+    end = tz.localize(datetime(2015, 1, 2, 16, 0, 0))
+    resolution = timedelta(minutes=15)
+
+    flex_model = {
+        "soc-min": soc_min,
+        "soc-max": soc_max,
+        "soc-at-start": soc_at_start,
+        "soc-unit": soc_unit,
+        "roundtrip-efficiency": 1,
+        "storage-efficiency": 1,
+        "power-capacity": "1 MW",
+    }
+
+    scheduler: Scheduler = StorageScheduler(
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model=flex_model,
+        flex_context={
+            "site-power-capacity": "1 MW",
+        },
+    )
+    schedule = scheduler.compute()
+
+    if power_sensor_name == "power (kW)":
+        schedule /= 1000
+
+    # Check if constraints were met
+    if isinstance(soc_at_start, str):
+        soc_at_start = ur.Quantity(soc_at_start).to("MWh").magnitude
+    elif isinstance(soc_at_start, float) or isinstance(soc_at_start, int):
+        soc_at_start = soc_at_start * convert_units(1, soc_unit, "MWh")
+    check_constraints(battery, schedule, soc_at_start)
+
+    # charge fully in the cheap price period (100 kWh -> 1000kWh)
+    assert schedule[:4].sum() * 0.25 == 0.9
+
+    # discharge fully in the expensive price period (1000 kWh -> 100 kWh)
+    assert schedule[4:].sum() * 0.25 == -0.9
+
+
+@pytest.mark.parametrize(
+    "ts_field, ts_specs",
+    [
+        # The battery only has time to charge up to 950 kWh halfway
+        (
+            "power-capacity",
+            [
+                {
+                    "start": "2015-01-02T14:00+01",
+                    "end": "2015-01-02T16:00+01",
+                    "value": "850 kW",
+                }
+            ],
+        ),
+        # Same, but the event time is specified with a duration instead of an end time
+        (
+            "power-capacity",
+            [
+                {
+                    "start": "2015-01-02T14:00+01",
+                    "duration": "PT2H",
+                    "value": "850 kW",
+                }
+            ],
+        ),
+        # Can only charge up to 950 kWh halfway
+        (
+            "soc-maxima",
+            [
+                {
+                    "datetime": "2015-01-02T15:00+01",
+                    "value": "950 kWh",
+                }
+            ],
+        ),
+        # Must end up at a minimum of 200 kWh, for which it is cheapest to charge to 950 and then to discharge to 200
+        (
+            "soc-minima",
+            [
+                {
+                    "datetime": "2015-01-02T16:00+01",
+                    "value": "200 kWh",
+                }
+            ],
+        ),
+    ],
+)
+def test_battery_storage_with_time_series_in_flex_model(
+    add_battery_assets,
+    db,
+    ts_field,
+    ts_specs,
+):
+    """
+    Test scheduling a 1 MWh battery for 2h with a low -> high price transition with
+    a time series used for the various flex-model fields.
+    """
+
+    soc_min = "100 kWh"
+    soc_max = "1 MWh"
+    soc_at_start = "100 kWh"
+
+    epex_da, battery = get_sensors_from_db(
+        db,
+        add_battery_assets,
+        battery_name="Test battery",
+        power_sensor_name="power",
+    )
+    tz = pytz.timezone("Europe/Amsterdam")
+
+    # transition from cheap to expensive (90 -> 100)
+    start = tz.localize(datetime(2015, 1, 2, 14, 0, 0))
+    end = tz.localize(datetime(2015, 1, 2, 16, 0, 0))
+    resolution = timedelta(minutes=15)
+
+    flex_model = {
+        "soc-min": soc_min,
+        "soc-max": soc_max,
+        "soc-at-start": soc_at_start,
+        "roundtrip-efficiency": 1,
+        "storage-efficiency": 1,
+        "power-capacity": "1 MW",
+    }
+    flex_model[ts_field] = ts_specs
+
+    scheduler: Scheduler = StorageScheduler(
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model=flex_model,
+        flex_context={
+            "site-power-capacity": "1 MW",
+        },
+    )
+    schedule = scheduler.compute()
+
+    # Check if constraints were met
+    soc_at_start = ur.Quantity(soc_at_start).to("MWh").magnitude
+    check_constraints(battery, schedule, soc_at_start)
+
+    # charge 850 kWh in the cheap price period (100 kWh -> 950kWh)
+    assert schedule[:4].sum() * 0.25 == pytest.approx(0.85)
+
+    # discharge fully or to what's needed in the expensive price period (950 kWh -> 100 or 200 kWh)
+    if ts_field == "soc-minima":
+        assert schedule[4:].sum() * 0.25 == pytest.approx(-0.75)
+    else:
+        assert schedule[4:].sum() * 0.25 == pytest.approx(-0.85)

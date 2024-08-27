@@ -1,4 +1,5 @@
 """Utilities for views"""
+
 from __future__ import annotations
 
 import json
@@ -16,6 +17,7 @@ from flexmeasures.utils import time_utils
 from flexmeasures.ui import flexmeasures_ui
 from flexmeasures.data.models.user import User, Account
 from flexmeasures.ui.utils.chart_defaults import chart_options
+from flexmeasures.ui.utils.color_defaults import get_color_settings
 
 
 def render_flexmeasures_template(html_filename: str, **variables):
@@ -85,11 +87,25 @@ def render_flexmeasures_template(html_filename: str, **variables):
         options["downloadFileName"] = f"asset-{asset.id}-{asset.name}"
     variables["chart_options"] = json.dumps(options)
 
-    variables["menu_logo"] = current_app.config.get("FLEXMEASURES_MENU_LOGO_PATH")
+    account: Account | None = (
+        current_user.account if current_user.is_authenticated else None
+    )
+
+    # check if user/consultant has logo_url set
+    if account:
+        variables["menu_logo"] = (
+            account.logo_url
+            or (account.consultancy_account and account.consultancy_account.logo_url)
+            or current_app.config.get("FLEXMEASURES_MENU_LOGO_PATH")
+        )
+    else:
+        variables["menu_logo"] = current_app.config.get("FLEXMEASURES_MENU_LOGO_PATH")
+
     variables["extra_css"] = current_app.config.get("FLEXMEASURES_EXTRA_CSS_PATH")
 
     if "asset" in variables:
         variables["breadcrumb_info"] = get_breadcrumb_info(asset)
+    variables.update(get_color_settings(account))  # add color settings to variables
 
     return render_template(html_filename, **variables)
 

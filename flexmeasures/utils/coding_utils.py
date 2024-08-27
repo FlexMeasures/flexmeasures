@@ -1,4 +1,5 @@
 """ Various coding utils (e.g. around function decoration) """
+
 from __future__ import annotations
 
 import functools
