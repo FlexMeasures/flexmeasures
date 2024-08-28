@@ -68,7 +68,7 @@ def mock_user_response(
             user2["username"] = "Bert"
             user2["email"] = "bert@seita.nl"
             user_list.append(user2)
-        return user_list
+        return {"users": user_list}
     return user
 
 

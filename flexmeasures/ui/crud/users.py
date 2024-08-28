@@ -103,6 +103,7 @@ class UserCrudUI(FlaskView):
     def get(self, id: str):
         """GET from /users/<id>"""
         get_user_response = InternalApi().get(url_for("UserAPI:get", id=id))
+        print("============get_user_response: %s" % get_user_response.json())
         user: User = process_internal_api_response(
             get_user_response.json(), make_obj=True
         )

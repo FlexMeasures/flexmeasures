@@ -57,14 +57,12 @@ class AccountCrudUI(FlaskView):
                 account["consultancy_account_name"] = consultancy_account.name
         assets = get_assets_by_account(account_id)
         assets += get_assets_by_account(account_id=None)
-        users = get_users_by_account(account_id, include_inactive=include_inactive)
         accounts = get_accounts()
         return render_flexmeasures_template(
             "crud/account.html",
             account=account,
             accounts=accounts,
             assets=assets,
-            users=users,
             include_inactive=include_inactive,
         )
 
