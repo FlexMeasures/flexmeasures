@@ -19,7 +19,7 @@ def test_get_users_by_account(client, requests_mock, as_prosumer_user1):
         status_code=200,
         json=mock_user_response(multiple=True),
     )
-    assert get_users_by_account(current_user.account.id)[0].username == "Alex"
+    assert get_users_by_account(current_user.account.id)[0]["username"] == "Alex"
 
 
 def test_user_list(client, as_admin, requests_mock):
