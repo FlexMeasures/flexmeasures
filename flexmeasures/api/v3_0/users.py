@@ -1,3 +1,4 @@
+from __future__ import annotations
 from flask_classful import FlaskView, route
 from marshmallow import fields
 from sqlalchemy.exc import IntegrityError
