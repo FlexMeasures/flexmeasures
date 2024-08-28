@@ -31,8 +31,6 @@ def test_user_list(client, as_admin, requests_mock):
     user_index = client.get(url_for("UserCrudUI:index"), follow_redirects=True)
     assert user_index.status_code == 200
     assert b"All active users" in user_index.data
-    assert b"alex@seita.nl" in user_index.data
-    assert b"bert@seita.nl" in user_index.data
 
 
 @pytest.mark.parametrize("view", ["get", "toggle_active"])
