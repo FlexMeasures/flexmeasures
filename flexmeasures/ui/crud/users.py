@@ -76,7 +76,7 @@ def process_internal_api_response(
 
 def get_users_by_account(
     account_id: int | str, include_inactive: bool = False
-) -> list[User]:
+) -> list[dict]:
     get_users_response = InternalApi().get(
         url_for(
             "UserAPI:index",
