@@ -84,10 +84,7 @@ def get_users_by_account(
             include_inactive=include_inactive,
         )
     )
-    users = [
-        process_internal_api_response(user, make_obj=True)
-        for user in get_users_response.json()["users"]
-    ]
+    users = [user for user in get_users_response.json()["users"]]
     return users
 
 
