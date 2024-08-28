@@ -10,7 +10,6 @@ from werkzeug.exceptions import Forbidden
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import User as UserModel, Account
 from flexmeasures.api.common.schemas.users import AccountIdField, UserIdField
-from flexmeasures.data.schemas.account import AccountSchema
 from flexmeasures.data.schemas.users import UserSchema
 from flexmeasures.data.services.users import (
     get_users,
@@ -20,7 +19,7 @@ from flexmeasures.data.services.users import (
 )
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
-from flexmeasures.utils.time_utils import server_now, naturalized_datetime_str
+from flexmeasures.utils.time_utils import server_now
 
 """
 API endpoints to manage users.
@@ -32,7 +31,6 @@ Both POST (to create) and DELETE are not accessible via the API, but as CLI func
 user_schema = UserSchema()
 users_schema = UserSchema(many=True)
 partial_user_schema = UserSchema(partial=True)
-account_schema = AccountSchema()
 
 
 class UserAPI(FlaskView):
@@ -52,13 +50,7 @@ class UserAPI(FlaskView):
     )
     @permission_required_for_context("read", ctx_arg_name="account")
     @as_json
-    def index(
-        self,
-        account: Account,
-        include_inactive: bool = False,
-        page: int | None = None,
-        per_page: int | None = None,
-    ):
+    def index(self, account: Account, include_inactive: bool = False):
         """API endpoint to list all users of an account.
 
         .. :quickref: User; Download user list
@@ -97,30 +89,8 @@ class UserAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        users = get_users(
-            account_name=account.name,
-            only_active=not include_inactive,
-            page=page,
-            per_page=per_page,
-        )
-        users_response = []
-
-        for user in users.items:
-            user_data = user_schema.dump(user)
-            user_data["account"] = account_schema.dump(account)
-            user_data["flexmeasures_roles"] = [
-                role.name for role in user.flexmeasures_roles
-            ]
-            user_data["last_login_at"] = naturalized_datetime_str(user.last_login_at)
-            user_data["last_seen_at"] = naturalized_datetime_str(user.last_seen_at)
-            users_response.append(user_data)
-
-        response = {
-            "users": users_response,
-            "totalPages": users.pages,
-            "totalItems": users.total,
-        }
-        return response, 200
+        users = get_users(account_name=account.name, only_active=not include_inactive)
+        return users_schema.dump(users), 200
 
     @route("/<id>")
     @use_kwargs({"user": UserIdField(data_key="id")}, location="path")
