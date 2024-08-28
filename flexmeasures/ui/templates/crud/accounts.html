@@ -1,6 +1,6 @@
-{% extends "base.html" %} 
-{% set active_page = "accounts" %} 
-{% block title %} Account listing {% endblock %} 
+{% extends "base.html" %}
+{% set active_page = "accounts" %}
+{% block title %} Account listing {% endblock %}
 {% block divs %}
 
 <div class="container-fluid">
@@ -8,51 +8,97 @@
         <div class="col-md-2"></div>
         <div class="col-md-8">
             <div class="card">
-            <h3>All Accounts
-            </h3>
-            <div class="table-responsive">
-            <table class="table table-striped table-responsive paginate nav-on-click" title="View this account">
-                <thead>
-                    <tr>
-                        <th>Account</th>
-                        <th>ID</th>
-                        <th>Assets</th>
-                        <th>Users</th>
-                        <th>Roles</th>
-                        <th class="d-none">URL</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for account in accounts %}
-                    <tr>
-                        <td>
-                            {{ account.name }}
-                        </td>
-                        <td>
-                            {{ account.id }}
-                        </td>
-                        <td>
-                            {{ account.asset_count }}
-                        </td>
-                        <td>
-                            {{ account.user_count }}
-                        </td>
-                        <td>
-                            {{ account.account_roles | map(attribute='name') | join(", ") }}
-                        </td>
-                        <td class="d-none">
-                            /accounts/{{ account.id }}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+                <h3>All Accounts</h3>
+                <div class="table-responsive">
+                    <table class="table table-striped table-responsive paginate nav-on-click" title="View this account">
+                        <thead>
+                            <tr>
+                                <th>Account</th>
+                                <th>ID</th>
+                                <th>Assets</th>
+                                <th>Users</th>
+                                <th>Roles</th>
+                                <th class="d-none">URL</th>
+                            </tr>
+                        </thead>
+                        <tbody id="accounts-table-body">
+                            <!-- Dynamic rows will be rendered here -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <nav aria-label="Page navigation example">
+                    <ul class="pagination" id="pagination-controls">
+                        <!-- Pagination buttons will be rendred here -->
+                    </ul>
+                </nav>
+            </div>
         </div>
-        </div>
+        <div class="col-md-2"></div>
     </div>
 </div>
-<div class="col-md-2"></div>
-</div>
-</div>
 
-{% block paginate_tables_script %} {{ super() }} {% endblock %} {% endblock%}
+<script>
+  const basePath = window.location.origin;
+    const apiUrl = basePath + '/api/v3_0/accounts'; // Update with your actual API endpoint
+    const tableBody = document.getElementById('accounts-table-body');
+    const paginationControls = document.getElementById('pagination-controls');
+    let currentPage = 1;
+
+    async function fetchAccounts(page = 1) {
+        try {
+            const response = await fetch(`${apiUrl}?page=${page}&per_page=5`);
+            const data = await response.json();
+
+            renderTable(data.accounts);
+            renderPagination(data.totalPages, page);
+        } catch (error) {
+            console.error('Error fetching accounts:', error);
+        }
+    }
+
+    function renderTable(accounts) {
+        tableBody.innerHTML = '';
+        console.log("accounts: ", accounts);
+
+        accounts.forEach(account => {
+            const row = `
+                <tr>
+                    <td>${account.name}</td>
+                    <td>${account.id}</td>
+                    <td>${account.asset_count}</td>
+                    <td>${account.user_count}</td>
+                    <td>${account.account_roles.join(", ")}</td>
+                    <td class="d-none">/accounts/${account.id}</td>
+                </tr>
+            `;
+            tableBody.insertAdjacentHTML('beforeend', row);
+        });
+    }
+
+    function renderPagination(totalPages, currentPage) {
+        paginationControls.innerHTML = '';
+
+        for (let page = 1; page <= totalPages; page++) {
+            const isActive = page === currentPage ? '' : '';
+            const activeStyle = page === currentPage ? 'background-color: {{primary_color}}; color: #fff' : 'color: {{primary_color}}';
+            const button = `
+                <li class="page-item ${isActive}">
+                    <a class="page-link" style="${activeStyle}"" href="#" onclick="changePage(${page})">${page}</a>
+                </li>
+            `;
+            paginationControls.insertAdjacentHTML('beforeend', button);
+        }
+    }
+
+    function changePage(page) {
+        currentPage = page;
+        fetchAccounts(page);
+    }
+
+    // Initial fetch
+    fetchAccounts(currentPage);
+</script>
+
+{% block paginate_tables_script %} {{ super() }} {% endblock %}
+{% endblock %}
