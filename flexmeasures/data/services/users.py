@@ -15,6 +15,7 @@ from email_validator.deliverability import validate_email_deliverability
 from flask_security.utils import hash_password
 from werkzeug.exceptions import NotFound
 from sqlalchemy import select, delete
+from flask_sqlalchemy.pagination import SelectPagination
 
 from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataSource
@@ -40,8 +41,10 @@ def get_users(
     role_name: str | None = None,
     account_role_name: str | None = None,
     only_active: bool = True,
-) -> list[User]:
-    """Return a list of User objects.
+    page: int | None = None,
+    per_page: int | None = None,
+) -> SelectPagination:
+    """Return a list of users.
     The role_name parameter allows to filter by role.
     Set only_active to False if you also want non-active users.
     """
@@ -65,7 +68,7 @@ def get_users(
         if role:
             user_query = user_query.filter(User.flexmeasures_roles.contains(role))
 
-    users = db.session.scalars(user_query).all()
+    users: SelectPagination = db.paginate(user_query, per_page=per_page, page=page)
     if account_role_name is not None:
         users = [u for u in users if u.account.has_role(account_role_name)]
 
@@ -76,7 +79,7 @@ def find_user_by_email(user_email: str, keep_in_session: bool = True) -> User:
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
     user = user_datastore.find_user(email=user_email)
     if not keep_in_session:
-        # we might need this object persistent across requests
+        # we might need this object persistent across requestspage: int | None = None,
         db.session.expunge(user)
     return user
 
