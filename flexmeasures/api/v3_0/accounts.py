@@ -6,20 +6,16 @@ from flexmeasures.data import db
 from webargs.flaskparser import use_kwargs, use_args
 from flask_security import current_user, auth_required
 from flask_json import as_json
-from sqlalchemy import select, func
-from flask_sqlalchemy.pagination import SelectPagination
 
 from flexmeasures.auth.policy import user_has_admin_access
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data.models.audit_log import AuditLog
-from flexmeasures.data.models.user import Account, User
-from flexmeasures.data.models.generic_assets import GenericAsset
-from flexmeasures.data.services.accounts import get_audit_log_records
+from flexmeasures.data.models.user import Account
+from flexmeasures.data.services.accounts import get_accounts, get_audit_log_records
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.data.schemas.account import AccountSchema
 from flexmeasures.utils.validation_utils import validate_color_hex, validate_url
 from flexmeasures.utils.time_utils import server_now
-
 
 """
 API endpoints to manage accounts.
@@ -41,11 +37,7 @@ class AccountAPI(FlaskView):
 
     @route("", methods=["GET"])
     @as_json
-    def index(
-        self,
-        page: int | None = None,
-        per_page: int | None = None,
-    ):
+    def index(self):
         """API endpoint to list all accounts accessible to the current user.
 
         .. :quickref: Account; Download account list
@@ -77,33 +69,8 @@ class AccountAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        query = select(Account)
         if user_has_admin_access(current_user, "read"):
-            accts_response = []
-            accounts: SelectPagination = db.paginate(
-                query, per_page=per_page, page=page
-            )
-            for account in accounts.items:
-                user_count_query = select(func.count(User.id)).where(
-                    User.account_id == account.id
-                )
-                asset_count_query = select(func.count(GenericAsset.id)).where(
-                    GenericAsset.account_id == account.id
-                )
-                user_count = db.session.execute(user_count_query).scalar()
-                asset_count = db.session.execute(asset_count_query).scalar()
-                account_data = {
-                    "id": account.id,
-                    "account_roles": [],
-                    "consultancy_account_id": account.consultancy_account_id,
-                    "logo_url": account.logo_url,
-                    "name": account.name,
-                    "primary_color": account.primary_color,
-                    "secondary_color": account.secondary_color,
-                    "user_count": user_count,
-                    "asset_count": asset_count,
-                }
-                accts_response.append(account_data)
+            accounts = get_accounts()
         else:
             accounts = [current_user.account] + (
                 current_user.account.consultancy_client_accounts
@@ -111,12 +78,7 @@ class AccountAPI(FlaskView):
                 else []
             )
 
-        response = {
-            "accounts": accts_response,
-            "totalPages": accounts.pages,
-            "totalItems": accounts.total,
-        }
-        return response, 200
+        return accounts_schema.dump(accounts), 200
 
     @route("/<id>", methods=["GET"])
     @use_kwargs({"account": AccountIdField(data_key="id")}, location="path")
