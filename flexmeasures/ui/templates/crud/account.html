@@ -146,21 +146,16 @@ Account overview {% endblock %} {% block divs %}
     </div>
     <div class="col-md-8">
       <div
-        id="toastcontainer"
-        class="toast align-items-center text-bg-primary border-0"
+        class="toast-container"
         role="alert"
         aria-live="assertive"
         aria-atomic="true"
       >
-        <div class="d-flex">
-          <div class="toast-body" id="toastbody"></div>
-          <button
-            type="button"
-            class="btn-close btn-close-white me-2 m-auto"
-            data-bs-dismiss="toast"
-            aria-label="Close"
-          ></button>
-        </div>
+        <div
+          id="toastcontainer"
+          class="position-fixed bottom-0 end-0 p-3"
+          style="z-index: 11"
+        ></div>
       </div>
 
       <div class="card">
@@ -379,21 +374,48 @@ Account overview {% endblock %} {% block divs %}
 <script type="text/javascript">
   const basePath = window.location.origin;
   const form = document.getElementById("editaccount");
-  const toastElement = document.getElementById("toastcontainer");
+  const toastContainer = document.getElementById("toastcontainer");
   const toastDescription = document.getElementById("toastbody");
 
   function showToast(message, type) {
+    let colorClass;
+    let title;
+    if (type == "error") {
+      colorClass = "bg-danger";
+      title = "Error";
+    } else if (type == "success") {
+      colorClass = "bg-success";
+      title = "Success";
+    } else {
+      colorClass = "{{ account.primary_color }}";
+      title = "Info";
+    }
+    const toast = `
+        <div class="toast hide mb-1" data-bs-autohide="true" role="alert" aria-live="assertive" aria-atomic="true">
+          <div class="toast-header">
+            <div
+            class="rounded me-2 ${colorClass}"
+                  style="
+                    width: 20px;
+                    height: 20px;
+                    display: inline-block;
+                  "
+                ></div>
+            <strong class="me-auto">${title}</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+          </div>
+          <div class="toast-body">
+            ${message}
+          </div>
+        </div>
+    `;
+    toastContainer.insertAdjacentHTML("beforeend", toast);
+
     var toastElList = [].slice.call(document.querySelectorAll(".toast"));
     var toastList = toastElList.map(function (toastEl) {
       return new bootstrap.Toast(toastEl);
     });
     toastList.forEach((toast) => toast.show());
-    toastDescription.innerHTML = message;
-    if (type == "error") {
-      toastElement.classList.add("text-bg-danger");
-    } else {
-      toastElement.classList.add("text-bg-success");
-    }
   }
 
   form.addEventListener("submit", function (event) {
@@ -430,16 +452,10 @@ Account overview {% endblock %} {% block divs %}
       .then((response) => response.json())
       .then((data) => {
         if (data.status == 200) {
-          showToast("Form data updated successfully!", "success");
+          showToast("Account updated successfully!", "success");
         } else {
-          showToast(
-            "Error: " + (data.errors[0] || "Failed to update."),
-            "error"
-          );
+          showToast(data.message || "Failed to update.", "error");
         }
-      })
-      .catch((error) => {
-        showToast("An error occurred while updating the data.", "error");
       });
   });
 </script>
