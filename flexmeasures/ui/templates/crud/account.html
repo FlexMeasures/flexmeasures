@@ -57,7 +57,7 @@ Account overview {% endblock %} {% block divs %}
                         class="form-control"
                         id="primary_color"
                         name="primary_color"
-                        value="{{ account.primary_color or primary_color }}"
+                        value="{{ account.primary_color or '' }}"
                       />
                     </div>
                   </div>
@@ -72,7 +72,7 @@ Account overview {% endblock %} {% block divs %}
                         class="form-control"
                         id="secondary_color"
                         name="secondary_color"
-                        value="{{ account.secondary_color or secondary_color }}"
+                        value="{{ account.secondary_color or '' }}"
                       />
                     </div>
                   </div>
@@ -87,7 +87,7 @@ Account overview {% endblock %} {% block divs %}
                         class="form-control"
                         id="logo_url"
                         name="logo_url"
-                        value="{{ account.logo_url or menu_logo }}"
+                        value="{{ account.logo_url or '' }}"
                       />
                     </div>
                   </div>
@@ -105,7 +105,7 @@ Account overview {% endblock %} {% block divs %}
                         name="consultancy_account_id"
                       >
                         <option
-                          value="{{ account.consultancy_account_id }}"
+                          value="{{ account.consultancy_account_id or '' }}"
                           selected
                         >
                           {% if account.consultancy_account_id %} {% for
@@ -184,6 +184,45 @@ Account overview {% endblock %} {% block divs %}
               <tr>
                 <td>Consultancy</td>
                 <td>{{ account.consultancy_account_name }}</td>
+              </tr>
+              {% endif %} {% if account.primary_color %}
+              <tr>
+                <td>Primary Color</td>
+                <td>
+                  <div
+                    style="
+                      width: 20px;
+                      height: 20px;
+                      background-color: {{ account.primary_color }};
+                      display: inline-block;
+                    "
+                  ></div>
+                </td>
+              </tr>
+              {% endif %} {% if account.secondary_color %}
+              <tr>
+                <td>Secondary Color</td>
+                <td>
+                  <div
+                    style="
+                      width: 20px;
+                      height: 20px;
+                      background-color: {{ account.secondary_color }};
+                      display: inline-block;
+                    "
+                  ></div>
+                </td>
+              </tr>
+              {% endif %} {% if account.logo_url %}
+              <tr>
+                <td>Logo URL</td>
+                <td>
+                  <img
+                    src="{{ account.logo_url }}"
+                    alt="Logo"
+                    style="max-width: 100px"
+                  />
+                </td>
               </tr>
               {% endif %}
             </tbody>
@@ -362,6 +401,19 @@ Account overview {% endblock %} {% block divs %}
 
     // Collect form data
     const formData = new FormData(event.target);
+
+    // Collect keys of empty fields
+    const emptyFields = [];
+
+    for (var pair of formData.entries()) {
+      if (pair[1] === "") {
+        emptyFields.push(pair[0]);
+      }
+    }
+
+    // Remove the empty fields
+    emptyFields.forEach((field) => formData.delete(field));
+
     //check if consultancy acccount is None to exempt it from the form data
     if (formData.get("consultancy_account_id") == "None") {
       formData.delete("consultancy_account_id");
