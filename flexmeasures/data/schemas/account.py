@@ -44,7 +44,7 @@ class AccountSchema(ma.SQLAlchemySchema):
     @validates("secondary_color")
     def validate_secondary_color(self, value):
         if value is not None and not validate_color_hex(None, "secondary_color", value):
-            raise ValidationError("Invalid HEX color for secondary_color.")
+            raise ValidationError("Invalid HEX color for secondary_cUserSchemolor.")
 
     @validates("logo_url")
     def validate_logo_url(self, value):

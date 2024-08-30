@@ -146,16 +146,14 @@ Account overview {% endblock %} {% block divs %}
     </div>
     <div class="col-md-8">
       <div
-        class="toast-container"
+        class="toast-container position-fixed bottom-0 end-0 p-3"
         role="alert"
         aria-live="assertive"
         aria-atomic="true"
-      >
-        <div
           id="toastcontainer"
-          class="position-fixed bottom-0 end-0 p-3"
-          style="z-index: 11"
-        ></div>
+        style="z-index: 11"
+      >
+   
       </div>
 
       <div class="card">
@@ -379,6 +377,7 @@ Account overview {% endblock %} {% block divs %}
 
   function showToast(message, type) {
     let colorClass;
+    let colorStyle;
     let title;
     if (type == "error") {
       colorClass = "bg-danger";
@@ -387,7 +386,7 @@ Account overview {% endblock %} {% block divs %}
       colorClass = "bg-success";
       title = "Success";
     } else {
-      colorClass = "{{ account.primary_color }}";
+      colorStyle = "background-color: {{ account.primary_color }}";
       title = "Info";
     }
     const toast = `
@@ -399,6 +398,7 @@ Account overview {% endblock %} {% block divs %}
                     width: 20px;
                     height: 20px;
                     display: inline-block;
+                    ${colorStyle}
                   "
                 ></div>
             <strong class="me-auto">${title}</strong>
@@ -409,7 +409,8 @@ Account overview {% endblock %} {% block divs %}
           </div>
         </div>
     `;
-    toastContainer.insertAdjacentHTML("beforeend", toast);
+
+    toastContainer.insertAdjacentHTML("afterbegin", toast);
 
     var toastElList = [].slice.call(document.querySelectorAll(".toast"));
     var toastList = toastElList.map(function (toastEl) {
