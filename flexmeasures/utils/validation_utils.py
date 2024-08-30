@@ -10,11 +10,6 @@ def validate_color_hex(ctx, param, value):
     :param ctx:     Click context.
     :param param:   Click parameter. Hex value.
     """
-    if isinstance(param, str):
-        param_name = param
-    else:
-        param_name = param.name
-
     if value is None:
         return value
 
@@ -22,7 +17,7 @@ def validate_color_hex(ctx, param, value):
     if re.match(hex_pattern, value):
         return value
     else:
-        raise click.BadParameter(f"{param_name} must be a valid/full hex color code.")
+        raise click.BadParameter(f"{value} must be a valid/full hex color code.")
 
 
 def validate_url(ctx, param, value):

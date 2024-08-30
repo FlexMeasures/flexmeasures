@@ -1,6 +1,6 @@
 from flask.cli import with_appcontext
 from flexmeasures.data import ma
-from marshmallow import fields, validates, ValidationError
+from marshmallow import fields, validates
 
 from flexmeasures.data import db
 from flexmeasures.data.models.user import (
@@ -38,18 +38,18 @@ class AccountSchema(ma.SQLAlchemySchema):
 
     @validates("primary_color")
     def validate_primary_color(self, value):
-        if value is not None and not validate_color_hex(None, "primary_color", value):
-            raise ValidationError("Invalid HEX color for primary_color.")
+        if value is not None:
+            validate_color_hex(None, "primary_color", value)
 
     @validates("secondary_color")
     def validate_secondary_color(self, value):
-        if value is not None and not validate_color_hex(None, "secondary_color", value):
-            raise ValidationError("Invalid HEX color for secondary_cUserSchemolor.")
+        if value is not None:
+            validate_color_hex(None, "secondary_color", value)
 
     @validates("logo_url")
     def validate_logo_url(self, value):
-        if value is not None and not validate_url(None, "logo_url", value):
-            raise ValidationError("Invalid URL for logo_url.")
+        if value is not None:
+            validate_url(None, "logo_url", value)
 
 
 class AccountIdField(fields.Int, MarshmallowClickMixin):
