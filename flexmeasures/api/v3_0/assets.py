@@ -13,7 +13,7 @@ from marshmallow import fields
 import marshmallow.validate as validate
 
 from webargs.flaskparser import use_kwargs, use_args
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func
 
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
@@ -99,7 +99,13 @@ class AssetAPI(FlaskView):
 
         This endpoint returns all accessible assets for the account of the user.
         The `account_id` query parameter can be used to list assets from a different account.
-        The `all_accessible` query parameter can be used to list all the assets accessible by the requesting user. Defaults to `false`.
+        The `all_accessible` query parameter can be used to list assets not only from the current user's account, but from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.
+
+        The endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.
+            - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).
+            - If the `page` parameter is not provided, all assets are returned without pagination.
+        The response schema inspires from https://datatables.net/manual/server-side#Returned-data
+
 
         **Example response**
 
@@ -107,16 +113,19 @@ class AssetAPI(FlaskView):
 
         .. sourcecode:: json
 
-            [
-                {
+            {
+                "data" : {
                     "id": 1,
                     "name": "Test battery",
                     "latitude": 10,
                     "longitude": 100,
                     "account_id": 2,
                     "generic_asset_type_id": 1
-                }
-            ]
+                },
+                "num-records" : 1,
+                "filtered-records" : 1
+
+            }
 
         :reqheader Authorization: The authentication token
         :reqheader Content-Type: application/json
@@ -145,12 +154,15 @@ class AssetAPI(FlaskView):
         if all_accessible:
             filter_statement = filter_statement | GenericAsset.account_id.is_(None)
 
+        num_records = db.session.scalar(
+            select(func.count(GenericAsset.id)).where(filter_statement)
+        )
+
         if filter is not None:
             filter_statement = filter_statement & GenericAsset.name.ilike(f"%{filter}%")
 
         query = select(GenericAsset).where(filter_statement)
 
-        # add search query for name
         if page is not None:
             if per_page is None:
                 per_page = 10
@@ -161,7 +173,7 @@ class AssetAPI(FlaskView):
 
             assets = {
                 "data": select_pagination.items,
-                "num-records": select_pagination.total,
+                "num-records": num_records,
                 "filtered-records": select_pagination.total,
             }
         else:
