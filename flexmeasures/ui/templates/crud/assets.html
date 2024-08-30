@@ -40,6 +40,12 @@ function Asset ( id, name, asset_type, sensors, account, latitude, longitude) {
 };
 
 $(document).ready(function() {  
+
+  /*
+  Initialize a DataTable on an HTML element with the ID #assetTable, enabling server-side processing. 
+  The table is configured to display columns for the asset's name, ID, account owner, location, number of sensors, status, and a hidden URL field. 
+  The data for the table is fetched from a server using AJAX.
+  */
   $("#assetTable").dataTable({
     serverSide: true,
     columns : [
