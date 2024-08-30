@@ -386,7 +386,7 @@ Account overview {% endblock %} {% block divs %}
       colorClass = "bg-success";
       title = "Success";
     } else {
-      colorStyle = "background-color: {{ account.primary_color }}";
+      colorStyle = "background-color: {{ account.primary_color or primary_color }}";
       title = "Info";
     }
     const toast = `
