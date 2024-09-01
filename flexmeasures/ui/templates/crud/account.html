@@ -146,14 +146,14 @@ Account overview {% endblock %} {% block divs %}
     </div>
     <div class="col-md-8">
       <div
-        class="toast-container position-fixed bottom-0 end-0 p-3"
+        class="position-fixed bottom-0 end-0 p-3"
+        id="toast-container"
         role="alert"
         aria-live="assertive"
         aria-atomic="true"
-          id="toastcontainer"
         style="z-index: 11"
       >
-   
+        <button id="close-all-toasts" class="btn">Close All</button>
       </div>
 
       <div class="card">
@@ -372,8 +372,23 @@ Account overview {% endblock %} {% block divs %}
 <script type="text/javascript">
   const basePath = window.location.origin;
   const form = document.getElementById("editaccount");
-  const toastContainer = document.getElementById("toastcontainer");
-  const toastDescription = document.getElementById("toastbody");
+  const toastStack = document.getElementById("toast-container");
+  const closeToastBtn = document.getElementById("close-all-toasts");
+
+  // hide button
+  closeToastBtn.style.display = "none";
+
+  closeToastBtn.addEventListener("click", function () {
+    const toastElements = document.querySelectorAll(".toast");
+    toastElements.forEach((toast) => {
+      const toastInstance = bootstrap.Toast.getInstance(toast); // Get the toast instance
+      if (toastInstance) {
+        toastInstance.hide(); // Hide the toast
+      }
+    });
+    // Hide the close button
+    closeToastBtn.style.display = "none";
+  });
 
   function showToast(message, type) {
     let colorClass;
@@ -386,7 +401,8 @@ Account overview {% endblock %} {% block divs %}
       colorClass = "bg-success";
       title = "Success";
     } else {
-      colorStyle = "background-color: {{ account.primary_color or primary_color }}";
+      colorStyle =
+        "background-color: {{ account.primary_color or primary_color }}";
       title = "Info";
     }
     const toast = `
@@ -410,7 +426,9 @@ Account overview {% endblock %} {% block divs %}
         </div>
     `;
 
-    toastContainer.insertAdjacentHTML("afterbegin", toast);
+    toastStack.insertAdjacentHTML("afterbegin", toast);
+    // Show close button
+    closeToastBtn.style.display = "block";
 
     var toastElList = [].slice.call(document.querySelectorAll(".toast"));
     var toastList = toastElList.map(function (toastEl) {
@@ -429,18 +447,13 @@ Account overview {% endblock %} {% block divs %}
     const emptyFields = [];
 
     for (var pair of formData.entries()) {
-      if (pair[1] === "") {
+      if (pair[1] === "" || pair[1] === "None") {
         emptyFields.push(pair[0]);
       }
     }
 
     // Remove the empty fields
     emptyFields.forEach((field) => formData.delete(field));
-
-    //check if consultancy acccount is None to exempt it from the form data
-    if (formData.get("consultancy_account_id") == "None") {
-      formData.delete("consultancy_account_id");
-    }
 
     // Make a PATCH request to the API
     fetch(basePath + "/api/v3_0/accounts/" + "{{account.id}}", {
