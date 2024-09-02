@@ -136,7 +136,9 @@ def process_internal_api_response(
 
         child_assets = []
         for child in children:
-            child.pop("child_assets")
+            if "child_assets" in child:
+                # not deeper than one level
+                child.pop("child_assets")
             child_asset = process_internal_api_response(child, child["id"], True)
             child_assets.append(child_asset)
         asset.child_assets = child_assets
@@ -167,9 +169,14 @@ def get_assets_by_account(account_id: int | str | None) -> list[GenericAsset]:
         get_assets_response = InternalApi().get(
             url_for("AssetAPI:index"), query={"account_id": account_id}
         )
+        return [
+            process_internal_api_response(ad, make_obj=True)
+            for ad in get_assets_response.json().get("data", [])
+        ]
     else:
         get_assets_response = InternalApi().get(url_for("AssetAPI:public"))
-    return [
-        process_internal_api_response(ad, make_obj=True)
-        for ad in get_assets_response.json()
-    ]
+        # TODO: the public asset API should probably also become paginated
+        return [
+            process_internal_api_response(ad, make_obj=True)
+            for ad in get_assets_response.json()
+        ]
