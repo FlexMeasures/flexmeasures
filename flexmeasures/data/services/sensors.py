@@ -4,7 +4,9 @@ import json
 import hashlib
 from datetime import datetime, timedelta
 from flask import current_app
+from functools import lru_cache
 from isodate import duration_isoformat
+import time
 from timely_beliefs import BeliefsDataFrame
 
 from humanize.time import naturaldelta
@@ -16,6 +18,7 @@ import sqlalchemy as sa
 
 from flexmeasures.data import db
 from flexmeasures import Sensor, Account, Asset
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.schemas.reporting import StatusSchema
 from flexmeasures.utils.time_utils import server_now
@@ -328,3 +331,85 @@ def build_asset_jobs_data(
             )
 
     return jobs_data
+
+
+@lru_cache()
+def _get_sensor_stats(sensor: Sensor, ttl_hash=None) -> dict:
+    # Subquery for filtered aggregates
+    subquery_for_filtered_aggregates = (
+        sa.select(
+            TimedBelief.source_id,
+            sa.func.max(TimedBelief.event_value).label("max_event_value"),
+            sa.func.avg(TimedBelief.event_value).label("avg_event_value"),
+            sa.func.sum(TimedBelief.event_value).label("sum_event_value"),
+            sa.func.min(TimedBelief.event_value).label("min_event_value"),
+        )
+        .filter(TimedBelief.event_value != float("NaN"))
+        .filter(TimedBelief.sensor_id == sensor.id)
+        .group_by(TimedBelief.source_id)
+        .subquery()
+    )
+
+    raw_stats = db.session.execute(
+        sa.select(
+            DataSource.name,
+            sa.func.min(TimedBelief.event_start).label("min_event_start"),
+            sa.func.max(TimedBelief.event_start).label("max_event_start"),
+            subquery_for_filtered_aggregates.c.min_event_value,
+            subquery_for_filtered_aggregates.c.max_event_value,
+            subquery_for_filtered_aggregates.c.avg_event_value,
+            subquery_for_filtered_aggregates.c.sum_event_value,
+            sa.func.count(TimedBelief.event_value).label("count_event_value"),
+        )
+        .select_from(TimedBelief)
+        .join(DataSource, DataSource.id == TimedBelief.source_id)
+        .join(
+            subquery_for_filtered_aggregates,
+            subquery_for_filtered_aggregates.c.source_id == TimedBelief.source_id,
+        )
+        .filter(TimedBelief.sensor_id == sensor.id)
+        .group_by(
+            DataSource.name,
+            subquery_for_filtered_aggregates.c.min_event_value,
+            subquery_for_filtered_aggregates.c.max_event_value,
+            subquery_for_filtered_aggregates.c.avg_event_value,
+            subquery_for_filtered_aggregates.c.sum_event_value,
+        )
+    ).fetchall()
+
+    stats = dict()
+    for row in raw_stats:
+        (
+            data_source,
+            min_event_start,
+            max_event_start,
+            min_value,
+            max_value,
+            mean_value,
+            sum_values,
+            count_values,
+        ) = row
+        stats[data_source] = {
+            "min_event_start": min_event_start,
+            "max_event_start": max_event_start,
+            "min_value": min_value,
+            "max_value": max_value,
+            "mean_value": mean_value,
+            "sum_values": sum_values,
+            "count_values": count_values,
+        }
+    return stats
+
+
+def _get_ttl_hash(seconds=120) -> int:
+    """Returns the same value within "seconds" time period
+    Is needed to make LRU cache a TTL one
+    (lru_cache is used when call arguments are the same,
+    here we ensure that call arguments are the same in "seconds" period of time).
+    """
+    return round(time.time() / seconds)
+
+
+def get_sensor_stats(sensor: Sensor) -> dict:
+    """Get stats for a sensor"""
+    return _get_sensor_stats(sensor, ttl_hash=_get_ttl_hash())
