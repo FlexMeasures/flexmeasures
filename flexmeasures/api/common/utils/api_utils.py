@@ -11,7 +11,6 @@ from rq.job import Job
 from sqlalchemy.exc import IntegrityError
 
 from flexmeasures.data import db
-from flexmeasures.data.schemas.utils import FMIntegrityError
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.api.common.responses import (
     invalid_replacement,
@@ -100,14 +99,13 @@ def save_and_enqueue(
     return invalid_replacement()
 
 
-def catch_timed_belief_replacements(error: IntegrityError | FMIntegrityError):
+def catch_timed_belief_replacements(error: IntegrityError):
     """Catch IntegrityErrors due to a UniqueViolation on the TimedBelief primary key.
 
     Return a more informative message.
     """
-    if isinstance(error, FMIntegrityError) or (
-        isinstance(error.orig, UniqueViolation)
-        and "timed_belief_pkey" in str(error.orig)
+    if isinstance(error.orig, UniqueViolation) and "timed_belief_pkey" in str(
+        error.orig
     ):
         # Some beliefs represented replacements, which was forbidden
         return invalid_replacement()

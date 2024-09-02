@@ -17,7 +17,7 @@ from flexmeasures.api.common.utils.args_parsing import (
     validation_error_handler,
 )
 from flexmeasures.api.common.responses import invalid_sender
-from flexmeasures.data.schemas.utils import FMIntegrityError, FMValidationError
+from flexmeasures.data.schemas.utils import FMValidationError
 
 # The api blueprint. It is registered with the Flask app (see app.py)
 flexmeasures_api = Blueprint("flexmeasures_api", __name__)
@@ -95,7 +95,6 @@ def register_at(app: Flask):
     # handle API specific errors
     app.register_error_handler(FMValidationError, validation_error_handler)
     app.register_error_handler(IntegrityError, catch_timed_belief_replacements)
-    app.register_error_handler(FMIntegrityError, catch_timed_belief_replacements)
     app.unauthorized_handler_api = invalid_sender
 
     app.register_blueprint(

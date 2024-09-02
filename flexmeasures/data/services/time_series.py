@@ -123,16 +123,11 @@ def _drop_unchanged_beliefs_compared_to_db(
     compare_fields = ["event_start", "source", "cumulative_probability", "event_value"]
     a = bdf.reset_index().set_index(compare_fields)
     b = previous_most_recent_beliefs_in_db.reset_index().set_index(compare_fields)
-    try:
-        bdf = a.drop(
-            b.index,
-            errors="raise",
-            axis=0,
-        )
-    except KeyError:
-        from flexmeasures.data.schemas.utils import FMIntegrityError
-
-        raise FMIntegrityError(message="data represents a replacement")
+    bdf = a.drop(
+        b.index,
+        errors="ignore",
+        axis=0,
+    )
 
     # Keep whole probabilistic beliefs, not just the parts that changed
     c = bdf.reset_index().set_index(["event_start", "source"])
