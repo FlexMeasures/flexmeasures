@@ -242,6 +242,7 @@ class AssetAPI(FlaskView):
         """
         inflexible_sensor_ids = asset_data.pop("inflexible_device_sensor_ids", [])
         db_asset.set_inflexible_sensors(inflexible_sensor_ids)
+        from flexmeasures.data.models.audit_log import truncate_event
 
         audit_log_data = list()
         for k, v in asset_data.items():
@@ -252,12 +253,16 @@ class AssetAPI(FlaskView):
                 for attr_key, attr_value in v.items():
                     if current_attributes.get(attr_key) != attr_value:
                         audit_log_data.append(
-                            f"Attribute name: {attr_key}, Old value: {current_attributes.get(attr_key)}, New value: {attr_value}"
+                            truncate_event(
+                                f"Attr : {attr_key}, From: {current_attributes.get(attr_key)}, To: {attr_value}",
+                                attr_key=attr_key,
+                                old_value=current_attributes.get(attr_key),
+                                new_value=attr_value,
+                                max_length=150,
+                            )
                         )
                 continue
-            audit_log_data.append(
-                f"Field name: {k}, Old value: {getattr(db_asset, k)}, New value: {v}"
-            )
+            audit_log_data.append(f"Field: {k}, From: {getattr(db_asset, k)}, To: {v}")
         audit_log_event = f"Updated asset '{db_asset.name}': {db_asset.id} fields: {'; '.join(audit_log_data)}"
         AssetAuditLog.add_record(db_asset, audit_log_event)
 
