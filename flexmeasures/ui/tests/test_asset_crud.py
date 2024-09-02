@@ -28,24 +28,6 @@ def test_get_assets_by_account(db, client, requests_mock, as_prosumer_user1):
     assert get_assets_by_account(1)[1].name == "TestAsset2"
 
 
-# This test is no longer valid because now we are requesting the data from the frontend.
-# @pytest.mark.parametrize("use_owned_by", [False, True])
-# def test_assets_page_nonempty(
-#     db, client, requests_mock, as_prosumer_user1, use_owned_by, assets_prosumer
-# ):
-#     mock_assets = mock_asset_response(multiple=True)
-#     requests_mock.get(f"{api_path_assets}", status_code=200, json=mock_assets)
-#     requests_mock.get(f"{api_path_assets}/public", status_code=200, json=[])
-#     if use_owned_by:
-#         asset_index = client.get(
-#             url_for("AssetCrudUI:owned_by", account_id=mock_assets[0]["account_id"])
-#         )
-#     else:
-#         asset_index = client.get(url_for("AssetCrudUI:index"))
-#     for asset in mock_assets:
-#         assert asset["name"].encode() in asset_index.data
-
-
 def test_new_asset_page(client, setup_assets, as_admin):
     asset_page = client.get(url_for("AssetCrudUI:get", id="new"), follow_redirects=True)
     assert asset_page.status_code == 200
