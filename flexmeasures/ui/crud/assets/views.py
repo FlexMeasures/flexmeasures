@@ -5,9 +5,6 @@ from flask_security import login_required, current_user
 from webargs.flaskparser import use_kwargs
 from sqlalchemy import select, func
 
-from marshmallow import fields
-import marshmallow.validate as validate
-
 from flexmeasures.api.v3_0.assets import get_acessible_accounts
 from flexmeasures.data import db
 from flexmeasures.auth.error_handling import unauthorized_handler
@@ -64,16 +61,6 @@ class AssetCrudUI(FlaskView):
     route_base = "/assets"
     trailing_slash = False
 
-    @use_kwargs(
-        {
-            "page": fields.Int(
-                required=False, validate=validate.Range(min=1), default=1
-            ),
-            "per_page": fields.Int(
-                required=False, validate=validate.Range(min=1), default=10
-            ),
-        },
-    )
     @login_required
     def index(self, msg="", **kwargs):
         """GET from /assets
@@ -81,6 +68,7 @@ class AssetCrudUI(FlaskView):
         List the user's assets. For admins, list across all accounts.
         """
 
+        print("YES THIS ONE")
         return render_flexmeasures_template(
             "crud/assets.html",
             num_assets=get_num_accessible_assets(),
