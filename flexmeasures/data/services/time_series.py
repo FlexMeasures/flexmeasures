@@ -7,7 +7,6 @@ import inflect
 from flask import current_app
 import pandas as pd
 import timely_beliefs as tb
-from timely_beliefs.beliefs import utils as belief_utils
 
 from flexmeasures.data.queries.utils import simplify_index
 
