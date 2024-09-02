@@ -79,9 +79,9 @@ class SensorUI(FlaskView):
         sensor = db.session.get(Sensor, id)
         return render_flexmeasures_template(
             "views/sensors.html",
+            sensor=sensor,
             msg="",
             breadcrumb_info=get_breadcrumb_info(sensor),
             event_starts_after=request.args.get("start_time"),
             event_ends_before=request.args.get("end_time"),
-            sensor=sensor,
         )
