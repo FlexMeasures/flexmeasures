@@ -111,17 +111,13 @@ def _drop_unchanged_beliefs_compared_to_db(
     else:
         # Look up only ex-post beliefs (horizon <= 0)
         kwargs = dict(horizons_at_most=timedelta(0))
-    previous_beliefs_in_db = bdf.sensor.search_beliefs(
+    previous_most_recent_beliefs_in_db = bdf.sensor.search_beliefs(
         event_starts_after=bdf.event_starts[0],
         event_ends_before=bdf.event_ends[-1],
         beliefs_before=bdf.lineage.belief_times[0],  # unique belief time
         source=bdf.lineage.sources[0],  # unique source
-        most_recent_beliefs_only=False,
+        most_recent_beliefs_only=True,
         **kwargs,
-    )
-    # todo: delete next line and set most_recent_beliefs_only=True when this is resolved: https://github.com/SeitaBV/timely-beliefs/pull/117
-    previous_most_recent_beliefs_in_db = belief_utils.select_most_recent_belief(
-        previous_beliefs_in_db
     )
 
     compare_fields = ["event_start", "source", "cumulative_probability", "event_value"]
