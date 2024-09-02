@@ -34,8 +34,8 @@ tldextract
 pyomo>=5.6
 tabulate
 timetomodel>=0.7.3
-# significantly faster db queries
-timely-beliefs[forecast]>=3.0
+# significantly faster db queries, incl. bulk saving
+timely-beliefs[forecast]>=3.0.1
 python-dotenv
 # a backport, not needed in Python3.8
 importlib_metadata
