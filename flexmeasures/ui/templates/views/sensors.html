@@ -34,22 +34,23 @@
               <div class="alert alert-info" id="sourcewarn" style="display:none;"></div>
           </div>
           <div class="row on-top-md">
-              <div class="col-sm-2">
+              <div class="col-md-2">
                   <div class="sidepanel-container">
                       <div class="left-sidepanel-label">Select dates</div>
                       <div class="sidepanel left-sidepanel">
                           <div id="datepicker"></div>
-                          <div id="chart-type-picker" class="dropdown header-action-button">
-                              <button class="btn dropdown-toggle" type="button" id="chartTypeDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                                  Select chart
-                              </button>
-                              <ul class="dropdown-menu center-aligned" aria-labelledby="chartTypeDropdown">
-                                  <li><a class="dropdown-item" href="#" data-chart-type="bar_chart">Bar chart</a></li>
-                                  <li><a class="dropdown-item" href="#" data-chart-type="daily_heatmap">Daily heatmap</a></li>
-                                  <li><a class="dropdown-item" href="#" data-chart-type="weekly_heatmap">Weekly heatmap</a></li>
-                              </ul>
-                          </div>
                       </div>
+                  </div>
+                  <div id="chart-type-picker" class="leftside-dropdown dropdown">
+                      <button class="btn dropdown-toggle" type="button" id="chartTypeDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                          Select chart
+                      </button>
+                      <ul class="dropdown-menu center-aligned" aria-labelledby="chartTypeDropdown">
+                          <li><a class="dropdown-item" href="#" data-chart-type="bar_chart">Bar chart</a></li>
+                          <li><a class="dropdown-item" href="#" data-chart-type="histogram">Histogram</a></li>
+                          <li><a class="dropdown-item" href="#" data-chart-type="daily_heatmap">Daily heatmap</a></li>
+                          <li><a class="dropdown-item" href="#" data-chart-type="weekly_heatmap">Weekly heatmap</a></li>
+                      </ul>
                   </div>
               </div>
               <div class="col-sm-8">
@@ -57,6 +58,35 @@
                   <div id="spinner" hidden="hidden">
                       <i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i>
                       <span class="sr-only">Loading...</span>
+                  </div>
+                  <div class="row">
+                      <div class="card col-lg-6">
+
+                          <h5>Properties</h5>
+
+                          <table class="table table-striped">
+                              <tr>
+                                  <th>Name</th>
+                                  <td>{{ sensor.name }}</td>
+                              </tr>
+                              <tr>
+                                  <th>Unit</th>
+                                  <td>{{ sensor.unit }}</td>
+                              </tr>
+                              <tr>
+                                  <th>Event Resolution</th>
+                                  <td>{{ sensor.event_resolution }}</td>
+                              </tr>
+                              <tr>
+                                  <th>Timezone</th>
+                                  <td>{{ sensor.timezone }}</td>
+                              </tr>
+                              <tr>
+                                  <th>Knowledge Horizon Type</th>
+                                  <td>{{ sensor.knowledge_horizon_fnc }}</td>
+                              </tr>
+                          </table>
+                      </div>
                   </div>
               </div>
               <div class="col-sm-2">
@@ -93,7 +123,7 @@
                                 endDate = encodeURIComponent(toIsoString(endDate.toJSDate()));
                                 var base_url = window.location.href.split("?")[0];
                                 var new_url = `${base_url}?start_time=${startDate}&end_time=${endDate}`;
-                                
+
                                 // change current url without reloading the page
                                 window.history.pushState({}, null, new_url);
                             });
