@@ -34,6 +34,13 @@ class FMValidationError(ma.exceptions.ValidationError):
     status = "UNPROCESSABLE_ENTITY"
 
 
+class FMIntegrityError(FMValidationError):
+    """Error with data integrity."""
+
+    result = "Rejected"
+    status = "UNPROCESSABLE_ENTITY"
+
+
 def with_appcontext_if_needed():
     """Execute within the script's application context, in case there is one.
 
