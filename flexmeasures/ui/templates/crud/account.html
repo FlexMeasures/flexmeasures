@@ -383,7 +383,9 @@ Account overview {% endblock %} {% block divs %}
     toastElements.forEach((toast) => {
       const toastInstance = bootstrap.Toast.getInstance(toast); // Get the toast instance
       if (toastInstance) {
-        toastInstance.hide(); // Hide the toast
+        // destroy the toast
+        toastInstance.dispose();
+        toast.remove();
       }
     });
     // Hide the close button
@@ -468,7 +470,15 @@ Account overview {% endblock %} {% block divs %}
         if (data.status == 200) {
           showToast("Account updated successfully!", "success");
         } else {
-          showToast(data.message || "Failed to update.", "error");
+          if (data.message && typeof data.message === "string") {
+            showToast(data.message, "error");
+          } else {
+            const errors = data.message.json;
+
+            for (const key in errors) {
+              showToast(`${key}: ${errors[key]}`, "error");
+            }
+          }
         }
       });
   });
