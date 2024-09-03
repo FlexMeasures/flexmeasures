@@ -73,6 +73,11 @@
 <script type="text/javascript">
     {% include "rq_dashboard/inline_js.html" %}
     {% block content_scripts %}{% endblock %}
+
+    {#- Override sort order to prefer looking at the most recent past first, workaround for https://github.com/Parallels/rq-dashboard/issues/123 -#}
+    if (['canceled', 'failed', 'finished'].indexOf($('#select-registry').val()) >= 0) {
+        $('#select-sort-order').val('dsc');
+    }
 </script>
 
 {% endblock scripts %}
