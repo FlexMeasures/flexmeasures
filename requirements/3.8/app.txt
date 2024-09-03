@@ -297,7 +297,7 @@ rq==1.16.1
     # via
     #   -r requirements/app.in
     #   rq-dashboard
-rq-dashboard==0.6.7.2
+rq-dashboard==0.8.0.2
     # via -r requirements/app.in
 scikit-base==0.7.5
     # via sktime
