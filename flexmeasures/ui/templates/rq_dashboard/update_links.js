@@ -1,4 +1,4 @@
-
+{#- Override sort order to prefer looking at the most recent past first, workaround for https://github.com/Parallels/rq-dashboard/issues/123 -#}
 function updateLinks() {
     document.querySelectorAll('td.failed a, td.narrow a').forEach(link => {
         const href = link.getAttribute('href');
