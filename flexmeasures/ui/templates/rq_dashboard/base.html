@@ -73,6 +73,34 @@
 <script type="text/javascript">
     {% include "rq_dashboard/inline_js.html" %}
     {% block content_scripts %}{% endblock %}
+
+    {#- Override sort order to prefer looking at the most recent past first, workaround for https://github.com/Parallels/rq-dashboard/issues/123 -#}
+    function updateLinks() {
+        document.querySelectorAll('td.failed a, td.narrow a').forEach(link => {
+            const href = link.getAttribute('href');
+            if (href.includes('/canceled/') || href.includes('/failed/') || href.includes('/finished/')) {
+                const newHref = href.replace('/asc/', '/dsc/');
+                link.setAttribute('href', newHref);
+            }
+        });
+    }
+
+    // Function to check if the table is done loading
+    function checkTableLoaded() {
+        const loadingRow = document.querySelector('tbody tr');
+        if (loadingRow && loadingRow.textContent.trim() !== 'Loading...') {
+            updateLinks();
+            clearInterval(intervalId);  // Stop the interval after updating links
+        }
+    }
+
+    // Check every 500ms if the table has finished loading
+    const intervalId = setInterval(checkTableLoaded, 500);
+
+
+
+
+
 </script>
 
 {% endblock scripts %}
