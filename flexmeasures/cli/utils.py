@@ -154,7 +154,7 @@ def get_timerange_from_flag(
     last_7_days: bool = False,
     last_month: bool = False,
     last_year: bool = False,
-    timezone: pytz.BaseTzInfo = get_timezone(),
+    timezone: pytz.BaseTzInfo | None = None,
 ) -> tuple[datetime, datetime]:
     """This function returns a time range [start,end] of the last-X period.
     See input parameters for more details.
@@ -167,6 +167,9 @@ def get_timerange_from_flag(
     :param timezone: timezone object to represent
     :returns: start:datetime, end:datetime
     """
+
+    if timezone is None:
+        timezone = get_timezone()
 
     current_hour = get_most_recent_hour().astimezone(timezone)
 
