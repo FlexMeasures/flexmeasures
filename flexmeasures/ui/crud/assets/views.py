@@ -68,7 +68,6 @@ class AssetCrudUI(FlaskView):
         List the user's assets. For admins, list across all accounts.
         """
 
-        print("YES THIS ONE")
         return render_flexmeasures_template(
             "crud/assets.html",
             num_assets=get_num_accessible_assets(),

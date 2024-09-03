@@ -106,7 +106,7 @@ def process_internal_api_response(
 
         asset_data.pop("sensors", [])
         asset_data.pop("owner", [])
-        asset_data.pop("generic_asset_type", [])
+        asset_type = asset_data.pop("generic_asset_type", [])
 
         asset = GenericAsset(
             **{
@@ -115,7 +115,7 @@ def process_internal_api_response(
             }
         )  # TODO: use schema?
         asset.generic_asset_type = db.session.get(
-            GenericAssetType, asset.generic_asset_type_id
+            GenericAssetType, asset_type.get("id", None)
         )
         expunge_asset()
         asset.owner = db.session.get(Account, asset_data["account_id"])

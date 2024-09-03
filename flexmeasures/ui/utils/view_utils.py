@@ -189,8 +189,9 @@ def asset_icon_name(asset_type_name: str) -> str:
     becomes (for a battery):
         <i class="icon-battery"></i>
     """
-
-    return ICON_MAPPING.get(asset_type_name.lower(), f"icon-{asset_type_name}")
+    if asset_type_name:
+        asset_type_name = asset_type_name.lower()
+    return ICON_MAPPING.get(asset_type_name, f"icon-{asset_type_name}")
 
 
 def username(user_id) -> str:
