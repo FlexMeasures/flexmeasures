@@ -86,20 +86,20 @@
     }
 
     // Function to check if the table is done loading
-    function checkTableLoaded() {
+    function checkTableAndUpdate(mutationsList, observer) {
         const loadingRow = document.querySelector('tbody tr');
         if (loadingRow && loadingRow.textContent.trim() !== 'Loading...') {
             updateLinks();
-            clearInterval(intervalId);  // Stop the interval after updating links
+            observer.disconnect();  // Stop observing once the table is updated
         }
     }
 
-    // Check every 500ms if the table has finished loading
-    const intervalId = setInterval(checkTableLoaded, 500);
+    // Monitor the tbody for changes
+    const observer = new MutationObserver(checkTableAndUpdate);
 
-
-
-
+    // Start observing the tbody element for child list changes
+    const tbody = document.querySelector('tbody');
+    observer.observe(tbody, { childList: true, subtree: true });
 
 </script>
 
