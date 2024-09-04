@@ -132,6 +132,10 @@ def test_add_asset(db, client, setup_assets, requests_mock, as_admin):
     """Add a new asset"""
     user = find_user_by_email("test_prosumer_user@seita.nl")
     mock_asset = mock_asset_response(account_id=user.account.id, as_list=False)
+    del mock_asset[
+        "generic_asset_type"
+    ]  # API gives back more info here than a POST sends
+    mock_asset["generic_asset_type_id"] = 1
     requests_mock.post(api_path_assets, status_code=201, json=mock_asset)
     response = client.post(
         url_for("AssetCrudUI:post", id="create"),

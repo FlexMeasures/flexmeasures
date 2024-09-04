@@ -25,10 +25,14 @@ def mock_asset_response(
     as_list: bool = True,
     multiple: bool = False,
 ) -> dict | list[dict]:
+    """
+    Mock response from asset API.
+    Does not mock output of paginated assets endpoint!
+    """
     asset = dict(
         id=asset_id,
         name="TestAsset",
-        generic_asset_type_id=1,
+        generic_asset_type={"id": 1, "name": "battery"},
         account_id=int(account_id),
         latitude=70.4,
         longitude=30.9,

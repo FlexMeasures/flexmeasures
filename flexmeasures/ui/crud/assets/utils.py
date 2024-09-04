@@ -114,9 +114,14 @@ def process_internal_api_response(
                 **{"attributes": json.loads(asset_data.get("attributes", "{}"))},
             }
         )  # TODO: use schema?
-        asset.generic_asset_type = db.session.get(
-            GenericAssetType, asset_type.get("id", None)
-        )
+        if "generic_asset_type_id" in asset_data:
+            asset.generic_asset_type = db.session.get(
+                GenericAssetType, asset_data["generic_asset_type_id"]
+            )
+        else:
+            asset.generic_asset_type = db.session.get(
+                GenericAssetType, asset_type.get("id", None)
+            )
         expunge_asset()
         asset.owner = db.session.get(Account, asset_data["account_id"])
         expunge_asset()
@@ -169,14 +174,9 @@ def get_assets_by_account(account_id: int | str | None) -> list[GenericAsset]:
         get_assets_response = InternalApi().get(
             url_for("AssetAPI:index"), query={"account_id": account_id}
         )
-        return [
-            process_internal_api_response(ad, make_obj=True)
-            for ad in get_assets_response.json().get("data", [])
-        ]
     else:
         get_assets_response = InternalApi().get(url_for("AssetAPI:public"))
-        # TODO: the public asset API should probably also become paginated
-        return [
-            process_internal_api_response(ad, make_obj=True)
-            for ad in get_assets_response.json()
-        ]
+    return [
+        process_internal_api_response(ad, make_obj=True)
+        for ad in get_assets_response.json()
+    ]

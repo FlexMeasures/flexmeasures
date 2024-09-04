@@ -50,7 +50,6 @@ def get_acessible_accounts() -> list[Account]:
 class AssetAPI(FlaskView):
     """
     This API view exposes generic assets.
-    Under development until it replaces the original Asset API.
     """
 
     route_base = "/assets"
@@ -102,30 +101,35 @@ class AssetAPI(FlaskView):
         The `all_accessible` query parameter can be used to list assets not only from the current user's account, but from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.
 
         The endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.
+
+            - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.
             - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).
-            - If the `page` parameter is not provided, all assets are returned without pagination.
-        The response schema inspires from https://datatables.net/manual/server-side#Returned-data
+              The response schema for pagination is inspired by https://datatables.net/manual/server-side#Returned-data
 
 
         **Example response**
 
-        An example of one asset being returned:
+        An example of one asset being returned in a paginated response:
 
         .. sourcecode:: json
 
             {
-                "data" : {
-                    "id": 1,
-                    "name": "Test battery",
-                    "latitude": 10,
-                    "longitude": 100,
-                    "account_id": 2,
-                    "generic_asset_type_id": 1
-                },
+                "data" : [
+                    {
+                      "id": 1,
+                      "name": "Test battery",
+                      "latitude": 10,
+                      "longitude": 100,
+                      "account_id": 2,
+                      "generic_asset_type": {"id": 1, "name": "battery"}
+                    }
+                ],
                 "num-records" : 1,
                 "filtered-records" : 1
 
             }
+
+        If no pagination is requested, the response only consists of the list under the "data" key.
 
         :reqheader Authorization: The authentication token
         :reqheader Content-Type: application/json
@@ -137,6 +141,7 @@ class AssetAPI(FlaskView):
         :status 422: UNPROCESSABLE_ENTITY
         """
 
+        # find out which accounts are relevant
         accounts = []
         if all_accessible:
             accounts = get_acessible_accounts()
@@ -150,7 +155,7 @@ class AssetAPI(FlaskView):
 
         filter_statement = GenericAsset.account_id.in_([a.id for a in accounts])
 
-        # add public assets if the request asks for all the accesible assets
+        # add public assets if the request asks for all the accessible assets
         if all_accessible:
             filter_statement = filter_statement | GenericAsset.account_id.is_(None)
 
@@ -163,30 +168,22 @@ class AssetAPI(FlaskView):
 
         query = select(GenericAsset).where(filter_statement)
 
-        if page is not None:
+        if page is None:
+            response = asset_schema.dump(db.session.scalars(query).all(), many=True)
+        else:
             if per_page is None:
                 per_page = 10
 
             select_pagination: SelectPagination = db.paginate(
                 query, per_page=per_page, page=page
             )
-
-            assets = {
-                "data": select_pagination.items,
+            response = {
+                "data": asset_schema.dump(select_pagination.items, many=True),
                 "num-records": num_records,
                 "filtered-records": select_pagination.total,
             }
-        else:
-            assets = db.session.scalars(query).all()
-            assets = {
-                "data": assets,
-                "num-records": len(assets),
-                "filtered-records": len(assets),
-            }
 
-        assets["data"] = asset_schema.dump(assets["data"], many=True)
-
-        return assets, 200
+        return response, 200
 
     @route("/public", methods=["GET"])
     @as_json
