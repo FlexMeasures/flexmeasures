@@ -25,58 +25,30 @@
                 {% endfor %}
             </ol>
         </nav>
-
-
       <div class="sensor-data charts text-center">
           <div class="row">
               <div class="alert alert-info" id="tzwarn" style="display:none;"></div>
               <div class="alert alert-info" id="dstwarn" style="display:none;"></div>
               <div class="alert alert-info" id="sourcewarn" style="display:none;"></div>
           </div>
-          <div class="container">
-            <div class="row">
-                <h3>{{ sensor.name }}</h3>
-                <div class="col-sm-6">
-                    <h5>Properties</h5>
-
-                    <table class="table table-striped">
-                        <tr>
-                            <th>Unit</th>
-                            <td>{{ sensor.unit }}</td>
-                        </tr>
-                        <tr>
-                            <th>Event Resolution</th>
-                            <td>{{ sensor.event_resolution }}</td>
-                        </tr>
-                        <tr>
-                            <th>Timezone</th>
-                            <td>{{ sensor.timezone }}</td>
-                        </tr>
-                        <tr>
-                            <th>Knowledge Horizon Type</th>
-                            <td>{{ sensor.knowledge_horizon_fnc }}</td>
-                        </tr>
-                    </table>
-                </div>
-            </div>
-          </div>
           <div class="row on-top-md">
-              <div class="col-sm-2">
+              <div class="col-md-2">
                   <div class="sidepanel-container">
                       <div class="left-sidepanel-label">Select dates</div>
                       <div class="sidepanel left-sidepanel">
                           <div id="datepicker"></div>
-                          <div id="chart-type-picker" class="dropdown header-action-button">
-                              <button class="btn dropdown-toggle" type="button" id="chartTypeDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                                  Select chart
-                              </button>
-                              <ul class="dropdown-menu center-aligned" aria-labelledby="chartTypeDropdown">
-                                  <li><a class="dropdown-item" href="#" data-chart-type="bar_chart">Bar chart</a></li>
-                                  <li><a class="dropdown-item" href="#" data-chart-type="daily_heatmap">Daily heatmap</a></li>
-                                  <li><a class="dropdown-item" href="#" data-chart-type="weekly_heatmap">Weekly heatmap</a></li>
-                              </ul>
-                          </div>
                       </div>
+                  </div>
+                  <div id="chart-type-picker" class="leftside-dropdown dropdown">
+                      <button class="btn dropdown-toggle" type="button" id="chartTypeDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                          Select chart
+                      </button>
+                      <ul class="dropdown-menu center-aligned" aria-labelledby="chartTypeDropdown">
+                          <li><a class="dropdown-item" href="#" data-chart-type="bar_chart">Bar chart</a></li>
+                          <li><a class="dropdown-item" href="#" data-chart-type="histogram">Histogram</a></li>
+                          <li><a class="dropdown-item" href="#" data-chart-type="daily_heatmap">Daily heatmap</a></li>
+                          <li><a class="dropdown-item" href="#" data-chart-type="weekly_heatmap">Weekly heatmap</a></li>
+                      </ul>
                   </div>
               </div>
               <div class="col-sm-8">
@@ -84,6 +56,165 @@
                   <div id="spinner" hidden="hidden">
                       <i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i>
                       <span class="sr-only">Loading...</span>
+                  </div>
+                  <div class="row">
+                      <div class="card col-lg-5">
+
+                          <h5>Properties</h5>
+
+                          <table class="table table-striped">
+                              <tr>
+                                  <th>Name</th>
+                                  <td>{{ sensor.name }}</td>
+                              </tr>
+                              <tr>
+                                  <th>Unit</th>
+                                  <td>{{ sensor.unit }}</td>
+                              </tr>
+                              <tr>
+                                  <th>Event Resolution</th>
+                                  <td>{{ sensor.event_resolution }}</td>
+                              </tr>
+                              <tr>
+                                  <th>Timezone</th>
+                                  <td>{{ sensor.timezone }}</td>
+                              </tr>
+                              <tr>
+                                  <th>Knowledge Horizon Type</th>
+                                  <td>{{ sensor.knowledge_horizon_fnc }}</td>
+                              </tr>
+                          </table>
+                      </div>
+                      <div class="card col-lg-5" id="statsContainer">
+                        <span id="spinner-run-simulation" class="spinner-border spinner-border-sm d-none" role="status"></span>
+                        <h5 id="statsHeader">Statistics</h5>
+                        <table id="statsTable" class="table table-striped">
+                            <tbody id="statsTableBody">
+                            </tbody>
+                        </table>
+                        <!-- Dropdown for sourceKey -->
+                        <div class="dropdown mb-3 d-none" id="sourceKeyDropdownContainer">
+                            <small class="text-muted">Select source for statistics</small>
+                            <button class="btn btn-secondary dropdown-toggle" type="button" id="sourceKeyDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                Select Source
+                            </button>
+                            <ul class="dropdown-menu" aria-labelledby="sourceKeyDropdown" id="sourceKeyDropdownMenu">
+                            </ul>
+                        </div>
+                        <!-- Alert for no data -->
+                        <div class="alert alert-warning d-none" id="noDataWarning">
+                            There is no data for this sensor yet.
+                        </div>
+                        <!-- Alert for errors -->
+                        <div class="alert alert-danger d-none" id="fetchError">
+                            There was a problem fetching statistics for this sensor's data.
+                        </div>
+                        <script>
+                            document.addEventListener('DOMContentLoaded', function() {
+                                const spinner = document.getElementById('spinner-run-simulation');
+                                const tableBody = document.getElementById('statsTableBody');
+                                const dropdownMenu = document.getElementById('sourceKeyDropdownMenu');
+                                const dropdownButton = document.getElementById('sourceKeyDropdown');
+                                const dropdownContainer = document.getElementById('sourceKeyDropdownContainer');
+                                const propertiesContainer = document.getElementById('propertiesContainer');
+                                const statsContainer = document.getElementById('statsContainer');
+                                const noDataWarning = document.getElementById('noDataWarning');
+                                const fetchError = document.getElementById('fetchError');
+
+
+                                // Show the spinner
+                                spinner.classList.remove('d-none');
+
+                                fetch('/api/v3_0/sensors/' + {{ sensor.id }} + '/stats')
+                                    .then(response => response.json())
+                                    .then(data => {
+                                        // Remove 'status' sourceKey
+                                        delete data['status'];
+
+                                        if (Object.keys(data).length > 0) {
+                                            // Show the header and dropdown container
+                                            dropdownContainer.classList.remove('d-none');
+
+                                            // Populate the dropdown menu with sourceKeys
+                                            Object.keys(data).forEach(sourceKey => {
+                                                const dropdownItem = document.createElement('li');
+                                                const dropdownLink = document.createElement('a');
+                                                dropdownLink.className = 'dropdown-item';
+                                                dropdownLink.href = '#';
+                                                dropdownLink.textContent = sourceKey;
+                                                dropdownLink.dataset.sourceKey = sourceKey;
+
+                                                dropdownLink.addEventListener('click', function(event) {
+                                                    event.preventDefault();
+                                                    const selectedSourceKey = event.target.dataset.sourceKey;
+                                                    dropdownButton.textContent = selectedSourceKey;
+                                                    updateTable(data[selectedSourceKey]);
+                                                });
+
+                                                dropdownItem.appendChild(dropdownLink);
+                                                dropdownMenu.appendChild(dropdownItem);
+                                            });
+
+                                            // Update the table with the first sourceKey's data by default
+                                            const firstSourceKey = Object.keys(data)[0];
+                                            dropdownButton.textContent = firstSourceKey;
+                                            updateTable(data[firstSourceKey]);
+                                        } else {
+                                            // If the stats table is empty, make the properties table full width
+                                            noDataWarning.classList.remove('d-none');
+                                        }
+                                    })
+                                    .catch(error => {
+                                        console.error('Error:', error);
+                                        dropdownContainer.classList.add('d-none');
+                                        fetchError.textContent = 'There was a problem fetching statistics for this sensor\'s data: ' + error.message;
+                                        fetchError.classList.remove('d-none');
+                                    })
+                                    .finally(() => {
+                                        // Hide the spinner
+                                        spinner.classList.add('d-none');
+                                    });
+
+                                function updateTable(stats) {
+                                    tableBody.innerHTML = ''; // Clear the table body
+
+                                    // This list is used to format the table content. Simple sorting is not possible.
+                                    const keys = [
+                                        "min_event_start",
+                                        "max_event_start",
+                                        "min_value",
+                                        "max_value",
+                                        "mean_value",
+                                        "sum_values",
+                                        "count_values"
+                                    ];
+
+                                    keys.forEach(key => {
+                                        if (key in stats) {
+                                            // Create a display key by removing underscores and capitalizing words
+                                            const displayKey = key.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase());
+
+                                            const row = document.createElement('tr');
+                                            const keyCell = document.createElement('th');
+                                            const valueCell = document.createElement('td');
+
+                                            keyCell.textContent = displayKey;
+                                            // Round value to 2 decimal points if it's a number
+                                            if (typeof stats[key] === 'number' & key != 'count_values') {
+                                                valueCell.textContent = stats[key].toFixed(4);
+                                            } else {
+                                                valueCell.textContent = stats[key];
+                                            }
+
+                                            row.appendChild(keyCell);
+                                            row.appendChild(valueCell);
+                                            tableBody.appendChild(row);
+                                        }
+                                    });
+                                }
+                            });
+                        </script>
+                      </div>
                   </div>
               </div>
               <div class="col-sm-2">
@@ -120,7 +251,7 @@
                                 endDate = encodeURIComponent(toIsoString(endDate.toJSDate()));
                                 var base_url = window.location.href.split("?")[0];
                                 var new_url = `${base_url}?start_time=${startDate}&end_time=${endDate}`;
-                                
+
                                 // change current url without reloading the page
                                 window.history.pushState({}, null, new_url);
                             });
