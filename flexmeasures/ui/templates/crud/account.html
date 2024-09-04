@@ -52,9 +52,18 @@ Account overview {% endblock %} {% block divs %}
                       <label for="primary_color" class="control-label"
                         >Primary Color</label
                       >
+                      <span
+                        class="fa fa-info d-inline-block ps-2"
+                        rel='tooltip' 
+                        aria-hidden="true"
+                        tabindex="0"
+                        data-bs-placement="right"
+                        data-bs-toggle="tooltip"
+                        title="Primary color to use in UI, in hex format. Defaults to FlexMeasures' primary color (#1a3443)"
+                      ></span>
                       <input
                         type="text"
-                        class="form-control"
+                        class="form-control"data-bs-placement="right"
                         id="primary_color"
                         name="primary_color"
                         value="{{ account.primary_color or '' }}"
@@ -67,6 +76,15 @@ Account overview {% endblock %} {% block divs %}
                       <label for="secondary_color" class="control-label"
                         >Secondary Color</label
                       >
+                      <span
+                      class="fa fa-info d-inline-block ps-2"
+                      rel='tooltip' 
+                      aria-hidden="true"
+                      tabindex="0"
+                      data-bs-placement="right"
+                      data-bs-toggle="tooltip"
+                      title="Secondary color to use in UI, in hex format. Defaults to FlexMeasures' primary color (#f1a122)"
+                    ></span>
                       <input
                         type="text"
                         class="form-control"
@@ -82,6 +100,15 @@ Account overview {% endblock %} {% block divs %}
                       <label for="logo_url" class="control-label"
                         >Logo URL</label
                       >
+                      <span
+                      class="fa fa-info d-inline-block ps-2"
+                      rel='tooltip' 
+                      aria-hidden="true"
+                      tabindex="0"
+                      data-bs-placement="right"
+                      data-bs-toggle="tooltip"
+                      title="Logo URL to use in UI. Defaults to FlexMeasures' logo URL"
+                    ></span>
                       <input
                         type="text"
                         class="form-control"
@@ -273,7 +300,7 @@ Account overview {% endblock %} {% block divs %}
                 <td>{{ user.username }}</td>
                 <td>
                   <a href="mailto:{{ user.email }}" title="Mail this user"
-                    >{{ user.email }}</a
+                    >{{ user.email }}</aPrimary color to use in UI, in hex format. Defaults to FlexMeasures' primary color (#1a3443)
                   >
                 </td>
                 <td>
@@ -370,6 +397,7 @@ Account overview {% endblock %} {% block divs %}
 </div>
 {% block paginate_tables_script %} {{ super() }} {% endblock %}
 <script type="text/javascript">
+
   const basePath = window.location.origin;
   const form = document.getElementById("editaccount");
   const toastStack = document.getElementById("toast-container");
@@ -404,7 +432,7 @@ Account overview {% endblock %} {% block divs %}
       title = "Success";
     } else {
       colorStyle =
-        "background-color: {{ account.primary_color or primary_color }}";
+        "background-color: {{ account.primary_color or primary_color }};";
       title = "Info";
     }
     const toast = `
