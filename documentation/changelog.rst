@@ -11,7 +11,7 @@ New features
 -------------
 * Add basic sensor info to sensor page [see `PR #1115 <https://github.com/FlexMeasures/flexmeasures/pull/1115>`_]
 * Support zoom-in action on the asset and sensor charts [see `PR #1130 <https://github.com/FlexMeasures/flexmeasures/pull/1130>`_]
-* Speed up asset page load, by making the pagination backend-based (supported in API) [see `PR #988 <https://github.com/FlexMeasures/flexmeasures/pull/988>`_]
+* Speed up /assets page load, by making the pagination backend-based (supported in API) and enabling to query all accounts one can see at once (for admins and consultants) [see `PR #988 <https://github.com/FlexMeasures/flexmeasures/pull/988>`_]
 
 Infrastructure / Support
 ----------------------

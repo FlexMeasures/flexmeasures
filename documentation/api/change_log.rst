@@ -8,7 +8,7 @@ API change log
 v3.0-20 | 2024-09-XX
 """"""""""""""""""""
 
--  Introduce (optional) pagination to the endpoint `/assets` (GET).
+-  Introduce (optional) pagination to the endpoint `/assets` (GET), also add `all_accessible` option to allow querying all accounts one can access in one go.
 
 
 v3.0-19 | 2024-08-13
