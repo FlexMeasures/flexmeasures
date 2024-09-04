@@ -38,7 +38,7 @@ from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField
 from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
-from flexmeasures.data.services.sensors import get_sensors
+from flexmeasures.data.services.sensors import get_sensors, get_sensor_stats
 from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
     get_data_source_for_job,
@@ -279,8 +279,7 @@ class SensorAPI(FlaskView):
             {
                 "start": "2015-06-02T10:00:00+00:00",
                 "flex-model": {
-                    "soc-at-start": 12.1,
-                    "soc-unit": "kWh"
+                    "soc-at-start": "12.1 kWh"
                 }
             }
 
@@ -311,17 +310,16 @@ class SensorAPI(FlaskView):
                 "start": "2015-06-02T10:00:00+00:00",
                 "duration": "PT24H",
                 "flex-model": {
-                    "soc-at-start": 12.1,
-                    "soc-unit": "kWh",
+                    "soc-at-start": "12.1 kWh",
                     "soc-targets": [
                         {
-                            "value": 25,
+                            "value": "25 kWh",
                             "datetime": "2015-06-02T16:00:00+00:00"
                         },
                     ],
                     "soc-minima": {"sensor" : 300},
-                    "soc-min": 10,
-                    "soc-max": 25,
+                    "soc-min": "10 kWh",
+                    "soc-max": "25 kWh",
                     "charging-efficiency": "120%",
                     "discharging-efficiency": {"sensor": 98},
                     "storage-efficiency": 0.9999,
@@ -330,8 +328,8 @@ class SensorAPI(FlaskView):
                     "production-capacity" : "30 kW"
                 },
                 "flex-context": {
-                    "consumption-price-sensor": 9,
-                    "production-price-sensor": 10,
+                    "consumption-price": {"sensor": 9},
+                    "production-price": {"sensor": 10},
                     "inflexible-device-sensors": [13, 14, 15],
                     "site-power-capacity": "100kW",
                     "site-production-capacity": "80kW",
@@ -366,7 +364,7 @@ class SensorAPI(FlaskView):
         """
         end_of_schedule = start_of_schedule + duration
         scheduler_kwargs = dict(
-            sensor=sensor,
+            asset_or_sensor=sensor,
             start=start_of_schedule,
             end=end_of_schedule,
             resolution=sensor.event_resolution,
@@ -769,3 +767,42 @@ class SensorAPI(FlaskView):
         db.session.commit()
         current_app.logger.info("Deleted sensor '%s'." % sensor_name)
         return {}, 204
+
+    @route("/<id>/stats", methods=["GET"])
+    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    @permission_required_for_context("read", ctx_arg_name="sensor")
+    @as_json
+    def get_stats(self, id, sensor):
+        """Fetch stats for a given sensor.
+
+        .. :quickref: Sensor; Get sensor stats
+
+        This endpoint fetches sensor stats for all the historical data.
+
+        Example response
+
+        .. sourcecode:: json
+
+            {
+                "some data source": {
+                    "min_event_start": "2015-06-02T10:00:00+00:00",
+                    "max_event_start": "2015-10-02T10:00:00+00:00",
+                    "min_value": 0.0,
+                    "max_value": 100.0,
+                    "mean_value": 50.0,
+                    "sum_values": 500.0,
+                    "count_values": 10
+                }
+            }
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 200: PROCESSED
+        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+
+        return get_sensor_stats(sensor), 200
