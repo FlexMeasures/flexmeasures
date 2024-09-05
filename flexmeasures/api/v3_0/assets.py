@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from shlex import split
 import json
 
 from flask import current_app
@@ -104,7 +105,7 @@ class AssetAPI(FlaskView):
 
             - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.
             - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).
-            - If a 'filter' sentence such as 'solar ACME' is provided, the response will filter out assets where each word is either present in their name or account name.
+            - If a 'filter' sentence such as 'solar "ACME corp"' is provided, the response will filter out assets where each word is either present in their name or account name.
               The response schema for pagination is inspired by https://datatables.net/manual/server-side#Returned-data
 
 
@@ -170,14 +171,14 @@ class AssetAPI(FlaskView):
             select_statement = select_statement.join(
                 Account, Account.id == GenericAsset.account_id
             )
-            words = filter.split(" ")
+            terms = split(filter)
             filter_statement = filter_statement & and_(
                 *(
                     or_(
-                        GenericAsset.name.ilike(f"%{word}%"),
-                        Account.name.ilike(f"%{word}%"),
+                        GenericAsset.name.ilike(f"%{term}%"),
+                        Account.name.ilike(f"%{term}%"),
                     )
-                    for word in words
+                    for term in terms
                 )
             )
 
