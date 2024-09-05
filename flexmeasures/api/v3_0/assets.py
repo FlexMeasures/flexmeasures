@@ -105,7 +105,7 @@ class AssetAPI(FlaskView):
 
             - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.
             - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).
-            - If a 'filter' sentence such as 'solar "ACME corp"' is provided, the response will filter out assets where each word is either present in their name or account name.
+            - If a search 'filter' such as 'solar "ACME corp"' is provided, the response will filter out assets where each search term is either present in their name or account name.
               The response schema for pagination is inspired by https://datatables.net/manual/server-side#Returned-data
 
 
@@ -167,7 +167,7 @@ class AssetAPI(FlaskView):
 
         select_statement = select(GenericAsset)
         if filter is not None:
-            # Words in the filter should either come back in the asset name or account name
+            # Search terms in the search filter should either come back in the asset name or account name
             select_statement = select_statement.join(
                 Account, Account.id == GenericAsset.account_id
             )
