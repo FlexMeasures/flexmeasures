@@ -171,14 +171,13 @@ class AssetAPI(FlaskView):
             select_statement = select_statement.join(
                 Account, Account.id == GenericAsset.account_id
             )
-            terms = split(filter)
             filter_statement = filter_statement & and_(
                 *(
                     or_(
                         GenericAsset.name.ilike(f"%{term}%"),
                         Account.name.ilike(f"%{term}%"),
                     )
-                    for term in terms
+                    for term in split(filter)
                 )
             )
 
