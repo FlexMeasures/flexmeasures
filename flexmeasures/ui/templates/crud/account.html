@@ -54,7 +54,7 @@ Account overview {% endblock %} {% block divs %}
                       >
                       <span
                         class="fa fa-info d-inline-block ps-2"
-                        rel='tooltip' 
+                        rel="tooltip"
                         aria-hidden="true"
                         tabindex="0"
                         data-bs-placement="right"
@@ -63,7 +63,8 @@ Account overview {% endblock %} {% block divs %}
                       ></span>
                       <input
                         type="text"
-                        class="form-control"data-bs-placement="right"
+                        class="form-control"
+                        data-bs-placement="right"
                         id="primary_color"
                         name="primary_color"
                         value="{{ account.primary_color or '' }}"
@@ -77,14 +78,14 @@ Account overview {% endblock %} {% block divs %}
                         >Secondary Color</label
                       >
                       <span
-                      class="fa fa-info d-inline-block ps-2"
-                      rel='tooltip' 
-                      aria-hidden="true"
-                      tabindex="0"
-                      data-bs-placement="right"
-                      data-bs-toggle="tooltip"
-                      title="Secondary color to use in UI, in hex format. Defaults to FlexMeasures' primary color (#f1a122)"
-                    ></span>
+                        class="fa fa-info d-inline-block ps-2"
+                        rel="tooltip"
+                        aria-hidden="true"
+                        tabindex="0"
+                        data-bs-placement="right"
+                        data-bs-toggle="tooltip"
+                        title="Secondary color to use in UI, in hex format. Defaults to FlexMeasures' primary color (#f1a122)"
+                      ></span>
                       <input
                         type="text"
                         class="form-control"
@@ -101,14 +102,14 @@ Account overview {% endblock %} {% block divs %}
                         >Logo URL</label
                       >
                       <span
-                      class="fa fa-info d-inline-block ps-2"
-                      rel='tooltip' 
-                      aria-hidden="true"
-                      tabindex="0"
-                      data-bs-placement="right"
-                      data-bs-toggle="tooltip"
-                      title="Logo URL to use in UI. Defaults to FlexMeasures' logo URL"
-                    ></span>
+                        class="fa fa-info d-inline-block ps-2"
+                        rel="tooltip"
+                        aria-hidden="true"
+                        tabindex="0"
+                        data-bs-placement="right"
+                        data-bs-toggle="tooltip"
+                        title="Logo URL to use in UI. Defaults to FlexMeasures' logo URL"
+                      ></span>
                       <input
                         type="text"
                         class="form-control"
@@ -300,7 +301,8 @@ Account overview {% endblock %} {% block divs %}
                 <td>{{ user.username }}</td>
                 <td>
                   <a href="mailto:{{ user.email }}" title="Mail this user"
-                    >{{ user.email }}</a>
+                    >{{ user.email }}</a
+                  >
                   >
                 </td>
                 <td>
@@ -341,6 +343,7 @@ Account overview {% endblock %} {% block divs %}
                 <th>Location</th>
                 <th>Asset ID</th>
                 <th>Account</th>
+
                 <th>Sensors</th>
                 <th class="no-sort">Status</th>
                 <th class="text-right no-sort">
@@ -397,7 +400,6 @@ Account overview {% endblock %} {% block divs %}
 </div>
 {% block paginate_tables_script %} {{ super() }} {% endblock %}
 <script type="text/javascript">
-
   const basePath = window.location.origin;
   const form = document.getElementById("editaccount");
   const toastStack = document.getElementById("toast-container");
@@ -424,7 +426,7 @@ Account overview {% endblock %} {% block divs %}
     let colorClass;
     let colorStyle = "";
     let title;
-    
+
     // Determine the type of toast
     if (type == "error") {
       colorClass = "bg-danger";
@@ -433,10 +435,11 @@ Account overview {% endblock %} {% block divs %}
       colorClass = "bg-success";
       title = "Success";
     } else {
-      colorStyle = "background-color: {{ account.primary_color or primary_color }};";
+      colorStyle =
+        "background-color: {{ account.primary_color or primary_color }};";
       title = "Info";
     }
-  
+
     // Create the toast HTML
     const toast = document.createElement("div");
     toast.classList.add("toast", "hide", "mb-1");
@@ -444,7 +447,7 @@ Account overview {% endblock %} {% block divs %}
     toast.setAttribute("role", "alert");
     toast.setAttribute("aria-live", "assertive");
     toast.setAttribute("aria-atomic", "true");
-    
+
     toast.innerHTML = `
       <div class="toast-header">
         <div class="rounded me-2 ${colorClass}" style="width: 20px; height: 20px; display: inline-block; ${colorStyle}"></div>
@@ -455,17 +458,17 @@ Account overview {% endblock %} {% block divs %}
         ${message}
       </div>
     `;
-  
+
     // Append toast to the toast stack
     toastStack.insertAdjacentElement("afterbegin", toast);
-  
+
     // Show the close all button
     closeToastBtn.style.display = "block";
-  
+
     // Initialize the toast
     const toastInstance = new bootstrap.Toast(toast);
     toastInstance.show();
-  
+
     // Remove the toast from the DOM once it’s hidden
     toast.addEventListener("hidden.bs.toast", function () {
       toastInstance.dispose(); // Destroy the toast instance
@@ -479,17 +482,16 @@ Account overview {% endblock %} {% block divs %}
     // Collect form data
     const formData = new FormData(event.target);
 
-    // Collect keys of empty fields
-    const emptyFields = [];
-
-    for (var pair of formData.entries()) {
-      if (pair[1] === "" || pair[1] === "None") {
-        emptyFields.push(pair[0]);
-      }
-    }
-
-    // Remove the empty fields
-    emptyFields.forEach((field) => formData.delete(field));
+    // create json payload from formData and set empty string to null
+    let payload;
+    payload = JSON.stringify(
+      Object.fromEntries(
+        Array.from(formData.entries()).map(([key, value]) => [
+          key,
+          value === "" ? null : value,
+        ])
+      )
+    );
 
     // Make a PATCH request to the API
     fetch(basePath + "/api/v3_0/accounts/" + "{{account.id}}", {
@@ -497,7 +499,7 @@ Account overview {% endblock %} {% block divs %}
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(Object.fromEntries(formData)),
+      body: payload,
     })
       .then((response) => response.json())
       .then((data) => {
