@@ -71,7 +71,7 @@ class AssetCrudUI(FlaskView):
         return render_flexmeasures_template(
             "crud/assets.html",
             num_assets=get_num_accessible_assets(),
-            asset_icon_name=ICON_MAPPING,
+            asset_icon_map=ICON_MAPPING,
             message=msg,
             user_can_create_assets=user_can_create_assets(),
         )
