@@ -253,6 +253,7 @@ class AssetAPI(FlaskView):
                 for attr_key, attr_value in v.items():
                     if current_attributes.get(attr_key) != attr_value:
                         audit_log_data.append(
+                            # Truncate the event to 150 characters to account for the audit_log_data not exceeding 255 characters
                             truncate_event(
                                 f"Attr : {attr_key}, From: {current_attributes.get(attr_key)}, To: {attr_value}",
                                 attr_key=attr_key,
