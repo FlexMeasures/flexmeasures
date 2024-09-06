@@ -221,6 +221,13 @@
                         }
 
                         $(window).ready(() => {
+                            // Set initial date range from session storage
+                            var start_time = '{{event_starts_after}}';
+                            var end_time = '{{event_ends_before}}';
+                            if (start_time && end_time) {
+                                picker.setDateRange(decodeURIComponent(start_time), decodeURIComponent(end_time));
+                            }
+                            
                             picker.on('selected', (startDate, endDate) => {
                                 startDate = encodeURIComponent(toIsoString(startDate.toJSDate()));
                                 endDate = encodeURIComponent(toIsoString(endDate.toJSDate()));

@@ -33,10 +33,10 @@ def render_flexmeasures_template(html_filename: str, **variables):
 
     # use event_starts_after and event_ends_before from session if not given
     variables["event_starts_after"] = variables.get(
-        "event_starts_after", session.get("event_starts_after")
-    )
-    variables["event_ends_before"] = variables.get(
-        "event_ends_before", session.get("event_ends_before")
+        "event_starts_after"
+    ) or session.get("event_starts_after")
+    variables["event_ends_before"] = variables.get("event_ends_before") or session.get(
+        "event_ends_before"
     )
     variables["chart_type"] = session.get("chart_type", "bar_chart")
 
