@@ -191,7 +191,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
 
             # Use SensorsToShowSchema to validate and deserialize sensors_to_show
             sensors_to_show_schema = SensorsToShowSchema()
-     
+
             standardized_sensors = sensors_to_show_schema.deserialize(sensors_to_show)
             unique_sensor_ids = flatten_unique(standardized_sensors)
             # Check whether IDs represent accessible sensors

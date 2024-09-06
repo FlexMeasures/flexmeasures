@@ -608,12 +608,12 @@ class GenericAsset(db.Model, AuthModelMixin):
         """
         Sensors to show, as defined by the sensors_to_show attribute.
 
-        Sensors to show are defined as a list of sensor IDs, which are set by the "sensors_to_show" field in the asset's "attributes" column. 
-        Valid sensors either belong to the asset itself, to other assets in the same account, or to public assets. 
+        Sensors to show are defined as a list of sensor IDs, which are set by the "sensors_to_show" field in the asset's "attributes" column.
+        Valid sensors either belong to the asset itself, to other assets in the same account, or to public assets.
         In play mode, sensors from different accounts can be added.
 
-        Sensor IDs can be nested to denote that sensors should be 'shown together', for example, layered rather than vertically concatenated. 
-        Additionally, each row of sensors can be accompanied by a title. 
+        Sensor IDs can be nested to denote that sensors should be 'shown together', for example, layered rather than vertically concatenated.
+        Additionally, each row of sensors can be accompanied by a title.
         If no title is provided, `"title": None` will be assigned in the returned dictionary.
 
         How to interpret 'shown together' is technically left up to the function returning chart specifications, as are any restrictions regarding which sensors can be shown together, such as:
