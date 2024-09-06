@@ -339,6 +339,9 @@ def validate_url(ctx, param, value):
         r"(\?([A-Za-z0-9$_.+!*\'(),;?&=-]|%[0-9A-Fa-f]{2})*)?"  # Query string
     )
 
+    if value is None:
+        return value
+
     if not url_regex.match(value):
         raise click.BadParameter(f"'{value}' is not a valid URL.")
 
