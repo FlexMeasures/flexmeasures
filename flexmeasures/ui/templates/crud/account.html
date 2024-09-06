@@ -399,82 +399,18 @@ Account overview {% endblock %} {% block divs %}
   </div>
 </div>
 {% block paginate_tables_script %} {{ super() }} {% endblock %}
-<script type="text/javascript">
+<script defer>
   const basePath = window.location.origin;
   const form = document.getElementById("editaccount");
+
   const toastStack = document.getElementById("toast-container");
   const closeToastBtn = document.getElementById("close-all-toasts");
 
-  // hide button
-  closeToastBtn.style.display = "none";
-
-  closeToastBtn.addEventListener("click", function () {
-    const toastElements = document.querySelectorAll(".toast");
-    toastElements.forEach((toast) => {
-      const toastInstance = bootstrap.Toast.getInstance(toast); // Get the toast instance
-      if (toastInstance) {
-        // destroy the toast
-        toastInstance.dispose();
-        toast.remove();
-      }
-    });
-    // Hide the close button
-    closeToastBtn.style.display = "none";
+  // written like this since this script(order) is ontop of the main script
+  document.addEventListener("DOMContentLoaded", function () {
+    const closeToastBtn = document.getElementById("close-all-toasts");
+    initiateToastCloseBtn(closeToastBtn);
   });
-
-  function showToast(message, type) {
-    let colorClass;
-    let colorStyle = "";
-    let title;
-
-    // Determine the type of toast
-    if (type == "error") {
-      colorClass = "bg-danger";
-      title = "Error";
-    } else if (type == "success") {
-      colorClass = "bg-success";
-      title = "Success";
-    } else {
-      colorStyle =
-        "background-color: {{ account.primary_color or primary_color }};";
-      title = "Info";
-    }
-
-    // Create the toast HTML
-    const toast = document.createElement("div");
-    toast.classList.add("toast", "hide", "mb-1");
-    toast.setAttribute("data-bs-autohide", "true");
-    toast.setAttribute("role", "alert");
-    toast.setAttribute("aria-live", "assertive");
-    toast.setAttribute("aria-atomic", "true");
-
-    toast.innerHTML = `
-      <div class="toast-header">
-        <div class="rounded me-2 ${colorClass}" style="width: 20px; height: 20px; display: inline-block; ${colorStyle}"></div>
-        <strong class="me-auto">${title}</strong>
-        <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
-      </div>
-      <div class="toast-body">
-        ${message}
-      </div>
-    `;
-
-    // Append toast to the toast stack
-    toastStack.insertAdjacentElement("afterbegin", toast);
-
-    // Show the close all button
-    closeToastBtn.style.display = "block";
-
-    // Initialize the toast
-    const toastInstance = new bootstrap.Toast(toast);
-    toastInstance.show();
-
-    // Remove the toast from the DOM once it’s hidden
-    toast.addEventListener("hidden.bs.toast", function () {
-      toastInstance.dispose(); // Destroy the toast instance
-      toast.remove(); // Remove it from the DOM
-    });
-  }
 
   form.addEventListener("submit", function (event) {
     event.preventDefault(); // Prevent the default form submission
@@ -504,15 +440,25 @@ Account overview {% endblock %} {% block divs %}
       .then((response) => response.json())
       .then((data) => {
         if (data.status == 200) {
-          showToast("Account updated successfully!", "success");
+          showToast(
+            "Account updated successfully!",
+            "success",
+            toastStack,
+            closeToastBtn
+          );
         } else {
           if (data.message && typeof data.message === "string") {
-            showToast(data.message, "error");
+            showToast(data.message, "error", toastStack, closeToastBtn);
           } else {
             const errors = data.message.json;
 
             for (const key in errors) {
-              showToast(`${key}: ${errors[key]}`, "error");
+              showToast(
+                `${key}: ${errors[key]}`,
+                "error",
+                toastStack,
+                closeToastBtn
+              );
             }
           }
         }
