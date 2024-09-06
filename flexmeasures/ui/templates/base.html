@@ -519,8 +519,8 @@
                             nearEnd,
                             end,
                         );
-                    }
-
+                    } 
+                    
                     // No use looking for data in years outside timerange of sensor data
                     picker.setOptions({
                         dropdowns: {
@@ -529,6 +529,8 @@
                         },
                     });
                 };
+
+                picker.setDateRange(decodeURIComponent(event_starts_after), decodeURIComponent(event_ends_before));
             });
         }
     };
