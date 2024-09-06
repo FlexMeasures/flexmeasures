@@ -306,6 +306,8 @@ def get_sensor_aliases(
 
 def validate_color_hex(ctx, param, value):
     """
+    Optional parameter validation
+
     Validates that a given value is a valid hex color code.
 
     Parameters:
@@ -314,7 +316,9 @@ def validate_color_hex(ctx, param, value):
     """
     if value is None:
         return value
+
     hex_pattern = re.compile(r"^#?([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$")
+
     if re.match(hex_pattern, value):
         return value
     else:
@@ -323,6 +327,8 @@ def validate_color_hex(ctx, param, value):
 
 def validate_url(ctx, param, value):
     """
+    Optional parameter valdiation
+
     Validates that a given value is a valid URL format using regex.
 
     Parameters:
@@ -330,6 +336,9 @@ def validate_url(ctx, param, value):
     :param param:   Click parameter. URL value.
     :param value:   The URL to validate.
     """
+    if value is None:
+        return value
+
     url_regex = re.compile(
         r"^(https?|ftp)://"  # Protocol: http, https, or ftp
         r"((([A-Za-z0-9-]+\.)+[A-Za-z]{2,6})|"  # Domain name
@@ -338,9 +347,6 @@ def validate_url(ctx, param, value):
         r"(/([A-Za-z0-9$_.+!*\'(),;?&=-]|%[0-9A-Fa-f]{2})*)*"  # Path
         r"(\?([A-Za-z0-9$_.+!*\'(),;?&=-]|%[0-9A-Fa-f]{2})*)?"  # Query string
     )
-
-    if value is None:
-        return value
 
     if not url_regex.match(value):
         raise click.BadParameter(f"'{value}' is not a valid URL.")
