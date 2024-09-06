@@ -505,6 +505,7 @@
                     var timerangeVar = 'timerange';
                 {% endif %}
                 if (timerangeVar in data) {
+                    console.log('Timerange found in data');
                     var start = new Date(data[timerangeVar].start);
                     var end = new Date(data[timerangeVar].end);
                     end.setSeconds(end.getSeconds() - 1); // -1 second in case most recent event ends at midnight
@@ -528,9 +529,10 @@
                             maxYear: end.getFullYear(),
                         },
                     });
-                };
 
-                picker.setDateRange(decodeURIComponent(event_starts_after), decodeURIComponent(event_ends_before));
+                    // Persist the range on the datepicker UI so correct range is shown when the user opens the datepicker
+                    picker.setDateRange(decodeURIComponent('{{event_starts_after}}'), decodeURIComponent('{{event_ends_before}}'));
+                };
             });
         }
     };
