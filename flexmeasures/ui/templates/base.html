@@ -529,9 +529,11 @@
                             maxYear: end.getFullYear(),
                         },
                     });
-
+                    
                     // Persist the range on the datepicker UI so correct range is shown when the user opens the datepicker
-                    picker.setDateRange(decodeURIComponent('{{event_starts_after}}'), decodeURIComponent('{{event_ends_before}}'));
+                    var end_time = '{{event_ends_before}}';
+                    var new_end_date = new Date(end_time);
+                    picker.setDateRange(decodeURIComponent('{{event_starts_after}}'), decodeURIComponent(toIsoString(new_end_date)));
                 };
             });
         }
