@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 from flexmeasures.data.models.charts.defaults import FIELD_DEFINITIONS, REPLAY_RULER
 from flexmeasures.utils.flexmeasures_inflection import (
     capitalize,
-    join_words_into_a_list,
 )
 from flexmeasures.utils.coding_utils import flatten_unique
 from flexmeasures.utils.unit_utils import (
@@ -513,43 +512,24 @@ def chart_for_multiple_sensors(
     )
 
     sensors_specs = []
-    for s in sensors_to_show:
-        custom_title = None
+    for entry in sensors_to_show:
+        title = entry.get("title")
+        sensors = entry.get("sensors")
         # List the sensors that go into one row
-        if isinstance(s, list):
-            row_sensors: list["Sensor"] = s  # noqa F821
-        elif isinstance(s, dict):
-            # Set up custom title for sensor
-            custom_title = s["title"]
-            if "sensors" in s:
-                row_sensors: list["Sensor"] = s["sensors"]  # noqa F821
-            else:
-                row_sensors: list["Sensor"] = [s["sensor"]]  # noqa F821
-        else:
-            row_sensors: list["Sensor"] = [s]  # noqa F821
+        row_sensors: list["Sensor"] = sensors  # noqa F821
 
         # Derive the unit that should be shown
         unit = determine_shared_unit(row_sensors)
         sensor_type = determine_shared_sensor_type(row_sensors)
 
-        if custom_title:
-            # Set up field definition for event values
-            event_value_field_definition = dict(
-                title=f"{capitalize(custom_title)} ({unit})",
-                format=[".3~r", unit],
-                formatType="quantityWithUnitFormat",
-                stack=None,
-                **FIELD_DEFINITIONS["event_value"],
-            )
-        else:
-            # Set up field definition for event values
-            event_value_field_definition = dict(
-                title=f"{capitalize(sensor_type)} ({unit})",
-                format=[".3~r", unit],
-                formatType="quantityWithUnitFormat",
-                stack=None,
-                **FIELD_DEFINITIONS["event_value"],
-            )
+        # Set up field definition for event values
+        event_value_field_definition = dict(
+            title=f"{capitalize(sensor_type)} ({unit})",
+            format=[".3~r", unit],
+            formatType="quantityWithUnitFormat",
+            stack=None,
+            **FIELD_DEFINITIONS["event_value"],
+        )
         if unit == "%":
             event_value_field_definition["scale"] = dict(
                 domain={"unionWith": [0, 105]}, nice=False
@@ -619,14 +599,7 @@ def chart_for_multiple_sensors(
 
         # Layer the lines, rectangles and circles within one row, and filter by which sensors are represented in the row
         sensor_specs = {
-            "title": join_words_into_a_list(
-                [
-                    f"{capitalize(sensor.name)}"
-                    for sensor in row_sensors
-                    # the sensor type is already shown as the y-axis title (avoid redundant info)
-                    if sensor.name != sensor.sensor_type
-                ]
-            ),
+            "title": f"{capitalize(title)}" if title else None,
             "transform": [
                 {
                     "filter": {
