@@ -1,5 +1,4 @@
 """ Various coding utils (e.g. around function decoration) """
-
 from __future__ import annotations
 
 import functools
@@ -70,38 +69,23 @@ def sort_dict(unsorted_dict: dict) -> dict:
     return sorted_dict
 
 
-# The parsing functionality for sensors_to_show in flatten_unique will be moved to SensorsToShowSchema.
 def flatten_unique(nested_list_of_objects: list) -> list:
     """Returns unique objects in a possibly nested (one level) list of objects.
 
     Preserves the original order in which unique objects first occurred.
 
-    Handles lists, individual sensor IDs, and dictionaries with sensor titles.
-
     For example:
-    >>> flatten_unique([1, [2, 20, 6], 10, {"title": "row1", "sensors": [6, 2]}, {"title": "row2", "sensor": 7}])
-    <<< [1, 2, 20, 6, 10, 7]
+    >>> flatten_unique([1, [2, 20, 6], 10, [6, 2]])
+    <<< [1, 2, 20, 6, 10]
     """
     all_objects = []
-    for item in nested_list_of_objects:
-        if isinstance(item, list):
-            all_objects.extend(item)
-        elif isinstance(item, dict):
-            # Handle dictionary format
-            if "sensors" in item:
-                sensors = item["sensors"]
-                if isinstance(sensors, list):
-                    all_objects.extend(sensors)
-                else:
-                    raise ValueError("The 'sensors' key must be associated with a list of integers.")
-            elif "sensor" in item:
-                sensor = item["sensor"]
-                all_objects.append(sensor)
-            else:
-                raise ValueError("Dictionary must contain either 'sensor' or 'sensors' key.")
+    for s in nested_list_of_objects:
+        if isinstance(s, list):
+            all_objects.extend(s)
+        elif isinstance(s, dict):
+            all_objects.extend(s["sensors"])
         else:
-            all_objects.append(item)
-
+            all_objects.append(s)
     return list(dict.fromkeys(all_objects).keys())
 
 
