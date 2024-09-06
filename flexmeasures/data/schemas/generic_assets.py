@@ -31,51 +31,79 @@ class JSON(fields.Field):
         return json.dumps(value)
 
 
-class SensorsToShowSchema(ma.SQLAlchemySchema):
+class SensorsToShowSchema(fields.Field):
     """
-    Schema for validating the sensors_to_show attribute.
+    Schema for validating and deserializing the `sensors_to_show` attribute of a GenericAsset.
+
+    The `sensors_to_show` attribute defines which sensors should be displayed for a particular asset.
+    It supports various input formats, which are standardized into a list of dictionaries, each containing
+    a `title` (optional) and a `sensors` list. The valid input formats include:
+
+    - A single sensor ID (int): `42` -> `{"title": None, "sensors": [42]}`
+    - A list of sensor IDs (list of ints): `[42, 43]` -> `{"title": None, "sensors": [42, 43]}`
+    - A dictionary with a title and sensor: `{"title": "Temperature", "sensor": 42}` -> `{"title": "Temperature", "sensors": [42]}`
+    - A dictionary with a title and sensors: `{"title": "Pressure", "sensors": [42, 43]}`
+
+    Validation ensures that:
+    - The input is either a list, integer, or dictionary.
+    - If the input is a dictionary, it must contain either `sensor` (int) or `sensors` (list of ints).
+    - All sensor IDs must be valid integers.
+
+    Example Input:
+    - `[{"title": "Test", "sensors": [1, 2]}, {"title": None, "sensors": [3, 4]}, 5]`
+
+    Example Output (Standardized):
+    - `[{"title": "Test", "sensors": [1, 2]}, {"title": None, "sensors": [3, 4]}, {"title": None, "sensors": [5]}]`
     """
 
-    def _deserialize(self, value, attr, data, **kwargs) -> list:  # noqa C901
+    def deserialize(self, value, **kwargs) -> list:
         """
-        Handle deserialization of different formats for sensors_to_show.
+        Validate and deserialize the input value.
         """
-        if isinstance(value, str):
-            try:
+        try:
+            # Parse JSON if input is a string
+            if isinstance(value, str):
                 value = json.loads(value)
-            except ValueError:
-                raise ValidationError("Invalid JSON string.")
 
-        if not isinstance(value, list):
-            raise ValidationError("sensors_to_show should be a list.")
+            # Ensure value is a list
+            if not isinstance(value, list):
+                raise ValidationError("sensors_to_show should be a list.")
 
-        for item in value:
-            if isinstance(item, int):
-                continue
-            elif isinstance(item, list):
-                if not all(isinstance(sensor_id, int) for sensor_id in item):
-                    raise ValidationError("All sensor IDs in a list must be integers.")
-            elif isinstance(item, dict):
-                if "title" not in item:
-                    raise ValidationError("Dictionary must contain a 'title' key.")
-                if "sensor" in item:
-                    if not isinstance(item["sensor"], int):
-                        raise ValidationError("'sensor' value must be an integer.")
-                elif "sensors" in item:
-                    if not isinstance(item["sensors"], list) or not all(
-                        isinstance(sensor_id, int) for sensor_id in item["sensors"]
-                    ):
-                        raise ValidationError(
-                            "'sensors' value must be a list of integers."
-                        )
-                else:
-                    raise ValidationError(
-                        "Dictionary must contain either 'sensor' or 'sensors' key."
-                    )
+            # Standardize each item in the list
+            return [self._standardize_item(item) for item in value]
+        except json.JSONDecodeError:
+            raise ValidationError("Invalid JSON string.")
+
+    def _standardize_item(self, item) -> dict:
+        """
+        Standardize different input formats to a consistent dictionary format.
+        """
+        if isinstance(item, int):
+            return {"title": None, "sensors": [item]}
+        elif isinstance(item, list):
+            if not all(isinstance(sensor_id, int) for sensor_id in item):
+                raise ValidationError("All sensor IDs in a list must be integers.")
+            return {"title": None, "sensors": item}
+        elif isinstance(item, dict):
+            title = item.get("title", None)
+            if "sensor" in item:
+                sensor = item["sensor"]
+                if not isinstance(sensor, int):
+                    raise ValidationError("'sensor' value must be an integer.")
+                return {"title": title, "sensors": [sensor]}
+            elif "sensors" in item:
+                sensors = item["sensors"]
+                if not isinstance(sensors, list) or not all(
+                    isinstance(sensor_id, int) for sensor_id in sensors
+                ):
+                    raise ValidationError("'sensors' value must be a list of integers.")
+                return {"title": title, "sensors": sensors}
             else:
-                raise ValidationError("Invalid item type in sensors_to_show.")
-
-        return value
+                raise ValidationError(
+                    "Dictionary must contain either 'sensor' or 'sensors' key."
+                )
+        else:
+            raise ValidationError("Invalid item type in sensors_to_show.")
 
 
 class GenericAssetSchema(ma.SQLAlchemySchema):
@@ -156,16 +184,21 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
             )
 
     @validates("attributes")
-    def validate_attributes(self, attributes: dict):  # noqa C901
+    def validate_attributes(self, attributes: dict):
         sensors_to_show = attributes.get("sensors_to_show", [])
 
-        # Use SensorsToShowSchema to validate sensors_to_show
-        try:
-            SensorsToShowSchema()._deserialize(
-                sensors_to_show, "sensors_to_show", attributes
-            )
-        except ValidationError as err:
-            raise ValidationError(f"sensors_to_show validation error: {err.messages}")
+        if sensors_to_show:
+
+            # Use SensorsToShowSchema to validate and deserialize sensors_to_show
+            sensors_to_show_schema = SensorsToShowSchema()
+     
+            standardized_sensors = sensors_to_show_schema.deserialize(sensors_to_show)
+            unique_sensor_ids = flatten_unique(standardized_sensors)
+            # Check whether IDs represent accessible sensors
+            from flexmeasures.data.schemas import SensorIdField
+
+            for sensor_id in unique_sensor_ids:
+                SensorIdField().deserialize(sensor_id)
 
         # Check whether IDs represent accessible sensors
         from flexmeasures.data.schemas import SensorIdField
