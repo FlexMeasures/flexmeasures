@@ -40,6 +40,7 @@ Note: This uses the internal dev API version
 
 
 def get_num_accessible_assets():
+    """Count all assets in accessible accounts, and public assets."""
     accounts = get_acessible_accounts()
     account_ids = [a.id for a in accounts]
 
