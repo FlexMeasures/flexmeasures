@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from shlex import split
 import json
 
 from flask import current_app
@@ -10,7 +9,7 @@ from flask_security import auth_required
 from flask_json import as_json
 from flask_sqlalchemy.pagination import SelectPagination
 
-from marshmallow import fields, ValidationError
+from marshmallow import fields
 import marshmallow.validate as validate
 
 from webargs.flaskparser import use_kwargs, use_args
@@ -24,7 +23,10 @@ from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
-from flexmeasures.api.common.schemas.generic_assets import AssetIdField
+from flexmeasures.api.common.schemas.generic_assets import (
+    AssetIdField,
+    SearchFilterField,
+)
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.utils.coding_utils import flatten_unique
 from flexmeasures.ui.utils.view_utils import set_session_variables
@@ -81,7 +83,7 @@ class AssetAPI(FlaskView):
             "per_page": fields.Int(
                 required=False, validate=validate.Range(min=1), default=10
             ),
-            "filter": fields.Str(required=False, default=None),
+            "filter": SearchFilterField(required=False, default=None),
         },
         location="query",
     )
@@ -92,7 +94,7 @@ class AssetAPI(FlaskView):
         all_accessible: bool,
         page: int | None = None,
         per_page: int | None = None,
-        filter: str | None = None,
+        filter: list[str] | None = None,
     ):
         """List all assets owned  by user's accounts, or a certain account or all accessible accounts.
 
@@ -166,10 +168,6 @@ class AssetAPI(FlaskView):
         select_statement = select(GenericAsset)
         if filter is not None:
             # Search terms in the search filter should either come back in the asset name or account name
-            try:
-                terms = split(filter)
-            except ValueError as e:
-                raise ValidationError(str(e), field_name="filter")
             private_select_statement = select_statement.join(
                 Account, Account.id == GenericAsset.account_id
             )
@@ -179,14 +177,14 @@ class AssetAPI(FlaskView):
                         GenericAsset.name.ilike(f"%{term}%"),
                         Account.name.ilike(f"%{term}%"),
                     )
-                    for term in terms
+                    for term in filter
                 )
             )
             public_select_statement = select_statement
             public_filter_statement = (
                 filter_statement
                 & GenericAsset.account_id.is_(None)
-                & or_(GenericAsset.name.ilike(f"%{term}%") for term in terms)
+                & or_(GenericAsset.name.ilike(f"%{term}%") for term in filter)
             )
             subquery = union_all(
                 private_select_statement.where(private_filter_statement),
