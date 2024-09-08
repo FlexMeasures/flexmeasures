@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from shlex import split
 import json
 
 from flask import current_app
@@ -14,7 +13,7 @@ from marshmallow import fields
 import marshmallow.validate as validate
 
 from webargs.flaskparser import use_kwargs, use_args
-from sqlalchemy import select, delete, func, or_, and_
+from sqlalchemy import select, delete, func
 
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
@@ -105,7 +104,6 @@ class AssetAPI(FlaskView):
 
             - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.
             - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).
-            - If a search 'filter' such as 'solar "ACME corp"' is provided, the response will filter out assets where each search term is either present in their name or account name.
               The response schema for pagination is inspired by https://datatables.net/manual/server-side#Returned-data
 
 
@@ -162,23 +160,10 @@ class AssetAPI(FlaskView):
             select(func.count(GenericAsset.id)).where(filter_statement)
         )
 
-        select_statement = select(GenericAsset)
         if filter is not None:
-            # Search terms in the search filter should either come back in the asset name or account name
-            select_statement = select_statement.join(
-                Account, Account.id == GenericAsset.account_id
-            )
-            filter_statement = filter_statement & and_(
-                *(
-                    or_(
-                        GenericAsset.name.ilike(f"%{term}%"),
-                        Account.name.ilike(f"%{term}%"),
-                    )
-                    for term in split(filter)
-                )
-            )
+            filter_statement = filter_statement & GenericAsset.name.ilike(f"%{filter}%")
 
-        query = select_statement.where(filter_statement)
+        query = select(GenericAsset).where(filter_statement)
 
         if page is None:
             response = asset_schema.dump(db.session.scalars(query).all(), many=True)
