@@ -184,7 +184,7 @@ class AssetAPI(FlaskView):
             public_filter_statement = (
                 filter_statement
                 & GenericAsset.account_id.is_(None)
-                & or_(GenericAsset.name.ilike(f"%{term}%") for term in filter)
+                & and_(GenericAsset.name.ilike(f"%{term}%") for term in filter)
             )
             subquery = union_all(
                 private_select_statement.where(private_filter_statement),
