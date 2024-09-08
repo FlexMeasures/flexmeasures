@@ -105,8 +105,8 @@ def process_internal_api_response(
         children = asset_data.pop("child_assets", [])
 
         asset_data.pop("sensors", [])
-        asset_data.pop("owner", [])
-        asset_type = asset_data.pop("generic_asset_type", [])
+        asset_data.pop("owner", None)
+        asset_type = asset_data.pop("generic_asset_type", {})
 
         asset = GenericAsset(
             **{

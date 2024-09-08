@@ -8,10 +8,10 @@
 
 <script>
 
-const asset_icon_name = JSON.parse('{{ asset_icon_name | tojson | safe }}');
+const asset_icon_map = JSON.parse('{{ asset_icon_map | tojson | safe }}');
 
 function Asset ( id, name, asset_type, sensors, account, latitude, longitude) {
-    let icon = asset_icon_name[asset_type.toLowerCase()];
+    let icon = asset_icon_map[asset_type.toLowerCase()];
     if (icon === undefined)
       icon = `icon-${asset_type}`
 
