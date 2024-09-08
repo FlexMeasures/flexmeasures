@@ -10,7 +10,7 @@ from flask_security import auth_required
 from flask_json import as_json
 from flask_sqlalchemy.pagination import SelectPagination
 
-from marshmallow import fields
+from marshmallow import fields, ValidationError
 import marshmallow.validate as validate
 
 from webargs.flaskparser import use_kwargs, use_args
@@ -166,7 +166,10 @@ class AssetAPI(FlaskView):
         select_statement = select(GenericAsset)
         if filter is not None:
             # Search terms in the search filter should either come back in the asset name or account name
-            terms = split(filter)
+            try:
+                terms = split(filter)
+            except ValueError as e:
+                raise ValidationError(str(e), field_name="filter")
             private_select_statement = select_statement.join(
                 Account, Account.id == GenericAsset.account_id
             )
