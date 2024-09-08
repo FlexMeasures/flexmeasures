@@ -3,9 +3,7 @@ from flask import url_for, current_app, request
 from flask_classful import FlaskView, route
 from flask_security import login_required, current_user
 from webargs.flaskparser import use_kwargs
-from sqlalchemy import select, func
 
-from flexmeasures.api.v3_0.assets import get_accessible_accounts
 from flexmeasures.data import db
 from flexmeasures.auth.error_handling import unauthorized_handler
 from flexmeasures.data.schemas import StartEndTimeSchema
@@ -39,18 +37,6 @@ Note: This uses the internal dev API version
 """
 
 
-def get_num_accessible_assets():
-    """Count all assets in accessible accounts, and public assets."""
-    accounts = get_accessible_accounts()
-    account_ids = [a.id for a in accounts]
-
-    return db.session.execute(
-        select(func.count()).where(
-            GenericAsset.account_id.in_(account_ids) | GenericAsset.account_id.is_(None)
-        )
-    ).scalar_one_or_none()
-
-
 class AssetCrudUI(FlaskView):
     """
     These views help us offer a Jinja2-based UI.
@@ -71,7 +57,6 @@ class AssetCrudUI(FlaskView):
 
         return render_flexmeasures_template(
             "crud/assets.html",
-            num_assets=get_num_accessible_assets(),
             asset_icon_map=ICON_MAPPING,
             message=msg,
             user_can_create_assets=user_can_create_assets(),
