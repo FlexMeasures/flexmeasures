@@ -14,7 +14,8 @@ from marshmallow import fields
 import marshmallow.validate as validate
 
 from webargs.flaskparser import use_kwargs, use_args
-from sqlalchemy import select, delete, func, or_, and_
+from sqlalchemy import select, delete, func, or_, and_, union_all
+from sqlalchemy.orm import aliased
 
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
@@ -165,20 +166,33 @@ class AssetAPI(FlaskView):
         select_statement = select(GenericAsset)
         if filter is not None:
             # Search terms in the search filter should either come back in the asset name or account name
-            select_statement = select_statement.join(
+            terms = split(filter)
+            private_select_statement = select_statement.join(
                 Account, Account.id == GenericAsset.account_id
             )
-            filter_statement = filter_statement & and_(
+            private_filter_statement = filter_statement & and_(
                 *(
                     or_(
                         GenericAsset.name.ilike(f"%{term}%"),
                         Account.name.ilike(f"%{term}%"),
                     )
-                    for term in split(filter)
+                    for term in terms
                 )
             )
-
-        query = select_statement.where(filter_statement)
+            public_select_statement = select_statement
+            public_filter_statement = (
+                filter_statement
+                & GenericAsset.account_id.is_(None)
+                & or_(GenericAsset.name.ilike(f"%{term}%") for term in terms)
+            )
+            subquery = union_all(
+                private_select_statement.where(private_filter_statement),
+                public_select_statement.where(public_filter_statement),
+            ).subquery()
+            asset_alias = aliased(GenericAsset, subquery)
+            query = select(asset_alias).order_by(asset_alias.id)
+        else:
+            query = select_statement.where(filter_statement)
 
         if page is None:
             response = asset_schema.dump(db.session.scalars(query).all(), many=True)
