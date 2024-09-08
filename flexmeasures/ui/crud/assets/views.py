@@ -5,7 +5,7 @@ from flask_security import login_required, current_user
 from webargs.flaskparser import use_kwargs
 from sqlalchemy import select, func
 
-from flexmeasures.api.v3_0.assets import get_acessible_accounts
+from flexmeasures.api.v3_0.assets import get_accessible_accounts
 from flexmeasures.data import db
 from flexmeasures.auth.error_handling import unauthorized_handler
 from flexmeasures.data.schemas import StartEndTimeSchema
@@ -41,7 +41,7 @@ Note: This uses the internal dev API version
 
 def get_num_accessible_assets():
     """Count all assets in accessible accounts, and public assets."""
-    accounts = get_acessible_accounts()
+    accounts = get_accessible_accounts()
     account_ids = [a.id for a in accounts]
 
     return db.session.execute(

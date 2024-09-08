@@ -35,7 +35,7 @@ assets_schema = AssetSchema(many=True)
 partial_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
 
 
-def get_acessible_accounts() -> list[Account]:
+def get_accessible_accounts() -> list[Account]:
     accounts = []
     for _account in db.session.scalars(select(Account)).all():
         try:
@@ -92,13 +92,13 @@ class AssetAPI(FlaskView):
         per_page: int | None = None,
         filter: str | None = None,
     ):
-        """List all assets owned or accessible by a certain account.
+        """List all assets owned  by user's accounts, or a certain account or all accessible accounts.
 
         .. :quickref: Asset; Download asset list
 
-        This endpoint returns all accessible assets for the account of the user.
-        The `account_id` query parameter can be used to list assets from a different account.
-        The `all_accessible` query parameter can be used to list assets not only from the current user's account, but from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.
+        This endpoint returns all accessible assets by accounts.
+        The `account_id` query parameter can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.
+        Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.
 
         The endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.
 
@@ -142,11 +142,8 @@ class AssetAPI(FlaskView):
         """
 
         # find out which accounts are relevant
-        accounts = []
         if all_accessible:
-            accounts = get_acessible_accounts()
-            if account is not None:
-                check_access(account, "read")
+            accounts = get_accessible_accounts()
         else:
             if account is None:
                 account = current_user.account
