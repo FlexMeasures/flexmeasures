@@ -13,14 +13,14 @@ from marshmallow import fields
 import marshmallow.validate as validate
 
 from webargs.flaskparser import use_kwargs, use_args
-from sqlalchemy import select, delete, func, or_, and_, union_all
-from sqlalchemy.orm import aliased
+from sqlalchemy import select, delete, func
 
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.queries.generic_assets import query_assets_by_search_terms
 from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
 from flexmeasures.api.common.schemas.generic_assets import (
@@ -165,36 +165,9 @@ class AssetAPI(FlaskView):
             select(func.count(GenericAsset.id)).where(filter_statement)
         )
 
-        select_statement = select(GenericAsset)
-        if filter is not None:
-            # Search terms in the search filter should either come back in the asset name or account name
-            private_select_statement = select_statement.join(
-                Account, Account.id == GenericAsset.account_id
-            )
-            private_filter_statement = filter_statement & and_(
-                *(
-                    or_(
-                        GenericAsset.name.ilike(f"%{term}%"),
-                        Account.name.ilike(f"%{term}%"),
-                    )
-                    for term in filter
-                )
-            )
-            public_select_statement = select_statement
-            public_filter_statement = (
-                filter_statement
-                & GenericAsset.account_id.is_(None)
-                & and_(GenericAsset.name.ilike(f"%{term}%") for term in filter)
-            )
-            subquery = union_all(
-                private_select_statement.where(private_filter_statement),
-                public_select_statement.where(public_filter_statement),
-            ).subquery()
-            asset_alias = aliased(GenericAsset, subquery)
-            query = select(asset_alias).order_by(asset_alias.id)
-        else:
-            query = select_statement.where(filter_statement)
-
+        query = query_assets_by_search_terms(
+            search_terms=filter, filter_statement=filter_statement
+        )
         if page is None:
             response = asset_schema.dump(db.session.scalars(query).all(), many=True)
         else:
