@@ -36,8 +36,9 @@ class AccountCrudUI(FlaskView):
         """/accounts"""
         accounts = get_accounts()
         for account in accounts:
-            account["asset_count"] = len(get_assets_by_account(account["id"]))
-            account["user_count"] = len(get_users_by_account(account["id"]))
+            account_obj = db.session.get(Account, account["id"])
+            account["asset_count"] = account_obj.number_of_assets
+            account["user_count"] = account_obj.number_of_users
 
         return render_flexmeasures_template(
             "crud/accounts.html",
