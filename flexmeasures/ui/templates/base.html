@@ -733,6 +733,14 @@
             });
         }
 
+        function showAllToasts() {
+            const toastElements = document.querySelectorAll(".toast");
+            toastElements.forEach((toast) => {
+                const toastInstance = new bootstrap.Toast(toast);
+                toastInstance.show();
+            });
+        }
+
         function showToast(message, type, toastStack, closeToastBtn) {
             let colorClass;
             let colorStyle = "";
@@ -753,7 +761,7 @@
         
             // Create the toast HTML
             const toast = document.createElement("div");
-            toast.classList.add("toast", "hide", "mb-1");
+            toast.classList.add("toast", "mb-1");
             toast.setAttribute("data-bs-autohide", "true");
             toast.setAttribute("role", "alert");
             toast.setAttribute("aria-live", "assertive");
@@ -776,15 +784,14 @@
             // Show the close all button
             closeToastBtn.style.display = "block";
         
-            // Initialize the toast
-            const toastInstance = new bootstrap.Toast(toast);
-            toastInstance.show();
-        
-            // Remove the toast from the DOM once it’s hidden
-            toast.addEventListener("hidden.bs.toast", function () {
-              toastInstance.dispose(); // Destroy the toast instance
-              toast.remove(); // Remove it from the DOM
-            });
+            showAllToasts();
+
+            // destroy only this toast if the close(X) button is clicked
+            toast.querySelector(".btn-close").addEventListener("click", function () {
+                const toastInstance = new bootstrap.Toast(toast);
+                toastInstance.dispose();
+                toast.remove();
+            });            
           }
     </script>
 
