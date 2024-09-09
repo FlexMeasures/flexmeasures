@@ -301,4 +301,3 @@ def get_sensor_aliases(
     }
 
     return aliases
-  
