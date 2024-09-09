@@ -25,7 +25,8 @@ click
 click-default-group
 email_validator
 rq
-rq-dashboard
+# sort order
+rq-dashboard>=0.8.0.2
 # the following uses environment markers (see PEP 496)
 rq-win; os_name == 'nt' or os_name == 'win'
 # This limit resolves a conflict with test.in. The culprit is fakeredis (check their pyproject.toml)
@@ -34,8 +35,8 @@ tldextract
 pyomo>=5.6
 tabulate
 timetomodel>=0.7.3
-# significantly faster db queries
-timely-beliefs[forecast]>=3.0
+# significantly faster db queries, incl. bulk saving
+timely-beliefs[forecast]>=3.0.2
 python-dotenv
 # a backport, not needed in Python3.8
 importlib_metadata
