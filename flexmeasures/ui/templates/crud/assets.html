@@ -48,14 +48,14 @@ $(document).ready(function() {
   */
   $("#assetTable").dataTable({
     serverSide: true,
-    columns : [
-      {data : "name", title : "Name"},
-      {data : "id", title : "Asset ID"},
-      {data : "owner", title : "Account"},
-      {data: "location", title : "Location"},
-      {data: "num_sensors", title : "Sensors"},
-      {data: "status", title : "Status"},
-      {data: "url", title : "URL", className: "d-none"},
+    columns: [
+      {data: "name", title: "Name"},
+      {data: "id", title: "Asset ID"},
+      {data: "owner", title: "Account"},
+      {data: "location", title: "Location"},
+      {data: "num_sensors", title: "Sensors"},
+      {data: "status", title: "Status"},
+      {data: "url", title: "URL", className: "d-none"},
     ],
     ajax: function (data, callback, settings) {
       let filter = data["search"]["value"];
@@ -65,15 +65,15 @@ $(document).ready(function() {
       }
       $.ajax({
         type: "get",
-        url : url, 
-        success : function(response, text) {
+        url: url,
+        success: function(response, text) {
           let clean_response = [];
           response["data"].forEach( (element) => clean_response.push(
             new Asset(element["id"], element["name"], element["generic_asset_type"]["name"], element["sensors"], element["owner"], element["latitude"], element["longitude"])
           )) 
-          callback({"data" : clean_response, "recordsTotal" : response["num-records"], "recordsFiltered" : response["filtered-records"]});
+          callback({"data": clean_response, "recordsTotal": response["num-records"], "recordsFiltered": response["filtered-records"]});
         },
-        error : function (request, status, error) {
+        error: function (request, status, error) {
           console.log("Error: ", error)
         }
       });

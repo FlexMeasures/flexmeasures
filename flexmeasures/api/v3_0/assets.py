@@ -20,9 +20,13 @@ from flexmeasures.data import db
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.queries.generic_assets import query_assets_by_search_terms
 from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
-from flexmeasures.api.common.schemas.generic_assets import AssetIdField
+from flexmeasures.api.common.schemas.generic_assets import (
+    AssetIdField,
+    SearchFilterField,
+)
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.utils.coding_utils import flatten_unique
 from flexmeasures.ui.utils.view_utils import set_session_variables
@@ -79,7 +83,7 @@ class AssetAPI(FlaskView):
             "per_page": fields.Int(
                 required=False, validate=validate.Range(min=1), default=10
             ),
-            "filter": fields.Str(required=False, default=None),
+            "filter": SearchFilterField(required=False, default=None),
         },
         location="query",
     )
@@ -90,7 +94,7 @@ class AssetAPI(FlaskView):
         all_accessible: bool,
         page: int | None = None,
         per_page: int | None = None,
-        filter: str | None = None,
+        filter: list[str] | None = None,
     ):
         """List all assets owned  by user's accounts, or a certain account or all accessible accounts.
 
@@ -104,6 +108,7 @@ class AssetAPI(FlaskView):
 
             - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.
             - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).
+            - If a search 'filter' such as 'solar "ACME corp"' is provided, the response will filter out assets where each search term is either present in their name or account name.
               The response schema for pagination is inspired by https://datatables.net/manual/server-side#Returned-data
 
 
@@ -160,11 +165,9 @@ class AssetAPI(FlaskView):
             select(func.count(GenericAsset.id)).where(filter_statement)
         )
 
-        if filter is not None:
-            filter_statement = filter_statement & GenericAsset.name.ilike(f"%{filter}%")
-
-        query = select(GenericAsset).where(filter_statement)
-
+        query = query_assets_by_search_terms(
+            search_terms=filter, filter_statement=filter_statement
+        )
         if page is None:
             response = asset_schema.dump(db.session.scalars(query).all(), many=True)
         else:
