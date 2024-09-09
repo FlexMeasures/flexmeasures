@@ -39,12 +39,22 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
     id = ma.auto_field(dump_only=True)
     name = fields.Str(required=True)
     account_id = ma.auto_field()
+    owner = ma.Nested("AccountSchema", dump_only=True, only=("id", "name"))
     latitude = LatitudeField(allow_none=True)
     longitude = LongitudeField(allow_none=True)
     generic_asset_type_id = fields.Integer(required=True)
+    generic_asset_type = ma.Nested(
+        "GenericAssetTypeSchema", dump_only=True, only=("id", "name")
+    )
     attributes = JSON(required=False)
     parent_asset_id = fields.Int(required=False, allow_none=True)
-    child_assets = ma.Nested("GenericAssetSchema", many=True, dumb_only=True)
+    child_assets = ma.Nested(
+        "GenericAssetSchema",
+        many=True,
+        dump_only=True,
+        only=("id", "name", "account_id", "generic_asset_type"),
+    )
+    sensors = ma.Nested("SensorSchema", many=True, dump_only=True, only=("id", "name"))
     production_price_sensor_id = fields.Int(required=False, allow_none=True)
     consumption_price_sensor_id = fields.Int(required=False, allow_none=True)
     inflexible_device_sensor_ids = fields.List(
