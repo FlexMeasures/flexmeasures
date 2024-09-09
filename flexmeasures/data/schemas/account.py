@@ -30,26 +30,23 @@ class AccountSchema(ma.SQLAlchemySchema):
 
     id = ma.auto_field(dump_only=True)
     name = ma.auto_field(required=True)
-    primary_color = ma.auto_field(allow_none=True)
-    secondary_color = ma.auto_field(allow_none=True)
-    logo_url = ma.auto_field(allow_none=True)
+    primary_color = ma.auto_field(required=False)
+    secondary_color = ma.auto_field(required=False)
+    logo_url = ma.auto_field(required=False)
     account_roles = fields.Nested("AccountRoleSchema", exclude=("accounts",), many=True)
     consultancy_account_id = ma.auto_field()
 
     @validates("primary_color")
     def validate_primary_color(self, value):
-        if value is not None:
-            validate_color_hex(None, "primary_color", value)
+        validate_color_hex(None, "primary_color", value)
 
     @validates("secondary_color")
     def validate_secondary_color(self, value):
-        if value is not None:
-            validate_color_hex(None, "secondary_color", value)
+        validate_color_hex(None, "secondary_color", value)
 
     @validates("logo_url")
     def validate_logo_url(self, value):
-        if value is not None:
-            validate_url(None, "logo_url", value)
+        validate_url(None, "logo_url", value)
 
 
 class AccountIdField(fields.Int, MarshmallowClickMixin):
