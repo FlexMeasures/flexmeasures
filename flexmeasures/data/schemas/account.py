@@ -39,21 +39,21 @@ class AccountSchema(ma.SQLAlchemySchema):
     @validates("primary_color")
     def validate_primary_color(self, value):
         try:
-            validate_color_hex(None, "primary_color", value)
+            validate_color_hex(value)
         except ValueError as e:
             raise FMValidationError(str(e))
 
     @validates("secondary_color")
     def validate_secondary_color(self, value):
         try:
-            validate_color_hex(None, "secondary_color", value)
+            validate_color_hex(value)
         except ValueError as e:
             raise FMValidationError(str(e))
 
     @validates("logo_url")
     def validate_logo_url(self, value):
         try:
-            validate_url(None, "logo_url", value)
+            validate_url(value)
         except ValueError as e:
             raise FMValidationError(str(e))
 

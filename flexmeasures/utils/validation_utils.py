@@ -1,42 +1,33 @@
 import re
-import click
 
 
-def validate_color_hex(ctx, param, value):
+def validate_color_hex(value):
     """
-    Optional parameter validation
-
     Validates that a given value is a valid hex color code.
 
     Parameters:
-    :param ctx:     Click context.
-    :param param:   Click parameter. Hex value.
+    :value: The color code to validate.
     """
     if value is None:
         return value
+
+    if value and not value.startswith("#"):
+        value = f"#{value}"
 
     hex_pattern = re.compile(r"^#?([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$")
 
     if re.match(hex_pattern, value):
         return value
     else:
-        error_message: str = f"{value} is not a valid hex color code."
-        if ctx is None:  # Non-CLI context
-            raise ValueError(error_message)
-        else:  # CLI context
-            raise click.BadParameter(error_message)
+        raise ValueError(f"{value} is not a valid hex color code.")
 
 
-def validate_url(ctx, param, value):
+def validate_url(value):
     """
-    Optional parameter valdiation
-
     Validates that a given value is a valid URL format using regex.
 
     Parameters:
-    :param ctx:     Click context.
-    :param param:   Click parameter. URL value.
-    :param value:   The URL to validate.
+    :value: The URL to validate.
     """
     if value is None:
         return value
@@ -51,20 +42,12 @@ def validate_url(ctx, param, value):
     )
 
     if not url_regex.match(value):
-        error_message: str = f"'{value}' is not a valid URL."
-        if ctx is None:  # Non-CLI context
-            raise ValueError(error_message)
-        else:  # CLI context
-            raise click.BadParameter(error_message)
+        raise ValueError(f"'{value}' is not a valid URL.")
 
     # check if more than 255 characters
     if len(value) > 255:
-        error_message: str = (
+        raise ValueError(
             "provided logo-url is too long. Maximum length is 255 characters."
         )
-        if ctx is None:  # Non-CLI context
-            raise ValueError(error_message)
-        else:  # CLI context
-            raise click.BadParameter(error_message)
 
     return value
