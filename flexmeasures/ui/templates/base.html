@@ -703,6 +703,99 @@
     </script>
 
     {% block scripts %}
+    <!-- JS to enable tooltips -->
+    <script type='text/javascript'>
+        $(document).ready(function () {
+            if ($("[rel=tooltip]").length) {
+                $("[rel=tooltip]").tooltip();
+            }
+        });
+    </script>
+
+    <!-- JS to enable toast -->
+    <script defer>
+        function initiateToastCloseBtn(closeToastBtn){
+            // hide button
+            closeToastBtn.style.display = "none";
+
+            closeToastBtn.addEventListener("click", function () {
+                const toastElements = document.querySelectorAll(".toast");
+                toastElements.forEach((toast) => {
+                const toastInstance = bootstrap.Toast.getInstance(toast); // Get the toast instance
+                if (toastInstance) {
+                    // destroy the toast
+                    toastInstance.dispose();
+                    toast.remove();
+                }
+                });
+                // Hide the close button
+                closeToastBtn.style.display = "none";
+            });
+        }
+
+        function showAllToasts() {
+            const toastElements = document.querySelectorAll(".toast");
+            toastElements.forEach((toast) => {
+                const toastInstance = new bootstrap.Toast(toast);
+                toastInstance.show();
+            });
+        }
+
+        function showToast(message, type, toastStack, closeToastBtn) {
+            let colorClass;
+            let colorStyle = "";
+            let title;
+        
+            // Determine the type of toast
+            if (type == "error") {
+              colorClass = "bg-danger";
+              title = "Error";
+            } else if (type == "success") {
+              colorClass = "bg-success";
+              title = "Success";
+            } else {
+              colorStyle =
+                "background-color: {{ primary_color }};";
+              title = "Info";
+            }
+        
+            // Create the toast HTML
+            const toast = document.createElement("div");
+            toast.classList.add("toast", "mb-1");
+            toast.setAttribute("data-bs-autohide", "true");
+            toast.setAttribute("role", "alert");
+            toast.setAttribute("aria-live", "assertive");
+            toast.setAttribute("aria-atomic", "true");
+        
+            toast.innerHTML = `
+              <div class="toast-header">
+                <div class="rounded me-2 ${colorClass}" style="width: 20px; height: 20px; display: inline-block; ${colorStyle}"></div>
+                <strong class="me-auto">${title}</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+              </div>
+              <div class="toast-body">
+                ${message}
+              </div>
+            `;
+        
+            // Append toast to the toast stack
+            toastStack.insertAdjacentElement("afterbegin", toast);
+        
+            // Show the close all button
+            closeToastBtn.style.display = "block";
+        
+            showAllToasts();
+
+            // destroy only this toast if the close(X) button is clicked
+            toast.querySelector(".btn-close").addEventListener("click", function () {
+                const toastInstance = new bootstrap.Toast(toast);
+                toastInstance.dispose();
+                toast.remove();
+            });            
+          }
+    </script>
+
+
 
     <!-- External scripts -->
     <script src="https://cdn.jsdelivr.net/npm/ion-rangeslider@2.3.1/js/ion.rangeSlider.min.js"></script>
