@@ -1,4 +1,3 @@
-import click
 from flask.cli import with_appcontext
 from flexmeasures.data import ma
 from marshmallow import fields, validates
@@ -41,19 +40,22 @@ class AccountSchema(ma.SQLAlchemySchema):
     def validate_primary_color(self, value):
         try:
             validate_color_hex(None, "primary_color", value)
-        except click.BadParameter as e:
-            raise FMValidationError(e.message)
+        except ValueError as e:
+            raise FMValidationError(str(e))
 
     @validates("secondary_color")
     def validate_secondary_color(self, value):
         try:
             validate_color_hex(None, "secondary_color", value)
-        except click.BadParameter as e:
-            raise FMValidationError(e.message)
+        except ValueError as e:
+            raise FMValidationError(str(e))
 
     @validates("logo_url")
     def validate_logo_url(self, value):
-        validate_url(None, "logo_url", value)
+        try:
+            validate_url(None, "logo_url", value)
+        except ValueError as e:
+            raise FMValidationError(str(e))
 
 
 class AccountIdField(fields.Int, MarshmallowClickMixin):

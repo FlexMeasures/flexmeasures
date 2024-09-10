@@ -20,7 +20,11 @@ def validate_color_hex(ctx, param, value):
     if re.match(hex_pattern, value):
         return value
     else:
-        raise click.BadParameter(f"{value} is not a valid hex color code.")
+        error_message: str = f"{value} is not a valid hex color code."
+        if ctx is None:  # Non-CLI context
+            raise ValueError(error_message)
+        else:  # CLI context
+            raise click.BadParameter(error_message)
 
 
 def validate_url(ctx, param, value):
@@ -47,12 +51,20 @@ def validate_url(ctx, param, value):
     )
 
     if not url_regex.match(value):
-        raise click.BadParameter(f"'{value}' is not a valid URL.")
+        error_message: str = f"'{value}' is not a valid URL."
+        if ctx is None:  # Non-CLI context
+            raise ValueError(error_message)
+        else:  # CLI context
+            raise click.BadParameter(error_message)
 
     # check if more than 255 characters
     if len(value) > 255:
-        raise click.BadParameter(
+        error_message: str = (
             "provided logo-url is too long. Maximum length is 255 characters."
         )
+        if ctx is None:  # Non-CLI context
+            raise ValueError(error_message)
+        else:  # CLI context
+            raise click.BadParameter(error_message)
 
     return value
