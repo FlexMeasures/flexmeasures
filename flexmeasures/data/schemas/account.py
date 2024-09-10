@@ -1,3 +1,4 @@
+import click
 from flask.cli import with_appcontext
 from flexmeasures.data import ma
 from marshmallow import fields, validates
@@ -38,11 +39,17 @@ class AccountSchema(ma.SQLAlchemySchema):
 
     @validates("primary_color")
     def validate_primary_color(self, value):
-        validate_color_hex(None, "primary_color", value)
+        try:
+            validate_color_hex(None, "primary_color", value)
+        except click.BadParameter as e:
+            raise FMValidationError(e.message)
 
     @validates("secondary_color")
     def validate_secondary_color(self, value):
-        validate_color_hex(None, "secondary_color", value)
+        try:
+            validate_color_hex(None, "secondary_color", value)
+        except click.BadParameter as e:
+            raise FMValidationError(e.message)
 
     @validates("logo_url")
     def validate_logo_url(self, value):

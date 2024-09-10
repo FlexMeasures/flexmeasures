@@ -20,7 +20,7 @@ def validate_color_hex(ctx, param, value):
     if re.match(hex_pattern, value):
         return value
     else:
-        raise click.BadParameter(f"{param.name} must be a valid hex color code.")
+        raise click.BadParameter(f"{value} is not a valid hex color code.")
 
 
 def validate_url(ctx, param, value):
