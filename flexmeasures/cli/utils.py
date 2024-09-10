@@ -312,7 +312,8 @@ def validate_color_cli(ctx, param, value):
 
     Parameters:
     :param ctx:     Click context.
-    :param param:   Click parameter. Hex value.
+    :param param:   Click parameter name.
+    :param value:   The color code to validate.
     """
 
     try:
@@ -324,13 +325,13 @@ def validate_color_cli(ctx, param, value):
 
 def validate_url_cli(ctx, param, value):
     """
-    Optional parameter valdiation
+    Optional parameter validation
 
     Validates that a given value is a valid URL format using regex.
 
     Parameters:
     :param ctx:     Click context.
-    :param param:   Click parameter. URL value.
+    :param param:   Click parameter name.
     :param value:   The URL to validate.
     """
 
