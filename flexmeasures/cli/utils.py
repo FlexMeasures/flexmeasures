@@ -303,7 +303,7 @@ def get_sensor_aliases(
 
     return aliases
 
-  
+
 def validate_color_cli(ctx, param, value):
     """
     Optional parameter validation

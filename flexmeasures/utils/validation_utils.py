@@ -1,5 +1,6 @@
 import re
 
+
 def validate_color_hex(value):
     """
     Validates that a given value is a valid hex color code.
