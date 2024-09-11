@@ -82,7 +82,9 @@ class SensorsToShowSchema(fields.Field):
             return {"title": None, "sensors": [item]}
         elif isinstance(item, list):
             if not all(isinstance(sensor_id, int) for sensor_id in item):
-                raise ValidationError("All sensor IDs in a list must be integers.")
+                raise ValidationError(
+                    "All elements in a list within 'sensors_to_show' must be integers."
+                )
             return {"title": None, "sensors": item}
         elif isinstance(item, dict):
             title = item.get("title", None)
@@ -103,7 +105,9 @@ class SensorsToShowSchema(fields.Field):
                     "Dictionary must contain either 'sensor' or 'sensors' key."
                 )
         else:
-            raise ValidationError("Invalid item type in sensors_to_show.")
+            raise ValidationError(
+                "Invalid item type in 'sensors_to_show'. Expected int, list, or dict."
+            )
 
 
 class GenericAssetSchema(ma.SQLAlchemySchema):
