@@ -1,5 +1,9 @@
+from __future__ import annotations
+
+from shlex import join, split
+
 from flask import abort
-from marshmallow import fields
+from marshmallow import fields, ValidationError
 from sqlalchemy import select
 
 from flexmeasures.data import db
@@ -21,3 +25,17 @@ class AssetIdField(fields.Integer):
 
     def _serialize(self, asset: GenericAsset, attr, data, **kwargs) -> int:
         return asset.id
+
+
+class SearchFilterField(fields.Str):
+    """Field that represents a search filter."""
+
+    def _deserialize(self, value, attr, data, **kwargs) -> list[str]:
+        try:
+            search_terms = split(value)
+        except ValueError as e:
+            raise ValidationError(str(e))
+        return search_terms
+
+    def _serialize(self, value: list[str], attr, obj, **kwargs) -> str:
+        return join(value)

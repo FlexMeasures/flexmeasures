@@ -5,6 +5,12 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
+v3.0-20 | 2024-09-XX
+""""""""""""""""""""
+
+-  Introduce (optional) pagination to the endpoint `/assets` (GET), also adding the `all_accessible` option to allow querying all accessible accounts in one go.
+
+
 v3.0-19 | 2024-08-13
 """"""""""""""""""""
 

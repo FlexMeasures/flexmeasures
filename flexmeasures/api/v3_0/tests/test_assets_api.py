@@ -66,11 +66,12 @@ def test_get_asset_nonaccount_access(client, setup_api_test_data, requesting_use
 
 
 @pytest.mark.parametrize(
-    "requesting_user, account_name, num_assets",
+    "requesting_user, account_name, num_assets, use_pagination",
     [
-        ("test_admin_user@seita.nl", "Prosumer", 1),
-        ("test_admin_user@seita.nl", "Supplier", 2),
-        ("test_consultant@seita.nl", "ConsultancyClient", 1),
+        ("test_admin_user@seita.nl", "Prosumer", 1, False),
+        ("test_admin_user@seita.nl", "Supplier", 2, False),
+        ("test_consultant@seita.nl", "ConsultancyClient", 1, False),
+        ("test_admin_user@seita.nl", "Prosumer", 1, True),
     ],
     indirect=["requesting_user"],
 )
@@ -80,13 +81,17 @@ def test_get_assets(
     setup_accounts,
     account_name,
     num_assets,
+    use_pagination,
     requesting_user,
 ):
     """
     Get assets per account.
     Our user here is admin, so is allowed to see all assets.
+    Pagination is tested only in passing, we should test filtering and page > 1
     """
     query = {"account_id": setup_accounts[account_name].id}
+    if use_pagination:
+        query["page"] = 1
 
     get_assets_response = client.get(
         url_for("AssetAPI:index"),
@@ -94,11 +99,19 @@ def test_get_assets(
     )
     print("Server responded with:\n%s" % get_assets_response.json)
     assert get_assets_response.status_code == 200
-    assert len(get_assets_response.json) == num_assets
+
+    if use_pagination:
+        assets = get_assets_response.json["data"]
+        assert get_assets_response.json["num-records"] == num_assets
+        assert get_assets_response.json["filtered-records"] == num_assets
+    else:
+        assets = get_assets_response.json
+
+    assert len(assets) == num_assets
 
     if account_name == "Supplier":  # one deep dive
         turbine = {}
-        for asset in get_assets_response.json:
+        for asset in assets:
             if asset["name"] == "Test wind turbine":
                 turbine = asset
         assert turbine

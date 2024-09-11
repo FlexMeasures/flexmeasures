@@ -83,7 +83,7 @@ from flexmeasures.data.services.utils import get_or_create_model
 from flexmeasures.utils import flexmeasures_inflection
 from flexmeasures.utils.time_utils import server_now, apply_offset_chain
 from flexmeasures.utils.unit_utils import convert_units, ur
-from flexmeasures.cli.utils import validate_color_hex, validate_url
+from flexmeasures.cli.utils import validate_color_cli, validate_url_cli
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.data.services.utils import get_asset_or_sensor_ref
 from flexmeasures.data.models.reporting import Reporter
@@ -166,17 +166,17 @@ def new_account_role(name: str, description: str):
 @click.option("--roles", help="e.g. anonymous,Prosumer,CPO")
 @click.option(
     "--primary-color",
-    callback=validate_color_hex,
+    callback=validate_color_cli,
     help="Primary color to use in UI, in hex format. Defaults to FlexMeasures' primary color (#1a3443)",
 )
 @click.option(
     "--secondary-color",
-    callback=validate_color_hex,
+    callback=validate_color_cli,
     help="Secondary color to use in UI, in hex format. Defaults to FlexMeasures' secondary color (#f1a122)",
 )
 @click.option(
     "--logo-url",
-    callback=validate_url,
+    callback=validate_url_cli,
     help="Logo URL to use in UI. Defaults to FlexMeasures' logo URL",
 )
 @click.option(

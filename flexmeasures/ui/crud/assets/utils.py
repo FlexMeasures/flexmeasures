@@ -104,15 +104,24 @@ def process_internal_api_response(
     if make_obj:
         children = asset_data.pop("child_assets", [])
 
+        asset_data.pop("sensors", [])
+        asset_data.pop("owner", None)
+        asset_type = asset_data.pop("generic_asset_type", {})
+
         asset = GenericAsset(
             **{
                 **asset_data,
                 **{"attributes": json.loads(asset_data.get("attributes", "{}"))},
             }
         )  # TODO: use schema?
-        asset.generic_asset_type = db.session.get(
-            GenericAssetType, asset.generic_asset_type_id
-        )
+        if "generic_asset_type_id" in asset_data:
+            asset.generic_asset_type = db.session.get(
+                GenericAssetType, asset_data["generic_asset_type_id"]
+            )
+        else:
+            asset.generic_asset_type = db.session.get(
+                GenericAssetType, asset_type.get("id", None)
+            )
         expunge_asset()
         asset.owner = db.session.get(Account, asset_data["account_id"])
         expunge_asset()
@@ -132,7 +141,9 @@ def process_internal_api_response(
 
         child_assets = []
         for child in children:
-            child.pop("child_assets")
+            if "child_assets" in child:
+                # not deeper than one level
+                child.pop("child_assets")
             child_asset = process_internal_api_response(child, child["id"], True)
             child_assets.append(child_asset)
         asset.child_assets = child_assets
