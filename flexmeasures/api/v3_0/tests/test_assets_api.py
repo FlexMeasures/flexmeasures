@@ -203,7 +203,7 @@ def test_alter_an_asset(
     print(f"Editing Response: {asset_edit_response.json}")
     assert asset_edit_response.status_code == 200
 
-    audit_log_event = f"Updated asset '{prosumer_asset.name}': {prosumer_asset.id} fields: Field name: name, Old value: {name}, New value: other; Field name: latitude, Old value: {latitude}, New value: 11.1"
+    audit_log_event = f"Updated asset '{prosumer_asset.name}': {prosumer_asset.id} fields: Field: name, From: {name}, To: other; Field: latitude, From: {latitude}, To: 11.1"
     assert db.session.execute(
         select(AssetAuditLog).filter_by(
             event=audit_log_event,
@@ -224,11 +224,11 @@ def test_alter_an_asset(
         ('{"sensors_to_show": [1, [0, 2]]}', "No sensor found"),  # no sensor with ID 0
         (
             '{"sensors_to_show": [1, [2, [3, 4]]]}',
-            "All sensor IDs in a list must be integers.",
+            "All elements in a list within 'sensors_to_show' must be integers.",
         ),  # nesting level max 1
         (
             '{"sensors_to_show": [1, "2"]}',
-            "Invalid item type in sensors_to_show",
+            "Invalid item type in 'sensors_to_show'. Expected int, list, or dict.",
         ),  # non-integer sensor ID
     ],
 )
