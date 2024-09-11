@@ -147,20 +147,13 @@ class AssetAuditLog(db.Model, AuthModelMixin):
         else:
             event = f"Updated asset '{asset_or_sensor.name}': {asset_or_sensor.id} "
             affected_asset_id = asset_or_sensor.id
-        # Truncate this event to 200 characters to account for the whole event not exceeding 255 characters
-        event += truncate_event(
-            f"Attr '{attribute_key}' To {attribute_value} From {old_value}",
-            attribute_key,
-            old_value,
-            attribute_value,
-        )
+        event += f"Attr '{attribute_key}' To {attribute_value} From {old_value}"
 
-        # Truncate whole event if necessary to prevent ERROR: value too long for type character varying(255)
-        max_length = 250
-        event = truncate_string(event, max_length)
         audit_log = cls(
             event_datetime=server_now(),
-            event=event,
+            event=truncate_string(
+                event, 250
+            ),  # we truncate the event string to 250 characters by adding ellipses in the middle
             active_user_id=current_user_id,
             active_user_name=current_user_name,
             affected_asset_id=affected_asset_id,
@@ -180,12 +173,11 @@ class AssetAuditLog(db.Model, AuthModelMixin):
         """
         current_user_id, current_user_name = get_current_user_id_name()
 
-        # Truncate event string if necessary to prevent ERROR: value too long for type character varying(255)
-        max_length = 250
-        event = truncate_string(event, max_length)
         audit_log = AssetAuditLog(
             event_datetime=server_now(),
-            event=event,
+            event=truncate_string(
+                event, 250
+            ),  # we truncate the event string to 250 characters by adding ellipses in the middle
             active_user_id=current_user_id,
             active_user_name=current_user_name,
             affected_asset_id=asset.id,
