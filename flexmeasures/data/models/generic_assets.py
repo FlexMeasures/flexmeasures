@@ -596,8 +596,16 @@ class GenericAsset(db.Model, AuthModelMixin):
                 )
                 df["sensor"] = {}  # ensure the same columns as a non-empty frame
             df = df.reset_index()
-            df["source"] = df["source"].ffill().apply(lambda x: x.to_dict())
-            df["sensor"] = df["sensor"].ffill().apply(lambda x: x.to_dict())
+
+            try:
+                df["source"] = df["source"].apply(lambda x: x.to_dict())
+                df["sensor"] = df["sensor"].apply(lambda x: x.to_dict())
+            except Exception as e:
+                print(str(e))
+                print(df["sensor"])
+                print(df["source"])
+                df["source"] = df["source"].ffill().apply(lambda x: x.to_dict())
+                df["sensor"] = df["sensor"].ffill().apply(lambda x: x.to_dict())
 
             return df.to_json(orient="records")
         return bdf_dict
