@@ -46,11 +46,11 @@ def test_get_users_inactive(
     )
     print("Server responded with:\n%s" % get_users_response.json)
     assert get_users_response.status_code == 200
-    assert isinstance(get_users_response.json["users"], list)
+    assert isinstance(get_users_response.json, list)
     if include_inactive is False:
-        assert len(get_users_response.json["users"]) == 3
+        assert len(get_users_response.json) == 3
     else:
-        assert len(get_users_response.json["users"]) == 5
+        assert len(get_users_response.json) == 5
 
 
 @pytest.mark.parametrize(

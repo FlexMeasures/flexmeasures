@@ -295,40 +295,16 @@ Account overview {% endblock %} {% block divs %}
                 <th class="d-none">URL</th>
               </tr>
             </thead>
-            <tbody>
-              {% for user in users %}
-              <tr>
-                <td>{{ user.username }}</td>
-                <td>
-                  <a href="mailto:{{ user.email }}" title="Mail this user"
-                    >{{ user.email }}</a
-                  >
-                  >
-                </td>
-                <td>
-                  {% for role in user.flexmeasures_roles %} {{ role.name }}{{
-                  "," if not loop.last }} {% endfor %}
-                </td>
-                <td>{{ user.timezone }}</td>
-                <td
-                  title="{{  user.last_login_at | localized_datetime }}"
-                  data-sort="{{ user.last_login_at }}"
-                >
-                  {{ user.last_login_at | naturalized_datetime}}
-                </td>
-                <td
-                  title="{{  user.last_seen_at | localized_datetime }}"
-                  data-sort="{{ user.last_seen_at }}"
-                >
-                  {{ user.last_seen_at | naturalized_datetime}}
-                </td>
-                <td>{{ user.active }}</td>
-                <td class="d-none">/users/{{ user.id }}</td>
-              </tr>
-              {% endfor %}
+            <tbody id="users-table-body">
+              <!-- Dynamic rows will be rendered here -->
             </tbody>
           </table>
         </div>
+        <nav aria-label="Page navigation example">
+          <ul class="pagination" id="pagination-controls">
+            <!-- Pagination buttons will be rendred here -->
+          </ul>
+        </nav>
       </div>
       <div class="card">
         <h3>Assets</h3>
@@ -400,11 +376,121 @@ Account overview {% endblock %} {% block divs %}
 </div>
 {% block paginate_tables_script %} {{ super() }} {% endblock %}
 <script defer>
+  let currentPage = 1;
   const basePath = window.location.origin;
-  const form = document.getElementById("editaccount");
+  const usersApiUrl = basePath + "/api/v3_0/users";
 
+  const form = document.getElementById("editaccount");
   const toastStack = document.getElementById("toast-container");
   const closeToastBtn = document.getElementById("close-all-toasts");
+  const tableBody = document.getElementById("users-table-body");
+  const paginationControls = document.getElementById("pagination-controls");
+
+  async function fetchUsers(page = 1) {
+    try {
+      const response = await fetch(`${usersApiUrl}?page=${page}&per_page=2`);
+      const data = await response.json();
+
+      renderTable(data.users);
+      renderPagination(data.total_pages, page);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    }
+  }
+
+  function renderTable(users) {
+    tableBody.innerHTML = "";
+
+    users.forEach((user) => {
+      const row = `
+                <tr>
+                    <td>${user.username}</td>
+                    <td>
+                      <a href="mailto:${user.email}" title="Mail this user">${
+        user.email
+      }</a>
+                    </td>
+                    <td>
+                      ${user.flexmeasures_roles.join(", ")}
+                    </td>
+                     <td>
+                        <a href="/accounts/${
+                          user.account.id
+                        }" title="View accounts">${user.account.name}</a>
+                    </td>
+                    <td>
+                        ${user.timezone}
+                    </td>
+                    <td title="${user.last_login_at}" data-sort="${
+        user.last_login_at
+      }">
+                        ${user.last_login_at}
+                    </td>
+                    <td title="${user.last_seen_at}" data-sort="${
+        user.last_seen_at
+      }">
+                        ${user.last_seen_at}
+                    </td>
+                    <td>
+                        ${user.active}
+                    </td>
+                    <td class="d-none">/users/${user.id}</td>
+                </tr>
+            `;
+      tableBody.insertAdjacentHTML("beforeend", row);
+    });
+  }
+
+  function renderPagination(totalPages, currentPage) {
+    // Clear existing pagination
+    paginationControls.innerHTML = "";
+
+    let paginationHTML = "";
+
+    // Previous Button (disabled if on the first page)
+    paginationHTML += `
+      <li class="page-item ${currentPage === 1 ? "disabled" : ""}">
+        <a class="page-link" href="javascript:void(0)" onclick="changePage(${
+          currentPage - 1
+        })">Previous</a>
+      </li>
+    `;
+
+    // Page Buttons
+    for (let page = 1; page <= totalPages; page++) {
+      const isActive = page === currentPage ? "active" : "";
+      const activeStyle =
+        page === currentPage
+          ? "background-color: {{primary_color}}; color: #fff"
+          : "color: {{primary_color}}";
+
+      paginationHTML += `
+        <li class="page-item ${isActive}">
+          <a class="page-link" style="${activeStyle}" href="javascript:void(0)" onclick="changePage(${page})">${page}</a>
+        </li>
+      `;
+    }
+
+    // Next Button (disabled if on the last page)
+    paginationHTML += `
+      <li class="page-item ${currentPage === totalPages ? "disabled" : ""}">
+        <a class="page-link" href="javascript:void(0)" onclick="changePage(${
+          currentPage + 1
+        })">Next</a>
+      </li>
+    `;
+
+    // Insert all at once
+    paginationControls.innerHTML = paginationHTML;
+  }
+
+  function changePage(page) {
+    currentPage = page;
+    fetchUsers(page);
+  }
+
+  // Initial fetch
+  fetchUsers(currentPage);
 
   // written like this since this script(order) is ontop of the main script
   document.addEventListener("DOMContentLoaded", function () {

@@ -2,17 +2,17 @@ from __future__ import annotations
 from flask_classful import FlaskView, route
 from marshmallow import fields
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import select
 from webargs.flaskparser import use_kwargs
 from flask_security import current_user, auth_required
 from flask_security.recoverable import send_reset_password_instructions
 from flask_json import as_json
-from werkzeug.exceptions import Forbidden, Unauthorized
+from werkzeug.exceptions import Forbidden
 from flexmeasures.auth.policy import check_access
 
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import User as UserModel, Account
 from flexmeasures.api.common.schemas.users import AccountIdField, UserIdField
+from flexmeasures.api.v3_0.assets import get_accessible_accounts
 from flexmeasures.data.schemas.account import AccountSchema
 from flexmeasures.data.schemas.users import UserSchema
 from flexmeasures.data.services.users import (
@@ -48,6 +48,8 @@ class UserAPI(FlaskView):
         {
             "account": AccountIdField(data_key="account_id", load_default=None),
             "include_inactive": fields.Bool(load_default=False),
+            "page": fields.Int(load_default=None),
+            "per_page": fields.Int(load_default=None),
         },
         location="query",
     )
@@ -100,27 +102,83 @@ class UserAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
+        if (page is None and per_page is not None) or (
+            page is not None and per_page is None
+        ):
+            return {"message": "Both page and per_page should be passed"}, 400
+
+        if page and per_page:
+            if page < 1:
+                return {"message": "Page number should be greater than 0"}, 400
+            if per_page < 1:
+                return {"message": "Per page number should be greater than 0"}, 400
+
         if account is not None:
             check_access(account, "read")
             accounts = [account]
         else:
-            accounts = []
-            for account in db.session.scalars(select(Account)).all():
-                try:
-                    check_access(account, "read")
-                    accounts.append(account)
-                except (Forbidden, Unauthorized):
-                    pass
+            accounts = get_accessible_accounts()
 
-        users = []
-        for account in accounts:
-            users += get_users(
-                account_name=account.name,
-                only_active=not include_inactive,
-            )
-        return users_schema.dump(users), 200
+        if page and per_page:
+            all_users: list = [
+                user
+                for account in accounts
+                for user in get_users(
+                    account_name=account.name, only_active=not include_inactive
+                )
+            ]
 
-      
+            total_items: int = len(all_users)
+            total_pages: int = (
+                total_items + per_page - 1
+            ) // per_page  # Calculate total pages
+
+            start: int = (page - 1) * per_page
+            paginated_users: list = all_users[start : start + per_page]
+
+            users_response: list = [
+                {
+                    **user_schema.dump(user),
+                    "account": account_schema.dump(user.account),
+                    "flexmeasures_roles": [
+                        role.name for role in user.flexmeasures_roles
+                    ],
+                    "last_login_at": naturalized_datetime_str(user.last_login_at),
+                    "last_seen_at": naturalized_datetime_str(user.last_seen_at),
+                }
+                for user in paginated_users
+            ]
+            response: dict = {
+                "users": users_response,
+                "total_items": total_items,
+                "total_pages": total_pages,
+            }
+        else:
+            users = [
+                user
+                for account in accounts
+                for user in get_users(
+                    account_name=account.name, only_active=not include_inactive
+                )
+            ]
+
+            response = users_schema.dump(users)
+
+            for user_data in response:
+                user = UserModel.query.get(user_data["id"])
+                user_data.update(
+                    {
+                        "account": account_schema.dump(user.account),
+                        "flexmeasures_roles": [
+                            role.name for role in user.flexmeasures_roles
+                        ],
+                        "last_login_at": naturalized_datetime_str(user.last_login_at),
+                        "last_seen_at": naturalized_datetime_str(user.last_seen_at),
+                    }
+                )
+
+        return response, 200
+
     @route("/<id>")
     @use_kwargs({"user": UserIdField(data_key="id")}, location="path")
     @permission_required_for_context("read", ctx_arg_name="user")
