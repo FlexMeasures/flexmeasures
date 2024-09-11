@@ -224,11 +224,11 @@ def test_alter_an_asset(
         ('{"sensors_to_show": [1, [0, 2]]}', "No sensor found"),  # no sensor with ID 0
         (
             '{"sensors_to_show": [1, [2, [3, 4]]]}',
-            "should only contain",
+            "All sensor IDs in a list must be integers.",
         ),  # nesting level max 1
         (
             '{"sensors_to_show": [1, "2"]}',
-            "should only contain",
+            "Invalid item type in sensors_to_show",
         ),  # non-integer sensor ID
     ],
 )
