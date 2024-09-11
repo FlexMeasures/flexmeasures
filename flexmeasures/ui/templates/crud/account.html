@@ -52,12 +52,22 @@ Account overview {% endblock %} {% block divs %}
                       <label for="primary_color" class="control-label"
                         >Primary Color</label
                       >
+                      <span
+                        class="fa fa-info d-inline-block ps-2"
+                        rel="tooltip"
+                        aria-hidden="true"
+                        tabindex="0"
+                        data-bs-placement="right"
+                        data-bs-toggle="tooltip"
+                        title="Primary color to use in UI, in hex format. Defaults to FlexMeasures' primary color (#1a3443)"
+                      ></span>
                       <input
                         type="text"
                         class="form-control"
+                        data-bs-placement="right"
                         id="primary_color"
                         name="primary_color"
-                        value="{{ account.primary_color or primary_color }}"
+                        value="{{ account.primary_color or '' }}"
                       />
                     </div>
                   </div>
@@ -67,12 +77,21 @@ Account overview {% endblock %} {% block divs %}
                       <label for="secondary_color" class="control-label"
                         >Secondary Color</label
                       >
+                      <span
+                        class="fa fa-info d-inline-block ps-2"
+                        rel="tooltip"
+                        aria-hidden="true"
+                        tabindex="0"
+                        data-bs-placement="right"
+                        data-bs-toggle="tooltip"
+                        title="Secondary color to use in UI, in hex format. Defaults to FlexMeasures' primary color (#f1a122)"
+                      ></span>
                       <input
                         type="text"
                         class="form-control"
                         id="secondary_color"
                         name="secondary_color"
-                        value="{{ account.secondary_color or secondary_color }}"
+                        value="{{ account.secondary_color or '' }}"
                       />
                     </div>
                   </div>
@@ -82,12 +101,21 @@ Account overview {% endblock %} {% block divs %}
                       <label for="logo_url" class="control-label"
                         >Logo URL</label
                       >
+                      <span
+                        class="fa fa-info d-inline-block ps-2"
+                        rel="tooltip"
+                        aria-hidden="true"
+                        tabindex="0"
+                        data-bs-placement="right"
+                        data-bs-toggle="tooltip"
+                        title="Logo URL to use in UI. Defaults to FlexMeasures' logo URL"
+                      ></span>
                       <input
                         type="text"
                         class="form-control"
                         id="logo_url"
                         name="logo_url"
-                        value="{{ account.logo_url or menu_logo }}"
+                        value="{{ account.logo_url or '' }}"
                       />
                     </div>
                   </div>
@@ -105,7 +133,7 @@ Account overview {% endblock %} {% block divs %}
                         name="consultancy_account_id"
                       >
                         <option
-                          value="{{ account.consultancy_account_id }}"
+                          value="{{ account.consultancy_account_id or '' }}"
                           selected
                         >
                           {% if account.consultancy_account_id %} {% for
@@ -146,21 +174,14 @@ Account overview {% endblock %} {% block divs %}
     </div>
     <div class="col-md-8">
       <div
-        id="toastcontainer"
-        class="toast align-items-center text-bg-primary border-0"
+        class="position-fixed bottom-0 end-0 p-3"
+        id="toast-container"
         role="alert"
         aria-live="assertive"
         aria-atomic="true"
+        style="z-index: 11"
       >
-        <div class="d-flex">
-          <div class="toast-body" id="toastbody"></div>
-          <button
-            type="button"
-            class="btn-close btn-close-white me-2 m-auto"
-            data-bs-dismiss="toast"
-            aria-label="Close"
-          ></button>
-        </div>
+        <button id="close-all-toasts" class="btn">Close All</button>
       </div>
 
       <div class="card">
@@ -184,6 +205,45 @@ Account overview {% endblock %} {% block divs %}
               <tr>
                 <td>Consultancy</td>
                 <td>{{ account.consultancy_account_name }}</td>
+              </tr>
+              {% endif %} {% if account.primary_color %}
+              <tr>
+                <td>Primary Color</td>
+                <td>
+                  <div
+                    style="
+                      width: 20px;
+                      height: 20px;
+                      background-color: {{ account.primary_color }};
+                      display: inline-block;
+                    "
+                  ></div>
+                </td>
+              </tr>
+              {% endif %} {% if account.secondary_color %}
+              <tr>
+                <td>Secondary Color</td>
+                <td>
+                  <div
+                    style="
+                      width: 20px;
+                      height: 20px;
+                      background-color: {{ account.secondary_color }};
+                      display: inline-block;
+                    "
+                  ></div>
+                </td>
+              </tr>
+              {% endif %} {% if account.logo_url %}
+              <tr>
+                <td>Logo URL</td>
+                <td>
+                  <img
+                    src="{{ account.logo_url }}"
+                    alt="Logo"
+                    style="max-width: 100px"
+                  />
+                </td>
               </tr>
               {% endif %}
             </tbody>
@@ -235,17 +295,40 @@ Account overview {% endblock %} {% block divs %}
                 <th class="d-none">URL</th>
               </tr>
             </thead>
-            <tbody id="users-table-body">
-              <!-- Dynamic rows will be rendered here -->
+            <tbody>
+              {% for user in users %}
+              <tr>
+                <td>{{ user.username }}</td>
+                <td>
+                  <a href="mailto:{{ user.email }}" title="Mail this user"
+                    >{{ user.email }}</a
+                  >
+                  >
+                </td>
+                <td>
+                  {% for role in user.flexmeasures_roles %} {{ role.name }}{{
+                  "," if not loop.last }} {% endfor %}
+                </td>
+                <td>{{ user.timezone }}</td>
+                <td
+                  title="{{  user.last_login_at | localized_datetime }}"
+                  data-sort="{{ user.last_login_at }}"
+                >
+                  {{ user.last_login_at | naturalized_datetime}}
+                </td>
+                <td
+                  title="{{  user.last_seen_at | localized_datetime }}"
+                  data-sort="{{ user.last_seen_at }}"
+                >
+                  {{ user.last_seen_at | naturalized_datetime}}
+                </td>
+                <td>{{ user.active }}</td>
+                <td class="d-none">/users/{{ user.id }}</td>
+              </tr>
+              {% endfor %}
             </tbody>
           </table>
         </div>
-
-        <nav aria-label="Page navigation example">
-          <ul class="pagination" id="pagination-controls">
-            <!-- Pagination buttons will be rendred here -->
-          </ul>
-        </nav>
       </div>
       <div class="card">
         <h3>Assets</h3>
@@ -260,6 +343,7 @@ Account overview {% endblock %} {% block divs %}
                 <th>Location</th>
                 <th>Asset ID</th>
                 <th>Account</th>
+
                 <th>Sensors</th>
                 <th class="no-sort">Status</th>
                 <th class="text-right no-sort">
@@ -315,35 +399,33 @@ Account overview {% endblock %} {% block divs %}
   </div>
 </div>
 {% block paginate_tables_script %} {{ super() }} {% endblock %}
-<script type="text/javascript">
+<script defer>
   const basePath = window.location.origin;
   const form = document.getElementById("editaccount");
-  const toastElement = document.getElementById("toastcontainer");
-  const toastDescription = document.getElementById("toastbody");
 
-  function showToast(message, type) {
-    var toastElList = [].slice.call(document.querySelectorAll(".toast"));
-    var toastList = toastElList.map(function (toastEl) {
-      return new bootstrap.Toast(toastEl);
-    });
-    toastList.forEach((toast) => toast.show());
-    toastDescription.innerHTML = message;
-    if (type == "error") {
-      toastElement.classList.add("text-bg-danger");
-    } else {
-      toastElement.classList.add("text-bg-success");
-    }
-  }
+  const toastStack = document.getElementById("toast-container");
+  const closeToastBtn = document.getElementById("close-all-toasts");
+
+  // written like this since this script(order) is ontop of the main script
+  document.addEventListener("DOMContentLoaded", function () {
+    initiateToastCloseBtn(closeToastBtn);
+  });
 
   form.addEventListener("submit", function (event) {
     event.preventDefault(); // Prevent the default form submission
 
     // Collect form data
     const formData = new FormData(event.target);
-    //check if consultancy acccount is None to exempt it from the form data
-    if (formData.get("consultancy_account_id") == "None") {
-      formData.delete("consultancy_account_id");
-    }
+    // create json payload from formData and set empty string to null
+    let payload;
+    payload = JSON.stringify(
+      Object.fromEntries(
+        Array.from(formData.entries()).map(([key, value]) => [
+          key,
+          value === "" ? null : value,
+        ])
+      )
+    );
 
     // Make a PATCH request to the API
     fetch(basePath + "/api/v3_0/accounts/" + "{{account.id}}", {
@@ -351,106 +433,34 @@ Account overview {% endblock %} {% block divs %}
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(Object.fromEntries(formData)),
+      body: payload,
     })
       .then((response) => response.json())
       .then((data) => {
         if (data.status == 200) {
-          showToast("Form data updated successfully!", "success");
-        } else {
           showToast(
-            "Error: " + (data.errors[0] || "Failed to update."),
-            "error"
+            "Account updated successfully!",
+            "success",
+            toastStack,
+            closeToastBtn
           );
+        } else {
+          if (data.message && typeof data.message === "string") {
+            showToast(data.message, "error", toastStack, closeToastBtn);
+          } else {
+            const errors = data.message.json;
+
+            for (const key in errors) {
+              showToast(
+                `${key}: ${errors[key]}`,
+                "error",
+                toastStack,
+                closeToastBtn
+              );
+            }
+          }
         }
-      })
-      .catch((error) => {
-        showToast("An error occurred while updating the data.", "error");
       });
   });
-
-  const apiUrl = basePath + "/api/v3_0/users"; // Update with your actual API endpoint
-  const tableBody = document.getElementById("users-table-body");
-  const paginationControls = document.getElementById("pagination-controls");
-  let currentPage = 1;
-
-  async function fetchUsers(page = 1) {
-    try {
-      const response = await fetch(`${apiUrl}?page=${page}&per_page=5`);
-      const data = await response.json();
-
-      renderTable(data.users);
-      renderPagination(data.totalPages, page);
-    } catch (error) {
-      console.error("Error fetching accounts:", error);
-    }
-  }
-
-  function renderTable(users) {
-    tableBody.innerHTML = "";
-
-    users.forEach((user) => {
-      const row = `
-                <tr>
-                    <td>${user.username}</td>
-                    <td>
-                      <a href="mailto:${user.email}" title="Mail this user">${user.email}</a>
-                    </td>
-                    <td>
-                      ${user.flexmeasures_roles.join(", ")}
-                    </td>
-                     <td>
-                        <a href="/accounts/${
-                          user.account.id
-                        }" title="View accounts">${user.account.name}</a>
-                    </td>
-                    <td>
-                        ${user.timezone}
-                    </td>
-                    <td title="${
-                      user.last_login_at
-                    }" data-sort="${user.last_login_at}">
-                        ${user.last_login_at }
-                    </td>
-                    <td title="${
-                      user.last_seen_at
-                    }" data-sort="${user.last_seen_at}">
-                        ${user.last_seen_at }
-                    </td>
-                    <td>
-                        ${user.active}
-                    </td>
-                    <td class="d-none">/users/${user.id}</td>
-                </tr>
-            `;
-      tableBody.insertAdjacentHTML("beforeend", row);
-    });
-  }
-
-  function renderPagination(totalPages, currentPage) {
-    paginationControls.innerHTML = "";
-
-    for (let page = 1; page <= totalPages; page++) {
-      const isActive = page === currentPage ? "" : "";
-      const activeStyle =
-        page === currentPage
-          ? "background-color: {{primary_color}}; color: #fff"
-          : "color: {{primary_color}}";
-      const button = `
-                <li class="page-item ${isActive}">
-                    <a class="page-link" style="${activeStyle}"" href="#" onclick="changePage(${page})">${page}</a>
-                </li>
-            `;
-      paginationControls.insertAdjacentHTML("beforeend", button);
-    }
-  }
-
-  function changePage(page) {
-    currentPage = page;
-    fetchUsers(page);
-  }
-
-  // Initial fetch
-  fetchUsers(currentPage);
 </script>
 {% endblock %}

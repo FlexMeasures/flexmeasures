@@ -140,7 +140,7 @@ class AccountAPI(FlaskView):
             {
                 'name': 'Test Account'
                 'primary_color': '#1a3443'
-                'primary_color': '#f1a122'
+                'secondary_color': '#f1a122'
                 'logo_url': 'https://example.com/logo.png'
                 'consultancy_account_id': 2,
             }
@@ -157,7 +157,7 @@ class AccountAPI(FlaskView):
                 'name': 'Test Account'
                 'account_roles': [1, 3],
                 'primary_color': '#1a3443'
-                'primary_color': '#f1a122'
+                'secondary_color': '#f1a122'
                 'logo_url': 'https://example.com/logo.png'
                 'consultancy_account_id': 2,
             }

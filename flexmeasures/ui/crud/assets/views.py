@@ -1,9 +1,8 @@
+from __future__ import annotations
 from flask import url_for, current_app, request
 from flask_classful import FlaskView, route
 from flask_security import login_required, current_user
 from webargs.flaskparser import use_kwargs
-from sqlalchemy import select
-from flexmeasures.auth.policy import user_has_admin_access
 
 from flexmeasures.data import db
 from flexmeasures.auth.error_handling import unauthorized_handler
@@ -13,6 +12,7 @@ from flexmeasures.data.models.generic_assets import (
     GenericAsset,
     get_center_location_of_assets,
 )
+from flexmeasures.ui.utils.view_utils import ICON_MAPPING
 from flexmeasures.data.models.user import Account
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.crud.api_wrapper import InternalApi
@@ -21,7 +21,6 @@ from flexmeasures.ui.crud.assets.utils import (
     process_internal_api_response,
     user_can_create_assets,
     user_can_delete,
-    get_assets_by_account,
 )
 from flexmeasures.data.services.sensors import (
     build_sensor_status_data,
@@ -50,23 +49,15 @@ class AssetCrudUI(FlaskView):
     trailing_slash = False
 
     @login_required
-    def index(self, msg=""):
+    def index(self, msg="", **kwargs):
         """GET from /assets
 
         List the user's assets. For admins, list across all accounts.
         """
-        assets = []
-
-        if user_has_admin_access(current_user, "read"):
-            for account in db.session.scalars(select(Account)).all():
-                assets += get_assets_by_account(account.id)
-            assets += get_assets_by_account(account_id=None)
-        else:
-            assets = get_assets_by_account(current_user.account_id)
 
         return render_flexmeasures_template(
             "crud/assets.html",
-            assets=assets,
+            asset_icon_map=ICON_MAPPING,
             message=msg,
             user_can_create_assets=user_can_create_assets(),
         )
