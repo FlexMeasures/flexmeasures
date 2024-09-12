@@ -477,7 +477,7 @@ class GenericAsset(db.Model, AuthModelMixin):
             chart_type,
             sensors_to_show=self.sensors_to_show,
             dataset_name=dataset_name,
-            combined_legend=False,
+            combined_legend=combined_legend,
             **kwargs,
         )
 
