@@ -83,7 +83,10 @@ def flatten_unique(nested_list_of_objects: list) -> list:
         if isinstance(s, list):
             all_objects.extend(s)
         elif isinstance(s, dict):
-            all_objects.extend(s["sensors"])
+            if "sensors" in s:
+                all_objects.extend(s["sensors"])
+            if "sensor" in s:
+                all_objects.append(s["sensor"])
         else:
             all_objects.append(s)
     return list(dict.fromkeys(all_objects).keys())
