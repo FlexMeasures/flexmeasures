@@ -8,7 +8,7 @@ from flask_login import user_logged_in, current_user
 from werkzeug.exceptions import Forbidden, Unauthorized
 
 from flexmeasures.data import db
-from flexmeasures.ui.utils.color_defaults import get_color_settings
+from flexmeasures.utils.color_defaults import get_color_settings
 
 
 def register_at(app: Flask):
