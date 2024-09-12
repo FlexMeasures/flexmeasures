@@ -147,11 +147,13 @@ class AssetAuditLog(db.Model, AuthModelMixin):
         else:
             event = f"Updated asset '{asset_or_sensor.name}': {asset_or_sensor.id} "
             affected_asset_id = asset_or_sensor.id
-        event += f"attribute '{attribute_key}' to {attribute_value} from {old_value}"
+        event += f"Attr '{attribute_key}' To {attribute_value} From {old_value}"
 
         audit_log = cls(
             event_datetime=server_now(),
-            event=event,
+            event=truncate_string(
+                event, 250
+            ),  # we truncate the event string to 250 characters by adding ellipses in the middle
             active_user_id=current_user_id,
             active_user_name=current_user_name,
             affected_asset_id=affected_asset_id,
@@ -170,11 +172,57 @@ class AssetAuditLog(db.Model, AuthModelMixin):
         :param event: event to log
         """
         current_user_id, current_user_name = get_current_user_id_name()
+
         audit_log = AssetAuditLog(
             event_datetime=server_now(),
-            event=event,
+            event=truncate_string(
+                event, 250
+            ),  # we truncate the event string to 250 characters by adding ellipses in the middle
             active_user_id=current_user_id,
             active_user_name=current_user_name,
             affected_asset_id=asset.id,
         )
         db.session.add(audit_log)
+
+
+def truncate_event(
+    event: str, attr_key: str, old_value: str, new_value: str, max_length: int = 250
+) -> str:
+    """
+    Truncate the event string and add ellipses if it exceeds max_length.
+
+    Args:
+        event (str): The event message to be truncated.
+        attr_key (str): The attribute key related to the change.
+        old_value (str): The old value of the attribute.
+        new_value (str): The new value of the attribute.
+        max_length (int): The maximum length for the truncated event string.
+
+    Notes:
+        The default max_length of 250 characters helps ensure the entire log entry stays within a 255-character limit.
+        The 60-character limit for old_value and new_value ensures that the change_summary remains readable while fitting within it's maximum allowed length.
+        This choice is based on an assumption that other parts of the log message will not exceed 130 characters combined.
+    """
+    # Truncate values only if event length exceeds max_length
+    if len(event) > max_length:
+        truncated_new_value = truncate_string(str(new_value), 60)
+        truncated_old_value = truncate_string(str(old_value), 60)
+    else:
+        truncated_new_value = new_value
+        truncated_old_value = old_value
+
+    # Construct the log entry
+    change_summary = (
+        f"Attr: {attr_key}, From: {truncated_old_value}, To: {truncated_new_value}"
+    )
+
+    # Ensure the change summary fits within the maximum length
+    return truncate_string(change_summary, max_length)
+
+
+def truncate_string(value: str, max_length: int) -> str:
+    """Truncate a string and add ellipses in the middle if it exceeds max_length."""
+    if len(value) <= max_length:
+        return value
+    half_length = (max_length - 5) // 2
+    return f"{value[:half_length]} ... {value[-half_length:]}"
