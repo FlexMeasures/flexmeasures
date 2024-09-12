@@ -506,12 +506,6 @@ def chart_for_multiple_sensors(
             ]
         }
 
-    # Set up field definition for sensor descriptions
-    sensor_field_definition = FIELD_DEFINITIONS["sensor_description"].copy()
-    sensor_field_definition["scale"] = dict(
-        domain=[sensor.to_dict()["description"] for sensor in all_shown_sensors]
-    )
-
     sensors_specs = []
     for s in sensors_to_show:
         # List the sensors that go into one row
@@ -519,6 +513,12 @@ def chart_for_multiple_sensors(
             row_sensors: list["Sensor"] = s  # noqa F821
         else:
             row_sensors: list["Sensor"] = [s]  # noqa F821
+
+        # Set up field definition for sensor descriptions
+        sensor_field_definition = FIELD_DEFINITIONS["sensor_description"].copy()
+        sensor_field_definition["scale"] = dict(
+            domain=[sensor.to_dict()["description"] for sensor in row_sensors]
+        )
 
         # Derive the unit that should be shown
         unit = determine_shared_unit(row_sensors)
