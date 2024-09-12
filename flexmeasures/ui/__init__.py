@@ -28,7 +28,6 @@ from flexmeasures.utils.app_utils import (
     parse_config_entry_by_account_roles,
     find_first_applicable_config_entry,
 )
-from flexmeasures.ui.utils.color_defaults import get_color_settings
 
 # The ui blueprint. It is registered with the Flask app (see app.py)
 flexmeasures_ui = Blueprint(
@@ -47,6 +46,7 @@ def register_at(app: Flask):
     from flexmeasures.ui.crud.users import UserCrudUI
     from flexmeasures.ui.crud.accounts import AccountCrudUI
     from flexmeasures.ui.views.sensors import SensorUI
+    from flexmeasures.ui.utils.color_defaults import get_color_settings
 
     AssetCrudUI.register(app)
     UserCrudUI.register(app)
@@ -61,7 +61,7 @@ def register_at(app: Flask):
 
     register_rq_dashboard(app)
 
-    # Injects Flexmeasures default colors into all template
+    # Injects Flexmeasures default colors into all templates
     @app.context_processor
     def inject_global_vars():
         return get_color_settings(None)
