@@ -7,10 +7,9 @@ Assets & sensor data
 Asset page
 ------------
 
-The asset page allows to see data from the asset's sensors, and also to edit attributes of the asset, like its location.
-Other attributes are stored as a JSON string, which can be edited here as well.
-This is meant for meta information that may be used to customize views or functionality, e.g. by plugins.
-This includes the possibility to specify which sensors the asset page should show. For instance, here we include a price sensor from a public asset, by setting ``{"sensor_to_show": [3, 2]}`` (sensor 3 on top, followed by sensor 2 below).
+The asset page allows to plot data from the asset's sensors, show sensors and child assets and also to edit attributes of the asset, like its location.
+
+For instance, in the picture below we include a price sensor from a public asset, then plot the asset's only sensor below that.
 
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_asset.png
@@ -19,6 +18,24 @@ This includes the possibility to specify which sensors the asset page should sho
 
 |
 |
+
+
+The asset page as data dashboard
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The data charts are maybe the most interesting feature - turning it into a data dashboard. When the most interesting sensors are shown, the replay button on the right creates a very meaningful dynamic insight!
+
+With the attribute `sensors_to_show` one can specify from which sensors the asset page should show data. In the example above, this happened by setting ``{"sensor_to_show": [3, 2]}`` (sensor 3 on top, followed by sensor 2 below).
+
+It is also possible to overlay data for multiple sensors within one plot, by setting the `sensors_to_show` attribute to a nested list. For example, ``{"sensor_to_show": [3, [2, 4]]}`` would show the data for sensor 4 laid over the data for sensor 2.
+While it is possible to show an arbitrary number of sensors this way, we recommend showing only the most crucial ones for faster loading, less page scrolling, and generally, a quick grasp of what the asset is up to.
+
+Finally, it is possible to set custom titles for sensor graphs, by setting within `sensors_to_show` a dictionary with a title and sensor or sensors. For example, ``{"title": "Outdoor Temperature", "sensor": 1}`` or ``{"title": "Energy Demand", "sensors": [2, 3]}`` will display the specified title for the corresponding sensor data.
+
+
+
+Status page
+^^^^^^^^^^^^
 
 For each asset, you can also visit a status page to see if your data connectivity and recent jobs are okay. This is how data connectivity status looks like on the building asset from our tutorial:
 
@@ -34,14 +51,6 @@ This is how the audit log looks for the history of actions taken on an asset:
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot-auditlog.PNG
     :align: center
 ..    :scale: 40%
-
-|
-|
-
-.. note:: It is possible to overlay data for multiple sensors, by setting the `sensors_to_show` attribute to a nested list. For example, ``{"sensor_to_show": [3, [2, 4]]}`` would show the data for sensor 4 laid over the data for sensor 2.
-.. note:: While it is possible to show an arbitrary number of sensors this way, we recommend showing only the most crucial ones for faster loading, less page scrolling, and generally, a quick grasp of what the asset is up to.
-.. note:: Asset attributes can be edited through the CLI as well, with the CLI command ``flexmeasures edit attribute``.
-.. note:: It is possible to set Custom titles for sensor graphs by adding a dictionary with a title and sensor or sensors to the sensors_to_show attribute. For example, ``{"title": "Outdoor Temperature", "sensor": 1}`` or ``{"title": "Energy Demand", "sensors": [2, 3]}`` will display the specified title for the corresponding sensor data.
 
 
 Sensor page
