@@ -41,6 +41,7 @@ This is how the audit log looks for the history of actions taken on an asset:
 .. note:: It is possible to overlay data for multiple sensors, by setting the `sensors_to_show` attribute to a nested list. For example, ``{"sensor_to_show": [3, [2, 4]]}`` would show the data for sensor 4 laid over the data for sensor 2.
 .. note:: While it is possible to show an arbitrary number of sensors this way, we recommend showing only the most crucial ones for faster loading, less page scrolling, and generally, a quick grasp of what the asset is up to.
 .. note:: Asset attributes can be edited through the CLI as well, with the CLI command ``flexmeasures edit attribute``.
+.. note:: It is possible to set Custom titles for sensor graphs by adding a dictionary with a title and sensor or sensors to the sensors_to_show attribute. For example, ``{"title": "Outdoor Temperature", "sensor": 1}`` or ``{"title": "Energy Demand", "sensors": [2, 3]}`` will display the specified title for the corresponding sensor data.
 
 
 Sensor page
