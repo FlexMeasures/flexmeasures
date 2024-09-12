@@ -480,6 +480,7 @@ def chart_for_multiple_sensors(
     sensors_to_show: list["Sensor", list["Sensor"]],  # noqa F821
     event_starts_after: datetime | None = None,
     event_ends_before: datetime | None = None,
+    combined_legend: bool = True,
     **override_chart_specs: dict,
 ):
     # Determine the shared data resolution
@@ -639,7 +640,10 @@ def chart_for_multiple_sensors(
         "view": {"continuousWidth": 800, "continuousHeight": 150},
         "autosize": {"type": "fit-x", "contains": "padding"},
     }
-    chart_specs["resolve"] = {"scale": {"x": "shared"}}
+    if combined_legend is True:
+        chart_specs["resolve"] = {"scale": {"x": "shared"}}
+    else:
+        chart_specs["resolve"] = {"scale": {"color": "independent"}}
     for k, v in override_chart_specs.items():
         chart_specs[k] = v
     return chart_specs

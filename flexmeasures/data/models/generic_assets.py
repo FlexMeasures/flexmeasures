@@ -435,6 +435,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         event_ends_before: datetime | None = None,
         beliefs_after: datetime | None = None,
         beliefs_before: datetime | None = None,
+        combined_legend: bool = True,
         source: DataSource
         | list[DataSource]
         | int
@@ -454,6 +455,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)
         :param beliefs_before: only return beliefs formed before this datetime (inclusive)
+        :param combined_legend: show a combined legend of all plots below the chart
         :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
         :param include_data: if True, include data in the chart, or if False, exclude data
         :param dataset_name: optionally name the dataset used in the chart (the default name is sensor_<id>)
@@ -475,6 +477,7 @@ class GenericAsset(db.Model, AuthModelMixin):
             chart_type,
             sensors_to_show=self.sensors_to_show,
             dataset_name=dataset_name,
+            combined_legend=False,
             **kwargs,
         )
 
