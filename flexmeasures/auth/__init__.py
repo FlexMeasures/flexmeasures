@@ -8,7 +8,6 @@ from flask_login import user_logged_in, current_user
 from werkzeug.exceptions import Forbidden, Unauthorized
 
 from flexmeasures.data import db
-from flexmeasures.utils.color_defaults import get_color_settings
 
 
 def register_at(app: Flask):
@@ -31,11 +30,6 @@ def register_at(app: Flask):
     # Setup Flask-Security-Too for user authentication & authorization
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
     app.security = Security(app, user_datastore)
-
-    # Global context processor for all templates
-    @app.context_processor
-    def inject_global_vars():
-        return get_color_settings(None)
 
     # Register custom auth problem handlers.
     # Note how we are switching authorization and authentication - read more about this in error_handling.py!

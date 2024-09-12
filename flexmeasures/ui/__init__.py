@@ -28,6 +28,7 @@ from flexmeasures.utils.app_utils import (
     parse_config_entry_by_account_roles,
     find_first_applicable_config_entry,
 )
+from flexmeasures.ui.utils.color_defaults import get_color_settings
 
 # The ui blueprint. It is registered with the Flask app (see app.py)
 flexmeasures_ui = Blueprint(
@@ -59,6 +60,11 @@ def register_at(app: Flask):
     )  # now registering the blueprint will affect all views
 
     register_rq_dashboard(app)
+
+    # Injects Flexmeasures default colors into all template
+    @app.context_processor
+    def inject_global_vars():
+        return get_color_settings(None)
 
     @app.route("/favicon.ico")
     def favicon():
@@ -134,8 +140,8 @@ def add_jinja_filters(app):
     app.jinja_env.filters["pluralize"] = pluralize
     app.jinja_env.filters["parameterize"] = parameterize
     app.jinja_env.filters["isnull"] = pd.isnull
-    app.jinja_env.filters["hide_nan_if_desired"] = (
-        lambda x: ""
+    app.jinja_env.filters["hide_nan_if_desired"] = lambda x: (
+        ""
         if x in ("nan", "nan%", "NAN")
         and current_app.config.get("FLEXMEASURES_HIDE_NAN_IN_UI", False)
         else x

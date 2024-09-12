@@ -1,4 +1,4 @@
-from flexmeasures.utils.color_defaults import darken_color, lighten_color, rgba_color
+from flexmeasures.ui.utils.color_defaults import darken_color, lighten_color, rgba_color
 
 
 def test_color_utils() -> None:
