@@ -3,7 +3,8 @@ from __future__ import annotations
 from itertools import groupby
 from flask_login import current_user
 
-from sqlalchemy import select, Select
+from sqlalchemy import select, Select, or_, and_, union_all
+from sqlalchemy.orm import aliased
 from flexmeasures.data import db
 from flexmeasures.auth.policy import user_has_admin_access
 
@@ -148,3 +149,39 @@ def get_asset_group_queries(
         asset_queries.update(get_location_queries())
 
     return asset_queries
+
+
+def query_assets_by_search_terms(
+    search_terms: list[str] | None,
+    filter_statement: bool = True,
+) -> Select:
+    select_statement = select(GenericAsset)
+    if search_terms is not None:
+        # Search terms in the search filter should either come back in the asset name or account name
+        private_select_statement = select_statement.join(
+            Account, Account.id == GenericAsset.account_id
+        )
+        private_filter_statement = filter_statement & and_(
+            *(
+                or_(
+                    GenericAsset.name.ilike(f"%{term}%"),
+                    Account.name.ilike(f"%{term}%"),
+                )
+                for term in search_terms
+            )
+        )
+        public_select_statement = select_statement
+        public_filter_statement = (
+            filter_statement
+            & GenericAsset.account_id.is_(None)
+            & and_(GenericAsset.name.ilike(f"%{term}%") for term in search_terms)
+        )
+        subquery = union_all(
+            private_select_statement.where(private_filter_statement),
+            public_select_statement.where(public_filter_statement),
+        ).subquery()
+        asset_alias = aliased(GenericAsset, subquery)
+        query = select(asset_alias).order_by(asset_alias.id)
+    else:
+        query = select_statement.where(filter_statement)
+    return query

@@ -177,6 +177,23 @@ def get_git_description() -> tuple[str, int, str]:
     return version, commits_since, sha
 
 
+ICON_MAPPING = {
+    # site structure
+    "evse": "icon-charging_station",
+    "charge point": "icon-charging_station",
+    "project": "icon-calculator",
+    "tariff": "icon-time",
+    "renewables": "icon-wind",
+    "site": "icon-empty-marker",
+    "scenario": "icon-binoculars",
+    # weather
+    "irradiance": "wi wi-horizon-alt",
+    "temperature": "wi wi-thermometer",
+    "wind direction": "wi wi-wind-direction",
+    "wind speed": "wi wi-strong-wind",
+}
+
+
 def asset_icon_name(asset_type_name: str) -> str:
     """Icon name for this asset type.
 
@@ -188,27 +205,9 @@ def asset_icon_name(asset_type_name: str) -> str:
     becomes (for a battery):
         <i class="icon-battery"></i>
     """
-    icon_mapping = {
-        # site structure
-        "evse": "icon-charging_station",
-        "charge point": "icon-charging_station",
-        "project": "icon-calculator",
-        "tariff": "icon-time",
-        "renewables": "icon-wind",
-        "site": "icon-empty-marker",
-        "scenario": "icon-binoculars",
-        # weather
-        "irradiance": "wi wi-horizon-alt",
-        "temperature": "wi wi-thermometer",
-        "wind direction": "wi wi-wind-direction",
-        "wind speed": "wi wi-strong-wind",
-    }
-
-    for asset_group_name, icon_name in icon_mapping.items():
-        if asset_group_name in asset_type_name.lower():
-            return icon_name
-
-    return f"icon-{asset_type_name}"
+    if asset_type_name:
+        asset_type_name = asset_type_name.lower()
+    return ICON_MAPPING.get(asset_type_name, f"icon-{asset_type_name}")
 
 
 def username(user_id) -> str:

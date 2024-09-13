@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 from flexmeasures.data.models.charts.defaults import FIELD_DEFINITIONS, REPLAY_RULER
 from flexmeasures.utils.flexmeasures_inflection import (
     capitalize,
-    join_words_into_a_list,
 )
 from flexmeasures.utils.coding_utils import flatten_unique
 from flexmeasures.utils.unit_utils import (
@@ -477,7 +476,7 @@ def create_fall_dst_transition_layer(
 
 
 def chart_for_multiple_sensors(
-    sensors_to_show: list["Sensor", list["Sensor"]],  # noqa F821
+    sensors_to_show: list["Sensor" | list["Sensor"] | dict[str, "Sensor"]],  # noqa F821
     event_starts_after: datetime | None = None,
     event_ends_before: datetime | None = None,
     **override_chart_specs: dict,
@@ -513,12 +512,11 @@ def chart_for_multiple_sensors(
     )
 
     sensors_specs = []
-    for s in sensors_to_show:
+    for entry in sensors_to_show:
+        title = entry.get("title")
+        sensors = entry.get("sensors")
         # List the sensors that go into one row
-        if isinstance(s, list):
-            row_sensors: list["Sensor"] = s  # noqa F821
-        else:
-            row_sensors: list["Sensor"] = [s]  # noqa F821
+        row_sensors: list["Sensor"] = sensors  # noqa F821
 
         # Derive the unit that should be shown
         unit = determine_shared_unit(row_sensors)
@@ -601,14 +599,7 @@ def chart_for_multiple_sensors(
 
         # Layer the lines, rectangles and circles within one row, and filter by which sensors are represented in the row
         sensor_specs = {
-            "title": join_words_into_a_list(
-                [
-                    f"{capitalize(sensor.name)}"
-                    for sensor in row_sensors
-                    # the sensor type is already shown as the y-axis title (avoid redundant info)
-                    if sensor.name != sensor.sensor_type
-                ]
-            ),
+            "title": f"{capitalize(title)}" if title else None,
             "transform": [
                 {
                     "filter": {
