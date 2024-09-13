@@ -37,7 +37,7 @@ from flexmeasures.data.models.annotations import (
     to_annotation_frame,
 )
 from flexmeasures.data.models.charts import chart_type_to_chart_specs
-from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.data_sources import DataSource, keep_latest_version
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.validation_utils import check_required_attributes
 from flexmeasures.data.queries.sensors import query_sensors_by_proximity
@@ -753,11 +753,21 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                     # Fast track, no need to loop over beliefs
                     pass
                 else:
-                    bdf = (
-                        bdf.for_each_belief(get_median_belief)
-                        .groupby(level=["event_start"], group_keys=False)
-                        .apply(lambda x: x.head(1))
-                    )
+                    source = keep_latest_version(bdf.lineage.sources)
+                    if len(source) <= 1:
+                        indices = list(bdf.index.names)
+                        bdf = bdf.reset_index()
+                        bdf = bdf[bdf["source"] == source[0]]
+                        bdf = bdf.set_index(indices)
+                    else:
+                        current_app.logger.warn(
+                            f"Different data sources found on sensor {bdf.sensor.name} (ID={bdf.sensor.id}). Computing their average values is a slow operation."
+                        )
+                        bdf = (
+                            bdf.for_each_belief(get_median_belief)
+                            .groupby(level=["event_start"], group_keys=False)
+                            .apply(lambda x: x.head(1))
+                        )
             elif one_deterministic_belief_per_event_per_source:
                 if len(bdf) == 0 or bdf.lineage.probabilistic_depth == 1:
                     # Fast track, no need to loop over beliefs
