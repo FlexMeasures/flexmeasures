@@ -17,7 +17,6 @@ from flexmeasures.data.schemas.utils import (
 )
 from flexmeasures.auth.policy import user_has_admin_access
 from flexmeasures.cli import is_running as running_as_cli
-from flexmeasures.utils.coding_utils import flatten_unique
 
 
 class JSON(fields.Field):
@@ -87,7 +86,13 @@ class SensorsToShowSchema(fields.Field):
                 )
             return {"title": None, "sensors": item}
         elif isinstance(item, dict):
-            title = item.get("title", None)
+            if "title" not in item:
+                raise ValidationError("Dictionary must contain a 'title' key.")
+            else:
+                title = item["title"]
+                if not isinstance(title, str) and title is not None:
+                    raise ValidationError("'title' value must be a string.")
+
             if "sensor" in item:
                 sensor = item["sensor"]
                 if not isinstance(sensor, int):
@@ -108,6 +113,38 @@ class SensorsToShowSchema(fields.Field):
             raise ValidationError(
                 "Invalid item type in 'sensors_to_show'. Expected int, list, or dict."
             )
+
+    def flatten(self, nested_list) -> list:
+        """
+        Flatten a nested list of sensors or sensor dictionaries into a unique list of sensor IDs.
+
+        This method processes the following formats:
+        - A list of sensor IDs: `[1, 2, 3]`
+        - A list of dictionaries where each dictionary contains a `sensors` list or a `sensor` key:
+        `[{"title": "Temperature", "sensors": [1, 2]}, {"title": "Pressure", "sensor": 3}]`
+        - Mixed formats: `[{"title": "Temperature", "sensors": [1, 2]}, {"title": "Pressure", "sensor": 3}, 4, 5, 1]`
+
+        It extracts all sensor IDs, removes duplicates, and returns a flattened list of unique sensor IDs.
+
+        Args:
+            nested_list (list): A list containing sensor IDs, or dictionaries with `sensors` or `sensor` keys.
+
+        Returns:
+            list: A unique list of sensor IDs.
+        """
+
+        all_objects = []
+        for s in nested_list:
+            if isinstance(s, list):
+                all_objects.extend(s)
+            elif isinstance(s, dict):
+                if "sensors" in s:
+                    all_objects.extend(s["sensors"])
+                if "sensor" in s:
+                    all_objects.append(s["sensor"])
+            else:
+                all_objects.append(s)
+        return list(dict.fromkeys(all_objects).keys())
 
 
 class GenericAssetSchema(ma.SQLAlchemySchema):
@@ -207,19 +244,19 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
             sensors_to_show_schema = SensorsToShowSchema()
 
             standardized_sensors = sensors_to_show_schema.deserialize(sensors_to_show)
-            unique_sensor_ids = flatten_unique(standardized_sensors)
+            unique_sensor_ids = sensors_to_show_schema.flatten(standardized_sensors)
             # Check whether IDs represent accessible sensors
             from flexmeasures.data.schemas import SensorIdField
 
             for sensor_id in unique_sensor_ids:
                 SensorIdField().deserialize(sensor_id)
 
-        # Check whether IDs represent accessible sensors
-        from flexmeasures.data.schemas import SensorIdField
+            # Check whether IDs represent accessible sensors
+            from flexmeasures.data.schemas import SensorIdField
 
-        sensor_ids = flatten_unique(sensors_to_show)
-        for sensor_id in sensor_ids:
-            SensorIdField().deserialize(sensor_id)
+            sensor_ids = unique_sensor_ids
+            for sensor_id in sensor_ids:
+                SensorIdField().deserialize(sensor_id)
 
 
 class GenericAssetTypeSchema(ma.SQLAlchemySchema):
