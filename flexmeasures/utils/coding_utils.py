@@ -1,5 +1,4 @@
 """ Various coding utils (e.g. around function decoration) """
-
 from __future__ import annotations
 
 import functools
@@ -83,6 +82,8 @@ def flatten_unique(nested_list_of_objects: list) -> list:
     for s in nested_list_of_objects:
         if isinstance(s, list):
             all_objects.extend(s)
+        elif isinstance(s, dict):
+            all_objects.extend(s["sensors"])
         else:
             all_objects.append(s)
     return list(dict.fromkeys(all_objects).keys())

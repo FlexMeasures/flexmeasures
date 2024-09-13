@@ -66,11 +66,12 @@ def test_get_asset_nonaccount_access(client, setup_api_test_data, requesting_use
 
 
 @pytest.mark.parametrize(
-    "requesting_user, account_name, num_assets",
+    "requesting_user, account_name, num_assets, use_pagination",
     [
-        ("test_admin_user@seita.nl", "Prosumer", 1),
-        ("test_admin_user@seita.nl", "Supplier", 2),
-        ("test_consultant@seita.nl", "ConsultancyClient", 1),
+        ("test_admin_user@seita.nl", "Prosumer", 1, False),
+        ("test_admin_user@seita.nl", "Supplier", 2, False),
+        ("test_consultant@seita.nl", "ConsultancyClient", 1, False),
+        ("test_admin_user@seita.nl", "Prosumer", 1, True),
     ],
     indirect=["requesting_user"],
 )
@@ -80,13 +81,17 @@ def test_get_assets(
     setup_accounts,
     account_name,
     num_assets,
+    use_pagination,
     requesting_user,
 ):
     """
     Get assets per account.
     Our user here is admin, so is allowed to see all assets.
+    Pagination is tested only in passing, we should test filtering and page > 1
     """
     query = {"account_id": setup_accounts[account_name].id}
+    if use_pagination:
+        query["page"] = 1
 
     get_assets_response = client.get(
         url_for("AssetAPI:index"),
@@ -94,11 +99,19 @@ def test_get_assets(
     )
     print("Server responded with:\n%s" % get_assets_response.json)
     assert get_assets_response.status_code == 200
-    assert len(get_assets_response.json) == num_assets
+
+    if use_pagination:
+        assets = get_assets_response.json["data"]
+        assert get_assets_response.json["num-records"] == num_assets
+        assert get_assets_response.json["filtered-records"] == num_assets
+    else:
+        assets = get_assets_response.json
+
+    assert len(assets) == num_assets
 
     if account_name == "Supplier":  # one deep dive
         turbine = {}
-        for asset in get_assets_response.json:
+        for asset in assets:
             if asset["name"] == "Test wind turbine":
                 turbine = asset
         assert turbine
@@ -190,7 +203,7 @@ def test_alter_an_asset(
     print(f"Editing Response: {asset_edit_response.json}")
     assert asset_edit_response.status_code == 200
 
-    audit_log_event = f"Updated asset '{prosumer_asset.name}': {prosumer_asset.id} fields: Field name: name, Old value: {name}, New value: other; Field name: latitude, Old value: {latitude}, New value: 11.1"
+    audit_log_event = f"Updated asset '{prosumer_asset.name}': {prosumer_asset.id} fields: Field: name, From: {name}, To: other; Field: latitude, From: {latitude}, To: 11.1"
     assert db.session.execute(
         select(AssetAuditLog).filter_by(
             event=audit_log_event,
@@ -211,11 +224,11 @@ def test_alter_an_asset(
         ('{"sensors_to_show": [1, [0, 2]]}', "No sensor found"),  # no sensor with ID 0
         (
             '{"sensors_to_show": [1, [2, [3, 4]]]}',
-            "should only contain",
+            "All elements in a list within 'sensors_to_show' must be integers.",
         ),  # nesting level max 1
         (
             '{"sensors_to_show": [1, "2"]}',
-            "should only contain",
+            "Invalid item type in 'sensors_to_show'. Expected int, list, or dict.",
         ),  # non-integer sensor ID
     ],
 )
