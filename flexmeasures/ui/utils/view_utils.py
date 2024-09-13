@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+from datetime import datetime, timedelta
 
 from flask import render_template, request, session, current_app
 from flask_security.core import current_user
@@ -32,12 +33,18 @@ def render_flexmeasures_template(html_filename: str, **variables):
         variables["documentation_exists"] = True
 
     # use event_starts_after and event_ends_before from session if not given
-    variables["event_starts_after"] = variables.get(
-        "event_starts_after"
-    ) or session.get("event_starts_after")
+    variables["event_starts_after"] = session.get("event_starts_after")
     variables["event_ends_before"] = variables.get("event_ends_before") or session.get(
         "event_ends_before"
     )
+    if variables["event_starts_after"]:
+        variables["event_starts_after"] = (
+            datetime.fromisoformat(variables["event_starts_after"]) + timedelta(days=1)
+        ).isoformat()
+    if variables["event_ends_before"]:
+        variables["event_ends_before"] = (
+            datetime.fromisoformat(variables["event_ends_before"]) - timedelta(days=1)
+        ).isoformat()
     variables["chart_type"] = session.get("chart_type", "bar_chart")
 
     variables["page"] = html_filename.split("/")[-1].replace(".html", "")
