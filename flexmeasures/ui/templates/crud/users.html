@@ -55,7 +55,7 @@ listing {% endblock %} {% block divs %}
             </tbody>
           </table>
         </div>
-        <nav aria-label="Page navigation example">
+        <nav aria-label="Page navigation">
           <ul class="pagination" id="pagination-controls">
             <!-- Pagination buttons will be rendred here -->
           </ul>
@@ -74,7 +74,7 @@ listing {% endblock %} {% block divs %}
 
   async function fetchUsers(page = 1) {
     try {
-      const response = await fetch(`${apiUrl}?page=${page}&per_page=2`);
+      const response = await fetch(`${apiUrl}?page=${page}&per_page=10`);
       const data = await response.json();
 
       renderTable(data.users);

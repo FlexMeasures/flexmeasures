@@ -2,6 +2,8 @@ from __future__ import annotations
 from flask_classful import FlaskView, route
 from marshmallow import fields
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import select, func
+from flask_sqlalchemy.pagination import SelectPagination
 from webargs.flaskparser import use_kwargs
 from flask_security import current_user, auth_required
 from flask_security.recoverable import send_reset_password_instructions
@@ -16,7 +18,6 @@ from flexmeasures.api.v3_0.assets import get_accessible_accounts
 from flexmeasures.data.schemas.account import AccountSchema
 from flexmeasures.data.schemas.users import UserSchema
 from flexmeasures.data.services.users import (
-    get_users,
     set_random_password,
     remove_cookie_and_token_access,
     get_audit_log_records,
@@ -119,22 +120,21 @@ class UserAPI(FlaskView):
         else:
             accounts = get_accessible_accounts()
 
-        if page and per_page:
-            all_users: list = [
-                user
-                for account in accounts
-                for user in get_users(
-                    account_name=account.name, only_active=not include_inactive
-                )
-            ]
+        filter_statement = UserModel.account_id.in_([a.id for a in accounts])
+        num_records = db.session.scalar(
+            select(func.count(UserModel.id)).where(filter_statement)
+        )
+        query = select(UserModel).where(filter_statement).order_by(UserModel.id)
 
-            total_items: int = len(all_users)
+        if page and per_page:
+            total_items: int = num_records
             total_pages: int = (
                 total_items + per_page - 1
             ) // per_page  # Calculate total pages
 
-            start: int = (page - 1) * per_page
-            paginated_users: list = all_users[start : start + per_page]
+            paginated_users: SelectPagination = db.paginate(
+                query, per_page=per_page, page=page
+            )
 
             users_response: list = [
                 {
@@ -146,36 +146,28 @@ class UserAPI(FlaskView):
                     "last_login_at": naturalized_datetime_str(user.last_login_at),
                     "last_seen_at": naturalized_datetime_str(user.last_seen_at),
                 }
-                for user in paginated_users
+                for user in paginated_users.items
             ]
-            response: dict = {
+            response: dict | list = {
                 "users": users_response,
                 "total_items": total_items,
                 "total_pages": total_pages,
             }
         else:
-            users = [
-                user
-                for account in accounts
-                for user in get_users(
-                    account_name=account.name, only_active=not include_inactive
-                )
+            users = db.session.execute(query).scalars().all()
+
+            response = [
+                {
+                    **user_schema.dump(user),
+                    "account": account_schema.dump(user.account),
+                    "flexmeasures_roles": [
+                        role.name for role in user.flexmeasures_roles
+                    ],
+                    "last_login_at": naturalized_datetime_str(user.last_login_at),
+                    "last_seen_at": naturalized_datetime_str(user.last_seen_at),
+                }
+                for user in users
             ]
-
-            response = users_schema.dump(users)
-
-            for user_data in response:
-                user = UserModel.query.get(user_data["id"])
-                user_data.update(
-                    {
-                        "account": account_schema.dump(user.account),
-                        "flexmeasures_roles": [
-                            role.name for role in user.flexmeasures_roles
-                        ],
-                        "last_login_at": naturalized_datetime_str(user.last_login_at),
-                        "last_seen_at": naturalized_datetime_str(user.last_seen_at),
-                    }
-                )
 
         return response, 200
 

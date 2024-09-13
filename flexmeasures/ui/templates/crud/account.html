@@ -388,7 +388,7 @@ Account overview {% endblock %} {% block divs %}
 
   async function fetchUsers(page = 1) {
     try {
-      const response = await fetch(`${usersApiUrl}?page=${page}&per_page=2`);
+      const response = await fetch(`${usersApiUrl}?page=${page}&per_page=10&account_id={{ account.id }}`);
       const data = await response.json();
 
       renderTable(data.users);
