@@ -354,12 +354,10 @@ class AssetAPI(FlaskView):
                 for attr_key, attr_value in v.items():
                     if current_attributes.get(attr_key) != attr_value:
                         audit_log_data.append(
-                            f"Attribute name: {attr_key}, Old value: {current_attributes.get(attr_key)}, New value: {attr_value}"
+                            f"Attr: {attr_key}, From: {current_attributes.get(attr_key)}, To: {attr_value}"
                         )
                 continue
-            audit_log_data.append(
-                f"Field name: {k}, Old value: {getattr(db_asset, k)}, New value: {v}"
-            )
+            audit_log_data.append(f"Field: {k}, From: {getattr(db_asset, k)}, To: {v}")
         audit_log_event = f"Updated asset '{db_asset.name}': {db_asset.id} fields: {'; '.join(audit_log_data)}"
         AssetAuditLog.add_record(db_asset, audit_log_event)
 
