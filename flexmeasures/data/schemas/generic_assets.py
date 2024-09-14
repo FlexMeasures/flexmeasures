@@ -115,7 +115,7 @@ class SensorsToShowSchema(fields.Field):
             )
 
     @classmethod
-    def flatten(nested_list) -> list[int]:
+    def flatten(cls, nested_list) -> list[int]:
         """
         Flatten a nested list of sensors or sensor dictionaries into a unique list of sensor IDs.
 
@@ -245,7 +245,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
             sensors_to_show_schema = SensorsToShowSchema()
 
             standardized_sensors = sensors_to_show_schema.deserialize(sensors_to_show)
-            unique_sensor_ids = sensors_to_show_schema.flatten(standardized_sensors)
+            unique_sensor_ids = SensorsToShowSchema.flatten(standardized_sensors)
 
             # Check whether IDs represent accessible sensors
             from flexmeasures.data.schemas import SensorIdField

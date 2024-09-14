@@ -669,9 +669,7 @@ class GenericAsset(db.Model, AuthModelMixin):
             sensor_ids_to_show
         )
 
-        sensor_id_allowlist = sensors_to_show_schema.flatten(
-            standardized_sensors_to_show
-        )
+        sensor_id_allowlist = SensorsToShowSchema.flatten(standardized_sensors_to_show)
 
         # Only allow showing sensors from assets owned by the user's organization,
         # except in play mode, where any sensor may be shown
