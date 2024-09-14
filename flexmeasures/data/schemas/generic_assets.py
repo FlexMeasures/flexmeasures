@@ -114,11 +114,12 @@ class SensorsToShowSchema(fields.Field):
                 "Invalid item type in 'sensors_to_show'. Expected int, list, or dict."
             )
 
-    def flatten(self, nested_list) -> list:
+    @classmethod
+    def flatten(nested_list) -> list[int]:
         """
         Flatten a nested list of sensors or sensor dictionaries into a unique list of sensor IDs.
 
-        This method processes the following formats:
+        This method processes the following formats, for each of the entries of the nested list:
         - A list of sensor IDs: `[1, 2, 3]`
         - A list of dictionaries where each dictionary contains a `sensors` list or a `sensor` key:
         `[{"title": "Temperature", "sensors": [1, 2]}, {"title": "Pressure", "sensor": 3}]`
@@ -245,17 +246,11 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
 
             standardized_sensors = sensors_to_show_schema.deserialize(sensors_to_show)
             unique_sensor_ids = sensors_to_show_schema.flatten(standardized_sensors)
+
             # Check whether IDs represent accessible sensors
             from flexmeasures.data.schemas import SensorIdField
 
             for sensor_id in unique_sensor_ids:
-                SensorIdField().deserialize(sensor_id)
-
-            # Check whether IDs represent accessible sensors
-            from flexmeasures.data.schemas import SensorIdField
-
-            sensor_ids = unique_sensor_ids
-            for sensor_id in sensor_ids:
                 SensorIdField().deserialize(sensor_id)
 
 
