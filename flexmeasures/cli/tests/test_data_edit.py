@@ -28,7 +28,7 @@ def test_add_one_sensor_attribute(app, db, setup_markets):
     result = runner.invoke(edit_attribute, to_flags(cli_input))
     assert result.exit_code == 0 and "Success" in result.output, result.exception
 
-    event = f"Updated sensor '{sensor.name}': {sensor.id} Attr 'some new attribute' To 3.0 From None"
+    event = f"Updated sensor '{sensor.name}': {sensor.id}; Attr 'some new attribute' To 3.0 From None"
     assert db.session.execute(
         select(AssetAuditLog).filter_by(
             affected_asset_id=sensor.generic_asset_id,
@@ -61,7 +61,7 @@ def test_update_one_asset_attribute(app, db, setup_generic_assets):
     result = runner.invoke(edit_attribute, to_flags(cli_input))
     assert result.exit_code == 0 and "Success" in result.output, result.exception
 
-    event = f"Updated asset '{asset.name}': {asset.id} Attr 'some-attribute' To some-new-value From some-value"
+    event = f"Updated asset '{asset.name}': {asset.id}; Attr 'some-attribute' To some-new-value From some-value"
     assert db.session.execute(
         select(AssetAuditLog).filter_by(
             affected_asset_id=asset.id,
