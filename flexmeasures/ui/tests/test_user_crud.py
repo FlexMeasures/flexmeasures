@@ -1,25 +1,14 @@
 import pytest
 from flask import url_for
-from flask_login import current_user
 
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.ui.tests.utils import mock_user_response
-from flexmeasures.ui.crud.users import get_users_by_account
 
 
 """
 Testing if the UI crud views do auth checks and display answers.
 Actual logic is tested in the API tests.
 """
-
-
-def test_get_users_by_account(client, requests_mock, as_prosumer_user1):
-    requests_mock.get(
-        "http://localhost//api/v3_0/users",
-        status_code=200,
-        json=mock_user_response(multiple=True),
-    )
-    assert get_users_by_account(current_user.account.id)[0]["username"] == "Alex"
 
 
 def test_user_list(client, as_admin, requests_mock):

@@ -793,6 +793,35 @@
                 toast.remove();
             });            
           }
+
+          function renderTable(users, tableBody) {
+            tableBody.innerHTML = "";
+          
+            users.forEach((user) => {
+              const row = document.createElement("tr");
+          
+              row.innerHTML = `
+                <td>${user.username}</td>
+                <td><a href="mailto:${user.email}" title="Mail this user">${user.email}</a></td>
+                <td>${user.flexmeasures_roles.join(", ")}</td>
+                <td><a href="/accounts/${user.account.id}" title="View accounts">${user.account.name}</a></td>
+                <td>${user.timezone}</td>
+                <td title="${user.last_login_at}" data-sort="${user.last_login_at}">${user.last_login_at}</td>
+                <td title="${user.last_seen_at}" data-sort="${user.last_seen_at}">${user.last_seen_at}</td>
+                <td>${user.active}</td>
+                <td class="d-none">/users/${user.id}</td>
+              `;
+          
+              // Add a click event listener to each row
+              row.addEventListener("click", () => {
+                const userId = user.id;
+                // Add your logic here, e.g., navigate to user details
+                window.location.href = `/users/${userId}`;
+              });
+          
+              tableBody.appendChild(row);
+            });
+          }
     </script>
 
 

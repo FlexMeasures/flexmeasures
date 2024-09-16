@@ -2,7 +2,7 @@ from __future__ import annotations
 from flask_classful import FlaskView, route
 from marshmallow import fields
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import select, func
+from sqlalchemy import and_, select, func
 from flask_sqlalchemy.pagination import SelectPagination
 from webargs.flaskparser import use_kwargs
 from flask_security import current_user, auth_required
@@ -119,8 +119,15 @@ class UserAPI(FlaskView):
             accounts = [account]
         else:
             accounts = get_accessible_accounts()
-
-        filter_statement = UserModel.account_id.in_([a.id for a in accounts])
+        if include_inactive:
+            filter_statement = and_(
+                UserModel.account_id.in_([a.id for a in accounts]),
+            )
+        else:
+            filter_statement = and_(
+                UserModel.account_id.in_([a.id for a in accounts]),
+                UserModel.active.is_(True),
+            )
         num_records = db.session.scalar(
             select(func.count(UserModel.id)).where(filter_statement)
         )
