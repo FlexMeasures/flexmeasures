@@ -46,7 +46,7 @@ def test_get_schedule_wrong_job_id(
             message_for_trigger_schedule(),
             "soc-min",
             "not-a-float",
-            "Not a valid quantity",
+            "Cannot convert value 'not-a-float' to a valid quantity.",
         ),
         (message_for_trigger_schedule(), "soc-unit", "MWH", "Must be one of"),
         # todo: add back test in case we stop grandfathering ignoring too-far-into-the-future targets, or amend otherwise
