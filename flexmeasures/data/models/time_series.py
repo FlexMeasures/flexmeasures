@@ -204,13 +204,9 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
 
     def latest_state(
         self,
-        source: DataSource
-        | list[DataSource]
-        | int
-        | list[int]
-        | str
-        | list[str]
-        | None = None,
+        source: (
+            DataSource | list[DataSource] | int | list[int] | str | list[str] | None
+        ) = None,
     ) -> tb.BeliefsDataFrame:
         """Search the most recent event for this sensor, and return the most recent ex-post belief.
 
@@ -230,13 +226,9 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         annotations_after: datetime_type | None = None,
         annotation_ends_before: datetime_type | None = None,  # deprecated
         annotations_before: datetime_type | None = None,
-        source: DataSource
-        | list[DataSource]
-        | int
-        | list[int]
-        | str
-        | list[str]
-        | None = None,
+        source: (
+            DataSource | list[DataSource] | int | list[int] | str | list[str] | None
+        ) = None,
         include_asset_annotations: bool = False,
         include_account_annotations: bool = False,
         as_frame: bool = False,
@@ -310,13 +302,9 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         beliefs_before: datetime_type | None = None,
         horizons_at_least: timedelta | None = None,
         horizons_at_most: timedelta | None = None,
-        source: DataSource
-        | list[DataSource]
-        | int
-        | list[int]
-        | str
-        | list[str]
-        | None = None,
+        source: (
+            DataSource | list[DataSource] | int | list[int] | str | list[str] | None
+        ) = None,
         most_recent_beliefs_only: bool = True,
         most_recent_events_only: bool = False,
         most_recent_only: bool = False,
@@ -376,13 +364,9 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         event_ends_before: datetime_type | None = None,
         beliefs_after: datetime_type | None = None,
         beliefs_before: datetime_type | None = None,
-        source: DataSource
-        | list[DataSource]
-        | int
-        | list[int]
-        | str
-        | list[str]
-        | None = None,
+        source: (
+            DataSource | list[DataSource] | int | list[int] | str | list[str] | None
+        ) = None,
         most_recent_beliefs_only: bool = True,
         include_data: bool = False,
         include_sensor_annotations: bool = False,
@@ -656,13 +640,9 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         beliefs_before: datetime_type | None = None,
         horizons_at_least: timedelta | None = None,
         horizons_at_most: timedelta | None = None,
-        source: DataSource
-        | list[DataSource]
-        | int
-        | list[int]
-        | str
-        | list[str]
-        | None = None,
+        source: (
+            DataSource | list[DataSource] | int | list[int] | str | list[str] | None
+        ) = None,
         user_source_ids: int | list[int] | None = None,
         source_types: list[str] | None = None,
         exclude_source_types: list[str] | None = None,
@@ -747,7 +727,9 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         )
         n = 4
         with multiprocessing.Pool(processes=n) as pool:
-            results = pool.starmap(search_wrapper, [(s, search_kwargs) for s in sensors])
+            results = pool.starmap(
+                search_wrapper, [(s, search_kwargs) for s in sensors]
+            )
         bdf_dict = dict(results)
         if sum_multiple:
             return aggregate_values(bdf_dict)
@@ -804,8 +786,12 @@ def search_wrapper(
     session = Session()
     search_kwargs["session"] = session
 
-    one_deterministic_belief_per_event = search_kwargs.get("one_deterministic_belief_per_event")
-    one_deterministic_belief_per_event_per_source = search_kwargs.get("one_deterministic_belief_per_event_per_source")
+    one_deterministic_belief_per_event = search_kwargs.get(
+        "one_deterministic_belief_per_event"
+    )
+    one_deterministic_belief_per_event_per_source = search_kwargs.get(
+        "one_deterministic_belief_per_event_per_source"
+    )
     resolution = search_kwargs.get("resolution")
     most_recent_beliefs_only = search_kwargs.get("most_recent_beliefs_only")
     event_starts_after = search_kwargs.get("event_starts_after")
@@ -815,10 +801,7 @@ def search_wrapper(
     if one_deterministic_belief_per_event:
         # todo: compute median of collective belief instead of median of first belief (update expected test results accordingly)
         # todo: move to timely-beliefs: select mean/median belief
-        if (
-            bdf.lineage.number_of_sources <= 1
-            and bdf.lineage.probabilistic_depth == 1
-        ):
+        if bdf.lineage.number_of_sources <= 1 and bdf.lineage.probabilistic_depth == 1:
             # Fast track, no need to loop over beliefs
             pass
         else:
