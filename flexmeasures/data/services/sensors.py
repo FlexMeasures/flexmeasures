@@ -64,7 +64,10 @@ def get_sensors(
 
 
 def _get_sensor_bdf(sensor: Sensor, staleness_search: dict) -> BeliefsDataFrame | None:
-    """Get bdf for a given sensor with given search parameters."""
+    """
+    Retrieve the BeliefsDataFrame for a given sensor using the specified search parameters. The 'most_recent_only'
+    parameter is set to True, which ensures that only the most recent belief from the most recent event is returned.
+    """
     bdf = TimedBelief.search(
         sensors=sensor,
         most_recent_beliefs_only=False,
