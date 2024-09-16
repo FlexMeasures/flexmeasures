@@ -15,7 +15,11 @@ from sqlalchemy.ext.mutable import MutableDict
 from timely_beliefs import BeliefsDataFrame, utils as tb_utils
 
 from flexmeasures.data import db
-from flexmeasures.data.models.annotations import Annotation, to_annotation_frame
+from flexmeasures.data.models.annotations import (
+    Annotation,
+    to_annotation_frame,
+    GenericAssetAnnotationRelationship,
+)
 from flexmeasures.data.models.charts import chart_type_to_chart_specs
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.parsing_utils import parse_source_arg
@@ -358,7 +362,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         include_account_annotations: bool = False,
         as_frame: bool = False,
         sensor_id: int = None,
-        relationship_module: Any = None,
+        relationship_module: Any = GenericAssetAnnotationRelationship,
     ) -> list[Annotation] | pd.DataFrame:
         """Return annotations assigned to this asset, and optionally, also those assigned to the asset's account.
 
