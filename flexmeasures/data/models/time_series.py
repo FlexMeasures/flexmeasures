@@ -725,8 +725,9 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
             custom_filter_criteria=source_criteria,
             custom_join_targets=custom_join_targets,
         )
-        n = 4
-        with multiprocessing.Pool(processes=n) as pool:
+        with multiprocessing.Pool(
+            processes=current_app.config.get("FLEXMEASURES_PARALLEL_PROCESSES", 4)
+        ) as pool:
             results = pool.starmap(
                 search_wrapper, [(s, search_kwargs) for s in sensors]
             )
