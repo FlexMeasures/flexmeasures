@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 from flexmeasures.data.models.charts.defaults import FIELD_DEFINITIONS, REPLAY_RULER
 from flexmeasures.utils.flexmeasures_inflection import (
     capitalize,
-    join_words_into_a_list,
 )
 from flexmeasures.utils.coding_utils import flatten_unique
 from flexmeasures.utils.unit_utils import (
@@ -15,12 +14,25 @@ from flexmeasures.utils.unit_utils import (
 )
 
 
-def bar_chart(
+def create_bar_chart_or_histogram_specs(
     sensor: "Sensor",  # noqa F821
     event_starts_after: datetime | None = None,
     event_ends_before: datetime | None = None,
+    chart_type: str = "bar_chart",
     **override_chart_specs: dict,
 ):
+    """
+    This function generates the specifications required to visualize sensor data either as a bar chart or a histogram.
+    The chart type (bar_chart or histogram) can be specified, and various field definitions are set up based on the sensor attributes and
+    event time range. The resulting specifications can be customized further through additional keyword arguments.
+
+    The function handles the following:
+    - Determines unit and formats for the sensor data.
+    - Configures event value and event start field definitions.
+    - Sets the appropriate mark type and interpolation based on sensor attributes.
+    - Defines chart specifications for both bar charts and histograms, including titles, axis configurations, and tooltips.
+    - Merges any additional specifications provided through keyword arguments into the final chart specifications.
+    """
     unit = sensor.unit if sensor.unit else "a.u."
     event_value_field_definition = dict(
         title=f"{capitalize(sensor.sensor_type)} ({unit})",
@@ -50,9 +62,31 @@ def bar_chart(
     if sensor.event_resolution == timedelta(0) and sensor.has_attribute("interpolate"):
         mark_type = "area"
         mark_interpolate = sensor.get_attribute("interpolate")
+    replay_ruler = REPLAY_RULER.copy()
+    if chart_type == "histogram":
+        description = "A histogram showing the distribution of sensor data."
+        x = {
+            **event_value_field_definition,
+            "bin": True,
+        }
+        y = {
+            "aggregate": "count",
+            "title": "Count",
+        }
+        replay_ruler["encoding"] = {
+            "detail": {
+                "field": "belief_time",
+                "type": "temporal",
+                "title": None,
+            },
+        }
+    else:
+        description = (f"A simple {mark_type} chart showing sensor data.",)
+        x = event_start_field_definition
+        y = event_value_field_definition
+
     chart_specs = {
-        "description": f"A simple {mark_type} chart showing sensor data.",
-        # the sensor type is already shown as the y-axis title (avoid redundant info)
+        "description": description,
         "title": capitalize(sensor.name) if sensor.name != sensor.sensor_type else None,
         "layer": [
             {
@@ -63,13 +97,15 @@ def bar_chart(
                     "width": {"band": 0.999},
                 },
                 "encoding": {
-                    "x": event_start_field_definition,
-                    "y": event_value_field_definition,
+                    "x": x,
+                    "y": y,
                     "color": FIELD_DEFINITIONS["source_name"],
                     "detail": FIELD_DEFINITIONS["source"],
                     "opacity": {"value": 0.7},
                     "tooltip": [
-                        FIELD_DEFINITIONS["full_date"],
+                        FIELD_DEFINITIONS["full_date"]
+                        if chart_type != "histogram"
+                        else None,
                         {
                             **event_value_field_definition,
                             **dict(title=f"{capitalize(sensor.sensor_type)}"),
@@ -84,12 +120,57 @@ def bar_chart(
                         "as": "source_name_and_id",
                     },
                 ],
+                "selection": {
+                    "scroll": {"type": "interval", "bind": "scales", "encodings": ["x"]}
+                },
             },
-            REPLAY_RULER,
+            replay_ruler,
         ],
     }
     for k, v in override_chart_specs.items():
         chart_specs[k] = v
+    return chart_specs
+
+
+def histogram(
+    sensor: "Sensor",  # noqa F821
+    event_starts_after: datetime | None = None,
+    event_ends_before: datetime | None = None,
+    **override_chart_specs: dict,
+):
+    """
+    Generates specifications for a histogram chart using sensor data. This function leverages
+    the `create_bar_chart_or_histogram_specs` helper function, specifying `chart_type` as 'histogram'.
+    """
+
+    chart_type = "histogram"
+    chart_specs = create_bar_chart_or_histogram_specs(
+        sensor,
+        event_starts_after,
+        event_ends_before,
+        chart_type,
+        **override_chart_specs,
+    )
+    return chart_specs
+
+
+def bar_chart(
+    sensor: "Sensor",  # noqa F821
+    event_starts_after: datetime | None = None,
+    event_ends_before: datetime | None = None,
+    **override_chart_specs: dict,
+):
+    """
+    Generates specifications for a bar chart using sensor data. This function leverages
+    the `create_bar_chart_or_histogram_specs` helper function to create the specifications.
+    """
+
+    chart_specs = create_bar_chart_or_histogram_specs(
+        sensor,
+        event_starts_after,
+        event_ends_before,
+        **override_chart_specs,
+    )
     return chart_specs
 
 
@@ -395,7 +476,7 @@ def create_fall_dst_transition_layer(
 
 
 def chart_for_multiple_sensors(
-    sensors_to_show: list["Sensor", list["Sensor"]],  # noqa F821
+    sensors_to_show: list["Sensor" | list["Sensor"] | dict[str, "Sensor"]],  # noqa F821
     event_starts_after: datetime | None = None,
     event_ends_before: datetime | None = None,
     **override_chart_specs: dict,
@@ -431,12 +512,11 @@ def chart_for_multiple_sensors(
     )
 
     sensors_specs = []
-    for s in sensors_to_show:
+    for entry in sensors_to_show:
+        title = entry.get("title")
+        sensors = entry.get("sensors")
         # List the sensors that go into one row
-        if isinstance(s, list):
-            row_sensors: list["Sensor"] = s  # noqa F821
-        else:
-            row_sensors: list["Sensor"] = [s]  # noqa F821
+        row_sensors: list["Sensor"] = sensors  # noqa F821
 
         # Derive the unit that should be shown
         unit = determine_shared_unit(row_sensors)
@@ -519,14 +599,7 @@ def chart_for_multiple_sensors(
 
         # Layer the lines, rectangles and circles within one row, and filter by which sensors are represented in the row
         sensor_specs = {
-            "title": join_words_into_a_list(
-                [
-                    f"{capitalize(sensor.name)}"
-                    for sensor in row_sensors
-                    # the sensor type is already shown as the y-axis title (avoid redundant info)
-                    if sensor.name != sensor.sensor_type
-                ]
-            ),
+            "title": f"{capitalize(title)}" if title else None,
             "transform": [
                 {
                     "filter": {
@@ -627,6 +700,9 @@ def create_line_layer(
                 },
             },
             "detail": [FIELD_DEFINITIONS["source"]],
+        },
+        "selection": {
+            "scroll": {"type": "interval", "bind": "scales", "encodings": ["x"]}
         },
     }
     return line_layer

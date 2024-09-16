@@ -1,24 +1,37 @@
+from __future__ import annotations
+
 import json
 
 from flask import current_app
 from flask_classful import FlaskView, route
+from flask_login import current_user
 from flask_security import auth_required
 from flask_json import as_json
+from flask_sqlalchemy.pagination import SelectPagination
+
 from marshmallow import fields
+import marshmallow.validate as validate
+
 from webargs.flaskparser import use_kwargs, use_args
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func
 
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.queries.generic_assets import query_assets_by_search_terms
 from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
-from flexmeasures.api.common.schemas.generic_assets import AssetIdField
+from flexmeasures.api.common.schemas.generic_assets import (
+    AssetIdField,
+    SearchFilterField,
+)
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.utils.coding_utils import flatten_unique
 from flexmeasures.ui.utils.view_utils import set_session_variables
+from flexmeasures.auth.policy import check_access
+from werkzeug.exceptions import Forbidden, Unauthorized
 
 
 asset_schema = AssetSchema()
@@ -26,10 +39,21 @@ assets_schema = AssetSchema(many=True)
 partial_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
 
 
+def get_accessible_accounts() -> list[Account]:
+    accounts = []
+    for _account in db.session.scalars(select(Account)).all():
+        try:
+            check_access(_account, "read")
+            accounts.append(_account)
+        except (Forbidden, Unauthorized):
+            pass
+
+    return accounts
+
+
 class AssetAPI(FlaskView):
     """
     This API view exposes generic assets.
-    Under development until it replaces the original Asset API.
     """
 
     route_base = "/assets"
@@ -39,38 +63,78 @@ class AssetAPI(FlaskView):
     @route("", methods=["GET"])
     @use_kwargs(
         {
-            "account": AccountIdField(
-                data_key="account_id", load_default=AccountIdField.load_current
+            "account": AccountIdField(data_key="account_id", load_default=None),
+        },
+        location="query",
+    )
+    @use_kwargs(
+        {
+            "all_accessible": fields.Bool(
+                data_key="all_accessible", load_default=False
             ),
         },
         location="query",
     )
-    @permission_required_for_context("read", ctx_arg_name="account")
+    @use_kwargs(
+        {
+            "page": fields.Int(
+                required=False, validate=validate.Range(min=1), default=1
+            ),
+            "per_page": fields.Int(
+                required=False, validate=validate.Range(min=1), default=10
+            ),
+            "filter": SearchFilterField(required=False, default=None),
+        },
+        location="query",
+    )
     @as_json
-    def index(self, account: Account):
-        """List all assets owned by a certain account.
+    def index(
+        self,
+        account: Account | None,
+        all_accessible: bool,
+        page: int | None = None,
+        per_page: int | None = None,
+        filter: list[str] | None = None,
+    ):
+        """List all assets owned  by user's accounts, or a certain account or all accessible accounts.
 
         .. :quickref: Asset; Download asset list
 
-        This endpoint returns all accessible assets for the account of the user.
-        The `account_id` query parameter can be used to list assets from a different account.
+        This endpoint returns all accessible assets by accounts.
+        The `account_id` query parameter can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.
+        Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.
+
+        The endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.
+
+            - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.
+            - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).
+            - If a search 'filter' such as 'solar "ACME corp"' is provided, the response will filter out assets where each search term is either present in their name or account name.
+              The response schema for pagination is inspired by https://datatables.net/manual/server-side#Returned-data
+
 
         **Example response**
 
-        An example of one asset being returned:
+        An example of one asset being returned in a paginated response:
 
         .. sourcecode:: json
 
-            [
-                {
-                    "id": 1,
-                    "name": "Test battery",
-                    "latitude": 10,
-                    "longitude": 100,
-                    "account_id": 2,
-                    "generic_asset_type_id": 1
-                }
-            ]
+            {
+                "data" : [
+                    {
+                      "id": 1,
+                      "name": "Test battery",
+                      "latitude": 10,
+                      "longitude": 100,
+                      "account_id": 2,
+                      "generic_asset_type": {"id": 1, "name": "battery"}
+                    }
+                ],
+                "num-records" : 1,
+                "filtered-records" : 1
+
+            }
+
+        If no pagination is requested, the response only consists of the list under the "data" key.
 
         :reqheader Authorization: The authentication token
         :reqheader Content-Type: application/json
@@ -81,7 +145,45 @@ class AssetAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        return assets_schema.dump(account.generic_assets), 200
+
+        # find out which accounts are relevant
+        if all_accessible:
+            accounts = get_accessible_accounts()
+        else:
+            if account is None:
+                account = current_user.account
+            check_access(account, "read")
+            accounts = [account]
+
+        filter_statement = GenericAsset.account_id.in_([a.id for a in accounts])
+
+        # add public assets if the request asks for all the accessible assets
+        if all_accessible:
+            filter_statement = filter_statement | GenericAsset.account_id.is_(None)
+
+        num_records = db.session.scalar(
+            select(func.count(GenericAsset.id)).where(filter_statement)
+        )
+
+        query = query_assets_by_search_terms(
+            search_terms=filter, filter_statement=filter_statement
+        )
+        if page is None:
+            response = asset_schema.dump(db.session.scalars(query).all(), many=True)
+        else:
+            if per_page is None:
+                per_page = 10
+
+            select_pagination: SelectPagination = db.paginate(
+                query, per_page=per_page, page=page
+            )
+            response = {
+                "data": asset_schema.dump(select_pagination.items, many=True),
+                "num-records": num_records,
+                "filtered-records": select_pagination.total,
+            }
+
+        return response, 200
 
     @route("/public", methods=["GET"])
     @as_json
@@ -252,14 +354,17 @@ class AssetAPI(FlaskView):
                 for attr_key, attr_value in v.items():
                     if current_attributes.get(attr_key) != attr_value:
                         audit_log_data.append(
-                            f"Attribute name: {attr_key}, Old value: {current_attributes.get(attr_key)}, New value: {attr_value}"
+                            f"Attr: {attr_key}, From: {current_attributes.get(attr_key)}, To: {attr_value}"
                         )
                 continue
-            audit_log_data.append(
-                f"Field name: {k}, Old value: {getattr(db_asset, k)}, New value: {v}"
+            audit_log_data.append(f"Field: {k}, From: {getattr(db_asset, k)}, To: {v}")
+
+        # Iterate over each field or attribute updates and create a separate audit log entry for each.
+        for event in audit_log_data:
+            audit_log_event = (
+                f"Updated asset '{db_asset.name}': {db_asset.id}; fields: {event}"
             )
-        audit_log_event = f"Updated asset '{db_asset.name}': {db_asset.id} fields: {'; '.join(audit_log_data)}"
-        AssetAuditLog.add_record(db_asset, audit_log_event)
+            AssetAuditLog.add_record(db_asset, audit_log_event)
 
         for k, v in asset_data.items():
             setattr(db_asset, k, v)
