@@ -28,7 +28,7 @@ def test_add_one_sensor_attribute(app, db, setup_markets):
     result = runner.invoke(edit_attribute, to_flags(cli_input))
     assert result.exit_code == 0 and "Success" in result.output, result.exception
 
-    event = f"Updated sensor '{sensor.name}': {sensor.id} attribute 'some new attribute' to 3.0 from None"
+    event = f"Updated sensor '{sensor.name}': {sensor.id}; Attr 'some new attribute' To 3.0 From None"
     assert db.session.execute(
         select(AssetAuditLog).filter_by(
             affected_asset_id=sensor.generic_asset_id,
@@ -61,7 +61,7 @@ def test_update_one_asset_attribute(app, db, setup_generic_assets):
     result = runner.invoke(edit_attribute, to_flags(cli_input))
     assert result.exit_code == 0 and "Success" in result.output, result.exception
 
-    event = f"Updated asset '{asset.name}': {asset.id} attribute 'some-attribute' to some-new-value from some-value"
+    event = f"Updated asset '{asset.name}': {asset.id}; Attr 'some-attribute' To some-new-value From some-value"
     assert db.session.execute(
         select(AssetAuditLog).filter_by(
             affected_asset_id=asset.id,
@@ -198,7 +198,7 @@ def test_transfer_ownership(app, db, add_asset_with_children, add_alternative_ac
         assert child.owner == new_account
 
     for child_asset in (parent, *parent.child_assets):
-        event = f"Transfered ownership for asset '{child_asset.name}': {child_asset.id} from '{old_account.name}': {old_account.id} to '{new_account.name}': {new_account.id}"
+        event = f"Transferred ownership for asset '{child_asset.name}': {child_asset.id} from '{old_account.name}': {old_account.id} to '{new_account.name}': {new_account.id}"
         assert db.session.execute(
             select(AssetAuditLog).filter_by(
                 affected_asset_id=child_asset.id,

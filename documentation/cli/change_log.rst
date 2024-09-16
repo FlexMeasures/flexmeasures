@@ -4,7 +4,7 @@
 FlexMeasures CLI Changelog
 **********************
 
-since v.0.22.0 | June XX, 2024
+since v.0.22.0 | June 29, 2024
 =================================
 
 

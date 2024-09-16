@@ -18,6 +18,37 @@
     <link rel="icon" href="/favicon.ico" type="image/x-icon" />
     <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon" />
     {% block styles %}
+    <style>
+        :root {
+            --primary-color: {{ primary_color }};
+            --primary-border-color: {{ primary_border_color }};
+            --primary-hover-color: {{ primary_hover_color}};
+            --primary-transparent: {{ primary_transparent }};
+            --secondary-color: {{ secondary_color }};
+            --secondary-hover-color: {{ secondary_hover_color }};
+            --secondary-transparent: {{ secondary_transparent }};
+            --white: #FFF;
+            --black: #000;
+            --light-gray: #eeeeee;
+            --gray: #bbb;
+            --red: #c21431;
+            --green: #14c231;
+
+            /* colors by function */
+            --nav-default-color: var(--white);
+            --nav-default-background-color: var(--primary-color);
+            --nav-hover-color: var(--secondary-hover-color);
+            --nav-hover-background-color: var(--primary-hover-color);
+            --nav-open-color: var(--secondary-color);
+            --nav-open-background-color: var(--primary-color);
+            --nav-current-color: var(--black);
+            --nav-current-background-color: var(--secondary-color);
+            --nav-current-hover-color: var(--black);
+            --nav-current-hover-background-color: var(--secondary-hover-color);
+            --create-color: var(--green);
+            --delete-color: var(--red);
+        }
+    </style>
     <!-- Leaflet -->
     <link href="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.css" rel="stylesheet" />
     <link href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" rel="stylesheet" />
@@ -91,7 +122,7 @@
                     <ul class="dropdown-menu" aria-labelledby="tasksDropdown">
                     {% for queue in queue_names %}
                         <li {% if current_user.has_role('anonymous') %} class="disabled" {% endif %}>
-                        <a class="dropdown-item" {% if not current_user.has_role('anonymous') %} href="/tasks/0/view/jobs/{{ queue }}/started/10/1" {% endif %}>
+                        <a class="dropdown-item" {% if not current_user.has_role('anonymous') %} href="/tasks/0/view/jobs/{{ queue }}/started/10/asc/1" {% endif %}>
                             {{ queue | capitalize }}
                         </a>
                         </li>
@@ -112,8 +143,10 @@
                     {% if id == 'docs' %} target="_blank" {% endif %} class="nav-link">
                         <span class="fa fa-{{ icon }}" aria-hidden="true"></span>
                         {{ caption|e }}
+
+                        {# use tooltip as caption for small screens showing a collapsed menu #}
                         {% if not caption %}
-                            <span class="visible-xs-inline">{{ tooltip }}</span>
+                            <span class="d-inline d-lg-none">{{ tooltip }}</span>
                         {% endif %}
                     </a>
                 </li>
@@ -122,7 +155,7 @@
             </ul>
           </div>
         </div>
-    </nav>
+    </nav>
       
       
 
@@ -329,9 +362,9 @@
         var dataDevPath = '/api/dev/asset/' + {{ asset.id }};
         var datasetName = 'asset_' + {{ asset.id }};
     {% elif active_page == "sensors" %}
-        var dataPath = '/api/dev/sensor/' + {{ sensor_id }};
-        var dataDevPath = '/api/dev/sensor/' + {{ sensor_id }};
-        var datasetName = 'sensor_' + {{ sensor_id }};
+        var dataPath = '/api/dev/sensor/' + {{ sensor.id }};
+        var dataDevPath = '/api/dev/sensor/' + {{ sensor.id }};
+        var datasetName = 'sensor_' + {{ sensor.id }};
     {% endif %}
     var elementId = 'sensorchart';
     var chartSpecsPath = dataPath + '/chart?';
@@ -670,6 +703,99 @@
     </script>
 
     {% block scripts %}
+    <!-- JS to enable tooltips -->
+    <script type='text/javascript'>
+        $(document).ready(function () {
+            if ($("[rel=tooltip]").length) {
+                $("[rel=tooltip]").tooltip();
+            }
+        });
+    </script>
+
+    <!-- JS to enable toast -->
+    <script defer>
+        function initiateToastCloseBtn(closeToastBtn){
+            // hide button
+            closeToastBtn.style.display = "none";
+
+            closeToastBtn.addEventListener("click", function () {
+                const toastElements = document.querySelectorAll(".toast");
+                toastElements.forEach((toast) => {
+                const toastInstance = bootstrap.Toast.getInstance(toast); // Get the toast instance
+                if (toastInstance) {
+                    // destroy the toast
+                    toastInstance.dispose();
+                    toast.remove();
+                }
+                });
+                // Hide the close button
+                closeToastBtn.style.display = "none";
+            });
+        }
+
+        function showAllToasts() {
+            const toastElements = document.querySelectorAll(".toast");
+            toastElements.forEach((toast) => {
+                const toastInstance = new bootstrap.Toast(toast);
+                toastInstance.show();
+            });
+        }
+
+        function showToast(message, type, toastStack, closeToastBtn) {
+            let colorClass;
+            let colorStyle = "";
+            let title;
+        
+            // Determine the type of toast
+            if (type == "error") {
+              colorClass = "bg-danger";
+              title = "Error";
+            } else if (type == "success") {
+              colorClass = "bg-success";
+              title = "Success";
+            } else {
+              colorStyle =
+                "background-color: {{ primary_color }};";
+              title = "Info";
+            }
+        
+            // Create the toast HTML
+            const toast = document.createElement("div");
+            toast.classList.add("toast", "mb-1");
+            toast.setAttribute("data-bs-autohide", "true");
+            toast.setAttribute("role", "alert");
+            toast.setAttribute("aria-live", "assertive");
+            toast.setAttribute("aria-atomic", "true");
+        
+            toast.innerHTML = `
+              <div class="toast-header">
+                <div class="rounded me-2 ${colorClass}" style="width: 20px; height: 20px; display: inline-block; ${colorStyle}"></div>
+                <strong class="me-auto">${title}</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+              </div>
+              <div class="toast-body">
+                ${message}
+              </div>
+            `;
+        
+            // Append toast to the toast stack
+            toastStack.insertAdjacentElement("afterbegin", toast);
+        
+            // Show the close all button
+            closeToastBtn.style.display = "block";
+        
+            showAllToasts();
+
+            // destroy only this toast if the close(X) button is clicked
+            toast.querySelector(".btn-close").addEventListener("click", function () {
+                const toastInstance = new bootstrap.Toast(toast);
+                toastInstance.dispose();
+                toast.remove();
+            });            
+          }
+    </script>
+
+
 
     <!-- External scripts -->
     <script src="https://cdn.jsdelivr.net/npm/ion-rangeslider@2.3.1/js/ion.rangeSlider.min.js"></script>

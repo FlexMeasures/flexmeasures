@@ -1,4 +1,14 @@
 #!/bin/bash
+
+# Call this script to create a fresh database, ready for development
+# (also creates structure).
+# It can also delete any existing one (will ask before).
+# 
+# $ data/scripts/clean_database.sh <db-name> [<db-user>]
+#
+# The database user is optional. If you want to use an existing one,
+# be aware that they might require privileges to access your new db.
+
 # save the current directory
 MAIN_DIR=$(pwd)
 

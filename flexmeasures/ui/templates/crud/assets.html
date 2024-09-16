@@ -6,6 +6,83 @@
 
 {% block divs %}
 
+<script>
+
+const asset_icon_map = JSON.parse('{{ asset_icon_map | tojson | safe }}');
+
+function Asset ( id, name, asset_type, sensors, account, latitude, longitude) {
+    let icon = asset_icon_map[asset_type.toLowerCase()];
+    if (icon === undefined)
+      icon = `icon-${asset_type}`
+
+    this.name = `
+      <i class="${ icon } left-icon">${ name }</i>
+    `;
+
+    this.id = id;
+    this.location = "";
+    this.url = `/assets/${id}`
+    this.status = `
+      <a href="/assets/${id}/status">
+        <button type="button" class="btn btn-primary">Status</button>
+      </a>
+    `;
+
+    if (account == null) this.owner = "PUBLIC";
+    else
+      this.owner = `
+        <a href="/accounts/${ account['id'] }" title="View this account">${ account["name"] }</a>
+      `
+
+    this.num_sensors = sensors.length;
+
+    if (latitude !=  null && longitude != null) this.location = `LAT: ${latitude}, LONG: ${longitude}`;
+};
+
+$(document).ready(function() {  
+
+  /*
+  Initialize a DataTable on an HTML element with the ID #assetTable, enabling server-side processing. 
+  The table is configured to display columns for the asset's name, ID, account owner, location, number of sensors, status, and a hidden URL field. 
+  The data for the table is fetched from a server using AJAX.
+  */
+  $("#assetTable").dataTable({
+    serverSide: true,
+    columns: [
+      {data: "name", title: "Name"},
+      {data: "id", title: "Asset ID"},
+      {data: "owner", title: "Account"},
+      {data: "location", title: "Location"},
+      {data: "num_sensors", title: "Sensors"},
+      {data: "status", title: "Status"},
+      {data: "url", title: "URL", className: "d-none"},
+    ],
+    ajax: function (data, callback, settings) {
+      let filter = data["search"]["value"];
+      let url = `{{url_for("AssetAPI:index")}}?page=${Math.floor((data["start"])/data["length"] ) + 1 }&per_page=${data["length"]}&all_accessible=true`;
+      if (filter.length > 0) {
+        url = `${url}&filter=${filter}`;
+      }
+      $.ajax({
+        type: "get",
+        url: url,
+        success: function(response, text) {
+          let clean_response = [];
+          response["data"].forEach( (element) => clean_response.push(
+            new Asset(element["id"], element["name"], element["generic_asset_type"]["name"], element["sensors"], element["owner"], element["latitude"], element["longitude"])
+          )) 
+          callback({"data": clean_response, "recordsTotal": response["num-records"], "recordsFiltered": response["filtered-records"]});
+        },
+        error: function (request, status, error) {
+          console.log("Error: ", error)
+        }
+      });
+    }
+  });
+})
+
+</script>
+
 <div class="container-fluid">
   <div class="row">
     <div class="col-md-2 on-top-md">
@@ -27,54 +104,7 @@
           {% endif %}
         </h3>
         <div class="table-responsive">
-          <table class="table table-striped paginate nav-on-click" title="View this asset">
-            <thead>
-              <tr>
-                <th scope="col"><i class="left-icon">Name</i></th>
-                <th class="no-sort">Location</th>
-                <th scope="col">Asset ID</th>
-                <th scope="col">Account</th>
-                <th class="no-sort">Sensors</th>
-                <th class="no-sort">Status</th>
-                <th class="d-none">URL</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for asset in assets: %}
-              <tr>
-                <td>
-                    <i class="{{ asset.generic_asset_type.name | asset_icon }} left-icon">{{ asset.name }}</i>
-                </td>
-                <td>
-                    {% if asset.latitude and asset.longitude %}
-                    LAT: {{ "{:,.4f}".format( asset.latitude ) }} LONG: {{ "{:,.4f}".format( asset.longitude ) }}
-                    {% endif %}
-                </td>
-                <td>
-                    {{ asset.id }}
-                </td>
-                <td>
-                    {% if asset.owner %}
-                    <a href="/accounts/{{ asset.owner.id }}" title="View this account">{{ asset.owner.name }}</a>
-                    {% else %}
-                    PUBLIC
-                    {% endif %}
-                </td>
-                <td>
-                    {{ asset.sensors | length }}
-                </td>
-                <td>
-                    <a href="/assets/{{ asset.id }}/status">
-                    <button type="button" class="btn btn-primary">Status</button>
-                    </a>
-                </td>
-                <td class="d-none">
-                    /assets/{{ asset.id }}
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+          <table class="table table-striped paginate nav-on-click" title="View this asset" id="assetTable"></table>
         </div>
       </div>
     </div>

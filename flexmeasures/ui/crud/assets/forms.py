@@ -127,7 +127,9 @@ class AssetForm(FlaskForm):
                 for account in db.session.scalars(select(Account)).all()
             ]
 
-    def with_price_senors(self, asset: GenericAsset, account_id: Optional[int]) -> None:
+    def with_price_sensors(
+        self, asset: GenericAsset, account_id: Optional[int]
+    ) -> None:
         allowed_price_sensor_data = get_allowed_price_sensor_data(account_id)
         for sensor_name in ("production_price", "consumption_price"):
             sensor_id = getattr(asset, sensor_name + "_sensor_id") if asset else None
@@ -170,8 +172,13 @@ class AssetForm(FlaskForm):
         asset: GenericAsset,
         account_id: Optional[int],
     ) -> None:
-        self.with_price_senors(asset, account_id)
-        self.with_inflexible_sensors(asset, account_id)
+        if current_app.config.get("FLEXMEASURES_HIDE_FLEXCONTEXT_EDIT", False):
+            del self.inflexible_device_sensor_ids
+            del self.production_price_sensor_id
+            del self.consumption_price_sensor_id
+        else:
+            self.with_price_sensors(asset, account_id)
+            self.with_inflexible_sensors(asset, account_id)
 
 
 class NewAssetForm(AssetForm):
