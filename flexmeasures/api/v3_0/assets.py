@@ -362,7 +362,7 @@ class AssetAPI(FlaskView):
         # Iterate over each field or attribute updates and create a separate audit log entry for each.
         for event in audit_log_data:
             audit_log_event = (
-                f"Updated asset '{db_asset.name}': {db_asset.id} fields: {event}"
+                f"Updated asset '{db_asset.name}': {db_asset.id}; fields: {event}"
             )
             AssetAuditLog.add_record(db_asset, audit_log_event)
 

@@ -142,10 +142,10 @@ class AssetAuditLog(db.Model, AuthModelMixin):
 
         old_value = asset_or_sensor.attributes.get(attribute_key)
         if entity_type == "sensor":
-            event = f"Updated sensor '{asset_or_sensor.name}': {asset_or_sensor.id} "
+            event = f"Updated sensor '{asset_or_sensor.name}': {asset_or_sensor.id}; "
             affected_asset_id = (asset_or_sensor.generic_asset_id,)
         else:
-            event = f"Updated asset '{asset_or_sensor.name}': {asset_or_sensor.id} "
+            event = f"Updated asset '{asset_or_sensor.name}': {asset_or_sensor.id}; "
             affected_asset_id = asset_or_sensor.id
         event += f"Attr '{attribute_key}' To {attribute_value} From {old_value}"
 
