@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 from datetime import datetime, timedelta
 
 from flask import current_app, url_for
@@ -12,6 +11,7 @@ from marshmallow import fields, ValidationError
 from rq.job import Job, NoSuchJobError
 from timely_beliefs import BeliefsDataFrame
 from webargs.flaskparser import use_args, use_kwargs
+from sqlalchemy import delete
 
 from flexmeasures.api.common.responses import (
     request_processed,
@@ -31,13 +31,14 @@ from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.utils.api_utils import save_and_enqueue
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
+from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField
 from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
-from flexmeasures.data.services.sensors import get_sensors
+from flexmeasures.data.services.sensors import get_sensors, get_sensor_stats
 from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
     get_data_source_for_job,
@@ -54,7 +55,6 @@ partial_sensor_schema = SensorSchema(partial=True, exclude=["generic_asset_id"])
 
 
 class SensorAPI(FlaskView):
-
     route_base = "/sensors"
     trailing_slash = False
     decorators = [auth_required()]
@@ -222,6 +222,7 @@ class SensorAPI(FlaskView):
             ),
             "flex_model": fields.Dict(data_key="flex-model"),
             "flex_context": fields.Dict(required=False, data_key="flex-context"),
+            "force_new_job_creation": fields.Boolean(required=False),
         },
         location="json",
     )
@@ -234,6 +235,7 @@ class SensorAPI(FlaskView):
         belief_time: datetime | None = None,
         flex_model: dict | None = None,
         flex_context: dict | None = None,
+        force_new_job_creation: bool | None = False,
         **kwargs,
     ):
         """
@@ -277,8 +279,7 @@ class SensorAPI(FlaskView):
             {
                 "start": "2015-06-02T10:00:00+00:00",
                 "flex-model": {
-                    "soc-at-start": 12.1,
-                    "soc-unit": "kWh"
+                    "soc-at-start": "12.1 kWh"
                 }
             }
 
@@ -290,8 +291,7 @@ class SensorAPI(FlaskView):
         The charging efficiency is constant (120%) and the discharging efficiency is determined by the contents of sensor
         with id 98. If just the ``roundtrip-efficiency`` is known, it can be described with its own field.
         The global minimum and maximum soc are set to 10 and 25 kWh, respectively.
-        To guarantee a minimum SOC in the period prior to 4.00pm, local minima constraints are imposed (via soc-minima)
-        at 2.00pm and 3.00pm, for 15kWh and 20kWh, respectively.
+        To guarantee a minimum SOC in the period prior, the sensor with ID 300 contains beliefs at 2.00pm and 3.00pm, for 15kWh and 20kWh, respectively.
         Storage efficiency is set to 99.99%, denoting the state of charge left after each time step equal to the sensor's resolution.
         Aggregate consumption (of all devices within this EMS) should be priced by sensor 9,
         and aggregate production should be priced by sensor 10,
@@ -300,6 +300,7 @@ class SensorAPI(FlaskView):
 
 
         The battery consumption power capacity is limited by sensor 42 and the production capacity is constant (30 kW).
+        Finally, the site consumption capacity is limited by sensor 32.
 
         Note that, if forecasts for sensors 13, 14 and 15 are not available, a schedule cannot be computed.
 
@@ -309,40 +310,30 @@ class SensorAPI(FlaskView):
                 "start": "2015-06-02T10:00:00+00:00",
                 "duration": "PT24H",
                 "flex-model": {
-                    "soc-at-start": 12.1,
-                    "soc-unit": "kWh",
+                    "soc-at-start": "12.1 kWh",
                     "soc-targets": [
                         {
-                            "value": 25,
+                            "value": "25 kWh",
                             "datetime": "2015-06-02T16:00:00+00:00"
                         },
                     ],
-                    "soc-minima": [
-                        {
-                            "value": 15,
-                            "datetime": "2015-06-02T14:00:00+00:00"
-                        },
-                        {
-                            "value": 20,
-                            "datetime": "2015-06-02T15:00:00+00:00"
-                        }
-                    ],
-                    "soc-min": 10,
-                    "soc-max": 25,
+                    "soc-minima": {"sensor" : 300},
+                    "soc-min": "10 kWh",
+                    "soc-max": "25 kWh",
                     "charging-efficiency": "120%",
-                    "discharging-efficiency": {"sensor" : 98},
+                    "discharging-efficiency": {"sensor": 98},
                     "storage-efficiency": 0.9999,
                     "power-capacity": "25kW",
-                    "consumption-capacity" : {"sensor" : 42},
+                    "consumption-capacity" : {"sensor": 42},
                     "production-capacity" : "30 kW"
                 },
                 "flex-context": {
-                    "consumption-price-sensor": 9,
-                    "production-price-sensor": 10,
+                    "consumption-price": {"sensor": 9},
+                    "production-price": {"sensor": 10},
                     "inflexible-device-sensors": [13, 14, 15],
                     "site-power-capacity": "100kW",
                     "site-production-capacity": "80kW",
-                    "site-consumption-capacity": "100kW"
+                    "site-consumption-capacity": {"sensor": 32}
                 }
             }
 
@@ -373,7 +364,7 @@ class SensorAPI(FlaskView):
         """
         end_of_schedule = start_of_schedule + duration
         scheduler_kwargs = dict(
-            sensor=sensor,
+            asset_or_sensor=sensor,
             start=start_of_schedule,
             end=end_of_schedule,
             resolution=sensor.event_resolution,
@@ -386,6 +377,7 @@ class SensorAPI(FlaskView):
             job = create_scheduling_job(
                 **scheduler_kwargs,
                 enqueue=True,
+                force_new_job_creation=force_new_job_creation,
             )
         except ValidationError as err:
             return invalid_flex_config(err.messages)
@@ -622,7 +614,7 @@ class SensorAPI(FlaskView):
         pass_ctx_to_loader=True,
     )
     def post(self, sensor_data: dict):
-        """Create new asset.
+        """Create new sensor.
 
         .. :quickref: Sensor; Create a new Sensor
 
@@ -667,6 +659,10 @@ class SensorAPI(FlaskView):
         sensor = Sensor(**sensor_data)
         db.session.add(sensor)
         db.session.commit()
+
+        asset = sensor_schema.context["generic_asset"]
+        AssetAuditLog.add_record(asset, f"Created sensor '{sensor.name}': {sensor.id}")
+
         return sensor_schema.dump(sensor), 201
 
     @route("/<id>", methods=["PATCH"])
@@ -722,6 +718,16 @@ class SensorAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
+        audit_log_data = list()
+        for k, v in sensor_data.items():
+            if getattr(sensor, k) != v:
+                audit_log_data.append(
+                    f"Field name: {k}, Old value: {getattr(sensor, k)}, New value: {v}"
+                )
+        audit_log_event = f"Updated sensor '{sensor.name}': {sensor.id}. Updated fields: {'; '.join(audit_log_data)}"
+
+        AssetAuditLog.add_record(sensor.generic_asset, audit_log_event)
+
         for k, v in sensor_data.items():
             setattr(sensor, k, v)
         db.session.add(sensor)
@@ -750,10 +756,53 @@ class SensorAPI(FlaskView):
         """
 
         """Delete time series data."""
-        TimedBelief.query.filter(TimedBelief.sensor_id == sensor.id).delete()
+        db.session.execute(delete(TimedBelief).filter_by(sensor_id=sensor.id))
+
+        AssetAuditLog.add_record(
+            sensor.generic_asset, f"Deleted sensor '{sensor.name}': {sensor.id}"
+        )
 
         sensor_name = sensor.name
-        db.session.delete(sensor)
+        db.session.execute(delete(Sensor).filter_by(id=sensor.id))
         db.session.commit()
         current_app.logger.info("Deleted sensor '%s'." % sensor_name)
         return {}, 204
+
+    @route("/<id>/stats", methods=["GET"])
+    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    @permission_required_for_context("read", ctx_arg_name="sensor")
+    @as_json
+    def get_stats(self, id, sensor):
+        """Fetch stats for a given sensor.
+
+        .. :quickref: Sensor; Get sensor stats
+
+        This endpoint fetches sensor stats for all the historical data.
+
+        Example response
+
+        .. sourcecode:: json
+
+            {
+                "some data source": {
+                    "min_event_start": "2015-06-02T10:00:00+00:00",
+                    "max_event_start": "2015-10-02T10:00:00+00:00",
+                    "min_value": 0.0,
+                    "max_value": 100.0,
+                    "mean_value": 50.0,
+                    "sum_values": 500.0,
+                    "count_values": 10
+                }
+            }
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 200: PROCESSED
+        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+
+        return get_sensor_stats(sensor), 200

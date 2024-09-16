@@ -13,7 +13,7 @@ Recommended settings (e.g. mail, redis) are marked by one star (*).
 
 
 * in the user's home directory (e.g. ``~/.flexmeasures.cfg`` on Unix). In this case, note the dot at the beginning of the filename!
-* in the app's instance directory (e.g. ``/path/to/your/flexmeasures/code/instance/flexmeasures.cfg``\ ). The path to that instance directory is shown to you by running flexmeasures (e.g. ``flexmeasures run``\ ) with required settings missing or otherwise by running ``flexmeasures shell``.
+* in the app's instance directory (e.g. ``/path/to/your/flexmeasures/code/instance/flexmeasures.cfg``\ ). The path to that instance directory is shown to you by running flexmeasures (e.g. ``flexmeasures run``\ ) with required settings missing or otherwise by running ``flexmeasures shell``. Under :ref:`docker_configuration`, we explain how to load a config file into a FlexMeasures Docker container.
 
 
 Basic functionality
@@ -455,6 +455,14 @@ Allows users to make authenticated requests. If true, injects the Access-Control
 Default: ``True``
 
 
+FLEXMEASURES_FORCE_HTTPS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Set to ``True`` if all requests should be forced to be HTTPS.
+
+Default: ``False``
+
+
 FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -656,3 +664,12 @@ FLEXMEASURES_API_SUNSET_LINK
 Allow to override the default sunset link for your clients.
 
 Default: ``None`` (defaults are set internally for each sunset API version, e.g. ``"https://flexmeasures.readthedocs.io/en/v0.13.0/api/v2_0.html"`` for v2.0)
+
+FLEXMEASURES_HIDE_FLEXCONTEXT_EDIT
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Hide the part of the asset form which lets one edit flex context sensors. 
+Why? Loading the page can take long when the number of sensors is very high (e.g. due to many KPIs being reported).
+This is a temporary solution for this problem until a better design is made.
+
+Default: ``False``

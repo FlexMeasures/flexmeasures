@@ -60,10 +60,10 @@ Setting the data source type to "forecaster" helps FlexMeasures to visually dist
 
     $ flexmeasures add source --name "toy-forecaster" --type forecaster
     Added source <Data source 4 (toy-forecaster)>
-    $ flexmeasures add beliefs --sensor-id 3 --source 4 solar-tomorrow.csv --timezone Europe/Amsterdam
+    $ flexmeasures add beliefs --sensor 3 --source 4 solar-tomorrow.csv --timezone Europe/Amsterdam
     Successfully created beliefs
 
-The one-hour CSV data is automatically resampled to the 15-minute resolution of the sensor that is recording solar production. We can see solar production in the `FlexMeasures UI <http://localhost:5000/sensors/3/>`_ :
+The one-hour CSV data is automatically resampled to the 15-minute resolution of the sensor that is recording solar production. We can see solar production in the `FlexMeasures UI <http://localhost:5000/sensors/3>`_ :
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-production.png
     :align: center
@@ -79,19 +79,19 @@ Now, we'll reschedule the battery while taking into account the solar production
 
 .. code-block:: bash
 
-    $ flexmeasures add schedule for-storage --sensor-id 2 --consumption-price-sensor 1 \
+    $ flexmeasures add schedule for-storage --sensor 2 --consumption-price-sensor 1 \
         --inflexible-device-sensor 3 \
         --start ${TOMORROW}T07:00+02:00 --duration PT12H \
         --soc-at-start 50% --roundtrip-efficiency 90%
     New schedule is stored.
 
-We can see the updated scheduling in the `FlexMeasures UI <http://localhost:5000/sensors/2/>`_ :
+We can see the updated scheduling in the `FlexMeasures UI <http://localhost:5000/sensors/2>`_ :
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-charging-with-solar.png
     :align: center
 |
 
-The `asset page for the battery <http://localhost:5000/assets/1/>`_ now shows the solar data, too:
+The `asset page for the battery <http://localhost:5000/assets/3>`_ now shows the solar data, too:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/asset-view-with-solar.png
     :align: center
@@ -117,6 +117,13 @@ In the case of the scheduler that we ran in the previous tutorial, which did not
 
 .. note:: You can add arbitrary sensors to a chart using the attribute ``sensors_to_show``. See :ref:`view_asset-data` for more.
 
+A nice feature is that you can check the data connectivity status of your building asset. Now that we have made the schedule, both lamps are green. You can also view it in `FlexMeasures UI <http://localhost:5000/assets/2/status>`_ :
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/screenshot_building_status.png
+    :align: center
+|
+
 We hope this part of the tutorial shows how to incorporate a limited grid connection rather easily with FlexMeasures. There are more ways to model such settings, but this is a straightforward one.
 
-This tutorial showed a quick way to add an inflexible load (like solar power) and a grid connection. In :ref:`tut_toy_schedule_process`, we'll turn to something different: the optimal timing of processes with fixed energy work and duration.
+This tutorial showed a quick way to add an inflexible load (like solar power) and a grid connection.
+In :ref:`tut_v2g`, we will temporarily pause giving you tutorials you can follow step-by-step. We feel it is time to pay more attention to the power of the flex-model, and illustrate its effects.

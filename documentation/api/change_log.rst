@@ -5,6 +5,91 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
+v3.0-20 | 2024-09-XX
+""""""""""""""""""""
+
+-  Introduce (optional) pagination to the endpoint `/assets` (GET), also adding the `all_accessible` option to allow querying all accessible accounts in one go.
+
+
+v3.0-19 | 2024-08-13
+""""""""""""""""""""
+
+- Allow passing a fixed price in the ``flex-context`` using the new fields ``consumption-price`` and ``production-price``, which are meant to replace the ``consumption-price-sensor`` and ``production-price-sensor`` fields, respectively.
+- Allow posting a single instantaneous belief as a list of one element to `/sensors/data` (POST).
+- Allow setting a SoC unit directly in some fields (formerly ``Float`` fields, and now ``Quantity`` fields), while still falling back on the contents of the ``soc-unit`` field, for backwards compatibility:
+
+  - ``soc-at-start``
+  - ``soc-min``
+  - ``soc-max``
+
+- Allow setting a unit directly in fields that already supported passing a time series:
+
+  - ``soc-maxima``
+  - ``soc-minima``
+  - ``soc-targets``
+
+- Allow passing a time series in fields that formerly only accepted passing a fixed quantity or a sensor reference:
+
+  - ``power-capacity``
+  - ``consumption-capacity``
+  - ``production-capacity``
+  - ``charging-efficiency``
+  - ``discharging-efficiency``
+  - ``storage-efficiency``
+  - ``soc-gain``
+  - ``soc-usage``
+
+- Added API notation section on variable quantities.
+- Updated section on scheduling; specifically, most flex-context and flex-model fields are now variable quantity fields, so a footnote now explains the few fields that aren't (yet) a variable quantity field.
+- Removed section on singular vs plural keys, which is no longer valid for crucial endpoints.
+
+v3.0-19 | 2024-08-09
+""""""""""""""""""""
+
+- Allow setting a SoC unit directly in some fields (formerly ``Float`` fields, and now ``Quantity`` fields), while still falling back on the contents of the ``soc-unit`` field, for backwards compatibility:
+
+  - ``soc-at-start``
+  - ``soc-min``
+  - ``soc-max``
+
+- Allow setting a unit directly in fields that already supported passing a time series:
+
+  - ``soc-maxima``
+  - ``soc-minima``
+  - ``soc-targets``
+
+- Allow passing a time series in fields that formerly only accepted passing a fixed quantity or a sensor reference:
+
+  - ``power-capacity``
+  - ``consumption-capacity``
+  - ``production-capacity``
+  - ``charging-efficiency``
+  - ``discharging-efficiency``
+  - ``storage-efficiency``
+  - ``soc-gain``
+  - ``soc-usage``
+
+
+v3.0-18 | 2024-03-07
+""""""""""""""""""""
+
+- Add support for providing a sensor definition to the ``soc-minima``, ``soc-maxima`` and ``soc-targets`` flex-model fields for `/sensors/<id>/schedules/trigger` (POST).
+
+v3.0-17 | 2024-02-26
+""""""""""""""""""""
+
+- Add support for providing a sensor definition to the ``site-power-capacity``, ``site-consumption-capacity`` and ``site-production-capacity`` flex-context fields for `/sensors/<id>/schedules/trigger` (POST).
+
+v3.0-16 | 2024-02-26
+""""""""""""""""""""
+
+- Fix support for providing a sensor definition to the ``power-capacity`` flex-model field for `/sensors/<id>/schedules/trigger` (POST).
+
+v3.0-15 | 2024-01-11
+""""""""""""""""""""
+
+- Support setting SoC constraints in the flex model for a given time period rather than a single datetime, using the new ``start``, ``end`` and/or ``duration`` fields of ``soc-maxima``, ``soc-minima`` and ``soc-targets``.
+
 v3.0-14 | 2023-12-07
 """"""""""""""""""""
 
@@ -33,7 +118,12 @@ v3.0-11 | 2023-08-02
 v3.0-10 | 2023-06-12
 """"""""""""""""""""
 
-- Introduced the ``storage-efficiency`` field to the ``flex-model``field for `/sensors/<id>/schedules/trigger` (POST).
+- Introduced new ``flex-model`` fields for `/sensors/<id>/schedules/trigger` (POST):
+
+  - ``storage-efficiency``
+  - ``soc-minima``
+  - ``soc-maxima``
+
 - Introduced the ``database_redis`` optional field to the response of the endpoint `/health/ready` (GET).
 
 v3.0-9 | 2023-04-26
@@ -103,7 +193,6 @@ v3.0-1 | 2022-05-08
 """""""""""""""""""
 
 - Added REST endpoint for checking application health (readiness to accept requests): `/health/ready` (GET).
-
 
 v3.0-0 | 2022-03-25
 """""""""""""""""""

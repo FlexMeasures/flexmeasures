@@ -3,7 +3,7 @@ dist
 
 raw_data
 instance
-venv
+*venv/
 .eggs
 .env
 .vscode
@@ -39,3 +39,15 @@ db_schema.png
 htmlcov
 test/*
 profile_reports/*
+
+pyproject.toml
+poetry.lock
+.venv
+.vscode/
+
+.DS_Store
+
+.gitconfig.*
+
+/postgres-data
+coverage.lcov

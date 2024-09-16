@@ -107,7 +107,7 @@ def upgrade_data():
     # Select all existing ids that need migrating, while keeping names intact
     sensor_results = connection.execute(
         sa.select(
-            [
+            *[
                 t_sensors.c.id,
                 t_sensors.c.name,
             ]
@@ -127,7 +127,7 @@ def upgrade_data():
                 f"At least some of these sensor ids {sensor_group_dict['sensor_ids']} do not exist."
             )
         generic_asset_type_results = connection.execute(
-            sa.select([t_generic_asset_types.c.id]).where(
+            sa.select(*[t_generic_asset_types.c.id]).where(
                 t_generic_asset_types.c.name == sensor_group_dict["asset_type_name"]
             )
         ).one_or_none()
@@ -171,7 +171,7 @@ def upgrade_data():
 
         asset_results = connection.execute(
             sa.select(
-                [
+                *[
                     t_assets.c.asset_type_name,
                 ]
             ).where(t_assets.c.id == id_)
@@ -181,7 +181,7 @@ def upgrade_data():
         else:
             market_results = connection.execute(
                 sa.select(
-                    [
+                    *[
                         t_markets.c.market_type_name,
                     ]
                 ).where(t_markets.c.id == id_)
@@ -191,7 +191,7 @@ def upgrade_data():
             else:
                 weather_sensor_results = connection.execute(
                     sa.select(
-                        [
+                        *[
                             t_weather_sensors.c.weather_sensor_type_name,
                         ]
                     ).where(t_weather_sensors.c.id == id_)
@@ -205,7 +205,7 @@ def upgrade_data():
 
         generic_asset_type_results = connection.execute(
             sa.select(
-                [
+                *[
                     t_generic_asset_types.c.id,
                 ]
             ).where(t_generic_asset_types.c.name == asset_type_name)
@@ -276,5 +276,5 @@ def get_latest_generic_asset_id(connection) -> int:
     https://docs.sqlalchemy.org/en/14/core/connections.html#sqlalchemy.engine.LegacyCursorResult.inserted_primary_key)
     """
     return connection.execute(
-        sa.select([t_generic_assets.c.id]).order_by(t_generic_assets.c.id)
+        sa.select(*[t_generic_assets.c.id]).order_by(t_generic_assets.c.id)
     ).fetchall()[-1][0]

@@ -65,8 +65,13 @@ function clickableTable(element, urlColumn) {
 
             if (euclidean <= radiusLimit) {
                 var columnIndex = table.column(':contains(' + urlColumn + ')').index();
+                
                 var data = table.row(this).data();
-                var url = data[columnIndex];
+                if(Array.isArray(data)){
+                    var url = data[columnIndex];
+                } else{
+                    var url = data["url"];
+                }
                 handleClick(event, url);
             }
         }

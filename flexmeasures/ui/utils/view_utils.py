@@ -1,4 +1,5 @@
 """Utilities for views"""
+
 from __future__ import annotations
 
 import json
@@ -8,6 +9,7 @@ import subprocess
 from flask import render_template, request, session, current_app
 from flask_security.core import current_user
 
+from flexmeasures.data import db
 from flexmeasures import __version__ as flexmeasures_version
 from flexmeasures.auth.policy import user_has_admin_access
 from flexmeasures.ui.utils.breadcrumb_utils import get_breadcrumb_info
@@ -15,6 +17,7 @@ from flexmeasures.utils import time_utils
 from flexmeasures.ui import flexmeasures_ui
 from flexmeasures.data.models.user import User, Account
 from flexmeasures.ui.utils.chart_defaults import chart_options
+from flexmeasures.ui.utils.color_defaults import get_color_settings
 
 
 def render_flexmeasures_template(html_filename: str, **variables):
@@ -28,8 +31,13 @@ def render_flexmeasures_template(html_filename: str, **variables):
     ):
         variables["documentation_exists"] = True
 
-    variables["event_starts_after"] = session.get("event_starts_after")
-    variables["event_ends_before"] = session.get("event_ends_before")
+    # use event_starts_after and event_ends_before from session if not given
+    variables["event_starts_after"] = variables.get(
+        "event_starts_after", session.get("event_starts_after")
+    )
+    variables["event_ends_before"] = variables.get(
+        "event_ends_before", session.get("event_ends_before")
+    )
     variables["chart_type"] = session.get("chart_type", "bar_chart")
 
     variables["page"] = html_filename.split("/")[-1].replace(".html", "")
@@ -79,11 +87,25 @@ def render_flexmeasures_template(html_filename: str, **variables):
         options["downloadFileName"] = f"asset-{asset.id}-{asset.name}"
     variables["chart_options"] = json.dumps(options)
 
-    variables["menu_logo"] = current_app.config.get("FLEXMEASURES_MENU_LOGO_PATH")
+    account: Account | None = (
+        current_user.account if current_user.is_authenticated else None
+    )
+
+    # check if user/consultant has logo_url set
+    if account:
+        variables["menu_logo"] = (
+            account.logo_url
+            or (account.consultancy_account and account.consultancy_account.logo_url)
+            or current_app.config.get("FLEXMEASURES_MENU_LOGO_PATH")
+        )
+    else:
+        variables["menu_logo"] = current_app.config.get("FLEXMEASURES_MENU_LOGO_PATH")
+
     variables["extra_css"] = current_app.config.get("FLEXMEASURES_EXTRA_CSS_PATH")
 
     if "asset" in variables:
         variables["breadcrumb_info"] = get_breadcrumb_info(asset)
+    variables.update(get_color_settings(account))  # add color settings to variables
 
     return render_template(html_filename, **variables)
 
@@ -155,6 +177,23 @@ def get_git_description() -> tuple[str, int, str]:
     return version, commits_since, sha
 
 
+ICON_MAPPING = {
+    # site structure
+    "evse": "icon-charging_station",
+    "charge point": "icon-charging_station",
+    "project": "icon-calculator",
+    "tariff": "icon-time",
+    "renewables": "icon-wind",
+    "site": "icon-empty-marker",
+    "scenario": "icon-binoculars",
+    # weather
+    "irradiance": "wi wi-horizon-alt",
+    "temperature": "wi wi-thermometer",
+    "wind direction": "wi wi-wind-direction",
+    "wind speed": "wi wi-strong-wind",
+}
+
+
 def asset_icon_name(asset_type_name: str) -> str:
     """Icon name for this asset type.
 
@@ -166,26 +205,13 @@ def asset_icon_name(asset_type_name: str) -> str:
     becomes (for a battery):
         <i class="icon-battery"></i>
     """
-    # power asset exceptions
-    if "evse" in asset_type_name.lower():
-        return "icon-charging_station"
-    # weather exceptions
-    if asset_type_name == "irradiance":
-        return "wi wi-horizon-alt"
-    elif asset_type_name == "temperature":
-        return "wi wi-thermometer"
-    elif asset_type_name == "wind direction":
-        return "wi wi-wind-direction"
-    elif asset_type_name == "wind speed":
-        return "wi wi-strong-wind"
-    # aggregation exceptions
-    elif asset_type_name == "renewables":
-        return "icon-wind"
-    return f"icon-{asset_type_name}"
+    if asset_type_name:
+        asset_type_name = asset_type_name.lower()
+    return ICON_MAPPING.get(asset_type_name, f"icon-{asset_type_name}")
 
 
 def username(user_id) -> str:
-    user = User.query.get(user_id)
+    user = db.session.get(User, user_id)
     if user is None:
         current_app.logger.warning(f"Could not find user with id {user_id}")
         return ""
@@ -194,7 +220,7 @@ def username(user_id) -> str:
 
 
 def accountname(account_id) -> str:
-    account = Account.query.get(account_id)
+    account = db.session.get(Account, account_id)
     if account is None:
         current_app.logger.warning(f"Could not find account with id {account_id}")
         return ""

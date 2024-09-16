@@ -1,16 +1,16 @@
-.. _device_scheduler:
+.. _storage_device_scheduler:
 
-Device scheduler
-===========
+Storage device scheduler: Linear model
+=======================================
 
 Introduction
 --------------
-This generic device scheduler is able to handle an EMS with multiple devices, with various types of constraints on the EMS level and on the device level,
+This generic storage device scheduler is able to handle an EMS with multiple devices, with various types of constraints on the EMS level and on the device level,
 and with multiple market commitments on the EMS level.
 
 A typical example is a house with many devices. The commitments are assumed to be with regard to the flow of energy to the device (positive for consumption, negative for production). In practice, this generic scheduler is used in the **StorageScheduler** to schedule a storage device.
     
-The solver minimises the costs of deviating from the commitments.
+The solver minimizes the costs of deviating from the commitments.
 
 
 

@@ -10,7 +10,7 @@ Let's take a look at how FlexMeasures users can access information from these se
     :local:
     :depth: 1
 
-If you want to learn more about the actual algorithms used in the background, head over to :ref:`algorithms`.
+If you want to learn more about the actual algorithms used in the background, head over to :ref:`scheduling` and :ref:`forecasting`.
 
 .. note:: FlexMeasures comes with in-built scheduling algorithms. You can use your own algorithm, as well, see :ref:`plugin-customization`.
 
@@ -67,7 +67,7 @@ You can also add forecasting jobs directly via the CLI. We explain this practice
 Historical forecasts
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-There might be reasons to add forecasts of past time ranges. For instance, for visualisation of past system behaviour and to check how well the forecasting models have been doing on a longer stretch of data.
+There might be reasons to add forecasts of past time ranges. For instance, for visualization of past system behavior and to check how well the forecasting models have been doing on a longer stretch of data.
 
 If you host FlexMeasures yourself, we provide a CLI task for adding forecasts for whole historic periods. This is an example call:
 
@@ -75,7 +75,7 @@ Here we request 6-hour forecasts to be made for two sensors, for a period of two
 
 .. code-block:: bash
 
-    $ flexmeasures add forecasts --sensor-id 2 --sensor-id 3 \
+    $ flexmeasures add forecasts --sensor 2 --sensor 3 \
         --from-date 2015-02-01 --to-date 2015-08-31 \
         --horizon 6 --as-job
 
@@ -108,18 +108,17 @@ Here, we extend that (storage) example with an additional target value, represen
     {
         "start": "2015-06-02T10:00:00+00:00",
         "flex-model": {
-            "soc-at-start": 12.1,
-            "soc-unit": "kWh"
+            "soc-at-start": "12.1 kWh",
             "soc-targets": [
                 {
-                    "value": 25,
+                    "value": "25 kWh",
                     "datetime": "2015-06-02T16:00:00+00:00"
                 }
         }
     }
 
 
-We now have described the state of charge at 10am to be ``12.1``. In addition, we requested that it should be ``25`` at 4pm.
+We now have described the state of charge at 10am to be ``"12.1 kWh"``. In addition, we requested that it should be ``"25 kWh"`` at 4pm.
 For instance, this could mean that a car should be charged at 90% at that time.
 
 If FlexMeasures receives this message, a scheduling job will be made and put into the queue. In turn, the scheduling job creates a proposed schedule. We'll look a bit deeper into those further down in :ref:`getting_schedules`.
@@ -131,7 +130,7 @@ A second way to add scheduling jobs is via the CLI, so this is available for peo
 
 .. code-block:: bash
 
-    $ flexmeasures add schedule for-storage --sensor-id 1 --consumption-price-sensor 2 \
+    $ flexmeasures add schedule for-storage --sensor 1 --consumption-price-sensor 2 \
         --start 2022-07-05T07:00+01:00 --duration PT12H \
         --soc-at-start 50% --roundtrip-efficiency 90% --as-job
 

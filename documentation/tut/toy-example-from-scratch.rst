@@ -24,7 +24,7 @@ To keep it short, we'll only ask for a 12-hour window starting at 7am. Finally, 
 
 .. code-block:: bash
 
-    $ flexmeasures add schedule for-storage --sensor-id 2 --consumption-price-sensor 1 \
+    $ flexmeasures add schedule for-storage --sensor 2 --consumption-price-sensor 1 \
         --start ${TOMORROW}T07:00+01:00 --duration PT12H \
         --soc-at-start 50% --roundtrip-efficiency 90%
     New schedule is stored.
@@ -33,7 +33,7 @@ Great. Let's see what we made:
 
 .. code-block:: bash
 
-    $ flexmeasures show beliefs --sensor-id 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
+    $ flexmeasures show beliefs --sensor 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
     Beliefs for Sensor 'discharging' (ID 2).
     Data spans 12 hours and starts at 2022-03-04 07:00:00+01:00.
     The time resolution (x-axis) is 15 minutes.
@@ -62,7 +62,7 @@ Great. Let's see what we made:
 
 Here, negative values denote output from the grid, so that's when the battery gets charged.
 
-We can also look at the charging schedule in the `FlexMeasures UI <http://localhost:5000/sensors/2/>`_ (reachable via the asset page for the battery):
+We can also look at the charging schedule in the `FlexMeasures UI <http://localhost:5000/sensors/2>`_ (reachable via the asset page for the battery):
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-charging.png
     :align: center
@@ -70,7 +70,7 @@ We can also look at the charging schedule in the `FlexMeasures UI <http://localh
 
 Recall that we only asked for a 12 hour schedule here. We started our schedule *after* the high price peak (at 4am) and it also had to end *before* the second price peak fully realized (at 8pm). Our scheduler didn't have many opportunities to optimize, but it found some. For instance, it does buy at the lowest price (at 2pm) and sells it off at the highest price within the given 12 hours (at 6pm).
 
-The `asset page for the battery <http://localhost:5000/assets/2/>`_ shows both prices and the schedule.
+The `asset page for the battery <http://localhost:5000/assets/3>`_ shows both prices and the schedule.
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/asset-view-without-solar.png
     :align: center
@@ -78,6 +78,6 @@ The `asset page for the battery <http://localhost:5000/assets/2/>`_ shows both p
 
 .. note:: The ``flexmeasures add schedule for-storage`` command also accepts state-of-charge targets, so the schedule can be more sophisticated.
    And even more control over schedules is possible through the ``flex-model`` in our API. But that is not the point of this tutorial.
-   See ``flexmeasures add schedule for-storage --help`` for available CLI options, or check out the :ref:`v2g` use case for a tangible example of modelling storage constraints.
+   See ``flexmeasures add schedule for-storage --help`` for available CLI options, :ref:`describing_flexibility` for all flex-model fields or check out the :ref:`tut_v2g` for a tangible example of modelling storage constraints.
 
 This tutorial showed the fastest way to a schedule. In :ref:`tut_toy_schedule_expanded`, we'll go further into settings with more realistic ingredients: solar panels and a limited grid connection.

@@ -1,12 +1,15 @@
 from flask_classful import FlaskView, route
 from marshmallow import fields
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import select
 from webargs.flaskparser import use_kwargs
 from flask_security import current_user, auth_required
 from flask_security.recoverable import send_reset_password_instructions
 from flask_json import as_json
-from werkzeug.exceptions import Forbidden
+from werkzeug.exceptions import Forbidden, Unauthorized
+from flexmeasures.auth.policy import check_access
 
+from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import User as UserModel, Account
 from flexmeasures.api.common.schemas.users import AccountIdField, UserIdField
 from flexmeasures.data.schemas.users import UserSchema
@@ -14,9 +17,11 @@ from flexmeasures.data.services.users import (
     get_users,
     set_random_password,
     remove_cookie_and_token_access,
+    get_audit_log_records,
 )
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
+from flexmeasures.utils.time_utils import server_now
 
 """
 API endpoints to manage users.
@@ -38,22 +43,22 @@ class UserAPI(FlaskView):
     @route("", methods=["GET"])
     @use_kwargs(
         {
-            "account": AccountIdField(
-                data_key="account_id", load_default=AccountIdField.load_current
-            ),
+            "account": AccountIdField(data_key="account_id", load_default=None),
             "include_inactive": fields.Bool(load_default=False),
         },
         location="query",
     )
-    @permission_required_for_context("read", ctx_arg_name="account")
     @as_json
     def index(self, account: Account, include_inactive: bool = False):
-        """API endpoint to list all users of an account.
+        """API endpoint to list all users.
+
 
         .. :quickref: User; Download user list
 
         This endpoint returns all accessible users.
         By default, only active users are returned.
+        The `account_id` query parameter can be used to filter the users of
+        a given account.
         The `include_inactive` query parameter can be used to also fetch
         inactive users.
         Accessible users are users in the same account as the current user.
@@ -86,7 +91,25 @@ class UserAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        users = get_users(account_name=account.name, only_active=not include_inactive)
+
+        if account is not None:
+            check_access(account, "read")
+            accounts = [account]
+        else:
+            accounts = []
+            for account in db.session.scalars(select(Account)).all():
+                try:
+                    check_access(account, "read")
+                    accounts.append(account)
+                except (Forbidden, Unauthorized):
+                    pass
+
+        users = []
+        for account in accounts:
+            users += get_users(
+                account_name=account.name,
+                only_active=not include_inactive,
+            )
         return users_schema.dump(users), 200
 
     @route("/<id>")
@@ -193,6 +216,22 @@ class UserAPI(FlaskView):
             setattr(user, k, v)
             if k == "active" and v is False:
                 remove_cookie_and_token_access(user)
+            if k == "active":
+                active_user_id, active_user_name = None, None
+                if hasattr(current_user, "id"):
+                    active_user_id, active_user_name = (
+                        current_user.id,
+                        current_user.username,
+                    )
+                user_audit_log = AuditLog(
+                    event_datetime=server_now(),
+                    event=f"Active status set to '{v}' for user {user.username}",
+                    active_user_id=active_user_id,
+                    active_user_name=active_user_name,
+                    affected_user_id=user.id,
+                    affected_account_id=user.account_id,
+                )
+                db.session.add(user_audit_log)
         db.session.add(user)
         try:
             db.session.commit()
@@ -234,3 +273,49 @@ class UserAPI(FlaskView):
 
         # commit only if sending instructions worked, as well
         db.session.commit()
+
+    @route("/<id>/auditlog")
+    @use_kwargs({"user": UserIdField(data_key="id")}, location="path")
+    @permission_required_for_context(
+        "read",
+        ctx_arg_name="user",
+        pass_ctx_to_loader=True,
+        ctx_loader=AuditLog.user_table_acl,
+    )
+    @as_json
+    def auditlog(self, id: int, user: UserModel):
+        """API endpoint to get history of user actions.
+        **Example response**
+
+        .. sourcecode:: json
+            [
+                {
+                    'event': 'User test user deleted',
+                    'event_datetime': '2021-01-01T00:00:00',
+                    'active_user_name': 'Test user',
+                }
+            ]
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 200: PROCESSED
+        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+        audit_logs = get_audit_log_records(user)
+        audit_logs = [
+            {
+                k: getattr(log, k)
+                for k in (
+                    "event",
+                    "event_datetime",
+                    "active_user_name",
+                    "active_user_id",
+                )
+            }
+            for log in audit_logs
+        ]
+        return audit_logs, 200

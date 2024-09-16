@@ -2,8 +2,8 @@ from datetime import datetime, timedelta
 import pytest
 import pytz
 
-from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.planning.process import ProcessScheduler
+from flexmeasures.tests.utils import get_test_sensor
 
 
 tz = pytz.timezone("Europe/Amsterdam")
@@ -16,14 +16,16 @@ resolution = timedelta(hours=1)
     "process_type, optimal_start",
     [("INFLEXIBLE", datetime(2015, 1, 2, 0)), ("SHIFTABLE", datetime(2015, 1, 2, 8))],
 )
-def test_process_scheduler(add_battery_assets, process, process_type, optimal_start):
+def test_process_scheduler(
+    add_battery_assets, process, process_type, optimal_start, db
+):
     """
     Test scheduling a process of 4kW of power that last 4h using the ProcessScheduler
     without time restrictions.
     """
 
     # get the sensors from the database
-    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    epex_da = get_test_sensor(db)
 
     flex_model = {
         "duration": "PT4H",
@@ -60,14 +62,14 @@ def test_process_scheduler(add_battery_assets, process, process_type, optimal_st
     [("INFLEXIBLE", datetime(2015, 1, 2, 0)), ("SHIFTABLE", datetime(2015, 1, 2, 8))],
 )
 def test_duration_exceeds_planning_window(
-    add_battery_assets, process, process_type, optimal_start
+    add_battery_assets, process, process_type, optimal_start, db
 ):
     """
     Test scheduling a process that last longer than the planning window.
     """
 
     # get the sensors from the database
-    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    epex_da = get_test_sensor(db)
 
     flex_model = {
         "duration": "PT48H",
@@ -94,14 +96,14 @@ def test_duration_exceeds_planning_window(
     assert (schedule == 4).all()
 
 
-def test_process_scheduler_time_restrictions(add_battery_assets, process):
+def test_process_scheduler_time_restrictions(add_battery_assets, process, db):
     """
     Test ProcessScheduler with a time restrictions consisting of a block of 2h starting
     at 8am. The resulting schedules avoid the 8am-10am period and schedules for a valid period.
     """
 
     # get the sensors from the database
-    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    epex_da = get_test_sensor(db)
 
     # time parameters
 
@@ -143,7 +145,7 @@ def test_process_scheduler_time_restrictions(add_battery_assets, process):
     assert (schedule[time_restrictions] == 0).all()
 
 
-def test_breakable_scheduler_time_restrictions(add_battery_assets, process):
+def test_breakable_scheduler_time_restrictions(add_battery_assets, process, db):
     """
     Test BREAKABLE process_type of ProcessScheduler by introducing four 1-hour restrictions
     interspaced by 1 hour. The equivalent mask would be the following: [0,...,0,1,0,1,0,1,0,1,0, ...,0].
@@ -152,7 +154,7 @@ def test_breakable_scheduler_time_restrictions(add_battery_assets, process):
     """
 
     # get the sensors from the database
-    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    epex_da = get_test_sensor(db)
 
     # time parameters
 
@@ -202,7 +204,7 @@ def test_breakable_scheduler_time_restrictions(add_battery_assets, process):
     ],
 )
 def test_impossible_schedules(
-    add_battery_assets, process, process_type, time_restrictions
+    add_battery_assets, process, process_type, time_restrictions, db
 ):
     """
     Test schedules with time restrictions that make a 4h block not fit anytime during the
@@ -210,7 +212,7 @@ def test_impossible_schedules(
     """
 
     # get the sensors from the database
-    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    epex_da = get_test_sensor(db)
 
     flex_model = {
         "duration": "PT4H",

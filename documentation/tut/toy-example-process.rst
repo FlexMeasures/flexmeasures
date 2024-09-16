@@ -18,7 +18,7 @@ Examples of flexible processes are:
 
 
 For consumers under :abbr:`ToU (Time of Use)` tariffs, FlexMeasures `ProcessScheduler` can plan the start time of the process to minimize the overall cost of energy.
-Alternatively, it can create a consumption plan to minimize the CO2 emissions. 
+Alternatively, it can create a consumption plan to minimize the CO₂ emissions.
 
 
 In this tutorial, you'll learn how to schedule processes using three different policies: INFLEXIBLE, BREAKABLE and SHIFTABLE. 
@@ -61,7 +61,7 @@ Now we are ready to schedule a process. Let's start with the INFLEXIBLE policy, 
 
 .. code-block:: bash
 
-    flexmeasures add schedule for-process --sensor-id 4 --consumption-price-sensor 1\
+    flexmeasures add schedule for-process --sensor 4 --consumption-price-sensor 1\
       --start ${TOMORROW}T00:00:00+02:00 --duration PT24H --process-duration PT4H \
       --process-power 0.2MW --process-type INFLEXIBLE \ 
       --forbid "{\"start\" : \"${TOMORROW}T15:00:00+02:00\", \"duration\" : \"PT1H\"}"
@@ -72,7 +72,7 @@ Following the INFLEXIBLE policy, we'll schedule the same 4h block using a BREAKA
 
 .. code-block:: bash
 
-    flexmeasures add schedule for-process --sensor-id 5 --consumption-price-sensor 1\
+    flexmeasures add schedule for-process --sensor 5 --consumption-price-sensor 1\
       --start ${TOMORROW}T00:00:00+02:00 --duration PT24H --process-duration PT4H \
       --process-power 0.2MW --process-type BREAKABLE \ 
       --forbid "{\"start\" : \"${TOMORROW}T15:00:00+02:00\", \"duration\" : \"PT1H\"}"
@@ -83,7 +83,7 @@ Finally, we'll schedule the process using the SHIFTABLE policy.
 
 .. code-block:: bash
 
-    flexmeasures add schedule for-process --sensor-id 6 --consumption-price-sensor 1\
+    flexmeasures add schedule for-process --sensor 6 --consumption-price-sensor 1\
       --start ${TOMORROW}T00:00:00+02:00 --duration PT24H --process-duration PT4H \
       --process-power 0.2MW --process-type SHIFTABLE \ 
       --forbid "{\"start\" : \"${TOMORROW}T15:00:00+02:00\", \"duration\" : \"PT1H\"}"
@@ -92,7 +92,7 @@ Finally, we'll schedule the process using the SHIFTABLE policy.
 Results
 ---------
 
-The image below shows the resulting schedules following each of the three policies. You will see similar results in your `FlexMeasures UI <http://localhost:5000/assets/4/>`_. 
+The image below shows the resulting schedules following each of the three policies. You will see similar results in your `FlexMeasures UI <http://localhost:5000/assets/5>`_. 
 
  
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/asset-view-process.png
@@ -127,4 +127,4 @@ Let's list the power price the policies achieved for each of the four blocks the
 
 Quantitatively, comparing the total cost of running the process under each policy, the BREAKABLE policy achieves the best results. This is because it can fit much more consumption blocks in the cheapest hours.
 
-This tutorial showed a quick way to optimize the activation of processes. In :ref:`tut_toy_schedule_reporter`, we'll turn to something different: using *reporters* to apply transformations to sensor data.
+This tutorial showed a quick way to optimize the activation of processes. In :ref:`tut_toy_schedule_reporter`, we'll turn away from scheduling, and towards another important FlexMeasures feature: using *reporters* to apply transformations to sensor data.

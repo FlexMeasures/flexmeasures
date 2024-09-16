@@ -19,6 +19,7 @@ from rq import get_current_job, Callback
 from rq.job import Job
 import timely_beliefs as tb
 import pandas as pd
+from sqlalchemy import select
 
 from flexmeasures.data import db
 from flexmeasures.data.models.planning import Scheduler, SchedulerOutputType
@@ -197,10 +198,11 @@ def create_scheduling_job(
     )
     scheduler.deserialize_config()
 
+    asset_or_sensor = get_asset_or_sensor_ref(asset_or_sensor)
     job = Job.create(
         make_schedule,
         kwargs=dict(
-            asset_or_sensor=get_asset_or_sensor_ref(asset_or_sensor),
+            asset_or_sensor=asset_or_sensor,
             scheduler_specs=scheduler_specs,
             **scheduler_kwargs,
         ),
@@ -219,7 +221,7 @@ def create_scheduling_job(
         on_failure=Callback(trigger_optional_fallback),
     )
 
-    job.meta["asset_or_sensor"] = get_asset_or_sensor_ref(asset_or_sensor)
+    job.meta["asset_or_sensor"] = asset_or_sensor
     job.meta["scheduler_kwargs"] = scheduler_kwargs
     job.save_meta()
 
@@ -229,6 +231,12 @@ def create_scheduling_job(
     # with job_status=None, we ensure that only fresh new jobs are enqueued (in the contrary they should be requeued)
     if enqueue and not job_status:
         current_app.queues["scheduling"].enqueue_job(job)
+        current_app.job_cache.add(
+            asset_or_sensor["id"],
+            job.id,
+            queue="scheduling",
+            asset_or_sensor_type=asset_or_sensor["class"].lower(),
+        )
 
     return job
 
@@ -310,7 +318,7 @@ def make_schedule(
 
     consumption_schedule: SchedulerOutputType = scheduler.compute()
 
-    # in case we are getting a custom Scheduler that hasn't implement the multiple output return
+    # in case we are getting a custom Scheduler that hasn't implemented the multiple output return
     # this should only be called whenever the Scheduler applies to the Sensor.
     if isinstance(consumption_schedule, pd.Series):
         assert isinstance(asset_or_sensor, Sensor), ""
@@ -426,19 +434,19 @@ def get_data_source_for_job(job: Job) -> DataSource | None:
     data_source_info = job.meta.get("data_source_info")
     if data_source_info and "id" in data_source_info:
         # this is the expected outcome
-        return DataSource.query.get(data_source_info["id"])
+        return db.session.get(DataSource, data_source_info["id"])
     if data_source_info is None:
         raise ValueError(
             "Cannot look up scheduling data without knowing the full data_source_info (version)."
         )
-    scheduler_sources = (
-        DataSource.query.filter_by(
+    scheduler_sources = db.session.scalars(
+        select(DataSource)
+        .filter_by(
             type="scheduler",
             **data_source_info,
         )
         .order_by(DataSource.version.desc())
-        .all()
-    )  # Might still be more than one, e.g. per user
+    ).all()  # Might still be more than one, e.g. per user
     if len(scheduler_sources) == 0:
         return None
     return scheduler_sources[0]

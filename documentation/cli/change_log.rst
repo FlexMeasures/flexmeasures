@@ -4,17 +4,62 @@
 FlexMeasures CLI Changelog
 **********************
 
-since v0.18.1 | January 15, 2023
+since v.0.22.0 | June 29, 2024
+=================================
+
+
+* Add ``--resolution`` option to ``flexmeasures show chart`` to produce charts in different time resolutions.
+
+
+since v.0.21.0 | April 16, 2024
+=================================
+
+* Include started, deferred and scheduled jobs in the overview printed by the CLI command ``flexmeasures jobs show-queues``.
+
+since v.0.20.0 | March 26, 2024
+=================================
+
+* Add command ``flexmeasures edit transfer-ownership`` to transfer the ownership of an asset and its children.
+* Add ``--offspring`` option to ``flexmeasures delete beliefs`` command, allowing to delete beliefs of children, as well.
+* Add support for providing a sensor definition to the ``--site-power-capacity``, ``--site-consumption-capacity`` and ``--site-production-capacity`` options of the ``flexmeasures add schedule for-storage`` command.
+
+since v0.19.1 | February 26, 2024
+=======================================
+
+* Fix support for providing a sensor definition to the ``--storage-power-capacity`` option of the ``flexmeasures add schedule for-storage`` command.
+
+since v0.19.0 | February 18, 2024
+=======================================
+
+* Enable the use of QuantityOrSensor fields for the ``flexmeasures add schedule for-storage`` CLI command:
+
+    * ``charging-efficiency``
+    * ``discharging-efficiency``
+    * ``soc-gain``
+    * ``soc-usage``
+    * ``power-capacity``
+    * ``production-capacity``
+    * ``consumption-capacity``
+    * ``storage-efficiency``
+
+* Streamline CLI option naming by favoring ``--<entity>`` over ``--<entity>-id``. This affects the following options:
+
+    * ``--account-id`` -> ``--account``
+    * ``--asset-id`` -> ``--asset``
+    * ``--asset-type-id`` -> ``--asset-type``
+    * ``--sensor-id`` -> ``--sensor``
+    * ``--source-id`` -> ``--source``
+    * ``--user-id`` -> ``--user`
+
+since v0.18.1 | January 15, 2024
 =======================================
 
 * Fix the validation of the option ``--parent-asset`` of command ``flexmeasures add asset``.
-
 
 since v0.17.0 | November 8, 2023
 =======================================
 
 * Add ``--consultancy`` option to ``flexmeasures add account`` to create a consultancy relationship with another account.
-
 
 since v0.16.0 | September 29, 2023
 =======================================

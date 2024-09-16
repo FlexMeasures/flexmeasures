@@ -12,7 +12,8 @@ Furthermore, we discuss several guidelines and best practices.
     :local:
     :depth: 1
 
-.. warning:: Are you implementing code based on FlexMeasures, please read :ref:`note_on_datamodel_transition`.
+|
+.. note:: Are you implementing code based on FlexMeasures, you're probably interested in :ref:`datamodel`.
 
 
 Getting started
@@ -54,12 +55,23 @@ Go into the ``flexmeasures`` folder and install all dependencies including the o
 
    $ pip install highspy
 
+On MacOS it will be installed locally by `make install-for-test` and no actions are required on your part
 
-Alternatively, the CBC solver can be installed with:
+Besides highs, the CBC solver is required for tests as well:
 
-.. code-block:: bash
+.. tabs::
 
-   $ apt-get install coinor-cbc
+    .. tab:: Linux
+
+        .. code-block:: bash
+
+            $ apt-get install coinor-cbc
+
+    .. tab:: MacOS
+
+        .. code-block:: bash
+
+            $ brew install cbc
 
 
 Configuration
@@ -132,11 +144,13 @@ Otherwise, you need to add some other user first. Here is how we add an admin:
 
 .. code-block:: bash
     
-    $ flexmeasures add account --name MyCompany   
-    $ flexmeasures add user --username admin --account-id 1 --email admin@mycompany.io --roles admin
+    $ flexmeasures add account --name MyCompany
+    $ flexmeasures add user --username admin --account 1 --email admin@mycompany.io --roles admin
 
-(The account-id you need in the 2nd command is printed by the 1st)
+(The `account` you need in the 2nd command is printed by the 1st)
 
+
+.. include:: ../notes/macOS-port-note.rst
 
 .. note::
 
@@ -154,6 +168,18 @@ A rolling log file handler is used, so if ``flexmeasures.log`` gets to a few meg
 
 The default logging level is ``WARNING``. To see more, you can update this with the config setting ``LOGGING_LEVEL``, e.g. to ``INFO`` or ``DEBUG``
 
+
+Mocking an Email Server for Development
+--------------------------------
+
+To handle emails locally during development, you can use MailHog. Follow these steps to set it up:
+
+.. code-block:: bash
+
+   $ docker run -p 8025:8025 -p 1025:1025 --name mailhog mailhog/mailhog
+   $ export MAIL_PORT=1025  # You can also add this to your local flexmeasures.cfg
+
+Now, emails (e.g., password-reset) are being sent via this local server. Go to http://localhost:8025 to see all sent emails in a web UI.
 
 Tests
 -----
@@ -293,3 +319,4 @@ I added this to my ~/.bashrc, so I only need to type ``fm`` to get started and h
 
 
 .. note:: All paths depend on your local environment, of course.
+

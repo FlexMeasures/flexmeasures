@@ -1,9 +1,11 @@
 from __future__ import annotations
-from typing import List, Optional, Union, TYPE_CHECKING
+
+from typing import TYPE_CHECKING
 from datetime import datetime
 
 from flask_security import UserMixin, RoleMixin
 import pandas as pd
+from sqlalchemy import select, func
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy import Boolean, DateTime, Column, Integer, String, ForeignKey
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -60,6 +62,9 @@ class Account(db.Model, AuthModelMixin):
         secondary="roles_accounts",
         backref=backref("accounts", lazy="dynamic"),
     )
+    primary_color = Column(String(7), default=None)
+    secondary_color = Column(String(7), default=None)
+    logo_url = Column(String(255), default=None)
     annotations = db.relationship(
         "Annotation",
         secondary="annotations_accounts",
@@ -100,7 +105,10 @@ class Account(db.Model, AuthModelMixin):
             "update": f"account:{self.id}",
         }
 
-    def has_role(self, role: Union[str, AccountRole]) -> bool:
+    def get_path(self, separator: str = ">"):
+        return self.name
+
+    def has_role(self, role: str | AccountRole) -> bool:
         """Returns `True` if the account has the specified role.
 
         :param role: An account role name or `AccountRole` instance"""
@@ -111,15 +119,15 @@ class Account(db.Model, AuthModelMixin):
 
     def search_annotations(
         self,
-        annotation_starts_after: Optional[datetime] = None,  # deprecated
-        annotations_after: Optional[datetime] = None,
-        annotation_ends_before: Optional[datetime] = None,  # deprecated
-        annotations_before: Optional[datetime] = None,
-        source: Optional[
-            Union[DataSource, List[DataSource], int, List[int], str, List[str]]
-        ] = None,
+        annotation_starts_after: datetime | None = None,  # deprecated
+        annotations_after: datetime | None = None,
+        annotation_ends_before: datetime | None = None,  # deprecated
+        annotations_before: datetime | None = None,
+        source: (
+            DataSource | list[DataSource] | int | list[int] | str | list[str] | None
+        ) = None,
         as_frame: bool = False,
-    ) -> Union[List[Annotation], pd.DataFrame]:
+    ) -> list[Annotation] | pd.DataFrame:
         """Return annotations assigned to this account.
 
         :param annotations_after: only return annotations that end after this datetime (exclusive)
@@ -145,9 +153,13 @@ class Account(db.Model, AuthModelMixin):
         )
 
         parsed_sources = parse_source_arg(source)
-        query = Annotation.query.join(AccountAnnotationRelationship).filter(
-            AccountAnnotationRelationship.account_id == self.id,
-            AccountAnnotationRelationship.annotation_id == Annotation.id,
+        query = (
+            select(Annotation)
+            .join(AccountAnnotationRelationship)
+            .filter(
+                AccountAnnotationRelationship.account_id == self.id,
+                AccountAnnotationRelationship.annotation_id == Annotation.id,
+            )
         )
         if annotations_after is not None:
             query = query.filter(
@@ -161,9 +173,23 @@ class Account(db.Model, AuthModelMixin):
             query = query.filter(
                 Annotation.source.in_(parsed_sources),
             )
-        annotations = query.all()
+        annotations = db.session.scalars(query).all()
 
         return to_annotation_frame(annotations) if as_frame else annotations
+
+    @property
+    def number_of_assets(self):
+        from flexmeasures.data.models.generic_assets import GenericAsset
+
+        return db.session.execute(
+            select(func.count()).where(GenericAsset.account_id == self.id)
+        ).scalar_one_or_none()
+
+    @property
+    def number_of_users(self):
+        return db.session.execute(
+            select(func.count()).where(User.account_id == self.id)
+        ).scalar_one_or_none()
 
 
 class RolesUsers(db.Model):
@@ -268,7 +294,7 @@ class User(db.Model, UserMixin, AuthModelMixin):
         """See comment in roles property why we overload."""
         self.flexmeasures_roles = new_roles
 
-    def has_role(self, role: Union[str, Role]) -> bool:
+    def has_role(self, role: str | Role) -> bool:
         """Returns `True` if the user identifies with the specified role.
             Overwritten from flask_security.core.UserMixin.
 

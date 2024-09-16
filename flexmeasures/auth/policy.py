@@ -4,7 +4,6 @@ Tooling & docs for implementing our auth policy
 
 from __future__ import annotations
 
-# Use | instead of Union, list instead of List and tuple instead of Tuple when FM stops supporting Python 3.9 (because of https://github.com/python/cpython/issues/86399)
 from typing import List, Tuple, Union
 
 from flask import current_app
@@ -20,6 +19,7 @@ ADMIN_READER_ROLE = "admin-reader"
 # constants to allow access to certain groups
 EVERY_LOGGED_IN_USER = "every-logged-in-user"
 
+# todo: Use | instead of Union, list instead of List and tuple instead of Tuple when FM stops supporting Python 3.9 (because of https://github.com/python/cpython/issues/86399)
 PRINCIPALS_TYPE = Union[str, Tuple[str], List[Union[str, Tuple[str]]]]
 
 
@@ -68,8 +68,11 @@ class AuthModelMixin(object):
         # Row-level authorization
 
         This ACL approach to authorization is usually called "row-level authorization" ― it always requires an instance, from which to get the ACL.
-        Unlike pyramid, we have not implemented table-level authorization, where a class also can provide an ACL.
-        This works because we make use of the hierarchy in our model.
+        Unlike pyramid, we don't have a general solution for table-level auth (as we haven't needed a general implementation so far), but there is a nice custom approach to it.
+        A class method on the model can be added which returns an AuthModelMixin. That would have an __acl__() function with your rules, which the auth policy will then go on and use. The permission_required_for_context decorator can make sure this AuthModelMixin object is used by the policy via ctx_loader. It can even pass in the context if that is helpful for your logic.
+        See the AuditLog model class for an example, where we required authorization logic which governs if a subset of a table (e.g. all audit logs that relate to an account) are availabe to the current user."
+
+        Row level access policy works because we make use of the hierarchy in our model.
         The highest level (e.g. an account) is created by site-admins and usually not in the API, but CLI. For everything else, we can ask the ACL
         on an instance, if we can handle it like we intend to. For creation of instances (where there is no instance to ask), it makes sense to use the instance one level up to look up the correct permission ("create-children"). E.g. to create belief data for a sensor, we can check the "create-children" - permission on the sensor.
 

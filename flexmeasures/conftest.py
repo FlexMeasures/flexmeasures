@@ -4,13 +4,14 @@ from contextlib import contextmanager
 import pytest
 from random import random, seed
 from datetime import datetime, timedelta
-
+from sqlalchemy import select
 from isodate import parse_duration
 import pandas as pd
 import numpy as np
 from flask import request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_security import roles_accepted
+from pytest_mock import MockerFixture
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
 
 from werkzeug.exceptions import (
@@ -22,8 +23,7 @@ from werkzeug.exceptions import (
 )
 
 from flexmeasures.app import create as create_app
-from flexmeasures.auth.policy import ADMIN_ROLE
-from flexmeasures.utils.time_utils import as_server_time
+from flexmeasures.auth.policy import ADMIN_ROLE, ADMIN_READER_ROLE
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
 from flexmeasures.data.models.data_sources import DataSource
@@ -162,7 +162,9 @@ def create_test_accounts(db) -> dict[str, Account]:
         description="A client of a consultancy",
     )
     consultancy_account_id = (
-        Account.query.filter_by(name="Test Consultancy Account").one_or_none().id
+        db.session.execute(select(Account).filter_by(name="Test Consultancy Account"))
+        .scalar_one_or_none()
+        .id
     )
     consultancy_client_account = Account(
         name="Test ConsultancyClient Account",
@@ -194,7 +196,7 @@ def setup_roles_users_fresh_db(fresh_db, setup_accounts_fresh_db) -> dict[str, U
 def create_roles_users(db, test_accounts) -> dict[str, User]:
     """Create a minimal set of roles and users"""
     new_users: list[User] = []
-    # Two Prosumer users
+    # 3 Prosumer users: 2 plain ones, 1 account admin
     new_users.append(
         create_user(
             username="Test Prosumer User",
@@ -214,6 +216,14 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
             user_roles=dict(name="account-admin", description="Admin for this account"),
         )
     )
+    new_users.append(
+        create_user(
+            username="Test Another Plain Prosumer User",
+            email="test_prosumer_user_3@seita.nl",
+            account_name=test_accounts["Prosumer"].name,
+            password="testtest",
+        )
+    )
     # A user on an account without any special rights
     new_users.append(
         create_user(
@@ -221,6 +231,16 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
             email="test_dummy_user_3@seita.nl",
             account_name=test_accounts["Dummy"].name,
             password="testtest",
+        )
+    )
+    # Account admin on dummy account
+    new_users.append(
+        create_user(
+            username="Test Dummy Account Admin",
+            email="test_dummy_account_admin@seita.nl",
+            account_name=test_accounts["Dummy"].name,
+            password="testtest",
+            user_roles=dict(name="account-admin", description="Admin for this account"),
         )
     )
     # A supplier user
@@ -246,6 +266,20 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
             ),
         )
     )
+    # One platform admin reader
+    new_users.append(
+        create_user(
+            username="Test Admin Reader User",
+            email="test_admin_reader_user@seita.nl",
+            account_name=test_accounts[
+                "Dummy"
+            ].name,  # the account does not give rights
+            password="testtest",
+            user_roles=dict(
+                name=ADMIN_READER_ROLE, description="A user who can do everything."
+            ),
+        )
+    )
     new_users.append(
         create_user(
             username="Test Consultant User",
@@ -260,6 +294,15 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
             username="Test Consultant User without consultant role",
             email="test_consultancy_user_without_consultant_access@seita.nl",
             account_name=test_accounts["Consultancy"].name,
+            password="testtest",
+        )
+    )
+    # Consultancy client account user
+    new_users.append(
+        create_user(
+            username="Test Consultancy Client User",
+            email="test_consultant_client@seita.nl",
+            account_name=test_accounts["ConsultancyClient"].name,
             password="testtest",
         )
     )
@@ -324,7 +367,13 @@ def create_sources(db) -> dict[str, DataSource]:
     db.session.add(seita_source)
     entsoe_source = DataSource(name="ENTSO-E", type="demo script")
     db.session.add(entsoe_source)
-    return {"Seita": seita_source, "ENTSO-E": entsoe_source}
+    dummy_schedule_source = DataSource(name="DummySchedule", type="demo script")
+    db.session.add(dummy_schedule_source)
+    return {
+        "Seita": seita_source,
+        "ENTSO-E": entsoe_source,
+        "DummySchedule": dummy_schedule_source,
+    }
 
 
 @pytest.fixture(scope="module")
@@ -401,7 +450,9 @@ def create_generic_asset_types(db) -> dict[str, GenericAssetType]:
     db.session.add(solar)
     wind = GenericAssetType(name="wind turbine")
     db.session.add(wind)
-    battery = GenericAssetType.query.filter_by(name="battery").one_or_none()
+    battery = db.session.execute(
+        select(GenericAssetType).filter_by(name="battery")
+    ).scalar_one_or_none()
     if (
         not battery
     ):  # legacy if-block, because create_test_battery_assets might have created it already - refactor!
@@ -485,23 +536,18 @@ def create_assets(
         # one day of test data (one complete sine curve)
         time_slots = pd.date_range(
             datetime(2015, 1, 1), datetime(2015, 1, 1, 23, 45), freq="15T"
-        )
+        ).tz_localize("UTC")
         seed(42)  # ensure same results over different test runs
-        values = [
-            random() * (1 + np.sin(x * 2 * np.pi / (4 * 24)))
-            for x in range(len(time_slots))
-        ]
-        beliefs = [
-            TimedBelief(
-                event_start=as_server_time(dt),
-                belief_horizon=parse_duration("PT0M"),
-                event_value=val,
-                sensor=sensor,
-                source=setup_sources["Seita"],
-            )
-            for dt, val in zip(time_slots, values)
-        ]
-        db.session.add_all(beliefs)
+        add_beliefs(
+            db=db,
+            sensor=sensor,
+            time_slots=time_slots,
+            values=[
+                random() * (1 + np.sin(x * 2 * np.pi / (4 * 24)))
+                for x in range(len(time_slots))
+            ],
+            source=setup_sources["Seita"],
+        )
     db.session.commit()
     return {asset.name: asset for asset in assets}
 
@@ -532,7 +578,9 @@ def create_beliefs(db: SQLAlchemy, setup_markets, setup_sources) -> int:
     """
     :returns: the number of beliefs set up
     """
-    sensor = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    sensor = db.session.execute(
+        select(Sensor).filter(Sensor.name == "epex_da")
+    ).scalar_one_or_none()
     beliefs = [
         TimedBelief(
             sensor=sensor,
@@ -600,20 +648,25 @@ def add_market_prices_common(
         resolution="1H",
     )
     seed(42)  # ensure same results over different test runs
-    values = [
-        random() * (1 + np.sin(x * 2 * np.pi / 24)) for x in range(len(time_slots))
-    ]
-    day1_beliefs = [
-        TimedBelief(
-            event_start=dt,
-            belief_horizon=timedelta(hours=0),
-            event_value=val,
-            source=setup_sources["Seita"],
-            sensor=setup_markets["epex_da"],
-        )
-        for dt, val in zip(time_slots, values)
-    ]
-    db.session.add_all(day1_beliefs)
+    add_beliefs(
+        db=db,
+        sensor=setup_markets["epex_da"],
+        time_slots=time_slots,
+        values=[
+            random() * (1 + np.sin(x * 2 * np.pi / 24)) for x in range(len(time_slots))
+        ],
+        source=setup_sources["Seita"],
+    )
+
+    add_beliefs(
+        db=db,
+        sensor=setup_markets["epex_da_production"],
+        time_slots=time_slots,
+        values=[
+            random() * (1 + np.sin(x * 2 * np.pi / 24)) for x in range(len(time_slots))
+        ],
+        source=setup_sources["Seita"],
+    )
 
     # another day of test data (8 expensive hours, 8 cheap hours, and again 8 expensive hours)
     time_slots = initialize_index(
@@ -621,18 +674,13 @@ def add_market_prices_common(
         end=pd.Timestamp("2015-01-03").tz_localize("Europe/Amsterdam"),
         resolution="1H",
     )
-    values = [100] * 8 + [90] * 8 + [100] * 8
-    day2_beliefs = [
-        TimedBelief(
-            event_start=dt,
-            belief_horizon=timedelta(hours=0),
-            event_value=val,
-            source=setup_sources["Seita"],
-            sensor=setup_markets["epex_da"],
-        )
-        for dt, val in zip(time_slots, values)
-    ]
-    db.session.add_all(day2_beliefs)
+    add_beliefs(
+        db=db,
+        sensor=setup_markets["epex_da"],
+        time_slots=time_slots,
+        values=[100] * 8 + [90] * 8 + [100] * 8,
+        source=setup_sources["Seita"],
+    )
 
     # the third day of test data (8 hours with negative prices, followed by 16 expensive hours)
     time_slots = initialize_index(
@@ -642,8 +690,34 @@ def add_market_prices_common(
     )
 
     # consumption prices
-    values = [-10] * 8 + [100] * 16
-    day3_beliefs = [
+    add_beliefs(
+        db=db,
+        sensor=setup_markets["epex_da"],
+        time_slots=time_slots,
+        values=[-10] * 8 + [100] * 16,
+        source=setup_sources["Seita"],
+    )
+
+    # production prices = consumption prices - 40
+    add_beliefs(
+        db=db,
+        sensor=setup_markets["epex_da_production"],
+        time_slots=time_slots,
+        values=[-50] * 8 + [60] * 16,
+        source=setup_sources["Seita"],
+    )
+
+    # consumption prices for staleness tests
+    time_slots = initialize_index(
+        start=pd.Timestamp("2016-01-01").tz_localize("Europe/Amsterdam"),
+        end=pd.Timestamp("2016-01-03").tz_localize("Europe/Amsterdam"),
+        resolution="1H",
+    )
+    values_today = [
+        random() * (1 + np.sin(x * 2 * np.pi / 24)) for x in range(len(time_slots))
+    ]
+
+    today_beliefs = [
         TimedBelief(
             event_start=dt,
             belief_horizon=timedelta(hours=0),
@@ -651,23 +725,9 @@ def add_market_prices_common(
             source=setup_sources["Seita"],
             sensor=setup_markets["epex_da"],
         )
-        for dt, val in zip(time_slots, values)
+        for dt, val in zip(time_slots, values_today)
     ]
-    db.session.add_all(day3_beliefs)
-
-    # production prices = consumption prices - 40
-    values = [-50] * 8 + [60] * 16
-    day3_beliefs_production = [
-        TimedBelief(
-            event_start=dt,
-            belief_horizon=timedelta(hours=0),
-            event_value=val,
-            source=setup_sources["Seita"],
-            sensor=setup_markets["epex_da_production"],
-        )
-        for dt, val in zip(time_slots, values)
-    ]
-    db.session.add_all(day3_beliefs_production)
+    db.session.add_all(today_beliefs)
 
     return {
         "epex_da": setup_markets["epex_da"],
@@ -710,6 +770,19 @@ def create_test_battery_assets(
     """
     Add two battery assets, set their capacity values and their initial SOC.
     """
+    building_type = GenericAssetType(name="building")
+    db.session.add(building_type)
+    test_building = GenericAsset(
+        name="building",
+        generic_asset_type=building_type,
+        owner=setup_accounts["Prosumer"],
+        attributes=dict(
+            capacity_in_mw=2,
+        ),
+    )
+    db.session.add(test_building)
+    db.session.flush()
+
     battery_type = generic_asset_types["battery"]
 
     test_battery = GenericAsset(
@@ -718,6 +791,7 @@ def create_test_battery_assets(
         generic_asset_type=battery_type,
         latitude=10,
         longitude=100,
+        parent_asset_id=test_building.id,
         attributes=dict(
             capacity_in_mw=2,
             max_soc_in_mwh=5,
@@ -744,6 +818,19 @@ def create_test_battery_assets(
         ),
     )
     db.session.add(test_battery_sensor)
+
+    test_battery_sensor_kw = Sensor(
+        name="power (kW)",
+        generic_asset=test_battery,
+        event_resolution=timedelta(minutes=15),
+        unit="kW",
+        attributes=dict(
+            daily_seasonality=True,
+            weekly_seasonality=True,
+            yearly_seasonality=True,
+        ),
+    )
+    db.session.add(test_battery_sensor_kw)
 
     test_battery_no_prices = GenericAsset(
         name="Test battery with no known prices",
@@ -841,6 +928,7 @@ def create_test_battery_assets(
 
     db.session.flush()
     return {
+        "Test building": test_building,
         "Test battery": test_battery,
         "Test battery with no known prices": test_battery_no_prices,
         "Test small battery": test_small_battery,
@@ -1033,7 +1121,7 @@ def create_weather_sensors(db: SQLAlchemy, generic_asset_types) -> dict[str, Sen
         unit="°C",
     )
     db.session.add(temp_sensor)
-    return {"wind": wind_sensor, "temperature": temp_sensor}
+    return {"wind": wind_sensor, "temperature": temp_sensor, "asset": weather_station}
 
 
 @pytest.fixture(scope="module")
@@ -1048,6 +1136,17 @@ def add_sensors(db: SQLAlchemy, setup_generic_assets):
 
 @pytest.fixture(scope="module")
 def battery_soc_sensor(db: SQLAlchemy, setup_generic_assets):
+    """Add a battery SOC sensor to the db."""
+    return create_battery_soc_sensor(db, setup_generic_assets)
+
+
+@pytest.fixture(scope="function")
+def battery_soc_sensor_fresh_db(fresh_db: SQLAlchemy, setup_generic_assets_fresh_db):
+    """Add a battery SOC sensor to the fresh db."""
+    return create_battery_soc_sensor(fresh_db, setup_generic_assets_fresh_db)
+
+
+def create_battery_soc_sensor(db: SQLAlchemy, setup_generic_assets):
     """Add a battery SOC sensor."""
     soc_sensor = Sensor(
         name="state of charge",
@@ -1075,6 +1174,7 @@ def clean_redis(app):
     app.queues["forecasting"].empty()
     for job_id in failed.get_job_ids():
         failed.remove(app.queues["forecasting"].fetch_job(job_id))
+    app.redis_connection.flushdb()
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -1123,41 +1223,80 @@ def capacity_sensors(db, add_battery_assets, setup_sources):
         attributes={"consumption_is_positive": True},
     )
 
-    db.session.add_all([production_capacity_sensor, consumption_capacity_sensor])
+    power_capacity_sensor = Sensor(
+        name="power capacity",
+        generic_asset=battery,
+        unit="kW",
+        event_resolution="PT15M",
+        attributes={"consumption_is_positive": True},
+    )
+
+    site_power_capacity_sensor = Sensor(
+        name="site power capacity",
+        generic_asset=battery,
+        unit="kW",
+        event_resolution="PT15M",
+        attributes={"consumption_is_positive": True},
+    )
+
+    db.session.add_all(
+        [
+            production_capacity_sensor,
+            consumption_capacity_sensor,
+            site_power_capacity_sensor,
+        ]
+    )
     db.session.flush()
 
     time_slots = pd.date_range(
         datetime(2015, 1, 2), datetime(2015, 1, 2, 7, 45), freq="15T"
     ).tz_localize("Europe/Amsterdam")
 
-    values = [200] * 4 * 4 + [300] * 4 * 4
+    add_beliefs(
+        db=db,
+        sensor=production_capacity_sensor,
+        time_slots=time_slots,
+        values=[200] * 4 * 4 + [300] * 4 * 4,
+        source=setup_sources["Seita"],
+    )
 
-    beliefs = [
-        TimedBelief(
-            event_start=dt,
-            belief_horizon=parse_duration("PT0M"),
-            event_value=val,
-            sensor=production_capacity_sensor,
-            source=setup_sources["Seita"],
-        )
-        for dt, val in zip(time_slots, values)
-    ]
-    db.session.add_all(beliefs)
+    add_beliefs(
+        db=db,
+        sensor=consumption_capacity_sensor,
+        time_slots=time_slots,
+        values=[250] * 4 * 4 + [150] * 4 * 4,
+        source=setup_sources["Seita"],
+    )
+
+    add_beliefs(
+        db=db,
+        sensor=power_capacity_sensor,
+        time_slots=time_slots,
+        values=[225] * 4 * 4 + [199] * 4 * 4,
+        source=setup_sources["Seita"],
+    )
+
+    add_beliefs(
+        db=db,
+        sensor=site_power_capacity_sensor,
+        time_slots=time_slots,
+        values=[1300] * 4 * 4 + [1050] * 4 * 4,
+        source=setup_sources["Seita"],
+    )
+
     db.session.commit()
 
     time_slots = pd.date_range(
-        datetime(2015, 1, 2), datetime(2015, 1, 2, 7, 45), freq="15T"
+        datetime(2016, 1, 2), datetime(2016, 1, 2, 7, 45), freq="15T"
     ).tz_localize("Europe/Amsterdam")
-
     values = [250] * 4 * 4 + [150] * 4 * 4
-
     beliefs = [
         TimedBelief(
             event_start=dt,
-            belief_horizon=parse_duration("PT0M"),
             event_value=val,
-            sensor=consumption_capacity_sensor,
-            source=setup_sources["Seita"],
+            sensor=production_capacity_sensor,
+            source=setup_sources["DummySchedule"],
+            belief_time="2015-01-02T00:00+01",
         )
         for dt, val in zip(time_slots, values)
     ]
@@ -1165,5 +1304,138 @@ def capacity_sensors(db, add_battery_assets, setup_sources):
     db.session.commit()
 
     yield dict(
-        production=production_capacity_sensor, consumption=consumption_capacity_sensor
+        production=production_capacity_sensor,
+        consumption=consumption_capacity_sensor,
+        power_capacity=power_capacity_sensor,
+        site_power_capacity=site_power_capacity_sensor,
     )
+
+
+@pytest.fixture(scope="module")
+def soc_sensors(db, add_battery_assets, setup_sources) -> tuple:
+    """Add battery sensors for instantaneous soc-maxima (in kWh), soc-maxima (in MWh) and soc-targets (in MWh).
+
+    The SoC values on each sensor linearly increase from 0 to 5 MWh.
+    """
+    battery = add_battery_assets["Test battery with dynamic power capacity"]
+
+    soc_maxima = Sensor(
+        name="soc_maxima",
+        generic_asset=battery,
+        unit="kWh",
+        event_resolution=timedelta(0),
+    )
+
+    soc_minima = Sensor(
+        name="soc_minima",
+        generic_asset=battery,
+        unit="MWh",
+        event_resolution=timedelta(0),
+    )
+
+    soc_targets = Sensor(
+        name="soc_targets",
+        generic_asset=battery,
+        unit="MWh",
+        event_resolution=timedelta(0),
+    )
+
+    db.session.add_all([soc_maxima, soc_minima, soc_targets])
+    db.session.flush()
+
+    time_slots = pd.date_range(
+        datetime(2015, 1, 1, 2), datetime(2015, 1, 2), freq="15T"
+    ).tz_localize("Europe/Amsterdam")
+
+    values = np.arange(len(time_slots)) / (len(time_slots) - 1)
+    values = values * 5
+
+    add_beliefs(
+        db=db,
+        sensor=soc_maxima,
+        time_slots=time_slots,
+        values=values * 1000,  # MWh -> kWh
+        source=setup_sources["Seita"],
+    )
+
+    add_beliefs(
+        db=db,
+        sensor=soc_minima,
+        time_slots=time_slots,
+        values=values,
+        source=setup_sources["Seita"],
+    )
+
+    add_beliefs(
+        db=db,
+        sensor=soc_targets,
+        time_slots=time_slots,
+        values=values,
+        source=setup_sources["Seita"],
+    )
+
+    yield soc_maxima, soc_minima, soc_targets, values
+
+
+@pytest.fixture(scope="module")
+def setup_multiple_sources(db, add_battery_assets):
+    battery = add_battery_assets["Test battery with dynamic power capacity"]
+
+    test_sensor = Sensor(
+        name="test sensor",
+        generic_asset=battery,
+        unit="kW",
+        event_resolution=timedelta(minutes=15),
+    )
+
+    s1 = DataSource(name="S1", type="type 1")
+    s2 = DataSource(name="S2", type="type 2")
+    s3 = DataSource(name="S3", type="type 3")
+
+    db.session.add_all([s1, s2, s3, test_sensor])
+
+    for s in [s1, s2]:
+        add_beliefs(
+            db=db,
+            sensor=test_sensor,
+            time_slots=[pd.Timestamp("2024-01-01T10:00:00+01:00")],
+            values=[1],
+            source=s,
+        )
+
+    add_beliefs(
+        db=db,
+        sensor=test_sensor,
+        time_slots=[pd.Timestamp("2024-01-02T10:00:00+01:00")],
+        values=[1],
+        source=s3,
+    )
+
+    db.session.commit()
+
+    return test_sensor, s1, s2, s3
+
+
+def add_beliefs(
+    db,
+    sensor: Sensor,
+    time_slots: pd.DatetimeIndex,
+    values: list[int | float] | np.ndarray,
+    source: DataSource,
+):
+    beliefs = [
+        TimedBelief(
+            event_start=dt,
+            belief_horizon=parse_duration("PT0M"),
+            event_value=val,
+            sensor=sensor,
+            source=source,
+        )
+        for dt, val in zip(time_slots, values)
+    ]
+    db.session.add_all(beliefs)
+
+
+@pytest.fixture
+def mock_get_status(mocker: MockerFixture):
+    return mocker.patch("flexmeasures.data.services.sensors.get_status", autospec=True)

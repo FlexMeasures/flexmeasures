@@ -11,16 +11,20 @@ import pandas as pd
 from flask import current_app as app
 from flask.cli import with_appcontext
 import json
+from flexmeasures.data.models.user import Account
+from flexmeasures.data.schemas.account import AccountIdField
+from sqlalchemy import delete
 
-from flexmeasures import Sensor
+from flexmeasures import Sensor, Asset
 from flexmeasures.data import db
 from flexmeasures.data.schemas.attributes import validate_special_attributes
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.utils import save_to_db
-from flexmeasures.cli.utils import MsgStyle
+from flexmeasures.cli.utils import MsgStyle, DeprecatedOption, DeprecatedOptionsCommand
 
 
 @click.group("edit")
@@ -28,22 +32,30 @@ def fm_edit_data():
     """FlexMeasures: Edit data."""
 
 
-@fm_edit_data.command("attribute")
+@fm_edit_data.command("attribute", cls=DeprecatedOptionsCommand)
 @with_appcontext
 @click.option(
+    "--asset",
     "--asset-id",
     "assets",
     required=False,
     multiple=True,
     type=GenericAssetIdField(),
+    cls=DeprecatedOption,
+    deprecated=["--asset-id"],
+    preferred="--asset",
     help="Add/edit attribute to this asset. Follow up with the asset's ID.",
 )
 @click.option(
+    "--sensor",
     "--sensor-id",
     "sensors",
     required=False,
     multiple=True,
     type=SensorIdField(),
+    cls=DeprecatedOption,
+    deprecated=["--sensor-id"],
+    preferred="--sensor",
     help="Add/edit attribute to this sensor. Follow up with the sensor's ID.",
 )
 @click.option(
@@ -135,22 +147,32 @@ def edit_attribute(
 
     # Set attribute
     for asset in assets:
+        AssetAuditLog.add_record_for_attribute_update(
+            attribute_key, attribute_value, "asset", asset
+        )
         asset.attributes[attribute_key] = attribute_value
         db.session.add(asset)
     for sensor in sensors:
+        AssetAuditLog.add_record_for_attribute_update(
+            attribute_key, attribute_value, "sensor", sensor
+        )
         sensor.attributes[attribute_key] = attribute_value
         db.session.add(sensor)
     db.session.commit()
     click.secho("Successfully edited/added attribute.", **MsgStyle.SUCCESS)
 
 
-@fm_edit_data.command("resample-data")
+@fm_edit_data.command("resample-data", cls=DeprecatedOptionsCommand)
 @with_appcontext
 @click.option(
+    "--sensor",
     "--sensor-id",
     "sensor_ids",
     multiple=True,
     required=True,
+    cls=DeprecatedOption,
+    deprecated=["--sensor-id"],
+    preferred="--sensor",
     help="Resample data for this sensor. Follow up with the sensor's ID. This argument can be given multiple times.",
 )
 @click.option(
@@ -191,7 +213,7 @@ def resample_sensor_data(
     event_starts_after = pd.Timestamp(start_str)  # note that "" or None becomes NaT
     event_ends_before = pd.Timestamp(end_str)
     for sensor_id in sensor_ids:
-        sensor = Sensor.query.get(sensor_id)
+        sensor = db.session.get(Sensor, sensor_id)
         if sensor.event_resolution == event_resolution:
             click.echo(f"{sensor} already has the desired event resolution.")
             continue
@@ -213,22 +235,71 @@ def resample_sensor_data(
                 abort=True,
             )
 
+        AssetAuditLog.add_record(
+            sensor.generic_asset,
+            f"Resampled sensor data for sensor '{sensor.name}': {sensor.id} to {event_resolution} from {sensor.event_resolution}",
+        )
+
         # Update sensor
         sensor.event_resolution = event_resolution
         db.session.add(sensor)
 
         # Update sensor data
-        query = TimedBelief.query.filter(TimedBelief.sensor == sensor)
+        query = delete(TimedBelief).filter_by(sensor=sensor)
         if not pd.isnull(event_starts_after):
             query = query.filter(TimedBelief.event_start >= event_starts_after)
         if not pd.isnull(event_ends_before):
             query = query.filter(
                 TimedBelief.event_start + sensor.event_resolution <= event_ends_before
             )
-        query.delete()
+        db.session.execute(query)
         save_to_db(df_resampled, bulk_save_objects=True)
     db.session.commit()
     click.secho("Successfully resampled sensor data.", **MsgStyle.SUCCESS)
+
+
+@fm_edit_data.command("transfer-ownership")
+@with_appcontext
+@click.option(
+    "--asset",
+    "asset",
+    type=GenericAssetIdField(),
+    required=True,
+    help="Change the ownership of this asset and its children. Follow up with the asset's ID.",
+)
+@click.option(
+    "--new-owner",
+    "new_owner",
+    type=AccountIdField(),
+    required=True,
+    help="New owner of the asset and its children.",
+)
+def transfer_ownership(asset: Asset, new_owner: Account):
+    """
+    Transfer the ownership of and asset and its children to an account.
+    """
+
+    def transfer_ownership_recursive(asset: Asset, account: Account):
+        AssetAuditLog.add_record(
+            asset,
+            (
+                f"Transferred ownership for asset '{asset.name}': {asset.id} from '{asset.owner.name}': {asset.owner.id} to '{account.name}': {account.id}"
+                if asset.owner is not None
+                else f"Assign ownership to public asset '{asset.name}': {asset.id} to '{account.name}': {account.id}"
+            ),
+        )
+
+        asset.owner = account
+        for child in asset.child_assets:
+            transfer_ownership_recursive(child, account)
+
+    transfer_ownership_recursive(asset, new_owner)
+    click.secho(
+        f"Success! Asset `{asset}` ownership was transferred to account `{new_owner}`.",
+        **MsgStyle.SUCCESS,
+    )
+
+    db.session.commit()
 
 
 app.cli.add_command(fm_edit_data)

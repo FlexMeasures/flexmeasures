@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from packaging import version
-from typing import List, Optional, Tuple, Union
 from datetime import date, datetime, timedelta
 
 from flask import current_app
@@ -10,6 +9,7 @@ from pandas.tseries.frequencies import to_offset
 import numpy as np
 import timely_beliefs as tb
 
+from flexmeasures.data import db
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.planning.exceptions import (
     UnknownMarketException,
@@ -23,7 +23,7 @@ from pint.errors import UndefinedUnitError, DimensionalityError
 
 
 def initialize_df(
-    columns: List[str],
+    columns: list[str],
     start: datetime,
     end: datetime,
     resolution: timedelta,
@@ -36,7 +36,7 @@ def initialize_df(
 
 
 def initialize_series(
-    data: Optional[Union[pd.Series, List[float], np.ndarray, float]],
+    data: pd.Series | list[float] | np.ndarray | float | None,
     start: datetime,
     end: datetime,
     resolution: timedelta,
@@ -47,9 +47,9 @@ def initialize_series(
 
 
 def initialize_index(
-    start: Union[date, datetime, str],
-    end: Union[date, datetime, str],
-    resolution: Union[timedelta, str],
+    start: date | datetime | str,
+    end: date | datetime | str,
+    resolution: timedelta | str,
     inclusive: str = "left",
 ) -> pd.DatetimeIndex:
     if version.parse(pd.__version__) >= version.parse("1.4.0"):
@@ -90,20 +90,20 @@ def add_tiny_price_slope(
 
 def get_market(sensor: Sensor) -> Sensor:
     """Get market sensor from the sensor's attributes."""
-    price_sensor = Sensor.query.get(sensor.get_attribute("market_id"))
+    price_sensor = db.session.get(Sensor, sensor.get_attribute("market_id"))
     if price_sensor is None:
         raise UnknownMarketException
     return price_sensor
 
 
 def get_prices(
-    query_window: Tuple[datetime, datetime],
+    query_window: tuple[datetime, datetime],
     resolution: timedelta,
-    beliefs_before: Optional[datetime],
-    price_sensor: Optional[Sensor] = None,
-    sensor: Optional[Sensor] = None,
+    beliefs_before: datetime | None,
+    price_sensor: Sensor | None = None,
+    sensor: Sensor | None = None,
     allow_trimmed_query_window: bool = True,
-) -> Tuple[pd.DataFrame, Tuple[datetime, datetime]]:
+) -> tuple[pd.DataFrame, tuple[datetime, datetime]]:
     """Check for known prices or price forecasts.
 
     If so allowed, the query window is trimmed according to the available data.
@@ -173,12 +173,12 @@ def get_prices(
 
 
 def get_power_values(
-    query_window: Tuple[datetime, datetime],
+    query_window: tuple[datetime, datetime],
     resolution: timedelta,
-    beliefs_before: Optional[datetime],
+    beliefs_before: datetime | None,
     sensor: Sensor,
 ) -> np.ndarray:
-    """Get measurements or forecasts of an inflexible device represented by a power sensor.
+    """Get measurements or forecasts of an inflexible device represented by a power or energy sensor as an array of power values in MW.
 
     If the requested schedule lies in the future, the returned data will consist of (the most recent) forecasts (if any exist).
     If the requested schedule lies in the past, the returned data will consist of (the most recent) measurements (if any exist).
@@ -208,12 +208,14 @@ def get_power_values(
         )
         df = df.fillna(0)
 
+    series = convert_units(df.values, sensor.unit, "MW")
+
     if sensor.get_attribute(
         "consumption_is_positive", False
     ):  # FlexMeasures default is to store consumption as negative power values
-        return df.values
+        return series
 
-    return -df.values
+    return -series
 
 
 def fallback_charging_policy(
@@ -313,72 +315,99 @@ def get_quantity_from_attribute(
         q = ur.Quantity(value)
         q = q.to(unit)
     except (UndefinedUnitError, DimensionalityError, ValueError, AssertionError):
-        current_app.logger.warning(f"Couldn't convert {value} to `{unit}`")
-        q = np.nan * ur.Quantity(unit)  # at least return result in the desired unit
+        try:
+            # Fall back to interpreting the value in the given unit
+            q = ur.Quantity(f"{value} {unit}")
+            q = q.to(unit)
+        except (UndefinedUnitError, DimensionalityError, ValueError, AssertionError):
+            current_app.logger.warning(f"Couldn't convert {value} to `{unit}`")
+            q = np.nan * ur.Quantity(unit)  # at least return result in the desired unit
     return q
 
 
 def get_series_from_quantity_or_sensor(
-    quantity_or_sensor: Sensor | ur.Quantity,
+    variable_quantity: Sensor | list[dict] | ur.Quantity,
     unit: ur.Quantity | str,
     query_window: tuple[datetime, datetime],
     resolution: timedelta,
     beliefs_before: datetime | None = None,
+    as_instantaneous_events: bool = True,
+    boundary_policy: str | None = None,
 ) -> pd.Series:
     """
     Get a time series given a quantity or sensor defined on a time window.
 
-    :param quantity_or_sensor:  pint Quantity or timely-beliefs Sensor, measuring e.g. power capacity or efficiency
-    :param unit:                unit of the output data.
-    :param query_window:        tuple representing the start and end of the requested data
-    :param resolution:          time resolution of the requested data
-    :param beliefs_before:      optional datetime used to indicate we are interested in the state of knowledge at that time
-    :return:                    pandas Series with the requested time series data
+    :param variable_quantity:       Variable quantity measuring e.g. power capacity or efficiency.
+                                    One of the following types:
+                                    - a timely-beliefs Sensor recording the data
+                                    - a list of dictionaries representing a time series specification
+                                    - a pint Quantity representing a fixed quantity
+    :param unit:                    Unit of the output data.
+    :param query_window:            Tuple representing the start and end of the requested data.
+    :param resolution:              Time resolution of the requested data.
+    :param beliefs_before:          Optional datetime used to indicate we are interested in the state of knowledge
+                                    at that time.
+    :param as_instantaneous_events: Optionally, convert to instantaneous events, in which case the passed resolution is
+                                    interpreted as the desired frequency of the data.
+    :return:                        Pandas Series with the requested time series data.
     """
 
     start, end = query_window
     index = initialize_index(start=start, end=end, resolution=resolution)
 
-    if isinstance(quantity_or_sensor, ur.Quantity):
-        if np.isnan(quantity_or_sensor.magnitude):
+    if isinstance(variable_quantity, ur.Quantity):
+        if np.isnan(variable_quantity.magnitude):
             magnitude = np.nan
         else:
-            magnitude = quantity_or_sensor.to(unit).magnitude
-        time_series = pd.Series(magnitude, index=index)
-    elif isinstance(quantity_or_sensor, Sensor):
+            magnitude = variable_quantity.to(unit).magnitude
+        time_series = pd.Series(magnitude, index=index, name="event_value")
+    elif isinstance(variable_quantity, Sensor):
         bdf: tb.BeliefsDataFrame = TimedBelief.search(
-            quantity_or_sensor,
+            variable_quantity,
             event_starts_after=query_window[0],
             event_ends_before=query_window[1],
             resolution=resolution,
+            # frequency=resolution,
             beliefs_before=beliefs_before,
             most_recent_beliefs_only=True,
             one_deterministic_belief_per_event=True,
         )
+        if as_instantaneous_events:
+            bdf = bdf.resample_events(timedelta(0), boundary_policy=boundary_policy)
         time_series = simplify_index(bdf).reindex(index).squeeze()
-        time_series = convert_units(time_series, quantity_or_sensor.unit, unit)
+        time_series = convert_units(time_series, variable_quantity.unit, unit)
+    elif isinstance(variable_quantity, list):
+        time_series = pd.Series(np.nan, index=index)
+        for event in variable_quantity:
+            value = event["value"]
+            start = event["start"]
+            end = event["end"]
+            time_series[start : end - resolution] = value
+
     else:
         raise TypeError(
-            f"quantity_or_sensor {quantity_or_sensor} should be a pint Quantity or timely-beliefs Sensor"
+            f"quantity_or_sensor {variable_quantity} should be a pint Quantity or timely-beliefs Sensor"
         )
 
     return time_series
 
 
 def get_continuous_series_sensor_or_quantity(
-    quantity_or_sensor: Sensor | ur.Quantity | None,
+    variable_quantity: Sensor | list[dict] | ur.Quantity | None,
     actuator: Sensor | Asset,
     unit: ur.Quantity | str,
     query_window: tuple[datetime, datetime],
     resolution: timedelta,
     beliefs_before: datetime | None = None,
     fallback_attribute: str | None = None,
-    max_value: float | int = np.nan,
+    max_value: float | int | pd.Series = np.nan,
+    as_instantaneous_events: bool = False,
+    boundary_policy: str | None = None,
 ) -> pd.Series:
-    """Creates a time series from a quantity or sensor within a specified window,
+    """Creates a time series from a sensor, time series specification, or quantity within a specified window,
     falling back to a given `fallback_attribute` and making sure no values exceed `max_value`.
 
-    :param quantity_or_sensor:      The quantity or sensor containing the data.
+    :param variable_quantity:       A sensor recording the data, a time series specification or a fixed quantity.
     :param actuator:                The actuator from which relevant defaults are retrieved.
     :param unit:                    The desired unit of the data.
     :param query_window:            The time window (start, end) to query the data.
@@ -386,21 +415,25 @@ def get_continuous_series_sensor_or_quantity(
     :param beliefs_before:          Timestamp for prior beliefs or knowledge.
     :param fallback_attribute:      Attribute serving as a fallback default in case no quantity or sensor is given.
     :param max_value:               Maximum value (also replacing NaN values).
+    :param as_instantaneous_events: optionally, convert to instantaneous events, in which case the passed resolution is
+                                    interpreted as the desired frequency of the data.
     :returns:                       time series data with missing values handled based on the chosen method.
     """
-    if quantity_or_sensor is None:
-        quantity_or_sensor = get_quantity_from_attribute(
+    if variable_quantity is None:
+        variable_quantity = get_quantity_from_attribute(
             entity=actuator,
             attribute=fallback_attribute,
             unit=unit,
         )
 
     time_series = get_series_from_quantity_or_sensor(
-        quantity_or_sensor=quantity_or_sensor,
+        variable_quantity=variable_quantity,
         unit=unit,
         query_window=query_window,
         resolution=resolution,
         beliefs_before=beliefs_before,
+        as_instantaneous_events=as_instantaneous_events,
+        boundary_policy=boundary_policy,
     )
 
     # Apply upper limit
@@ -409,6 +442,12 @@ def get_continuous_series_sensor_or_quantity(
     return time_series
 
 
-def nanmin_of_series_and_value(s: pd.Series, value: float) -> pd.Series:
+def nanmin_of_series_and_value(s: pd.Series, value: float | pd.Series) -> pd.Series:
     """Perform a nanmin between a Series and a float."""
+    if isinstance(value, pd.Series):
+        # Avoid strange InvalidIndexError on .clip due to different "dtype"
+        # pd.testing.assert_index_equal(value.index, s.index)
+        # [left]:  datetime64[ns, +0000]
+        # [right]: datetime64[ns, UTC]
+        value = value.tz_convert("UTC")
     return s.fillna(value).clip(upper=value)

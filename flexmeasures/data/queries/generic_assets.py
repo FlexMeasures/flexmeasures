@@ -1,8 +1,11 @@
-from typing import List, Union, Optional, Dict
+from __future__ import annotations
+
 from itertools import groupby
 from flask_login import current_user
 
-from sqlalchemy.orm import Query
+from sqlalchemy import select, Select, or_, and_, union_all
+from sqlalchemy.orm import aliased
+from flexmeasures.data import db
 from flexmeasures.auth.policy import user_has_admin_access
 
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
@@ -12,10 +15,10 @@ from flexmeasures.utils.flexmeasures_inflection import pluralize
 
 
 def query_assets_by_type(
-    type_names: Union[List[str], str],
-    account_id: Optional[int] = None,
-    query: Optional[Query] = None,
-) -> Query:
+    type_names: list[str] | str,
+    account_id: int | None = None,
+    query: Select | None = None,
+) -> Select:
     """
     Return a query which looks for GenericAssets by their type.
 
@@ -24,7 +27,7 @@ def query_assets_by_type(
     :param query: Pass in an existing Query object if you have one.
     """
     if not query:
-        query = GenericAsset.query
+        query = select(GenericAsset)
     query = query.join(GenericAssetType).filter(
         GenericAsset.generic_asset_type_id == GenericAssetType.id
     )
@@ -36,7 +39,9 @@ def query_assets_by_type(
     return query
 
 
-def get_location_queries(account_id: Optional[int] = None) -> Dict[str, Query]:
+def get_location_queries(
+    account_id: int | None = None,
+) -> dict[str, Select[tuple[GenericAsset]]]:
     """
     Make queries for grouping assets by location.
 
@@ -56,8 +61,8 @@ def get_location_queries(account_id: Optional[int] = None) -> Dict[str, Query]:
     :param account_id: Pass in an account ID if you want to query an account other than your own. This only works for admins. Public assets are always queried.
     """
     asset_queries = {}
-    all_assets = potentially_limit_assets_query_to_account(
-        GenericAsset.query, account_id
+    all_assets = db.session.scalars(
+        potentially_limit_assets_query_to_account(select(GenericAsset), account_id)
     ).all()
     loc_groups = group_assets_by_location(all_assets)
     for loc_group in loc_groups:
@@ -72,7 +77,7 @@ def get_location_queries(account_id: Optional[int] = None) -> Dict[str, Query]:
         ):
             location_type = "(Charge Point)"
         location_name = f"{loc_group[0].name.split(' -')[0]} {location_type}"
-        location_query = GenericAsset.query.filter(
+        location_query = select(GenericAsset).filter(
             GenericAsset.name.in_([asset.name for asset in loc_group])
         )
         asset_queries[location_name] = potentially_limit_assets_query_to_account(
@@ -82,8 +87,8 @@ def get_location_queries(account_id: Optional[int] = None) -> Dict[str, Query]:
 
 
 def group_assets_by_location(
-    asset_list: List[GenericAsset],
-) -> List[List[GenericAsset]]:
+    asset_list: list[GenericAsset],
+) -> list[list[GenericAsset]]:
     groups = []
 
     def key_function(x):
@@ -99,8 +104,8 @@ def get_asset_group_queries(
     group_by_type: bool = True,
     group_by_account: bool = False,
     group_by_location: bool = False,
-    custom_aggregate_type_groups: Optional[Dict[str, List[str]]] = None,
-) -> Dict[str, Query]:
+    custom_aggregate_type_groups: dict[str, list[str]] | None = None,
+) -> dict[str, Select]:
     """
     An asset group is defined by Asset queries, which this function can generate.
     Each query has a name (for the asset group it represents).
@@ -116,22 +121,27 @@ def get_asset_group_queries(
     asset_queries = {}
 
     # 1. Custom asset groups by combinations of asset types
+    asset_types_to_remove = []
     if custom_aggregate_type_groups:
         for asset_type_group_name, asset_types in custom_aggregate_type_groups.items():
             asset_queries[asset_type_group_name] = query_assets_by_type(asset_types)
+            # Remember subgroups
+            asset_types_to_remove += asset_types
 
     # 2. Include a group per asset type - using the pluralised asset type name
     if group_by_type:
-        for asset_type in GenericAssetType.query.all():
-            asset_queries[pluralize(asset_type.name)] = query_assets_by_type(
-                asset_type.name
-            )
+        for asset_type in db.session.scalars(select(GenericAssetType)).all():
+            # Add asset type as a group if not already covered by custom group
+            if asset_type.name not in asset_types_to_remove:
+                asset_queries[pluralize(asset_type.name)] = query_assets_by_type(
+                    asset_type.name
+                )
 
     # 3. Include a group per account (admins only)  # TODO: we can later adjust this for accounts who admin certain others, not all
     if group_by_account and user_has_admin_access(current_user, "read"):
-        for account in Account.query.all():
-            asset_queries[account.name] = GenericAsset.query.filter(
-                GenericAsset.account_id == account.id
+        for account in db.session.scalars(select(Account)).all():
+            asset_queries[account.name] = select(GenericAsset).filter_by(
+                account_id=account.id
             )
 
     # 4. Finally, we can group assets by location
@@ -139,3 +149,39 @@ def get_asset_group_queries(
         asset_queries.update(get_location_queries())
 
     return asset_queries
+
+
+def query_assets_by_search_terms(
+    search_terms: list[str] | None,
+    filter_statement: bool = True,
+) -> Select:
+    select_statement = select(GenericAsset)
+    if search_terms is not None:
+        # Search terms in the search filter should either come back in the asset name or account name
+        private_select_statement = select_statement.join(
+            Account, Account.id == GenericAsset.account_id
+        )
+        private_filter_statement = filter_statement & and_(
+            *(
+                or_(
+                    GenericAsset.name.ilike(f"%{term}%"),
+                    Account.name.ilike(f"%{term}%"),
+                )
+                for term in search_terms
+            )
+        )
+        public_select_statement = select_statement
+        public_filter_statement = (
+            filter_statement
+            & GenericAsset.account_id.is_(None)
+            & and_(GenericAsset.name.ilike(f"%{term}%") for term in search_terms)
+        )
+        subquery = union_all(
+            private_select_statement.where(private_filter_statement),
+            public_select_statement.where(public_filter_statement),
+        ).subquery()
+        asset_alias = aliased(GenericAsset, subquery)
+        query = select(asset_alias).order_by(asset_alias.id)
+    else:
+        query = select_statement.where(filter_statement)
+    return query

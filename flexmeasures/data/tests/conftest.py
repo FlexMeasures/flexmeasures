@@ -9,6 +9,7 @@ import numpy as np
 from flask_sqlalchemy import SQLAlchemy
 from statsmodels.api import OLS
 import timely_beliefs as tb
+from sqlalchemy import select
 from flexmeasures.data.models.reporting import Reporter
 
 from flexmeasures.data.schemas.reporting import ReporterParametersSchema
@@ -60,9 +61,9 @@ def setup_fresh_test_data(
 
 def add_test_weather_sensor_and_forecasts(db: SQLAlchemy, setup_generic_asset_types):
     """one day of test data (one complete sine curve) for two sensors"""
-    data_source = DataSource.query.filter_by(
-        name="Seita", type="demo script"
-    ).one_or_none()
+    data_source = db.session.execute(
+        select(DataSource).filter_by(name="Seita", type="demo script")
+    ).scalar_one_or_none()
     weather_station = GenericAsset(
         name="Test weather station farther away",
         generic_asset_type=setup_generic_asset_types["weather_station"],
@@ -115,9 +116,9 @@ def add_failing_test_model(db):
 @pytest.fixture(scope="module")
 def add_nearby_weather_sensors(db, add_weather_sensors) -> dict[str, Sensor]:
     temp_sensor_location = add_weather_sensors["temperature"].generic_asset.location
-    weather_station_type = GenericAssetType.query.filter(
-        GenericAssetType.name == "weather station"
-    ).one_or_none()
+    weather_station_type = db.session.execute(
+        select(GenericAssetType).filter_by(name="weather station")
+    ).scalar_one_or_none()
     farther_weather_station = GenericAsset(
         name="Test weather station farther away",
         generic_asset_type=weather_station_type,

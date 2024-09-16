@@ -1,8 +1,8 @@
 import os
 import pytest
 
-from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.cli.tests.utils import get_click_commands
+from flexmeasures.tests.utils import get_test_sensor
 
 
 @pytest.mark.skip_github
@@ -93,13 +93,13 @@ def test_show_asset(app, fresh_db, setup_generic_assets_fresh_db):
 def test_plot_beliefs(app, fresh_db, setup_beliefs_fresh_db):
     from flexmeasures.cli.data_show import plot_beliefs
 
-    sensor = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    sensor = get_test_sensor(fresh_db)
 
     runner = app.test_cli_runner()
     result = runner.invoke(
         plot_beliefs,
         [
-            "--sensor-id",
+            "--sensor",
             sensor.id,
             "--start",
             "2021-03-28T16:00+01",
@@ -130,7 +130,7 @@ def test_cli_help(app):
 def test_export_chart(app, fresh_db, setup_beliefs_fresh_db, _format):
     from flexmeasures.cli.data_show import chart
 
-    sensor = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    sensor = get_test_sensor(fresh_db)
     sensor_id = sensor.id
 
     runner = app.test_cli_runner()

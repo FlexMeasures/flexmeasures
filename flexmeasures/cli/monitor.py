@@ -14,7 +14,9 @@ from sentry_sdk import (
     capture_message as capture_message_for_sentry,
     set_context as set_sentry_context,
 )
+from sqlalchemy import select
 
+from flexmeasures.data import db
 from flexmeasures.data.models.task_runs import LatestTaskRun
 from flexmeasures.data.models.user import User
 from flexmeasures.utils.time_utils import server_now
@@ -115,7 +117,7 @@ def monitor_latest_run(task, custom_message):
     for t in task:
         task_name = t[0]
         app.logger.info(f"Checking latest run of task {task_name} ...")
-        latest_run: LatestTaskRun = LatestTaskRun.query.get(task_name)
+        latest_run: LatestTaskRun = db.session.get(LatestTaskRun, task_name)
         if latest_run is None:
             msg = f"Task {task_name} has no last run and thus cannot be monitored. Is it configured properly?"
             send_task_monitoring_alert(task_name, msg, custom_msg=custom_message)
@@ -247,10 +249,9 @@ def monitor_last_seen(
     last_seen_delta = timedelta(minutes=maximum_minutes_since_last_seen)
 
     # find users we haven't seen in the given time window
-    users: list[User] = User.query.filter(
-        User.last_seen_at < datetime.utcnow() - last_seen_delta
+    users: list[User] = db.session.scalars(
+        select(User).filter(User.last_seen_at < datetime.utcnow() - last_seen_delta)
     ).all()
-
     # role filters
     if account_role is not None:
         users = [user for user in users if user.account.has_role(account_role)]

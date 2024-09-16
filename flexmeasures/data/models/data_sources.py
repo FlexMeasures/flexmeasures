@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Any, List, Dict
+from typing import TYPE_CHECKING, Any, ClassVar
 from sqlalchemy.ext.mutable import MutableDict
 
 import timely_beliefs as tb
+
+from packaging.version import Version
 
 from flexmeasures.data import db
 from flask import current_app
@@ -90,10 +92,10 @@ class DataGenerator:
         elif len(kwargs) == 0:
             self._config = self._config_schema.load({})
 
-    def _compute(self, **kwargs) -> List[Dict[str, Any]]:
+    def _compute(self, **kwargs) -> list[dict[str, Any]]:
         raise NotImplementedError()
 
-    def compute(self, parameters: dict | None = None, **kwargs) -> List[Dict[str, Any]]:
+    def compute(self, parameters: dict | None = None, **kwargs) -> list[dict[str, Any]]:
         """The configuration `parameters` stores dynamic parameters, parameters that, if
         changed, DO NOT trigger the creation of a new DataSource. Static parameters, such as
         the topology of an energy system, can go into `config`.
@@ -226,7 +228,7 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         viewonly=True,
     )
 
-    _data_generator: DataGenerator | None = None
+    _data_generator: ClassVar[DataGenerator | None] = None
 
     def __init__(
         self,
@@ -363,3 +365,27 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
     def set_attribute(self, attribute: str, value):
         self.attributes[attribute] = value
+
+
+def keep_latest_version(data_sources: list[DataSource]) -> list[DataSource]:
+    """
+    Filters the given list of data sources to only include the latest version
+    of each unique combination of (name, type, and model).
+    """
+    sources = dict()
+
+    for source in data_sources:
+        key = (source.name, source.type, source.model)
+        if key not in sources:
+            sources[key] = source
+        else:
+            sources[key] = max(
+                [source, sources[key]],
+                key=lambda x: Version(x.version if x.version else "0.0.0"),
+            )
+
+    last_version_sources = []
+    for source in sources.values():
+        last_version_sources.append(source)
+
+    return last_version_sources

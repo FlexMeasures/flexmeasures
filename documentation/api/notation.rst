@@ -6,20 +6,58 @@ Notation
 This page helps you to construct messages to the FlexMeasures API. Please consult the endpoint documentation first. Here we dive into topics useful across endpoints.
 
 
-Singular vs plural keys
+.. _variable_quantities:
+
+Variable quantities
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-Throughout this document, keys are written in singular if a single value is listed, and written in plural if multiple values are listed, for example:
+Many API fields deal with variable quantities, for example, :ref:`flex-model <flex_models_and_schedulers>` and :ref:`flex-context <flex_context>` fields.
+Unless stated otherwise, values of such fields can take one of the following forms:
 
-.. code-block:: json
+- A fixed quantity, to describe steady constraints such as a physical power capacity.
+  For example:
 
-    {
-        "keyToValue": "this is a single value",
-        "keyToValues": ["this is a value", "and this is a second value"]
-    }
+  .. code-block:: json
 
-The API, however, does not distinguish between singular and plural key notation.
+     {
+         "power-capacity": "15 kW"
+     }
 
+- A variable quantity defined at specific moments in time, to describe dynamic constraints/preferences such as target states of charge.
+
+  .. code-block:: json
+
+     {
+         "soc-targets": [
+             {"datetime": "2024-02-05T08:00:00+01:00", "value": "8.2 kWh"},
+             ...
+             {"datetime": "2024-02-05T13:00:00+01:00", "value": "2.2 kWh"}
+         ]
+     }
+
+- A variable quantity defined for specific time ranges, to describe dynamic constraints/preferences such as usage forecasts.
+
+  .. code-block:: json
+
+     {
+         "soc-usage": [
+             {"start": "2024-02-05T08:00:00+01:00", "duration": "PT2H", "value": "10.1 kW"},
+             ...
+             {"start": "2024-02-05T13:00:00+01:00", "end": "2024-02-05T13:15:00+01:00", "value": "10.3 kW"}
+         ]
+     }
+
+  Note the two distinct ways of specifying a time period (``"end"`` + ``"duration"`` also works).
+
+- A reference to a sensor that records a variable quantity, which allows cross-referencing to dynamic contexts that are already recorded as sensor data in FlexMeasures. For instance, a site's contracted consumption capacity that changes over time.
+
+  .. code-block:: json
+
+     {
+         "site-consumption-capacity": {"sensor": 55}
+     }
+
+  The unit of the data is specified on the sensor.
 
 Sensors and entity addresses
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -151,104 +189,6 @@ In all current versions of the FlexMeasures API, only equidistant timeseries dat
 - only the array notation should be used (first notation from above),
 - "start" should be a timestamp on the hour or a multiple of the sensor resolution thereafter (e.g. "16:10" works if the resolution is 5 minutes), and
 - "duration" should also be a multiple of the sensor resolution.
-
-
-.. _describing_flexibility:
-
-Describing flexibility
-^^^^^^^^^^^^^^^^^^^^^^^
-
-FlexMeasures computes schedules for energy systems that consist of multiple devices that consume and/or produce electricity.
-We model a device as an asset with a power sensor, and compute schedules only for flexible devices, while taking into account inflexible devices.
-
-To compute a schedule, FlexMeasures first needs to assess the flexibility state of the system.
-This is described by the `flex model` (information about the state and possible actions of the flexible device) and the `flex-context`
-(information about the system as a whole, in order to assess the value of activating flexibility).
-
-This information goes beyond the usual time series recorded by an asset's sensors. It's being sent through the API when triggering schedule computation.
-Some parts of it can be persisted on the asset & sensor model as attributes (that's design work in progress). 
-
-We distinguish the information with two groups:
-
-Flex model
-""""""""""""
-
-The flexibility model describes to the scheduler what the flexible asset's state is,
-and what constraints or preferences should be taken into account.
-Which type of flexibility model is relevant to a scheduler usually relates to the type of device.
-
-Usually, not the whole flexibility model is needed.
-FlexMeasures can infer missing values in the flex model, and even get them (as default) from the sensor's attributes.
-This means that API and CLI users don't have to send the whole flex model every time.
-
-Here are the three types of flexibility models you can expect to be built-in:
-
-1) For **storage devices** (e.g. batteries, and :abbr:`EV (electric vehicle)` batteries connected to charge points), the schedule deals with the state of charge (SOC).
-    
-   The possible flexibility parameters are:
-
-   - ``soc-at-start`` (defaults to 0)
-   - ``soc-unit`` (kWh or MWh)
-   - ``soc-min`` (defaults to 0)
-   - ``soc-max`` (defaults to max soc target)
-   - ``soc-minima`` (defaults to NaN values)
-   - ``soc-maxima`` (defaults to NaN values)
-   - ``soc-targets`` (defaults to NaN values)
-   - ``roundtrip-efficiency`` (defaults to 100%)
-   - ``charging-efficiency`` (defaults to 100%)
-   - ``discharging-efficiency`` (defaults to 100%)
-   - ``storage-efficiency`` (defaults to 100%) [#]_
-   - ``prefer-charging-sooner`` (defaults to True, also signals a preference to discharge later)
-   - ``power-capacity`` (defaults to the Sensor attribute ``capacity_in_mw``)
-
-    .. [#] The storage efficiency (e.g. 95% or 0.95) to use for the schedule is applied over each time step equal to the sensor resolution. For example, a storage efficiency of 95 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of :math:`0.95^{1/24} = 0.997865`.
-
-   For some examples, see the :ref:`v2g` use case and `the API documentation for triggering schedules <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_.
-
-2) For **processes**
-   
-    - ``power``: nominal power of the load.
-    - ``duration``: time that the load last.
-    - ``optimization_sense``: objective of the scheduler, to maximize or minimize.
-    - ``time_restrictions``: time periods in which the load cannot be schedule to.
-    - ``process_type``: INFLEXIBLE, BREAKABLE or SHIFTABLE.
-
-
-3) For **buffer devices** (e.g. thermal energy storage systems connected to heat pumps), use the same flexibility parameters described above for storage devices. Here are some tips to model a buffer with these parameters:
-
-   - Describe the thermal energy content in kWh or MWh.
-   - Set ``soc-minima`` to the accumulative usage forecast.
-   - Set ``charging-efficiency`` to the sensor describing the :abbr:`COP (coefficient of performance)` values.
-   - Set ``storage-efficiency`` to a value below 100% to model (heat) loss.
-
-
-In addition, folks who write their own custom scheduler (see :ref:`plugin_customization`) might also require their custom flexibility model.
-That's no problem, FlexMeasures will let the scheduler decide which flexibility model is relevant and how it should be validated. 
-
-.. note:: We also aim to model situations with more than one flexible asset, with different types of flexibility.
-     This is ongoing architecture design work, and therefore happens in development settings, until we are happy 
-     with the outcomes. Thoughts welcome :) 
-
-
-Flex context
-"""""""""""""
-
-With the flexibility context, we aim to describe the system in which the flexible assets operates:
-
-- ``inflexible-device-sensors`` ― power sensors that are relevant, but not flexible, such as a sensor recording rooftop solar power connected behind the main meter, whose production falls under the same contract as the flexible device(s) being scheduled
-- ``consumption-price-sensor`` ― the sensor which defines costs/revenues of consuming energy
-- ``production-price-sensor`` ― the sensor which defines cost/revenues of producing energy
-- ``site-power-capacity`` ― defaults to the Asset attribute ``capacity_in_mw`` ― maximum/minimum achievable power at the grid connection point [#asymmetric]_.
-- ``site-consumption-capacity`` ― defaults to the Asset attribute ``consumption_capacity_in_mw`` ― maximum consumption power at the grid connection point [#consumption]_. If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-consumption-capacity`` will be used.
-- ``site-production-capacity`` ― defaults to the Asset attribute ``production_capacity_in_mw`` ― maximum production power at the grid connection point [#production]_.  If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-production-capacity`` will be used.
-
-These should be independent on the asset type and consequently also do not depend on which scheduling algorithm is being used.
-
-.. [#asymmetric] ``site-consumption-capacity`` and ``site-production-capacity`` allow defining asymmetric contracted transport capacities for each direction (i.e. production and consumption).
-.. [#production] Example: with a connection capacity (``site-power-capacity``) of 1 MVA (apparent power) and a production capacity (``site-production-capacity``) of 400 kW (active power), the scheduler will make sure that the grid outflow doesn't exceed 400 kW.
-.. [#consumption] Example: with a connection capacity (``site-power-capacity``) of 1 MVA (apparent power) and a consumption capacity (``site-consumption-capacity``) of 800 kW (active power), the scheduler will make sure that the grid inflow doesn't exceed 800 kW.
-
-.. warning:: If no (symmetric, consumption and production) site capacity is defined (also not as defaults), the scheduler will not enforce any bound on the site power.
 
 
 .. _beliefs:

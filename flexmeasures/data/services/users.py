@@ -14,10 +14,13 @@ from email_validator import (
 from email_validator.deliverability import validate_email_deliverability
 from flask_security.utils import hash_password
 from werkzeug.exceptions import NotFound
+from sqlalchemy import select, delete
 
 from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import User, Role, Account
+from flexmeasures.utils.time_utils import server_now
 
 
 class InvalidFlexMeasuresUser(Exception):
@@ -26,7 +29,7 @@ class InvalidFlexMeasuresUser(Exception):
 
 def get_user(id: str) -> User:
     """Get a user, raise if not found."""
-    user: User = User.query.filter_by(id=int(id)).one_or_none()
+    user: User = db.session.get(User, int(id))
     if user is None:
         raise NotFound
     return user
@@ -42,24 +45,27 @@ def get_users(
     The role_name parameter allows to filter by role.
     Set only_active to False if you also want non-active users.
     """
-    user_query = User.query
+    user_query = select(User)
 
     if account_name is not None:
-        account = Account.query.filter(Account.name == account_name).one_or_none()
+        account = db.session.execute(
+            select(Account).filter_by(name=account_name)
+        ).scalar_one_or_none()
         if not account:
             raise NotFound(f"There is no account named {account_name}!")
-        user_query = user_query.filter(User.account == account)
+        user_query = user_query.filter_by(account=account)
 
     if only_active:
         user_query = user_query.filter(User.active.is_(True))
 
     if role_name is not None:
-        role = Role.query.filter(Role.name == role_name).one_or_none()
+        role = db.session.execute(
+            select(Role).filter_by(name=role_name)
+        ).scalar_one_or_none()
         if role:
             user_query = user_query.filter(User.flexmeasures_roles.contains(role))
 
-    users = user_query.all()
-
+    users = db.session.scalars(user_query).all()
     if account_role_name is not None:
         users = [u for u in users if u.account.has_role(account_role_name)]
 
@@ -125,10 +131,14 @@ def create_user(  # noqa: C901
         username = kwargs.pop("username").strip()
 
     # Check integrity explicitly before anything happens
-    existing_user_by_email = User.query.filter_by(email=email).one_or_none()
+    existing_user_by_email = db.session.execute(
+        select(User).filter_by(email=email)
+    ).scalar_one_or_none()
     if existing_user_by_email is not None:
         raise InvalidFlexMeasuresUser("User with email %s already exists." % email)
-    existing_user_by_username = User.query.filter_by(username=username).one_or_none()
+    existing_user_by_username = db.session.execute(
+        select(User).filter_by(username=username)
+    ).scalar_one_or_none()
     if existing_user_by_username is not None:
         raise InvalidFlexMeasuresUser(
             "User with username %s already exists." % username
@@ -139,11 +149,25 @@ def create_user(  # noqa: C901
         raise InvalidFlexMeasuresUser(
             "Cannot create user without knowing the name of the account which this user is associated with."
         )
-    account = db.session.query(Account).filter_by(name=account_name).one_or_none()
+    account = db.session.execute(
+        select(Account).filter_by(name=account_name)
+    ).scalar_one_or_none()
+    active_user_id, active_user_name = None, None
+    if hasattr(current_user, "id"):
+        active_user_id, active_user_name = current_user.id, current_user.username
     if account is None:
         print(f"Creating account {account_name} ...")
         account = Account(name=account_name)
         db.session.add(account)
+        db.session.flush()
+        account_audit_log = AuditLog(
+            event_datetime=server_now(),
+            event=f"Account {account_name} created",
+            active_user_id=active_user_id,
+            active_user_name=active_user_name,
+            affected_account_id=account.id,
+        )
+        db.session.add(account_audit_log)
 
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
     kwargs.update(password=hash_password(password), email=email, username=username)
@@ -169,6 +193,17 @@ def create_user(  # noqa: C901
 
     # create data source
     db.session.add(DataSource(user=user))
+    db.session.flush()
+
+    user_audit_log = AuditLog(
+        event_datetime=server_now(),
+        event=f"User {user.username} created",
+        active_user_id=active_user_id,
+        active_user_name=active_user_name,
+        affected_user_id=user.id,
+        affected_account_id=account.id,
+    )
+    db.session.add(user_audit_log)
 
     return user
 
@@ -183,6 +218,18 @@ def set_random_password(user: User):
         [random.choice(string.ascii_lowercase) for _ in range(24)]
     )
     update_password(user, new_random_password)
+
+    active_user_id, active_user_name = None, None
+    if hasattr(current_user, "id"):
+        active_user_id, active_user_name = current_user.id, current_user.username
+    user_audit_log = AuditLog(
+        event_datetime=server_now(),
+        event=f"Password reset for user {user.username}",
+        active_user_id=active_user_id,
+        active_user_name=active_user_name,
+        affected_user_id=user.id,
+    )
+    db.session.add(user_audit_log)
 
 
 def remove_cookie_and_token_access(user: User):
@@ -207,7 +254,31 @@ def delete_user(user: User):
     """
     if hasattr(current_user, "id") and user.id == current_user.id:
         raise Exception("You cannot delete yourself.")
+
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
     user_datastore.delete_user(user)
-    db.session.delete(user)
+    db.session.execute(delete(User).filter_by(id=user.id))
     current_app.logger.info("Deleted %s." % user)
+
+    active_user_id, active_user_name = None, None
+    if hasattr(current_user, "id"):
+        active_user_id, active_user_name = current_user.id, current_user.username
+    user_audit_log = AuditLog(
+        event_datetime=server_now(),
+        event=f"User {user.username} deleted",
+        active_user_id=active_user_id,
+        active_user_name=active_user_name,
+        affected_user_id=None,  # add the audit log record even if the user is gone
+        affected_account_id=user.account_id,
+    )
+    db.session.add(user_audit_log)
+
+
+def get_audit_log_records(user: User):
+    """
+    Get history of user actions
+    """
+    audit_log_records = (
+        db.session.query(AuditLog).filter_by(affected_user_id=user.id).all()
+    )
+    return audit_log_records

@@ -11,6 +11,7 @@ import click
 from sqlalchemy import JSON, String, cast, literal
 from flask import current_app
 from rq.job import Job
+from sqlalchemy import select
 
 from flexmeasures import Sensor, Asset
 from flexmeasures.data import db
@@ -68,7 +69,7 @@ def get_asset_or_sensor_from_ref(asset_or_sensor: dict):
             f"Unrecognized class `{asset_or_sensor['class']}`. Please, consider using GenericAsset or Sensor."
         )
 
-    return klass.query.get(asset_or_sensor["id"])
+    return db.session.get(klass, asset_or_sensor["id"])
 
 
 def get_or_create_model(
@@ -112,12 +113,12 @@ def get_or_create_model(
             pass
 
     # See if the model already exists as a db row
-    model_query = model_class.query.filter_by(**filter_by_kwargs)
+    model_query = select(model_class).filter_by(**filter_by_kwargs)
     for kw, arg in filter_json_kwargs.items():
         model_query = model_query.filter(
             cast(getattr(model_class, kw), String) == cast(literal(arg, JSON()), String)
         )
-    model = model_query.one_or_none()
+    model = db.session.execute(model_query).scalar_one_or_none()
 
     # Create the model and add it to the database if it didn't already exist
     if model is None:
