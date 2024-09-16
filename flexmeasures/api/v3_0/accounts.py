@@ -1,5 +1,4 @@
 from __future__ import annotations
-import click
 
 from flask_classful import FlaskView, route
 from flexmeasures.data import db
@@ -14,7 +13,6 @@ from flexmeasures.data.models.user import Account
 from flexmeasures.data.services.accounts import get_accounts, get_audit_log_records
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.data.schemas.account import AccountSchema
-from flexmeasures.utils.validation_utils import validate_color_hex, validate_url
 from flexmeasures.utils.time_utils import server_now
 
 """
@@ -193,23 +191,6 @@ class AccountAPI(FlaskView):
                     or new_consultant_account.id == account.id
                 ):
                     return {"errors": ["Invalid consultancy_account_id"]}, 422
-
-        # Validate color values
-        for color_name in ["primary_color", "secondary_color"]:
-            color_value = account_data.get(color_name)
-            if color_value:
-                try:
-                    validate_color_hex(None, "color", color_value)
-                except click.BadParameter:
-                    return {"errors": [f"Invalid {color_name}"]}, 400
-
-        # Validate logo_url
-        logo_url = account_data.get("logo_url")
-        if logo_url:
-            try:
-                validate_url(None, "logo_url", logo_url)
-            except click.BadParameter:
-                return {"errors": ["Invalid logo_url"]}, 400
 
         # Track modified fields
         fields_to_check = [
