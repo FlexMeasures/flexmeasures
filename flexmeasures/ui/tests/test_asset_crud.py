@@ -57,11 +57,11 @@ def test_asset_page(db, client, setup_assets, requests_mock, as_prosumer_user1):
     assert str(mock_asset["longitude"]).encode() in asset_page.data
     print("asset_page.data:\n%s" % asset_page.data)
     assert (
-        "storeStartDate = new Date('2022-10-02T00:00:00+02:00')".encode()
+        "storeStartDate = new Date('2022-10-01T00:00:00+02:00')".encode()
         in asset_page.data
     )
     assert (
-        "storeEndDate = new Date('2022-10-01T00:00:00+02:00')".encode()
+        "storeEndDate = new Date('2022-10-02T00:00:00+02:00')".encode()
         in asset_page.data
     )
 
