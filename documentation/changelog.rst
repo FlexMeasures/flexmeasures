@@ -4,6 +4,20 @@ FlexMeasures Changelog
 **********************
 
 
+v0.24.0 | October XX, 2024
+============================
+
+New features
+-------------
+
+Infrastructure / Support
+----------------------
+
+Bugfixes
+-----------
+
+
+
 v0.23.0 | September 18, 2024
 ============================
 
