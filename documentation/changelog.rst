@@ -4,8 +4,10 @@ FlexMeasures Changelog
 **********************
 
 
-v0.23.0 | August XX, 2024
+v0.23.0 | September 18, 2024
 ============================
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/023-data-insights-and-white-labelling/>`_.
 
 New features
 -------------
