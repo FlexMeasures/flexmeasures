@@ -9,10 +9,10 @@ v0.23.0 | August XX, 2024
 
 New features
 -------------
-* Added support for adding custom titles the graphs on the asset page. This works via an extension to the sensors_to_show format. [see `PR #1125 <https://github.com/FlexMeasures/flexmeasures/pull/1125>`_]
 * New chart type on sensor page: histogram [see `PR #1143 <https://github.com/FlexMeasures/flexmeasures/pull/1143>`_]
 * Add basic sensor info to sensor page [see `PR #1115 <https://github.com/FlexMeasures/flexmeasures/pull/1115>`_]
 * Add `Statistics` table on the sensor page and also add `api/v3_0/sensors/<id>/stats` endpoint to get sensor statistics [see `PR #1116 <https://github.com/FlexMeasures/flexmeasures/pull/1116>`_]
+* Added support for adding custom titles to the graphs on the asset page. This works via an extension to the sensors_to_show format. [see `PR #1125 <https://github.com/FlexMeasures/flexmeasures/pull/1125>`_ and `PR #1177 <https://github.com/FlexMeasures/flexmeasures/pull/1177>`_]
 * Support zoom-in action on the asset and sensor charts [see `PR #1130 <https://github.com/FlexMeasures/flexmeasures/pull/1130>`_]
 * Speed up loading the assets page, by making the pagination backend-based and adding support for that in the API, and by enabling to query all accounts one can see in a single call (for admins and consultants) [see `PR #988 <https://github.com/FlexMeasures/flexmeasures/pull/988>`_]
 * Added Primary and Secondary colors to account for white-labelled UI themes [see `PR #1137 <https://github.com/FlexMeasures/flexmeasures/pull/1137>`_]
@@ -34,6 +34,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Fix string length exceeding the 255-character limit in the `event` field of `AssetAuditLog` by truncating long updates and logging each field or attribute change individually. [see `PR #1162 <https://github.com/FlexMeasures/flexmeasures/pull/1162>`_]
 * Fix image carousel on the login page [see `PR #1154 <https://github.com/FlexMeasures/flexmeasures/pull/1154>`_]
 * Fix styling for User and Documentation menu items [see `PR #1140 <https://github.com/FlexMeasures/flexmeasures/pull/1140>`_]
 * Fix styling of sensor page, especially the graph chart dropdown [see `PR #1148 <https://github.com/FlexMeasures/flexmeasures/pull/1148>`_]
