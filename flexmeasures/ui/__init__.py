@@ -23,6 +23,7 @@ from flexmeasures.utils.flexmeasures_inflection import (
 from flexmeasures.utils.time_utils import (
     localized_datetime_str,
     naturalized_datetime_str,
+    to_utc_timestamp,
 )
 from flexmeasures.utils.app_utils import (
     parse_config_entry_by_account_roles,
@@ -135,6 +136,7 @@ def add_jinja_filters(app):
     )  # Allow expression statements (e.g. for modifying lists)
     app.jinja_env.filters["localized_datetime"] = localized_datetime_str
     app.jinja_env.filters["naturalized_datetime"] = naturalized_datetime_str
+    app.jinja_env.filters["to_utc_timestamp"] = to_utc_timestamp
     app.jinja_env.filters["naturalized_timedelta"] = naturaldelta
     app.jinja_env.filters["capitalize"] = capitalize
     app.jinja_env.filters["pluralize"] = pluralize

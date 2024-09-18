@@ -14,6 +14,7 @@
                 <table id="user_audit_log" class="table table-striped table-responsive paginate nav-on-click" title="View data">
                     <thead>
                         <tr>
+                            <th style="display:none;">Event Timestamp</th> <!-- Hidden UTC Timestamp column for sorting, Keep at position zero -->
                             <th>Event Name</th>
                             <th>Event Datetime</th>
                             <th>Acting user</th>
@@ -22,6 +23,9 @@
                     <tbody>
                         {% for audit_log in audit_logs: %}
                         <tr>
+                            <td style="display:none;">
+                                {{ audit_log.event_datetime | to_utc_timestamp }} <!-- Hidden UTC Timestamp column for sorting, Keep at position zero -->
+                            </td>
                             <td>
                                 {{ audit_log.event }}
                             </td>
@@ -42,7 +46,7 @@
 
 <script>
     $(document).ready(function() {
-        $('#user_audit_log').DataTable({"order": [[ 1, "desc" ]]});
+        $('#user_audit_log').DataTable({"order": [[ 0, "desc" ]]}); // Sort by the hidden UTC Timestamp column
     });
 </script>
 
