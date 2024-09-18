@@ -7,6 +7,11 @@ FlexMeasures Changelog
 v0.23.0 | August XX, 2024
 ============================
 
+Bugfixes
+-----------
+
+* Add authorization check on sensors referred to in ``flex-model`` and ``flex-context`` fields [see `PR #1071 <https://github.com/FlexMeasures/flexmeasures/pull/1071>`_]
+
 New features
 -------------
 * New chart type on sensor page: histogram [see `PR #1143 <https://github.com/FlexMeasures/flexmeasures/pull/1143>`_]
