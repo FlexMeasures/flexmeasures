@@ -2,7 +2,7 @@ from __future__ import annotations
 from flask_classful import FlaskView, route
 from marshmallow import fields
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import and_, select, func
+from sqlalchemy import and_, or_, select, func
 from flask_sqlalchemy.pagination import SelectPagination
 from webargs.flaskparser import use_kwargs
 from flask_security import current_user, auth_required
@@ -51,6 +51,7 @@ class UserAPI(FlaskView):
             "include_inactive": fields.Bool(load_default=False),
             "page": fields.Int(load_default=None),
             "per_page": fields.Int(load_default=None),
+            "filter": fields.Str(load_default=None),
         },
         location="query",
     )
@@ -61,6 +62,7 @@ class UserAPI(FlaskView):
         include_inactive: bool = False,
         page: int | None = None,
         per_page: int | None = None,
+        filter: str | None = None,
     ):
         """
         API endpoint to list all users.
@@ -119,26 +121,26 @@ class UserAPI(FlaskView):
             accounts = [account]
         else:
             accounts = get_accessible_accounts()
+        filter_statement = UserModel.account_id.in_([a.id for a in accounts])
         if include_inactive:
+            filter_statement = and_(filter_statement, UserModel.active.is_(True))
+
+        if filter:
             filter_statement = and_(
-                UserModel.account_id.in_([a.id for a in accounts]),
+                filter_statement,
+                or_(
+                    UserModel.email.ilike(f"%{filter}%"),
+                    UserModel.username.ilike(f"%{filter}%"),
+                    UserModel.account.has(Account.name.ilike(f"%{filter}%")),
+                ),
             )
-        else:
-            filter_statement = and_(
-                UserModel.account_id.in_([a.id for a in accounts]),
-                UserModel.active.is_(True),
-            )
+
         num_records = db.session.scalar(
             select(func.count(UserModel.id)).where(filter_statement)
         )
         query = select(UserModel).where(filter_statement).order_by(UserModel.id)
 
         if page and per_page:
-            total_items: int = num_records
-            total_pages: int = (
-                total_items + per_page - 1
-            ) // per_page  # Calculate total pages
-
             paginated_users: SelectPagination = db.paginate(
                 query, per_page=per_page, page=page
             )
@@ -156,9 +158,9 @@ class UserAPI(FlaskView):
                 for user in paginated_users.items
             ]
             response: dict | list = {
-                "users": users_response,
-                "total_items": total_items,
-                "total_pages": total_pages,
+                "data": users_response,
+                "num-records": num_records,
+                "filtered-records": paginated_users.total,
             }
         else:
             users = db.session.execute(query).scalars().all()
