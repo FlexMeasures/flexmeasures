@@ -23,6 +23,7 @@ from flexmeasures.utils.flexmeasures_inflection import (
 from flexmeasures.utils.time_utils import (
     localized_datetime_str,
     naturalized_datetime_str,
+    to_utc_timestamp,
 )
 from flexmeasures.utils.app_utils import (
     parse_config_entry_by_account_roles,
@@ -46,6 +47,7 @@ def register_at(app: Flask):
     from flexmeasures.ui.crud.users import UserCrudUI
     from flexmeasures.ui.crud.accounts import AccountCrudUI
     from flexmeasures.ui.views.sensors import SensorUI
+    from flexmeasures.ui.utils.color_defaults import get_color_settings
 
     AssetCrudUI.register(app)
     UserCrudUI.register(app)
@@ -59,6 +61,11 @@ def register_at(app: Flask):
     )  # now registering the blueprint will affect all views
 
     register_rq_dashboard(app)
+
+    # Injects Flexmeasures default colors into all templates
+    @app.context_processor
+    def inject_global_vars():
+        return get_color_settings(None)
 
     @app.route("/favicon.ico")
     def favicon():
@@ -129,13 +136,14 @@ def add_jinja_filters(app):
     )  # Allow expression statements (e.g. for modifying lists)
     app.jinja_env.filters["localized_datetime"] = localized_datetime_str
     app.jinja_env.filters["naturalized_datetime"] = naturalized_datetime_str
+    app.jinja_env.filters["to_utc_timestamp"] = to_utc_timestamp
     app.jinja_env.filters["naturalized_timedelta"] = naturaldelta
     app.jinja_env.filters["capitalize"] = capitalize
     app.jinja_env.filters["pluralize"] = pluralize
     app.jinja_env.filters["parameterize"] = parameterize
     app.jinja_env.filters["isnull"] = pd.isnull
-    app.jinja_env.filters["hide_nan_if_desired"] = (
-        lambda x: ""
+    app.jinja_env.filters["hide_nan_if_desired"] = lambda x: (
+        ""
         if x in ("nan", "nan%", "NAN")
         and current_app.config.get("FLEXMEASURES_HIDE_NAN_IN_UI", False)
         else x
