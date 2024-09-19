@@ -103,9 +103,11 @@ def create_bar_chart_or_histogram_specs(
                     "detail": FIELD_DEFINITIONS["source"],
                     "opacity": {"value": 0.7},
                     "tooltip": [
-                        FIELD_DEFINITIONS["full_date"]
-                        if chart_type != "histogram"
-                        else None,
+                        (
+                            FIELD_DEFINITIONS["full_date"]
+                            if chart_type != "histogram"
+                            else None
+                        ),
                         {
                             **event_value_field_definition,
                             **dict(title=f"{capitalize(sensor.sensor_type)}"),
@@ -682,22 +684,26 @@ def create_line_layer(
     line_layer = {
         "mark": {
             "type": "line",
-            "interpolate": "step-after"
-            if event_resolution != timedelta(0)
-            else "linear",
+            "interpolate": (
+                "step-after" if event_resolution != timedelta(0) else "linear"
+            ),
             "clip": True,
         },
         "encoding": {
             "x": event_start_field_definition,
             "y": event_value_field_definition,
-            "color": sensor_field_definition if combine_legend else {
-                **sensor_field_definition,
-                "legend": {
-                    "orient": "right",
-                    "columns": 1,
-                    "direction": "vertical",
-                },
-            },
+            "color": (
+                sensor_field_definition
+                if combine_legend
+                else {
+                    **sensor_field_definition,
+                    "legend": {
+                        "orient": "right",
+                        "columns": 1,
+                        "direction": "vertical",
+                    },
+                }
+            ),
             "strokeDash": {
                 "scale": {
                     # Distinguish forecasters and schedulers by line stroke
