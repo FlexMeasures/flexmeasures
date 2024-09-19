@@ -571,6 +571,7 @@ def chart_for_multiple_sensors(
                 event_start_field_definition,
                 event_value_field_definition,
                 sensor_field_definition,
+                combine_legend=combine_legend,
             )
         ]
 
@@ -671,6 +672,7 @@ def create_line_layer(
     event_start_field_definition: dict,
     event_value_field_definition: dict,
     sensor_field_definition: dict,
+    combine_legend: bool,
 ):
     event_resolutions = list(set([sensor.event_resolution for sensor in sensors]))
     assert all(res == timedelta(0) for res in event_resolutions) or all(
@@ -688,7 +690,7 @@ def create_line_layer(
         "encoding": {
             "x": event_start_field_definition,
             "y": event_value_field_definition,
-            "color": {
+            "color": sensor_field_definition if combine_legend else {
                 **sensor_field_definition,
                 "legend": {
                     "orient": "right",
