@@ -319,8 +319,9 @@
     }
 
     async function embedAndLoad(chartSpecsPath, elementId, datasetName, previousResult, startDate, endDate) {
+        var combineLegend = 'true';
 
-        await vegaEmbed('#'+elementId, chartSpecsPath + 'dataset_name=' + datasetName + '&width=container&include_sensor_annotations=false&include_asset_annotations=false&chart_type=' + chartType, {{ chart_options | safe }})
+        await vegaEmbed('#'+elementId, chartSpecsPath + 'dataset_name=' + datasetName + '&combine_legend='+ combineLegend + '&width=container&include_sensor_annotations=false&include_asset_annotations=false&chart_type=' + chartType, {{ chart_options | safe }})
         .then(function (result) {
 
             // Create a custom menu item for exporting to CSV
