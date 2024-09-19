@@ -624,8 +624,6 @@ def chart_for_multiple_sensors(
                 "as": "source_name_and_id",
             },
         ],
-        spacing=100,
-        bounds="flush",
     )
     chart_specs["config"] = {
         "view": {"continuousWidth": 800, "continuousHeight": 150},
