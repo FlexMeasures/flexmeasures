@@ -688,7 +688,14 @@ def create_line_layer(
         "encoding": {
             "x": event_start_field_definition,
             "y": event_value_field_definition,
-            "color": sensor_field_definition,
+            "color": {
+                **sensor_field_definition,
+                "legend": {
+                    "orient": "right",
+                    "columns": 1,
+                    "direction": "vertical",
+                },
+            },
             "strokeDash": {
                 "scale": {
                     # Distinguish forecasters and schedulers by line stroke
