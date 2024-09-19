@@ -14,6 +14,7 @@ from flexmeasures.auth.policy import check_access
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import User as UserModel, Account
 from flexmeasures.api.common.schemas.users import AccountIdField, UserIdField
+from flexmeasures.api.common.schemas.pagination import PageField
 from flexmeasures.api.v3_0.assets import get_accessible_accounts
 from flexmeasures.data.schemas.account import AccountSchema
 from flexmeasures.data.schemas.users import UserSchema
@@ -49,8 +50,8 @@ class UserAPI(FlaskView):
         {
             "account": AccountIdField(data_key="account_id", load_default=None),
             "include_inactive": fields.Bool(load_default=False),
-            "page": fields.Int(load_default=None),
-            "per_page": fields.Int(load_default=None),
+            "page": PageField(load_default=None),
+            "per_page": PageField(load_default=None),
             "filter": fields.Str(load_default=None),
         },
         location="query",
@@ -105,24 +106,13 @@ class UserAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        if (page is None and per_page is not None) or (
-            page is not None and per_page is None
-        ):
-            return {"message": "Both page and per_page should be passed"}, 400
-
-        if page and per_page:
-            if page < 1:
-                return {"message": "Page number should be greater than 0"}, 400
-            if per_page < 1:
-                return {"message": "Per page number should be greater than 0"}, 400
-
         if account is not None:
             check_access(account, "read")
             accounts = [account]
         else:
             accounts = get_accessible_accounts()
         filter_statement = UserModel.account_id.in_([a.id for a in accounts])
-        if include_inactive:
+        if include_inactive is False:
             filter_statement = and_(filter_statement, UserModel.active.is_(True))
 
         if filter:
@@ -135,12 +125,12 @@ class UserAPI(FlaskView):
                 ),
             )
 
-        num_records = db.session.scalar(
-            select(func.count(UserModel.id)).where(filter_statement)
-        )
         query = select(UserModel).where(filter_statement).order_by(UserModel.id)
 
-        if page and per_page:
+        if page is not None:
+            num_records = db.session.scalar(
+                select(func.count(UserModel.id)).where(filter_statement)
+            )
             paginated_users: SelectPagination = db.paginate(
                 query, per_page=per_page, page=page
             )

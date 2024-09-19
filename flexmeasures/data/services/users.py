@@ -15,7 +15,6 @@ from email_validator.deliverability import validate_email_deliverability
 from flask_security.utils import hash_password
 from werkzeug.exceptions import NotFound
 from sqlalchemy import select, delete
-from flask_sqlalchemy.pagination import SelectPagination
 
 from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataSource
@@ -34,48 +33,6 @@ def get_user(id: str) -> User:
     if user is None:
         raise NotFound
     return user
-
-
-def get_users(
-    account_name: str | None = None,
-    role_name: str | None = None,
-    account_role_name: str | None = None,
-    only_active: bool = True,
-    page: int | None = None,
-    per_page: int | None = None,
-) -> SelectPagination | list[User]:
-    """Return a list of users.
-    The role_name parameter allows to filter by role.
-    Set only_active to False if you also want non-active users.
-    """
-    user_query = select(User)
-
-    if account_name is not None:
-        account = db.session.execute(
-            select(Account).filter_by(name=account_name)
-        ).scalar_one_or_none()
-        if not account:
-            raise NotFound(f"There is no account named {account_name}!")
-        user_query = user_query.filter_by(account=account)
-
-    if only_active:
-        user_query = user_query.filter(User.active.is_(True))
-
-    if role_name is not None:
-        role = db.session.execute(
-            select(Role).filter_by(name=role_name)
-        ).scalar_one_or_none()
-        if role:
-            user_query = user_query.filter(User.flexmeasures_roles.contains(role))
-    if page and per_page:
-        users: SelectPagination = db.paginate(user_query, per_page=per_page, page=page)
-    else:
-        users = db.session.execute(user_query).scalars().all()
-
-    if account_role_name is not None:
-        users = [u for u in users if u.account.has_role(account_role_name)]
-
-    return users
 
 
 def find_user_by_email(user_email: str, keep_in_session: bool = True) -> User:

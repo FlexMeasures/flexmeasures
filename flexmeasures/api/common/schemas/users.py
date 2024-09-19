@@ -38,8 +38,8 @@ class UserIdField(fields.Integer):
     """
 
     def __init__(self, *args, **kwargs):
-        kwargs["load_default"] = (
-            lambda: current_user if not current_user.is_anonymous else None
+        kwargs["load_default"] = lambda: (
+            current_user if not current_user.is_anonymous else None
         )
         super().__init__(*args, **kwargs)
 
