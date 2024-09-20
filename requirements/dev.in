@@ -1,7 +1,7 @@
 pre-commit
 # we're pinning the following two to what .pre-commit-config.yaml says
-black==22.3.0
-flake8==4.0.1
+black==22.10.0
+flake8==6.0.0
 flake8-blind-except
 mypy
 pytest-runner

@@ -69,14 +69,22 @@ def sort_dict(unsorted_dict: dict) -> dict:
     return sorted_dict
 
 
+# This function is used for sensors_to_show in follow-up PR it will be moved and renamed to flatten_sensors_to_show
 def flatten_unique(nested_list_of_objects: list) -> list:
-    """Returns unique objects in a possibly nested (one level) list of objects.
+    """
+    Get unique sensor IDs from a list of `sensors_to_show`.
 
-    Preserves the original order in which unique objects first occurred.
+    Handles:
+    - Lists of sensor IDs
+    - Dictionaries with a `sensors` key
+    - Nested lists (one level)
 
-    For example:
-    >>> flatten_unique([1, [2, 20, 6], 10, [6, 2]])
-    <<< [1, 2, 20, 6, 10]
+    Example:
+        Input:
+        [1, [2, 20, 6], 10, [6, 2], {"title":None,"sensors": [10, 15]}, 15]
+
+        Output:
+        [1, 2, 20, 6, 10, 15]
     """
     all_objects = []
     for s in nested_list_of_objects:

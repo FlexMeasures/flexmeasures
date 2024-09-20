@@ -319,8 +319,9 @@
     }
 
     async function embedAndLoad(chartSpecsPath, elementId, datasetName, previousResult, startDate, endDate) {
+        var combineLegend = 'true';
 
-        await vegaEmbed('#'+elementId, chartSpecsPath + 'dataset_name=' + datasetName + '&width=container&include_sensor_annotations=false&include_asset_annotations=false&chart_type=' + chartType, {{ chart_options | safe }})
+        await vegaEmbed('#'+elementId, chartSpecsPath + 'dataset_name=' + datasetName + '&combine_legend='+ combineLegend + '&width=container&include_sensor_annotations=false&include_asset_annotations=false&chart_type=' + chartType, {{ chart_options | safe }})
         .then(function (result) {
 
             // Create a custom menu item for exporting to CSV
@@ -519,8 +520,8 @@
                             nearEnd,
                             end,
                         );
-                    }
-
+                    } 
+                    
                     // No use looking for data in years outside timerange of sensor data
                     picker.setOptions({
                         dropdowns: {
@@ -528,6 +529,15 @@
                             maxYear: end.getFullYear(),
                         },
                     });
+                    
+                    // Persist the range on the datepicker UI so correct range is shown when the user opens the datepicker
+                    var end_time = '{{event_ends_before}}';
+                    var new_end_date = new Date(end_time);
+                    // Adjusting the date by deducting one day to account for timezone discrepancies.
+                    new_end_date.setDate(new_end_date.getDate() - 1);
+                    var start_time = '{{event_starts_after}}';
+                    var new_start_date = new Date(start_time);
+                    picker.setDateRange(decodeURIComponent(toIsoString(new_start_date)), decodeURIComponent(toIsoString(new_end_date)));
                 };
             });
         }
