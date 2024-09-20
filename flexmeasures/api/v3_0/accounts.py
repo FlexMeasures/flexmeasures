@@ -211,7 +211,7 @@ class AccountAPI(FlaskView):
         for k, v in account_data.items():
             setattr(account, k, v)
 
-        event_message = f"Account {account.name} has been updated. Modified fields: {modified_fields_str}"
+        event_message = f"Account Updated, Field: {modified_fields_str}"
 
         # Add Audit log
         account_audit_log = AuditLog(
