@@ -4,7 +4,7 @@
 #
 #    pip-compile --constraint=requirements/3.8/app.txt --constraint=requirements/3.8/test.txt --output-file=requirements/3.8/dev.txt requirements/dev.in
 #
-black==24.8.0
+black==22.10.0
     # via -r requirements/dev.in
 cfgv==3.4.0
     # via pre-commit
@@ -19,7 +19,7 @@ filelock==3.16.1
     # via
     #   -c requirements/3.8/app.txt
     #   virtualenv
-flake8==7.1.1
+flake8==6.0.0
     # via -r requirements/dev.in
 flake8-blind-except==0.2.1
     # via -r requirements/dev.in
@@ -39,7 +39,6 @@ packaging==24.1
     # via
     #   -c requirements/3.8/app.txt
     #   -c requirements/3.8/test.txt
-    #   black
     #   setuptools-scm
 pathspec==0.12.1
     # via black
@@ -49,9 +48,9 @@ platformdirs==4.3.6
     #   virtualenv
 pre-commit==3.5.0
     # via -r requirements/dev.in
-pycodestyle==2.12.1
+pycodestyle==2.10.0
     # via flake8
-pyflakes==3.2.0
+pyflakes==3.0.1
     # via flake8
 pyinstrument==4.7.3
     # via -r requirements/dev.in
