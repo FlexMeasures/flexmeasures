@@ -26,6 +26,7 @@ rq
 rq-dashboard>=0.8.0.2
 # the following uses environment markers (see PEP 496)
 rq-win; os_name == 'nt' or os_name == 'win'
+# Note: we sometimes limit redis due to our use of fakeredis (check their pyproject.toml)
 redis>4.5
 tldextract
 pyomo>=5.6
