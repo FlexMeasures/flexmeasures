@@ -38,7 +38,11 @@ from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField
 from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
-from flexmeasures.data.services.sensors import get_sensors, get_sensor_stats
+from flexmeasures.data.services.sensors import (
+    get_sensors,
+    get_sensor_stats,
+    get_all_accessible_sensors,
+)
 from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
     get_data_source_for_job,
@@ -65,12 +69,16 @@ class SensorAPI(FlaskView):
             "account": AccountIdField(
                 data_key="account_id", load_default=AccountIdField.load_current
             ),
+            "all_accessible": fields.Boolean(required=False, missing=False),
+            "filter": fields.Str(load_default=None),
         },
         location="query",
     )
     @permission_required_for_context("read", ctx_arg_name="account")
     @as_json
-    def index(self, account: Account):
+    def index(
+        self, account: Account, all_accessible: bool = False, filter: str | None = None
+    ):
         """API endpoint to list all sensors of an account.
 
         .. :quickref: Sensor; Download sensor list
@@ -106,7 +114,11 @@ class SensorAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        sensors = get_sensors(account=account)
+        if all_accessible:
+            sensors = get_all_accessible_sensors(account, filter)
+        else:
+            sensors = get_sensors(account, filter=filter)
+
         return sensors_schema.dump(sensors), 200
 
     @route("/data", methods=["POST"])

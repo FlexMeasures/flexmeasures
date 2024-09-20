@@ -22,6 +22,39 @@ from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.schemas.reporting import StatusSchema
 from flexmeasures.utils.time_utils import server_now
+from flexmeasures.auth.policy import check_access
+
+
+def get_all_accessible_sensors(account: Account, filter: str | None = None):
+    accounts: list = [account] if account else []
+    account_ids: list = [acc.id for acc in accounts]
+    consultancy_account_ids: list = [acc.consultancy_account_id for acc in accounts]
+    account_ids.extend(consultancy_account_ids)
+
+    sensor_query = (
+        sa.select(Sensor)
+        .join(GenericAsset, Sensor.generic_asset_id == GenericAsset.id)
+        .join(Account, GenericAsset.owner)
+        .filter(
+            sa.or_(
+                GenericAsset.account_id.in_(account_ids),
+                GenericAsset.account_id.is_(None),
+            )
+        )
+    )
+
+    if filter:
+        filter_statement = f"%{filter}%"
+        sensor_query = sensor_query.filter(
+            sa.or_(
+                Sensor.name.ilike(filter_statement),
+                Account.name.ilike(filter_statement),
+            )
+        )
+
+    sensors = db.session.scalars(sensor_query).all()
+
+    return [sensor for sensor in sensors if check_access(sensor, "read") is None]
 
 
 def get_sensors(
@@ -29,6 +62,7 @@ def get_sensors(
     include_public_assets: bool = False,
     sensor_id_allowlist: list[int] | None = None,
     sensor_name_allowlist: list[str] | None = None,
+    filter: str | None = None,
 ) -> list[Sensor]:
     """Return a list of Sensor objects that belong to the given account, and/or public sensors.
 
@@ -60,6 +94,15 @@ def get_sensors(
         sensor_query = sensor_query.filter(Sensor.id.in_(sensor_id_allowlist))
     if sensor_name_allowlist:
         sensor_query = sensor_query.filter(Sensor.name.in_(sensor_name_allowlist))
+
+    if filter:
+        print("===================filter:", filter)
+        sensor_query = sensor_query.join(Account, GenericAsset.owner).filter(
+            sa.or_(
+                Sensor.name.ilike(filter),
+                Account.name.ilike(filter),
+            )
+        )
     return db.session.scalars(sensor_query).all()
 
 
