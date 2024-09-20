@@ -9,6 +9,8 @@ v0.24.0 | October XX, 2024
 
 New features
 -------------
+* The asset beliefs chart can now be configured to not combine legends, but show them per plot [see `PR #1176 <https://github.com/FlexMeasures/flexmeasures/pull/1176>`_]
+
 
 Infrastructure / Support
 ----------------------
