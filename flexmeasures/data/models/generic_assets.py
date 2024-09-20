@@ -148,9 +148,11 @@ class GenericAsset(db.Model, AuthModelMixin):
         """
         return {
             "create-children": f"account:{self.account_id}",
-            "read": self.owner.__acl__()["read"]
-            if self.account_id is not None
-            else EVERY_LOGGED_IN_USER,
+            "read": (
+                self.owner.__acl__()["read"]
+                if self.account_id is not None
+                else EVERY_LOGGED_IN_USER
+            ),
             "update": f"account:{self.account_id}",
             "delete": (f"account:{self.account_id}", "role:account-admin"),
         }
@@ -347,13 +349,9 @@ class GenericAsset(db.Model, AuthModelMixin):
         self,
         annotations_after: datetime | None = None,
         annotations_before: datetime | None = None,
-        source: DataSource
-        | list[DataSource]
-        | int
-        | list[int]
-        | str
-        | list[str]
-        | None = None,
+        source: (
+            DataSource | list[DataSource] | int | list[int] | str | list[str] | None
+        ) = None,
         annotation_type: str = None,
         include_account_annotations: bool = False,
         as_frame: bool = False,
@@ -390,13 +388,9 @@ class GenericAsset(db.Model, AuthModelMixin):
         annotations_after: datetime | None = None,
         annotation_ends_before: datetime | None = None,  # deprecated
         annotations_before: datetime | None = None,
-        source: DataSource
-        | list[DataSource]
-        | int
-        | list[int]
-        | str
-        | list[str]
-        | None = None,
+        source: (
+            DataSource | list[DataSource] | int | list[int] | str | list[str] | None
+        ) = None,
         annotation_type: str = None,
     ) -> int:
         """Count the number of annotations assigned to this asset."""
@@ -435,13 +429,9 @@ class GenericAsset(db.Model, AuthModelMixin):
         event_ends_before: datetime | None = None,
         beliefs_after: datetime | None = None,
         beliefs_before: datetime | None = None,
-        source: DataSource
-        | list[DataSource]
-        | int
-        | list[int]
-        | str
-        | list[str]
-        | None = None,
+        source: (
+            DataSource | list[DataSource] | int | list[int] | str | list[str] | None
+        ) = None,
         include_data: bool = False,
         dataset_name: str | None = None,
         resolution: str | timedelta | None = None,
@@ -507,13 +497,9 @@ class GenericAsset(db.Model, AuthModelMixin):
         beliefs_before: datetime | None = None,
         horizons_at_least: timedelta | None = None,
         horizons_at_most: timedelta | None = None,
-        source: DataSource
-        | list[DataSource]
-        | int
-        | list[int]
-        | str
-        | list[str]
-        | None = None,
+        source: (
+            DataSource | list[DataSource] | int | list[int] | str | list[str] | None
+        ) = None,
         most_recent_beliefs_only: bool = True,
         most_recent_events_only: bool = False,
         as_json: bool = False,
@@ -569,13 +555,17 @@ class GenericAsset(db.Model, AuthModelMixin):
                     bdf["belief_horizon"] = bdf.belief_horizons.to_numpy()
                     df = simplify_index(
                         bdf,
-                        index_levels_to_columns=["source"]
-                        if most_recent_beliefs_only
-                        else ["belief_time", "source"],
+                        index_levels_to_columns=(
+                            ["source"]
+                            if most_recent_beliefs_only
+                            else ["belief_time", "source"]
+                        ),
                     ).set_index(
-                        ["source"]
-                        if most_recent_beliefs_only
-                        else ["belief_time", "source"],
+                        (
+                            ["source"]
+                            if most_recent_beliefs_only
+                            else ["belief_time", "source"]
+                        ),
                         append=True,
                     )
                     df["sensor"] = sensor  # or some JSONifiable representation
@@ -585,13 +575,17 @@ class GenericAsset(db.Model, AuthModelMixin):
             else:
                 df = simplify_index(
                     BeliefsDataFrame(),
-                    index_levels_to_columns=["source"]
-                    if most_recent_beliefs_only
-                    else ["belief_time", "source"],
+                    index_levels_to_columns=(
+                        ["source"]
+                        if most_recent_beliefs_only
+                        else ["belief_time", "source"]
+                    ),
                 ).set_index(
-                    ["source"]
-                    if most_recent_beliefs_only
-                    else ["belief_time", "source"],
+                    (
+                        ["source"]
+                        if most_recent_beliefs_only
+                        else ["belief_time", "source"]
+                    ),
                     append=True,
                 )
                 df["sensor"] = {}  # ensure the same columns as a non-empty frame

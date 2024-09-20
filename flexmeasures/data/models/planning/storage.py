@@ -132,9 +132,11 @@ class MetaStorageScheduler(Scheduler):
             up_deviation_prices = get_continuous_series_sensor_or_quantity(
                 variable_quantity=consumption_price,
                 actuator=sensor,
-                unit=consumption_price.unit
-                if isinstance(consumption_price, Sensor)
-                else str(consumption_price.units),
+                unit=(
+                    consumption_price.unit
+                    if isinstance(consumption_price, Sensor)
+                    else str(consumption_price.units)
+                ),
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
@@ -153,9 +155,11 @@ class MetaStorageScheduler(Scheduler):
             down_deviation_prices = get_continuous_series_sensor_or_quantity(
                 variable_quantity=production_price,
                 actuator=sensor,
-                unit=production_price.unit
-                if isinstance(production_price, Sensor)
-                else str(production_price.units),
+                unit=(
+                    production_price.unit
+                    if isinstance(production_price, Sensor)
+                    else str(production_price.units)
+                ),
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
@@ -276,17 +280,17 @@ class MetaStorageScheduler(Scheduler):
         if sensor.get_attribute("is_strictly_non_negative"):
             device_constraints[0]["derivative max"] = 0
         else:
-            device_constraints[0][
-                "derivative max"
-            ] = get_continuous_series_sensor_or_quantity(
-                variable_quantity=consumption_capacity,
-                actuator=sensor,
-                unit="MW",
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                fallback_attribute="consumption_capacity",
-                max_value=power_capacity_in_mw,
+            device_constraints[0]["derivative max"] = (
+                get_continuous_series_sensor_or_quantity(
+                    variable_quantity=consumption_capacity,
+                    actuator=sensor,
+                    unit="MW",
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    fallback_attribute="consumption_capacity",
+                    max_value=power_capacity_in_mw,
+                )
             )
 
         soc_gain = self.flex_model.get("soc_gain", [])

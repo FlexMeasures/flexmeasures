@@ -103,9 +103,11 @@ def create_bar_chart_or_histogram_specs(
                     "detail": FIELD_DEFINITIONS["source"],
                     "opacity": {"value": 0.7},
                     "tooltip": [
-                        FIELD_DEFINITIONS["full_date"]
-                        if chart_type != "histogram"
-                        else None,
+                        (
+                            FIELD_DEFINITIONS["full_date"]
+                            if chart_type != "histogram"
+                            else None
+                        ),
                         {
                             **event_value_field_definition,
                             **dict(title=f"{capitalize(sensor.sensor_type)}"),
@@ -678,9 +680,9 @@ def create_line_layer(
     line_layer = {
         "mark": {
             "type": "line",
-            "interpolate": "step-after"
-            if event_resolution != timedelta(0)
-            else "linear",
+            "interpolate": (
+                "step-after" if event_resolution != timedelta(0) else "linear"
+            ),
             "clip": True,
         },
         "encoding": {
