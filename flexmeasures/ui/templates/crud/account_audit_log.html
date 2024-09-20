@@ -15,8 +15,8 @@
                 <thead>
                     <tr>
                         <th style="display:none;">Event Timestamp</th><!-- Hidden UTC Timestamp column for sorting, Keep at position zero -->
-                        <th>Event Name</th>
                         <th>Event Datetime</th>
+                        <th>Event Name</th>
                         <th>Active user id</th>
                     </tr>
                 </thead>
@@ -27,10 +27,10 @@
                             {{ audit_log.event_datetime | to_utc_timestamp }} <!-- Hidden UTC Timestamp column for sorting, Keep at position zero -->
                         </td>
                         <td>
-                            {{ audit_log.event }}
+                            {{ audit_log.event_datetime }}
                         </td>
                         <td>
-                            {{ audit_log.event_datetime }}
+                            {{ audit_log.event }}
                         </td>
                         <td>
                             {{ audit_log.active_user_id }}
@@ -47,10 +47,10 @@
 <script>
     $(document).ready(function() {
         $('#account_audit_log').DataTable({
-            "order": [[ 1, "desc" ]], //Default sort by "Event Name" column
+            "order": [[ 0, "desc" ]], //Default sort by "Event Datetime" column
             "columnDefs": [
             { 
-                "targets": 2,  // Target the visible "Event Datetime" column
+                "targets": 1,  // Target the visible "Event Datetime" column
                 "orderData": 0  // Use data from the first column (UTC Timestamp) for sorting
             }
         ]
