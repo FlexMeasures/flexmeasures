@@ -46,8 +46,16 @@
 
 <script>
     $(document).ready(function() {
-        $('#user_audit_log').DataTable({"order": [[ 0, "desc" ]]}); // Sort by the hidden UTC Timestamp column
+        $('#user_audit_log').DataTable({
+        "order": [[ 0, "desc" ]],  // Default sort by the hidden UTC Timestamp column
+        "columnDefs": [
+            { 
+                "targets": 2,  // Target the visible "Event Datetime" column
+                "orderData": 0  // Use data from the first column (UTC Timestamp) for sorting
+            }
+        ]
     });
+});
 </script>
 
 {% endblock %}

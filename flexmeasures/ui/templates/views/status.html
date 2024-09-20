@@ -140,7 +140,15 @@
 <!-- sort scheduling and forecasting jobs by hidden 'Created at Timestamp' column -->
 <script>
     $(document).ready(function() {
-        $('#scheduling_forecasting_jobs').DataTable({"order": [[ 0, "desc" ]]}); // Sort by the hidden UTC Timestamp column
+        $('#scheduling_forecasting_jobs').DataTable({
+        "order": [[ 0, "desc" ]],  // Default sort by the hidden UTC Timestamp column
+        "columnDefs": [
+            { 
+                "targets": 1,  // Target the visible "Created at" column
+                "orderData": 0  // Use data from the first column (UTC Timestamp) for sorting
+            }
+        ]
     });
+});
 </script>
 {% endblock %}
