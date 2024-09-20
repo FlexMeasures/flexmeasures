@@ -13,6 +13,8 @@ New features
 Infrastructure / Support
 ----------------------
 
+* For MacOS developers, install HiGHS solver automatically [see `PR #1187 <https://github.com/FlexMeasures/flexmeasures/pull/1187>`_]
+
 Bugfixes
 -----------
 
