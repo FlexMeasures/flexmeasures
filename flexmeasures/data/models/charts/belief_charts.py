@@ -481,6 +481,7 @@ def chart_for_multiple_sensors(
     sensors_to_show: list["Sensor" | list["Sensor"] | dict[str, "Sensor"]],  # noqa F821
     event_starts_after: datetime | None = None,
     event_ends_before: datetime | None = None,
+    combine_legend: bool = True,
     **override_chart_specs: dict,
 ):
     # Determine the shared data resolution
@@ -507,18 +508,18 @@ def chart_for_multiple_sensors(
             ]
         }
 
-    # Set up field definition for sensor descriptions
-    sensor_field_definition = FIELD_DEFINITIONS["sensor_description"].copy()
-    sensor_field_definition["scale"] = dict(
-        domain=[sensor.to_dict()["description"] for sensor in all_shown_sensors]
-    )
-
     sensors_specs = []
     for entry in sensors_to_show:
         title = entry.get("title")
         sensors = entry.get("sensors")
         # List the sensors that go into one row
         row_sensors: list["Sensor"] = sensors  # noqa F821
+
+        # Set up field definition for sensor descriptions
+        sensor_field_definition = FIELD_DEFINITIONS["sensor_description"].copy()
+        sensor_field_definition["scale"] = dict(
+            domain=[sensor.to_dict()["description"] for sensor in row_sensors]
+        )
 
         # Derive the unit that should be shown
         unit = determine_shared_unit(row_sensors)
@@ -572,6 +573,7 @@ def chart_for_multiple_sensors(
                 event_start_field_definition,
                 event_value_field_definition,
                 sensor_field_definition,
+                combine_legend=combine_legend,
             )
         ]
 
@@ -625,14 +627,15 @@ def chart_for_multiple_sensors(
                 "as": "source_name_and_id",
             },
         ],
-        spacing=100,
-        bounds="flush",
     )
     chart_specs["config"] = {
         "view": {"continuousWidth": 800, "continuousHeight": 150},
         "autosize": {"type": "fit-x", "contains": "padding"},
     }
-    chart_specs["resolve"] = {"scale": {"x": "shared"}}
+    if combine_legend is True:
+        chart_specs["resolve"] = {"scale": {"x": "shared"}}
+    else:
+        chart_specs["resolve"] = {"scale": {"color": "independent"}}
     for k, v in override_chart_specs.items():
         chart_specs[k] = v
     return chart_specs
@@ -671,6 +674,7 @@ def create_line_layer(
     event_start_field_definition: dict,
     event_value_field_definition: dict,
     sensor_field_definition: dict,
+    combine_legend: bool,
 ):
     event_resolutions = list(set([sensor.event_resolution for sensor in sensors]))
     assert all(res == timedelta(0) for res in event_resolutions) or all(
@@ -688,7 +692,18 @@ def create_line_layer(
         "encoding": {
             "x": event_start_field_definition,
             "y": event_value_field_definition,
-            "color": sensor_field_definition,
+            "color": (
+                sensor_field_definition
+                if combine_legend
+                else {
+                    **sensor_field_definition,
+                    "legend": {
+                        "orient": "right",
+                        "columns": 1,
+                        "direction": "vertical",
+                    },
+                }
+            ),
             "strokeDash": {
                 "scale": {
                     # Distinguish forecasters and schedulers by line stroke
