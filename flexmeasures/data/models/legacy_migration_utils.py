@@ -2,6 +2,7 @@
 This module is part of our data model migration (see https://github.com/SeitaBV/flexmeasures/projects/9).
 It will become obsolete when Assets, Markets and WeatherSensors can no longer be initialized.
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -26,9 +27,11 @@ def copy_old_sensor_attributes(
         a: getattr(old_sensor_type, a) for a in old_sensor_type_attributes
     }
     new_model_attributes_from_old_sensor = {
-        a: getattr(old_sensor, a)
-        if not isinstance(getattr(old_sensor, a), datetime)
-        else getattr(old_sensor, a).isoformat()
+        a: (
+            getattr(old_sensor, a)
+            if not isinstance(getattr(old_sensor, a), datetime)
+            else getattr(old_sensor, a).isoformat()
+        )
         for a in old_sensor_attributes
     }
     return dict(

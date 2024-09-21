@@ -412,6 +412,7 @@ class AssetAPI(FlaskView):
             "beliefs_after": AwareDateTimeField(format="iso", required=False),
             "beliefs_before": AwareDateTimeField(format="iso", required=False),
             "include_data": fields.Boolean(required=False),
+            "combine_legend": fields.Boolean(required=False, load_default=True),
             "dataset_name": fields.Str(required=False),
             "height": fields.Str(required=False),
             "width": fields.Str(required=False),

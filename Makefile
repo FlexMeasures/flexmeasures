@@ -54,10 +54,7 @@ install-for-test:
 ifneq ($(pinned), no)
 	pip-sync requirements/${PYV}/app.txt requirements/${PYV}/test.txt
 else
-	# cutting off the -c inter-layer dependency (that's pip-tools specific)
-	tail -n +3 requirements/test.in >> temp-test.in
-	pip install --upgrade -r requirements/app.in -r temp-test.in
-	rm temp-test.in
+	pip install --upgrade -r requirements/app.in -r requirements/test.in
 endif
 	make install-flexmeasures
 # Locally install HiGS on macOS
