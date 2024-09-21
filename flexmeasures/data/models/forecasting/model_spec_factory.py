@@ -90,7 +90,8 @@ class TBSeriesSpecs(SeriesSpecs):
 
     def check_data(self, df: pd.DataFrame):
         """Raise error if data is empty or contains nan values.
-        Here, other than in load_series, we can show the query, which is quite helpful."""
+        Here, other than in load_series, we can show the query, which is quite helpful.
+        """
         if df.empty:
             raise MissingData(
                 "No values found in database for the requested %s data. It's no use to continue I'm afraid."
@@ -120,8 +121,9 @@ def create_initial_model_specs(  # noqa: C901
     transform_to_normal: bool = True,
     use_regressors: bool = True,  # If false, do not create regressor specs
     use_periodicity: bool = True,  # If false, do not create lags given the asset's periodicity
-    custom_model_params: dict
-    | None = None,  # overwrite model params, most useful for tests or experiments
+    custom_model_params: (
+        dict | None
+    ) = None,  # overwrite model params, most useful for tests or experiments
     time_series_class: type | None = TimedBelief,
 ) -> ModelSpecs:
     """
@@ -221,9 +223,9 @@ def _parameterise_forecasting_by_asset_and_asset_type(
     params["resolution"] = sensor.event_resolution
 
     if transform_to_normal:
-        params[
-            "outcome_var_transformation"
-        ] = get_normalization_transformation_from_sensor_attributes(sensor)
+        params["outcome_var_transformation"] = (
+            get_normalization_transformation_from_sensor_attributes(sensor)
+        )
 
     return params
 
