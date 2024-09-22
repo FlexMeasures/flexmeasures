@@ -358,8 +358,13 @@ class AssetAPI(FlaskView):
                         )
                 continue
             audit_log_data.append(f"Field: {k}, From: {getattr(db_asset, k)}, To: {v}")
-        audit_log_event = f"Updated asset '{db_asset.name}': {db_asset.id} fields: {'; '.join(audit_log_data)}"
-        AssetAuditLog.add_record(db_asset, audit_log_event)
+
+        # Iterate over each field or attribute updates and create a separate audit log entry for each.
+        for event in audit_log_data:
+            audit_log_event = (
+                f"Updated asset '{db_asset.name}': {db_asset.id}; fields: {event}"
+            )
+            AssetAuditLog.add_record(db_asset, audit_log_event)
 
         for k, v in asset_data.items():
             setattr(db_asset, k, v)
@@ -407,6 +412,7 @@ class AssetAPI(FlaskView):
             "beliefs_after": AwareDateTimeField(format="iso", required=False),
             "beliefs_before": AwareDateTimeField(format="iso", required=False),
             "include_data": fields.Boolean(required=False),
+            "combine_legend": fields.Boolean(required=False, load_default=True),
             "dataset_name": fields.Str(required=False),
             "height": fields.Str(required=False),
             "width": fields.Str(required=False),

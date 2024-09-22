@@ -4,15 +4,35 @@ FlexMeasures Changelog
 **********************
 
 
-v0.23.0 | August XX, 2024
+v0.24.0 | October XX, 2024
 ============================
 
 New features
 -------------
-* Added support for adding custom titles the graphs on the asset page. This works via an extension to the sensors_to_show format. [see `PR #1125 <https://github.com/FlexMeasures/flexmeasures/pull/1125>`_]
+* The asset beliefs chart can now be configured to not combine legends, but show them per plot [see `PR #1176 <https://github.com/FlexMeasures/flexmeasures/pull/1176>`_]
+
+
+Infrastructure / Support
+----------------------
+
+* For MacOS developers, install HiGHS solver automatically [see `PR #1187 <https://github.com/FlexMeasures/flexmeasures/pull/1187>`_]
+
+Bugfixes
+-----------
+
+
+
+v0.23.0 | September 18, 2024
+============================
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/023-data-insights-and-white-labelling/>`_.
+
+New features
+-------------
 * New chart type on sensor page: histogram [see `PR #1143 <https://github.com/FlexMeasures/flexmeasures/pull/1143>`_]
 * Add basic sensor info to sensor page [see `PR #1115 <https://github.com/FlexMeasures/flexmeasures/pull/1115>`_]
 * Add `Statistics` table on the sensor page and also add `api/v3_0/sensors/<id>/stats` endpoint to get sensor statistics [see `PR #1116 <https://github.com/FlexMeasures/flexmeasures/pull/1116>`_]
+* Added support for adding custom titles to the graphs on the asset page. This works via an extension to the sensors_to_show format. [see `PR #1125 <https://github.com/FlexMeasures/flexmeasures/pull/1125>`_ and `PR #1177 <https://github.com/FlexMeasures/flexmeasures/pull/1177>`_]
 * Support zoom-in action on the asset and sensor charts [see `PR #1130 <https://github.com/FlexMeasures/flexmeasures/pull/1130>`_]
 * Speed up loading the assets page, by making the pagination backend-based and adding support for that in the API, and by enabling to query all accounts one can see in a single call (for admins and consultants) [see `PR #988 <https://github.com/FlexMeasures/flexmeasures/pull/988>`_]
 * Speed up loading the users page, by making the pagination backend-based and adding support for that in the API [see `PR #1160 <https://github.com/FlexMeasures/flexmeasures/pull/1160>`_]
@@ -35,13 +55,16 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Fix string length exceeding the 255-character limit in the `event` field of `AssetAuditLog` by truncating long updates and logging each field or attribute change individually. [see `PR #1162 <https://github.com/FlexMeasures/flexmeasures/pull/1162>`_]
 * Fix image carousel on the login page [see `PR #1154 <https://github.com/FlexMeasures/flexmeasures/pull/1154>`_]
 * Fix styling for User and Documentation menu items [see `PR #1140 <https://github.com/FlexMeasures/flexmeasures/pull/1140>`_]
 * Fix styling of sensor page, especially the graph chart dropdown [see `PR #1148 <https://github.com/FlexMeasures/flexmeasures/pull/1148>`_]
 * Fix posting a single instantaneous belief [see `PR #1129 <https://github.com/FlexMeasures/flexmeasures/pull/1129>`_]
 * Allow reassigning a public asset to private ownership using the ``flexmeasures edit transfer-ownership`` CLI command [see `PR #1123 <https://github.com/FlexMeasures/flexmeasures/pull/1123>`_]
 * Fix missing value on spring :abbr:`DST (Daylight Saving Time)` transition for ``PandasReporter`` using daily sensor as input [see `PR #1122 <https://github.com/FlexMeasures/flexmeasures/pull/1122>`_]
+* Fix date range persistence on session across different pages [see `PR #1165 <https://github.com/FlexMeasures/flexmeasures/pull/1165>`_]
 * Fix issue with account creation failing when the --logo-url flag is omitted. [see related PRs `PR #1167 <https://github.com/FlexMeasures/flexmeasures/pull/1167>`_ and `PR #1145 <https://github.com/FlexMeasures/flexmeasures/pull/1145>`_]
+* Fix ordering of audit logs (asset, account) and job list on status page [see PR `PR #1179 <https://github.com/FlexMeasures/flexmeasures/pull/1179>_` and `PR #1183 <https://github.com/FlexMeasures/flexmeasures/pull/1183>`_]
 
 v0.22.0 | June 29, 2024
 ============================

@@ -37,8 +37,11 @@ def test_dict_with_title_and_multiple_sensors():
 
 def test_invalid_sensor_string_input():
     schema = SensorsToShowSchema()
-    with pytest.raises(ValidationError, match="Invalid JSON string."):
-        schema.deserialize("invalid_string")
+    with pytest.raises(
+        ValidationError,
+        match="Invalid item type in 'sensors_to_show'. Expected int, list, or dict.",
+    ):
+        schema.deserialize(["invalid_string"])
 
 
 def test_invalid_sensor_in_list():
@@ -85,3 +88,38 @@ def test_string_json_input():
         {"title": "Test2", "sensors": [3]},
     ]
     assert schema.deserialize(input_value) == expected_output
+
+
+# New test cases for misspelled or missing title and mixed sensor/sensors formats
+
+
+def test_dict_missing_title_key():
+    schema = SensorsToShowSchema()
+    input_value = [{"sensor": 42}]
+    with pytest.raises(ValidationError, match="Dictionary must contain a 'title' key."):
+        schema.deserialize(input_value)
+
+
+def test_dict_misspelled_title_key():
+    schema = SensorsToShowSchema()
+    input_value = [{"titel": "Temperature", "sensor": 42}]  # Misspelled 'title'
+    with pytest.raises(ValidationError, match="Dictionary must contain a 'title' key."):
+        schema.deserialize(input_value)
+
+
+def test_dict_with_sensor_as_list():
+    schema = SensorsToShowSchema()
+    input_value = [{"title": "Temperature", "sensor": [42]}]
+    with pytest.raises(ValidationError, match="'sensor' value must be an integer."):
+        schema.deserialize(input_value)
+
+
+def test_dict_with_sensors_as_int():
+    schema = SensorsToShowSchema()
+    input_value = [
+        {"title": "Temperature", "sensors": 42}
+    ]  # 'sensors' should be a list, not an int
+    with pytest.raises(
+        ValidationError, match="'sensors' value must be a list of integers."
+    ):
+        schema.deserialize(input_value)
