@@ -820,7 +820,7 @@
           this.id = id;
           this.username = `<span>${username}</span>`;
           this.email = `<a href="mailto:${email}" title="Mail this user">${email}</a>`;
-          this.roles = roles.map((role) => role.name).join(", ");
+          this.roles = roles.map((role) => role).join(", ");
           this.url = `/users/${id}`;
       
           if (account == null) this.account = "PUBLIC";
