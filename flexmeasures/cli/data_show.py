@@ -666,10 +666,10 @@ def plot_beliefs(
         title += f"\nOnly beliefs made before: {belief_time_before}."
     if source:
         title += f"\nSource: {source.description}"
-    title += f"\nThe time resolution (x-axis) is {naturaldelta(resolution)}."
 
     uniplot.plot(
-        [df[col] for col in df.columns],
+        ys=[df[col] for col in df.columns],
+        xs=[df.index for _ in df.columns],
         title=title,
         color=True,
         lines=True,
