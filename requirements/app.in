@@ -60,7 +60,7 @@ marshmallow-polyfield
 marshmallow-sqlalchemy>=0.23.1
 webargs
 # Minimum version that supports datetimes on the (x-)axis.
-uniplot>=0.12.5
+uniplot>=0.12.1
 # >=2.5.2: https://github.com/marshmallow-code/flask-marshmallow/issues/262
 Flask-SQLAlchemy>=2.5.2
 # flask should be after all the flask plugins, because setup might find they ARE flask
