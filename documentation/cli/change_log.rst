@@ -4,6 +4,11 @@
 FlexMeasures CLI Changelog
 **********************
 
+since v0.24.0 | October XX, 2024
+=================================
+
+* ``flexmeasures show beliefs`` shows datetime values on x-axis labels.
+
 since v0.22.0 | June 29, 2024
 =================================
 
