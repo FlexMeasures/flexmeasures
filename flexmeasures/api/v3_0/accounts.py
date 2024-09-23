@@ -200,13 +200,14 @@ class AccountAPI(FlaskView):
             "logo_url",
             "consultancy_account_id",
         ]
-
-        # Compile modified fields string
-        modified_fields_str = ", ".join(
-            field
+        modified_fields = {
+            field: getattr(account, field)
             for field in fields_to_check
             if account_data.get(field) != getattr(account, field)
-        )
+        }
+
+        # Compile modified fields string
+        modified_fields_str = ", ".join(modified_fields.keys())
 
         for k, v in account_data.items():
             setattr(account, k, v)
