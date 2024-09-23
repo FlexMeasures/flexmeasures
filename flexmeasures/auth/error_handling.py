@@ -5,6 +5,7 @@ Beware: There is a historical confusion of naming between authentication and aut
         Names of Responses have to be kept as they were called in original W3 protocols.
         See explanation below.
 """
+
 from __future__ import annotations
 
 from typing import Callable

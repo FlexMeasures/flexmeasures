@@ -674,9 +674,9 @@ def plot_beliefs(
         color=True,
         lines=True,
         y_unit=shared_unit,
-        legend_labels=df.columns
-        if shared_unit
-        else [f"{col} in {s.unit}" for col in df.columns],
+        legend_labels=(
+            df.columns if shared_unit else [f"{col} in {s.unit}" for col in df.columns]
+        ),
     )
     if filepath is not None:
         df.columns = pd.MultiIndex.from_arrays(

@@ -55,6 +55,7 @@ def test_asset_page(db, client, setup_assets, requests_mock, as_prosumer_user1):
     assert ("Edit %s" % mock_asset["name"]).encode() in asset_page.data
     assert str(mock_asset["latitude"]).encode() in asset_page.data
     assert str(mock_asset["longitude"]).encode() in asset_page.data
+    print("asset_page.data:\n%s" % asset_page.data)
     assert (
         "storeStartDate = new Date('2022-10-01T00:00:00+02:00')".encode()
         in asset_page.data
