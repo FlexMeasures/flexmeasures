@@ -10,13 +10,15 @@ from flexmeasures.data.models.data_sources import DataSource
 
 
 def parse_source_arg(
-    source: DataSource
-    | int
-    | str
-    | Sequence[DataSource]
-    | Sequence[int]
-    | Sequence[str]
-    | None,
+    source: (
+        DataSource
+        | int
+        | str
+        | Sequence[DataSource]
+        | Sequence[int]
+        | Sequence[str]
+        | None
+    ),
 ) -> list[DataSource] | None:
     """Parse the "source" argument by looking up DataSources corresponding to any given ids or names.
 

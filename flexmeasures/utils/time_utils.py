@@ -411,3 +411,50 @@ def apply_offset_chain(
     if isinstance(dt, datetime):
         return _dt.to_pydatetime()
     return _dt
+
+
+def to_utc_timestamp(value):
+    """
+    Convert a datetime object or string to a UTC timestamp (seconds since epoch).
+
+    The dt parameter can be either naive or tz-aware. We assume UTC in the naive case.
+    If dt parameter is a string, it is expected to look like 'Sun, 28 Apr 2024 08:55:58 GMT'.
+    String format is supported for cases when we process JSON from internal API responses,
+    e.g., ui/crud/users auditlog router.
+
+
+    Returns:
+    - Float: seconds since Unix epoch (1970-01-01 00:00:00 UTC)
+    - None: if input is None
+
+
+    Hint: This can be set as a jinja filter to display UTC timestamps in the app, e.g.:
+    app.jinja_env.filters['to_utc_timestamp'] = to_utc_timestamp
+
+    Example usage:
+    >>> to_utc_timestamp(datetime(2024, 4, 28, 8, 55, 58))
+    1714294558.0
+    >>> to_utc_timestamp("Sun, 28 Apr 2024 08:55:58 GMT")
+    1714294558.0
+    >>> to_utc_timestamp(None)
+    None
+    """
+    if value is None:
+        return None
+    if isinstance(value, str):
+        # Parse string datetime in the format 'Tue, 13 Dec 2022 14:06:23 GMT'
+        try:
+            value = datetime.strptime(value, "%a, %d %b %Y %H:%M:%S %Z")
+        except ValueError:
+            # Return None or raise an error if the string is in an unexpected format
+            return None
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            # If naive, assume UTC
+            value = pd.Timestamp(value).tz_localize("utc")
+        else:
+            # Convert to UTC if already timezone-aware
+            value = pd.Timestamp(value).tz_convert("utc")
+
+    # Return Unix timestamp (seconds since epoch)
+    return value.timestamp()

@@ -69,9 +69,9 @@ def message_for_trigger_schedule(
         "duration": "PT24H",  # Will be extended in case of targets that would otherwise lie beyond the schedule's end
     }
     if unknown_prices:
-        message[
-            "start"
-        ] = "2040-01-01T00:00:00+01:00"  # We have no beliefs in our test database about 2040 prices
+        message["start"] = (
+            "2040-01-01T00:00:00+01:00"  # We have no beliefs in our test database about 2040 prices
+        )
 
     message["flex-model"] = {
         "soc-at-start": 12.1,  # in kWh, according to soc-unit

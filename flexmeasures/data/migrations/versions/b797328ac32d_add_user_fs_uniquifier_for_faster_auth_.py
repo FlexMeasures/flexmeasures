@@ -5,6 +5,7 @@ Revises: 3db3e71d101d
 Create Date: 2020-08-24 19:01:04.337956
 
 """
+
 import uuid
 
 from alembic import op

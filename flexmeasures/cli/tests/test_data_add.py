@@ -514,12 +514,12 @@ def test_add_storage_schedule(
 
     if storage_power_capacity is not None:
         if storage_power_capacity == "sensor":
-            cli_input_params[
-                "storage-consumption-capacity"
-            ] = f"sensor:{power_capacity_sensor}"
-            cli_input_params[
-                "storage-production-capacity"
-            ] = f"sensor:{power_capacity_sensor}"
+            cli_input_params["storage-consumption-capacity"] = (
+                f"sensor:{power_capacity_sensor}"
+            )
+            cli_input_params["storage-production-capacity"] = (
+                f"sensor:{power_capacity_sensor}"
+            )
         else:
 
             cli_input_params["storage-consumption-capacity"] = "700kW"
@@ -527,9 +527,9 @@ def test_add_storage_schedule(
 
     if storage_efficiency is not None:
         if storage_efficiency == "sensor":
-            cli_input_params[
-                "storage-efficiency"
-            ] = f"sensor:{storage_efficiency_sensor}"
+            cli_input_params["storage-efficiency"] = (
+                f"sensor:{storage_efficiency_sensor}"
+            )
         else:
 
             cli_input_params["storage-efficiency"] = "90%"
