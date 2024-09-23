@@ -839,7 +839,9 @@
           const tableTitle = $("#usersTableTitle");
           // Initialize the DataTable
           const table = $("#usersTable").dataTable({
+            order: [[3, "desc"]],
             serverSide: true,
+            // make the table row vertically aligned with header
             columns: [
               { data: "username", title: "Username" },
               { data: "email", title: "Email" },
