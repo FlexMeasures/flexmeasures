@@ -3,7 +3,7 @@ from flask_classful import FlaskView, route
 from marshmallow import fields
 import marshmallow.validate as validate
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import and_, or_, select, func
+from sqlalchemy import and_, select, func
 from flask_sqlalchemy.pagination import SelectPagination
 from webargs.flaskparser import use_kwargs
 from flask_security import current_user, auth_required
@@ -15,7 +15,9 @@ from flexmeasures.auth.policy import check_access
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import User as UserModel, Account
 from flexmeasures.api.common.schemas.users import AccountIdField, UserIdField
+from flexmeasures.api.common.schemas.generic_assets import SearchFilterField
 from flexmeasures.api.v3_0.assets import get_accessible_accounts
+from flexmeasures.data.queries.users import query_users_by_search_terms
 from flexmeasures.data.schemas.account import AccountSchema
 from flexmeasures.data.schemas.users import UserSchema
 from flexmeasures.data.services.users import (
@@ -56,7 +58,7 @@ class UserAPI(FlaskView):
             "per_page": fields.Int(
                 required=False, validate=validate.Range(min=1), default=1
             ),
-            "filter": fields.Str(load_default=None),
+            "filter": SearchFilterField(required=False, default=None),
         },
         location="query",
     )
@@ -115,21 +117,15 @@ class UserAPI(FlaskView):
             accounts = [account]
         else:
             accounts = get_accessible_accounts()
+
         filter_statement = UserModel.account_id.in_([a.id for a in accounts])
+
         if include_inactive is False:
             filter_statement = and_(filter_statement, UserModel.active.is_(True))
 
-        if filter:
-            filter_statement = and_(
-                filter_statement,
-                or_(
-                    UserModel.email.ilike(f"%{filter}%"),
-                    UserModel.username.ilike(f"%{filter}%"),
-                    UserModel.account.has(Account.name.ilike(f"%{filter}%")),
-                ),
-            )
-
-        query = select(UserModel).where(filter_statement).order_by(UserModel.id)
+        query = query_users_by_search_terms(
+            search_terms=filter, filter_statement=filter_statement
+        )
 
         if page is not None:
             num_records = db.session.scalar(
