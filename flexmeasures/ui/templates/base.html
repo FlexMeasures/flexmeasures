@@ -362,7 +362,8 @@
         var dataPath = '/api/v3_0/assets/' + {{ asset.id }};
         var dataDevPath = '/api/dev/asset/' + {{ asset.id }};
         var datasetName = 'asset_' + {{ asset.id }};
-        {% if asset.sensors_to_show | length > 1 %}
+        {% set total_sensors = asset.sensors_to_show | map(attribute='sensors') | map('length') | sum %}
+        {% if total_sensors > 7 %}
             combineLegend = 'false';
         {% endif %}
     {% elif active_page == "sensors" %}
