@@ -1,6 +1,7 @@
 from __future__ import annotations
 from flask_classful import FlaskView, route
 from marshmallow import fields
+import marshmallow.validate as validate
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import and_, or_, select, func
 from flask_sqlalchemy.pagination import SelectPagination
@@ -14,7 +15,6 @@ from flexmeasures.auth.policy import check_access
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import User as UserModel, Account
 from flexmeasures.api.common.schemas.users import AccountIdField, UserIdField
-from flexmeasures.api.common.schemas.pagination import PageField
 from flexmeasures.api.v3_0.assets import get_accessible_accounts
 from flexmeasures.data.schemas.account import AccountSchema
 from flexmeasures.data.schemas.users import UserSchema
@@ -50,8 +50,12 @@ class UserAPI(FlaskView):
         {
             "account": AccountIdField(data_key="account_id", load_default=None),
             "include_inactive": fields.Bool(load_default=False),
-            "page": PageField(load_default=None),
-            "per_page": PageField(load_default=None),
+            "page": fields.Int(
+                required=False, validate=validate.Range(min=1), default=1
+            ),
+            "per_page": fields.Int(
+                required=False, validate=validate.Range(min=1), default=1
+            ),
             "filter": fields.Str(load_default=None),
         },
         location="query",
