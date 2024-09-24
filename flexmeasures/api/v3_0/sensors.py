@@ -14,7 +14,6 @@ from rq.job import Job, NoSuchJobError
 from timely_beliefs import BeliefsDataFrame
 from webargs.flaskparser import use_args, use_kwargs
 from sqlalchemy import delete, select, or_
-from flask_sqlalchemy.pagination import SelectPagination
 
 from flexmeasures.api.common.responses import (
     request_processed,
@@ -155,46 +154,36 @@ class SensorAPI(FlaskView):
                 sensor_query, search_terms=filter
             )
 
+        sensors = (
+            db.session.scalars(sensor_query).all()
+            if page is None
+            else db.paginate(sensor_query, per_page=per_page, page=page).items
+        )
+
+        sensors = (
+            [sensor for sensor in sensors if check_access(sensor, "read") is None]
+            if all_accessible
+            else sensors
+        )
+
+        sensors_response = [
+            {
+                **sensor_schema.dump(sensor),
+                "event_resolution": naturaldelta(sensor.event_resolution),
+            }
+            for sensor in sensors
+        ]
+
+        # Return appropriate response for paginated or non-paginated data
         if page is None:
-            sensors = db.session.scalars(sensor_query).all()
-            if all_accessible:
-                sensors = [
-                    sensor for sensor in sensors if check_access(sensor, "read") is None
-                ]
-
-            sensors_response: list = [
-                {
-                    **sensor_schema.dump(sensor),
-                    "event_resolution": naturaldelta(sensor.event_resolution),
-                }
-                for sensor in sensors
-            ]
-
             return sensors_response, 200
         else:
-            select_pagination: SelectPagination = db.paginate(
-                sensor_query, per_page=per_page, page=page
-            )
-            sensors = select_pagination.items
-            sensors = (
-                [sensor for sensor in sensors if check_access(sensor, "read") is None]
-                if all_accessible
-                else sensors
-            )
-
-            sensors_response: list = [
-                {
-                    **sensor_schema.dump(sensor),
-                    "event_resolution": naturaldelta(sensor.event_resolution),
-                }
-                for sensor in sensors
-            ]
+            select_pagination = db.paginate(sensor_query, per_page=per_page, page=page)
             response = {
                 "data": sensors_response,
                 "num-records": select_pagination.total,
                 "filtered-records": select_pagination.total,
             }
-
             return response, 200
 
     @route("/data", methods=["POST"])
