@@ -151,12 +151,12 @@ def add_jinja_filters(app):
     app.jinja_env.filters["asset_icon"] = asset_icon_name
     app.jinja_env.filters["username"] = username
     app.jinja_env.filters["accountname"] = accountname
-    app.jinja_env.filters[
-        "parse_config_entry_by_account_roles"
-    ] = parse_config_entry_by_account_roles
-    app.jinja_env.filters[
-        "find_first_applicable_config_entry"
-    ] = find_first_applicable_config_entry
+    app.jinja_env.filters["parse_config_entry_by_account_roles"] = (
+        parse_config_entry_by_account_roles
+    )
+    app.jinja_env.filters["find_first_applicable_config_entry"] = (
+        find_first_applicable_config_entry
+    )
 
 
 def add_jinja_variables(app):

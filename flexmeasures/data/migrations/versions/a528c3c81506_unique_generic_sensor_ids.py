@@ -52,6 +52,7 @@ The logic for shifting ids of markets and weather stations, by example:
 (downgrade)     a 1,2,6 <- 1,2,6    m 3,4,8 <- 9,10,14      w 1,6,7 <- 15,20,21 (- max_market_id)
 
 """
+
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy import orm
