@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy.sql import Select, select
+from sqlalchemy import select, Select, or_, and_
 
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.queries.utils import potentially_limit_assets_query_to_account
@@ -65,3 +65,24 @@ def query_sensors_by_proximity(
         closest_sensor_query, account_id
     )
     return closest_sensor_query
+
+
+def query_sensors_by_search_terms(
+    query: Select,
+    search_terms: list[str] | None,
+) -> Select:
+    if search_terms is not None:
+        from flexmeasures.data.models.user import Account
+        from flexmeasures.data.models.time_series import Sensor
+
+        filter_statement = and_(
+            *(
+                or_(
+                    Sensor.name.ilike(f"%{term}%"),
+                    Account.name.ilike(f"%{term}%"),
+                )
+                for term in search_terms
+            )
+        )
+
+    return query.filter(filter_statement)

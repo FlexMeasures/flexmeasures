@@ -274,42 +274,19 @@
             </div>
             <div class="sensors-asset card">
                 <h3>All sensors for {{ asset.name }}</h3>
+                <div class="form-check form-check-inline">
+                    <label class="form-check-label">
+                      <input
+                        id="allAccessibleSensoresCheckbox"
+                        name="include_inactive"
+                        type="checkbox"
+                      />
+                        All Accessible
+                    </label>
+                  </div>
                 <div class="table-responsive">
-                    <table class="table table-striped paginate nav-on-click" title="View data">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>ID</th>
-                                <th class="text-right">Unit</th>
-                                <th class="text-right">Resolution</th>
-                                <th class="text-right no-sort">Entity address</th>
-                                <th class="d-none">URL</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for sensor in asset.sensors: %}
-                            <tr>
-                                <td>
-                                    {{ sensor.name }}
-                                </td>
-                                <td>
-                                    {{ sensor.id }}
-                                </td>
-                                <td class="text-right">
-                                    {{ sensor.unit }}
-                                </td>
-                                <td class="text-right">
-                                    {{ sensor.event_resolution | naturalized_timedelta }}
-                                </td>
-                                <td class="text-right">
-                                    {{ sensor.entity_address }}
-                                </td>
-                                <td class="d-none">
-                                    /sensors/{{ sensor.id }}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
+                    <table class="table table-striped paginate nav-on-click" title="View data" id="sensorsTable">
+ 
                     </table>
                 </div>
             </div>
@@ -425,4 +402,91 @@
     });
 </script>
 
+<script>
+    function Sensor(
+        id,
+        name,
+        unit,
+        resolution,
+        entity_address,
+        active
+    ) {
+        this.id = id;
+        this.name = name;
+        this.unit = unit;
+        this.resolution = resolution
+        
+        this.entity_address = entity_address;
+        this.url = `/sensors/${id}`;
+    }
+
+  
+    $(document).ready(function () {
+      let allAccessible = false;
+      // Initialize the DataTable
+      const table = $("#sensorsTable").dataTable({
+        serverSide: true,
+        // make the table row vertically aligned with header
+        columns: [
+          { data: "id", title: "ID" },
+          { data: "name", title: "Name" },
+          { data: "unit", title: "Unit" },
+          { data: "resolution", title: "Resolution" },
+          { data: "entity_address", title: "Entity address" },
+          { data: "url", title: "URL", className: "d-none" },
+        ],
+  
+        ajax: function (data, callback, settings) {
+          const basePath = window.location.origin;
+          let filter = data["search"]["value"];
+          let url = `${basePath}/api/v3_0/sensors?page=${
+            data["start"] / data["length"] + 1
+          }&per_page=${data["length"]}&all_accessible=${allAccessible}`;
+  
+          if (filter.length > 0) {
+            url = `${url}&filter=${filter}`;
+          }
+  
+          $.ajax({
+            type: "get",
+            url: url,
+            success: function (response, text) {
+              let clean_response = [];
+              console.log("response: ", response);
+              response["data"].forEach((element) =>
+                clean_response.push(
+                  new Sensor(
+                    element["id"],
+                    element["name"],
+                    element["unit"],
+                    element["event_resolution"],
+                    element["entity_address"],
+                    element["active"]
+                  )
+                )
+              );
+  
+              callback({
+                data: clean_response,
+                recordsTotal: response["num-records"],
+                recordsFiltered: response["filtered-records"],
+              });
+            },
+            error: function (request, status, error) {
+              console.log("Error: ", error);
+            },
+          });
+        },
+      });
+  
+  
+      // Event listener for the checkbox to toggle allAccessible state
+      $("#allAccessibleSensoresCheckbox").change(function () {
+        allAccessible = this.checked;
+        table.api().ajax.reload();
+      });
+    });
+  </script>
+
+{% block paginate_tables_script %} {{ super() }} {% endblock %} 
 {% endblock %}

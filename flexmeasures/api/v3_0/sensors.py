@@ -1,17 +1,20 @@
 from __future__ import annotations
 
+import isodate
 from datetime import datetime, timedelta
+from humanize import naturaldelta
 
 from flask import current_app, url_for
 from flask_classful import FlaskView, route
 from flask_json import as_json
 from flask_security import auth_required
-import isodate
 from marshmallow import fields, ValidationError
+import marshmallow.validate as validate
 from rq.job import Job, NoSuchJobError
 from timely_beliefs import BeliefsDataFrame
 from webargs.flaskparser import use_args, use_kwargs
-from sqlalchemy import delete
+from sqlalchemy import delete, select, or_
+from flask_sqlalchemy.pagination import SelectPagination
 
 from flexmeasures.api.common.responses import (
     request_processed,
@@ -29,6 +32,7 @@ from flexmeasures.api.common.schemas.sensor_data import (
 )
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.utils.api_utils import save_and_enqueue
+from flexmeasures.auth.policy import check_access
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
 from flexmeasures.data.models.audit_log import AssetAuditLog
@@ -37,12 +41,10 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField
+from flexmeasures.api.common.schemas.generic_assets import SearchFilterField
 from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
-from flexmeasures.data.services.sensors import (
-    get_sensors,
-    get_sensor_stats,
-    get_all_accessible_sensors,
-)
+from flexmeasures.data.queries.sensors import query_sensors_by_search_terms
+from flexmeasures.data.services.sensors import get_sensor_stats
 from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
     get_data_source_for_job,
@@ -70,14 +72,25 @@ class SensorAPI(FlaskView):
                 data_key="account_id", load_default=AccountIdField.load_current
             ),
             "all_accessible": fields.Boolean(required=False, missing=False),
-            "filter": fields.Str(load_default=None),
+            "page": fields.Int(
+                required=False, validate=validate.Range(min=1), default=1
+            ),
+            "per_page": fields.Int(
+                required=False, validate=validate.Range(min=1), default=10
+            ),
+            "filter": SearchFilterField(required=False, default=None),
         },
         location="query",
     )
     @permission_required_for_context("read", ctx_arg_name="account")
     @as_json
     def index(
-        self, account: Account, all_accessible: bool = False, filter: str | None = None
+        self,
+        account: Account,
+        all_accessible: bool = False,
+        page: int | None = None,
+        per_page: int | None = None,
+        filter: list[str] | None = None,
     ):
         """API endpoint to list all sensors of an account.
 
@@ -114,12 +127,75 @@ class SensorAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        if all_accessible:
-            sensors = get_all_accessible_sensors(account, filter)
-        else:
-            sensors = get_sensors(account, filter=filter)
+        accounts: list = [account] if account else []
+        account_ids: list = [acc.id for acc in accounts]
 
-        return sensors_schema.dump(sensors), 200
+        if all_accessible is not None:
+            consultancy_account_ids: list = [
+                acc.consultancy_account_id for acc in accounts
+            ]
+            account_ids.extend(consultancy_account_ids)
+
+        filter_statement = GenericAsset.account_id.in_(account_ids)
+
+        sensor_query = (
+            select(Sensor)
+            .join(GenericAsset, Sensor.generic_asset_id == GenericAsset.id)
+            .join(Account, GenericAsset.owner)
+            .filter(
+                or_(
+                    filter_statement,
+                    GenericAsset.account_id.is_(None),
+                )
+            )
+        )
+
+        if filter is not None:
+            sensor_query = query_sensors_by_search_terms(
+                sensor_query, search_terms=filter
+            )
+
+        if page is None:
+            sensors = db.session.scalars(sensor_query).all()
+            if all_accessible:
+                sensors = [
+                    sensor for sensor in sensors if check_access(sensor, "read") is None
+                ]
+
+            sensors_response: list = [
+                {
+                    **sensor_schema.dump(sensor),
+                    "event_resolution": naturaldelta(sensor.event_resolution),
+                }
+                for sensor in sensors
+            ]
+
+            return sensors_response, 200
+        else:
+            select_pagination: SelectPagination = db.paginate(
+                sensor_query, per_page=per_page, page=page
+            )
+            sensors = select_pagination.items
+            sensors = (
+                [sensor for sensor in sensors if check_access(sensor, "read") is None]
+                if all_accessible
+                else sensors
+            )
+
+            sensors_response: list = [
+                {
+                    **sensor_schema.dump(sensor),
+                    "event_resolution": naturaldelta(sensor.event_resolution),
+                }
+                for sensor in sensors
+            ]
+            response = {
+                "data": sensors_response,
+                "num-records": select_pagination.total,
+                "filtered-records": select_pagination.total,
+            }
+
+            return response, 200
 
     @route("/data", methods=["POST"])
     @use_args(
