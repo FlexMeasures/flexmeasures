@@ -1,38 +1,33 @@
 import re
-import click
 
 
-def validate_color_hex(ctx, param, value):
+def validate_color_hex(value):
     """
     Validates that a given value is a valid hex color code.
 
     Parameters:
-    :param ctx:     Click context.
-    :param param:   Click parameter. Hex value.
+    :value: The color code to validate.
     """
-    if isinstance(param, str):
-        param_name = param
-    else:
-        param_name = param.name
-
     if value is None:
         return value
 
+    if value and not value.startswith("#"):
+        value = f"#{value}"
+
     hex_pattern = re.compile(r"^#?([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$")
+
     if re.match(hex_pattern, value):
         return value
     else:
-        raise click.BadParameter(f"{param_name} must be a valid hex color code.")
+        raise ValueError(f"{value} is not a valid hex color code.")
 
 
-def validate_url(ctx, param, value):
+def validate_url(value):
     """
     Validates that a given value is a valid URL format using regex.
 
     Parameters:
-    :param ctx:     Click context.
-    :param param:   Click parameter. URL value.
-    :param value:   The URL to validate.
+    :value: The URL to validate.
     """
     if value is None:
         return value
@@ -47,11 +42,11 @@ def validate_url(ctx, param, value):
     )
 
     if not url_regex.match(value):
-        raise click.BadParameter(f"'{value}' is not a valid URL.")
+        raise ValueError(f"'{value}' is not a valid URL.")
 
     # check if more than 255 characters
     if len(value) > 255:
-        raise click.BadParameter(
+        raise ValueError(
             "provided logo-url is too long. Maximum length is 255 characters."
         )
 

@@ -33,11 +33,12 @@ def render_flexmeasures_template(html_filename: str, **variables):
 
     # use event_starts_after and event_ends_before from session if not given
     variables["event_starts_after"] = variables.get(
-        "event_starts_after", session.get("event_starts_after")
+        "event_starts_after"
+    ) or session.get("event_starts_after")
+    variables["event_ends_before"] = variables.get("event_ends_before") or session.get(
+        "event_ends_before"
     )
-    variables["event_ends_before"] = variables.get(
-        "event_ends_before", session.get("event_ends_before")
-    )
+
     variables["chart_type"] = session.get("chart_type", "bar_chart")
 
     variables["page"] = html_filename.split("/")[-1].replace(".html", "")
@@ -69,9 +70,9 @@ def render_flexmeasures_template(html_filename: str, **variables):
     variables["user_has_admin_reader_rights"] = user_has_admin_access(
         current_user, "read"
     )
-    variables[
-        "user_is_anonymous"
-    ] = current_user.is_authenticated and current_user.has_role("anonymous")
+    variables["user_is_anonymous"] = (
+        current_user.is_authenticated and current_user.has_role("anonymous")
+    )
     variables["user_email"] = current_user.is_authenticated and current_user.email or ""
     variables["user_name"] = (
         current_user.is_authenticated and current_user.username or ""
@@ -177,6 +178,23 @@ def get_git_description() -> tuple[str, int, str]:
     return version, commits_since, sha
 
 
+ICON_MAPPING = {
+    # site structure
+    "evse": "icon-charging_station",
+    "charge point": "icon-charging_station",
+    "project": "icon-calculator",
+    "tariff": "icon-time",
+    "renewables": "icon-wind",
+    "site": "icon-empty-marker",
+    "scenario": "icon-binoculars",
+    # weather
+    "irradiance": "wi wi-horizon-alt",
+    "temperature": "wi wi-thermometer",
+    "wind direction": "wi wi-wind-direction",
+    "wind speed": "wi wi-strong-wind",
+}
+
+
 def asset_icon_name(asset_type_name: str) -> str:
     """Icon name for this asset type.
 
@@ -188,27 +206,9 @@ def asset_icon_name(asset_type_name: str) -> str:
     becomes (for a battery):
         <i class="icon-battery"></i>
     """
-    icon_mapping = {
-        # site structure
-        "evse": "icon-charging_station",
-        "charge point": "icon-charging_station",
-        "project": "icon-calculator",
-        "tariff": "icon-time",
-        "renewables": "icon-wind",
-        "site": "icon-empty-marker",
-        "scenario": "icon-binoculars",
-        # weather
-        "irradiance": "wi wi-horizon-alt",
-        "temperature": "wi wi-thermometer",
-        "wind direction": "wi wi-wind-direction",
-        "wind speed": "wi wi-strong-wind",
-    }
-
-    for asset_group_name, icon_name in icon_mapping.items():
-        if asset_group_name in asset_type_name.lower():
-            return icon_name
-
-    return f"icon-{asset_type_name}"
+    if asset_type_name:
+        asset_type_name = asset_type_name.lower()
+    return ICON_MAPPING.get(asset_type_name, f"icon-{asset_type_name}")
 
 
 def username(user_id) -> str:

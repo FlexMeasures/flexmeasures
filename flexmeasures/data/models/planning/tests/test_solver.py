@@ -86,11 +86,11 @@ def test_battery_solver_day_1(
         resolution,
         flex_model={"soc-at-start": soc_at_start},
         flex_context={
-            "inflexible-device-sensors": [
-                s.id for s in add_inflexible_device_forecasts.keys()
-            ]
-            if use_inflexible_device
-            else [],
+            "inflexible-device-sensors": (
+                [s.id for s in add_inflexible_device_forecasts.keys()]
+                if use_inflexible_device
+                else []
+            ),
             "site-power-capacity": "2 MW",
         },
     )
@@ -614,9 +614,9 @@ def test_building_solver_day_2(
     capacity["battery consumption headroom"] = capacity["consumption headroom"].clip(
         upper=battery.get_attribute("capacity_in_mw")
     )
-    capacity[
-        "schedule"
-    ] = schedule.values  # consumption is positive, production is negative
+    capacity["schedule"] = (
+        schedule.values
+    )  # consumption is positive, production is negative
     with pd.option_context(
         "display.max_rows", None, "display.max_columns", None, "display.width", 2000
     ):

@@ -1,9 +1,6 @@
-from __future__ import annotations
-import click
-
 from flask_classful import FlaskView, route
 from flexmeasures.data import db
-from webargs.flaskparser import use_kwargs, use_args
+from webargs.flaskparser import use_kwargs
 from flask_security import current_user, auth_required
 from flask_json import as_json
 from sqlalchemy import select, func
@@ -17,9 +14,6 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.services.accounts import get_audit_log_records
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.data.schemas.account import AccountSchema
-from flexmeasures.utils.validation_utils import validate_color_hex, validate_url
-from flexmeasures.utils.time_utils import server_now
-
 
 """
 API endpoints to manage accounts.
@@ -151,137 +145,6 @@ class AccountAPI(FlaskView):
         :status 422: UNPROCESSABLE_ENTITY
         """
 
-        return account_schema.dump(account), 200
-
-    @route("/<id>", methods=["PATCH"])
-    @use_args(partial_account_schema)
-    @use_kwargs({"account": AccountIdField(data_key="id")}, location="path")
-    @permission_required_for_context("update", ctx_arg_name="account")
-    @as_json
-    def patch(self, account_data: dict, id: int, account: Account):
-        """Update an account given its identifier.
-
-        .. :quickref: Account; Update an account
-
-        This endpoint sets data for an existing account.
-
-        The following fields are not allowed to be updated:
-        - id
-
-        The following fields are only editable if user role is admin:
-        - consultancy_account_id
-
-        **Example request**
-
-        .. sourcecode:: json
-
-            {
-                'name': 'Test Account'
-                'primary_color': '#1a3443'
-                'primary_color': '#f1a122'
-                'logo_url': 'https://example.com/logo.png'
-                'consultancy_account_id': 2,
-            }
-
-
-        **Example response**
-
-        The whole account is returned in the response:
-
-        .. sourcecode:: json
-
-            {
-                'id': 1,
-                'name': 'Test Account'
-                'account_roles': [1, 3],
-                'primary_color': '#1a3443'
-                'primary_color': '#f1a122'
-                'logo_url': 'https://example.com/logo.png'
-                'consultancy_account_id': 2,
-            }
-
-        :reqheader Authorization: The authentication token
-        :reqheader Content-Type: application/json
-        :resheader Content-Type: application/json
-        :status 200: UPDATED
-        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
-        :status 401: UNAUTHORIZED
-        :status 403: INVALID_SENDER
-        :status 422: UNPROCESSABLE_ENTITY
-        """
-
-        # Get existing consultancy_account_id
-        existing_consultancy_account_id = (
-            account.consultancy_account.id if account.consultancy_account else None
-        )
-
-        if not user_has_admin_access(current_user, "update"):
-            # Remove consultancy_account_id from account_data if no admin access
-            account_data.pop("consultancy_account_id", None)
-        else:
-            # Check if consultancy_account_id has changed
-            new_consultancy_account_id = account_data.get("consultancy_account_id")
-            if existing_consultancy_account_id != new_consultancy_account_id:
-                new_consultant_account = db.session.query(Account).get(
-                    new_consultancy_account_id
-                )
-                # Validate new consultant account
-                if (
-                    not new_consultant_account
-                    or new_consultant_account.id == account.id
-                ):
-                    return {"errors": ["Invalid consultancy_account_id"]}, 422
-
-        # Validate color values
-        for color_name in ["primary_color", "secondary_color"]:
-            color_value = account_data.get(color_name)
-            if color_value:
-                try:
-                    validate_color_hex(None, "color", color_value)
-                except click.BadParameter:
-                    return {"errors": [f"Invalid {color_name}"]}, 400
-
-        # Validate logo_url
-        logo_url = account_data.get("logo_url")
-        if logo_url:
-            try:
-                validate_url(None, "logo_url", logo_url)
-            except click.BadParameter:
-                return {"errors": ["Invalid logo_url"]}, 400
-
-        # Track modified fields
-        fields_to_check = [
-            "name",
-            "primary_color",
-            "secondary_color",
-            "logo_url",
-            "consultancy_account_id",
-        ]
-        modified_fields = {
-            field: getattr(account, field)
-            for field in fields_to_check
-            if account_data.get(field) != getattr(account, field)
-        }
-
-        # Compile modified fields string
-        modified_fields_str = ", ".join(modified_fields.keys())
-
-        for k, v in account_data.items():
-            setattr(account, k, v)
-
-        event_message = f"Account {account.name} has been updated. Modified fields: {modified_fields_str}"
-
-        # Add Audit log
-        account_audit_log = AuditLog(
-            event_datetime=server_now(),
-            event=event_message,
-            active_user_id=current_user.id,
-            active_user_name=current_user.username,
-            affected_user_id=current_user.id,
-            affected_account_id=account.id,
-        )
-        db.session.add(account_audit_log)
-        db.session.commit()
         return account_schema.dump(account), 200
 
     @route("/<id>/auditlog", methods=["GET"])

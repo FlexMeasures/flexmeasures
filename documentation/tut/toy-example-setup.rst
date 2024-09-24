@@ -17,7 +17,7 @@ Below are the ``flexmeasures`` CLI commands we'll run, and which we'll explain s
 
 .. code-block:: bash
 
-    # setup an account with a user and an energy market (ID 1)
+    # setup an account with a user, assets for battery & solar and an energy market (ID 1)
     $ flexmeasures add toy-account
     # load prices to optimise the schedule against
     $ flexmeasures add beliefs --sensor 1 --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam

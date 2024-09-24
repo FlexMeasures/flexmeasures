@@ -7,7 +7,6 @@ from flask_security import login_required
 from flexmeasures.ui.crud.api_wrapper import InternalApi
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.crud.assets import get_assets_by_account
-from flexmeasures.ui.crud.users import get_users_by_account
 from flexmeasures.data.models.user import Account
 from flexmeasures.data import db
 
@@ -34,10 +33,11 @@ class AccountCrudUI(FlaskView):
     @login_required
     def index(self):
         """/accounts"""
-        # accounts = get_accounts()
-        # for account in accounts:
-        #     account["asset_count"] = len(get_assets_by_account(account["id"]))
-        #     account["user_count"] = len(get_users_by_account(account["id"]))
+        accounts = get_accounts()
+        for account in accounts:
+            account_obj = db.session.get(Account, account["id"])
+            account["asset_count"] = account_obj.number_of_assets
+            account["user_count"] = account_obj.number_of_users
 
         return render_flexmeasures_template(
             "crud/accounts.html",
@@ -56,14 +56,12 @@ class AccountCrudUI(FlaskView):
                 account["consultancy_account_name"] = consultancy_account.name
         assets = get_assets_by_account(account_id)
         assets += get_assets_by_account(account_id=None)
-        users = get_users_by_account(account_id, include_inactive=include_inactive)
         accounts = get_accounts()
         return render_flexmeasures_template(
             "crud/account.html",
             account=account,
             accounts=accounts,
             assets=assets,
-            users=users,
             include_inactive=include_inactive,
         )
 

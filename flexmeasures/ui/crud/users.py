@@ -4,7 +4,6 @@ from datetime import datetime
 
 from flask import request, url_for
 from flask_classful import FlaskView
-from flask_login import current_user
 from flask_security import login_required
 from flask_wtf import FlaskForm
 from wtforms import StringField, FloatField, DateTimeField, BooleanField
@@ -75,20 +74,14 @@ def process_internal_api_response(
     return user_data
 
 
-def get_users_by_account(
-    account_id: int | str, include_inactive: bool = False
-) -> list[User]:
+def get_all_users(include_inactive: bool = False) -> list[User]:
     get_users_response = InternalApi().get(
         url_for(
             "UserAPI:index",
-            account_id=account_id,
             include_inactive=include_inactive,
         )
     )
-    users = [
-        process_internal_api_response(user, make_obj=True)
-        for user in get_users_response.json()
-    ]
+    users = [user for user in get_users_response.json()]
     return users
 
 
@@ -100,17 +93,8 @@ class UserCrudUI(FlaskView):
     def index(self):
         """/users"""
         include_inactive = request.args.get("include_inactive", "0") != "0"
-        users = []
-        if current_user.has_role(ADMIN_ROLE) or current_user.has_role(
-            ADMIN_READER_ROLE
-        ):
-            accounts = db.session.scalars(select(Account)).all()
-        else:
-            accounts = [current_user.account]
-        for account in accounts:
-            users += get_users_by_account(account.id, include_inactive)
         return render_flexmeasures_template(
-            "crud/users.html", users=users, include_inactive=include_inactive
+            "crud/users.html", include_inactive=include_inactive
         )
 
     @login_required
