@@ -1,7 +1,5 @@
 import json
 
-# from operator import is_
-
 from flask import url_for
 import pytest
 from sqlalchemy import select, func
@@ -11,6 +9,7 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.api.tests.utils import get_auth_token, UserContext, AccountContext
 from flexmeasures.api.v3_0.tests.utils import get_asset_post_data
+from flexmeasures.utils.unit_utils import is_valid_unit
 
 
 @pytest.mark.parametrize(
@@ -119,27 +118,27 @@ def test_get_assets(
         assert turbine
         assert turbine["account_id"] == setup_accounts["Supplier"].id
 
-    # @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
-    # def test_fetch_asset_sensors(client, setup_api_test_data, requesting_user):
-    #     """
-    #     Retrieve all sensors associated with a specific asset.
 
-    #     This endpoint returns a paginated list of sensors under the given asset.
-    #     The response will include metadata such as the total number of records and
-    #     filtered records when pagination is applied.
-    #     """
-    #     asset_id = 1
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_fetch_asset_sensors(client, setup_api_test_data, requesting_user):
+    """
+    Retrieve all sensors associated with a specific asset.
 
-    #     response = client.get(url_for("AssetAPI:asset_sensors", id=asset_id))
+    This endpoint returns a paginated list of sensors under the given asset.
+    The response will include metadata such as the total number of records and
+    filtered records when pagination is applied.
+    """
+    asset_id = 5
 
-    #     print("Server responded with:\n%s" % response.json)
+    response = client.get(url_for("AssetAPI:asset_sensors", id=asset_id))
 
-    #     assert response.status_code == 200
-    #     assert response.json["status"] == 200
-    # assert is_(response.json["data"]) == list
+    print("Server responded with:\n%s" % response.json)
 
-
-#     assert is_(response.json["data"][0]) == dict
+    assert response.status_code == 200
+    assert response.json["status"] == 200
+    assert isinstance(response.json["data"], list)
+    assert isinstance(response.json["data"][0], dict)
+    assert is_valid_unit(response.json["data"][0]["unit"])
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
