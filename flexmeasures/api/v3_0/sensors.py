@@ -166,6 +166,9 @@ class SensorAPI(FlaskView):
                 sensor_query, search_terms=filter
             )
 
+        if unit:
+            sensor_query = sensor_query.filter(Sensor.unit == unit)
+
         sensors = (
             db.session.scalars(sensor_query).all()
             if page is None
