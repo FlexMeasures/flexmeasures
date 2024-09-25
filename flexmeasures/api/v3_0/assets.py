@@ -23,10 +23,8 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.queries.generic_assets import query_assets_by_search_terms
 from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
-from flexmeasures.api.common.schemas.generic_assets import (
-    AssetIdField,
-    SearchFilterField,
-)
+from flexmeasures.api.common.schemas.search import SearchFilterField
+from flexmeasures.api.common.schemas.generic_assets import AssetIdField
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.utils.coding_utils import flatten_unique
 from flexmeasures.ui.utils.view_utils import set_session_variables

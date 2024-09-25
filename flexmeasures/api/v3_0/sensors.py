@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import isodate
 from datetime import datetime, timedelta
-from humanize import naturaldelta
 
 from flask import current_app, url_for
 from flask_classful import FlaskView, route
@@ -40,7 +39,7 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField
-from flexmeasures.api.common.schemas.generic_assets import SearchFilterField
+from flexmeasures.api.common.schemas.search import SearchFilterField
 from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
 from flexmeasures.data.queries.sensors import query_sensors_by_search_terms
 from flexmeasures.data.services.sensors import get_sensor_stats
@@ -97,6 +96,8 @@ class SensorAPI(FlaskView):
 
         This endpoint returns all accessible sensors.
         Accessible sensors are sensors in the same account as the current user.
+        Alternatively, you can use the `all_accessible` query parameter to list sensors from all assets that the `current_user` has read access to, as well as all public assets. The default value is `false`.
+
         Only admins can use this endpoint to fetch sensors from a different account (by using the `account_id` query parameter).
 
         **Example response**
@@ -105,7 +106,8 @@ class SensorAPI(FlaskView):
 
         .. sourcecode:: json
 
-            [
+        {
+            "data" : [
                 {
                     "entity_address": "ea1.2021-01.io.flexmeasures.company:fm1.42",
                     "event_resolution": PT15M,
@@ -115,7 +117,12 @@ class SensorAPI(FlaskView):
                     "unit": "m\u00b3/h"
                     "id": 2
                 }
-            ]
+            ],
+            "num-records" : 1,
+            "filtered-records" : 1
+        }
+
+        If no pagination is requested, the response only consists of the list under the "data" key.
 
         :reqheader Authorization: The authentication token
         :reqheader Content-Type: application/json
@@ -126,7 +133,10 @@ class SensorAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        accounts: list = [account] if account else []
+        if isinstance(account, list):
+            accounts = account
+        else:
+            accounts: list = [account] if account else []
         account_ids: list = [acc.id for acc in accounts]
 
         if all_accessible is not None:
@@ -160,19 +170,17 @@ class SensorAPI(FlaskView):
             else db.paginate(sensor_query, per_page=per_page, page=page).items
         )
 
-        sensors = (
-            [sensor for sensor in sensors if check_access(sensor, "read") is None]
-            if all_accessible
-            else sensors
-        )
+        sensors = [sensor for sensor in sensors if check_access(sensor, "read") is None]
 
-        sensors_response = [
-            {
-                **sensor_schema.dump(sensor),
-                "event_resolution": naturaldelta(sensor.event_resolution),
-            }
-            for sensor in sensors
-        ]
+        # sensors_response = [
+        #     {
+        #         **sensor_schema.dump(sensor),
+        #         "event_resolution": naturaldelta(sensor.event_resolution),
+        #     }
+        #     for sensor in sensors
+        # ]
+
+        sensors_response = sensors_schema.dump(sensors)
 
         # Return appropriate response for paginated or non-paginated data
         if page is None:

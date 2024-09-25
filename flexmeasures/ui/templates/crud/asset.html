@@ -402,7 +402,11 @@
     });
 </script>
 
+<script src="https://cdn.jsdelivr.net/npm/luxon/build/global/luxon.min.js"></script>
 <script>
+    // Import luxon
+    const { Duration } = luxon;
+
     function Sensor(
         id,
         name,
@@ -414,10 +418,27 @@
         this.id = id;
         this.name = name;
         this.unit = unit;
-        this.resolution = resolution
+        
+        this.resolution = formatResolution(resolution);
         
         this.entity_address = entity_address;
         this.url = `/sensors/${id}`;
+    }
+
+    // Format ISO 8601 duration using luxon
+    function formatResolution(isoDuration) {
+        const duration = Duration.fromISO(isoDuration);
+        
+        // Convert to a human-readable string
+        let result = "";
+        if (duration.hours) {
+            result += `${duration.hours} hour${duration.hours > 1 ? 's' : ''}`;
+        }
+        if (duration.minutes) {
+            if (result) result += " and "; 
+            result += `${duration.minutes} minute${duration.minutes > 1 ? 's' : ''}`;
+        }
+        return result || isoDuration;
     }
 
   
@@ -452,7 +473,6 @@
             url: url,
             success: function (response, text) {
               let clean_response = [];
-              console.log("response: ", response);
               response["data"].forEach((element) =>
                 clean_response.push(
                   new Sensor(
