@@ -79,7 +79,6 @@ def query_sensors_by_search_terms(
             *(
                 or_(
                     Sensor.name.ilike(f"%{term}%"),
-                    Sensor.unit.ilike(f"%{term}%"),
                     Account.name.ilike(f"%{term}%"),
                 )
                 for term in search_terms

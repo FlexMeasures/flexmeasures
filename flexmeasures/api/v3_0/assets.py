@@ -206,6 +206,7 @@ class AssetAPI(FlaskView):
                 required=False, validate=validate.Range(min=1), default=10
             ),
             "filter": SearchFilterField(required=False, default=None),
+            "unit": fields.Str(required=False, default=None),
         },
         location="query",
     )
@@ -217,6 +218,7 @@ class AssetAPI(FlaskView):
         page: int | None = None,
         per_page: int | None = None,
         filter: list[str] | None = None,
+        unit: str | None = None,
     ):
         """
         List all sensors under an asset.
@@ -271,6 +273,9 @@ class AssetAPI(FlaskView):
 
         if filter:
             query = query_sensors_by_search_terms(query=query, search_terms=filter)
+
+        if unit:
+            query = query.filter(Sensor.unit == unit)
 
         select_pagination: SelectPagination = db.paginate(
             query, per_page=per_page, page=page

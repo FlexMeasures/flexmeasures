@@ -274,19 +274,18 @@
             </div>
             <div class="sensors-asset card">
                 <h3>All sensors for {{ asset.name }}</h3>
-                <div class="form-check form-check-inline">
-                    <label class="form-check-label">
-                      <input
-                        id="allAccessibleSensoresCheckbox"
-                        name="include_inactive"
-                        type="checkbox"
-                      />
-                        All Accessible
-                    </label>
-                  </div>
+                
                 <div class="table-responsive">
+                   
                     <table class="table table-striped paginate nav-on-click" title="View data" id="sensorsTable">
- 
+                        <div class="col-2 col-auto ms-auto">
+                            <select class="form-select form-select-sm" id="unitFilterOptions">
+                                <option selected value="">Filter Unit</option>
+                                <option value="m/s">m/s</option>
+                                <option value="°C">°C</option>
+                                <option value="kW/m²">kW/m²</option>
+                            </select>
+                        </div>
                     </table>
                 </div>
             </div>
@@ -443,7 +442,7 @@
 
   
     $(document).ready(function () {
-      let allAccessible = false;
+      let unit = "";
       // Initialize the DataTable
       const table = $("#sensorsTable").dataTable({
         serverSide: true,
@@ -460,12 +459,15 @@
         ajax: function (data, callback, settings) {
           const basePath = window.location.origin;
           let filter = data["search"]["value"];
-          let url = `${basePath}/api/v3_0/sensors?page=${
+          let url = `${basePath}/api/v3_0/assets/{{asset.id}}/sensors?page=${
             data["start"] / data["length"] + 1
-          }&per_page=${data["length"]}&all_accessible=${allAccessible}`;
+          }&per_page=4`;
   
           if (filter.length > 0) {
-            url = `${url}&filter=${filter}&unit=${filter}`;
+            url = `${url}&filter=${filter}`;
+          }
+          if (unit !== "") {
+            url = `${url}&unit=${unit}`;
           }
   
           $.ajax({
@@ -500,9 +502,9 @@
       });
   
   
-      // Event listener for the checkbox to toggle allAccessible state
-      $("#allAccessibleSensoresCheckbox").change(function () {
-        allAccessible = this.checked;
+      // Event listener for the select box
+      $("#unitFilterOptions").change(function () {
+        unit = this.value;
         table.api().ajax.reload();
       });
     });
