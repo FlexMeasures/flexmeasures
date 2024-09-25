@@ -1,5 +1,7 @@
 import json
 
+# from operator import is_
+
 from flask import url_for
 import pytest
 from sqlalchemy import select, func
@@ -116,6 +118,28 @@ def test_get_assets(
                 turbine = asset
         assert turbine
         assert turbine["account_id"] == setup_accounts["Supplier"].id
+
+    # @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+    # def test_fetch_asset_sensors(client, setup_api_test_data, requesting_user):
+    #     """
+    #     Retrieve all sensors associated with a specific asset.
+
+    #     This endpoint returns a paginated list of sensors under the given asset.
+    #     The response will include metadata such as the total number of records and
+    #     filtered records when pagination is applied.
+    #     """
+    #     asset_id = 1
+
+    #     response = client.get(url_for("AssetAPI:asset_sensors", id=asset_id))
+
+    #     print("Server responded with:\n%s" % response.json)
+
+    #     assert response.status_code == 200
+    #     assert response.json["status"] == 200
+    # assert is_(response.json["data"]) == list
+
+
+#     assert is_(response.json["data"][0]) == dict
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)

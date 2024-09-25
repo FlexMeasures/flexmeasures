@@ -40,6 +40,7 @@ from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField
 from flexmeasures.api.common.schemas.search import SearchFilterField
+from flexmeasures.api.common.schemas.sensors import UnitField
 from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
 from flexmeasures.data.queries.sensors import query_sensors_by_search_terms
 from flexmeasures.data.services.sensors import get_sensor_stats
@@ -77,7 +78,7 @@ class SensorAPI(FlaskView):
                 required=False, validate=validate.Range(min=1), default=10
             ),
             "filter": SearchFilterField(required=False, default=None),
-            "unit": fields.Str(required=False, default=None),
+            "unit": UnitField(required=False, default=None),
         },
         location="query",
     )
@@ -141,24 +142,23 @@ class SensorAPI(FlaskView):
             accounts: list = [account] if account else []
         account_ids: list = [acc.id for acc in accounts]
 
+        filter_statement = GenericAsset.account_id.in_(account_ids)
+
         if all_accessible is not None:
             consultancy_account_ids: list = [
                 acc.consultancy_account_id for acc in accounts
             ]
             account_ids.extend(consultancy_account_ids)
-
-        filter_statement = GenericAsset.account_id.in_(account_ids)
+            filter_statement = or_(
+                filter_statement,
+                GenericAsset.account_id.is_(None),
+            )
 
         sensor_query = (
             select(Sensor)
             .join(GenericAsset, Sensor.generic_asset_id == GenericAsset.id)
             .join(Account, GenericAsset.owner)
-            .filter(
-                or_(
-                    filter_statement,
-                    GenericAsset.account_id.is_(None),
-                )
-            )
+            .filter(filter_statement)
         )
 
         if filter is not None:
@@ -183,10 +183,11 @@ class SensorAPI(FlaskView):
         if page is None:
             return sensors_response, 200
         else:
+            num_records = db.session.execute(sensor_query).scalars().count()
             select_pagination = db.paginate(sensor_query, per_page=per_page, page=page)
             response = {
                 "data": sensors_response,
-                "num-records": select_pagination.total,
+                "num-records": num_records,
                 "filtered-records": select_pagination.total,
             }
             return response, 200

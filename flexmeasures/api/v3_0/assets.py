@@ -21,7 +21,6 @@ from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.queries.generic_assets import query_assets_by_search_terms
-from flexmeasures.data.queries.sensors import query_sensors_by_search_terms
 from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
 from flexmeasures.api.common.schemas.generic_assets import AssetIdField
@@ -163,10 +162,6 @@ class AssetAPI(FlaskView):
         if all_accessible:
             filter_statement = filter_statement | GenericAsset.account_id.is_(None)
 
-        num_records = db.session.scalar(
-            select(func.count(GenericAsset.id)).where(filter_statement)
-        )
-
         query = query_assets_by_search_terms(
             search_terms=filter, filter_statement=filter_statement
         )
@@ -178,6 +173,9 @@ class AssetAPI(FlaskView):
 
             select_pagination: SelectPagination = db.paginate(
                 query, per_page=per_page, page=page
+            )
+            num_records = db.session.scalar(
+                select(func.count(GenericAsset.id)).filter(filter_statement)
             )
             response = {
                 "data": asset_schema.dump(select_pagination.items, many=True),
@@ -205,8 +203,6 @@ class AssetAPI(FlaskView):
             "per_page": fields.Int(
                 required=False, validate=validate.Range(min=1), default=10
             ),
-            "filter": SearchFilterField(required=False, default=None),
-            "unit": fields.Str(required=False, default=None),
         },
         location="query",
     )
@@ -217,8 +213,6 @@ class AssetAPI(FlaskView):
         asset: GenericAsset | None,
         page: int | None = None,
         per_page: int | None = None,
-        filter: list[str] | None = None,
-        unit: str | None = None,
     ):
         """
         List all sensors under an asset.
@@ -270,12 +264,6 @@ class AssetAPI(FlaskView):
         filter_statement = Sensor.generic_asset_id == asset.id
 
         query = select(Sensor).filter(filter_statement)
-
-        if filter:
-            query = query_sensors_by_search_terms(query=query, search_terms=filter)
-
-        if unit:
-            query = query.filter(Sensor.unit == unit)
 
         select_pagination: SelectPagination = db.paginate(
             query, per_page=per_page, page=page
