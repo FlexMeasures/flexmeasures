@@ -77,6 +77,7 @@ class SensorAPI(FlaskView):
                 required=False, validate=validate.Range(min=1), default=10
             ),
             "filter": SearchFilterField(required=False, default=None),
+            "unit": fields.Str(required=False, default=None),
         },
         location="query",
     )
@@ -89,6 +90,7 @@ class SensorAPI(FlaskView):
         page: int | None = None,
         per_page: int | None = None,
         filter: list[str] | None = None,
+        unit: str | None = None,
     ):
         """API endpoint to list all sensors of an account.
 
@@ -171,14 +173,6 @@ class SensorAPI(FlaskView):
         )
 
         sensors = [sensor for sensor in sensors if check_access(sensor, "read") is None]
-
-        # sensors_response = [
-        #     {
-        #         **sensor_schema.dump(sensor),
-        #         "event_resolution": naturaldelta(sensor.event_resolution),
-        #     }
-        #     for sensor in sensors
-        # ]
 
         sensors_response = sensors_schema.dump(sensors)
 

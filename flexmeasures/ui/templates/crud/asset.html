@@ -465,7 +465,7 @@
           }&per_page=${data["length"]}&all_accessible=${allAccessible}`;
   
           if (filter.length > 0) {
-            url = `${url}&filter=${filter}`;
+            url = `${url}&filter=${filter}&unit=${filter}`;
           }
   
           $.ajax({

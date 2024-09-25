@@ -21,19 +21,23 @@ from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.queries.generic_assets import query_assets_by_search_terms
+from flexmeasures.data.queries.sensors import query_sensors_by_search_terms
 from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
-from flexmeasures.api.common.schemas.search import SearchFilterField
 from flexmeasures.api.common.schemas.generic_assets import AssetIdField
+from flexmeasures.api.common.schemas.search import SearchFilterField
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.utils.coding_utils import flatten_unique
 from flexmeasures.ui.utils.view_utils import set_session_variables
 from flexmeasures.auth.policy import check_access
 from werkzeug.exceptions import Forbidden, Unauthorized
+from flexmeasures.data.schemas.sensors import SensorSchema
+from flexmeasures.data.models.time_series import Sensor
 
 
 asset_schema = AssetSchema()
 assets_schema = AssetSchema(many=True)
+sensors_schema = SensorSchema(many=True)
 partial_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
 
 
@@ -180,6 +184,107 @@ class AssetAPI(FlaskView):
                 "num-records": num_records,
                 "filtered-records": select_pagination.total,
             }
+
+        return response, 200
+
+    @route(
+        "/<id>/sensors",
+        methods=["GET"],
+    )
+    @use_kwargs(
+        {
+            "asset": AssetIdField(data_key="id"),
+        },
+        location="path",
+    )
+    @use_kwargs(
+        {
+            "page": fields.Int(
+                required=False, validate=validate.Range(min=1), default=1
+            ),
+            "per_page": fields.Int(
+                required=False, validate=validate.Range(min=1), default=10
+            ),
+            "filter": SearchFilterField(required=False, default=None),
+        },
+        location="query",
+    )
+    @as_json
+    def asset_sensors(
+        self,
+        id: int,
+        asset: GenericAsset | None,
+        page: int | None = None,
+        per_page: int | None = None,
+        filter: list[str] | None = None,
+    ):
+        """
+        List all sensors under an asset.
+
+         .. :quickref: Asset; Return all sensors under an asset.
+
+        This endpoint returns all sensors under an asset.
+
+        The endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.
+
+        - If the `page` parameter is not provided, all sensors are returned, without pagination information. The result will be a list of sensors.
+        - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).
+        The response schema for pagination is inspired by https://datatables.net/manual/server-side#Returned-data
+
+
+        **Example response**
+
+        An example of one asset being returned in a paginated response:
+
+        .. sourcecode:: json
+
+            {
+                "data" : [
+                    {
+                      "id": 1,
+                      "name": "Test battery",
+                      "latitude": 10,
+                      "longitude": 100,
+                      "account_id": 2,
+                      "generic_asset_type": {"id": 1, "name": "battery"}
+                    }
+                ],
+                "num-records" : 1,
+                "filtered-records" : 1
+
+            }
+
+        If no pagination is requested, the response only consists of the list under the "data" key.
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 200: PROCESSED
+        :status 400: INVALID_REQUEST
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+        filter_statement = Sensor.generic_asset_id == asset.id
+
+        query = select(Sensor).filter(filter_statement)
+
+        if filter:
+            query = query_sensors_by_search_terms(query=query, search_terms=filter)
+
+        select_pagination: SelectPagination = db.paginate(
+            query, per_page=per_page, page=page
+        )
+
+        num_records = db.session.scalar(
+            select(func.count(Sensor.id)).where(filter_statement)
+        )
+
+        response = {
+            "data": sensors_schema.dump(select_pagination.items, many=True),
+            "num-records": num_records,
+            "filtered-records": select_pagination.total,
+        }
 
         return response, 200
 
