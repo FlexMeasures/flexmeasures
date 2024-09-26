@@ -261,16 +261,16 @@ class AssetAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        filter_statement = Sensor.generic_asset_id == asset.id
+        query_statement = Sensor.generic_asset_id == asset.id
 
-        query = select(Sensor).filter(filter_statement)
+        query = select(Sensor).filter(query_statement)
 
         select_pagination: SelectPagination = db.paginate(
             query, per_page=per_page, page=page
         )
 
         num_records = db.session.scalar(
-            select(func.count(Sensor.id)).where(filter_statement)
+            select(func.count(Sensor.id)).where(query_statement)
         )
 
         response = {
