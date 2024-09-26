@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 import json
 
 from flask import current_app
@@ -7,13 +6,13 @@ from flask_classful import FlaskView, route
 from flask_login import current_user
 from flask_security import auth_required
 from flask_json import as_json
+from flask_sqlalchemy.pagination import SelectPagination
 
 from marshmallow import fields
 import marshmallow.validate as validate
 
 from webargs.flaskparser import use_kwargs, use_args
 from sqlalchemy import select, delete, func
-from flask_sqlalchemy.pagination import SelectPagination
 
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db

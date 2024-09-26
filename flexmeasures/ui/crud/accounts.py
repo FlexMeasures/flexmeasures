@@ -33,15 +33,9 @@ class AccountCrudUI(FlaskView):
     @login_required
     def index(self):
         """/accounts"""
-        accounts = get_accounts()
-        for account in accounts:
-            account_obj = db.session.get(Account, account["id"])
-            account["asset_count"] = account_obj.number_of_assets
-            account["user_count"] = account_obj.number_of_users
 
         return render_flexmeasures_template(
             "crud/accounts.html",
-            accounts=accounts,
         )
 
     @login_required
