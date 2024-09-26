@@ -188,7 +188,7 @@ Account overview {% endblock %} {% block divs %}
         <h3>Account</h3>
         <small>Account: {{ account.name }}</small>
         <div class="table-responsive">
-          <table class="table table-striped table-responsive">
+          <table class="table table-striped">
             <tbody>
               <tr>
                 <td>ID</td>
@@ -251,90 +251,30 @@ Account overview {% endblock %} {% block divs %}
         </div>
       </div>
       <div class="card">
-        <h3>Users</h3>
-
-        <form
-          class="ms-auto form-inline"
-          role="form"
-          target=""
-          method="get"
-          id="user-list-options"
-        >
-          <div class="checkbox">
-            <label>
-              <input
-                name="include_inactive"
-                {%
-                if
-                include_inactive
-                %}
-                checked="checked"
-                {%
-                endif
-                %}
-                type="checkbox"
-              />
-              Include inactive
-            </label>
-          </div>
-        </form>
+        <h3 id="usersTableTitle">All users</h3>
+        <div class="form-check form-check-inline">
+          <label class="form-check-label">
+            <input
+              id="inactiveUsersCheckbox"
+              name="include_inactive"
+              type="checkbox"
+            />
+            Include inactive
+          </label>
+        </div>
         <div class="table-responsive">
           <table
-            class="table table-responsive paginate nav-on-click"
-            title="View/edit this user"
-          >
-            <thead>
-              <tr>
-                <th>Username</th>
-                <th>Email</th>
-                <th>Roles</th>
-                <th>Timezone</th>
-                <th>Last Login</th>
-                <th>Last Seen</th>
-                <th>Active</th>
-                <th class="d-none">URL</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for user in users %}
-              <tr>
-                <td>{{ user.username }}</td>
-                <td>
-                  <a href="mailto:{{ user.email }}" title="Mail this user"
-                    >{{ user.email }}</a
-                  >
-                  >
-                </td>
-                <td>
-                  {% for role in user.flexmeasures_roles %} {{ role.name }}{{
-                  "," if not loop.last }} {% endfor %}
-                </td>
-                <td>{{ user.timezone }}</td>
-                <td
-                  title="{{  user.last_login_at | localized_datetime }}"
-                  data-sort="{{ user.last_login_at }}"
-                >
-                  {{ user.last_login_at | naturalized_datetime}}
-                </td>
-                <td
-                  title="{{  user.last_seen_at | localized_datetime }}"
-                  data-sort="{{ user.last_seen_at }}"
-                >
-                  {{ user.last_seen_at | naturalized_datetime}}
-                </td>
-                <td>{{ user.active }}</td>
-                <td class="d-none">/users/{{ user.id }}</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+            class="table table-striped paginate nav-on-click"
+            title="View this asset"
+            id="usersTable"
+          ></table>
         </div>
       </div>
       <div class="card">
         <h3>Assets</h3>
         <div class="table-responsive">
           <table
-            class="table table-striped table-responsive paginate nav-on-click"
+            class="table table-striped paginate nav-on-click"
             title="View this asset"
           >
             <thead>
@@ -400,11 +340,15 @@ Account overview {% endblock %} {% block divs %}
 </div>
 {% block paginate_tables_script %} {{ super() }} {% endblock %}
 <script defer>
+  let currentPage = 1;
   const basePath = window.location.origin;
-  const form = document.getElementById("editaccount");
+  const usersApiUrl = basePath + "/api/v3_0/users";
 
+  const form = document.getElementById("editaccount");
   const toastStack = document.getElementById("toast-container");
   const closeToastBtn = document.getElementById("close-all-toasts");
+  const tableBody = document.getElementById("users-table-body");
+  const paginationControls = document.getElementById("pagination-controls");
 
   // written like this since this script(order) is ontop of the main script
   document.addEventListener("DOMContentLoaded", function () {
@@ -416,7 +360,6 @@ Account overview {% endblock %} {% block divs %}
 
     // Collect form data
     const formData = new FormData(event.target);
-
     // create json payload from formData and set empty string to null
     let payload;
     payload = JSON.stringify(

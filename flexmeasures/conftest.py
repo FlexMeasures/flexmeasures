@@ -504,9 +504,11 @@ def create_assets(
     for asset_name in ["wind-asset-1", "wind-asset-2", "solar-asset-1"]:
         asset = GenericAsset(
             name=asset_name,
-            generic_asset_type=setup_asset_types["wind"]
-            if "wind" in asset_name
-            else setup_asset_types["solar"],
+            generic_asset_type=(
+                setup_asset_types["wind"]
+                if "wind" in asset_name
+                else setup_asset_types["solar"]
+            ),
             owner=setup_accounts["Prosumer"],
             latitude=10,
             longitude=100,
