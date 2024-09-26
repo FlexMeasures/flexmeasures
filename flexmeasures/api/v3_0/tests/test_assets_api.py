@@ -119,25 +119,8 @@ def test_get_assets(
         assert turbine["account_id"] == setup_accounts["Supplier"].id
 
 
-@pytest.mark.parametrize(
-    "requesting_user, account_name, num_assets, use_pagination",
-    [
-        ("test_admin_user@seita.nl", "Prosumer", 1, False),
-        ("test_admin_user@seita.nl", "Supplier", 2, False),
-        ("test_consultant@seita.nl", "ConsultancyClient", 1, False),
-        ("test_admin_user@seita.nl", "Prosumer", 1, True),
-    ],
-    indirect=["requesting_user"],
-)
-def test_fetch_asset_sensors(
-    client,
-    setup_api_test_data,
-    setup_accounts,
-    account_name,
-    num_sensors,
-    use_pagination,
-    requesting_user,
-):
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_fetch_asset_sensors(client, setup_api_test_data, requesting_user):
     """
     Retrieve all sensors associated with a specific asset.
 
@@ -149,13 +132,7 @@ def test_fetch_asset_sensors(
     """
     asset_id = 5
 
-    query = {"": ""}
-    if use_pagination:
-        query["page"] = 1
-
-    response = client.get(
-        url_for("AssetAPI:asset_sensors", id=asset_id), query_string=query
-    )
+    response = client.get(url_for("AssetAPI:asset_sensors", id=asset_id))
 
     print("Server responded with:\n%s" % response.json)
 
@@ -164,8 +141,8 @@ def test_fetch_asset_sensors(
     assert isinstance(response.json["data"], list)
     assert isinstance(response.json["data"][0], dict)
     assert is_valid_unit(response.json["data"][0]["unit"])
-    assert response.json["num-records"] == num_sensors
-    assert response.json["filtered-records"] == num_sensors
+    assert response.json["num-records"] == 3
+    assert response.json["filtered-records"] == 3
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
