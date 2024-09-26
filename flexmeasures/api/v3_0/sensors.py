@@ -42,7 +42,6 @@ from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField
 from flexmeasures.api.common.schemas.search import SearchFilterField
 from flexmeasures.api.common.schemas.sensors import UnitField
 from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
-from flexmeasures.data.queries.sensors import query_sensors_by_search_terms
 from flexmeasures.data.services.sensors import get_sensor_stats
 from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
@@ -162,8 +161,16 @@ class SensorAPI(FlaskView):
         )
 
         if filter is not None:
-            sensor_query = query_sensors_by_search_terms(
-                sensor_query, search_terms=filter
+            sensor_query = sensor_query.filter(
+                or_(
+                    *(
+                        or_(
+                            Sensor.name.ilike(f"%{term}%"),
+                            Account.name.ilike(f"%{term}%"),
+                        )
+                        for term in filter
+                    )
+                )
             )
 
         if unit:

@@ -119,18 +119,43 @@ def test_get_assets(
         assert turbine["account_id"] == setup_accounts["Supplier"].id
 
 
-@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
-def test_fetch_asset_sensors(client, setup_api_test_data, requesting_user):
+@pytest.mark.parametrize(
+    "requesting_user, account_name, num_assets, use_pagination",
+    [
+        ("test_admin_user@seita.nl", "Prosumer", 1, False),
+        ("test_admin_user@seita.nl", "Supplier", 2, False),
+        ("test_consultant@seita.nl", "ConsultancyClient", 1, False),
+        ("test_admin_user@seita.nl", "Prosumer", 1, True),
+    ],
+    indirect=["requesting_user"],
+)
+def test_fetch_asset_sensors(
+    client,
+    setup_api_test_data,
+    setup_accounts,
+    account_name,
+    num_sensors,
+    use_pagination,
+    requesting_user,
+):
     """
     Retrieve all sensors associated with a specific asset.
 
-    This endpoint returns a paginated list of sensors under the given asset.
     The response will include metadata such as the total number of records and
     filtered records when pagination is applied.
+
+    This test checks for these metadata fields and the number of sensors returned, as well as
+    confirming that the response is a list of dictionaries, each containing a valid unit.
     """
     asset_id = 5
 
-    response = client.get(url_for("AssetAPI:asset_sensors", id=asset_id))
+    query = {"": ""}
+    if use_pagination:
+        query["page"] = 1
+
+    response = client.get(
+        url_for("AssetAPI:asset_sensors", id=asset_id), query_string=query
+    )
 
     print("Server responded with:\n%s" % response.json)
 
@@ -139,6 +164,8 @@ def test_fetch_asset_sensors(client, setup_api_test_data, requesting_user):
     assert isinstance(response.json["data"], list)
     assert isinstance(response.json["data"][0], dict)
     assert is_valid_unit(response.json["data"][0]["unit"])
+    assert response.json["num-records"] == num_sensors
+    assert response.json["filtered-records"] == num_sensors
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
