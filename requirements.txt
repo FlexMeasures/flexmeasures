@@ -341,7 +341,7 @@ typing-extensions==4.11.0
     #   sqlalchemy
 tzdata==2024.1
     # via pandas
-uniplot==0.12.5
+uniplot==0.14.1
     # via -r requirements/app.in
 urllib3==2.2.1
     # via

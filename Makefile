@@ -43,6 +43,10 @@ install-for-dev:
 	make ensure-deps-folder
 	pip-sync requirements/${PYV}/app.txt requirements/${PYV}/dev.txt requirements/${PYV}/test.txt
 	make install-flexmeasures
+# Locally install HiGS on macOS
+	if [ "$(shell uname)" = "Darwin" ]; then \
+		make install-highs-macos; \
+	fi
 
 install-for-test:
 	make install-pip-tools

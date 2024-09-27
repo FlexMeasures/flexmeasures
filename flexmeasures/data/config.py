@@ -11,7 +11,9 @@ from flask import Flask
 from flexmeasures.data.models import naming_convention
 
 
-db: sa = None  # typed attributes unavailable in flask-sqlalchemy, see https://github.com/pallets/flask-sqlalchemy/issues/867
+db: sa = (
+    None  # typed attributes unavailable in flask-sqlalchemy, see https://github.com/pallets/flask-sqlalchemy/issues/867
+)
 Base = None  # type: ignore
 session_options = None
 

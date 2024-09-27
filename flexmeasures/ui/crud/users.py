@@ -74,23 +74,6 @@ def process_internal_api_response(
     return user_data
 
 
-def get_users_by_account(
-    account_id: int | str, include_inactive: bool = False
-) -> list[User]:
-    get_users_response = InternalApi().get(
-        url_for(
-            "UserAPI:index",
-            account_id=account_id,
-            include_inactive=include_inactive,
-        )
-    )
-    users = [
-        process_internal_api_response(user, make_obj=True)
-        for user in get_users_response.json()
-    ]
-    return users
-
-
 def get_all_users(include_inactive: bool = False) -> list[User]:
     get_users_response = InternalApi().get(
         url_for(
@@ -98,10 +81,7 @@ def get_all_users(include_inactive: bool = False) -> list[User]:
             include_inactive=include_inactive,
         )
     )
-    users = [
-        process_internal_api_response(user, make_obj=True)
-        for user in get_users_response.json()
-    ]
+    users = [user for user in get_users_response.json()]
     return users
 
 
@@ -113,10 +93,8 @@ class UserCrudUI(FlaskView):
     def index(self):
         """/users"""
         include_inactive = request.args.get("include_inactive", "0") != "0"
-        users = get_all_users(include_inactive)
-
         return render_flexmeasures_template(
-            "crud/users.html", users=users, include_inactive=include_inactive
+            "crud/users.html", include_inactive=include_inactive
         )
 
     @login_required
