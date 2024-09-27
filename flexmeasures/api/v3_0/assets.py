@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 import json
 
 from flask import current_app
