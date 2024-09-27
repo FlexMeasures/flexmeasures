@@ -127,8 +127,7 @@ def test_fetch_asset_sensors(client, setup_api_test_data, requesting_user):
     This test checks for these metadata fields and the number of sensors returned, as well as
     confirming that the response is a list of dictionaries, each containing a valid unit.
     """
-    asset_id = 5
-
+    asset_id = setup_api_test_data["some gas sensor"].generic_asset_id
     response = client.get(url_for("AssetAPI:asset_sensors", id=asset_id))
 
     print("Server responded with:\n%s" % response.json)
