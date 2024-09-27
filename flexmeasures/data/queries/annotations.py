@@ -22,19 +22,18 @@ def query_asset_annotations(
     annotation_type: str | None = None,
 ) -> Query:
     """Match annotations assigned to the given asset."""
-    query = select(Annotation)
+    query = select(Annotation).join(
+        relationship_module, relationship_module.annotation_id == Annotation.id
+    )
+
     if relationship_module is GenericAssetAnnotationRelationship:
-        query = query.join(
-            GenericAssetAnnotationRelationship,
-            GenericAssetAnnotationRelationship.annotation_id == Annotation.id,
-        ).filter(
+        query = query.filter(
             GenericAssetAnnotationRelationship.generic_asset_id == asset_or_sensor_id
         )
     else:
-        query = query.join(
-            SensorAnnotationRelationship,
-            SensorAnnotationRelationship.annotation_id == Annotation.id,
-        ).filter(SensorAnnotationRelationship.sensor_id == asset_or_sensor_id)
+        query = query.filter(
+            SensorAnnotationRelationship.sensor_id == asset_or_sensor_id
+        )
 
     if annotations_after is not None:
         query = query.filter(
