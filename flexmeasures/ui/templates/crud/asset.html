@@ -278,14 +278,6 @@
                 <div class="table-responsive">
                    
                     <table class="table table-striped paginate nav-on-click" title="View data" id="sensorsTable">
-                        <div class="col-2 col-auto ms-auto">
-                            <select class="form-select form-select-sm" id="unitFilterOptions">
-                                <option selected value="">Filter Unit</option>
-                                <option value="m/s">m/s</option>
-                                <option value="°C">°C</option>
-                                <option value="kW/m²">kW/m²</option>
-                            </select>
-                        </div>
                     </table>
                 </div>
             </div>
@@ -361,6 +353,7 @@
 <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/ranges.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/keyboardnav.js"></script>
 
+
 {% block leftsidepanel %} {{ super() }} {% endblock %}
 {% block sensorChartSetup %} {{ super() }} {% endblock %}
 
@@ -401,11 +394,9 @@
     });
 </script>
 
-<script src="https://cdn.jsdelivr.net/npm/luxon/build/global/luxon.min.js"></script>
-<script>
-    // Import luxon
-    const { Duration } = luxon;
-
+<script type="module">
+    import {formatResolution} from "{{ url_for('flexmeasures_ui.static', filename='js/data-utils.js') }}";
+    
     function Sensor(
         id,
         name,
@@ -417,15 +408,18 @@
         this.id = id;
         this.name = name;
         this.unit = unit;
-        
         this.resolution = formatResolution(resolution);
-        
         this.entity_address = entity_address;
         this.url = `/sensors/${id}`;
     }
 
     $(document).ready(function () {
-      let unit = "";
+      // Check if DataTable is already initialized
+      if ($.fn.DataTable.isDataTable("#sensorsTable")) {
+        // Destroy the existing DataTable before reinitializing
+        $("#sensorsTable").DataTable().destroy();
+      }
+
       // Initialize the DataTable
       const table = $("#sensorsTable").dataTable({
         serverSide: true,
@@ -448,9 +442,6 @@
   
           if (filter.length > 0) {
             url = `${url}&filter=${filter}`;
-          }
-          if (unit !== "") {
-            url = `${url}&unit=${unit}`;
           }
   
           $.ajax({
@@ -484,12 +475,6 @@
         },
       });
   
-  
-      // Event listener for the select box
-      $("#unitFilterOptions").change(function () {
-        unit = this.value;
-        table.api().ajax.reload();
-      });
     });
   </script>
 

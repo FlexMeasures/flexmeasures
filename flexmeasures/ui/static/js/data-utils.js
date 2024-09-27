@@ -1,3 +1,22 @@
+import 'https://cdn.jsdelivr.net/npm/luxon/build/es6/luxon.js';
+
+const { Duration } = luxon;
+// Format ISO 8601 duration using luxon
+export function formatResolution(isoDuration) {
+    const duration = Duration.fromISO(isoDuration);
+
+    // Convert to a human-readable string
+    let result = "";
+    if (duration.hours) {
+        result += `${duration.hours} hour${duration.hours > 1 ? 's' : ''}`;
+    }
+    if (duration.minutes) {
+        if (result) result += " and ";
+        result += `${duration.minutes} minute${duration.minutes > 1 ? 's' : ''}`;
+    }
+    return result || isoDuration;
+}
+
 // Data source utils
 
 /**
