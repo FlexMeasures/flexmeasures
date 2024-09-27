@@ -86,6 +86,9 @@ class GenericAsset(db.Model, AuthModelMixin):
     latitude = db.Column(db.Float, nullable=True)
     longitude = db.Column(db.Float, nullable=True)
     attributes = db.Column(MutableDict.as_mutable(db.JSON), nullable=False, default={})
+    sensors_to_show = db.Column(
+        MutableDict.as_mutable(db.JSON), nullable=False, default={}
+    )
 
     # One-to-many (or many-to-one?) relationships
     parent_asset_id = db.Column(
@@ -599,7 +602,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         return bdf_dict
 
     @property
-    def sensors_to_show(
+    def sensors_to_show_func(
         self,
     ) -> list[dict[str, "Sensor"]]:  # noqa F821
         """
