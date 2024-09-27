@@ -12,6 +12,7 @@ New features
 * The asset beliefs chart can now be configured to not combine legends, but show them per plot [see `PR #1176 <https://github.com/FlexMeasures/flexmeasures/pull/1176>`_]
 * Speed up loading the users page, by making the pagination backend-based and adding support for that in the API [see `PR #1160 <https://github.com/FlexMeasures/flexmeasures/pull/1160>`_]
 * X-axis labels in CLI plots show datetime values in a readable and informative format [see `PR #1172 <https://github.com/FlexMeasures/flexmeasures/pull/1172>`_]
+* Speed up loading the accounts page,by making the pagination backend-based and adding support for that in the API [see `PR #1196 <https://github.com/FlexMeasures/flexmeasures/pull/1196>`_]
 
 Infrastructure / Support
 ----------------------
