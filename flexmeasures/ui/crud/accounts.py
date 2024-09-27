@@ -4,6 +4,10 @@ from sqlalchemy import select
 from flask import request, url_for
 from flask_classful import FlaskView
 from flask_security import login_required
+from flask_security.core import current_user
+
+from flexmeasures.auth.policy import user_has_admin_access
+
 from flexmeasures.ui.crud.api_wrapper import InternalApi
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.crud.assets import get_assets_by_account
@@ -51,7 +55,7 @@ class AccountCrudUI(FlaskView):
                 account["consultancy_account_name"] = consultancy_account.name
         assets = get_assets_by_account(account_id)
         assets += get_assets_by_account(account_id=None)
-        accounts = get_accounts()
+        accounts = get_accounts() if user_has_admin_access(current_user, "read") else []
         return render_flexmeasures_template(
             "crud/account.html",
             account=account,
