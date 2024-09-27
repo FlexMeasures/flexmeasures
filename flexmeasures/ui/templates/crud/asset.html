@@ -278,14 +278,6 @@
                 <div class="table-responsive">
                    
                     <table class="table table-striped paginate nav-on-click" title="View data" id="sensorsTable">
-                        <div class="col-2 col-auto ms-auto">
-                            <select class="form-select form-select-sm" id="unitFilterOptions">
-                                <option selected value="">Filter Unit</option>
-                                <option value="m/s">m/s</option>
-                                <option value="°C">°C</option>
-                                <option value="kW/m²">kW/m²</option>
-                            </select>
-                        </div>
                     </table>
                 </div>
             </div>
@@ -401,11 +393,7 @@
     });
 </script>
 
-<script src="https://cdn.jsdelivr.net/npm/luxon/build/global/luxon.min.js"></script>
 <script>
-    // Import luxon
-    const { Duration } = luxon;
-
     function Sensor(
         id,
         name,
@@ -417,9 +405,7 @@
         this.id = id;
         this.name = name;
         this.unit = unit;
-        
-        this.resolution = formatResolution(resolution);
-        
+        this.resolution = resolution
         this.entity_address = entity_address;
         this.url = `/sensors/${id}`;
     }

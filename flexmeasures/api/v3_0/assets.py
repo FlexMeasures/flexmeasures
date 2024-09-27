@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from humanize import naturaldelta
 
 from flask import current_app
 from flask_classful import FlaskView, route
@@ -36,6 +37,7 @@ from flexmeasures.data.models.time_series import Sensor
 
 asset_schema = AssetSchema()
 assets_schema = AssetSchema(many=True)
+sensor_schema = SensorSchema()
 sensors_schema = SensorSchema(many=True)
 partial_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
 
@@ -273,8 +275,16 @@ class AssetAPI(FlaskView):
             select(func.count(Sensor.id)).where(query_statement)
         )
 
+        sensors_response: list = [
+            {
+                **sensor_schema.dump(sensor),
+                "event_resolution": naturaldelta(sensor.event_resolution),
+            }
+            for sensor in select_pagination.items
+        ]
+
         response = {
-            "data": sensors_schema.dump(select_pagination.items, many=True),
+            "data": sensors_response,
             "num-records": num_records,
             "filtered-records": select_pagination.total,
         }

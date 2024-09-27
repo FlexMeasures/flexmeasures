@@ -190,7 +190,7 @@ class SensorAPI(FlaskView):
         if page is None:
             return sensors_response, 200
         else:
-            num_records = db.session.execute(sensor_query).scalars().count()
+            num_records = len(db.session.execute(sensor_query).scalars().all())
             select_pagination = db.paginate(sensor_query, per_page=per_page, page=page)
             response = {
                 "data": sensors_response,

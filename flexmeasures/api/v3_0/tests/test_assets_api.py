@@ -124,9 +124,6 @@ def test_fetch_asset_sensors(client, setup_api_test_data, requesting_user):
     """
     Retrieve all sensors associated with a specific asset.
 
-    The response will include metadata such as the total number of records and
-    filtered records when pagination is applied.
-
     This test checks for these metadata fields and the number of sensors returned, as well as
     confirming that the response is a list of dictionaries, each containing a valid unit.
     """

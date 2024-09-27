@@ -38,7 +38,10 @@ def get_sensors(
     :param sensor_name_allowlist:   optionally, allow only sensors whose name is in this list
     """
     sensor_query = sa.select(Sensor)
-    accounts: list = [account] if account else []
+    if isinstance(account, list):
+        accounts = account
+    else:
+        accounts: list = [account] if account else []
     account_ids: list = [acc.id for acc in accounts]
 
     sensor_query = sensor_query.join(
