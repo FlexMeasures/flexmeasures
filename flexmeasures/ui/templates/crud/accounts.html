@@ -28,14 +28,12 @@
         assets, 
         users,
         roles,
-        logo,
     ) {
         this.id = id;
         this.name = name;
         this.assets = assets;
         this.users = users;
-        this.roles = roles.map((role) => role).join(", ");
-        this.logo = logo ? `<img src="${logo}" alt="logo" style="width: 50px;">` : '';
+        this.roles = roles.map((role) => role.name).join(", ");
         this.url = `/accounts/${id}`;
     }
 
@@ -51,7 +49,6 @@
           { data: "assets", title: "Assets" },
           { data: "users", title: "Users" },
           { data: "roles", title: "Roles" },
-          { data: "logo", title: "logo" },
           { data: "url", title: "URL", className: "d-none" },
         ],
 
@@ -60,7 +57,7 @@
           let filter = data["search"]["value"];
           let url = `${basePath}/api/v3_0/accounts?page=${
             data["start"] / data["length"] + 1
-          }&per_page=${data["length"]}`;
+          }&per_page=${data["length"]}`; 
 
           if (filter.length > 0) {
             url = `${url}&filter=${filter}`;
@@ -79,7 +76,6 @@
                     element["asset_count"],
                     element["user_count"],
                     element["account_roles"],
-                    element["logo_url"],
                   )
                 )
               );
