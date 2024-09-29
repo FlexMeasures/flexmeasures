@@ -5,7 +5,7 @@ from datetime import datetime
 
 from flask_security import UserMixin, RoleMixin
 import pandas as pd
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy import Boolean, DateTime, Column, Integer, String, ForeignKey
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -62,6 +62,9 @@ class Account(db.Model, AuthModelMixin):
         secondary="roles_accounts",
         backref=backref("accounts", lazy="dynamic"),
     )
+    primary_color = Column(String(7), default=None)
+    secondary_color = Column(String(7), default=None)
+    logo_url = Column(String(255), default=None)
     annotations = db.relationship(
         "Annotation",
         secondary="annotations_accounts",
@@ -120,13 +123,9 @@ class Account(db.Model, AuthModelMixin):
         annotations_after: datetime | None = None,
         annotation_ends_before: datetime | None = None,  # deprecated
         annotations_before: datetime | None = None,
-        source: DataSource
-        | list[DataSource]
-        | int
-        | list[int]
-        | str
-        | list[str]
-        | None = None,
+        source: (
+            DataSource | list[DataSource] | int | list[int] | str | list[str] | None
+        ) = None,
         as_frame: bool = False,
     ) -> list[Annotation] | pd.DataFrame:
         """Return annotations assigned to this account.
@@ -177,6 +176,20 @@ class Account(db.Model, AuthModelMixin):
         annotations = db.session.scalars(query).all()
 
         return to_annotation_frame(annotations) if as_frame else annotations
+
+    @property
+    def number_of_assets(self):
+        from flexmeasures.data.models.generic_assets import GenericAsset
+
+        return db.session.execute(
+            select(func.count()).where(GenericAsset.account_id == self.id)
+        ).scalar_one_or_none()
+
+    @property
+    def number_of_users(self):
+        return db.session.execute(
+            select(func.count()).where(User.account_id == self.id)
+        ).scalar_one_or_none()
 
 
 class RolesUsers(db.Model):

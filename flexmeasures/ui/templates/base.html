@@ -18,6 +18,37 @@
     <link rel="icon" href="/favicon.ico" type="image/x-icon" />
     <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon" />
     {% block styles %}
+    <style>
+        :root {
+            --primary-color: {{ primary_color }};
+            --primary-border-color: {{ primary_border_color }};
+            --primary-hover-color: {{ primary_hover_color}};
+            --primary-transparent: {{ primary_transparent }};
+            --secondary-color: {{ secondary_color }};
+            --secondary-hover-color: {{ secondary_hover_color }};
+            --secondary-transparent: {{ secondary_transparent }};
+            --white: #FFF;
+            --black: #000;
+            --light-gray: #eeeeee;
+            --gray: #bbb;
+            --red: #c21431;
+            --green: #14c231;
+
+            /* colors by function */
+            --nav-default-color: var(--white);
+            --nav-default-background-color: var(--primary-color);
+            --nav-hover-color: var(--secondary-hover-color);
+            --nav-hover-background-color: var(--primary-hover-color);
+            --nav-open-color: var(--secondary-color);
+            --nav-open-background-color: var(--primary-color);
+            --nav-current-color: var(--black);
+            --nav-current-background-color: var(--secondary-color);
+            --nav-current-hover-color: var(--black);
+            --nav-current-hover-background-color: var(--secondary-hover-color);
+            --create-color: var(--green);
+            --delete-color: var(--red);
+        }
+    </style>
     <!-- Leaflet -->
     <link href="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.css" rel="stylesheet" />
     <link href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" rel="stylesheet" />
@@ -91,7 +122,7 @@
                     <ul class="dropdown-menu" aria-labelledby="tasksDropdown">
                     {% for queue in queue_names %}
                         <li {% if current_user.has_role('anonymous') %} class="disabled" {% endif %}>
-                        <a class="dropdown-item" {% if not current_user.has_role('anonymous') %} href="/tasks/0/view/jobs/{{ queue }}/started/10/1" {% endif %}>
+                        <a class="dropdown-item" {% if not current_user.has_role('anonymous') %} href="/tasks/0/view/jobs/{{ queue }}/started/10/asc/1" {% endif %}>
                             {{ queue | capitalize }}
                         </a>
                         </li>
@@ -112,8 +143,10 @@
                     {% if id == 'docs' %} target="_blank" {% endif %} class="nav-link">
                         <span class="fa fa-{{ icon }}" aria-hidden="true"></span>
                         {{ caption|e }}
+
+                        {# use tooltip as caption for small screens showing a collapsed menu #}
                         {% if not caption %}
-                            <span class="visible-xs-inline">{{ tooltip }}</span>
+                            <span class="d-inline d-lg-none">{{ tooltip }}</span>
                         {% endif %}
                     </a>
                 </li>
@@ -122,7 +155,7 @@
             </ul>
           </div>
         </div>
-    </nav>
+    </nav>
       
       
 
@@ -287,7 +320,7 @@
 
     async function embedAndLoad(chartSpecsPath, elementId, datasetName, previousResult, startDate, endDate) {
 
-        await vegaEmbed('#'+elementId, chartSpecsPath + 'dataset_name=' + datasetName + '&width=container&include_sensor_annotations=false&include_asset_annotations=false&chart_type=' + chartType, {{ chart_options | safe }})
+        await vegaEmbed('#'+elementId, chartSpecsPath + 'dataset_name=' + datasetName + '&combine_legend='+ combineLegend + '&width=container&include_sensor_annotations=false&include_asset_annotations=false&chart_type=' + chartType, {{ chart_options | safe }})
         .then(function (result) {
 
             // Create a custom menu item for exporting to CSV
@@ -324,14 +357,19 @@
         });
     }
 
+    var combineLegend = 'true';
     {% if active_page == "assets" %}
         var dataPath = '/api/v3_0/assets/' + {{ asset.id }};
         var dataDevPath = '/api/dev/asset/' + {{ asset.id }};
         var datasetName = 'asset_' + {{ asset.id }};
+        {% set total_sensors = asset.sensors_to_show | map(attribute='sensors') | map('length') | sum %}
+        {% if total_sensors > 7 %}
+            combineLegend = 'false';
+        {% endif %}
     {% elif active_page == "sensors" %}
-        var dataPath = '/api/dev/sensor/' + {{ sensor_id }};
-        var dataDevPath = '/api/dev/sensor/' + {{ sensor_id }};
-        var datasetName = 'sensor_' + {{ sensor_id }};
+        var dataPath = '/api/dev/sensor/' + {{ sensor.id }};
+        var dataDevPath = '/api/dev/sensor/' + {{ sensor.id }};
+        var datasetName = 'sensor_' + {{ sensor.id }};
     {% endif %}
     var elementId = 'sensorchart';
     var chartSpecsPath = dataPath + '/chart?';
@@ -486,8 +524,8 @@
                             nearEnd,
                             end,
                         );
-                    }
-
+                    } 
+                    
                     // No use looking for data in years outside timerange of sensor data
                     picker.setOptions({
                         dropdowns: {
@@ -495,6 +533,15 @@
                             maxYear: end.getFullYear(),
                         },
                     });
+                    
+                    // Persist the range on the datepicker UI so correct range is shown when the user opens the datepicker
+                    var end_time = '{{event_ends_before}}';
+                    var new_end_date = new Date(end_time);
+                    // Adjusting the date by deducting one day to account for timezone discrepancies.
+                    new_end_date.setDate(new_end_date.getDate() - 1);
+                    var start_time = '{{event_starts_after}}';
+                    var new_start_date = new Date(start_time);
+                    picker.setDateRange(decodeURIComponent(toIsoString(new_start_date)), decodeURIComponent(toIsoString(new_end_date)));
                 };
             });
         }
@@ -670,6 +717,206 @@
     </script>
 
     {% block scripts %}
+    <!-- JS to enable tooltips -->
+    <script type='text/javascript'>
+        $(document).ready(function () {
+            if ($("[rel=tooltip]").length) {
+                $("[rel=tooltip]").tooltip();
+            }
+        });
+    </script>
+
+    <!-- JS to enable toast -->
+    <script defer>
+        function initiateToastCloseBtn(closeToastBtn){
+            // hide button
+            closeToastBtn.style.display = "none";
+
+            closeToastBtn.addEventListener("click", function () {
+                const toastElements = document.querySelectorAll(".toast");
+                toastElements.forEach((toast) => {
+                const toastInstance = bootstrap.Toast.getInstance(toast); // Get the toast instance
+                if (toastInstance) {
+                    // destroy the toast
+                    toastInstance.dispose();
+                    toast.remove();
+                }
+                });
+                // Hide the close button
+                closeToastBtn.style.display = "none";
+            });
+        }
+
+        function showAllToasts() {
+            const toastElements = document.querySelectorAll(".toast");
+            toastElements.forEach((toast) => {
+                const toastInstance = new bootstrap.Toast(toast);
+                toastInstance.show();
+            });
+        }
+
+        function showToast(message, type, toastStack, closeToastBtn) {
+            let colorClass;
+            let colorStyle = "";
+            let title;
+        
+            // Determine the type of toast
+            if (type == "error") {
+              colorClass = "bg-danger";
+              title = "Error";
+            } else if (type == "success") {
+              colorClass = "bg-success";
+              title = "Success";
+            } else {
+              colorStyle =
+                "background-color: {{ primary_color }};";
+              title = "Info";
+            }
+        
+            // Create the toast HTML
+            const toast = document.createElement("div");
+            toast.classList.add("toast", "mb-1");
+            toast.setAttribute("data-bs-autohide", "true");
+            toast.setAttribute("role", "alert");
+            toast.setAttribute("aria-live", "assertive");
+            toast.setAttribute("aria-atomic", "true");
+        
+            toast.innerHTML = `
+              <div class="toast-header">
+                <div class="rounded me-2 ${colorClass}" style="width: 20px; height: 20px; display: inline-block; ${colorStyle}"></div>
+                <strong class="me-auto">${title}</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+              </div>
+              <div class="toast-body">
+                ${message}
+              </div>
+            `;
+        
+            // Append toast to the toast stack
+            toastStack.insertAdjacentElement("afterbegin", toast);
+        
+            // Show the close all button
+            closeToastBtn.style.display = "block";
+        
+            showAllToasts();
+
+            // destroy only this toast if the close(X) button is clicked
+            toast.querySelector(".btn-close").addEventListener("click", function () {
+                const toastInstance = new bootstrap.Toast(toast);
+                toastInstance.dispose();
+                toast.remove();
+            });            
+          }
+    </script>
+
+    <script>
+        function User(
+          id,
+          username,
+          email,
+          roles,
+          account,
+          timezone,
+          lastLogin,
+          lastSeen,
+          active
+        ) {
+          this.id = id;
+          this.username = `<span>${username}</span>`;
+          this.email = `<a href="mailto:${email}" title="Mail this user">${email}</a>`;
+          this.roles = roles.map((role) => role).join(", ");
+          this.url = `/users/${id}`;
+      
+          if (account == null) this.account = "PUBLIC";
+          else
+            this.account = `
+                <a href="/accounts/${account["id"]}" title="View this account">${account["name"]}</a>
+              `;
+          this.timezone = timezone;
+          this.lastLogin = lastLogin;
+          this.lastSeen = lastSeen;
+          this.active = active;
+        }
+      
+        $(document).ready(function () {
+          let includeInactive = false;
+          const tableTitle = $("#usersTableTitle");
+          // Initialize the DataTable
+          const table = $("#usersTable").dataTable({
+            order: [[3, "desc"]],
+            serverSide: true,
+            // make the table row vertically aligned with header
+            columns: [
+              { data: "username", title: "Username" },
+              { data: "email", title: "Email" },
+              { data: "roles", title: "Roles" },
+              { data: "account", title: "Account" },
+              { data: "timezone", title: "Timezone" },
+              { data: "lastLogin", title: "Last login" },
+              { data: "lastSeen", title: "Last seen" },
+              { data: "active", title: "Active" },
+              { data: "url", title: "URL", className: "d-none" },
+            ],
+      
+            ajax: function (data, callback, settings) {
+              const basePath = window.location.origin;
+              let filter = data["search"]["value"];
+              let url = `${basePath}/api/v3_0/users?page=${
+                data["start"] / data["length"] + 1
+              }&per_page=${data["length"]}&include_inactive=${includeInactive}`;
+      
+              if (filter.length > 0) {
+                url = `${url}&filter=${filter}`;
+              }
+      
+              $.ajax({
+                type: "get",
+                url: url,
+                success: function (response, text) {
+                  let clean_response = [];
+                  response["data"].forEach((element) =>
+                    clean_response.push(
+                      new User(
+                        element["id"],
+                        element["username"],
+                        element["email"],
+                        element["flexmeasures_roles"],
+                        element["account"],
+                        element["timezone"],
+                        element["last_login_at"],
+                        element["last_seen_at"],
+                        element["active"]
+                      )
+                    )
+                  );
+      
+                  callback({
+                    data: clean_response,
+                    recordsTotal: response["num-records"],
+                    recordsFiltered: response["filtered-records"],
+                  });
+                },
+                error: function (request, status, error) {
+                  console.log("Error: ", error);
+                },
+              });
+            },
+          });
+      
+      
+          // Event listener for the checkbox to toggle includeInactive state
+          $("#inactiveUsersCheckbox").change(function () {
+            includeInactive = this.checked;
+            table.api().ajax.reload();
+            if (!includeInactive) {
+              tableTitle.text("All users");
+            } else {
+              tableTitle.text("All active users");
+            }
+          });
+        });
+      </script>
+
 
     <!-- External scripts -->
     <script src="https://cdn.jsdelivr.net/npm/ion-rangeslider@2.3.1/js/ion.rangeSlider.min.js"></script>

@@ -504,9 +504,11 @@ def create_assets(
     for asset_name in ["wind-asset-1", "wind-asset-2", "solar-asset-1"]:
         asset = GenericAsset(
             name=asset_name,
-            generic_asset_type=setup_asset_types["wind"]
-            if "wind" in asset_name
-            else setup_asset_types["solar"],
+            generic_asset_type=(
+                setup_asset_types["wind"]
+                if "wind" in asset_name
+                else setup_asset_types["solar"]
+            ),
             owner=setup_accounts["Prosumer"],
             latitude=10,
             longitude=100,
@@ -818,6 +820,19 @@ def create_test_battery_assets(
         ),
     )
     db.session.add(test_battery_sensor)
+
+    test_battery_sensor_kw = Sensor(
+        name="power (kW)",
+        generic_asset=test_battery,
+        event_resolution=timedelta(minutes=15),
+        unit="kW",
+        attributes=dict(
+            daily_seasonality=True,
+            weekly_seasonality=True,
+            yearly_seasonality=True,
+        ),
+    )
+    db.session.add(test_battery_sensor_kw)
 
     test_battery_no_prices = GenericAsset(
         name="Test battery with no known prices",

@@ -16,36 +16,16 @@ api_path_assets = "http://localhost//api/v3_0/assets"
 
 
 def test_assets_page_empty(db, client, requests_mock, as_prosumer_user1):
-    requests_mock.get(f"{api_path_assets}?account_id=1", status_code=200, json={})
-    requests_mock.get(f"{api_path_assets}/public", status_code=200, json={})
+    requests_mock.get(f"{api_path_assets}", status_code=200, json=[])
+    requests_mock.get(f"{api_path_assets}/public", status_code=200, json=[])
     asset_index = client.get(url_for("AssetCrudUI:index"), follow_redirects=True)
     assert asset_index.status_code == 200
 
 
 def test_get_assets_by_account(db, client, requests_mock, as_prosumer_user1):
     mock_assets = mock_asset_response(multiple=True)
-    requests_mock.get(
-        f"{api_path_assets}?account_id=1", status_code=200, json=mock_assets
-    )
+    requests_mock.get(f"{api_path_assets}", status_code=200, json=mock_assets)
     assert get_assets_by_account(1)[1].name == "TestAsset2"
-
-
-@pytest.mark.parametrize("use_owned_by", [False, True])
-def test_assets_page_nonempty(
-    db, client, requests_mock, as_prosumer_user1, use_owned_by
-):
-    mock_assets = mock_asset_response(multiple=True)
-    requests_mock.get(
-        f"{api_path_assets}?account_id=1", status_code=200, json=mock_assets
-    )
-    if use_owned_by:
-        asset_index = client.get(
-            url_for("AssetCrudUI:owned_by", account_id=mock_assets[0]["account_id"])
-        )
-    else:
-        asset_index = client.get(url_for("AssetCrudUI:index"))
-    for asset in mock_assets:
-        assert asset["name"].encode() in asset_index.data
 
 
 def test_new_asset_page(client, setup_assets, as_admin):
@@ -75,6 +55,7 @@ def test_asset_page(db, client, setup_assets, requests_mock, as_prosumer_user1):
     assert ("Edit %s" % mock_asset["name"]).encode() in asset_page.data
     assert str(mock_asset["latitude"]).encode() in asset_page.data
     assert str(mock_asset["longitude"]).encode() in asset_page.data
+    print("asset_page.data:\n%s" % asset_page.data)
     assert (
         "storeStartDate = new Date('2022-10-01T00:00:00+02:00')".encode()
         in asset_page.data
@@ -152,6 +133,10 @@ def test_add_asset(db, client, setup_assets, requests_mock, as_admin):
     """Add a new asset"""
     user = find_user_by_email("test_prosumer_user@seita.nl")
     mock_asset = mock_asset_response(account_id=user.account.id, as_list=False)
+    del mock_asset[
+        "generic_asset_type"
+    ]  # API gives back more info here than a POST sends
+    mock_asset["generic_asset_type_id"] = 1
     requests_mock.post(api_path_assets, status_code=201, json=mock_asset)
     response = client.post(
         url_for("AssetCrudUI:post", id="create"),

@@ -9,12 +9,13 @@ def make_sensor_data_request_for_gas_sensor(
     duration: str = "PT1H",
     unit: str = "m³",
     include_a_null: bool = False,
+    sensor_name: str = "some gas sensor",
 ) -> dict:
     """Creates request to post sensor data for a gas sensor.
     This particular gas sensor measures units of m³/h with a 10-minute resolution.
     """
     sensor = db.session.execute(
-        select(Sensor).filter_by(name="some gas sensor")
+        select(Sensor).filter_by(name=sensor_name)
     ).scalar_one_or_none()
     values = num_values * [-11.28]
     if include_a_null:
@@ -68,9 +69,9 @@ def message_for_trigger_schedule(
         "duration": "PT24H",  # Will be extended in case of targets that would otherwise lie beyond the schedule's end
     }
     if unknown_prices:
-        message[
-            "start"
-        ] = "2040-01-01T00:00:00+01:00"  # We have no beliefs in our test database about 2040 prices
+        message["start"] = (
+            "2040-01-01T00:00:00+01:00"  # We have no beliefs in our test database about 2040 prices
+        )
 
     message["flex-model"] = {
         "soc-at-start": 12.1,  # in kWh, according to soc-unit

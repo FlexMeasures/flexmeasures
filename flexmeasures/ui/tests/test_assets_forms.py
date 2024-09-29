@@ -45,7 +45,7 @@ from flexmeasures.ui.tests.test_utils import NewAsset
         ),
     ],
 )
-def test_with_price_senors(
+def test_with_price_sensors(
     db,
     setup_generic_asset_types,
     setup_accounts,
@@ -78,7 +78,7 @@ def test_with_price_senors(
             "flexmeasures.ui.crud.assets.forms.get_allowed_price_sensor_data",
             return_value=allowed_price_sensor_data,
         ) as mock_method:
-            form.with_price_senors(new_asset_decorator.test_battery, 1)
+            form.with_price_sensors(new_asset_decorator.test_battery, 1)
             assert mock_method.called_once_with(1)
             # check production_price_sensor only as consumption_price is processed the same way
             assert form.production_price_sensor_id.choices == expect_choices

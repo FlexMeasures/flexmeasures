@@ -4,6 +4,9 @@ import json
 import hashlib
 from datetime import datetime, timedelta
 from flask import current_app
+from functools import lru_cache
+from isodate import duration_isoformat
+import time
 from timely_beliefs import BeliefsDataFrame
 
 from humanize.time import naturaldelta
@@ -15,6 +18,7 @@ import sqlalchemy as sa
 
 from flexmeasures.data import db
 from flexmeasures import Sensor, Account, Asset
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.schemas.reporting import StatusSchema
 from flexmeasures.utils.time_utils import server_now
@@ -60,10 +64,14 @@ def get_sensors(
 
 
 def _get_sensor_bdf(sensor: Sensor, staleness_search: dict) -> BeliefsDataFrame | None:
-    """Get bdf for a given sensor with given search parameters."""
+    """
+    Retrieve the BeliefsDataFrame for a given sensor using the specified search parameters. The 'most_recent_only'
+    parameter is set to True, which ensures that only the most recent belief from the most recent event is returned.
+    """
     bdf = TimedBelief.search(
         sensors=sensor,
-        most_recent_events_only=True,
+        most_recent_beliefs_only=False,
+        most_recent_only=True,
         **staleness_search,
     )
     if bdf.empty:
@@ -127,8 +135,11 @@ def get_status_specs(sensor: Sensor) -> dict:
         if sensor.knowledge_horizon_fnc == "x_days_ago_at_y_oclock":
             status_specs = {"staleness_search": {}, "max_staleness": "P1D"}
         else:
-            # Default to status specs indicating immediate staleness after knowledge time
-            status_specs = {"staleness_search": {}, "max_staleness": "PT0H"}
+            # Default to status specs indicating staleness after knowledge time + 2 sensor resolutions
+            status_specs = {
+                "staleness_search": {},
+                "max_staleness": duration_isoformat(sensor.event_resolution * 2),
+            }
     return status_specs
 
 
@@ -171,6 +182,26 @@ def get_status(
     return status
 
 
+def _get_sensor_asset_relation(
+    asset: Asset,
+    sensor: Sensor,
+    inflexible_device_sensors: list[Sensor],
+) -> str:
+    """Get the relation of a sensor to an asset."""
+    relations = list()
+    if sensor.generic_asset_id == asset.id:
+        relations.append("included device")
+    if asset.consumption_price_sensor_id == sensor.id:
+        relations.append("consumption price")
+    if asset.production_price_sensor_id == sensor.id:
+        relations.append("production price")
+    inflexible_device_sensors_ids = {sensor.id for sensor in inflexible_device_sensors}
+    if sensor.id in inflexible_device_sensors_ids:
+        relations.append("inflexible device")
+
+    return ";".join(relations)
+
+
 def build_sensor_status_data(
     asset: Asset,
     now: datetime = None,
@@ -184,20 +215,41 @@ def build_sensor_status_data(
     - stale: whether the sensor is stale
     - staleness_since: time since sensor data is considered stale
     - reason: reason for staleness
+    - relation: relation of the sensor to the asset
     """
     if not now:
         now = server_now()
 
     sensors = []
-    for asset in (asset, *asset.child_assets):
-        for sensor in asset.sensors:
+    sensor_ids = set()
+    production_price_sensor = asset.get_production_price_sensor()
+    consumption_price_sensor = asset.get_consumption_price_sensor()
+    inflexible_device_sensors = asset.get_inflexible_device_sensors()
+    for asset, is_child_asset in (
+        (asset, False),
+        *[(child_asset, True) for child_asset in asset.child_assets],
+    ):
+        sensors_list = list(asset.sensors)
+        if not is_child_asset:
+            sensors_list += [
+                *asset.inflexible_device_sensors,
+                production_price_sensor,
+                consumption_price_sensor,
+            ]
+        for sensor in sensors_list:
+            if sensor is None or sensor.id in sensor_ids:
+                continue
             sensor_status = get_status(
                 sensor=sensor,
                 now=now,
             )
             sensor_status["name"] = sensor.name
             sensor_status["id"] = sensor.id
-            sensor_status["asset_name"] = asset.name
+            sensor_status["asset_name"] = sensor.generic_asset.name
+            sensor_status["relation"] = _get_sensor_asset_relation(
+                asset, sensor, inflexible_device_sensors
+            )
+            sensor_ids.add(sensor.id)
             sensors.append(sensor_status)
     return sensors
 
@@ -283,3 +335,85 @@ def build_asset_jobs_data(
             )
 
     return jobs_data
+
+
+@lru_cache()
+def _get_sensor_stats(sensor: Sensor, ttl_hash=None) -> dict:
+    # Subquery for filtered aggregates
+    subquery_for_filtered_aggregates = (
+        sa.select(
+            TimedBelief.source_id,
+            sa.func.max(TimedBelief.event_value).label("max_event_value"),
+            sa.func.avg(TimedBelief.event_value).label("avg_event_value"),
+            sa.func.sum(TimedBelief.event_value).label("sum_event_value"),
+            sa.func.min(TimedBelief.event_value).label("min_event_value"),
+        )
+        .filter(TimedBelief.event_value != float("NaN"))
+        .filter(TimedBelief.sensor_id == sensor.id)
+        .group_by(TimedBelief.source_id)
+        .subquery()
+    )
+
+    raw_stats = db.session.execute(
+        sa.select(
+            DataSource.name,
+            sa.func.min(TimedBelief.event_start).label("min_event_start"),
+            sa.func.max(TimedBelief.event_start).label("max_event_start"),
+            subquery_for_filtered_aggregates.c.min_event_value,
+            subquery_for_filtered_aggregates.c.max_event_value,
+            subquery_for_filtered_aggregates.c.avg_event_value,
+            subquery_for_filtered_aggregates.c.sum_event_value,
+            sa.func.count(TimedBelief.event_value).label("count_event_value"),
+        )
+        .select_from(TimedBelief)
+        .join(DataSource, DataSource.id == TimedBelief.source_id)
+        .join(
+            subquery_for_filtered_aggregates,
+            subquery_for_filtered_aggregates.c.source_id == TimedBelief.source_id,
+        )
+        .filter(TimedBelief.sensor_id == sensor.id)
+        .group_by(
+            DataSource.name,
+            subquery_for_filtered_aggregates.c.min_event_value,
+            subquery_for_filtered_aggregates.c.max_event_value,
+            subquery_for_filtered_aggregates.c.avg_event_value,
+            subquery_for_filtered_aggregates.c.sum_event_value,
+        )
+    ).fetchall()
+
+    stats = dict()
+    for row in raw_stats:
+        (
+            data_source,
+            min_event_start,
+            max_event_start,
+            min_value,
+            max_value,
+            mean_value,
+            sum_values,
+            count_values,
+        ) = row
+        stats[data_source] = {
+            "min_event_start": min_event_start,
+            "max_event_start": max_event_start,
+            "min_value": min_value,
+            "max_value": max_value,
+            "mean_value": mean_value,
+            "sum_values": sum_values,
+            "count_values": count_values,
+        }
+    return stats
+
+
+def _get_ttl_hash(seconds=120) -> int:
+    """Returns the same value within "seconds" time period
+    Is needed to make LRU cache a TTL one
+    (lru_cache is used when call arguments are the same,
+    here we ensure that call arguments are the same in "seconds" period of time).
+    """
+    return round(time.time() / seconds)
+
+
+def get_sensor_stats(sensor: Sensor) -> dict:
+    """Get stats for a sensor"""
+    return _get_sensor_stats(sensor, ttl_hash=_get_ttl_hash())

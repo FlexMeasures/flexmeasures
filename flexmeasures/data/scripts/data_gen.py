@@ -1,6 +1,7 @@
 """
 Populate the database with data we know or read in.
 """
+
 from __future__ import annotations
 
 from pathlib import Path

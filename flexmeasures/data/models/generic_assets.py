@@ -148,9 +148,11 @@ class GenericAsset(db.Model, AuthModelMixin):
         """
         return {
             "create-children": f"account:{self.account_id}",
-            "read": self.owner.__acl__()["read"]
-            if self.account_id is not None
-            else EVERY_LOGGED_IN_USER,
+            "read": (
+                self.owner.__acl__()["read"]
+                if self.account_id is not None
+                else EVERY_LOGGED_IN_USER
+            ),
             "update": f"account:{self.account_id}",
             "delete": (f"account:{self.account_id}", "role:account-admin"),
         }
@@ -262,6 +264,14 @@ class GenericAsset(db.Model, AuthModelMixin):
 
     def get_consumption_price_sensor(self):
         """Searches for consumption_price_sensor upwards on the asset tree"""
+
+        from flexmeasures.data.models.time_series import Sensor
+
+        # Need to load consumption_price_sensor manually as generic_asset does not get to SQLAlchemy session context.
+        if self.consumption_price_sensor_id and not self.consumption_price_sensor:
+            self.consumption_price_sensor = Sensor.query.get(
+                self.consumption_price_sensor_id
+            )
         if self.consumption_price_sensor:
             return self.consumption_price_sensor
         if self.parent_asset:
@@ -270,6 +280,14 @@ class GenericAsset(db.Model, AuthModelMixin):
 
     def get_production_price_sensor(self):
         """Searches for production_price_sensor upwards on the asset tree"""
+
+        from flexmeasures.data.models.time_series import Sensor
+
+        # Need to load production_price_sensor manually as generic_asset does not get to SQLAlchemy session context.
+        if self.production_price_sensor_id and not self.production_price_sensor:
+            self.production_price_sensor = Sensor.query.get(
+                self.production_price_sensor_id
+            )
         if self.production_price_sensor:
             return self.production_price_sensor
         if self.parent_asset:
@@ -281,6 +299,23 @@ class GenericAsset(db.Model, AuthModelMixin):
         Searches for inflexible_device_sensors upwards on the asset tree
         This search will stop once any sensors are found (will not aggregate towards the top of the tree)
         """
+
+        from flexmeasures.data.models.time_series import Sensor
+
+        # Need to load inflexible_device_sensors manually as generic_asset does not get to SQLAlchemy session context.
+        if not self.inflexible_device_sensors:
+            self.inflexible_device_sensors = (
+                db.session.query(Sensor)
+                .join(
+                    GenericAssetInflexibleSensorRelationship,
+                    GenericAssetInflexibleSensorRelationship.inflexible_sensor_id
+                    == Sensor.id,
+                )
+                .filter(
+                    GenericAssetInflexibleSensorRelationship.generic_asset_id == self.id
+                )
+                .all()
+            )
         if self.inflexible_device_sensors:
             return self.inflexible_device_sensors
         if self.parent_asset:
@@ -314,13 +349,9 @@ class GenericAsset(db.Model, AuthModelMixin):
         self,
         annotations_after: datetime | None = None,
         annotations_before: datetime | None = None,
-        source: DataSource
-        | list[DataSource]
-        | int
-        | list[int]
-        | str
-        | list[str]
-        | None = None,
+        source: (
+            DataSource | list[DataSource] | int | list[int] | str | list[str] | None
+        ) = None,
         annotation_type: str = None,
         include_account_annotations: bool = False,
         as_frame: bool = False,
@@ -357,13 +388,9 @@ class GenericAsset(db.Model, AuthModelMixin):
         annotations_after: datetime | None = None,
         annotation_ends_before: datetime | None = None,  # deprecated
         annotations_before: datetime | None = None,
-        source: DataSource
-        | list[DataSource]
-        | int
-        | list[int]
-        | str
-        | list[str]
-        | None = None,
+        source: (
+            DataSource | list[DataSource] | int | list[int] | str | list[str] | None
+        ) = None,
         annotation_type: str = None,
     ) -> int:
         """Count the number of annotations assigned to this asset."""
@@ -402,13 +429,10 @@ class GenericAsset(db.Model, AuthModelMixin):
         event_ends_before: datetime | None = None,
         beliefs_after: datetime | None = None,
         beliefs_before: datetime | None = None,
-        source: DataSource
-        | list[DataSource]
-        | int
-        | list[int]
-        | str
-        | list[str]
-        | None = None,
+        combine_legend: bool = True,
+        source: (
+            DataSource | list[DataSource] | int | list[int] | str | list[str] | None
+        ) = None,
         include_data: bool = False,
         dataset_name: str | None = None,
         resolution: str | timedelta | None = None,
@@ -421,6 +445,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)
         :param beliefs_before: only return beliefs formed before this datetime (inclusive)
+        :param combine_legend: show a combined legend of all plots below the chart
         :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
         :param include_data: if True, include data in the chart, or if False, exclude data
         :param dataset_name: optionally name the dataset used in the chart (the default name is sensor_<id>)
@@ -442,6 +467,7 @@ class GenericAsset(db.Model, AuthModelMixin):
             chart_type,
             sensors_to_show=self.sensors_to_show,
             dataset_name=dataset_name,
+            combine_legend=combine_legend,
             **kwargs,
         )
 
@@ -474,13 +500,9 @@ class GenericAsset(db.Model, AuthModelMixin):
         beliefs_before: datetime | None = None,
         horizons_at_least: timedelta | None = None,
         horizons_at_most: timedelta | None = None,
-        source: DataSource
-        | list[DataSource]
-        | int
-        | list[int]
-        | str
-        | list[str]
-        | None = None,
+        source: (
+            DataSource | list[DataSource] | int | list[int] | str | list[str] | None
+        ) = None,
         most_recent_beliefs_only: bool = True,
         most_recent_events_only: bool = False,
         as_json: bool = False,
@@ -536,13 +558,17 @@ class GenericAsset(db.Model, AuthModelMixin):
                     bdf["belief_horizon"] = bdf.belief_horizons.to_numpy()
                     df = simplify_index(
                         bdf,
-                        index_levels_to_columns=["source"]
-                        if most_recent_beliefs_only
-                        else ["belief_time", "source"],
+                        index_levels_to_columns=(
+                            ["source"]
+                            if most_recent_beliefs_only
+                            else ["belief_time", "source"]
+                        ),
                     ).set_index(
-                        ["source"]
-                        if most_recent_beliefs_only
-                        else ["belief_time", "source"],
+                        (
+                            ["source"]
+                            if most_recent_beliefs_only
+                            else ["belief_time", "source"]
+                        ),
                         append=True,
                     )
                     df["sensor"] = sensor  # or some JSONifiable representation
@@ -552,13 +578,17 @@ class GenericAsset(db.Model, AuthModelMixin):
             else:
                 df = simplify_index(
                     BeliefsDataFrame(),
-                    index_levels_to_columns=["source"]
-                    if most_recent_beliefs_only
-                    else ["belief_time", "source"],
+                    index_levels_to_columns=(
+                        ["source"]
+                        if most_recent_beliefs_only
+                        else ["belief_time", "source"]
+                    ),
                 ).set_index(
-                    ["source"]
-                    if most_recent_beliefs_only
-                    else ["belief_time", "source"],
+                    (
+                        ["source"]
+                        if most_recent_beliefs_only
+                        else ["belief_time", "source"]
+                    ),
                     append=True,
                 )
                 df["sensor"] = {}  # ensure the same columns as a non-empty frame
@@ -569,28 +599,50 @@ class GenericAsset(db.Model, AuthModelMixin):
         return bdf_dict
 
     @property
-    def sensors_to_show(self) -> list["Sensor" | list["Sensor"]]:  # noqa F821
-        """Sensors to show, as defined by the sensors_to_show attribute.
+    def sensors_to_show(
+        self,
+    ) -> list[dict[str, "Sensor"]]:  # noqa F821
+        """
+        Sensors to show, as defined by the sensors_to_show attribute.
 
-        Sensors to show are defined as a list of sensor ids, which
-        is set by the "sensors_to_show" field of the asset's "attributes" column.
-        Valid sensors either belong to the asset itself, to other assets in the same account,
-        or to public assets. In play mode, sensors from different accounts can be added.
+        Sensors to show are defined as a list of sensor IDs, which are set by the "sensors_to_show" field in the asset's "attributes" column.
+        Valid sensors either belong to the asset itself, to other assets in the same account, or to public assets.
+        In play mode, sensors from different accounts can be added.
 
-        Sensor ids can be nested to denote that sensors should be 'shown together',
-        for example, layered rather than vertically concatenated.
-        How to interpret 'shown together' is technically left up to the function returning chart specs,
-        as are any restrictions regarding what sensors can be shown together, such as:
-        - whether they should share the same unit
-        - whether they should share the same name
-        - whether they should belong to different assets
+        Sensor IDs can be nested to denote that sensors should be 'shown together', for example, layered rather than vertically concatenated.
+        Additionally, each row of sensors can be accompanied by a title.
+        If no title is provided, `"title": None` will be assigned in the returned dictionary.
 
-        For example, this denotes showing sensors 42 and 44 together:
+        How to interpret 'shown together' is technically left up to the function returning chart specifications, as are any restrictions regarding which sensors can be shown together, such as:
+        - Whether they should share the same unit
+        - Whether they should share the same name
+        - Whether they should belong to different assets
+
+        For example, this input denotes showing sensors 42 and 44 together:
 
             sensors_to_show = [40, 35, 41, [42, 44], 43, 45]
 
-        In case the field is missing, defaults to two of the asset's sensors,
-        which will be shown together (e.g. sharing the same y-axis) in case they share the same unit.
+        And this input denotes showing sensors 42 and 44 together with a custom title:
+
+            sensors_to_show = [
+                {"title": "Title 1", "sensor": 40},
+                {"title": "Title 2", "sensors": [41, 42]},
+                [43, 44], 45, 46
+            ]
+
+        In both cases, the returned format will contain sensor objects mapped to their respective sensor IDs, as follows:
+
+            [
+                {"title": "Title 1", "sensor": <Sensor object for sensor 40>},
+                {"title": "Title 2", "sensors": [<Sensor object for sensor 41>, <Sensor object for sensor 42>]},
+                {"title": None, "sensors": [<Sensor object for sensor 43>, <Sensor object for sensor 44>]},
+                {"title": None, "sensor": <Sensor object for sensor 45>},
+                {"title": None, "sensor": <Sensor object for sensor 46>}
+            ]
+
+        In case the `sensors_to_show` field is missing, it defaults to two of the asset's sensors. These will be shown together (e.g., sharing the same y-axis) if they share the same unit; otherwise, they will be shown separately.
+
+        Sensors are validated to ensure they are accessible by the user. If certain sensors are inaccessible, they will be excluded from the result, and a warning will be logged. The function only returns sensors that the user has permission to view.
         """
         if not self.has_attribute("sensors_to_show"):
             sensors_to_show = self.sensors[:2]
@@ -599,9 +651,22 @@ class GenericAsset(db.Model, AuthModelMixin):
                 and sensors_to_show[0].unit == sensors_to_show[1].unit
             ):
                 # Sensors are shown together (e.g. they can share the same y-axis)
-                return [sensors_to_show]
+                return [{"title": None, "sensors": sensors_to_show}]
             # Otherwise, show separately
-            return sensors_to_show
+            return [{"title": None, "sensors": [sensor]} for sensor in sensors_to_show]
+
+        sensor_ids_to_show = self.get_attribute("sensors_to_show")
+        # Import the schema for validation
+        from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
+
+        sensors_to_show_schema = SensorsToShowSchema()
+
+        # Deserialize the sensor_ids_to_show using SensorsToShowSchema
+        standardized_sensors_to_show = sensors_to_show_schema.deserialize(
+            sensor_ids_to_show
+        )
+
+        sensor_id_allowlist = SensorsToShowSchema.flatten(standardized_sensors_to_show)
 
         # Only allow showing sensors from assets owned by the user's organization,
         # except in play mode, where any sensor may be shown
@@ -613,13 +678,12 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         from flexmeasures.data.services.sensors import get_sensors
 
-        sensor_ids_to_show = self.get_attribute("sensors_to_show")
         accessible_sensor_map = {
             sensor.id: sensor
             for sensor in get_sensors(
                 account=accounts,
                 include_public_assets=True,
-                sensor_id_allowlist=flatten_unique(sensor_ids_to_show),
+                sensor_id_allowlist=sensor_id_allowlist,
             )
         }
 
@@ -627,24 +691,21 @@ class GenericAsset(db.Model, AuthModelMixin):
         sensors_to_show = []
         missed_sensor_ids = []
 
-        # we make sure to build in the order given by the sensors_to_show attribute, and with the same nesting
-        for s in sensor_ids_to_show:
-            if isinstance(s, list):
-                inaccessible = [sid for sid in s if sid not in accessible_sensor_map]
-                missed_sensor_ids.extend(inaccessible)
-                if len(inaccessible) < len(s):
-                    sensors_to_show.append(
-                        [
-                            accessible_sensor_map[sensor_id]
-                            for sensor_id in s
-                            if sensor_id in accessible_sensor_map
-                        ]
-                    )
-            else:
-                if s not in accessible_sensor_map:
-                    missed_sensor_ids.append(s)
-                else:
-                    sensors_to_show.append(accessible_sensor_map[s])
+        for entry in standardized_sensors_to_show:
+
+            title = entry.get("title")
+            sensors = entry.get("sensors")
+
+            accessible_sensors = [
+                accessible_sensor_map.get(sid)
+                for sid in sensors
+                if sid in accessible_sensor_map
+            ]
+            inaccessible = [sid for sid in sensors if sid not in accessible_sensor_map]
+            missed_sensor_ids.extend(inaccessible)
+            if accessible_sensors:
+                sensors_to_show.append({"title": title, "sensors": accessible_sensors})
+
         if missed_sensor_ids:
             current_app.logger.warning(
                 f"Cannot include sensor(s) {missed_sensor_ids} in sensors_to_show on asset {self}, as it is not accessible to user {current_user}."
