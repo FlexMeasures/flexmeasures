@@ -20,14 +20,21 @@ sensor_schema = SensorSchema()
 
 
 @pytest.mark.parametrize(
-    "requesting_user, use_pagination",
-    [("test_supplier_user_4@seita.nl", False), ("test_supplier_user_4@seita.nl", True)],
+    "requesting_user, search_by, search_value, num_sensors, all_accessible, use_pagination",
+    [
+        ("test_supplier_user_4@seita.nl", "°C", False, 3, True, False),
+        ("test_supplier_user_4@seita.nl", None, True, 2, False, True),
+    ],
     indirect=["requesting_user"],
 )
 def test_fetch_sensors(
     client,
     setup_api_test_data,
     requesting_user,
+    search_by,
+    search_value,
+    num_sensors,
+    all_accessible,
     use_pagination,
 ):
     """
@@ -40,18 +47,47 @@ def test_fetch_sensors(
     if use_pagination:
         query["page"] = 1
 
+    if search_by:
+        query["unit"] = search_by
+
+    if all_accessible:
+        query["all_accessible"] = True
+
+    if search_value:
+        # get sensors from test data
+        dict_key = list(setup_api_test_data.keys())[1]
+        sensor = setup_api_test_data[dict_key]
+        keywords = sensor.name.split(" ")
+        query["filter"] = keywords  # filter expects an array of strings
+
     response = client.get(
         url_for("SensorAPI:index"),
         query_string=query,
     )
+
     print("Server responded with:\n%s" % response.json)
     assert response.status_code == 200
+
+    if search_by:
+        assert is_valid_unit(response.json[0]["unit"])
+        assert response.json[0]["unit"] == "°C"
 
     if use_pagination:
         assert isinstance(response.json["data"][0], dict)
         assert is_valid_unit(response.json["data"][0]["unit"])
-        assert response.json["num-records"] == 3
-        assert response.json["filtered-records"] == 3
+        print(
+            "Num records: %s" % response.json["num-records"],
+            response.json["filtered-records"],
+        )
+        if search_value:
+            # NOTE: Even if the entire sensor name was passed to filter, due to the nature of the filter
+            # logic, the response will contain all sensors that have most of the keywords in the name
+            assert response.json["data"][1]["name"] == sensor.name
+            assert response.json["num-records"] == num_sensors
+            assert response.json["filtered-records"] == num_sensors
+        else:
+            assert response.json["num-records"] == num_sensors
+            assert response.json["filtered-records"] == num_sensors
     else:
         assert isinstance(response.json, list)
         assert is_valid_unit(response.json[0]["unit"])
