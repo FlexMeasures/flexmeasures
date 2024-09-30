@@ -13,8 +13,48 @@ from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.tests.utils import QueryCounter
+from flexmeasures.utils.unit_utils import is_valid_unit
+
 
 sensor_schema = SensorSchema()
+
+
+@pytest.mark.parametrize(
+    "requesting_user, use_pagination",
+    [("test_supplier_user_4@seita.nl", False), ("test_supplier_user_4@seita.nl", True)],
+    indirect=["requesting_user"],
+)
+def test_fetch_sensors(
+    client,
+    setup_api_test_data,
+    requesting_user,
+    use_pagination,
+):
+    """
+    Retrieve all sensors.
+
+    Our user here is admin, so is allowed to see all sensors.
+    Pagination is tested only in passing, we should test filtering and page > 1
+    """
+    query = {}
+    if use_pagination:
+        query["page"] = 1
+
+    response = client.get(
+        url_for("SensorAPI:index"),
+        query_string=query,
+    )
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 200
+
+    if use_pagination:
+        assert isinstance(response.json["data"][0], dict)
+        assert is_valid_unit(response.json["data"][0]["unit"])
+        assert response.json["num-records"] == 3
+        assert response.json["filtered-records"] == 3
+    else:
+        assert isinstance(response.json, list)
+        assert is_valid_unit(response.json[0]["unit"])
 
 
 @pytest.mark.parametrize(
