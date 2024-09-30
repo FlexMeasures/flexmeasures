@@ -41,6 +41,9 @@ def upgrade():
 
         sensors_to_show = attributes_data.get("sensors_to_show", [])
 
+        if not isinstance(sensors_to_show, list):
+            sensors_to_show = [sensors_to_show]
+
         update_stmt = (
             generic_asset_table.update()
             .where(generic_asset_table.c.id == asset_id)

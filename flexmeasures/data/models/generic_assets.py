@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.engine import Row
 from sqlalchemy.ext.hybrid import hybrid_method
 from sqlalchemy.sql.expression import func, text
-from sqlalchemy.ext.mutable import MutableDict
+from sqlalchemy.ext.mutable import MutableDict, MutableList
 from timely_beliefs import BeliefsDataFrame, utils as tb_utils
 
 from flexmeasures.data import db
@@ -23,7 +23,7 @@ from flexmeasures.data.queries.annotations import query_asset_annotations
 from flexmeasures.data.services.timerange import get_timerange
 from flexmeasures.auth.policy import AuthModelMixin, EVERY_LOGGED_IN_USER
 from flexmeasures.utils import geo_utils
-from flexmeasures.utils.coding_utils import flatten_unique
+from flexmeasures.utils.coding_utils import flatten_unique, process_sensors
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
 
 
@@ -86,7 +86,7 @@ class GenericAsset(db.Model, AuthModelMixin):
     longitude = db.Column(db.Float, nullable=True)
     attributes = db.Column(MutableDict.as_mutable(db.JSON), nullable=False, default={})
     sensors_to_show = db.Column(
-        MutableDict.as_mutable(db.JSON), nullable=False, default={}
+        MutableList.as_mutable(db.JSON), nullable=False, default=[]
     )
 
     # One-to-many (or many-to-one?) relationships
@@ -141,17 +141,10 @@ class GenericAsset(db.Model, AuthModelMixin):
         ),
     )
 
-    # def __init__(
-    #     self, name, latitude=None, longitude=None, attributes=None, sensors=None
-    # ):
-    #     super().__init__(
-    #         name=name, latitude=latitude, longitude=longitude, attributes=attributes
-    #     )
-
-    #     # Process the sensors data
-    #     processed_sensors_to_show = process_sensors(self)
-    #     print("====================: ",  {"sensors_to_show": processed_sensors_to_show})
-    #     self.sensors_to_show = {"sensors_to_show": processed_sensors_to_show}
+    def __init__(self, *args, **kwargs):
+        processed_sensors_to_show = process_sensors(self)
+        self.sensors_to_show = processed_sensors_to_show
+        super().__init__(*args, **kwargs)
 
     def __acl__(self):
         """
