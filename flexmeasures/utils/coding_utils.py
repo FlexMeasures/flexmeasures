@@ -13,7 +13,6 @@ from flask import current_app
 from flask_security import current_user
 
 from flexmeasures.data import db
-from flexmeasures.data.models.time_series import Sensor
 
 
 def delete_key_recursive(value, key):
@@ -184,7 +183,7 @@ def get_classes_module(module, superclass, skiptest=True) -> dict:
     return dict(find_classes_modules(module, superclass, skiptest=skiptest))
 
 
-def process_sensors(asset) -> list[dict[str, "Sensor"]]:
+def process_sensors(asset) -> list[dict[str, "Sensor"]]:  # noqa F821
     """
     Sensors to show, as defined by the sensors_to_show attribute.
 
