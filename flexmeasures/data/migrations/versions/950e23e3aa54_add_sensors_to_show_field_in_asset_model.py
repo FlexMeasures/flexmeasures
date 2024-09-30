@@ -39,7 +39,7 @@ def upgrade():
     for row in results:
         asset_id, attributes_data = row
 
-        sensors_to_show = attributes_data.get("sensors_to_show", {})
+        sensors_to_show = attributes_data.get("sensors_to_show", [])
 
         update_stmt = (
             generic_asset_table.update()

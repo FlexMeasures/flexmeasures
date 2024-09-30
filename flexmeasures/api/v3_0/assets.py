@@ -169,6 +169,9 @@ class AssetAPI(FlaskView):
             search_terms=filter, filter_statement=filter_statement
         )
         if page is None:
+            assets = db.session.scalars(query).all()
+            print("====================", assets[0].sensors_to_show)
+            print("====================", assets[0])
             response = asset_schema.dump(db.session.scalars(query).all(), many=True)
         else:
             if per_page is None:

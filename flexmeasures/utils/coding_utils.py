@@ -7,7 +7,13 @@ import time
 import inspect
 import importlib
 import pkgutil
+
+from sqlalchemy import select
 from flask import current_app
+from flask_security import current_user
+
+from flexmeasures.data import db
+from flexmeasures.data.models.time_series import Sensor
 
 
 def delete_key_recursive(value, key):
@@ -176,3 +182,115 @@ def find_classes_modules(module, superclass, skiptest=True):
 
 def get_classes_module(module, superclass, skiptest=True) -> dict:
     return dict(find_classes_modules(module, superclass, skiptest=skiptest))
+
+
+def process_sensors(asset) -> list[dict[str, "Sensor"]]:
+    """
+    Sensors to show, as defined by the sensors_to_show attribute.
+
+    Sensors to show are defined as a list of sensor IDs, which are set by the "sensors_to_show" field in the asset's "attributes" column.
+    Valid sensors either belong to the asset itself, to other assets in the same account, or to public assets.
+    In play mode, sensors from different accounts can be added.
+
+    Sensor IDs can be nested to denote that sensors should be 'shown together', for example, layered rather than vertically concatenated.
+    Additionally, each row of sensors can be accompanied by a title.
+    If no title is provided, `"title": None` will be assigned in the returned dictionary.
+
+    How to interpret 'shown together' is technically left up to the function returning chart specifications, as are any restrictions regarding which sensors can be shown together, such as:
+    - Whether they should share the same unit
+    - Whether they should share the same name
+    - Whether they should belong to different assets
+
+    For example, this input denotes showing sensors 42 and 44 together:
+
+        sensors_to_show = [40, 35, 41, [42, 44], 43, 45]
+
+    And this input denotes showing sensors 42 and 44 together with a custom title:
+
+        sensors_to_show = [
+            {"title": "Title 1", "sensor": 40},
+            {"title": "Title 2", "sensors": [41, 42]},
+            [43, 44], 45, 46
+        ]
+
+    In both cases, the returned format will contain sensor objects mapped to their respective sensor IDs, as follows:
+
+        [
+            {"title": "Title 1", "sensor": <Sensor object for sensor 40>},
+            {"title": "Title 2", "sensors": [<Sensor object for sensor 41>, <Sensor object for sensor 42>]},
+            {"title": None, "sensors": [<Sensor object for sensor 43>, <Sensor object for sensor 44>]},
+            {"title": None, "sensor": <Sensor object for sensor 45>},
+            {"title": None, "sensor": <Sensor object for sensor 46>}
+        ]
+
+    In case the `sensors_to_show` field is missing, it defaults to two of the asset's sensors. These will be shown together (e.g., sharing the same y-axis) if they share the same unit; otherwise, they will be shown separately.
+
+    Sensors are validated to ensure they are accessible by the user. If certain sensors are inaccessible, they will be excluded from the result, and a warning will be logged. The function only returns sensors that the user has permission to view.
+    """
+    if not asset.sensors_to_show or asset.sensors_to_show == {}:
+        sensors_to_show = asset.sensors[:2]
+        if (
+            len(sensors_to_show) == 2
+            and sensors_to_show[0].unit == sensors_to_show[1].unit
+        ):
+            # Sensors are shown together (e.g. they can share the same y-axis)
+            return [{"title": None, "sensors": sensors_to_show}]
+        # Otherwise, show separately
+        return [{"title": None, "sensors": [sensor]} for sensor in sensors_to_show]
+
+    sensor_ids_to_show = asset.sensors_to_show
+    # Import the schema for validation
+    from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
+
+    sensors_to_show_schema = SensorsToShowSchema()
+
+    # Deserialize the sensor_ids_to_show using SensorsToShowSchema
+    standardized_sensors_to_show = sensors_to_show_schema.deserialize(
+        sensor_ids_to_show
+    )
+
+    sensor_id_allowlist = SensorsToShowSchema.flatten(standardized_sensors_to_show)
+
+    # Only allow showing sensors from assets owned by the user's organization,
+    # except in play mode, where any sensor may be shown
+    accounts = [asset.owner] if asset.owner is not None else None
+    if current_app.config.get("FLEXMEASURES_MODE") == "play":
+        from flexmeasures.data.models.user import Account
+
+        accounts = db.session.scalars(select(Account)).all()
+
+    from flexmeasures.data.services.sensors import get_sensors
+
+    accessible_sensor_map = {
+        sensor.id: sensor
+        for sensor in get_sensors(
+            account=accounts,
+            include_public_assets=True,
+            sensor_id_allowlist=sensor_id_allowlist,
+        )
+    }
+
+    # Build list of sensor objects that are accessible
+    sensors_to_show = []
+    missed_sensor_ids = []
+
+    for entry in standardized_sensors_to_show:
+
+        title = entry.get("title")
+        sensors = entry.get("sensors")
+
+        accessible_sensors = [
+            accessible_sensor_map.get(sid)
+            for sid in sensors
+            if sid in accessible_sensor_map
+        ]
+        inaccessible = [sid for sid in sensors if sid not in accessible_sensor_map]
+        missed_sensor_ids.extend(inaccessible)
+        if accessible_sensors:
+            sensors_to_show.append({"title": title, "sensors": accessible_sensors})
+
+    if missed_sensor_ids:
+        current_app.logger.warning(
+            f"Cannot include sensor(s) {missed_sensor_ids} in sensors_to_show on asset {asset.id}, as it is not accessible to user {current_user}."
+        )
+    return sensors_to_show
