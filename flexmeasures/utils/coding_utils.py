@@ -226,6 +226,10 @@ def process_sensors(asset) -> list[dict[str, "Sensor"]]:  # noqa F821
 
     Sensors are validated to ensure they are accessible by the user. If certain sensors are inaccessible, they will be excluded from the result, and a warning will be logged. The function only returns sensors that the user has permission to view.
     """
+    old_sensors_to_show = (
+        asset.sensors_to_show
+    )  # Used to check if sensors_to_show was updated
+    asset.sensors_to_show = asset.attributes.get("sensors_to_show", [])
     if not asset.sensors_to_show or asset.sensors_to_show == {}:
         sensors_to_show = asset.sensors[:2]
         if (
@@ -292,4 +296,9 @@ def process_sensors(asset) -> list[dict[str, "Sensor"]]:  # noqa F821
         current_app.logger.warning(
             f"Cannot include sensor(s) {missed_sensor_ids} in sensors_to_show on asset {asset.id}, as it is not accessible to user {current_user}."
         )
+    # check if sensors_to_show was updated
+    if old_sensors_to_show != asset.sensors_to_show:
+        asset.attributes["sensors_to_show"] = standardized_sensors_to_show
+    db.session.commit()
+
     return sensors_to_show

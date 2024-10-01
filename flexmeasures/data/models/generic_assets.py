@@ -142,9 +142,8 @@ class GenericAsset(db.Model, AuthModelMixin):
     )
 
     def __init__(self, *args, **kwargs):
-        processed_sensors_to_show = process_sensors(self)
-        self.sensors_to_show = processed_sensors_to_show
         super().__init__(*args, **kwargs)
+        process_sensors(self)  # Migrate data to sensors_to_show
 
     def __acl__(self):
         """
@@ -459,7 +458,8 @@ class GenericAsset(db.Model, AuthModelMixin):
         :param resolution: optionally set the resolution of data being displayed
         :returns: JSON string defining vega-lite chart specs
         """
-        sensors = flatten_unique(self.sensors_to_show)
+        processed_sensors_to_show = process_sensors(self)
+        sensors = flatten_unique(processed_sensors_to_show)
         for sensor in sensors:
             sensor.sensor_type = sensor.get_attribute("sensor_type", sensor.name)
 
@@ -472,7 +472,7 @@ class GenericAsset(db.Model, AuthModelMixin):
             kwargs["event_ends_before"] = event_ends_before
         chart_specs = chart_type_to_chart_specs(
             chart_type,
-            sensors_to_show=self.sensors_to_show,
+            sensors_to_show=processed_sensors_to_show,
             dataset_name=dataset_name,
             combine_legend=combine_legend,
             **kwargs,
@@ -641,7 +641,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                       'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
                   }
         """
-        return self.get_timerange(self.sensors_to_show)
+        return self.get_timerange(process_sensors(self))
 
     @classmethod
     def get_timerange(cls, sensors: list["Sensor"]) -> dict[str, datetime]:  # noqa F821
