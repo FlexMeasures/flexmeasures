@@ -20,10 +20,17 @@ sensor_schema = SensorSchema()
 
 
 @pytest.mark.parametrize(
-    "requesting_user, search_by, search_value, num_sensors, all_accessible, use_pagination",
+    "requesting_user, search_by, search_value, all_accessible, use_pagination",
     [
-        ("test_supplier_user_4@seita.nl", "°C", False, 3, True, False),
-        ("test_supplier_user_4@seita.nl", None, True, 2, False, True),
+        ("test_supplier_user_4@seita.nl", "unit", "°C", True, False),
+        ("test_supplier_user_4@seita.nl", None, None, True, True),
+        (
+            "test_supplier_user_4@seita.nl",
+            "filter",
+            "some temperature sensor",
+            False,
+            False,
+        ),
     ],
     indirect=["requesting_user"],
 )
@@ -33,7 +40,6 @@ def test_fetch_sensors(
     requesting_user,
     search_by,
     search_value,
-    num_sensors,
     all_accessible,
     use_pagination,
 ):
@@ -43,54 +49,46 @@ def test_fetch_sensors(
     Our user here is admin, so is allowed to see all sensors.
     Pagination is tested only in passing, we should test filtering and page > 1
     """
-    query = {}
+    query = {search_by: search_value}
+
     if use_pagination:
         query["page"] = 1
 
-    if search_by:
-        query["unit"] = search_by
+    if search_by == "unit":
+        query["unit"] = search_value
+    elif search_by == "filter":
+        query["filter"] = search_value.split(" ")
 
     if all_accessible:
         query["all_accessible"] = True
-
-    if search_value:
-        # get sensors from test data
-        dict_key = list(setup_api_test_data.keys())[1]
-        sensor = setup_api_test_data[dict_key]
-        keywords = sensor.name.split(" ")
-        query["filter"] = keywords  # filter expects an array of strings
 
     response = client.get(
         url_for("SensorAPI:index"),
         query_string=query,
     )
 
+    print("Query:\n%s" % query)
     print("Server responded with:\n%s" % response.json)
     assert response.status_code == 200
-
-    if search_by:
-        assert is_valid_unit(response.json[0]["unit"])
-        assert response.json[0]["unit"] == "°C"
 
     if use_pagination:
         assert isinstance(response.json["data"][0], dict)
         assert is_valid_unit(response.json["data"][0]["unit"])
-        print(
-            "Num records: %s" % response.json["num-records"],
-            response.json["filtered-records"],
-        )
-        if search_value:
-            # NOTE: Even if the entire sensor name was passed to filter, due to the nature of the filter
-            # logic, the response will contain all sensors that have most of the keywords in the name
-            assert response.json["data"][1]["name"] == sensor.name
-            assert response.json["num-records"] == num_sensors
-            assert response.json["filtered-records"] == num_sensors
-        else:
-            assert response.json["num-records"] == num_sensors
-            assert response.json["filtered-records"] == num_sensors
+        assert response.json["num-records"] == 3
+        assert response.json["filtered-records"] == 3
     else:
         assert isinstance(response.json, list)
         assert is_valid_unit(response.json[0]["unit"])
+        # NOTE: Even if the entire sensor name was passed to filter, due to the nature of the filter logic, the response will contain
+        # all sensors that have most of the keywords in the name. That's why we have 2 sensors in the response and I'm selecting the
+        # second one which has the name "some temperature sensor"
+        if search_by == "unit":
+            assert response.json[0]["unit"] == "°C"
+            assert response.json[0]["name"] == "some temperature sensor"
+        elif search_by == "filter":
+            assert response.json[1]["unit"] == "°C"
+            assert response.json[1]["name"] == "some temperature sensor"
+        assert len(response.json) == 2
 
 
 @pytest.mark.parametrize(
