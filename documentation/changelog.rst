@@ -32,7 +32,7 @@ New features
 -------------
 * New chart type on sensor page: histogram [see `PR #1143 <https://github.com/FlexMeasures/flexmeasures/pull/1143>`_]
 * Add basic sensor info to sensor page [see `PR #1115 <https://github.com/FlexMeasures/flexmeasures/pull/1115>`_]
-* Add dedicated ``sensors_to_show`` field to asset model and logic to migrate data fro parent source(attributes field) [see `PR #1200 <https://github.com/FlexMeasures/flexmeasures/pull/1200>`]
+* Add dedicated ``sensors_to_show`` field to asset model and logic to migrate data fro parent source(attributes field) [see `PR #1200 <https://github.com/FlexMeasures/flexmeasures/pull/1200>`_]
 * Add `Statistics` table on the sensor page and also add `api/v3_0/sensors/<id>/stats` endpoint to get sensor statistics [see `PR #1116 <https://github.com/FlexMeasures/flexmeasures/pull/1116>`_]
 * Support adding custom titles to the graphs on the asset page, by extending the ``sensors_to_show`` format [see `PR #1125 <https://github.com/FlexMeasures/flexmeasures/pull/1125>`_ and `PR #1177 <https://github.com/FlexMeasures/flexmeasures/pull/1177>`_]
 * Support zoom-in action on the asset and sensor charts [see `PR #1130 <https://github.com/FlexMeasures/flexmeasures/pull/1130>`_]
