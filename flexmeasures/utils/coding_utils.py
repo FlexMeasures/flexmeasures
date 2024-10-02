@@ -229,7 +229,11 @@ def process_sensors(asset) -> list[dict[str, "Sensor"]]:  # noqa F821
     old_sensors_to_show = (
         asset.sensors_to_show
     )  # Used to check if sensors_to_show was updated
-    asset.sensors_to_show = asset.attributes.get("sensors_to_show", [])
+    if asset.attributes is not None:
+        asset.sensors_to_show = asset.attributes.get("sensors_to_show", [])
+    else:
+        asset.sensors_to_show = []
+
     if not asset.sensors_to_show or asset.sensors_to_show == {}:
         sensors_to_show = asset.sensors[:2]
         if (
