@@ -579,7 +579,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         :param resolution: optionally set the resolution of data being displayed
         :returns: JSON string defining vega-lite chart specs
         """
-        processed_sensors_to_show = self.validate_sesnors_to_show()
+        processed_sensors_to_show = self.validate_sensors_to_show()
         sensors = flatten_unique(processed_sensors_to_show)
         for sensor in sensors:
             sensor.sensor_type = sensor.get_attribute("sensor_type", sensor.name)
@@ -762,7 +762,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                       'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
                   }
         """
-        return self.get_timerange(self.validate_sesnors_to_show())
+        return self.get_timerange(self.validate_sensors_to_show())
 
     @classmethod
     def get_timerange(cls, sensors: list["Sensor"]) -> dict[str, datetime]:  # noqa F821
