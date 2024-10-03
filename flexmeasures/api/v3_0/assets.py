@@ -199,10 +199,10 @@ class AssetAPI(FlaskView):
     @use_kwargs(
         {
             "page": fields.Int(
-                required=False, validate=validate.Range(min=1), default=1
+                required=False, validate=validate.Range(min=1), dump_default=1
             ),
             "per_page": fields.Int(
-                required=False, validate=validate.Range(min=1), default=10
+                required=False, validate=validate.Range(min=1), dump_default=10
             ),
         },
         location="query",
