@@ -20,14 +20,15 @@ sensor_schema = SensorSchema()
 
 
 @pytest.mark.parametrize(
-    "requesting_user, search_by, search_value, all_accessible, use_pagination",
+    "requesting_user, search_by, search_value, exp_num_results, all_accessible, use_pagination",
     [
-        ("test_supplier_user_4@seita.nl", "unit", "°C", True, False),
-        ("test_supplier_user_4@seita.nl", None, None, True, True),
+        ("test_supplier_user_4@seita.nl", "unit", "°C", 2, True, False),
+        ("test_supplier_user_4@seita.nl", None, None, 3, True, True),
         (
             "test_supplier_user_4@seita.nl",
             "filter",
             "some temperature sensor",
+            1,
             False,
             False,
         ),
@@ -40,6 +41,7 @@ def test_fetch_sensors(
     requesting_user,
     search_by,
     search_value,
+    exp_num_results,
     all_accessible,
     use_pagination,
 ):
@@ -57,7 +59,7 @@ def test_fetch_sensors(
     if search_by == "unit":
         query["unit"] = search_value
     elif search_by == "filter":
-        query["filter"] = search_value.split(" ")
+        query["filter"] = f"'{search_value}'"
 
     if all_accessible:
         query["all_accessible"] = True
@@ -74,21 +76,19 @@ def test_fetch_sensors(
     if use_pagination:
         assert isinstance(response.json["data"][0], dict)
         assert is_valid_unit(response.json["data"][0]["unit"])
-        assert response.json["num-records"] == 3
-        assert response.json["filtered-records"] == 3
+        assert response.json["num-records"] == exp_num_results
+        assert response.json["filtered-records"] == exp_num_results
     else:
         assert isinstance(response.json, list)
         assert is_valid_unit(response.json[0]["unit"])
-        # NOTE: Even if the entire sensor name was passed to filter, due to the nature of the filter logic, the response will contain
-        # all sensors that have most of the keywords in the name. That's why we have 2 sensors in the response and I'm selecting the
-        # second one which has the name "some temperature sensor"
         if search_by == "unit":
             assert response.json[0]["unit"] == "°C"
             assert response.json[0]["name"] == "some temperature sensor"
+            assert len(response.json) == exp_num_results
         elif search_by == "filter":
-            assert response.json[1]["unit"] == "°C"
-            assert response.json[1]["name"] == "some temperature sensor"
-        assert len(response.json) == 2
+            assert response.json[0]["unit"] == "°C"
+            assert response.json[0]["name"] == "some temperature sensor"
+            assert len(response.json) == exp_num_results
 
 
 @pytest.mark.parametrize(
