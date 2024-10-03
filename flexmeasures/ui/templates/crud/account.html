@@ -292,7 +292,9 @@ Account overview {% endblock %} {% block divs %}
     let icon = asset_icon_map[asset_type.toLowerCase()];
     if (icon === undefined) icon = `icon-${asset_type}`;
 
-    this.name = name;
+    this.name = `
+    <i class="${icon} left-icon">${name}</i>
+  `;
 
     this.id = id;
     this.location = "";
