@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from typing import Any
 import json
 
+from flask import current_app
 from flask_security import current_user
 import pandas as pd
 from sqlalchemy import select
@@ -23,7 +24,7 @@ from flexmeasures.data.queries.annotations import query_asset_annotations
 from flexmeasures.data.services.timerange import get_timerange
 from flexmeasures.auth.policy import AuthModelMixin, EVERY_LOGGED_IN_USER
 from flexmeasures.utils import geo_utils
-from flexmeasures.utils.coding_utils import flatten_unique, validate_sesnors_to_show
+from flexmeasures.utils.coding_utils import flatten_unique
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
 
 
@@ -143,7 +144,6 @@ class GenericAsset(db.Model, AuthModelMixin):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        validate_sesnors_to_show(self)  # Migrate data to sensors_to_show
 
     def __acl__(self):
         """
@@ -169,6 +169,127 @@ class GenericAsset(db.Model, AuthModelMixin):
             self.name,
             self.generic_asset_type.name,
         )
+
+    def validate_sensors_to_show(
+        self,
+    ) -> list[dict[str, str | None | "Sensor" | list["Sensor"]]]:  # noqa: F821
+        """
+        Validate and transform the 'sensors_to_show' attribute into the latest format for use in graph-making code.
+
+        This function ensures that the 'sensors_to_show' attribute:
+        1. Follows the latest format, even if the data in the database uses an older format.
+        2. Contains only sensors that the user has access to (based on the current asset, account, or public availability).
+        3. Returns a list of dictionaries where each dictionary contains either a single sensor or a group of sensors with an optional title.
+
+        Steps:
+        - The function deserializes the 'sensors_to_show' data from the database, ensuring that older formats are parsed correctly.
+        - It checks if each sensor is accessible by the user and filters out any unauthorized sensors.
+        - The sensor structure is rebuilt according to the latest format, which allows for grouping sensors and adding optional titles.
+
+        Details on format:
+        - The 'sensors_to_show' attribute is defined as a list of sensor IDs or nested lists of sensor IDs (to indicate grouping).
+        - Titles may be associated with rows of sensors. If no title is provided, `{"title": None}` will be assigned.
+        - Nested lists of sensors indicate that they should be shown together (e.g., layered in the same chart).
+
+        Example inputs:
+        1. Simple list of sensors, where sensors 42 and 44 are grouped:
+            sensors_to_show = [40, 35, 41, [42, 44], 43, 45]
+
+        2. List with titles and sensor groupings:
+            sensors_to_show = [
+                {"title": "Title 1", "sensor": 40},
+                {"title": "Title 2", "sensors": [41, 42]},
+                [43, 44], 45, 46
+            ]
+
+        Returned structure:
+        - The function returns a list of dictionaries, with each dictionary containing either a 'sensor' (for individual sensors) or 'sensors' (for groups of sensors), and an optional 'title'.
+        - Example output:
+            [
+                {"title": "Title 1", "sensor": <Sensor object for sensor 40>},
+                {"title": "Title 2", "sensors": [<Sensor object for sensor 41>, <Sensor object for sensor 42>]},
+                {"title": None, "sensors": [<Sensor object for sensor 43>, <Sensor object for sensor 44>]},
+                {"title": None, "sensor": <Sensor object for sensor 45>},
+                {"title": None, "sensor": <Sensor object for sensor 46>}
+            ]
+
+        If the 'sensors_to_show' attribute is missing, the function defaults to showing two of the asset's sensors, grouped together if they share the same unit, or separately if not.
+
+        Unauthorized sensors are filtered out, and a warning is logged. Only sensors the user has permission to access are included in the final result.
+        """
+
+        if self.attributes is not None:
+            self.sensors_to_show = self.attributes.get("sensors_to_show", [])
+        else:
+            self.sensors_to_show = []
+
+        if not self.has_attribute("sensors_to_show"):
+            sensors_to_show = self.sensors[:2]
+            if (
+                len(sensors_to_show) == 2
+                and sensors_to_show[0].unit == sensors_to_show[1].unit
+            ):
+                # Sensors are shown together (e.g. they can share the same y-axis)
+                return [{"title": None, "sensors": sensors_to_show}]
+            # Otherwise, show separately
+            return [{"title": None, "sensors": [sensor]} for sensor in sensors_to_show]
+
+        sensor_ids_to_show = self.get_attribute("sensors_to_show")
+        # Import the schema for validation
+        from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
+
+        sensors_to_show_schema = SensorsToShowSchema()
+
+        # Deserialize the sensor_ids_to_show using SensorsToShowSchema
+        standardized_sensors_to_show = sensors_to_show_schema.deserialize(
+            sensor_ids_to_show
+        )
+
+        sensor_id_allowlist = SensorsToShowSchema.flatten(standardized_sensors_to_show)
+
+        # Only allow showing sensors from assets owned by the user's organization,
+        # except in play mode, where any sensor may be shown
+        accounts = [self.owner] if self.owner is not None else None
+        if current_app.config.get("FLEXMEASURES_MODE") == "play":
+            from flexmeasures.data.models.user import Account
+
+            accounts = db.session.scalars(select(Account)).all()
+
+        from flexmeasures.data.services.sensors import get_sensors
+
+        accessible_sensor_map = {
+            sensor.id: sensor
+            for sensor in get_sensors(
+                account=accounts,
+                include_public_assets=True,
+                sensor_id_allowlist=sensor_id_allowlist,
+            )
+        }
+
+        # Build list of sensor objects that are accessible
+        sensors_to_show = []
+        missed_sensor_ids = []
+
+        for entry in standardized_sensors_to_show:
+
+            title = entry.get("title")
+            sensors = entry.get("sensors")
+
+            accessible_sensors = [
+                accessible_sensor_map.get(sid)
+                for sid in sensors
+                if sid in accessible_sensor_map
+            ]
+            inaccessible = [sid for sid in sensors if sid not in accessible_sensor_map]
+            missed_sensor_ids.extend(inaccessible)
+            if accessible_sensors:
+                sensors_to_show.append({"title": title, "sensors": accessible_sensors})
+
+        if missed_sensor_ids:
+            current_app.logger.warning(
+                f"Cannot include sensor(s) {missed_sensor_ids} in sensors_to_show on asset {self}, as it is not accessible to user {current_user}."
+            )
+        return sensors_to_show
 
     @property
     def asset_type(self) -> GenericAssetType:
@@ -458,7 +579,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         :param resolution: optionally set the resolution of data being displayed
         :returns: JSON string defining vega-lite chart specs
         """
-        processed_sensors_to_show = validate_sesnors_to_show(self)
+        processed_sensors_to_show = self.validate_sesnors_to_show()
         sensors = flatten_unique(processed_sensors_to_show)
         for sensor in sensors:
             sensor.sensor_type = sensor.get_attribute("sensor_type", sensor.name)
@@ -641,7 +762,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                       'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
                   }
         """
-        return self.get_timerange(validate_sesnors_to_show(self))
+        return self.get_timerange(self.validate_sesnors_to_show())
 
     @classmethod
     def get_timerange(cls, sensors: list["Sensor"]) -> dict[str, datetime]:  # noqa F821
