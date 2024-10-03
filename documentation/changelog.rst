@@ -13,6 +13,7 @@ New features
 * Speed up loading the users page, by making the pagination backend-based and adding support for that in the API [see `PR #1160 <https://github.com/FlexMeasures/flexmeasures/pull/1160>`]
 * X-axis labels in CLI plots show datetime values in a readable and informative format [see `PR #1172 <https://github.com/FlexMeasures/flexmeasures/pull/1172>`_]
 * Speed up loading the accounts page,by making the pagination backend-based and adding support for that in the API [see `PR #1196 <https://github.com/FlexMeasures/flexmeasures/pull/1196>`_]
+* Speed up loading the account detail page by by switching to server-side pagination for assets, replacing client-side pagination [see `PR #1202 <https://github.com/FlexMeasures/flexmeasures/pull/1202>`_]
 
 Infrastructure / Support
 ----------------------
