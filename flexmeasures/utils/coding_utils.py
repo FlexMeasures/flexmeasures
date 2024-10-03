@@ -183,7 +183,9 @@ def get_classes_module(module, superclass, skiptest=True) -> dict:
     return dict(find_classes_modules(module, superclass, skiptest=skiptest))
 
 
-def process_sensors(asset) -> list[dict[str, "Sensor"]]:  # noqa F821
+def validate_sesnors_to_show(
+    asset,
+) -> list[dict[str, str | None | "Sensor" | list["Sensor"]]]:  # noqa: F821
     """
     Sensors to show, as defined by the sensors_to_show attribute.
 
@@ -234,7 +236,7 @@ def process_sensors(asset) -> list[dict[str, "Sensor"]]:  # noqa F821
     else:
         asset.sensors_to_show = []
 
-    if not asset.sensors_to_show or asset.sensors_to_show == {}:
+    if not asset.sensors_to_show or asset.sensors_to_show == []:
         sensors_to_show = asset.sensors[:2]
         if (
             len(sensors_to_show) == 2
