@@ -22,7 +22,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
-
+* The UI footer now stays at the bottom even on pages with little content [see `PR #1204 <https://github.com/FlexMeasures/flexmeasures/pull/1204>`_]
 
 
 v0.23.0 | September 18, 2024
