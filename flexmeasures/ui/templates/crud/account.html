@@ -319,6 +319,7 @@ Account overview {% endblock %} {% block divs %}
     $("#assetTable").dataTable({
       serverSide: true,
       columns: [
+        { data: "id", title: "Asset ID" },
         { data: "name", title: "Name" },
         { data: "owner", title: "Account" },
         { data: "location", title: "Location" },
