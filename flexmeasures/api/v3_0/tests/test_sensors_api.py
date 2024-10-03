@@ -20,13 +20,39 @@ sensor_schema = SensorSchema()
 
 
 @pytest.mark.parametrize(
-    "requesting_user, search_by, search_value, exp_num_results, all_accessible, use_pagination",
+    "requesting_user, search_by, search_value, exp_sensor_name, exp_num_results, all_accessible, use_pagination",
     [
-        ("test_supplier_user_4@seita.nl", "unit", "°C", 2, True, False),
-        ("test_supplier_user_4@seita.nl", None, None, 3, True, True),
+        (
+            "test_supplier_user_4@seita.nl",
+            "unit",
+            "°C",
+            "some temperature sensor",
+            2,
+            True,
+            False,
+        ),
+        (
+            "test_supplier_user_4@seita.nl",
+            "unit",
+            "m³/h",
+            "some gas sensor",
+            1,
+            True,
+            False,
+        ),
+        (
+            "test_supplier_user_4@seita.nl",
+            None,
+            None,
+            "some temperature sensor",
+            3,
+            True,
+            True,
+        ),
         (
             "test_supplier_user_4@seita.nl",
             "filter",
+            "'some temperature sensor'",
             "some temperature sensor",
             1,
             False,
@@ -41,6 +67,7 @@ def test_fetch_sensors(
     requesting_user,
     search_by,
     search_value,
+    exp_sensor_name,
     exp_num_results,
     all_accessible,
     use_pagination,
@@ -59,7 +86,7 @@ def test_fetch_sensors(
     if search_by == "unit":
         query["unit"] = search_value
     elif search_by == "filter":
-        query["filter"] = f"'{search_value}'"
+        query["filter"] = search_value
 
     if all_accessible:
         query["all_accessible"] = True
@@ -69,7 +96,6 @@ def test_fetch_sensors(
         query_string=query,
     )
 
-    print("Query:\n%s" % query)
     print("Server responded with:\n%s" % response.json)
     assert response.status_code == 200
 
@@ -82,12 +108,12 @@ def test_fetch_sensors(
         assert isinstance(response.json, list)
         assert is_valid_unit(response.json[0]["unit"])
         if search_by == "unit":
-            assert response.json[0]["unit"] == "°C"
-            assert response.json[0]["name"] == "some temperature sensor"
+            assert response.json[0]["unit"] == search_value
+            assert response.json[0]["name"] == exp_sensor_name
             assert len(response.json) == exp_num_results
         elif search_by == "filter":
             assert response.json[0]["unit"] == "°C"
-            assert response.json[0]["name"] == "some temperature sensor"
+            assert response.json[0]["name"] == exp_sensor_name
             assert len(response.json) == exp_num_results
 
 
