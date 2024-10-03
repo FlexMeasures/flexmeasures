@@ -333,7 +333,9 @@ Account overview {% endblock %} {% block divs %}
         let filter = data["search"]["value"];
         let url = `{{url_for("AssetAPI:index")}}?page=${
           Math.floor(data["start"] / data["length"]) + 1
-        }&per_page=${data["length"]}&all_accessible=true`;
+        }&per_page=${data["length"]}&all_accessible=true&account_id=${
+          {{ account.id }}
+        }`;
         if (filter.length > 0) {
           url = `${url}&filter=${filter}`;
         }
