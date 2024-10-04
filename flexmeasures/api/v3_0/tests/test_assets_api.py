@@ -226,7 +226,7 @@ def test_alter_an_asset(
     print(f"Editing Response: {asset_edit_response.json}")
     assert asset_edit_response.status_code == 200
 
-    audit_log_event = f"Updated asset '{prosumer_asset.name}': {prosumer_asset.id}; fields: Field: name, From: {name}, To: other"
+    audit_log_event = f"Updated Field: name, From: {name}, To: other"
     assert db.session.execute(
         select(AssetAuditLog).filter_by(
             event=audit_log_event,
@@ -236,7 +236,7 @@ def test_alter_an_asset(
         )
     ).scalar_one_or_none()
 
-    audit_log_event = f"Updated asset '{prosumer_asset.name}': {prosumer_asset.id}; fields: Field: latitude, From: {latitude}, To: 11.1"
+    audit_log_event = f"Updated Field: latitude, From: {latitude}, To: 11.1"
     assert db.session.execute(
         select(AssetAuditLog).filter_by(
             event=audit_log_event,
