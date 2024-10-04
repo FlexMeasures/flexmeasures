@@ -7,16 +7,20 @@ FlexMeasures Changelog
 v0.24.0 | October XX, 2024
 ============================
 
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+
+
 New features
 -------------
-* The data chart on the asset page splits up its color-coded sensor legend when showing more than 7 sensors, becoming a legend per subplot [see `PR #1176 <https://github.com/FlexMeasures/flexmeasures/pull/1176>`_ and `PR #1193 <https://github.com/FlexMeasures/flexmeasures/pull/1193>`_
-* Speed up loading the users page, by making the pagination backend-based and adding support for that in the API [see `PR #1160 <https://github.com/FlexMeasures/flexmeasures/pull/1160>`]
+* The data chart on the asset page splits up its color-coded sensor legend when showing more than 7 sensors, becoming a legend per subplot [see `PR #1176 <https://github.com/FlexMeasures/flexmeasures/pull/1176>`_ and `PR #1193 <https://github.com/FlexMeasures/flexmeasures/pull/1193>`_]
+* Speed up loading the users page, by making the pagination backend-based and adding support for that in the API [see `PR #1160 <https://github.com/FlexMeasures/flexmeasures/pull/1160>`_]
 * X-axis labels in CLI plots show datetime values in a readable and informative format [see `PR #1172 <https://github.com/FlexMeasures/flexmeasures/pull/1172>`_]
 
 Infrastructure / Support
 ----------------------
 
 * For MacOS developers, install HiGHS solver automatically [see `PR #1187 <https://github.com/FlexMeasures/flexmeasures/pull/1187>`_]
+* Add dedicated ``sensors_to_show`` field to asset model and logic to migrate data from parent source(attributes field) [see `PR #1200 <https://github.com/FlexMeasures/flexmeasures/pull/1200>`_]
 
 Bugfixes
 -----------
@@ -28,13 +32,10 @@ v0.23.0 | September 18, 2024
 
 .. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/023-data-insights-and-white-labelling/>`_.
 
-.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
-
 New features
 -------------
 * New chart type on sensor page: histogram [see `PR #1143 <https://github.com/FlexMeasures/flexmeasures/pull/1143>`_]
 * Add basic sensor info to sensor page [see `PR #1115 <https://github.com/FlexMeasures/flexmeasures/pull/1115>`_]
-* Add dedicated ``sensors_to_show`` field to asset model and logic to migrate data from parent source(attributes field) [see `PR #1200 <https://github.com/FlexMeasures/flexmeasures/pull/1200>`_]
 * Add `Statistics` table on the sensor page and also add `api/v3_0/sensors/<id>/stats` endpoint to get sensor statistics [see `PR #1116 <https://github.com/FlexMeasures/flexmeasures/pull/1116>`_]
 * Support adding custom titles to the graphs on the asset page, by extending the ``sensors_to_show`` format [see `PR #1125 <https://github.com/FlexMeasures/flexmeasures/pull/1125>`_ and `PR #1177 <https://github.com/FlexMeasures/flexmeasures/pull/1177>`_]
 * Support zoom-in action on the asset and sensor charts [see `PR #1130 <https://github.com/FlexMeasures/flexmeasures/pull/1130>`_]

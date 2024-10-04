@@ -179,7 +179,6 @@ class GenericAsset(db.Model, AuthModelMixin):
         This function ensures that the 'sensors_to_show' attribute:
         1. Follows the latest format, even if the data in the database uses an older format.
         2. Contains only sensors that the user has access to (based on the current asset, account, or public availability).
-        3. Returns a list of dictionaries where each dictionary contains either a single sensor or a group of sensors with an optional title.
 
         Steps:
         - The function deserializes the 'sensors_to_show' data from the database, ensuring that older formats are parsed correctly.
@@ -223,7 +222,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         else:
             self.sensors_to_show = []
 
-        if not self.has_attribute("sensors_to_show"):
+        if not self.sensors_to_show:
             sensors_to_show = self.sensors[:2]
             if (
                 len(sensors_to_show) == 2
@@ -234,7 +233,7 @@ class GenericAsset(db.Model, AuthModelMixin):
             # Otherwise, show separately
             return [{"title": None, "sensors": [sensor]} for sensor in sensors_to_show]
 
-        sensor_ids_to_show = self.get_attribute("sensors_to_show")
+        sensor_ids_to_show = self.sensors_to_show
         # Import the schema for validation
         from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
 
@@ -581,6 +580,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         """
         processed_sensors_to_show = self.validate_sensors_to_show()
         sensors = flatten_unique(processed_sensors_to_show)
+
         for sensor in sensors:
             sensor.sensor_type = sensor.get_attribute("sensor_type", sensor.name)
 
@@ -656,6 +656,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         bdf_dict = {}
         if sensors is None:
             sensors = self.sensors
+
         for sensor in sensors:
             bdf_dict[sensor] = sensor.search_beliefs(
                 event_starts_after=event_starts_after,

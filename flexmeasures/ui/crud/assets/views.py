@@ -1,5 +1,5 @@
 from __future__ import annotations
-import json
+
 from flask import url_for, current_app, request
 from flask_classful import FlaskView, route
 from flask_security import login_required, current_user
@@ -114,13 +114,6 @@ class AssetCrudUI(FlaskView):
 
         get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_one", id=id))
         asset_dict = get_asset_response.json()
-
-        # set sensors to show to list from string, this is not currently being used on the frontend from my knowledge
-        # it may be better popped of instead, but will leave it hear for now
-        if asset_dict.get("sensors_to_show") and not isinstance(
-            asset_dict.get("sensors_to_show"), list
-        ):
-            asset_dict["sensors_to_show"] = json.loads(asset_dict["sensors_to_show"])
 
         asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
 
