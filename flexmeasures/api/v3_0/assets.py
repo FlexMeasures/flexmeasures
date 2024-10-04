@@ -63,19 +63,12 @@ class AssetAPI(FlaskView):
     @use_kwargs(
         {
             "account": AccountIdField(data_key="account_id", load_default=None),
-        },
-        location="query",
-    )
-    @use_kwargs(
-        {
             "all_accessible": fields.Bool(
                 data_key="all_accessible", load_default=False
             ),
-        },
-        location="query",
-    )
-    @use_kwargs(
-        {
+            "include_public": fields.Bool(
+                data_key="include_public", load_default=False
+            ),
             "page": fields.Int(
                 required=False, validate=validate.Range(min=1), load_default=1
             ),
@@ -91,6 +84,7 @@ class AssetAPI(FlaskView):
         self,
         account: Account | None,
         all_accessible: bool,
+        include_public: bool,
         page: int | None = None,
         per_page: int | None = None,
         filter: list[str] | None = None,
@@ -157,7 +151,7 @@ class AssetAPI(FlaskView):
         filter_statement = GenericAsset.account_id.in_([a.id for a in accounts])
 
         # add public assets if the request asks for all the accessible assets
-        if all_accessible:
+        if all_accessible or include_public:
             filter_statement = filter_statement | GenericAsset.account_id.is_(None)
 
         num_records = db.session.scalar(
