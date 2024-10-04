@@ -70,7 +70,7 @@ class AssetAPI(FlaskView):
                 data_key="include_public", load_default=False
             ),
             "page": fields.Int(
-                required=False, validate=validate.Range(min=1), load_default=1
+                required=False, validate=validate.Range(min=1), load_default=None
             ),
             "per_page": fields.Int(
                 required=False, validate=validate.Range(min=1), load_default=10
