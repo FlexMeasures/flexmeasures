@@ -78,7 +78,7 @@
     {% endblock %}
 </head>
 
-<body>
+<body class="d-flex flex-column min-vh-100">
 
     {% block body %}
 
@@ -943,7 +943,7 @@
         src="https://cdn.datatables.net/plug-ins/1.10.22/features/conditionalPaging/dataTables.conditionalPaging.js"></script>
     {% endblock paginate_tables_script %}
 
-    <footer class="page-footer font-small pt-4 mt-4">
+    <footer class="page-footer font-small pt-4 mt-auto">
         <div class="footer text-center">
             <div class="container-fluid">
                 {% block copyright_notice %}
