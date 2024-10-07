@@ -181,8 +181,6 @@ def get_assets_by_account(account_id: int | str | None) -> list[GenericAsset]:
         )
     else:
         get_assets_response = InternalApi().get(url_for("AssetAPI:public"))
-
-    print("get_assets_by_account_func===================", get_assets_response.json())
     return [
         process_internal_api_response(ad, make_obj=True)
         for ad in get_assets_response.json()

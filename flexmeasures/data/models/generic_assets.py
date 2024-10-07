@@ -142,9 +142,6 @@ class GenericAsset(db.Model, AuthModelMixin):
         ),
     )
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
     def __acl__(self):
         """
         All logged-in users can read if the asset is public.
