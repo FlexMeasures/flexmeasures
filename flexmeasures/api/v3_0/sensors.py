@@ -1,17 +1,18 @@
 from __future__ import annotations
 
+import isodate
 from datetime import datetime, timedelta
 
 from flask import current_app, url_for
 from flask_classful import FlaskView, route
 from flask_json import as_json
 from flask_security import auth_required
-import isodate
 from marshmallow import fields, ValidationError
+import marshmallow.validate as validate
 from rq.job import Job, NoSuchJobError
 from timely_beliefs import BeliefsDataFrame
 from webargs.flaskparser import use_args, use_kwargs
-from sqlalchemy import delete
+from sqlalchemy import delete, select, or_
 
 from flexmeasures.api.common.responses import (
     request_processed,
@@ -29,6 +30,7 @@ from flexmeasures.api.common.schemas.sensor_data import (
 )
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.utils.api_utils import save_and_enqueue
+from flexmeasures.auth.policy import check_access
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
 from flexmeasures.data.models.audit_log import AssetAuditLog
@@ -37,8 +39,10 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField
+from flexmeasures.api.common.schemas.search import SearchFilterField
+from flexmeasures.api.common.schemas.sensors import UnitField
 from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
-from flexmeasures.data.services.sensors import get_sensors, get_sensor_stats
+from flexmeasures.data.services.sensors import get_sensor_stats
 from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
     get_data_source_for_job,
@@ -65,18 +69,37 @@ class SensorAPI(FlaskView):
             "account": AccountIdField(
                 data_key="account_id", load_default=AccountIdField.load_current
             ),
+            "all_accessible": fields.Boolean(required=False, missing=False),
+            "page": fields.Int(
+                required=False, validate=validate.Range(min=1), default=1
+            ),
+            "per_page": fields.Int(
+                required=False, validate=validate.Range(min=1), default=10
+            ),
+            "filter": SearchFilterField(required=False, default=None),
+            "unit": UnitField(required=False, default=None),
         },
         location="query",
     )
     @permission_required_for_context("read", ctx_arg_name="account")
     @as_json
-    def index(self, account: Account):
+    def index(
+        self,
+        account: Account,
+        all_accessible: bool = False,
+        page: int | None = None,
+        per_page: int | None = None,
+        filter: list[str] | None = None,
+        unit: str | None = None,
+    ):
         """API endpoint to list all sensors of an account.
 
         .. :quickref: Sensor; Download sensor list
 
         This endpoint returns all accessible sensors.
         Accessible sensors are sensors in the same account as the current user.
+        Alternatively, you can use the `all_accessible` query parameter to list sensors from all assets that the `current_user` has read access to, as well as all public assets. The default value is `false`.
+
         Only admins can use this endpoint to fetch sensors from a different account (by using the `account_id` query parameter).
 
         **Example response**
@@ -85,7 +108,8 @@ class SensorAPI(FlaskView):
 
         .. sourcecode:: json
 
-            [
+        {
+            "data" : [
                 {
                     "entity_address": "ea1.2021-01.io.flexmeasures.company:fm1.42",
                     "event_resolution": PT15M,
@@ -95,7 +119,12 @@ class SensorAPI(FlaskView):
                     "unit": "m\u00b3/h"
                     "id": 2
                 }
-            ]
+            ],
+            "num-records" : 1,
+            "filtered-records" : 1
+        }
+
+        If no pagination is requested, the response only consists of the list under the "data" key.
 
         :reqheader Authorization: The authentication token
         :reqheader Content-Type: application/json
@@ -106,8 +135,69 @@ class SensorAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        sensors = get_sensors(account=account)
-        return sensors_schema.dump(sensors), 200
+        if isinstance(account, list):
+            accounts = account
+        else:
+            accounts: list = [account] if account else []
+        account_ids: list = [acc.id for acc in accounts]
+
+        filter_statement = GenericAsset.account_id.in_(account_ids)
+
+        if all_accessible is not None:
+            consultancy_account_ids: list = [
+                acc.consultancy_account_id for acc in accounts
+            ]
+            account_ids.extend(consultancy_account_ids)
+            filter_statement = or_(
+                filter_statement,
+                GenericAsset.account_id.is_(None),
+            )
+
+        sensor_query = (
+            select(Sensor)
+            .join(GenericAsset, Sensor.generic_asset_id == GenericAsset.id)
+            .join(Account, GenericAsset.owner)
+            .filter(filter_statement)
+        )
+
+        if filter is not None:
+            sensor_query = sensor_query.filter(
+                or_(
+                    *(
+                        or_(
+                            Sensor.name.ilike(f"%{term}%"),
+                            Account.name.ilike(f"%{term}%"),
+                        )
+                        for term in filter
+                    )
+                )
+            )
+
+        if unit:
+            sensor_query = sensor_query.filter(Sensor.unit == unit)
+
+        sensors = (
+            db.session.scalars(sensor_query).all()
+            if page is None
+            else db.paginate(sensor_query, per_page=per_page, page=page).items
+        )
+
+        sensors = [sensor for sensor in sensors if check_access(sensor, "read") is None]
+
+        sensors_response = sensors_schema.dump(sensors)
+
+        # Return appropriate response for paginated or non-paginated data
+        if page is None:
+            return sensors_response, 200
+        else:
+            num_records = len(db.session.execute(sensor_query).scalars().all())
+            select_pagination = db.paginate(sensor_query, per_page=per_page, page=page)
+            response = {
+                "data": sensors_response,
+                "num-records": num_records,
+                "filtered-records": select_pagination.total,
+            }
+            return response, 200
 
     @route("/data", methods=["POST"])
     @use_args(

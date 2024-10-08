@@ -9,6 +9,7 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.api.tests.utils import get_auth_token, UserContext, AccountContext
 from flexmeasures.api.v3_0.tests.utils import get_asset_post_data
+from flexmeasures.utils.unit_utils import is_valid_unit
 
 
 @pytest.mark.parametrize(
@@ -116,6 +117,28 @@ def test_get_assets(
                 turbine = asset
         assert turbine
         assert turbine["account_id"] == setup_accounts["Supplier"].id
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_fetch_asset_sensors(client, setup_api_test_data, requesting_user):
+    """
+    Retrieve all sensors associated with a specific asset.
+
+    This test checks for these metadata fields and the number of sensors returned, as well as
+    confirming that the response is a list of dictionaries, each containing a valid unit.
+    """
+    asset_id = setup_api_test_data["some gas sensor"].generic_asset_id
+    response = client.get(url_for("AssetAPI:asset_sensors", id=asset_id))
+
+    print("Server responded with:\n%s" % response.json)
+
+    assert response.status_code == 200
+    assert response.json["status"] == 200
+    assert isinstance(response.json["data"], list)
+    assert isinstance(response.json["data"][0], dict)
+    assert is_valid_unit(response.json["data"][0]["unit"])
+    assert response.json["num-records"] == 3
+    assert response.json["filtered-records"] == 3
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)

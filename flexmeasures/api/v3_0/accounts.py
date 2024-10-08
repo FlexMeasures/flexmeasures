@@ -20,7 +20,7 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.services.accounts import get_accounts, get_audit_log_records
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.data.schemas.account import AccountSchema
-from flexmeasures.api.common.schemas.generic_assets import SearchFilterField
+from flexmeasures.api.common.schemas.search import SearchFilterField
 from flexmeasures.utils.time_utils import server_now
 
 """
