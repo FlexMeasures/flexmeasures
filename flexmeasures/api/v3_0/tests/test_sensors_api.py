@@ -107,14 +107,11 @@ def test_fetch_sensors(
     else:
         assert isinstance(response.json, list)
         assert is_valid_unit(response.json[0]["unit"])
+        assert response.json[0]["name"] == exp_sensor_name
+        assert len(response.json) == exp_num_results
+
         if search_by == "unit":
             assert response.json[0]["unit"] == search_value
-            assert response.json[0]["name"] == exp_sensor_name
-            assert len(response.json) == exp_num_results
-        elif search_by == "filter":
-            assert response.json[0]["unit"] == "°C"
-            assert response.json[0]["name"] == exp_sensor_name
-            assert len(response.json) == exp_num_results
 
 
 @pytest.mark.parametrize(
