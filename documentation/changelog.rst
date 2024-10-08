@@ -15,16 +15,19 @@ New features
 * The data chart on the asset page splits up its color-coded sensor legend when showing more than 7 sensors, becoming a legend per subplot [see `PR #1176 <https://github.com/FlexMeasures/flexmeasures/pull/1176>`_ and `PR #1193 <https://github.com/FlexMeasures/flexmeasures/pull/1193>`_]
 * Speed up loading the users page, by making the pagination backend-based and adding support for that in the API [see `PR #1160 <https://github.com/FlexMeasures/flexmeasures/pull/1160>`_]
 * X-axis labels in CLI plots show datetime values in a readable and informative format [see `PR #1172 <https://github.com/FlexMeasures/flexmeasures/pull/1172>`_]
+* Speed up loading the accounts page,by making the pagination backend-based and adding support for that in the API [see `PR #1196 <https://github.com/FlexMeasures/flexmeasures/pull/1196>`_]
+* Simplify and Globalize toasts in the flexmeasures project [see `PR #1207 <https://github.com/FlexMeasures/flexmeasures/pull/1207>_`]
 
 Infrastructure / Support
 ----------------------
 
+* Speed up status page by choosing for a faster query (only latest belief needed) [see `PR #1142 <https://github.com/FlexMeasures/flexmeasures/pull/1142>`_]
 * For MacOS developers, install HiGHS solver automatically [see `PR #1187 <https://github.com/FlexMeasures/flexmeasures/pull/1187>`_]
 * Add dedicated ``sensors_to_show`` field to asset model and logic to migrate data from parent source(attributes field) [see `PR #1200 <https://github.com/FlexMeasures/flexmeasures/pull/1200>`_]
 
 Bugfixes
 -----------
-
+* The UI footer now stays at the bottom even on pages with little content [see `PR #1204 <https://github.com/FlexMeasures/flexmeasures/pull/1204>`_]
 
 
 v0.23.0 | September 18, 2024

@@ -78,7 +78,7 @@
     {% endblock %}
 </head>
 
-<body>
+<body class="d-flex flex-column min-vh-100">
 
     {% block body %}
 
@@ -156,10 +156,18 @@
           </div>
         </div>
     </nav>
-      
-      
-
     {% endblock nav %}
+
+    <div
+        class="position-fixed bottom-0 end-0 p-3"
+        id="toast-container"
+        role="alert"
+        aria-live="assertive"
+        aria-atomic="true"
+        style="z-index: 11"
+    >
+        <button id="close-all-toasts" class="btn">Close All</button>
+    </div>
 
     {% if message and message != "" %}
     <div class="col-md-12 alert alert-info">{{ message}} </div>
@@ -728,6 +736,14 @@
 
     <!-- JS to enable toast -->
     <script defer>
+        const toastStack = document.getElementById("toast-container");
+        const closeToastBtn = document.getElementById("close-all-toasts");
+        
+        // written like this since this script(order) is ontop of the main script
+        document.addEventListener("DOMContentLoaded", function () {
+            initiateToastCloseBtn(closeToastBtn);
+        });
+
         function initiateToastCloseBtn(closeToastBtn){
             // hide button
             closeToastBtn.style.display = "none";
@@ -755,7 +771,7 @@
             });
         }
 
-        function showToast(message, type, toastStack, closeToastBtn) {
+        function showToast(message, type) {
             let colorClass;
             let colorStyle = "";
             let title;
@@ -943,7 +959,7 @@
         src="https://cdn.datatables.net/plug-ins/1.10.22/features/conditionalPaging/dataTables.conditionalPaging.js"></script>
     {% endblock paginate_tables_script %}
 
-    <footer class="page-footer font-small pt-4 mt-4">
+    <footer class="page-footer font-small pt-4 mt-auto">
         <div class="footer text-center">
             <div class="container-fluid">
                 {% block copyright_notice %}
