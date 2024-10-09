@@ -213,13 +213,7 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         Unauthorized sensors are filtered out, and a warning is logged. Only sensors the user has permission to access are included in the final result.
         """
-
-        self.sensors_to_show = (
-            self.attributes.get("sensors_to_show", [])
-            if self.sensors_to_show is None
-            else self.sensors_to_show
-        )
-
+        # If not set, use defaults (show first 2 sensors)
         if not self.sensors_to_show:
             sensors_to_show = self.sensors[:2]
             if (
