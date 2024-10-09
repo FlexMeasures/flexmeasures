@@ -148,7 +148,7 @@ Prognoses (the USEF term used for power forecasts) are used by FlexMeasures to d
 
 You can access forecasts via the FlexMeasures API at `[GET] /sensors/data <../api/v3_0.html#get--api-v3_0-sensors-data>`_.
 Getting them might be useful if you want to use prognoses in your own system, or to check their accuracy against meter data, i.e. the realised power measurements.
-The FlexMeasures UI also lists forecast accuracy, and visualises prognoses and meter data next to each other.
+The FlexMeasures UI also visualizes prognoses and meter data next to each other.
 
 A prognosis can be requested at a URL looking like this:
 
