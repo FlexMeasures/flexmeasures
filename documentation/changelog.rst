@@ -17,6 +17,7 @@ New features
 * X-axis labels in CLI plots show datetime values in a readable and informative format [see `PR #1172 <https://github.com/FlexMeasures/flexmeasures/pull/1172>`_]
 * Speed up loading the accounts page,by making the pagination backend-based and adding support for that in the API [see `PR #1196 <https://github.com/FlexMeasures/flexmeasures/pull/1196>`_]
 * Simplify and Globalize toasts in the flexmeasures project [see `PR #1207 <https://github.com/FlexMeasures/flexmeasures/pull/1207>_`]
+* Added an input field to edit the raw JSON data of the sensors_to_show model field [see `PR #1208 <https://github.com/FlexMeasures/flexmeasures/pull/1208>_`]
 
 Infrastructure / Support
 ----------------------
