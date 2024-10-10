@@ -57,10 +57,8 @@ def upgrade():
 
 
 def downgrade():
-    # Initialize the connection
     conn = op.get_bind()
 
-    # Define the generic_asset table
     generic_asset_table = sa.Table(
         "generic_asset",
         sa.MetaData(),
@@ -69,7 +67,6 @@ def downgrade():
         sa.Column("sensors_to_show", sa.JSON),
     )
 
-    # Select the rows where we want to update the attributes field
     select_stmt = select(
         generic_asset_table.c.id,
         generic_asset_table.c.sensors_to_show,
@@ -77,18 +74,14 @@ def downgrade():
     )
     results = conn.execute(select_stmt)
 
-    # Iterate over the results and update the attributes column
     for row in results:
         asset_id, sensors_to_show_data, attributes_data = row
 
-        # Ensure attributes_data is a dictionary, default to empty dict if None
         if attributes_data is None:
             attributes_data = {}
 
-        # Add sensors_to_show back into the attributes field
         attributes_data["sensors_to_show"] = sensors_to_show_data
 
-        # Update the attributes field with the modified data
         update_stmt = (
             generic_asset_table.update()
             .where(generic_asset_table.c.id == asset_id)
