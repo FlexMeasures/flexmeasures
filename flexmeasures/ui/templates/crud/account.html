@@ -254,7 +254,7 @@ Account overview {% endblock %} {% block divs %}
         <div class="table-responsive">
           <table
             class="table table-striped paginate nav-on-click"
-            title="View this asset"
+            title="View this user"
             id="usersTable"
           ></table>
         </div>
@@ -265,69 +265,102 @@ Account overview {% endblock %} {% block divs %}
           <table
             class="table table-striped paginate nav-on-click"
             title="View this asset"
-          >
-            <thead>
-              <tr>
-                <th><i class="left-icon">Name</i></th>
-                <th>Location</th>
-                <th>Asset ID</th>
-                <th>Account</th>
-
-                <th>Sensors</th>
-                <th class="no-sort">Status</th>
-                <th class="text-right no-sort">
-                  {% if user_can_create_assets %}
-                  <form action="/assets/new" method="get">
-                    <button
-                      class="btn btn-sm btn-responsive btn-success create-button"
-                      type="submit"
-                    >
-                      Create new asset
-                    </button>
-                  </form>
-                  {% endif %}
-                </th>
-                <th class="d-none">URL</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for asset in assets %}
-              <tr>
-                <td>
-                  <i
-                    class="{{ asset.generic_asset_type.name | asset_icon }} left-icon"
-                    >{{ asset.name }}</i
-                  >
-                </td>
-                <td>
-                  {% if asset.latitude and asset.longitude %} LAT: {{
-                  "{:,.4f}".format( asset.latitude ) }} LONG: {{
-                  "{:,.4f}".format( asset.longitude ) }} {% endif %}
-                </td>
-                <td>{{ asset.id }}</td>
-                <td>
-                  {% if asset.owner %} {{ asset.owner.name }} {% else %} PUBLIC
-                  {% endif %}
-                </td>
-                <td>{{ asset.sensors | length }}</td>
-                <td>
-                  <a href="/assets/{{ asset.id }}/status">
-                    <button type="button" class="btn">Status</button>
-                  </a>
-                </td>
-                <td class="text-right"></td>
-                <td class="d-none">/assets/{{ asset.id }}</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+            id="assetTable"
+          ></table>
         </div>
       </div>
     </div>
     <div class="col-md-2"></div>
   </div>
 </div>
-{% block paginate_tables_script %} {{ super() }} {% endblock %}
+
+<script>
+  const asset_icon_map = JSON.parse("{{ asset_icon_map | tojson | safe }}");
+
+  function Asset(id, name, account, latitude, longitude, sensors, asset_type) {
+    let icon = asset_icon_map[asset_type.toLowerCase()];
+    if (icon === undefined) icon = `icon-${asset_type}`;
+
+    this.name = `
+    <i class="${icon} left-icon">${name}</i>
+  `;
+
+    this.id = id;
+    this.location = "";
+    this.url = `/assets/${id}`;
+    this.status = `
+        <a href="/assets/${id}/status">
+          <button type="button" class="btn btn-primary">Status</button>
+        </a>
+      `;
+
+    if (account == null) this.owner = "PUBLIC";
+    else
+      this.owner = `
+          <a href="/accounts/${account["id"]}" title="View this account">${account["name"]}</a>
+        `;
+
+    this.num_sensors = sensors.length;
+
+    if (latitude != null && longitude != null)
+      this.location = `LAT: ${latitude}, LONG: ${longitude}`;
+  }
+
+  $(document).ready(function () {
+    $("#assetTable").dataTable({
+      serverSide: true,
+      columns: [
+        { data: "id", title: "Asset ID" },
+        { data: "name", title: "Name" },
+        { data: "owner", title: "Account" },
+        { data: "location", title: "Location" },
+        { data: "num_sensors", title: "Sensors" },
+        { data: "status", title: "Status" },
+        { data: "url", title: "URL", className: "d-none" },
+      ],
+      ajax: function (data, callback, settings) {
+        let filter = data["search"]["value"];
+        let url = `{{url_for("AssetAPI:index")}}?page=${
+          Math.floor(data["start"] / data["length"]) + 1
+        }&per_page=${data["length"]}&include_public=true&account_id=${
+          {{ account.id }}
+        }`;
+        if (filter.length > 0) {
+          url = `${url}&filter=${filter}`;
+        }
+        $.ajax({
+          type: "get",
+          url: url,
+          success: function (response, text) {
+            let clean_response = [];
+            response["data"].forEach((element) =>
+              clean_response.push(
+                new Asset(
+                  element["id"],
+                  element["name"],
+                  element["owner"],
+                  element["latitude"],
+                  element["longitude"],
+                  element["sensors"],
+                  element["generic_asset_type"]["name"]
+                )
+              )
+            );
+            callback({
+              data: clean_response,
+              recordsTotal: response["num-records"],
+              recordsFiltered: response["filtered-records"],
+            });
+          },
+          error: function (request, status, error) {
+            console.log("Error: ", error);
+          },
+        });
+      },
+    });
+  });
+</script>
+
 <script defer>
   let currentPage = 1;
   const basePath = window.location.origin;
@@ -379,4 +412,4 @@ Account overview {% endblock %} {% block divs %}
       });
   });
 </script>
-{% endblock %}
+{% block paginate_tables_script %} {{ super() }} {% endblock %} {% endblock %}

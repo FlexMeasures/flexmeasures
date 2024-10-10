@@ -45,12 +45,12 @@ class AccountAPI(FlaskView):
     @use_kwargs(
         {
             "page": fields.Int(
-                required=False, validate=validate.Range(min=1), default=1
+                required=False, validate=validate.Range(min=1), load_default=None
             ),
             "per_page": fields.Int(
-                required=False, validate=validate.Range(min=1), default=10
+                required=False, validate=validate.Range(min=1), load_default=10
             ),
-            "filter": SearchFilterField(required=False, default=None),
+            "filter": SearchFilterField(required=False, load_default=None),
         },
         location="query",
     )

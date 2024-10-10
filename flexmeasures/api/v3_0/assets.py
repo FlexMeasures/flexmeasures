@@ -63,26 +63,19 @@ class AssetAPI(FlaskView):
     @use_kwargs(
         {
             "account": AccountIdField(data_key="account_id", load_default=None),
-        },
-        location="query",
-    )
-    @use_kwargs(
-        {
             "all_accessible": fields.Bool(
                 data_key="all_accessible", load_default=False
             ),
-        },
-        location="query",
-    )
-    @use_kwargs(
-        {
+            "include_public": fields.Bool(
+                data_key="include_public", load_default=False
+            ),
             "page": fields.Int(
-                required=False, validate=validate.Range(min=1), default=1
+                required=False, validate=validate.Range(min=1), load_default=None
             ),
             "per_page": fields.Int(
-                required=False, validate=validate.Range(min=1), default=10
+                required=False, validate=validate.Range(min=1), load_default=10
             ),
-            "filter": SearchFilterField(required=False, default=None),
+            "filter": SearchFilterField(required=False, load_default=None),
         },
         location="query",
     )
@@ -91,6 +84,7 @@ class AssetAPI(FlaskView):
         self,
         account: Account | None,
         all_accessible: bool,
+        include_public: bool,
         page: int | None = None,
         per_page: int | None = None,
         filter: list[str] | None = None,
@@ -102,6 +96,7 @@ class AssetAPI(FlaskView):
         This endpoint returns all accessible assets by accounts.
         The `account_id` query parameter can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.
         Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.
+        The `include_public` query parameter can be used to include public assets in the response. Defaults to `false`.
 
         The endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.
 
@@ -157,7 +152,7 @@ class AssetAPI(FlaskView):
         filter_statement = GenericAsset.account_id.in_([a.id for a in accounts])
 
         # add public assets if the request asks for all the accessible assets
-        if all_accessible:
+        if all_accessible or include_public:
             filter_statement = filter_statement | GenericAsset.account_id.is_(None)
 
         num_records = db.session.scalar(

@@ -53,12 +53,12 @@ class UserAPI(FlaskView):
             "account": AccountIdField(data_key="account_id", load_default=None),
             "include_inactive": fields.Bool(load_default=False),
             "page": fields.Int(
-                required=False, validate=validate.Range(min=1), default=1
+                required=False, validate=validate.Range(min=1), load_default=None
             ),
             "per_page": fields.Int(
-                required=False, validate=validate.Range(min=1), default=1
+                required=False, validate=validate.Range(min=1), load_default=1
             ),
-            "filter": SearchFilterField(required=False, default=None),
+            "filter": SearchFilterField(required=False, load_default=None),
         },
         location="query",
     )
