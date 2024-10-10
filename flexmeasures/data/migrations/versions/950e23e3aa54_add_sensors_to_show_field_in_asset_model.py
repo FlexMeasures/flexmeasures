@@ -57,5 +57,45 @@ def upgrade():
 
 
 def downgrade():
+    # Initialize the connection
+    conn = op.get_bind()
+
+    # Define the generic_asset table
+    generic_asset_table = sa.Table(
+        "generic_asset",
+        sa.MetaData(),
+        sa.Column("id", sa.Integer, primary_key=True),
+        sa.Column("attributes", sa.JSON),
+        sa.Column("sensors_to_show", sa.JSON),
+    )
+
+    # Select the rows where we want to update the attributes field
+    select_stmt = select(
+        generic_asset_table.c.id,
+        generic_asset_table.c.sensors_to_show,
+        generic_asset_table.c.attributes,
+    )
+    results = conn.execute(select_stmt)
+
+    # Iterate over the results and update the attributes column
+    for row in results:
+        asset_id, sensors_to_show_data, attributes_data = row
+
+        # Ensure attributes_data is a dictionary, default to empty dict if None
+        if attributes_data is None:
+            attributes_data = {}
+
+        # Add sensors_to_show back into the attributes field
+        attributes_data["sensors_to_show"] = sensors_to_show_data
+
+        # Update the attributes field with the modified data
+        update_stmt = (
+            generic_asset_table.update()
+            .where(generic_asset_table.c.id == asset_id)
+            .values(attributes=attributes_data)
+        )
+        conn.execute(update_stmt)
+
+    # After migrating data back to the attributes field, drop the sensors_to_show column
     with op.batch_alter_table("generic_asset", schema=None) as batch_op:
         batch_op.drop_column("sensors_to_show")
