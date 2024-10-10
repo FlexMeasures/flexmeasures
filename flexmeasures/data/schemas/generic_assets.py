@@ -6,6 +6,7 @@ from marshmallow import validates, ValidationError, fields, validates_schema
 from flask_security import current_user
 from sqlalchemy import select
 
+
 from flexmeasures.data import ma, db
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
@@ -172,6 +173,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
         only=("id", "name", "account_id", "generic_asset_type"),
     )
     sensors = ma.Nested("SensorSchema", many=True, dump_only=True, only=("id", "name"))
+    sensors_to_show = JSON(required=False)
     production_price_sensor_id = fields.Int(required=False, allow_none=True)
     consumption_price_sensor_id = fields.Int(required=False, allow_none=True)
     inflexible_device_sensor_ids = fields.List(
@@ -238,7 +240,6 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
     @validates("attributes")
     def validate_attributes(self, attributes: dict):
         sensors_to_show = attributes.get("sensors_to_show", [])
-
         if sensors_to_show:
 
             # Use SensorsToShowSchema to validate and deserialize sensors_to_show
