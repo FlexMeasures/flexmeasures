@@ -96,6 +96,7 @@ class AssetAPI(FlaskView):
         This endpoint returns all accessible assets by accounts.
         The `account_id` query parameter can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.
         Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.
+        The `include_public` query parameter can be used to include public assets in the response. Defaults to `false`.
 
         The endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.
 
