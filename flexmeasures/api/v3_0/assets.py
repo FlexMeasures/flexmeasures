@@ -447,7 +447,7 @@ class AssetAPI(FlaskView):
 
         Data for use in charts (in case you have the chart specs already).
         """
-        sensors = flatten_unique(asset.sensors_to_show)
+        sensors = flatten_unique(asset.validate_sensors_to_show())
         return asset.search_beliefs(sensors=sensors, as_json=True, **kwargs)
 
     @route("/<id>/auditlog")
