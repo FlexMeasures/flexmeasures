@@ -15,10 +15,13 @@ Bugfixes
 v0.23.1 | November 12, 2024
 ============================
 
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+
+
 New features
 -------------
 * The data chart on the asset page splits up its color-coded sensor legend when showing more than 7 sensors, becoming a legend per subplot [see `PR #1176 <https://github.com/FlexMeasures/flexmeasures/pull/1176>`_ and `PR #1193 <https://github.com/FlexMeasures/flexmeasures/pull/1193>`_]
-* Speed up loading the users page, by making the pagination backend-based and adding support for that in the API [see `PR #1160 <https://github.com/FlexMeasures/flexmeasures/pull/1160>`]
+* Speed up loading the users page, by making the pagination backend-based and adding support for that in the API [see `PR #1160 <https://github.com/FlexMeasures/flexmeasures/pull/1160>`_]
 * X-axis labels in CLI plots show datetime values in a readable and informative format [see `PR #1172 <https://github.com/FlexMeasures/flexmeasures/pull/1172>`_]
 * Enhanced API for listing sensors: Added filtering and pagination on sensor index endpoint and created new endpoint to get all sensors under an asset [see `PR #1191 <https://github.com/FlexMeasures/flexmeasures/pull/1191>`_ and `PR #1219 <https://github.com/FlexMeasures/flexmeasures/pull/1219>`_]
 * Speed up loading the accounts page,by making the pagination backend-based and adding support for that in the API [see `PR #1196 <https://github.com/FlexMeasures/flexmeasures/pull/1196>`_]
@@ -30,6 +33,7 @@ Infrastructure / Support
 * Speed up status page by choosing for a faster query (only latest belief needed) [see `PR #1142 <https://github.com/FlexMeasures/flexmeasures/pull/1142>`_]
 * For MacOS developers, install HiGHS solver automatically [see `PR #1187 <https://github.com/FlexMeasures/flexmeasures/pull/1187>`_]
 * Add support for installing FlexMeasures under Python 3.12 [see `PR #1233 <https://github.com/FlexMeasures/flexmeasures/pull/1233>`_]
+* Add dedicated ``sensors_to_show`` field to asset model and logic to migrate data from parent source(attributes field) [see `PR #1200 <https://github.com/FlexMeasures/flexmeasures/pull/1200>`_]
 
 Bugfixes
 -----------
