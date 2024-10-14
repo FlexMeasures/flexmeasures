@@ -142,16 +142,18 @@ class AssetAuditLog(db.Model, AuthModelMixin):
 
         old_value = asset_or_sensor.attributes.get(attribute_key)
         if entity_type == "sensor":
-            event = f"Updated sensor '{asset_or_sensor.name}': {asset_or_sensor.id} "
+            event = f"Updated sensor '{asset_or_sensor.name}': {asset_or_sensor.id}; "
             affected_asset_id = (asset_or_sensor.generic_asset_id,)
         else:
-            event = f"Updated asset '{asset_or_sensor.name}': {asset_or_sensor.id} "
+            event = f"Updated asset '{asset_or_sensor.name}': {asset_or_sensor.id}; "
             affected_asset_id = asset_or_sensor.id
-        event += f"attribute '{attribute_key}' to {attribute_value} from {old_value}"
+        event += f"Attr '{attribute_key}' To {attribute_value} From {old_value}"
 
         audit_log = cls(
             event_datetime=server_now(),
-            event=event,
+            event=truncate_string(
+                event, 255
+            ),  # we truncate the event string if it 255 characters by adding ellipses in the middle
             active_user_id=current_user_id,
             active_user_name=current_user_name,
             affected_asset_id=affected_asset_id,
@@ -170,11 +172,22 @@ class AssetAuditLog(db.Model, AuthModelMixin):
         :param event: event to log
         """
         current_user_id, current_user_name = get_current_user_id_name()
+
         audit_log = AssetAuditLog(
             event_datetime=server_now(),
-            event=event,
+            event=truncate_string(
+                event, 255
+            ),  # we truncate the event string if it exceed 255 characters by adding ellipses in the middle
             active_user_id=current_user_id,
             active_user_name=current_user_name,
             affected_asset_id=asset.id,
         )
         db.session.add(audit_log)
+
+
+def truncate_string(value: str, max_length: int) -> str:
+    """Truncate a string and add ellipses in the middle if it exceeds max_length."""
+    if len(value) <= max_length:
+        return value
+    half_length = (max_length - 5) // 2
+    return f"{value[:half_length]} ... {value[-half_length:]}"

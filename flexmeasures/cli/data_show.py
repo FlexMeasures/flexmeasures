@@ -666,17 +666,17 @@ def plot_beliefs(
         title += f"\nOnly beliefs made before: {belief_time_before}."
     if source:
         title += f"\nSource: {source.description}"
-    title += f"\nThe time resolution (x-axis) is {naturaldelta(resolution)}."
 
     uniplot.plot(
-        [df[col] for col in df.columns],
+        ys=[df[col] for col in df.columns],
+        xs=[df.index for _ in df.columns],
         title=title,
         color=True,
         lines=True,
         y_unit=shared_unit,
-        legend_labels=df.columns
-        if shared_unit
-        else [f"{col} in {s.unit}" for col in df.columns],
+        legend_labels=(
+            df.columns if shared_unit else [f"{col} in {s.unit}" for col in df.columns]
+        ),
     )
     if filepath is not None:
         df.columns = pd.MultiIndex.from_arrays(

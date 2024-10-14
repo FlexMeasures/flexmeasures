@@ -9,6 +9,7 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.api.tests.utils import get_auth_token, UserContext, AccountContext
 from flexmeasures.api.v3_0.tests.utils import get_asset_post_data
+from flexmeasures.utils.unit_utils import is_valid_unit
 
 
 @pytest.mark.parametrize(
@@ -119,6 +120,28 @@ def test_get_assets(
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_fetch_asset_sensors(client, setup_api_test_data, requesting_user):
+    """
+    Retrieve all sensors associated with a specific asset.
+
+    This test checks for these metadata fields and the number of sensors returned, as well as
+    confirming that the response is a list of dictionaries, each containing a valid unit.
+    """
+    asset_id = setup_api_test_data["some gas sensor"].generic_asset_id
+    response = client.get(url_for("AssetAPI:asset_sensors", id=asset_id))
+
+    print("Server responded with:\n%s" % response.json)
+
+    assert response.status_code == 200
+    assert response.json["status"] == 200
+    assert isinstance(response.json["data"], list)
+    assert isinstance(response.json["data"][0], dict)
+    assert is_valid_unit(response.json["data"][0]["unit"])
+    assert response.json["num-records"] == 3
+    assert response.json["filtered-records"] == 3
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_get_asset_with_children(client, add_asset_with_children, requesting_user):
     """
     Get asset `parent` with children `child_1` and `child_2`.
@@ -203,7 +226,17 @@ def test_alter_an_asset(
     print(f"Editing Response: {asset_edit_response.json}")
     assert asset_edit_response.status_code == 200
 
-    audit_log_event = f"Updated asset '{prosumer_asset.name}': {prosumer_asset.id} fields: Field name: name, Old value: {name}, New value: other; Field name: latitude, Old value: {latitude}, New value: 11.1"
+    audit_log_event = f"Updated Field: name, From: {name}, To: other"
+    assert db.session.execute(
+        select(AssetAuditLog).filter_by(
+            event=audit_log_event,
+            active_user_id=requesting_user.id,
+            active_user_name=requesting_user.username,
+            affected_asset_id=prosumer_asset.id,
+        )
+    ).scalar_one_or_none()
+
+    audit_log_event = f"Updated Field: latitude, From: {latitude}, To: 11.1"
     assert db.session.execute(
         select(AssetAuditLog).filter_by(
             event=audit_log_event,
@@ -224,11 +257,11 @@ def test_alter_an_asset(
         ('{"sensors_to_show": [1, [0, 2]]}', "No sensor found"),  # no sensor with ID 0
         (
             '{"sensors_to_show": [1, [2, [3, 4]]]}',
-            "should only contain",
+            "All elements in a list within 'sensors_to_show' must be integers.",
         ),  # nesting level max 1
         (
             '{"sensors_to_show": [1, "2"]}',
-            "should only contain",
+            "Invalid item type in 'sensors_to_show'. Expected int, list, or dict.",
         ),  # non-integer sensor ID
     ],
 )

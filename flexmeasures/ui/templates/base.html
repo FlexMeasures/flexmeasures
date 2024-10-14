@@ -78,7 +78,7 @@
     {% endblock %}
 </head>
 
-<body>
+<body class="d-flex flex-column min-vh-100">
 
     {% block body %}
 
@@ -156,10 +156,18 @@
           </div>
         </div>
     </nav>
-      
-      
-
     {% endblock nav %}
+
+    <div
+        class="position-fixed bottom-0 end-0 p-3"
+        id="toast-container"
+        role="alert"
+        aria-live="assertive"
+        aria-atomic="true"
+        style="z-index: 11"
+    >
+        <button id="close-all-toasts" class="btn">Close All</button>
+    </div>
 
     {% if message and message != "" %}
     <div class="col-md-12 alert alert-info">{{ message}} </div>
@@ -320,7 +328,7 @@
 
     async function embedAndLoad(chartSpecsPath, elementId, datasetName, previousResult, startDate, endDate) {
 
-        await vegaEmbed('#'+elementId, chartSpecsPath + 'dataset_name=' + datasetName + '&width=container&include_sensor_annotations=false&include_asset_annotations=false&chart_type=' + chartType, {{ chart_options | safe }})
+        await vegaEmbed('#'+elementId, chartSpecsPath + 'dataset_name=' + datasetName + '&combine_legend='+ combineLegend + '&width=container&include_sensor_annotations=false&include_asset_annotations=false&chart_type=' + chartType, {{ chart_options | safe }})
         .then(function (result) {
 
             // Create a custom menu item for exporting to CSV
@@ -357,10 +365,15 @@
         });
     }
 
+    var combineLegend = 'true';
     {% if active_page == "assets" %}
         var dataPath = '/api/v3_0/assets/' + {{ asset.id }};
         var dataDevPath = '/api/dev/asset/' + {{ asset.id }};
         var datasetName = 'asset_' + {{ asset.id }};
+        {% set total_sensors = asset.sensors_to_show | map(attribute='sensors') | map('length') | sum %}
+        {% if total_sensors > 7 %}
+            combineLegend = 'false';
+        {% endif %}
     {% elif active_page == "sensors" %}
         var dataPath = '/api/dev/sensor/' + {{ sensor.id }};
         var dataDevPath = '/api/dev/sensor/' + {{ sensor.id }};
@@ -519,8 +532,8 @@
                             nearEnd,
                             end,
                         );
-                    }
-
+                    } 
+                    
                     // No use looking for data in years outside timerange of sensor data
                     picker.setOptions({
                         dropdowns: {
@@ -528,6 +541,15 @@
                             maxYear: end.getFullYear(),
                         },
                     });
+                    
+                    // Persist the range on the datepicker UI so correct range is shown when the user opens the datepicker
+                    var end_time = '{{event_ends_before}}';
+                    var new_end_date = new Date(end_time);
+                    // Adjusting the date by deducting one day to account for timezone discrepancies.
+                    new_end_date.setDate(new_end_date.getDate() - 1);
+                    var start_time = '{{event_starts_after}}';
+                    var new_start_date = new Date(start_time);
+                    picker.setDateRange(decodeURIComponent(toIsoString(new_start_date)), decodeURIComponent(toIsoString(new_end_date)));
                 };
             });
         }
@@ -714,6 +736,14 @@
 
     <!-- JS to enable toast -->
     <script defer>
+        const toastStack = document.getElementById("toast-container");
+        const closeToastBtn = document.getElementById("close-all-toasts");
+        
+        // written like this since this script(order) is ontop of the main script
+        document.addEventListener("DOMContentLoaded", function () {
+            initiateToastCloseBtn(closeToastBtn);
+        });
+
         function initiateToastCloseBtn(closeToastBtn){
             // hide button
             closeToastBtn.style.display = "none";
@@ -741,7 +771,7 @@
             });
         }
 
-        function showToast(message, type, toastStack, closeToastBtn) {
+        function showToast(message, type) {
             let colorClass;
             let colorStyle = "";
             let title;
@@ -795,6 +825,113 @@
           }
     </script>
 
+    <script>
+        function User(
+          id,
+          username,
+          email,
+          roles,
+          account,
+          timezone,
+          lastLogin,
+          lastSeen,
+          active
+        ) {
+          this.id = id;
+          this.username = `<span>${username}</span>`;
+          this.email = `<a href="mailto:${email}" title="Mail this user">${email}</a>`;
+          this.roles = roles.map((role) => role).join(", ");
+          this.url = `/users/${id}`;
+      
+          if (account == null) this.account = "PUBLIC";
+          else
+            this.account = `
+                <a href="/accounts/${account["id"]}" title="View this account">${account["name"]}</a>
+              `;
+          this.timezone = timezone;
+          this.lastLogin = lastLogin;
+          this.lastSeen = lastSeen;
+          this.active = active;
+        }
+      
+        $(document).ready(function () {
+          let includeInactive = false;
+          const tableTitle = $("#usersTableTitle");
+          // Initialize the DataTable
+          const table = $("#usersTable").dataTable({
+            order: [[3, "desc"]],
+            serverSide: true,
+            // make the table row vertically aligned with header
+            columns: [
+              { data: "username", title: "Username" },
+              { data: "email", title: "Email" },
+              { data: "roles", title: "Roles" },
+              { data: "account", title: "Account" },
+              { data: "timezone", title: "Timezone" },
+              { data: "lastLogin", title: "Last login" },
+              { data: "lastSeen", title: "Last seen" },
+              { data: "active", title: "Active" },
+              { data: "url", title: "URL", className: "d-none" },
+            ],
+      
+            ajax: function (data, callback, settings) {
+              const basePath = window.location.origin;
+              let filter = data["search"]["value"];
+              let url = `${basePath}/api/v3_0/users?page=${
+                data["start"] / data["length"] + 1
+              }&per_page=${data["length"]}&include_inactive=${includeInactive}`;
+      
+              if (filter.length > 0) {
+                url = `${url}&filter=${filter}`;
+              }
+      
+              $.ajax({
+                type: "get",
+                url: url,
+                success: function (response, text) {
+                  let clean_response = [];
+                  response["data"].forEach((element) =>
+                    clean_response.push(
+                      new User(
+                        element["id"],
+                        element["username"],
+                        element["email"],
+                        element["flexmeasures_roles"],
+                        element["account"],
+                        element["timezone"],
+                        element["last_login_at"],
+                        element["last_seen_at"],
+                        element["active"]
+                      )
+                    )
+                  );
+      
+                  callback({
+                    data: clean_response,
+                    recordsTotal: response["num-records"],
+                    recordsFiltered: response["filtered-records"],
+                  });
+                },
+                error: function (request, status, error) {
+                  console.log("Error: ", error);
+                },
+              });
+            },
+          });
+      
+      
+          // Event listener for the checkbox to toggle includeInactive state
+          $("#inactiveUsersCheckbox").change(function () {
+            includeInactive = this.checked;
+            table.api().ajax.reload();
+            if (!includeInactive) {
+              tableTitle.text("All users");
+            } else {
+              tableTitle.text("All active users");
+            }
+          });
+        });
+      </script>
 
 
     <!-- External scripts -->
@@ -822,7 +959,7 @@
         src="https://cdn.datatables.net/plug-ins/1.10.22/features/conditionalPaging/dataTables.conditionalPaging.js"></script>
     {% endblock paginate_tables_script %}
 
-    <footer class="page-footer font-small pt-4 mt-4">
+    <footer class="page-footer font-small pt-4 mt-auto">
         <div class="footer text-center">
             <div class="container-fluid">
                 {% block copyright_notice %}
