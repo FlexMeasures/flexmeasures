@@ -19,13 +19,13 @@ New features
 
 Infrastructure / Support
 ----------------------
-
 * Speed up status page by choosing for a faster query (only latest belief needed) [see `PR #1142 <https://github.com/FlexMeasures/flexmeasures/pull/1142>`_]
 * For MacOS developers, install HiGHS solver automatically [see `PR #1187 <https://github.com/FlexMeasures/flexmeasures/pull/1187>`_]
 
 Bugfixes
 -----------
 * The UI footer now stays at the bottom even on pages with little content [see `PR #1204 <https://github.com/FlexMeasures/flexmeasures/pull/1204>`_]
+* Correct stroke dash (based on source type) for forecasts made by forecasters included in FlexMeasures [see `PR #1211 <https://www.github.com/FlexMeasures/flexmeasures/pull/1211>`_]
 
 
 v0.23.0 | September 18, 2024
@@ -70,6 +70,7 @@ Bugfixes
 * Fix date range persistence on session across different pages [see `PR #1165 <https://github.com/FlexMeasures/flexmeasures/pull/1165>`_]
 * Fix issue with account creation failing when the --logo-url flag is omitted. [see related PRs `PR #1167 <https://github.com/FlexMeasures/flexmeasures/pull/1167>`_ and `PR #1145 <https://github.com/FlexMeasures/flexmeasures/pull/1145>`_]
 * Fix ordering of audit logs (asset, account) and job list on status page [see PR `PR #1179 <https://github.com/FlexMeasures/flexmeasures/pull/1179>_` and `PR #1183 <https://github.com/FlexMeasures/flexmeasures/pull/1183>`_]
+
 
 v0.22.0 | June 29, 2024
 ============================
