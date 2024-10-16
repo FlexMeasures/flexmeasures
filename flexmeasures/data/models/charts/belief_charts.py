@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 from flexmeasures.data.models.charts.defaults import FIELD_DEFINITIONS, REPLAY_RULER
 from flexmeasures.utils.flexmeasures_inflection import (
     capitalize,
-    join_words_into_a_list,
 )
 from flexmeasures.utils.coding_utils import flatten_unique
 from flexmeasures.utils.unit_utils import (
@@ -63,6 +62,7 @@ def create_bar_chart_or_histogram_specs(
     if sensor.event_resolution == timedelta(0) and sensor.has_attribute("interpolate"):
         mark_type = "area"
         mark_interpolate = sensor.get_attribute("interpolate")
+    replay_ruler = REPLAY_RULER.copy()
     if chart_type == "histogram":
         description = "A histogram showing the distribution of sensor data."
         x = {
@@ -72,6 +72,13 @@ def create_bar_chart_or_histogram_specs(
         y = {
             "aggregate": "count",
             "title": "Count",
+        }
+        replay_ruler["encoding"] = {
+            "detail": {
+                "field": "belief_time",
+                "type": "temporal",
+                "title": None,
+            },
         }
     else:
         description = (f"A simple {mark_type} chart showing sensor data.",)
@@ -96,9 +103,11 @@ def create_bar_chart_or_histogram_specs(
                     "detail": FIELD_DEFINITIONS["source"],
                     "opacity": {"value": 0.7},
                     "tooltip": [
-                        FIELD_DEFINITIONS["full_date"]
-                        if chart_type != "histogram"
-                        else None,
+                        (
+                            FIELD_DEFINITIONS["full_date"]
+                            if chart_type != "histogram"
+                            else None
+                        ),
                         {
                             **event_value_field_definition,
                             **dict(title=f"{capitalize(sensor.sensor_type)}"),
@@ -117,7 +126,7 @@ def create_bar_chart_or_histogram_specs(
                     "scroll": {"type": "interval", "bind": "scales", "encodings": ["x"]}
                 },
             },
-            REPLAY_RULER,
+            replay_ruler,
         ],
     }
     for k, v in override_chart_specs.items():
@@ -469,9 +478,10 @@ def create_fall_dst_transition_layer(
 
 
 def chart_for_multiple_sensors(
-    sensors_to_show: list["Sensor", list["Sensor"]],  # noqa F821
+    sensors_to_show: list["Sensor" | list["Sensor"] | dict[str, "Sensor"]],  # noqa F821
     event_starts_after: datetime | None = None,
     event_ends_before: datetime | None = None,
+    combine_legend: bool = True,
     **override_chart_specs: dict,
 ):
     # Determine the shared data resolution
@@ -498,19 +508,18 @@ def chart_for_multiple_sensors(
             ]
         }
 
-    # Set up field definition for sensor descriptions
-    sensor_field_definition = FIELD_DEFINITIONS["sensor_description"].copy()
-    sensor_field_definition["scale"] = dict(
-        domain=[sensor.to_dict()["description"] for sensor in all_shown_sensors]
-    )
-
     sensors_specs = []
-    for s in sensors_to_show:
+    for entry in sensors_to_show:
+        title = entry.get("title")
+        sensors = entry.get("sensors")
         # List the sensors that go into one row
-        if isinstance(s, list):
-            row_sensors: list["Sensor"] = s  # noqa F821
-        else:
-            row_sensors: list["Sensor"] = [s]  # noqa F821
+        row_sensors: list["Sensor"] = sensors  # noqa F821
+
+        # Set up field definition for sensor descriptions
+        sensor_field_definition = FIELD_DEFINITIONS["sensor_description"].copy()
+        sensor_field_definition["scale"] = dict(
+            domain=[sensor.to_dict()["description"] for sensor in row_sensors]
+        )
 
         # Derive the unit that should be shown
         unit = determine_shared_unit(row_sensors)
@@ -564,6 +573,7 @@ def chart_for_multiple_sensors(
                 event_start_field_definition,
                 event_value_field_definition,
                 sensor_field_definition,
+                combine_legend=combine_legend,
             )
         ]
 
@@ -593,14 +603,7 @@ def chart_for_multiple_sensors(
 
         # Layer the lines, rectangles and circles within one row, and filter by which sensors are represented in the row
         sensor_specs = {
-            "title": join_words_into_a_list(
-                [
-                    f"{capitalize(sensor.name)}"
-                    for sensor in row_sensors
-                    # the sensor type is already shown as the y-axis title (avoid redundant info)
-                    if sensor.name != sensor.sensor_type
-                ]
-            ),
+            "title": f"{capitalize(title)}" if title else None,
             "transform": [
                 {
                     "filter": {
@@ -624,14 +627,15 @@ def chart_for_multiple_sensors(
                 "as": "source_name_and_id",
             },
         ],
-        spacing=100,
-        bounds="flush",
     )
     chart_specs["config"] = {
         "view": {"continuousWidth": 800, "continuousHeight": 150},
         "autosize": {"type": "fit-x", "contains": "padding"},
     }
-    chart_specs["resolve"] = {"scale": {"x": "shared"}}
+    if combine_legend is True:
+        chart_specs["resolve"] = {"scale": {"x": "shared"}}
+    else:
+        chart_specs["resolve"] = {"scale": {"color": "independent"}}
     for k, v in override_chart_specs.items():
         chart_specs[k] = v
     return chart_specs
@@ -670,6 +674,7 @@ def create_line_layer(
     event_start_field_definition: dict,
     event_value_field_definition: dict,
     sensor_field_definition: dict,
+    combine_legend: bool,
 ):
     event_resolutions = list(set([sensor.event_resolution for sensor in sensors]))
     assert all(res == timedelta(0) for res in event_resolutions) or all(
@@ -679,15 +684,26 @@ def create_line_layer(
     line_layer = {
         "mark": {
             "type": "line",
-            "interpolate": "step-after"
-            if event_resolution != timedelta(0)
-            else "linear",
+            "interpolate": (
+                "step-after" if event_resolution != timedelta(0) else "linear"
+            ),
             "clip": True,
         },
         "encoding": {
             "x": event_start_field_definition,
             "y": event_value_field_definition,
-            "color": sensor_field_definition,
+            "color": (
+                sensor_field_definition
+                if combine_legend
+                else {
+                    **sensor_field_definition,
+                    "legend": {
+                        "orient": "right",
+                        "columns": 1,
+                        "direction": "vertical",
+                    },
+                }
+            ),
             "strokeDash": {
                 "scale": {
                     # Distinguish forecasters and schedulers by line stroke

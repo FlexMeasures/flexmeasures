@@ -10,7 +10,7 @@ def get_color_settings(account: Account | None) -> dict:
     """
 
     primary_color: str = "#1a3443"
-    secondary_color: str = "f1a122"
+    secondary_color: str = "#f1a122"
     if account:
         primary_color = str(
             account.primary_color
