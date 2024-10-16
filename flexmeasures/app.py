@@ -160,7 +160,7 @@ def create(  # noqa C901
         app.json.compact = True
     else:
         app.json.compact = False
-    app.config['JSON_SORT_KEYS'] = False
+    app.config["JSON_SORT_KEYS"] = False
 
     # Register the CLI
 
