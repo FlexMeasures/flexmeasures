@@ -178,19 +178,7 @@
                                 function updateTable(stats) {
                                     tableBody.innerHTML = ''; // Clear the table body
 
-                                    // This list is used to format the table content. Simple sorting is not possible.
-                                    const keys = [
-                                        "min_event_start",
-                                        "max_event_start",
-                                        "min_value",
-                                        "max_value",
-                                        "mean_value",
-                                        "sum_values",
-                                        "count_values"
-                                    ];
-
-                                    keys.forEach(key => {
-                                        if (key in stats) {
+                                    Object.entries(stats).forEach(([key, val]) => {
                                             // Create a display key by removing underscores and capitalizing words
                                             const displayKey = key.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase());
 
@@ -200,16 +188,15 @@
 
                                             keyCell.textContent = displayKey;
                                             // Round value to 2 decimal points if it's a number
-                                            if (typeof stats[key] === 'number' & key != 'count_values') {
-                                                valueCell.textContent = stats[key].toFixed(4);
+                                            if (typeof val === 'number' & key != 'Number of values') {
+                                                valueCell.textContent = val.toFixed(4);
                                             } else {
-                                                valueCell.textContent = stats[key];
+                                                valueCell.textContent = val;
                                             }
 
                                             row.appendChild(keyCell);
                                             row.appendChild(valueCell);
                                             tableBody.appendChild(row);
-                                        }
                                     });
                                 }
                             });

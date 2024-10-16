@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+import json
 
 from flask import current_app, url_for
 from flask_classful import FlaskView, route
@@ -771,7 +772,6 @@ class SensorAPI(FlaskView):
     @route("/<id>/stats", methods=["GET"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
     @permission_required_for_context("read", ctx_arg_name="sensor")
-    @as_json
     def get_stats(self, id, sensor):
         """Fetch stats for a given sensor.
 
@@ -804,5 +804,5 @@ class SensorAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-
-        return get_sensor_stats(sensor), 200
+        stats = get_sensor_stats(sensor)
+        return json.dumps(stats, sort_keys=False), 200
