@@ -192,7 +192,6 @@ class DevelopmentConfig(Config):
     # PRESERVE_CONTEXT_ON_EXCEPTION: bool = False  # might need this to make our transaction handling work in debug mode
     FLEXMEASURES_MODE: str = "development"
     FLEXMEASURES_PROFILE_REQUESTS: bool = True
-    FLEXMEASURES_JSON_COMPACT = False
 
 
 class TestingConfig(Config):
