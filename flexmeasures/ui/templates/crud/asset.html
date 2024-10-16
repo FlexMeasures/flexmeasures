@@ -499,10 +499,24 @@
                     }
                     <h5 class="card-title pt-2"><b> Sensors: </b></h5>
                     <p>
-                    ${sensors.map((sensor) => {
-                        return `<span><b> ID: </b> ${sensor.id},  <b>Name: </b> ${sensor.name},  <b>Unit: </b> ${sensor.unit}</span> <br/>`;
+                    ${sensors.map((sensor, sensorIndex) => {
+                        return `
+                        <span>
+                            <b> ID: </b> ${sensor.id},  <b>Name: </b> ${sensor.name},  <b>Unit: </b> ${sensor.unit}
+                        </span> 
+                        <i class="fa fa-times" 
+                            onclick="removeSensorFromGraph(${index}, ${sensorIndex})" 
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top" 
+                            title="Remove Sensor"
+                            style="cursor: pointer;"
+                        >
+                        </i>
+                        <br/>
+                        `;
                     }).join('')}
                     </p>
+                    <button class="btn btn-danger btn-sm me-2" onclick="fetchAssets(${index})">Add Sensor</button>
                     <button class="btn btn-danger btn-sm me-2" onclick="removeItem(${index})">Remove</button>
                     <button class="btn btn-secondary btn-sm me-2" onclick="moveUp(${index})" ${index === 0 ? "disabled" : ""}>Move Up</button>
                     <button class="btn btn-secondary btn-sm" onclick="moveDown(${index})" ${index === data.length - 1 ? "disabled" : ""}>Move Down</button>
@@ -576,7 +590,7 @@
     }
 
     // Render the available API assets
-    function renderApiSensors(assets) {
+    function renderApiSensors(assets, graphIndex) {
         const apiSensorsList = document.getElementById("apiSensorsList");
         apiSensorsList.innerHTML = ""; // Clear the previous assets
 
@@ -589,7 +603,11 @@
                     <div class="card-body p-0">
                         <h5 class="card-title">${asset.name}</h5>
                         <p class="card-text">ID: ${asset.id}, Unit: ${asset.unit}</p>
-                        <button class="btn btn-primary btn-sm" onclick="addAssetToList(${asset.id})">Add to Graph</button>
+                        ${graphIndex !== undefined 
+                        ? `<button class="btn btn-primary btn-sm" onclick="addSensorToGraph(${graphIndex}, ${asset.id})">Add</button>` 
+                        : `<button class="btn btn-primary btn-sm" onclick="addSensorToList(${asset.id})">Add to Graph</button>`
+                        }
+                        
                     </div>
                 </div>
             `;data
@@ -600,7 +618,6 @@
 
     async function updateSensorToShow() {
         const apiURL = window.location.origin + "/api/v3_0/assets/{{ asset.id }}";
-        //const dataJson = JSON.stringify(data);
         const dataJson = JSON.stringify( {sensors_to_show: JSON.stringify(data)} );
         console.log("dataJson", dataJson);
 
@@ -623,20 +640,32 @@
     }
 
     // Fetch the assets from the API
-    async function fetchAssets() {
-        const apiURL = window.location.origin + "/api/v3_0/sensors?page=1&per_page=5";
+    async function fetchAssets(graphIndex) {
+        const apiURL = window.location.origin + "/api/v3_0/sensors?page=1&per_page=10";
         const response = await fetch(apiURL);
         assets = await response.json().then((data) => data.data);
-        renderApiSensors(assets);
+        renderApiSensors(assets, graphIndex);
     }
 
-    // Add an API asset to the data list
-    function addAssetToList(id) {
+    // Add sensor to the data list
+    function addSensorToList(id) {
         const newAsset = {
             title: "No Title", // Default title
             sensors: [id], // Sensor array containing the asset's ID
         };
         data.push(newAsset);
+        renderData();
+    }
+
+    // Add Sensor to graph sensor list
+    function addSensorToGraph(graphIndex, sensorId) {
+        data[graphIndex].sensors.push(sensorId);
+        renderData();
+    }
+
+    // Remove sensor from the graph sensor list
+    function removeSensorFromGraph(graphIndex, sensorIndex) {
+        data[graphIndex].sensors.splice(sensorIndex, 1);
         renderData();
     }
 
