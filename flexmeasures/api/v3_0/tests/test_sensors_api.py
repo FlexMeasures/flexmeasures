@@ -267,7 +267,7 @@ def test_fetch_sensor_stats(
         ]
         for source, record in response_content.items():
             assert record["First event start"] == "2021-05-01T22:00:00+00:00"
-            assert record["Last event end"] == "2021-05-01T22:20:00+00:00"
+            assert record["Last event end"] == "2021-05-01T22:30:00+00:00"
             assert record["Min value"] == 91.3
             assert record["Max value"] == 92.1
             if source == "Test Supplier User":
