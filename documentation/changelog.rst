@@ -24,6 +24,7 @@ Infrastructure / Support
 Bugfixes
 -----------
 * The UI footer now stays at the bottom even on pages with little content [see `PR #1204 <https://github.com/FlexMeasures/flexmeasures/pull/1204>`_]
+* Show the correct UTC offset for the data's time span as shown under sensor stats in the UI [see `PR #1213 <https://github.com/FlexMeasures/flexmeasures/pull/1213>`_]
 
 
 v0.23.0 | September 18, 2024
