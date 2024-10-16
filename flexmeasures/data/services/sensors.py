@@ -39,12 +39,12 @@ def get_sensors(
     :param sensor_name_allowlist:   optionally, allow only sensors whose name is in this list
     """
     sensor_query = sa.select(Sensor)
-    if account is None:
-        account_ids = []
-    elif isinstance(account, list):
-        account_ids = [account.id for account in account]
+    if isinstance(account, list):
+        accounts = account
     else:
-        account_ids = [account.id]
+        accounts: list = [account] if account else []
+    account_ids: list = [acc.id for acc in accounts]
+
     sensor_query = sensor_query.join(
         GenericAsset, GenericAsset.id == Sensor.generic_asset_id
     ).filter(Sensor.generic_asset_id == GenericAsset.id)
@@ -61,6 +61,7 @@ def get_sensors(
         sensor_query = sensor_query.filter(Sensor.id.in_(sensor_id_allowlist))
     if sensor_name_allowlist:
         sensor_query = sensor_query.filter(Sensor.name.in_(sensor_name_allowlist))
+
     return db.session.scalars(sensor_query).all()
 
 

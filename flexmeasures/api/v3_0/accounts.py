@@ -20,7 +20,7 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.services.accounts import get_accounts, get_audit_log_records
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.data.schemas.account import AccountSchema
-from flexmeasures.api.common.schemas.generic_assets import SearchFilterField
+from flexmeasures.api.common.schemas.search import SearchFilterField
 from flexmeasures.utils.time_utils import server_now
 
 """
@@ -45,12 +45,12 @@ class AccountAPI(FlaskView):
     @use_kwargs(
         {
             "page": fields.Int(
-                required=False, validate=validate.Range(min=1), default=1
+                required=False, validate=validate.Range(min=1), load_default=None
             ),
             "per_page": fields.Int(
-                required=False, validate=validate.Range(min=1), default=10
+                required=False, validate=validate.Range(min=1), load_default=10
             ),
-            "filter": SearchFilterField(required=False, default=None),
+            "filter": SearchFilterField(required=False, load_default=None),
         },
         location="query",
     )

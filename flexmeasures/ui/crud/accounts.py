@@ -10,7 +10,6 @@ from flexmeasures.auth.policy import user_has_admin_access
 
 from flexmeasures.ui.crud.api_wrapper import InternalApi
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
-from flexmeasures.ui.crud.assets import get_assets_by_account
 from flexmeasures.data.models.user import Account
 from flexmeasures.data import db
 
@@ -53,14 +52,11 @@ class AccountCrudUI(FlaskView):
             ).scalar_one_or_none()
             if consultancy_account:
                 account["consultancy_account_name"] = consultancy_account.name
-        assets = get_assets_by_account(account_id)
-        assets += get_assets_by_account(account_id=None)
         accounts = get_accounts() if user_has_admin_access(current_user, "read") else []
         return render_flexmeasures_template(
             "crud/account.html",
             account=account,
             accounts=accounts,
-            assets=assets,
             include_inactive=include_inactive,
         )
 
