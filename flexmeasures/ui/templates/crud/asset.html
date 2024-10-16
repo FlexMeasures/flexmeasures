@@ -11,14 +11,16 @@
 <nav aria-label="breadcrumb ">
     <ol class="breadcrumb p-2">
         {% for breadcrumb in breadcrumb_info["ancestors"] %}
-        <li class="breadcrumb-item{% if loop.last %} dropdown active{% endif %}" {% if loop.last %}aria-current="page"{% endif %}>
+        <li class="breadcrumb-item{% if loop.last %} dropdown active{% endif %}" {% if loop.last %}aria-current="page"
+            {% endif %}>
             {% if breadcrumb["url"] is not none and not loop.last %}
             <a href="{{ breadcrumb['url'] }}">{{ breadcrumb['name'] }}</a>
             {% else %}
-            <a href="{{ breadcrumb['url'] }}" class="dropdown-toggle" data-bs-toggle="dropdown"  aria-expanded="false" role="button">{{ breadcrumb['name'] }}</a>
+            <a href="{{ breadcrumb['url'] }}" class="dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false"
+                role="button">{{ breadcrumb['name'] }}</a>
             <ul class="dropdown-menu">
                 {% for sibling in breadcrumb_info["siblings"] %}
-                <li><a  class="p-3 dropdown-item" href="{{ sibling['url'] }}">{{ sibling["name"] }}</a></li>
+                <li><a class="p-3 dropdown-item" href="{{ sibling['url'] }}">{{ sibling["name"] }}</a></li>
                 {% endfor %}
             </ul>
             {% endif %}
@@ -29,7 +31,7 @@
 
 
 
-  
+
 
 
 <div class="container-fluid">
@@ -43,14 +45,16 @@
                 {% if user_can_create_assets %}
                 <div>
                     <form action="/assets/new" method="get">
-                        <button class="btn btn-sm btn-responsive btn-success create-button mb-3" type="submit">Create new asset</button>
+                        <button class="btn btn-sm btn-responsive btn-success create-button mb-3" type="submit">Create
+                            new asset</button>
                     </form>
                 </div>
                 {% endif %}
                 {% if user_can_delete_asset %}
                 <div>
                     <form action="/assets/delete_with_data/{{ asset.id }}" method="get">
-                        <button id="delete-asset-button" class="btn btn-sm btn-responsive btn-danger" type="submit">Delete this asset</button>
+                        <button id="delete-asset-button" class="btn btn-sm btn-responsive btn-danger"
+                            type="submit">Delete this asset</button>
                     </form>
                     <script>
                         $("#delete-asset-button").click(function () {
@@ -68,7 +72,8 @@
             <div class="header-action-button">
                 <div>
                     <form action="/assets/{{ asset.id }}/status" method="get">
-                        <button id="asset-status-button" class="btn btn-sm btn-responsive btn-info" type="submit">Asset status</button>
+                        <button id="asset-status-button" class="btn btn-sm btn-responsive btn-info" type="submit">Asset
+                            status</button>
                     </form>
                 </div>
                 <div>
@@ -94,7 +99,8 @@
                             <div class="asset-form">
 
                                 <h3>Edit {{ asset.name }}</h3>
-                                <small>Owned by account: {{ asset.account_id | accountname }} (ID: {{ asset.account_id }})</small>
+                                <small>Owned by account: {{ asset.account_id | accountname }} (ID: {{ asset.account_id
+                                    }})</small>
 
                                 <div class="form-group">
                                     {{ asset_form.name.label(class="col-sm-3 control-label") }}
@@ -125,53 +131,60 @@
                                 </div>
                                 <div class="form-group">
                                     <label for="assset-type" class="col-sm-6 control-label">Asset Type</label>
-                                     <div class="col-md-6">
+                                    <div class="col-md-6">
                                         <input class="form-control" id="asset-type-id" name="asset-type" type="text"
                                             value="{{ asset.generic_asset_type.name }}" disabled></input>
-                                     </div>
+                                    </div>
                                 </div>
                                 <div class="form-group">
                                     <label for="asset-id" class="col-sm-6 control-label">Asset id</label>
                                     <div class="col-md-6">
-                                        <input class="form-control" id="asset-id" name="asset-id" type="text" value="{{ asset.id }}"
-                                            disabled></input>
+                                        <input class="form-control" id="asset-id" name="asset-id" type="text"
+                                            value="{{ asset.id }}" disabled></input>
                                     </div>
                                 </div>
-                                {% if asset_form.consumption_price_sensor_id or asset_form.production_price_sensor_id or asset_form.inflexible_device_sensor_ids %}
+                                {% if asset_form.consumption_price_sensor_id or asset_form.production_price_sensor_id or
+                                asset_form.inflexible_device_sensor_ids %}
                                 <div class="form-group form-group-bordered">
-                                    <p>Fields in this section can form part of this asset's <a href="https://flexmeasures.readthedocs.io/en/latest/features/scheduling.html#the-flex-context">flex context</a>. They can also be set in a parent asset or in API requests that trigger schedules.</p>
+                                    <p>Fields in this section can form part of this asset's <a
+                                            href="https://flexmeasures.readthedocs.io/en/latest/features/scheduling.html#the-flex-context">flex
+                                            context</a>. They can also be set in a parent asset or in API requests that
+                                        trigger schedules.</p>
                                     {% if asset_form.consumption_price_sensor_id %}
-                                        <div class="form-group">
-                                            {{ asset_form.consumption_price_sensor_id.label(class="col-sm-3 control-label") }}
-                                            <div class="col-sm-3">
-                                                {{ asset_form.consumption_price_sensor_id(class_="form-control") }}
-                                                {% for error in asset_form.errors.consumption_price_sensor_id %}
-                                                <span style="color: red;">[{{error}}]</span>
-                                                {% endfor %}
-                                            </div>
+                                    <div class="form-group">
+                                        {{ asset_form.consumption_price_sensor_id.label(class="col-sm-3 control-label")
+                                        }}
+                                        <div class="col-sm-3">
+                                            {{ asset_form.consumption_price_sensor_id(class_="form-control") }}
+                                            {% for error in asset_form.errors.consumption_price_sensor_id %}
+                                            <span style="color: red;">[{{error}}]</span>
+                                            {% endfor %}
                                         </div>
+                                    </div>
                                     {% endif %}
                                     {% if asset_form.production_price_sensor_id %}
-                                        <div class="form-group">
-                                            {{ asset_form.production_price_sensor_id.label(class="col-sm-3 control-label") }}
-                                            <div class="col-sm-3">
-                                                {{ asset_form.production_price_sensor_id(class_="form-control") }}
-                                                {% for error in asset_form.errors.production_price_sensor_id %}
-                                                <span style="color: red;">[{{error}}]</span>
-                                                {% endfor %}
-                                            </div>
+                                    <div class="form-group">
+                                        {{ asset_form.production_price_sensor_id.label(class="col-sm-3 control-label")
+                                        }}
+                                        <div class="col-sm-3">
+                                            {{ asset_form.production_price_sensor_id(class_="form-control") }}
+                                            {% for error in asset_form.errors.production_price_sensor_id %}
+                                            <span style="color: red;">[{{error}}]</span>
+                                            {% endfor %}
                                         </div>
+                                    </div>
                                     {% endif %}
                                     {% if asset_form.inflexible_device_sensor_ids %}
-                                        <div class="form-group">
-                                            {{ asset_form.inflexible_device_sensor_ids.label(class="col-sm-3 control-label") }}
-                                            <div class="col-sm-3">
-                                                {{ asset_form.inflexible_device_sensor_ids(class_="form-control") }}
-                                                {% for error in asset_form.errors.inflexible_device_sensor_ids %}
-                                                <span style="color: red;">[{{error}}]</span>
-                                                {% endfor %}
-                                            </div>
+                                    <div class="form-group">
+                                        {{ asset_form.inflexible_device_sensor_ids.label(class="col-sm-3 control-label")
+                                        }}
+                                        <div class="col-sm-3">
+                                            {{ asset_form.inflexible_device_sensor_ids(class_="form-control") }}
+                                            {% for error in asset_form.errors.inflexible_device_sensor_ids %}
+                                            <span style="color: red;">[{{error}}]</span>
+                                            {% endfor %}
                                         </div>
+                                    </div>
                                     {% endif %}
                                 </div>
                                 {% endif %}
@@ -184,19 +197,32 @@
                                         {% endfor %}
                                     </div>
                                 </div>
+
                                 <div class="form-group">
                                     {{ asset_form.sensors_to_show.label(class="col-sm-3 control-label") }}
-                                    <div class="col-md-3">
-                                        {{ asset_form.sensors_to_show(class_="form-control") }}
+                                
+                                    <div class="col-md-6">
+                                        <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#exampleModal">
+                                            Edit Graph
+                                        </button>
+                                
+                                        <!-- Error message display (if any) -->
                                         {% for error in asset_form.errors.sensors_to_show %}
-                                        <span style="color: red;">[{{error}}]</span>
+                                        <span class="text-danger">[{{ error }}]</span>
                                         {% endfor %}
                                     </div>
                                 </div>
-                                <label class="control-label">Location</label>
-                                <small>(Click map to edit latitude and longitude in form)</small>
-                                <div id="mapid"></div>
-                                <button class="btn btn-sm btn-responsive btn-success create-button" type="submit" value="Save" style="margin-top: 20px; float: right; border: 1px solid var(--light-gray);">Save</button>
+                                
+                                <div class="form-group">
+                                    <label class="control-label">Location</label>
+                                    <small>(Click map to edit latitude and longitude in form)</small>
+                                    <div id="mapid"></div>
+                                    <button class="btn btn-sm btn-responsive btn-success create-button" type="submit"
+                                        value="Save"
+                                        style="margin-top: 20px; float: right; border: 1px solid var(--light-gray);">
+                                        Save
+                                    </button>
+                                </div>
                             </div>
                         </fieldset>
                     </form>
@@ -215,7 +241,7 @@
                         function toIsoString(date) {
                             var tzo = -date.getTimezoneOffset(),
                                 dif = tzo >= 0 ? '+' : '-',
-                                pad = function(num) {
+                                pad = function (num) {
                                     return (num < 10 ? '0' : '') + num;
                                 };
 
@@ -235,7 +261,7 @@
                                 endDate = encodeURIComponent(toIsoString(endDate.toJSDate()));
                                 var base_url = window.location.href.split("?")[0];
                                 var new_url = `${base_url}?start_time=${startDate}&end_time=${endDate}`;
-                                
+
                                 // change current url without reloading the page
                                 window.history.pushState({}, null, new_url);
                             });
@@ -278,19 +304,20 @@
                     <a href="#" onclick="copyUrl(event)" style="display: block; text-align: center;">
                         <i class="fa fa-link"></i>
                     </a>
-                    <div id="message" style="display: none; text-align: center;">The URL to the time range currently shown has been copied to your clipboard.</div>
+                    <div id="message" style="display: none; text-align: center;">The URL to the time range currently
+                        shown has been copied to your clipboard.</div>
                 </div>
             </div>
             <div class="sensors-asset card">
                 <h3>All sensors for {{ asset.name }}</h3>
-                
+
                 <div class="table-responsive">
-                   
+
                     <table class="table table-striped paginate nav-on-click" title="View data" id="sensorsTable">
                     </table>
                 </div>
             </div>
-                
+
             <div class="sensors-asset card">
                 <h3>All child assets for {{ asset.name }}</h3>
                 <div class="table-responsive">
@@ -310,7 +337,8 @@
                             {% for child in asset.child_assets %}
                             <tr>
                                 <td>
-                                    <i class="{{ child.generic_asset_type.name | asset_icon }} left-icon">{{ child.name }}</i>
+                                    <i class="{{ child.generic_asset_type.name | asset_icon }} left-icon">{{ child.name
+                                        }}</i>
                                 </td>
                                 <td>
                                     {% if child.latitude and child.longitude %}
@@ -354,6 +382,64 @@
         </div>
     </div>
 
+    <!-- Modal -->
+    <div class="modal fade modal-xl" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Dashboard Graphs</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                  </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col">
+                          <!-- Left: Asset List -->
+                          <div class="list-container">
+                            <div id="dataList" class="row"></div>
+                          </div>
+                        </div>
+                      
+                        <div class="col">
+                            <div class="row mb-3">
+                                <div class="col-8">
+                                    <input
+                                        type="text"
+                                        id="searchInput"
+                                        class="form-control"
+                                        placeholder="Search by title..."
+                                        oninput="filterData()"
+                                    />
+                                </div>
+                        
+                                <div class="col-4">
+                                    <select class="form-select" aria-label="Default select example">
+                                        <option selected>Units</option>
+                                        <option value="1">One</option>
+                                        <option value="2">Two</option>
+                                        <option value="3">Three</option>
+                                    </select>
+                                </div>
+                            </div>
+                         
+                      
+                          <div class="mb-3">
+                            <button class="btn btn-primary" onclick="fetchAssets()">
+                              Fetch Sensors
+                            </button>
+                          </div>
+                      
+                          <div class="container">
+                            <div id="apiSensorsList" class="row"></div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                </div>
+            </div>
+        </div>
+    </div>
+
 
 </div>
 
@@ -368,6 +454,195 @@
 <!-- Initialise the map -->
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet-src.min.js"></script>
 <script src="{{ url_for('flexmeasures_ui.static', filename='js/map-init.js') }}"></script>
+
+<script>
+    let rawJSON = "{{ asset.sensors_to_show | safe}}";
+    rawJSON = rawJSON.replace(/'/g, '"');
+    let data = JSON.parse(rawJSON);
+    let assets = [];
+    let sensorCache = {}; // Cache to store fetched sensor details
+    let editingIndex = null; // Track the index of the item being edited
+
+    async function getSensor(id) {
+        if (sensorCache[id]) {
+            return sensorCache[id]; // Return from cache if already fetched
+        }
+        const apiUrl = window.location.origin + "/api/v3_0/sensors/" + id;
+        const response = await fetch(apiUrl);
+        const sensor = await response.json();
+        sensorCache[id] = sensor; // Store fetched sensor in cache
+        return sensor;
+    }
+
+    // Function to render the data list
+    async function renderData() {
+        const dataList = document.getElementById("dataList");
+        dataList.innerHTML = ""; // Clear the existing data
+
+        for (const [index, item] of data.entries()) {
+            const col = document.createElement("div");
+            col.classList.add("col-12", "mb-1");
+
+            const sensors = await Promise.all(item.sensors.map((sensor) => getSensor(sensor)));
+
+            col.innerHTML = `
+            <div class="card m-0 p-1">
+                <div class="card-body">
+                    ${editingIndex === index
+                        ? `<input type="text" class="form-control mb-2" id="editTitle_${index}" value="${item.title}" />`
+                        : `<h5 class="card-title">${item.title}</h5>`
+                    }
+
+                    ${editingIndex === index
+                        ? `<button class="btn btn-success btn-sm me-2" onclick="saveChanges(${index})">Save</button>`
+                        : `<button class="btn btn-warning btn-sm me-2" onclick="editItem(${index})">Edit</button>`
+                    }
+                    <h5 class="card-title pt-2"><b> Sensors: </b></h5>
+                    <p>
+                    ${sensors.map((sensor) => {
+                        return `<span><b> ID: </b> ${sensor.id},  <b>Name: </b> ${sensor.name},  <b>Unit: </b> ${sensor.unit}</span> <br/>`;
+                    }).join('')}
+                    </p>
+                    <button class="btn btn-danger btn-sm me-2" onclick="removeItem(${index})">Remove</button>
+                    <button class="btn btn-secondary btn-sm me-2" onclick="moveUp(${index})" ${index === 0 ? "disabled" : ""}>Move Up</button>
+                    <button class="btn btn-secondary btn-sm" onclick="moveDown(${index})" ${index === data.length - 1 ? "disabled" : ""}>Move Down</button>
+                </div>
+            </div>
+        `;
+
+            dataList.appendChild(col);
+        }
+    }
+
+    async function filterData() {
+        const searchValue = document.getElementById("searchInput").value.toLowerCase();
+        const apiUrl = window.location.origin + "/api/v3_0/sensors?page=1&per_page=10&filter=" + searchValue;
+        const response = await fetch(apiUrl);
+        const filteredAssets = await response.json().then((data) => data.data);
+        renderApiSensors(filteredAssets);
+    }
+
+    async function removeItem(index) {
+        data.splice(index, 1);
+        try {
+            await updateSensorToShow();
+            renderData(); 
+        } catch (error) {
+            showToast("Failed to save changes: " + error, "error");
+        }
+    }
+
+    async function moveUp(index) {
+        if (index > 0) {
+            [data[index - 1], data[index]] = [data[index], data[index - 1]]; // Swap items
+            try {
+                await updateSensorToShow();
+                renderData(); 
+            } catch (error) {
+                showToast("Failed to save changes: " + error, "error");
+            }
+        }
+    }
+
+    async function moveDown(index) {
+        if (index < data.length - 1) {
+            [data[index], data[index + 1]] = [data[index + 1], data[index]]; // Swap items
+            try {
+                await updateSensorToShow();
+                renderData(); 
+            } catch (error) {
+                showToast("Failed to save changes: " + error, "error");
+            }
+        }
+    }
+
+    function editItem(index) {
+        editingIndex = index;
+        renderData();
+    }
+
+    // Save the edited item
+    async function saveChanges(index) {
+        const newTitle = document.getElementById(`editTitle_${index}`).value;
+        data[index].title = newTitle;
+        editingIndex = null;
+            
+        try {
+            await updateSensorToShow();
+            renderData(); 
+        } catch (error) {
+            showToast("Failed to save changes: " + error, "error");
+        }
+    }
+
+    // Render the available API assets
+    function renderApiSensors(assets) {
+        const apiSensorsList = document.getElementById("apiSensorsList");
+        apiSensorsList.innerHTML = ""; // Clear the previous assets
+
+        assets.forEach((asset) => {
+            const col = document.createElement("div");
+            col.classList.add("col-12", "mb-1");
+
+            col.innerHTML = `
+                <div class="card m-0">
+                    <div class="card-body p-0">
+                        <h5 class="card-title">${asset.name}</h5>
+                        <p class="card-text">ID: ${asset.id}, Unit: ${asset.unit}</p>
+                        <button class="btn btn-primary btn-sm" onclick="addAssetToList(${asset.id})">Add to Graph</button>
+                    </div>
+                </div>
+            `;data
+
+            apiSensorsList.appendChild(col);
+        });
+    }
+
+    async function updateSensorToShow() {
+        const apiURL = window.location.origin + "/api/v3_0/assets/{{ asset.id }}";
+        //const dataJson = JSON.stringify(data);
+        const dataJson = JSON.stringify( {sensors_to_show: JSON.stringify(data)} );
+        console.log("dataJson", dataJson);
+
+    
+        const response = await fetch(apiURL, {
+            method: "PATCH",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: dataJson,
+        });
+    
+        if (!response.ok) {
+            showToast("Failed to update the asset", "error");
+            console.log("Failed to update the asset", response);
+        } else{
+            rawData = await response.json().then((data) => console.log(data));
+            showToast("Changes saved successfully", "success");
+        }
+    }
+
+    // Fetch the assets from the API
+    async function fetchAssets() {
+        const apiURL = window.location.origin + "/api/v3_0/sensors?page=1&per_page=5";
+        const response = await fetch(apiURL);
+        assets = await response.json().then((data) => data.data);
+        renderApiSensors(assets);
+    }
+
+    // Add an API asset to the data list
+    function addAssetToList(id) {
+        const newAsset = {
+            title: "No Title", // Default title
+            sensors: [id], // Sensor array containing the asset's ID
+        };
+        data.push(newAsset);
+        renderData();
+    }
+
+    // Initial render of data list
+    renderData();
+</script>
 
 <script type="text/javascript">
 
@@ -391,7 +666,7 @@
     });
     var marker = L
         .marker(
-            [{{ asset.latitude | replace("None", 10)}}, {{ asset.longitude | replace("None", 10) }}],
+            [{{ asset.latitude | replace("None", 10) }}, { { asset.longitude | replace("None", 10) } }],
     { icon: asset_icon }
         ).addTo(assetMap);
 
@@ -420,73 +695,72 @@
     }
 
     $(document).ready(function () {
-      let unit = "";
-      // Initialize the DataTable
-      const table = $("#sensorsTable").dataTable({
-        serverSide: true,
-        // make the table row vertically aligned with header
-        columns: [
-          { data: "id", title: "ID" },
-          { data: "name", title: "Name" },
-          { data: "unit", title: "Unit" },
-          { data: "resolution", title: "Resolution" },
-          { data: "entity_address", title: "Entity address" },
-          { data: "url", title: "URL", className: "d-none" },
-        ],
-  
-        ajax: function (data, callback, settings) {
-          const basePath = window.location.origin;
-          let filter = data["search"]["value"];
-          let url = `${basePath}/api/v3_0/assets/{{asset.id}}/sensors?page=${
-            data["start"] / data["length"] + 1
-          }&per_page=4`;
-  
-          if (filter.length > 0) {
-            url = `${url}&filter=${filter}`;
-          }
-          if (unit !== "") {
-            url = `${url}&unit=${unit}`;
-          }
-  
-          $.ajax({
-            type: "get",
-            url: url,
-            success: function (response, text) {
-              let clean_response = [];
-              response["data"].forEach((element) =>
-                clean_response.push(
-                  new Sensor(
-                    element["id"],
-                    element["name"],
-                    element["unit"],
-                    element["event_resolution"],
-                    element["entity_address"],
-                    element["active"]
-                  )
-                )
-              );
-  
-              callback({
-                data: clean_response,
-                recordsTotal: response["num-records"],
-                recordsFiltered: response["filtered-records"],
-              });
-            },
-            error: function (request, status, error) {
-              console.log("Error: ", error);
-            },
-          });
-        },
-      });
-  
-  
-      // Event listener for the select box
-      $("#unitFilterOptions").change(function () {
-        unit = this.value;
-        table.api().ajax.reload();
-      });
-    });
-  </script>
+        let unit = "";
+        // Initialize the DataTable
+        const table = $("#sensorsTable").dataTable({
+            serverSide: true,
+            // make the table row vertically aligned with header
+            columns: [
+                { data: "id", title: "ID" },
+                { data: "name", title: "Name" },
+                { data: "unit", title: "Unit" },
+                { data: "resolution", title: "Resolution" },
+                { data: "entity_address", title: "Entity address" },
+                { data: "url", title: "URL", className: "d-none" },
+            ],
 
-{% block paginate_tables_script %} {{ super() }} {% endblock %} 
+            ajax: function (data, callback, settings) {
+                const basePath = window.location.origin;
+                let filter = data["search"]["value"];
+                let url = `${basePath}/api/v3_0/assets/{{asset.id}}/sensors?page=${data["start"] / data["length"] + 1
+                    }&per_page=4`;
+
+                if (filter.length > 0) {
+                    url = `${url}&filter=${filter}`;
+                }
+                if (unit !== "") {
+                    url = `${url}&unit=${unit}`;
+                }
+
+                $.ajax({
+                    type: "get",
+                    url: url,
+                    success: function (response, text) {
+                        let clean_response = [];
+                        response["data"].forEach((element) =>
+                            clean_response.push(
+                                new Sensor(
+                                    element["id"],
+                                    element["name"],
+                                    element["unit"],
+                                    element["event_resolution"],
+                                    element["entity_address"],
+                                    element["active"]
+                                )
+                            )
+                        );
+
+                        callback({
+                            data: clean_response,
+                            recordsTotal: response["num-records"],
+                            recordsFiltered: response["filtered-records"],
+                        });
+                    },
+                    error: function (request, status, error) {
+                        console.log("Error: ", error);
+                    },
+                });
+            },
+        });
+
+
+        // Event listener for the select box
+        $("#unitFilterOptions").change(function () {
+            unit = this.value;
+            table.api().ajax.reload();
+        });
+    });
+</script>
+
+{% block paginate_tables_script %} {{ super() }} {% endblock %}
 {% endblock %}
