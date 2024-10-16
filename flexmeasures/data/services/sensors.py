@@ -395,7 +395,7 @@ def _get_sensor_stats(sensor: Sensor, ttl_hash=None) -> dict:
         ) = row
         stats[data_source] = {
             "First event start": min_event_start,
-            "Last event start": max_event_start,
+            "Last event end": max_event_start + sensor.event_resolution,
             "Min value": min_value,
             "Max value": max_value,
             "Mean value": mean_value,
