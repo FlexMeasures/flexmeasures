@@ -413,11 +413,9 @@
                                 </div>
                         
                                 <div class="col-4">
-                                    <select class="form-select" aria-label="Default select example">
+                                    <select id="unitsSelect" class="form-select" aria-label="Default select example"
+                                        onchange="filterData()">
                                         <option selected>Units</option>
-                                        <option value="1">One</option>
-                                        <option value="2">Two</option>
-                                        <option value="3">Three</option>
                                     </select>
                                 </div>
                             </div>
@@ -456,6 +454,19 @@
 <script src="{{ url_for('flexmeasures_ui.static', filename='js/map-init.js') }}"></script>
 
 <script>
+    let units = {{available_units | tojson}};
+    const selectElement = document.getElementById('unitsSelect');
+
+    units.forEach((unit, index) => {
+        const option = document.createElement('option');
+        option.value = unit;
+        option.text = unit;
+        selectElement.appendChild(option);
+    });
+</script>
+
+<script>
+
     let rawJSON = "{{ asset.sensors_to_show | safe}}";
     rawJSON = rawJSON.replace(/'/g, '"');
     let data = JSON.parse(rawJSON);
@@ -530,10 +541,37 @@
 
     async function filterData() {
         const searchValue = document.getElementById("searchInput").value.toLowerCase();
-        const apiUrl = window.location.origin + "/api/v3_0/sensors?page=1&per_page=10&filter=" + searchValue;
-        const response = await fetch(apiUrl);
-        const filteredAssets = await response.json().then((data) => data.data);
-        renderApiSensors(filteredAssets);
+        const filterValue = document.getElementById("unitsSelect").value;
+    
+        const baseApiUrl = `${window.location.origin}/api/v3_0/sensors?page=1&per_page=10`;
+    
+        const params = new URLSearchParams();
+    
+        if (searchValue) {
+            params.append('filter', searchValue);
+        }
+    
+        if (filterValue !== "Units") {
+            params.append('unit', filterValue);
+        }
+    
+        const apiUrl = `${baseApiUrl}&${params.toString()}`;
+    
+        try {
+            const response = await fetch(apiUrl);
+            
+            if (!response.ok) {
+                throw new Error('Failed to fetch assets');
+            }
+    
+            const data = await response.json();
+            const filteredAssets = data.data;
+    
+            // Render the fetched assets
+            renderApiSensors(filteredAssets);
+        } catch (error) {
+            showToast("Failed to filter/search assets", "error");
+        }
     }
 
     async function removeItem(index) {
@@ -619,8 +657,6 @@
     async function updateSensorToShow() {
         const apiURL = window.location.origin + "/api/v3_0/assets/{{ asset.id }}";
         const dataJson = JSON.stringify( {sensors_to_show: JSON.stringify(data)} );
-        console.log("dataJson", dataJson);
-
     
         const response = await fetch(apiURL, {
             method: "PATCH",
@@ -632,9 +668,9 @@
     
         if (!response.ok) {
             showToast("Failed to update the asset", "error");
-            console.log("Failed to update the asset", response);
         } else{
             rawData = await response.json().then((data) => console.log(data));
+            await embedAndLoad(chartSpecsPath + 'event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&', elementId, datasetName, previousResult, startDate, endDate),
             showToast("Changes saved successfully", "success");
         }
     }
