@@ -72,7 +72,7 @@
                                   <td>{{ sensor.unit }}</td>
                               </tr>
                               <tr>
-                                  <th>Event Resolution</th>
+                                  <th>Event resolution</th>
                                   <td>{{ sensor.event_resolution }}</td>
                               </tr>
                               <tr>
@@ -80,7 +80,7 @@
                                   <td>{{ sensor.timezone }}</td>
                               </tr>
                               <tr>
-                                  <th>Knowledge Horizon Type</th>
+                                  <th>Knowledge horizon type</th>
                                   <td>{{ sensor.knowledge_horizon_fnc }}</td>
                               </tr>
                           </table>
@@ -179,14 +179,11 @@
                                     tableBody.innerHTML = ''; // Clear the table body
 
                                     Object.entries(stats).forEach(([key, val]) => {
-                                            // Create a display key by removing underscores and capitalizing words
-                                            const displayKey = key.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase());
-
                                             const row = document.createElement('tr');
                                             const keyCell = document.createElement('th');
                                             const valueCell = document.createElement('td');
 
-                                            keyCell.textContent = displayKey;
+                                            keyCell.textContent = key;
                                             // Round value to 2 decimal points if it's a number
                                             if (typeof val === 'number' & key != 'Number of values') {
                                                 valueCell.textContent = val.toFixed(4);
