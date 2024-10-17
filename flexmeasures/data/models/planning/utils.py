@@ -349,6 +349,8 @@ def get_series_from_quantity_or_sensor(
                                     at that time.
     :param as_instantaneous_events: Optionally, convert to instantaneous events, in which case the passed resolution is
                                     interpreted as the desired frequency of the data.
+    :param boundary_policy:         When upsampling to instantaneous events,
+                                    take the 'max', 'min' or 'first' value at event boundaries.
     :return:                        Pandas Series with the requested time series data.
     """
 
