@@ -424,19 +424,23 @@ def device_scheduler(  # noqa C901
         - Creates an equality for two-sided commitments and for groups of size 1.
         """
         return (
-            0
-            if len(commitments[c]) == 1
-            or "upwards deviation price" in commitments[c].columns
-            else None,
+            (
+                0
+                if len(commitments[c]) == 1
+                or "upwards deviation price" in commitments[c].columns
+                else None
+            ),
             # 0 if "upwards deviation price" in commitments[c].columns else None,  # todo: possible simplification
             m.commitment_quantity[c]
             + m.commitment_downwards_deviation[c]
             + m.commitment_upwards_deviation[c]
             - sum(m.ems_power[:, j]),
-            0
-            if len(commitments[c]) == 1
-            or "downwards deviation price" in commitments[c].columns
-            else None,
+            (
+                0
+                if len(commitments[c]) == 1
+                or "downwards deviation price" in commitments[c].columns
+                else None
+            ),
             # 0 if "downwards deviation price" in commitments[c].columns else None,  # todo: possible simplification
         )
 

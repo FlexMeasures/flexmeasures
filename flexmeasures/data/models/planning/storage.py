@@ -525,19 +525,19 @@ class MetaStorageScheduler(Scheduler):
         )
 
         if ems_consumption_breach_price is None:
-            ems_constraints[
-                "derivative max"
-            ] = get_continuous_series_sensor_or_quantity(
-                variable_quantity=self.flex_context.get(
-                    "ems_consumption_capacity_in_mw"
-                ),
-                actuator=sensor.generic_asset,
-                unit="MW",
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                fallback_attribute="consumption_capacity_in_mw",
-                max_value=ems_power_capacity_in_mw,
+            ems_constraints["derivative max"] = (
+                get_continuous_series_sensor_or_quantity(
+                    variable_quantity=self.flex_context.get(
+                        "ems_consumption_capacity_in_mw"
+                    ),
+                    actuator=sensor.generic_asset,
+                    unit="MW",
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    fallback_attribute="consumption_capacity_in_mw",
+                    max_value=ems_power_capacity_in_mw,
+                )
             )
         else:
             ems_constraints["derivative max"] = ems_power_capacity_in_mw
