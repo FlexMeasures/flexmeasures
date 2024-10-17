@@ -300,7 +300,9 @@ class SensorAPI(FlaskView):
 
 
         The battery consumption power capacity is limited by sensor 42 and the production capacity is constant (30 kW).
-        Finally, the site consumption capacity is limited by sensor 32.
+        Finally, the site has a physical power capacity of 100 kVA, but the production capacity is limited to 80 kW,
+        while the consumption capacity is limited by a dynamic capacity contract whose values are recorded under sensor 32.
+        Breaching capacities in either direction is penalized heavily, with a price of 1000 EUR/kW.
 
         Note that, if forecasts for sensors 13, 14 and 15 are not available, a schedule cannot be computed.
 
@@ -331,9 +333,11 @@ class SensorAPI(FlaskView):
                     "consumption-price": {"sensor": 9},
                     "production-price": {"sensor": 10},
                     "inflexible-device-sensors": [13, 14, 15],
-                    "site-power-capacity": "100kW",
-                    "site-production-capacity": "80kW",
-                    "site-consumption-capacity": {"sensor": 32}
+                    "site-power-capacity": "100 kVA",
+                    "site-production-capacity": "80 kW",
+                    "site-consumption-capacity": {"sensor": 32},
+                    "site-production-breach-price": "1000 EUR/kW",
+                    "site-consumption-breach-price": "1000 EUR/kW"
                 }
             }
 
