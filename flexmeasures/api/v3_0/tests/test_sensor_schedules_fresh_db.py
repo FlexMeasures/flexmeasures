@@ -267,7 +267,7 @@ def test_price_sensor_priority(
         setattr(building_asset, sensor_attribute, price_sensor_id)
         fresh_db.session.add(building_asset)
 
-    # Adding unused sensor to context (e.g consumption price sensor if we test production sensor)
+    # Adding unused sensor to context (e.g. consumption price sensor if we test production sensor)
     message["flex-context"] = {
         unused_sensor: add_market_prices_fresh_db["epex_da"].id,
         "site-power-capacity": "1 TW",  # should be big enough to avoid any infeasibilities
