@@ -152,6 +152,8 @@ class StorageFlexModelSchema(Schema):
         validate=validate.Length(min=1),
     )
 
+    relaxed = fields.Bool(data_key="relaxed", required=False, default=False)
+
     def __init__(
         self,
         start: datetime,
