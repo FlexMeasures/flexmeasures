@@ -202,7 +202,7 @@
                                     {{ asset_form.sensors_to_show.label(class="col-sm-3 control-label") }}
                                 
                                     <div class="col-md-6">
-                                        <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#exampleModal">
+                                        <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#sensorsToShowForm">
                                             Edit Graph
                                         </button>
                                 
@@ -383,7 +383,7 @@
     </div>
 
     <!-- Modal -->
-    <div class="modal fade modal-xl" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel"
+    <div class="modal fade modal-xl" id="sensorsToShowForm" tabindex="-1" aria-labelledby="sensorsToShowFormLabel"
         aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -466,7 +466,7 @@
 </script>
 
 <script>
-
+    const formModal = document.getElementById('sensorsToShowForm');
     let rawJSON = "{{ asset.sensors_to_show | safe}}";
     rawJSON = rawJSON.replace(/'/g, '"');
     let data = JSON.parse(rawJSON);
@@ -577,7 +577,6 @@
     async function removeItem(index) {
         data.splice(index, 1);
         try {
-            await updateSensorToShow();
             renderData(); 
         } catch (error) {
             showToast("Failed to save changes: " + error, "error");
@@ -588,7 +587,6 @@
         if (index > 0) {
             [data[index - 1], data[index]] = [data[index], data[index - 1]]; // Swap items
             try {
-                await updateSensorToShow();
                 renderData(); 
             } catch (error) {
                 showToast("Failed to save changes: " + error, "error");
@@ -600,7 +598,6 @@
         if (index < data.length - 1) {
             [data[index], data[index + 1]] = [data[index + 1], data[index]]; // Swap items
             try {
-                await updateSensorToShow();
                 renderData(); 
             } catch (error) {
                 showToast("Failed to save changes: " + error, "error");
@@ -619,12 +616,7 @@
         data[index].title = newTitle;
         editingIndex = null;
             
-        try {
-            await updateSensorToShow();
-            renderData(); 
-        } catch (error) {
-            showToast("Failed to save changes: " + error, "error");
-        }
+        renderData(); 
     }
 
     // Render the available API assets
@@ -648,7 +640,7 @@
                         
                     </div>
                 </div>
-            `;data
+            `;
 
             apiSensorsList.appendChild(col);
         });
@@ -669,11 +661,14 @@
         if (!response.ok) {
             showToast("Failed to update the asset", "error");
         } else{
-            rawData = await response.json().then((data) => console.log(data));
-            await embedAndLoad(chartSpecsPath + 'event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&', elementId, datasetName, previousResult, startDate, endDate),
+            document.dispatchEvent(new Event('refreshGraph'));
             showToast("Changes saved successfully", "success");
         }
     }
+
+    formModal.addEventListener('hidden.bs.modal', function () {
+        updateSensorToShow();
+    });
 
     // Fetch the assets from the API
     async function fetchAssets(graphIndex) {
