@@ -394,8 +394,8 @@
                 <div class="modal-body">
                     <div class="row">
                         <div class="col">
-                          <!-- Left: Asset List -->
-                          <div class="list-container">
+
+                            <div class="list-container">
                             <div id="dataList" class="row"></div>
                           </div>
                         </div>
@@ -471,24 +471,24 @@
     rawJSON = rawJSON.replace(/'/g, '"');
     let data = JSON.parse(rawJSON);
     let assets = [];
-    let sensorCache = {}; // Cache to store fetched sensor details
-    let editingIndex = null; // Track the index of the item being edited
+    let sensorCache = {};
+    let editingIndex = null; 
 
     async function getSensor(id) {
         if (sensorCache[id]) {
-            return sensorCache[id]; // Return from cache if already fetched
+            return sensorCache[id];
         }
         const apiUrl = window.location.origin + "/api/v3_0/sensors/" + id;
         const response = await fetch(apiUrl);
         const sensor = await response.json();
-        sensorCache[id] = sensor; // Store fetched sensor in cache
+        sensorCache[id] = sensor; 
         return sensor;
     }
 
     // Function to render the data list
     async function renderData() {
         const dataList = document.getElementById("dataList");
-        dataList.innerHTML = ""; // Clear the existing data
+        dataList.innerHTML = ""; 
 
         for (const [index, item] of data.entries()) {
             const col = document.createElement("div");
@@ -681,8 +681,8 @@
     // Add sensor to the data list
     function addSensorToList(id) {
         const newAsset = {
-            title: "No Title", // Default title
-            sensors: [id], // Sensor array containing the asset's ID
+            title: "No Title", 
+            sensors: [id], 
         };
         data.push(newAsset);
         renderData();
