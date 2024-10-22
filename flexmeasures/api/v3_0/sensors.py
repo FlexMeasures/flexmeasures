@@ -39,6 +39,7 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField
+from flexmeasures.data.schemas import AssetIdField
 from flexmeasures.api.common.schemas.search import SearchFilterField
 from flexmeasures.api.common.schemas.sensors import UnitField
 from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
@@ -69,7 +70,9 @@ class SensorAPI(FlaskView):
             "account": AccountIdField(
                 data_key="account_id", load_default=AccountIdField.load_current
             ),
-            "all_accessible": fields.Boolean(required=False, missing=False),
+            "asset": AssetIdField(data_key="asset_id", required=False),
+            "all_accessible": fields.Boolean(required=False, load_default=False),
+            "include_public_assets": fields.Boolean(required=False, load_default=False),
             "page": fields.Int(
                 required=False, validate=validate.Range(min=1), default=1
             ),
@@ -86,7 +89,9 @@ class SensorAPI(FlaskView):
     def index(
         self,
         account: Account,
+        asset: GenericAsset | None = None,
         all_accessible: bool = False,
+        include_public_assets: bool = False,
         page: int | None = None,
         per_page: int | None = None,
         filter: list[str] | None = None,
@@ -97,10 +102,24 @@ class SensorAPI(FlaskView):
         .. :quickref: Sensor; Download sensor list
 
         This endpoint returns all accessible sensors.
-        Accessible sensors are sensors in the same account as the current user.
-        Alternatively, you can use the `all_accessible` query parameter to list sensors from all assets that the `current_user` has read access to, as well as all public assets. The default value is `false`.
+        By default, "accessible sensors" means all sensors in the same account as the current user (if they have read permission to the account).
+
+        You can also specify any other `account` (an ID parameter), if the user has read-access to that.
+        Alternatively to filtering by account, we can filter by asset tree. If you send the `asset` parameter (an ID), then all sensors on that asset or its sub-assets are looked up (if the user has read access to that asset).
+
+        In any of the two custom filtering cases above, you can
+        - not filter by both account and asset, as that is not useful - if the asset is not part of the specified account, a 422 error is raised.
+        - add the parameter flag `include_public_assets`, which adds sensors under public assets, as well.  The default value is `false`.
+
+        Finally, you can simply use the powerful `all_accessible` parameter to list sensors from all assets that the `current_user` has read access to, (across accounts and assets), as well as all public assets. The default value is `false`.
 
         Only admins can use this endpoint to fetch sensors from a different account (by using the `account_id` query parameter).
+
+        The `filter` parameter allows you to search for sensors by name or account name.
+        The `unit` parameter allows you to filter by unit.
+
+        For the pagination of the sensor list, you can use the `page` and `per_page` query parameters, the `page` parameter is used to trigger
+        pagination, and the `per_page` parameter is used to specify the number of records per page. The default value for `page` is 1 and for `per_page` is 10.
 
         **Example response**
 
@@ -139,15 +158,35 @@ class SensorAPI(FlaskView):
             accounts = account
         else:
             accounts: list = [account] if account else []
+
+        accounts = [
+            account for account in accounts if check_access(account, "read") is None
+        ]
         account_ids: list = [acc.id for acc in accounts]
 
-        filter_statement = GenericAsset.account_id.in_(account_ids)
+        if asset and asset.account_id not in account_ids:
+            return {"message": "Asset does not belong to the account"}, 422
 
-        if all_accessible is not None:
+        if asset is not None:
+            child_assets = (
+                db.session.query(GenericAsset)
+                .filter(GenericAsset.parent_asset_id == asset.id)
+                .all()
+            )
+            filter_statement = GenericAsset.id.in_(
+                [asset.id] + [a.id for a in child_assets]
+            )
+        else:
+            filter_statement = GenericAsset.account_id.in_(account_ids)
+
+        if all_accessible:
             consultancy_account_ids: list = [
                 acc.consultancy_account_id for acc in accounts
             ]
             account_ids.extend(consultancy_account_ids)
+
+        if include_public_assets or all_accessible:
+
             filter_statement = or_(
                 filter_statement,
                 GenericAsset.account_id.is_(None),
