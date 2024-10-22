@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 
+from sqlalchemy import select
 from flask import render_template, request, session, current_app
 from flask_security.core import current_user
 
@@ -16,6 +17,7 @@ from flexmeasures.ui.utils.breadcrumb_utils import get_breadcrumb_info
 from flexmeasures.utils import time_utils
 from flexmeasures.ui import flexmeasures_ui
 from flexmeasures.data.models.user import User, Account
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.ui.utils.chart_defaults import chart_options
 from flexmeasures.ui.utils.color_defaults import get_color_settings
 
@@ -227,3 +229,12 @@ def accountname(account_id) -> str:
         return ""
     else:
         return account.name
+
+
+def available_units() -> list[str]:
+    """
+    Return a list of all available units from sensors currently in the database.
+    """
+
+    units = db.session.execute(select(Sensor.unit).distinct()).all()
+    return [unit[0] for unit in units]
