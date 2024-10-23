@@ -19,6 +19,7 @@ New features
 * Speed up loading the accounts page,by making the pagination backend-based and adding support for that in the API [see `PR #1196 <https://github.com/FlexMeasures/flexmeasures/pull/1196>`_]
 * Speed up loading the account detail page by by switching to server-side pagination for assets, replacing client-side pagination [see `PR #1202 <https://github.com/FlexMeasures/flexmeasures/pull/1202>`_]
 * Simplify and Globalize toasts in the flexmeasures project [see `PR #1207 <https://github.com/FlexMeasures/flexmeasures/pull/1207>_`]
+* Enhanced API for listing sensors: Added option to filter by asset ID [see `PR #1219 <https://github.com/FlexMeasures/flexmeasures/pull/1219>_`] 
 
 Infrastructure / Support
 ----------------------
