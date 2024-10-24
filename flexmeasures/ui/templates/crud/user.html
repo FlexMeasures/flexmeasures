@@ -12,6 +12,7 @@
   <div class="row">
     <div class="col-md-2 on-top-md">
       <div class="header-action-button">
+        {% if current_user.has_role('admin') or current_user.has_role('account-admin')  %}
         <div class="">
           <form action="/users/toggle_active/{{ user.id }}" method="get">
             <button class="btn btn-sm btn-responsive {% if user.active %} btn-warning  {% else %} btn-success {% endif %} delete-button mb-3" type="submit" title="Toggle activation status of this user.">
@@ -19,6 +20,7 @@
             </button>
           </form>
         </div>
+        {% endif %}
         <div>
           <form action="/users/reset_password_for/{{ user.id }}" method="get">
             <button class="btn btn-sm btn-responsive btn-info delete-button" type="submit"
