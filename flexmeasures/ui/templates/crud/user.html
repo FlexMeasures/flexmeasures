@@ -20,13 +20,13 @@
             </button>
           </form>
         </div>
-        {% endif %}
         <div>
           <form action="/users/reset_password_for/{{ user.id }}" method="get">
             <button class="btn btn-sm btn-responsive btn-info delete-button" type="submit"
               title="Reset the password and send instructions how to choose a new one.">Reset password</button>
           </form>
         </div>
+        {% endif %}
       </div>
     </div>
     <div class="col-md-8">
