@@ -30,7 +30,7 @@ Bugfixes
 * The UI footer now stays at the bottom even on pages with little content [see `PR #1204 <https://github.com/FlexMeasures/flexmeasures/pull/1204>`_]
 * Correct stroke dash (based on source type) for forecasts made by forecasters included in FlexMeasures [see `PR #1211 <https://www.github.com/FlexMeasures/flexmeasures/pull/1211>`_]
 * Show the correct UTC offset for the data's time span as shown under sensor stats in the UI [see `PR #1213 <https://github.com/FlexMeasures/flexmeasures/pull/1213>`_]
-* Fix issue with displaying 'deactivate user' and 'reset password' buttons for non admin users [see `PR #1220 <https://github.com/FlexMeasures/flexmeasures/pull/1220>`_]
+* Fix issue with displaying ``deactivate user`` and ``reset password`` buttons for non admin users [see `PR #1220 <https://github.com/FlexMeasures/flexmeasures/pull/1220>`_]
 
 
 v0.23.0 | September 18, 2024
