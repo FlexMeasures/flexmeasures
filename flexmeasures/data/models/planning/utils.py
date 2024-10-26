@@ -332,7 +332,7 @@ def get_series_from_quantity_or_sensor(
     resolution: timedelta,
     beliefs_before: datetime | None = None,
     as_instantaneous_events: bool = True,
-    boundary_policy: str | None = None,
+    resolve_overlaps: str = "first",
 ) -> pd.Series:
     """
     Get a time series given a quantity or sensor defined on a time window.
@@ -373,7 +373,7 @@ def get_series_from_quantity_or_sensor(
             one_deterministic_belief_per_event=True,
         )
         if as_instantaneous_events:
-            bdf = bdf.resample_events(timedelta(0), boundary_policy=boundary_policy)
+            bdf = bdf.resample_events(timedelta(0), boundary_policy=resolve_overlaps)
         time_series = simplify_index(bdf).reindex(index).squeeze()
         time_series = convert_units(time_series, variable_quantity.unit, unit)
     elif isinstance(variable_quantity, list):
@@ -402,7 +402,7 @@ def get_continuous_series_sensor_or_quantity(
     fallback_attribute: str | None = None,
     max_value: float | int | pd.Series = np.nan,
     as_instantaneous_events: bool = False,
-    boundary_policy: str | None = None,
+    resolve_overlaps: str = "first",
 ) -> pd.Series:
     """Creates a time series from a sensor, time series specification, or quantity within a specified window,
     falling back to a given `fallback_attribute` and making sure no values exceed `max_value`.
@@ -433,7 +433,7 @@ def get_continuous_series_sensor_or_quantity(
         resolution=resolution,
         beliefs_before=beliefs_before,
         as_instantaneous_events=as_instantaneous_events,
-        boundary_policy=boundary_policy,
+        resolve_overlaps=resolve_overlaps,
     )
 
     # Apply upper limit
