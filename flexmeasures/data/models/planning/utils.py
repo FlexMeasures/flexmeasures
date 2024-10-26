@@ -349,6 +349,9 @@ def get_series_from_quantity_or_sensor(
                                     at that time.
     :param as_instantaneous_events: Optionally, convert to instantaneous events, in which case the passed resolution is
                                     interpreted as the desired frequency of the data.
+    :param resolve_overlaps:        If time series segments overlap (e.g. when upsampling to instantaneous events),
+                                    take the 'max', 'min' or 'first' value during overlapping time spans
+                                    (or at instantaneous moments, such as at event boundaries).
     :return:                        Pandas Series with the requested time series data.
     """
 
@@ -418,6 +421,9 @@ def get_continuous_series_sensor_or_quantity(
     :param max_value:               Maximum value (also replacing NaN values).
     :param as_instantaneous_events: optionally, convert to instantaneous events, in which case the passed resolution is
                                     interpreted as the desired frequency of the data.
+    :param resolve_overlaps:        If time series segments overlap (e.g. when upsampling to instantaneous events),
+                                    take the 'max', 'min' or 'first' value during overlapping time spans
+                                    (or at instantaneous moments, such as at event boundaries).
     :returns:                       time series data with missing values handled based on the chosen method.
     """
     if variable_quantity is None:
