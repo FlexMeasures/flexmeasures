@@ -394,12 +394,11 @@ def get_series_from_quantity_or_sensor(
             end = event["end"]
             time_series_segments.loc[start : end - resolution, segment] = value
         if resolve_overlaps == "first":
-            resolve_overlaps = "bfill"
-        time_series = (
-            time_series_segments.aggregate(func=resolve_overlaps, axis="columns")
-            .squeeze("columns")
-            .rename("event_value")
-        )
+            time_series = time_series_segments.fillna(method="bfill", axis=1).iloc[:, 0]
+        else:
+            time_series = getattr(time_series_segments, resolve_overlaps)(
+                axis=1
+            ).rename("event_value")
 
     else:
         raise TypeError(
