@@ -388,6 +388,8 @@ def get_series_from_quantity_or_sensor(
             start = event["start"]
             end = event["end"]
             time_series_segments.loc[start : end - resolution, segment] = value
+        if resolve_overlaps == "first":
+            resolve_overlaps = "bfill"
         time_series = time_series_segments.aggregate(
             func=resolve_overlaps, axis="columns"
         ).squeeze("columns").rename("event_value")
