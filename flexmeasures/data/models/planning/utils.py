@@ -385,6 +385,11 @@ def get_series_from_quantity_or_sensor(
         )
         for segment, event in enumerate(variable_quantity):
             value = event["value"]
+            if isinstance(value, ur.Quantity):
+                if np.isnan(value.magnitude):
+                    value = np.nan
+                else:
+                    value = value.to(unit).magnitude
             start = event["start"]
             end = event["end"]
             time_series_segments.loc[start : end - resolution, segment] = value
