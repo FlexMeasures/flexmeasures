@@ -276,6 +276,7 @@ class MetaStorageScheduler(Scheduler):
                 beliefs_before=belief_time,
                 fallback_attribute="production_capacity",
                 max_value=power_capacity_in_mw,
+                resolve_overlaps="min",
             )
         if sensor.get_attribute("is_strictly_non_negative"):
             device_constraints[0]["derivative max"] = 0
@@ -290,6 +291,7 @@ class MetaStorageScheduler(Scheduler):
                     beliefs_before=belief_time,
                     fallback_attribute="consumption_capacity",
                     max_value=power_capacity_in_mw,
+                    resolve_overlaps="min",
                 )
             )
 
@@ -422,6 +424,7 @@ class MetaStorageScheduler(Scheduler):
             beliefs_before=belief_time,
             fallback_attribute="consumption_capacity_in_mw",
             max_value=ems_power_capacity_in_mw,
+            resolve_overlaps="min",
         )
         ems_constraints["derivative min"] = (
             -1
@@ -434,6 +437,7 @@ class MetaStorageScheduler(Scheduler):
             beliefs_before=belief_time,
             fallback_attribute="production_capacity_in_mw",
             max_value=ems_power_capacity_in_mw,
+            resolve_overlaps="min",
         )
 
         return (
