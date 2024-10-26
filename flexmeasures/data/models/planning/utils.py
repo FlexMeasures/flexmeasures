@@ -380,13 +380,17 @@ def get_series_from_quantity_or_sensor(
         time_series = simplify_index(bdf).reindex(index).squeeze()
         time_series = convert_units(time_series, variable_quantity.unit, unit)
     elif isinstance(variable_quantity, list):
-        time_series_segments = pd.DataFrame(np.nan, index=index, columns=list(range(len(variable_quantity))))
+        time_series_segments = pd.DataFrame(
+            np.nan, index=index, columns=list(range(len(variable_quantity)))
+        )
         for segment, event in enumerate(variable_quantity):
             value = event["value"]
             start = event["start"]
             end = event["end"]
             time_series_segments[start : end - resolution, segment] = value
-        time_series = time_series_segments.aggregate(func=resolve_overlaps, axis="columns").squeeze("columns")
+        time_series = time_series_segments.aggregate(
+            func=resolve_overlaps, axis="columns"
+        ).squeeze("columns")
 
     else:
         raise TypeError(
