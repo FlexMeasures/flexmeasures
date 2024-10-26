@@ -387,7 +387,7 @@ def get_series_from_quantity_or_sensor(
             value = event["value"]
             start = event["start"]
             end = event["end"]
-            time_series_segments[start : end - resolution, segment] = value
+            time_series_segments.loc[start : end - resolution, segment] = value
         time_series = time_series_segments.aggregate(
             func=resolve_overlaps, axis="columns"
         ).squeeze("columns")
