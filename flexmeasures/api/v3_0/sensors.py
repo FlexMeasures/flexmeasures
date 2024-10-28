@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from flask import current_app, url_for
 from flask_classful import FlaskView, route
 from flask_json import as_json
-from flask_security import auth_required
+from flask_security import auth_required, current_user
 from marshmallow import fields, ValidationError
 import marshmallow.validate as validate
 from rq.job import Job, NoSuchJobError
@@ -155,7 +155,6 @@ class SensorAPI(FlaskView):
         :status 422: UNPROCESSABLE_ENTITY
         """
         account_ids: list = [account.id]
-        accounts: list = [account]
 
         if asset is not None:
             child_assets = (
@@ -170,10 +169,14 @@ class SensorAPI(FlaskView):
             filter_statement = GenericAsset.account_id.in_(account_ids)
 
         if all_accessible:
-            consultancy_account_ids: list = [
-                acc.consultancy_account_id for acc in accounts
-            ]
-            account_ids.extend(consultancy_account_ids)
+            if current_user.has_role("consultant"):
+                consultancy_accounts = (
+                    db.session.query(Account)
+                    .filter(Account.consultancy_account_id == account.id)
+                    .all()
+                )
+                consultancy_account_ids: list = [acc.id for acc in consultancy_accounts]
+                account_ids.extend(consultancy_account_ids)
 
         if asset and asset.account_id not in account_ids:
             return {"message": "Asset does not belong to the account"}, 422
