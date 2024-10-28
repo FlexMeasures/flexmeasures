@@ -20,7 +20,7 @@ sensor_schema = SensorSchema()
 
 
 @pytest.mark.parametrize(
-    "requesting_user, search_by, search_value, exp_sensor_name, exp_num_results, all_accessible, use_pagination",
+    "requesting_user, search_by, search_value, exp_sensor_name, exp_num_results, all_accessible, use_pagination, asset",
     [
         (
             "test_supplier_user_4@seita.nl",
@@ -30,6 +30,7 @@ sensor_schema = SensorSchema()
             2,
             True,
             False,
+            5,
         ),
         (
             "test_supplier_user_4@seita.nl",
@@ -39,6 +40,7 @@ sensor_schema = SensorSchema()
             1,
             True,
             False,
+            None,
         ),
         (
             "test_supplier_user_4@seita.nl",
@@ -48,6 +50,7 @@ sensor_schema = SensorSchema()
             3,
             True,
             True,
+            None,
         ),
         (
             "test_supplier_user_4@seita.nl",
@@ -57,6 +60,7 @@ sensor_schema = SensorSchema()
             1,
             False,
             False,
+            None,
         ),
     ],
     indirect=["requesting_user"],
@@ -71,6 +75,7 @@ def test_fetch_sensors(
     exp_num_results,
     all_accessible,
     use_pagination,
+    asset,
 ):
     """
     Retrieve all sensors.
@@ -91,6 +96,9 @@ def test_fetch_sensors(
     if all_accessible:
         query["all_accessible"] = True
 
+    if asset:
+        query["asset_id"] = asset
+
     response = client.get(
         url_for("SensorAPI:index"),
         query_string=query,
@@ -109,6 +117,9 @@ def test_fetch_sensors(
         assert is_valid_unit(response.json[0]["unit"])
         assert response.json[0]["name"] == exp_sensor_name
         assert len(response.json) == exp_num_results
+
+        if asset:
+            assert response.json[0]["generic_asset_id"] == asset
 
         if search_by == "unit":
             assert response.json[0]["unit"] == search_value
