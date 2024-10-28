@@ -154,18 +154,8 @@ class SensorAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        if isinstance(account, list):
-            accounts = account
-        else:
-            accounts: list = [account] if account else []
-
-        accounts = [
-            account for account in accounts if check_access(account, "read") is None
-        ]
-        account_ids: list = [acc.id for acc in accounts]
-
-        if asset and asset.account_id not in account_ids:
-            return {"message": "Asset does not belong to the account"}, 422
+        account_ids: list = [account.id]
+        accounts: list = [account]
 
         if asset is not None:
             child_assets = (
@@ -184,6 +174,9 @@ class SensorAPI(FlaskView):
                 acc.consultancy_account_id for acc in accounts
             ]
             account_ids.extend(consultancy_account_ids)
+
+        if asset and asset.account_id not in account_ids:
+            return {"message": "Asset does not belong to the account"}, 422
 
         if include_public_assets or all_accessible:
 
@@ -206,6 +199,7 @@ class SensorAPI(FlaskView):
                         or_(
                             Sensor.name.ilike(f"%{term}%"),
                             Account.name.ilike(f"%{term}%"),
+                            GenericAsset.name.ilike(f"%{term}%"),
                         )
                         for term in filter
                     )
