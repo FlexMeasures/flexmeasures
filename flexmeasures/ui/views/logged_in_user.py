@@ -30,22 +30,19 @@ def logged_in_user_view():
     ).scalar()
 
     try:
-        user_view_account_auditlog = bool(
-            check_access(AuditLog.account_table_acl(account), "read")
+        access_result = check_access(AuditLog.account_table_acl(account), "read")
+        user_view_account_auditlog = (
+            True if access_result is None else bool(access_result)
         )
     except Forbidden:
         user_view_account_auditlog = False
 
     try:
-        user_view_user_auditlog = bool(
-            check_access(AuditLog.user_table_acl(current_user), "read")
-        )
-    except Forbidden as e:
-        print("Forbidden: ", e)
-        user_view_user_auditlog = False
+        access_result = check_access(AuditLog.user_table_acl(current_user), "read")
+        user_view_user_auditlog = True if access_result is None else bool(access_result)
 
-    print("==================account: ", user_view_account_auditlog)
-    print("==================user: ", user_view_user_auditlog)
+    except Forbidden:
+        user_view_user_auditlog = False
 
     return render_flexmeasures_template(
         "admin/logged_in_user.html",
