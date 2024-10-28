@@ -1,5 +1,5 @@
 from sqlalchemy import select
-from werkzeug.exceptions import Forbidden
+from werkzeug.exceptions import Forbidden, Unauthorized
 from flask_security.core import current_user
 from flask_security import login_required
 
@@ -29,19 +29,16 @@ def logged_in_user_view():
         select(Account).filter_by(id=current_user.account_id)
     ).scalar()
 
+    user_view_account_auditlog = True
     try:
-        access_result = check_access(AuditLog.account_table_acl(account), "read")
-        user_view_account_auditlog = (
-            True if access_result is None else bool(access_result)
-        )
-    except Forbidden:
+        check_access(AuditLog.account_table_acl(account), "read")
+    except (Forbidden, Unauthorized):
         user_view_account_auditlog = False
 
+    user_view_user_auditlog = True
     try:
-        access_result = check_access(AuditLog.user_table_acl(current_user), "read")
-        user_view_user_auditlog = True if access_result is None else bool(access_result)
-
-    except Forbidden:
+        check_access(AuditLog.user_table_acl(current_user), "read")
+    except (Forbidden, Unauthorized):
         user_view_user_auditlog = False
 
     return render_flexmeasures_template(
