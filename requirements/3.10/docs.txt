@@ -55,7 +55,7 @@ six==1.16.0
     #   sphinxcontrib-httpdomain
 snowballstemmer==2.2.0
     # via sphinx
-sphinx==7.4.7
+sphinx==7.3.7
     # via
     #   -r requirements/docs.in
     #   sphinx-copybutton
@@ -87,8 +87,6 @@ sphinxcontrib-jsmath==1.0.1
 sphinxcontrib-qthelp==2.0.0
     # via sphinx
 sphinxcontrib-serializinghtml==2.0.0
-    # via sphinx
-tomli==2.0.1
     # via sphinx
 urllib3==2.2.3
     # via
