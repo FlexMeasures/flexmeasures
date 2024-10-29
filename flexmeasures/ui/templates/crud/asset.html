@@ -665,7 +665,7 @@
 
     // Fetch the assets from the API
     async function fetchAssets(graphIndex) {
-        const apiURL = window.location.origin + "/api/v3_0/sensors?page=1&per_page=10";
+        const apiURL = window.location.origin + "/api/v3_0/sensors?page=1&per_page=10&asset_id={{ asset.id }}&include_public_assets=true";
         const response = await fetch(apiURL);
         assets = await response.json().then((data) => data.data);
         renderApiSensors(assets, graphIndex);
