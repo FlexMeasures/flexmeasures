@@ -199,18 +199,11 @@
                                 </div>
 
                                 <div class="form-group">
-                                    <label for="sensors_to_show" class="col-sm-6 control-label">Sensor Graphs</label>
+                                    <label for="sensors_to_show" class="col-sm-6 control-label">Sensor Graphs: </label>
                                 
-                                    <div class="col-md-6">
                                         <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#sensorsToShowForm">
                                             Edit Graph
                                         </button>
-                                
-                                        <!-- Error message display (if any) -->
-                                        {% for error in asset_form.errors.sensors_to_show %}
-                                        <span class="text-danger">[{{ error }}]</span>
-                                        {% endfor %}
-                                    </div>
                                 </div>
                                 
                                 <div class="form-group">
@@ -661,7 +654,7 @@
         if (!response.ok) {
             showToast("Failed to update the asset", "error");
         } else{
-            document.dispatchEvent(new Event('refreshGraph'));
+            document.dispatchEvent(new Event('sensorsToShowUpdated'));
             showToast("Changes saved successfully", "success");
         }
     }
