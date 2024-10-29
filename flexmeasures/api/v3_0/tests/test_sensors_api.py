@@ -358,7 +358,7 @@ def test_delete_a_sensor(client, setup_api_test_data, requesting_user, db):
 def test_fetch_sensor_stats(
     client, setup_api_test_data: dict[str, Sensor], requesting_user, db
 ):
-    # gas sensor is setup in add_gas_measurements
+    # gas sensor is set up in add_gas_measurements
     sensor_id = 1
     with QueryCounter(db.session.connection()) as counter1:
         response = client.get(
@@ -374,10 +374,10 @@ def test_fetch_sensor_stats(
             "Test Supplier User",
         ]
         for source, record in response_content.items():
-            assert record["min_event_start"] == "Sat, 01 May 2021 22:00:00 GMT"
-            assert record["max_event_start"] == "Sat, 01 May 2021 22:20:00 GMT"
-            assert record["min_value"] == 91.3
-            assert record["max_value"] == 92.1
+            assert record["First event start"] == "2021-05-01T22:00:00+00:00"
+            assert record["Last event end"] == "2021-05-01T22:30:00+00:00"
+            assert record["Min value"] == 91.3
+            assert record["Max value"] == 92.1
             if source == "Test Supplier User":
                 # values are: 91.3, 91.7, 92.1
                 sum_values = 275.1
@@ -388,12 +388,12 @@ def test_fetch_sensor_stats(
                 count_values = 3
             mean_value = 91.7
             assert math.isclose(
-                record["mean_value"], mean_value, rel_tol=1e-5
+                record["Mean value"], mean_value, rel_tol=1e-5
             ), f"mean_value is close to {mean_value}"
             assert math.isclose(
-                record["sum_values"], sum_values, rel_tol=1e-5
+                record["Sum over values"], sum_values, rel_tol=1e-5
             ), f"sum_values is close to {sum_values}"
-            assert record["count_values"] == count_values
+            assert record["Number of values"] == count_values
 
     with QueryCounter(db.session.connection()) as counter2:
         response = client.get(

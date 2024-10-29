@@ -8,6 +8,7 @@ from functools import lru_cache
 from isodate import duration_isoformat
 import time
 from timely_beliefs import BeliefsDataFrame
+import pandas as pd
 
 from humanize.time import naturaldelta
 
@@ -394,14 +395,22 @@ def _get_sensor_stats(sensor: Sensor, ttl_hash=None) -> dict:
             sum_values,
             count_values,
         ) = row
+        first_event_start = (
+            pd.Timestamp(min_event_start).tz_convert(sensor.timezone).isoformat()
+        )
+        last_event_end = (
+            pd.Timestamp(max_event_start + sensor.event_resolution)
+            .tz_convert(sensor.timezone)
+            .isoformat()
+        )
         stats[data_source] = {
-            "min_event_start": min_event_start,
-            "max_event_start": max_event_start,
-            "min_value": min_value,
-            "max_value": max_value,
-            "mean_value": mean_value,
-            "sum_values": sum_values,
-            "count_values": count_values,
+            "First event start": first_event_start,
+            "Last event end": last_event_end,
+            "Min value": min_value,
+            "Max value": max_value,
+            "Mean value": mean_value,
+            "Sum over values": sum_values,
+            "Number of values": count_values,
         }
     return stats
 
