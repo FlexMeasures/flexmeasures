@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 from sqlalchemy import select
+from werkzeug.exceptions import Forbidden, Unauthorized
 from flask import request, url_for
 from flask_classful import FlaskView
 from flask_security import login_required
 from flask_security.core import current_user
 
-from flexmeasures.auth.policy import user_has_admin_access
+from flexmeasures.auth.policy import user_has_admin_access, check_access
 
 from flexmeasures.ui.crud.api_wrapper import InternalApi
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
+from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import Account
 from flexmeasures.data import db
 
@@ -45,19 +47,27 @@ class AccountCrudUI(FlaskView):
     def get(self, account_id: str):
         """/accounts/<account_id>"""
         include_inactive = request.args.get("include_inactive", "0") != "0"
-        account = get_account(account_id)
-        if account["consultancy_account_id"]:
+        account = db.session.execute(select(Account).filter_by(id=account_id)).scalar()
+        if account.consultancy_account_id:
             consultancy_account = db.session.execute(
-                select(Account).filter_by(id=account["consultancy_account_id"])
+                select(Account).filter_by(id=account.consultancy_account_id)
             ).scalar_one_or_none()
             if consultancy_account:
-                account["consultancy_account_name"] = consultancy_account.name
+                account.consultancy_account.name = consultancy_account.name
         accounts = get_accounts() if user_has_admin_access(current_user, "read") else []
+
+        user_view_account_auditlog = True
+        try:
+            check_access(AuditLog.account_table_acl(account), "read")
+        except (Forbidden, Unauthorized):
+            user_view_account_auditlog = False
+
         return render_flexmeasures_template(
             "crud/account.html",
             account=account,
             accounts=accounts,
             include_inactive=include_inactive,
+            can_view_account_auditlog=user_view_account_auditlog,
         )
 
     @login_required
