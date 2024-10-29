@@ -71,7 +71,9 @@ class SensorAPI(FlaskView):
                 data_key="account_id", load_default=AccountIdField.load_current
             ),
             "asset": AssetIdField(data_key="asset_id", required=False),
-            "all_accessible": fields.Boolean(required=False, load_default=False),
+            "include_consultancy_clients": fields.Boolean(
+                required=False, load_default=False
+            ),
             "include_public_assets": fields.Boolean(required=False, load_default=False),
             "page": fields.Int(
                 required=False, validate=validate.Range(min=1), default=1
@@ -90,7 +92,7 @@ class SensorAPI(FlaskView):
         self,
         account: Account,
         asset: GenericAsset | None = None,
-        all_accessible: bool = False,
+        include_consultancy_clients: bool = False,
         include_public_assets: bool = False,
         page: int | None = None,
         per_page: int | None = None,
@@ -111,7 +113,7 @@ class SensorAPI(FlaskView):
         - not filter by both account and asset, as that is not useful - if the asset is not part of the specified account, a 422 error is raised.
         - add the parameter flag `include_public_assets`, which adds sensors under public assets, as well.  The default value is `false`.
 
-        Finally, you can simply use the powerful `all_accessible` parameter to list sensors from all assets that the `current_user` has read access to, (across accounts and assets), as well as all public assets. The default value is `false`.
+        Finally, you can use the `include_consultancy_clients` parameter to include sensors from accounts for which the current user account is a consultant. This is only possible if the user has the role of a consultant.
 
         Only admins can use this endpoint to fetch sensors from a different account (by using the `account_id` query parameter).
 
@@ -168,7 +170,7 @@ class SensorAPI(FlaskView):
         else:
             filter_statement = GenericAsset.account_id.in_(account_ids)
 
-        if all_accessible:
+        if include_consultancy_clients:
             if current_user.has_role("consultant"):
                 consultancy_accounts = (
                     db.session.query(Account)
@@ -181,8 +183,7 @@ class SensorAPI(FlaskView):
         if asset and asset.account_id not in account_ids:
             return {"message": "Asset does not belong to the account"}, 422
 
-        if include_public_assets or all_accessible:
-
+        if include_public_assets:
             filter_statement = or_(
                 filter_statement,
                 GenericAsset.account_id.is_(None),
@@ -191,7 +192,7 @@ class SensorAPI(FlaskView):
         sensor_query = (
             select(Sensor)
             .join(GenericAsset, Sensor.generic_asset_id == GenericAsset.id)
-            .join(Account, GenericAsset.owner)
+            .outerjoin(Account, GenericAsset.owner)
             .filter(filter_statement)
         )
 
