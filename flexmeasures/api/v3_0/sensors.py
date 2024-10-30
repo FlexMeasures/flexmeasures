@@ -57,6 +57,18 @@ post_sensor_schema = PostSensorDataSchema()
 sensors_schema = SensorSchema(many=True)
 sensor_schema = SensorSchema()
 partial_sensor_schema = SensorSchema(partial=True, exclude=["generic_asset_id"])
+asset_fields = [
+    GenericAsset.id,
+    GenericAsset.name,
+    GenericAsset.latitude,
+    GenericAsset.longitude,
+    GenericAsset.sensors_to_show,
+    GenericAsset.parent_asset_id,
+    GenericAsset.generic_asset_type_id,
+    GenericAsset.consumption_price_sensor_id,
+    GenericAsset.production_price_sensor_id,
+    GenericAsset.account_id,
+]  # this intentionally excludes attributes fields
 
 
 class SensorAPI(FlaskView):
@@ -159,11 +171,20 @@ class SensorAPI(FlaskView):
         account_ids: list = [account.id]
 
         if asset is not None:
-            child_assets = (
-                db.session.query(GenericAsset)
-                .filter(GenericAsset.parent_asset_id == asset.id)
-                .all()
+            start_query = (
+                select(*asset_fields)
+                .where(GenericAsset.id == asset.id)
+                .cte(name="asset_tree", recursive=True)
             )
+
+            recursive_query = select(*asset_fields).join(
+                start_query, GenericAsset.parent_asset_id == start_query.c.id
+            )
+
+            asset_tree = start_query.union_all(recursive_query)
+
+            child_assets = db.session.execute(select(asset_tree)).all()
+
             filter_statement = GenericAsset.id.in_(
                 [asset.id] + [a.id for a in child_assets]
             )
@@ -177,8 +198,7 @@ class SensorAPI(FlaskView):
                     .filter(Account.consultancy_account_id == account.id)
                     .all()
                 )
-                consultancy_account_ids: list = [acc.id for acc in consultancy_accounts]
-                account_ids.extend(consultancy_account_ids)
+                account_ids.extend([acc.id for acc in consultancy_accounts])
 
         if asset and asset.account_id not in account_ids:
             return {"message": "Asset does not belong to the account"}, 422
