@@ -29,11 +29,11 @@ def logged_in_user_view():
         select(Account).filter_by(id=current_user.account_id)
     ).scalar()
 
-    user_view_account_auditlog = True
+    user_can_view_account_auditlog = True
     try:
         check_access(AuditLog.account_table_acl(account), "read")
     except (Forbidden, Unauthorized):
-        user_view_account_auditlog = False
+        user_can_view_account_auditlog = False
 
     user_view_user_auditlog = True
     try:
@@ -47,6 +47,6 @@ def logged_in_user_view():
         roles=",".join([role.name for role in current_user.roles]),
         num_assets=get_number_of_assets_in_account(current_user.account_id),
         account_role_names=account_role_names,
-        can_view_account_auditlog=user_view_account_auditlog,
+        can_view_account_auditlog=user_can_view_account_auditlog,
         can_view_user_auditlog=user_view_user_auditlog,
     )

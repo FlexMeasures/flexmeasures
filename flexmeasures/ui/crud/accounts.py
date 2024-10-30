@@ -56,18 +56,18 @@ class AccountCrudUI(FlaskView):
                 account.consultancy_account.name = consultancy_account.name
         accounts = get_accounts() if user_has_admin_access(current_user, "read") else []
 
-        user_view_account_auditlog = True
+        user_can_view_account_auditlog = True
         try:
             check_access(AuditLog.account_table_acl(account), "read")
         except (Forbidden, Unauthorized):
-            user_view_account_auditlog = False
+            user_can_view_account_auditlog = False
 
         return render_flexmeasures_template(
             "crud/account.html",
             account=account,
             accounts=accounts,
             include_inactive=include_inactive,
-            can_view_account_auditlog=user_view_account_auditlog,
+            can_view_account_auditlog=user_can_view_account_auditlog,
         )
 
     @login_required
