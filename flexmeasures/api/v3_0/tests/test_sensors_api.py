@@ -20,7 +20,7 @@ sensor_schema = SensorSchema()
 
 
 @pytest.mark.parametrize(
-    "requesting_user, search_by, search_value, exp_sensor_name, exp_num_results, all_accessible, use_pagination, asset",
+    "requesting_user, search_by, search_value, exp_sensor_name, exp_num_results, include_consultancy_clients, use_pagination, asset, parent_asset_id",
     [
         (
             "test_supplier_user_4@seita.nl",
@@ -31,6 +31,18 @@ sensor_schema = SensorSchema()
             True,
             False,
             5,
+            None,
+        ),
+        (
+            "test_prosumer_user@seita.nl",
+            None,
+            None,
+            "power",
+            2,
+            False,
+            False,
+            7,
+            8,
         ),
         (
             "test_supplier_user_4@seita.nl",
@@ -40,6 +52,7 @@ sensor_schema = SensorSchema()
             1,
             True,
             False,
+            None,
             None,
         ),
         (
@@ -51,6 +64,7 @@ sensor_schema = SensorSchema()
             True,
             True,
             None,
+            None,
         ),
         (
             "test_supplier_user_4@seita.nl",
@@ -61,6 +75,7 @@ sensor_schema = SensorSchema()
             False,
             False,
             None,
+            None,
         ),
     ],
     indirect=["requesting_user"],
@@ -68,14 +83,16 @@ sensor_schema = SensorSchema()
 def test_fetch_sensors(
     client,
     setup_api_test_data,
+    add_battery_assets,
     requesting_user,
     search_by,
     search_value,
     exp_sensor_name,
     exp_num_results,
-    all_accessible,
+    include_consultancy_clients,
     use_pagination,
     asset,
+    parent_asset_id,
 ):
     """
     Retrieve all sensors.
@@ -93,8 +110,8 @@ def test_fetch_sensors(
     elif search_by == "filter":
         query["filter"] = search_value
 
-    if all_accessible:
-        query["all_accessible"] = True
+    if include_consultancy_clients:
+        query["include_consultancy_clients"] = True
 
     if asset:
         query["asset_id"] = asset
@@ -118,7 +135,9 @@ def test_fetch_sensors(
         assert response.json[0]["name"] == exp_sensor_name
         assert len(response.json) == exp_num_results
 
-        if asset:
+        if asset and parent_asset_id:
+            assert response.json[0]["generic_asset_id"] == parent_asset_id
+        elif asset:
             assert response.json[0]["generic_asset_id"] == asset
 
         if search_by == "unit":
