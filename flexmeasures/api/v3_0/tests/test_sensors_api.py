@@ -20,7 +20,7 @@ sensor_schema = SensorSchema()
 
 
 @pytest.mark.parametrize(
-    "requesting_user, search_by, search_value, exp_sensor_name, exp_num_results, include_consultancy_clients, use_pagination, asset, parent_asset_id",
+    "requesting_user, search_by, search_value, exp_sensor_name, exp_num_results, include_consultancy_clients, use_pagination, filter_asset_id, asset_id_of_of_first_sensor_result",
     [
         (
             "test_supplier_user_4@seita.nl",
@@ -42,7 +42,7 @@ sensor_schema = SensorSchema()
             False,
             False,
             7,
-            8,
+            8,  # We test that the endpoint returns the sensor on a battery asset (ID: 8) while we filter for the building asset (ID: 7) that includes it
         ),
         (
             "test_supplier_user_4@seita.nl",
@@ -91,14 +91,20 @@ def test_fetch_sensors(
     exp_num_results,
     include_consultancy_clients,
     use_pagination,
-    asset,
-    parent_asset_id,
+    filter_asset_id,
+    asset_id_of_of_first_sensor_result,
 ):
     """
     Retrieve all sensors.
 
     Our user here is admin, so is allowed to see all sensors.
     Pagination is tested only in passing, we should test filtering and page > 1
+
+    The `filter_asset_id` specifies the asset_id to filter for.
+
+    The `asset_id_of_of_first_sensor_result` specifies the asset_id of the first sensor
+    in the result list. This sensors is expected to be from a child asset of the asset
+    specified in `filter_asset_id`.
     """
     query = {search_by: search_value}
 
@@ -113,8 +119,8 @@ def test_fetch_sensors(
     if include_consultancy_clients:
         query["include_consultancy_clients"] = True
 
-    if asset:
-        query["asset_id"] = asset
+    if filter_asset_id:
+        query["asset_id"] = filter_asset_id
 
     response = client.get(
         url_for("SensorAPI:index"),
@@ -135,10 +141,13 @@ def test_fetch_sensors(
         assert response.json[0]["name"] == exp_sensor_name
         assert len(response.json) == exp_num_results
 
-        if asset and parent_asset_id:
-            assert response.json[0]["generic_asset_id"] == parent_asset_id
-        elif asset:
-            assert response.json[0]["generic_asset_id"] == asset
+        if asset_id_of_of_first_sensor_result is not None:
+            assert (
+                response.json[0]["generic_asset_id"]
+                == asset_id_of_of_first_sensor_result
+            )
+        elif filter_asset_id:
+            assert response.json[0]["generic_asset_id"] == filter_asset_id
 
         if search_by == "unit":
             assert response.json[0]["unit"] == search_value
