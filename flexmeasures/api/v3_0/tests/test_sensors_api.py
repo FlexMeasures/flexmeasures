@@ -215,6 +215,7 @@ def test_post_a_sensor(client, setup_api_test_data, requesting_user, db):
     assert response.status_code == 201
     assert response.json["name"] == "power"
     assert response.json["event_resolution"] == "PT1H"
+    assert response.json["generic_asset_id"] == post_data["generic_asset_id"]
 
     sensor: Sensor = db.session.execute(
         select(Sensor).filter_by(name="power", unit="kWh")
