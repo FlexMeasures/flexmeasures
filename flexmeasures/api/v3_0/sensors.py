@@ -156,7 +156,12 @@ class SensorAPI(FlaskView):
         if account and asset is None:
             account = current_user.account if not current_user.is_anonymous else None
 
-        account = account if check_access(account, "read") is None else None
+        if account is not None:
+            account = account if check_access(account, "read") is None else None
+
+        if asset is not None:
+            asset = asset if check_access(asset, "read") is None else None
+
         account_ids: list = [account.id] if account else []
 
         if asset is not None:
@@ -180,7 +185,7 @@ class SensorAPI(FlaskView):
         else:
             filter_statement = GenericAsset.account_id.in_(account_ids)
 
-        if include_consultancy_clients:
+        if include_consultancy_clients and account:
             if current_user.has_role("consultant"):
                 consultancy_accounts = (
                     db.session.query(Account)
@@ -190,7 +195,7 @@ class SensorAPI(FlaskView):
                 consultancy_account_ids: list = [acc.id for acc in consultancy_accounts]
                 account_ids.extend(consultancy_account_ids)
 
-        if asset and asset.account_id not in account_ids:
+        if account_ids and asset and asset.account_id not in account_ids:
             return {"message": "Asset does not belong to the account"}, 422
 
         if include_public_assets:
