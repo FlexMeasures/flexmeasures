@@ -3,6 +3,7 @@ from __future__ import annotations
 import isodate
 from datetime import datetime, timedelta
 
+from werkzeug.exceptions import Unauthorized
 from flask import current_app, url_for
 from flask_classful import FlaskView, route
 from flask_json import as_json
@@ -103,14 +104,14 @@ class SensorAPI(FlaskView):
         This endpoint returns all accessible sensors.
         By default, "accessible sensors" means all sensors in the same account as the current user (if they have read permission to the account).
 
-        You can also specify any other `account` (an ID parameter), if the user has read-access to that.
-        Alternatively to filtering by account, we can filter by asset tree. If you send the `asset` parameter (an ID), then all sensors on that asset or its sub-assets are looked up (if the user has read access to that asset).
+        You can also specify an `account` (an ID parameter), if the user has read access to that account. In this case, all assets under the
+        specified account will be retrieved, and the sensors associated with these assets will be returned.
 
-        In any of the two custom filtering cases above, you can
-        - not filter by both account and asset, as that is not useful - if the asset is not part of the specified account, a 422 error is raised.
-        - add the parameter flag `include_public_assets`, which adds sensors under public assets, as well.  The default value is `false`.
+        Alternatively, you can filter by asset hierarchy by providing the `asset` parameter (ID). When this is set, all sensors on the specified
+        asset and its sub-assets are retrieved, provided the user has read access to the asset.
 
-        Finally, you can use the `include_consultancy_clients` parameter to include sensors from accounts for which the current user account is a consultant. This is only possible if the user has the role of a consultant.
+        Finally, you can use the `include_consultancy_clients` parameter to include sensors from accounts for which the current user account is a consultant.
+        This is only possible if the user has the role of a consultant.
 
         Only admins can use this endpoint to fetch sensors from a different account (by using the `account_id` query parameter).
 
@@ -154,15 +155,24 @@ class SensorAPI(FlaskView):
         :status 422: UNPROCESSABLE_ENTITY
         """
         if account and asset is None:
-            account = current_user.account if not current_user.is_anonymous else None
-
-        if account is not None:
-            account = account if check_access(account, "read") is None else None
+            if current_user.is_anonymous:
+                raise Unauthorized
+            check_access(account, "read")
+            account = current_user.account
 
         if asset is not None:
             asset = asset if check_access(asset, "read") is None else None
 
         account_ids: list = [account.id] if account else []
+
+        if include_consultancy_clients and account:
+            if current_user.has_role("consultant"):
+                consultancy_accounts = (
+                    db.session.query(Account)
+                    .filter(Account.consultancy_account_id == account.id)
+                    .all()
+                )
+                account_ids.extend([acc.id for acc in consultancy_accounts])
 
         if asset is not None:
             asset_tree = (
@@ -184,16 +194,6 @@ class SensorAPI(FlaskView):
             )
         else:
             filter_statement = GenericAsset.account_id.in_(account_ids)
-
-        if include_consultancy_clients and account:
-            if current_user.has_role("consultant"):
-                consultancy_accounts = (
-                    db.session.query(Account)
-                    .filter(Account.consultancy_account_id == account.id)
-                    .all()
-                )
-                consultancy_account_ids: list = [acc.id for acc in consultancy_accounts]
-                account_ids.extend(consultancy_account_ids)
 
         if account_ids and asset and asset.account_id not in account_ids:
             return {"message": "Asset does not belong to the account"}, 422
