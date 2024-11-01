@@ -52,7 +52,7 @@ sensor_schema = SensorSchema()
             1,
             True,
             False,
-            None,
+            5,
             None,
         ),
         (
@@ -63,7 +63,7 @@ sensor_schema = SensorSchema()
             3,
             True,
             True,
-            None,
+            5,
             None,
         ),
         (
@@ -74,7 +74,7 @@ sensor_schema = SensorSchema()
             1,
             False,
             False,
-            None,
+            5,
             None,
         ),
     ],
