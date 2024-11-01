@@ -217,8 +217,9 @@ def test_post_a_sensor(client, setup_api_test_data, requesting_user, db):
     assert response.json["event_resolution"] == "PT1H"
 
     sensor: Sensor = db.session.execute(
-        select(Sensor).filter_by(name="power")
+        select(Sensor).filter_by(name="power", unit="kWh")
     ).scalar_one_or_none()
+
     assert sensor is not None
     assert sensor.unit == "kWh"
     assert sensor.attributes["capacity_in_mw"] == 0.0074
