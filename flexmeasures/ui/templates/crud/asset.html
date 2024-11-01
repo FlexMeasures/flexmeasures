@@ -612,6 +612,14 @@
         renderData(); 
     }
 
+    // Rnder Account Details
+    async function getAccount(accountId){
+        const apiUrl = window.location.origin + "/api/v3_0/accounts/" + accountId;
+        const response = await fetch(apiUrl);
+        const account = await response.json();
+        return account;
+    }
+
     // Render the available API assets
     function renderApiSensors(assets, graphIndex) {
         const apiSensorsList = document.getElementById("apiSensorsList");
