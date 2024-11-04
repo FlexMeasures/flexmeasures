@@ -205,6 +205,8 @@ class SensorAPI(FlaskView):
                     account_ids.extend([acc.id for acc in consultancy_accounts])
 
             filter_statement = GenericAsset.account_id.in_(account_ids)
+        else:
+            filter_statement = None
 
         if include_public_assets:
             filter_statement = or_(
