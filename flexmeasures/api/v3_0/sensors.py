@@ -110,6 +110,9 @@ class SensorAPI(FlaskView):
         Alternatively, you can filter by asset hierarchy by providing the `asset` parameter (ID). When this is set, all sensors on the specified
         asset and its sub-assets are retrieved, provided the user has read access to the asset.
 
+        NOTE: You can't set both account and asset at the same time, you can only have one set. The only edge case is if the asset being specified is
+        part of the account that was set, then we allow to see sensors under that asset but then ignore the account (account = None).
+
         Finally, you can use the `include_consultancy_clients` parameter to include sensors from accounts for which the current user account is a consultant.
         This is only possible if the user has the role of a consultant.
 
@@ -154,27 +157,22 @@ class SensorAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        if account and asset is None:
+        if account is None and asset is None:
             if current_user.is_anonymous:
                 raise Unauthorized
-            check_access(account, "read")
             account = current_user.account
 
-        if asset is not None:
-            asset = asset if check_access(asset, "read") is None else None
-
-        account_ids: list = [account.id] if account else []
-
-        if include_consultancy_clients and account:
-            if current_user.has_role("consultant"):
-                consultancy_accounts = (
-                    db.session.query(Account)
-                    .filter(Account.consultancy_account_id == account.id)
-                    .all()
-                )
-                account_ids.extend([acc.id for acc in consultancy_accounts])
+        if account is not None and asset is not None:
+            if asset.account_id != account.id:
+                return {
+                    "message": "Please provide either an account or an asset ID, not both"
+                }, 422
+            else:
+                account = None
 
         if asset is not None:
+            check_access(asset, "read")
+
             asset_tree = (
                 db.session.query(GenericAsset.id, GenericAsset.parent_asset_id)
                 .filter(GenericAsset.id == asset.id)
@@ -192,11 +190,21 @@ class SensorAPI(FlaskView):
             filter_statement = GenericAsset.id.in_(
                 [asset.id] + [a.id for a in child_assets]
             )
-        else:
-            filter_statement = GenericAsset.account_id.in_(account_ids)
+        elif account is not None:
+            check_access(account, "read")
 
-        if account_ids and asset and asset.account_id not in account_ids:
-            return {"message": "Asset does not belong to the account"}, 422
+            account_ids: list = [account.id]
+
+            if include_consultancy_clients:
+                if current_user.has_role("consultant"):
+                    consultancy_accounts = (
+                        db.session.query(Account)
+                        .filter(Account.consultancy_account_id == account.id)
+                        .all()
+                    )
+                    account_ids.extend([acc.id for acc in consultancy_accounts])
+
+            filter_statement = GenericAsset.account_id.in_(account_ids)
 
         if include_public_assets:
             filter_statement = or_(

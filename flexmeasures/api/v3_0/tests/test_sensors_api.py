@@ -20,7 +20,7 @@ sensor_schema = SensorSchema()
 
 
 @pytest.mark.parametrize(
-    "requesting_user, search_by, search_value, exp_sensor_name, exp_num_results, include_consultancy_clients, use_pagination, filter_asset_id, asset_id_of_of_first_sensor_result",
+    "requesting_user, search_by, search_value, exp_sensor_name, exp_num_results, include_consultancy_clients, use_pagination, test_errors, filter_account_id, filter_asset_id, asset_id_of_of_first_sensor_result",
     [
         (
             "test_supplier_user_4@seita.nl",
@@ -30,6 +30,8 @@ sensor_schema = SensorSchema()
             2,
             True,
             False,
+            False,
+            None,
             5,
             None,
         ),
@@ -41,6 +43,8 @@ sensor_schema = SensorSchema()
             2,
             False,
             False,
+            False,
+            None,
             7,
             8,  # We test that the endpoint returns the sensor on a battery asset (ID: 8) while we filter for the building asset (ID: 7) that includes it
         ),
@@ -52,6 +56,34 @@ sensor_schema = SensorSchema()
             1,
             True,
             False,
+            False,
+            None,
+            5,
+            None,
+        ),
+        (
+            "test_supplier_user_4@seita.nl",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            True,
+            1,
+            5,
+            None,
+        ),
+        (
+            "test_dummy_account_admin@seita.nl",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            True,
+            None,
             5,
             None,
         ),
@@ -63,6 +95,8 @@ sensor_schema = SensorSchema()
             3,
             True,
             True,
+            False,
+            None,
             5,
             None,
         ),
@@ -74,6 +108,8 @@ sensor_schema = SensorSchema()
             1,
             False,
             False,
+            False,
+            None,
             5,
             None,
         ),
@@ -91,6 +127,8 @@ def test_fetch_sensors(
     exp_num_results,
     include_consultancy_clients,
     use_pagination,
+    test_errors,
+    filter_account_id,
     filter_asset_id,
     asset_id_of_of_first_sensor_result,
 ):
@@ -105,6 +143,10 @@ def test_fetch_sensors(
     The `asset_id_of_of_first_sensor_result` specifies the asset_id of the first sensor
     in the result list. This sensors is expected to be from a child asset of the asset
     specified in `filter_asset_id`.
+
+    The `filter_account_id` specifies the account_id to filter for.
+
+    `check_errors` is used to test the error handling of the endpoint.
     """
     query = {search_by: search_value}
 
@@ -119,6 +161,9 @@ def test_fetch_sensors(
     if include_consultancy_clients:
         query["include_consultancy_clients"] = True
 
+    if filter_account_id:
+        query["account_id"] = filter_account_id
+
     if filter_asset_id:
         query["asset_id"] = filter_asset_id
 
@@ -128,29 +173,33 @@ def test_fetch_sensors(
     )
 
     print("Server responded with:\n%s" % response.json)
-    assert response.status_code == 200
 
-    if use_pagination:
-        assert isinstance(response.json["data"][0], dict)
-        assert is_valid_unit(response.json["data"][0]["unit"])
-        assert response.json["num-records"] == exp_num_results
-        assert response.json["filtered-records"] == exp_num_results
+    if test_errors:
+        assert response.status_code > 400
     else:
-        assert isinstance(response.json, list)
-        assert is_valid_unit(response.json[0]["unit"])
-        assert response.json[0]["name"] == exp_sensor_name
-        assert len(response.json) == exp_num_results
+        assert response.status_code == 200
 
-        if asset_id_of_of_first_sensor_result is not None:
-            assert (
-                response.json[0]["generic_asset_id"]
-                == asset_id_of_of_first_sensor_result
-            )
-        elif filter_asset_id:
-            assert response.json[0]["generic_asset_id"] == filter_asset_id
+        if use_pagination:
+            assert isinstance(response.json["data"][0], dict)
+            assert is_valid_unit(response.json["data"][0]["unit"])
+            assert response.json["num-records"] == exp_num_results
+            assert response.json["filtered-records"] == exp_num_results
+        else:
+            assert isinstance(response.json, list)
+            assert is_valid_unit(response.json[0]["unit"])
+            assert response.json[0]["name"] == exp_sensor_name
+            assert len(response.json) == exp_num_results
 
-        if search_by == "unit":
-            assert response.json[0]["unit"] == search_value
+            if asset_id_of_of_first_sensor_result is not None:
+                assert (
+                    response.json[0]["generic_asset_id"]
+                    == asset_id_of_of_first_sensor_result
+                )
+            elif filter_asset_id:
+                assert response.json[0]["generic_asset_id"] == filter_asset_id
+
+            if search_by == "unit":
+                assert response.json[0]["unit"] == search_value
 
 
 @pytest.mark.parametrize(
