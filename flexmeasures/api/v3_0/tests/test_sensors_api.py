@@ -187,11 +187,8 @@ def test_fetch_sensors(
 
     print("Server responded with:\n%s" % response.json)
 
-    if expected_status_code > 400:
-        assert response.status_code == expected_status_code
-    else:
-        assert response.status_code == expected_status_code
-
+    assert response.status_code == expected_status_code
+    if expected_status_code == 200:
         if use_pagination:
             assert isinstance(response.json["data"][0], dict)
             assert is_valid_unit(response.json["data"][0]["unit"])
