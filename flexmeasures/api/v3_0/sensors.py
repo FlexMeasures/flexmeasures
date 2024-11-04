@@ -110,7 +110,7 @@ class SensorAPI(FlaskView):
         Alternatively, you can filter by asset hierarchy by providing the `asset` parameter (ID). When this is set, all sensors on the specified
         asset and its sub-assets are retrieved, provided the user has read access to the asset.
 
-        NOTE: You can't set both account and asset at the same time, you can only have one set. The only edge case is if the asset being specified is
+        NOTE: You can't set both account and asset at the same time, you can only have one set. The only exception is if the asset being specified is
         part of the account that was set, then we allow to see sensors under that asset but then ignore the account (account = None).
 
         Finally, you can use the `include_consultancy_clients` parameter to include sensors from accounts for which the current user account is a consultant.

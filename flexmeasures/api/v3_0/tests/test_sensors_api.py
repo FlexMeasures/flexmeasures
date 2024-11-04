@@ -20,7 +20,7 @@ sensor_schema = SensorSchema()
 
 
 @pytest.mark.parametrize(
-    "requesting_user, search_by, search_value, exp_sensor_name, exp_num_results, include_consultancy_clients, use_pagination, test_errors, filter_account_id, filter_asset_id, asset_id_of_of_first_sensor_result",
+    "requesting_user, search_by, search_value, exp_sensor_name, exp_num_results, include_consultancy_clients, use_pagination, expected_status_code, filter_account_id, filter_asset_id, asset_id_of_of_first_sensor_result",
     [
         (
             "test_supplier_user_4@seita.nl",
@@ -69,7 +69,7 @@ sensor_schema = SensorSchema()
             None,
             None,
             None,
-            True,
+            True,  # Error expected due to both asset_id and account_id being provided
             1,
             5,
             None,
@@ -82,9 +82,22 @@ sensor_schema = SensorSchema()
             None,
             None,
             None,
-            True,
+            True,  # Error expected as the user lacks access to the specified asset
             None,
             5,
+            None,
+        ),
+        (
+            "test_supplier_user_4@seita.nl",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            True,  # Error expected as the user lacks access to the specified account
+            1,
+            None,
             None,
         ),
         (
@@ -127,7 +140,7 @@ def test_fetch_sensors(
     exp_num_results,
     include_consultancy_clients,
     use_pagination,
-    test_errors,
+    expected_status_code,
     filter_account_id,
     filter_asset_id,
     asset_id_of_of_first_sensor_result,
@@ -174,7 +187,7 @@ def test_fetch_sensors(
 
     print("Server responded with:\n%s" % response.json)
 
-    if test_errors:
+    if expected_status_code:
         assert response.status_code > 400
     else:
         assert response.status_code == 200
