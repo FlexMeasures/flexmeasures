@@ -30,7 +30,7 @@ sensor_schema = SensorSchema()
             2,
             True,
             False,
-            False,
+            200,
             None,
             5,
             None,
@@ -43,7 +43,7 @@ sensor_schema = SensorSchema()
             2,
             False,
             False,
-            False,
+            200,
             None,
             7,
             8,  # We test that the endpoint returns the sensor on a battery asset (ID: 8) while we filter for the building asset (ID: 7) that includes it
@@ -56,7 +56,7 @@ sensor_schema = SensorSchema()
             1,
             True,
             False,
-            False,
+            200,
             None,
             5,
             None,
@@ -69,7 +69,7 @@ sensor_schema = SensorSchema()
             None,
             None,
             None,
-            True,  # Error expected due to both asset_id and account_id being provided
+            422,  # Error expected due to both asset_id and account_id being provided
             1,
             5,
             None,
@@ -82,7 +82,7 @@ sensor_schema = SensorSchema()
             None,
             None,
             None,
-            True,  # Error expected as the user lacks access to the specified asset
+            403,  # Error expected as the user lacks access to the specified asset
             None,
             5,
             None,
@@ -95,7 +95,7 @@ sensor_schema = SensorSchema()
             None,
             None,
             None,
-            True,  # Error expected as the user lacks access to the specified account
+            403,  # Error expected as the user lacks access to the specified account
             1,
             None,
             None,
@@ -108,7 +108,7 @@ sensor_schema = SensorSchema()
             3,
             True,
             True,
-            False,
+            200,
             None,
             5,
             None,
@@ -121,7 +121,7 @@ sensor_schema = SensorSchema()
             1,
             False,
             False,
-            False,
+            200,
             None,
             5,
             None,
@@ -187,10 +187,10 @@ def test_fetch_sensors(
 
     print("Server responded with:\n%s" % response.json)
 
-    if expected_status_code:
-        assert response.status_code > 400
+    if expected_status_code > 400:
+        assert response.status_code == expected_status_code
     else:
-        assert response.status_code == 200
+        assert response.status_code == expected_status_code
 
         if use_pagination:
             assert isinstance(response.json["data"][0], dict)
