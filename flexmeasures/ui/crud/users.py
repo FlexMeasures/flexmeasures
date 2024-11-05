@@ -4,15 +4,18 @@ from datetime import datetime
 
 from flask import request, url_for
 from flask_classful import FlaskView
+from flask_security.core import current_user
 from flask_security import login_required
 from flask_wtf import FlaskForm
 from wtforms import StringField, FloatField, DateTimeField, BooleanField
 from wtforms.validators import DataRequired
+from werkzeug.exceptions import Forbidden, Unauthorized
 from sqlalchemy import select
 
-from flexmeasures.auth.policy import ADMIN_READER_ROLE, ADMIN_ROLE
+from flexmeasures.auth.policy import ADMIN_READER_ROLE, ADMIN_ROLE, check_access
 from flexmeasures.auth.decorators import roles_required, roles_accepted
 from flexmeasures.data import db
+from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import User, Role, Account
 from flexmeasures.data.services.users import (
     get_user,
@@ -38,8 +41,17 @@ class UserForm(FlaskForm):
 def render_user(user: User | None, asset_count: int = 0, msg: str | None = None):
     user_form = UserForm()
     user_form.process(obj=user)
+
+    user_view_user_auditlog = True
+    try:
+        check_access(AuditLog.user_table_acl(current_user), "read")
+    except (Forbidden, Unauthorized):
+        user_view_user_auditlog = False
+
     return render_flexmeasures_template(
         "crud/user.html",
+        can_view_user_auditlog=user_view_user_auditlog,
+        logged_in_user=current_user,
         user=user,
         user_form=user_form,
         asset_count=asset_count,

@@ -2,6 +2,7 @@
 Account overview {% endblock %} {% block divs %}
 
 <div class="pl-3">
+  {% if can_view_account_auditlog %}
   <form action="/accounts/auditlog/{{ account.id }}" method="get">
     <button
       class="btn btn-sm btn-responsive btn-info m-4"
@@ -11,6 +12,8 @@ Account overview {% endblock %} {% block divs %}
       Audit log
     </button>
   </form>
+  {% endif %}
+
 </div>
 <div class="container-fluid">
   <div class="row">
