@@ -415,7 +415,7 @@
                          
                       
                           <div class="mb-3">
-                            <button class="btn btn-primary" onclick="fetchSensors()">
+                            <button class="btn btn-primary" onclick="getSensors()">
                               Fetch Sensors
                             </button>
                           </div>
@@ -466,7 +466,32 @@
     let sensors = [];
     let sensorCache = {};
     let editingIndex = null; 
+    const sensorsApiUrl = `${window.location.origin}/api/v3_0/sensors?page=1&per_page=10&asset_id={{ asset.id }}&include_public_assets=true`;
 
+    // Fetch Account Details
+    async function getAccount(accountId){
+        const apiUrl = window.location.origin + "/api/v3_0/accounts/" + accountId;
+        const response = await fetch(apiUrl);
+        const account = await response.json();
+        return account;
+    }
+
+    // Fetch Asset Details
+    async function getAsset(assetId){
+        const apiUrl = window.location.origin + "/api/v3_0/assets/" + assetId;
+        const response = await fetch(apiUrl);
+        const asset = await response.json();
+        return asset;
+    }
+    
+    // Fetch account from asset
+    async function getAssetAccount(assetId){
+        const asset = await getAsset(assetId);
+        const account = await getAccount(asset.account_id);
+        return account;
+    }
+
+    // Fetch Sensor Details
     async function getSensor(id) {
         if (sensorCache[id]) {
             return sensorCache[id];
@@ -476,6 +501,13 @@
         const sensor = await response.json();
         sensorCache[id] = sensor; 
         return sensor;
+    }
+
+    // Fetch the sensors
+    async function getSensors(graphIndex) {
+        const response = await fetch(sensorsApiUrl);
+        sensors = await response.json().then((data) => data.data);
+        renderApiSensors(sensors, graphIndex);
     }
 
     // Function to render the data list
@@ -520,7 +552,7 @@
                         `;
                     }).join('')}
                     </p>
-                    <button class="btn btn-danger btn-sm me-2" onclick="fetchSensors(${index})">Add Sensor</button>
+                    <button class="btn btn-danger btn-sm me-2" onclick="getSensors(${index})">Add Sensor</button>
                     <button class="btn btn-danger btn-sm me-2" onclick="removeItem(${index})">Remove</button>
                     <button class="btn btn-secondary btn-sm me-2" onclick="moveUp(${index})" ${index === 0 ? "disabled" : ""}>Move Up</button>
                     <button class="btn btn-secondary btn-sm" onclick="moveDown(${index})" ${index === data.length - 1 ? "disabled" : ""}>Move Down</button>
@@ -536,8 +568,6 @@
         const searchValue = document.getElementById("searchInput").value.toLowerCase();
         const filterValue = document.getElementById("unitsSelect").value;
     
-        const baseApiUrl = `${window.location.origin}/api/v3_0/sensors?page=1&per_page=10`;
-    
         const params = new URLSearchParams();
     
         if (searchValue) {
@@ -548,7 +578,7 @@
             params.append('unit', filterValue);
         }
     
-        const apiUrl = `${baseApiUrl}&${params.toString()}`;
+        const apiUrl = `${sensorsApiUrl}&${params.toString()}`;
     
         try {
             const response = await fetch(apiUrl);
@@ -612,31 +642,12 @@
         renderData(); 
     }
 
-    // Fetch Account Details
-    async function getAccount(accountId){
-        const apiUrl = window.location.origin + "/api/v3_0/accounts/" + accountId;
-        const response = await fetch(apiUrl);
-        const account = await response.json();
-        return account;
-    }
-
-    // Fetch Asset Details
-    async function getAsset(assetId){
-        const apiUrl = window.location.origin + "/api/v3_0/assets/" + assetId;
-        const response = await fetch(apiUrl);
-        const asset = await response.json();
-        return asset;
-    }
-    
-    // Fetch account from asset
-    async function getAssetAccount(assetId){
-        const asset = await getAsset(assetId);
-        const account = await getAccount(asset.account_id);
-        return account;
-    }
-
     // Render the available API sensors
     function renderApiSensors(sensors, graphIndex) {
+        // graphIndex is undefined when the sensors are being added to the graph
+        // graphIndex is defined when the sensors are being added to the data list. In other words 
+        // when more sensors are being added to single graph
+        
         const apiSensorsList = document.getElementById("apiSensorsList");
         apiSensorsList.innerHTML = ""; // Clear the previous sensors
         sensors.forEach(async (sensor) => {
@@ -690,14 +701,6 @@
     formModal.addEventListener('hidden.bs.modal', function () {
         updateSensorToShow();
     });
-
-    // Fetch the sensors from the API
-    async function fetchSensors(graphIndex) {
-        const apiURL = window.location.origin + "/api/v3_0/sensors?page=1&per_page=10&asset_id={{ asset.id }}&include_public_assets=true";
-        const response = await fetch(apiURL);
-        sensors = await response.json().then((data) => data.data);
-        renderApiSensors(sensors, graphIndex);
-    }
 
     // Add sensor to the data list
     function addSensorToList(id) {
