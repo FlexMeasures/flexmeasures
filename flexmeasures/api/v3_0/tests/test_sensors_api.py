@@ -20,7 +20,7 @@ sensor_schema = SensorSchema()
 
 
 @pytest.mark.parametrize(
-    "requesting_user, search_by, search_value, exp_sensor_name, exp_num_results, all_accessible, use_pagination",
+    "requesting_user, search_by, search_value, exp_sensor_name, exp_num_results, include_consultancy_clients, use_pagination, expected_status_code, filter_account_id, filter_asset_id, asset_id_of_of_first_sensor_result",
     [
         (
             "test_supplier_user_4@seita.nl",
@@ -30,6 +30,23 @@ sensor_schema = SensorSchema()
             2,
             True,
             False,
+            200,
+            None,
+            5,
+            None,
+        ),
+        (
+            "test_prosumer_user@seita.nl",
+            None,
+            None,
+            "power",
+            2,
+            False,
+            False,
+            200,
+            None,
+            7,
+            8,  # We test that the endpoint returns the sensor on a battery asset (ID: 8) while we filter for the building asset (ID: 7) that includes it
         ),
         (
             "test_supplier_user_4@seita.nl",
@@ -39,6 +56,49 @@ sensor_schema = SensorSchema()
             1,
             True,
             False,
+            200,
+            None,
+            5,
+            None,
+        ),
+        (
+            "test_supplier_user_4@seita.nl",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            422,  # Error expected due to both asset_id and account_id being provided
+            1,
+            5,
+            None,
+        ),
+        (
+            "test_dummy_account_admin@seita.nl",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            403,  # Error expected as the user lacks access to the specified asset
+            None,
+            5,
+            None,
+        ),
+        (
+            "test_supplier_user_4@seita.nl",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            403,  # Error expected as the user lacks access to the specified account
+            1,
+            None,
+            None,
         ),
         (
             "test_supplier_user_4@seita.nl",
@@ -48,6 +108,10 @@ sensor_schema = SensorSchema()
             3,
             True,
             True,
+            200,
+            None,
+            5,
+            None,
         ),
         (
             "test_supplier_user_4@seita.nl",
@@ -57,6 +121,10 @@ sensor_schema = SensorSchema()
             1,
             False,
             False,
+            200,
+            None,
+            5,
+            None,
         ),
     ],
     indirect=["requesting_user"],
@@ -64,19 +132,34 @@ sensor_schema = SensorSchema()
 def test_fetch_sensors(
     client,
     setup_api_test_data,
+    add_battery_assets,
     requesting_user,
     search_by,
     search_value,
     exp_sensor_name,
     exp_num_results,
-    all_accessible,
+    include_consultancy_clients,
     use_pagination,
+    expected_status_code,
+    filter_account_id,
+    filter_asset_id,
+    asset_id_of_of_first_sensor_result,
 ):
     """
     Retrieve all sensors.
 
     Our user here is admin, so is allowed to see all sensors.
     Pagination is tested only in passing, we should test filtering and page > 1
+
+    The `filter_asset_id` specifies the asset_id to filter for.
+
+    The `asset_id_of_of_first_sensor_result` specifies the asset_id of the first sensor
+    in the result list. This sensors is expected to be from a child asset of the asset
+    specified in `filter_asset_id`.
+
+    The `filter_account_id` specifies the account_id to filter for.
+
+    `check_errors` is used to test the error handling of the endpoint.
     """
     query = {search_by: search_value}
 
@@ -88,8 +171,14 @@ def test_fetch_sensors(
     elif search_by == "filter":
         query["filter"] = search_value
 
-    if all_accessible:
-        query["all_accessible"] = True
+    if include_consultancy_clients:
+        query["include_consultancy_clients"] = True
+
+    if filter_account_id:
+        query["account_id"] = filter_account_id
+
+    if filter_asset_id:
+        query["asset_id"] = filter_asset_id
 
     response = client.get(
         url_for("SensorAPI:index"),
@@ -97,21 +186,30 @@ def test_fetch_sensors(
     )
 
     print("Server responded with:\n%s" % response.json)
-    assert response.status_code == 200
 
-    if use_pagination:
-        assert isinstance(response.json["data"][0], dict)
-        assert is_valid_unit(response.json["data"][0]["unit"])
-        assert response.json["num-records"] == exp_num_results
-        assert response.json["filtered-records"] == exp_num_results
-    else:
-        assert isinstance(response.json, list)
-        assert is_valid_unit(response.json[0]["unit"])
-        assert response.json[0]["name"] == exp_sensor_name
-        assert len(response.json) == exp_num_results
+    assert response.status_code == expected_status_code
+    if expected_status_code == 200:
+        if use_pagination:
+            assert isinstance(response.json["data"][0], dict)
+            assert is_valid_unit(response.json["data"][0]["unit"])
+            assert response.json["num-records"] == exp_num_results
+            assert response.json["filtered-records"] == exp_num_results
+        else:
+            assert isinstance(response.json, list)
+            assert is_valid_unit(response.json[0]["unit"])
+            assert response.json[0]["name"] == exp_sensor_name
+            assert len(response.json) == exp_num_results
 
-        if search_by == "unit":
-            assert response.json[0]["unit"] == search_value
+            if asset_id_of_of_first_sensor_result is not None:
+                assert (
+                    response.json[0]["generic_asset_id"]
+                    == asset_id_of_of_first_sensor_result
+                )
+            elif filter_asset_id:
+                assert response.json[0]["generic_asset_id"] == filter_asset_id
+
+            if search_by == "unit":
+                assert response.json[0]["unit"] == search_value
 
 
 @pytest.mark.parametrize(
@@ -176,10 +274,12 @@ def test_post_a_sensor(client, setup_api_test_data, requesting_user, db):
     assert response.status_code == 201
     assert response.json["name"] == "power"
     assert response.json["event_resolution"] == "PT1H"
+    assert response.json["generic_asset_id"] == post_data["generic_asset_id"]
 
     sensor: Sensor = db.session.execute(
-        select(Sensor).filter_by(name="power")
+        select(Sensor).filter_by(name="power", unit="kWh")
     ).scalar_one_or_none()
+
     assert sensor is not None
     assert sensor.unit == "kWh"
     assert sensor.attributes["capacity_in_mw"] == 0.0074

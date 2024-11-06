@@ -3,10 +3,11 @@ from __future__ import annotations
 import isodate
 from datetime import datetime, timedelta
 
+from werkzeug.exceptions import Unauthorized
 from flask import current_app, url_for
 from flask_classful import FlaskView, route
 from flask_json import as_json
-from flask_security import auth_required
+from flask_security import auth_required, current_user
 from marshmallow import fields, ValidationError
 import marshmallow.validate as validate
 from rq.job import Job, NoSuchJobError
@@ -39,6 +40,7 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField
+from flexmeasures.data.schemas import AssetIdField
 from flexmeasures.api.common.schemas.search import SearchFilterField
 from flexmeasures.api.common.schemas.sensors import UnitField
 from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
@@ -66,27 +68,30 @@ class SensorAPI(FlaskView):
     @route("", methods=["GET"])
     @use_kwargs(
         {
-            "account": AccountIdField(
-                data_key="account_id", load_default=AccountIdField.load_current
+            "account": AccountIdField(data_key="account_id", required=False),
+            "asset": AssetIdField(data_key="asset_id", required=False),
+            "include_consultancy_clients": fields.Boolean(
+                required=False, load_default=False
             ),
-            "all_accessible": fields.Boolean(required=False, missing=False),
+            "include_public_assets": fields.Boolean(required=False, load_default=False),
             "page": fields.Int(
-                required=False, validate=validate.Range(min=1), default=1
+                required=False, validate=validate.Range(min=1), load_default=None
             ),
             "per_page": fields.Int(
-                required=False, validate=validate.Range(min=1), default=10
+                required=False, validate=validate.Range(min=1), load_default=10
             ),
-            "filter": SearchFilterField(required=False, default=None),
-            "unit": UnitField(required=False, default=None),
+            "filter": SearchFilterField(required=False, load_default=None),
+            "unit": UnitField(required=False, load_default=None),
         },
         location="query",
     )
-    @permission_required_for_context("read", ctx_arg_name="account")
     @as_json
     def index(
         self,
-        account: Account,
-        all_accessible: bool = False,
+        account: Account | None = None,
+        asset: GenericAsset | None = None,
+        include_consultancy_clients: bool = False,
+        include_public_assets: bool = False,
         page: int | None = None,
         per_page: int | None = None,
         filter: list[str] | None = None,
@@ -97,10 +102,27 @@ class SensorAPI(FlaskView):
         .. :quickref: Sensor; Download sensor list
 
         This endpoint returns all accessible sensors.
-        Accessible sensors are sensors in the same account as the current user.
-        Alternatively, you can use the `all_accessible` query parameter to list sensors from all assets that the `current_user` has read access to, as well as all public assets. The default value is `false`.
+        By default, "accessible sensors" means all sensors in the same account as the current user (if they have read permission to the account).
+
+        You can also specify an `account` (an ID parameter), if the user has read access to that account. In this case, all assets under the
+        specified account will be retrieved, and the sensors associated with these assets will be returned.
+
+        Alternatively, you can filter by asset hierarchy by providing the `asset` parameter (ID). When this is set, all sensors on the specified
+        asset and its sub-assets are retrieved, provided the user has read access to the asset.
+
+        NOTE: You can't set both account and asset at the same time, you can only have one set. The only exception is if the asset being specified is
+        part of the account that was set, then we allow to see sensors under that asset but then ignore the account (account = None).
+
+        Finally, you can use the `include_consultancy_clients` parameter to include sensors from accounts for which the current user account is a consultant.
+        This is only possible if the user has the role of a consultant.
 
         Only admins can use this endpoint to fetch sensors from a different account (by using the `account_id` query parameter).
+
+        The `filter` parameter allows you to search for sensors by name or account name.
+        The `unit` parameter allows you to filter by unit.
+
+        For the pagination of the sensor list, you can use the `page` and `per_page` query parameters, the `page` parameter is used to trigger
+        pagination, and the `per_page` parameter is used to specify the number of records per page. The default value for `page` is 1 and for `per_page` is 10.
 
         **Example response**
 
@@ -135,19 +157,58 @@ class SensorAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        if isinstance(account, list):
-            accounts = account
+        if account is None and asset is None:
+            if current_user.is_anonymous:
+                raise Unauthorized
+            account = current_user.account
+
+        if account is not None and asset is not None:
+            if asset.account_id != account.id:
+                return {
+                    "message": "Please provide either an account or an asset ID, not both"
+                }, 422
+            else:
+                account = None
+
+        if asset is not None:
+            check_access(asset, "read")
+
+            asset_tree = (
+                db.session.query(GenericAsset.id, GenericAsset.parent_asset_id)
+                .filter(GenericAsset.id == asset.id)
+                .cte(name="asset_tree", recursive=True)
+            )
+
+            recursive_part = db.session.query(
+                GenericAsset.id, GenericAsset.parent_asset_id
+            ).join(asset_tree, GenericAsset.parent_asset_id == asset_tree.c.id)
+
+            asset_tree = asset_tree.union(recursive_part)
+
+            child_assets = db.session.query(asset_tree).all()
+
+            filter_statement = GenericAsset.id.in_(
+                [asset.id] + [a.id for a in child_assets]
+            )
+        elif account is not None:
+            check_access(account, "read")
+
+            account_ids: list = [account.id]
+
+            if include_consultancy_clients:
+                if current_user.has_role("consultant"):
+                    consultancy_accounts = (
+                        db.session.query(Account)
+                        .filter(Account.consultancy_account_id == account.id)
+                        .all()
+                    )
+                    account_ids.extend([acc.id for acc in consultancy_accounts])
+
+            filter_statement = GenericAsset.account_id.in_(account_ids)
         else:
-            accounts: list = [account] if account else []
-        account_ids: list = [acc.id for acc in accounts]
+            filter_statement = None
 
-        filter_statement = GenericAsset.account_id.in_(account_ids)
-
-        if all_accessible is not None:
-            consultancy_account_ids: list = [
-                acc.consultancy_account_id for acc in accounts
-            ]
-            account_ids.extend(consultancy_account_ids)
+        if include_public_assets:
             filter_statement = or_(
                 filter_statement,
                 GenericAsset.account_id.is_(None),
@@ -156,7 +217,7 @@ class SensorAPI(FlaskView):
         sensor_query = (
             select(Sensor)
             .join(GenericAsset, Sensor.generic_asset_id == GenericAsset.id)
-            .join(Account, GenericAsset.owner)
+            .outerjoin(Account, GenericAsset.owner)
             .filter(filter_statement)
         )
 
@@ -167,6 +228,7 @@ class SensorAPI(FlaskView):
                         or_(
                             Sensor.name.ilike(f"%{term}%"),
                             Account.name.ilike(f"%{term}%"),
+                            GenericAsset.name.ilike(f"%{term}%"),
                         )
                         for term in filter
                     )
