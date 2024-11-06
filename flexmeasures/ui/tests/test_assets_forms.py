@@ -79,7 +79,7 @@ def test_with_price_sensors(
             return_value=allowed_price_sensor_data,
         ) as mock_method:
             form.with_price_sensors(new_asset_decorator.test_battery, 1)
-            assert mock_method.assert_called_once_with(1)
+            mock_method.assert_called_once_with(1)
             # check production_price_sensor only as consumption_price is processed the same way
             assert form.production_price_sensor_id.choices == expect_choices
             assert form.production_price_sensor_id.default == expect_default
@@ -155,6 +155,6 @@ def test_with_inflexible_sensors(
             return_value=allowed_inflexible_sensor_data,
         ) as mock_method:
             form.with_inflexible_sensors(new_asset_decorator.test_battery, 1)
-            assert mock_method.assert_called_once_with(1)
+            mock_method.assert_called_once_with(1)
             assert form.inflexible_device_sensor_ids.choices == expect_choices
             assert form.inflexible_device_sensor_ids.default == expect_default
