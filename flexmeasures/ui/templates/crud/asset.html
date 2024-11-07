@@ -388,6 +388,10 @@
                     <div class="row">
                         <div class="col">
 
+                            <button class="btn btn-primary mb-3" onclick="getSensors()">
+                                Add Graph
+                            </button>
+
                             <div class="list-container">
                             <div id="dataList" class="row"></div>
                           </div>
@@ -415,9 +419,7 @@
                          
                       
                           <div class="mb-3">
-                            <button class="btn btn-primary" onclick="getSensors()">
-                              Fetch Sensors
-                            </button>
+  
                           </div>
                       
                           <div class="container">
@@ -459,47 +461,79 @@
 </script>
 
 <script>
+    document.addEventListener("click", function(event) {
+        const card = event.target.closest(".card-highlight");
+        
+        if (card) {
+            document.querySelectorAll(".card-highlight").forEach(el => el.classList.remove("border-on-click"));
+            
+            card.classList.add("border-on-click");
+        } else {
+            document.querySelectorAll(".card-highlight").forEach(el => el.classList.remove("border-on-click"));
+        }
+    });
+</script>
+
+<script>
     const formModal = document.getElementById('sensorsToShowForm');
     let rawJSON = "{{ asset.sensors_to_show | safe}}";
     rawJSON = rawJSON.replace(/'/g, '"');
     let data = JSON.parse(rawJSON);
     let sensors = [];
-    let sensorCache = {};
     let editingIndex = null; 
     const sensorsApiUrl = `${window.location.origin}/api/v3_0/sensors?page=1&per_page=10&asset_id={{ asset.id }}&include_public_assets=true`;
 
     // Fetch Account Details
     async function getAccount(accountId){
+        const cacheKey = `account_${accountId}`;
+        const cachedData = localStorage.getItem(cacheKey);
+
+        if (cachedData) {
+            return JSON.parse(cachedData);
+        }
+
         const apiUrl = window.location.origin + "/api/v3_0/accounts/" + accountId;
         const response = await fetch(apiUrl);
         const account = await response.json();
+
+        localStorage.setItem(cacheKey, JSON.stringify(account));
+
         return account;
     }
 
     // Fetch Asset Details
     async function getAsset(assetId){
+        const cacheKey = `asset_${assetId}`;
+        const cachedData = localStorage.getItem(cacheKey);
+
+        if (cachedData) {
+            return JSON.parse(cachedData);
+        }
+
         const apiUrl = window.location.origin + "/api/v3_0/assets/" + assetId;
         const response = await fetch(apiUrl);
         const asset = await response.json();
+
+        localStorage.setItem(cacheKey, JSON.stringify(asset));
+
         return asset;
-    }
-    
-    // Fetch account from asset
-    async function getAssetAccount(assetId){
-        const asset = await getAsset(assetId);
-        const account = await getAccount(asset.account_id);
-        return account;
     }
 
     // Fetch Sensor Details
     async function getSensor(id) {
-        if (sensorCache[id]) {
-            return sensorCache[id];
+        const cacheKey = `sensor_${id}`;
+        const cachedData = localStorage.getItem(cacheKey);
+
+        if (cachedData) {
+            return JSON.parse(cachedData);
         }
+
         const apiUrl = window.location.origin + "/api/v3_0/sensors/" + id;
         const response = await fetch(apiUrl);
         const sensor = await response.json();
-        sensorCache[id] = sensor; 
+        
+        localStorage.setItem(cacheKey, JSON.stringify(sensor));
+        
         return sensor;
     }
 
@@ -523,16 +557,23 @@
 
             col.innerHTML = `
             <div class="card m-0 p-1">
-                <div class="card-body">
-                    ${editingIndex === index
-                        ? `<input type="text" class="form-control mb-2" id="editTitle_${index}" value="${item.title}" />`
-                        : `<h5 class="card-title">${item.title}</h5>`
-                    }
+                <div class="card-body card-highlight" onclick="getSensors(${index})">
+                    <div class="d-flex align-items-center">
+                        <div>
+                            ${editingIndex === index
+                                ? `<input type="text" class="form-control mb-2 me-2" id="editTitle_${index}" value="${item.title}" />`
+                                : `<h5 class="card-title me-2">${item.title}</h5>`
+                            }
+                        </div>
 
-                    ${editingIndex === index
-                        ? `<button class="btn btn-success btn-sm me-2" onclick="saveChanges(${index})">Save</button>`
-                        : `<button class="btn btn-warning btn-sm me-2" onclick="editItem(${index})">Edit</button>`
-                    }
+                        <div>
+                            ${editingIndex === index
+                                ? `<button class="btn btn-success btn-sm ms-2" onclick="saveChanges(${index})">Save</button>`
+                                : `<button class="btn btn-warning btn-sm ms-2" onclick="editItem(${index})">Edit</button>`
+                            }
+                        </div>
+                    </div>
+                    
                     <h5 class="card-title pt-2"><b> Sensors: </b></h5>
                     <p>
                     ${sensors.map((sensor, sensorIndex) => {
@@ -552,7 +593,6 @@
                         `;
                     }).join('')}
                     </p>
-                    <button class="btn btn-danger btn-sm me-2" onclick="getSensors(${index})">Add Sensor</button>
                     <button class="btn btn-danger btn-sm me-2" onclick="removeItem(${index})">Remove</button>
                     <button class="btn btn-secondary btn-sm me-2" onclick="moveUp(${index})" ${index === 0 ? "disabled" : ""}>Move Up</button>
                     <button class="btn btn-secondary btn-sm" onclick="moveDown(${index})" ${index === data.length - 1 ? "disabled" : ""}>Move Down</button>
@@ -651,7 +691,8 @@
         const apiSensorsList = document.getElementById("apiSensorsList");
         apiSensorsList.innerHTML = ""; // Clear the previous sensors
         sensors.forEach(async (sensor) => {
-            const Account = await getAssetAccount(sensor.generic_asset_id);
+            const Asset = await getAsset(sensor.generic_asset_id);
+            const Account = await getAccount(Asset.account_id);
 
             const col = document.createElement("div");
             col.classList.add("col-12", "mb-1");
@@ -663,7 +704,8 @@
                         <p class="card-text">
                             <b>ID:</b> ${sensor.id}, 
                             <b>Unit:</b> ${sensor.unit}, 
-                            <b>Account:</b> ${Account.name}
+                            <b>Asset:</b> ${Asset.name},
+                            <b>Account:</b> ${Account ? Account.name : "PUBLIC"}
                         </p>
                         ${graphIndex !== undefined 
                         ? `<button class="btn btn-primary btn-sm" onclick="addSensorToGraph(${graphIndex}, ${sensor.id})">Add</button>` 
