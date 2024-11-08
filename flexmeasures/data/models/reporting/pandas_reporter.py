@@ -113,7 +113,7 @@ class PandasReporter(Reporter):
                     event_resolution=sensor.event_resolution,
                 )
             if droplevels:
-                # dropping belief_time, source and cummulative_probability columns
+                # dropping belief_time, source and cumulative_probability columns
                 bdf = bdf.droplevel([1, 2, 3])
                 assert (
                     bdf.index.is_unique
