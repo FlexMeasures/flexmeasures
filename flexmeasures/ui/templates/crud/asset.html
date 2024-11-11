@@ -542,7 +542,6 @@
 
     // Fetch the sensors
     async function getSensors(graphIndex) {
-        // Show the spinner and hide the data container while loading
         document.getElementById('spinnerElement').style.display = 'flex';
         document.getElementById('apiSensorsList').style.display = 'none';
     
@@ -573,53 +572,66 @@
             const col = document.createElement("div");
             col.classList.add("col-12", "mb-1");
 
-            const sensors = await Promise.all(item.sensors.map((sensor) => getSensor(sensor)));
+            const sensorsContent = await Promise.all(
+                item.sensors.map(async (sensor, sensorIndex) => {
+                    const sensorData = await getSensor(sensor);
+                    const Asset = await getAsset(sensorData.generic_asset_id);
+                    const Account = await getAccount(Asset.account_id);
+            
+                    return `
+                    <div class="p-1 mb-3 border-bottom border-secondary">
+                        <span>
+                            <b>ID:</b> <a href="${apiBasePath}/sensors/${sensorData.id}">${sensorData.id}</a>, 
+                            <b>Unit:</b> ${sensorData.unit}
+                            <i class="fa fa-times" 
+                                onclick="removeSensorFromGraph(${index}, ${sensorIndex})" 
+                                data-bs-toggle="tooltip" 
+                                data-bs-placement="top" 
+                                title="Remove Sensor"
+                                style="cursor: pointer;"
+                            >
+                            </i>
+
+                            <div style="padding-top: 1px;"></div>
+
+                            <b>Asset:</b> ${Asset.name},
+                            <b>Account:</b> ${Account ? Account.name : "PUBLIC"}
+                        </span>
+                    </div>
+                    `;
+                })
+            );
 
             col.innerHTML = `
-            <div class="card m-0 p-1">
-                <div class="card-body card-highlight" onclick="getSensors(${index})">
-                    <div class="d-flex align-items-center">
-                        <div>
-                            ${editingIndex === index
-                                ? `<input type="text" class="form-control mb-2 me-2" id="editTitle_${index}" value="${item.title}" />`
-                                : `<h5 class="card-title me-2">${item.title}</h5>`
-                            }
-                        </div>
+                <div class="card m-0 p-1">
+                    <div class="card-body card-highlight" onclick="getSensors(${index})">
+                        <div class="d-flex align-items-center">
+                            <div>
+                                ${editingIndex === index
+                                    ? `<input type="text" class="form-control mb-2 me-2" id="editTitle_${index}" value="${item.title}" />`
+                                    : `<h5 class="card-title me-2">${item.title}</h5>`
+                                }
+                            </div>
 
-                        <div>
-                            ${editingIndex === index
-                                ? `<button class="btn btn-success btn-sm ms-2" onclick="saveChanges(${index})">Save</button>`
-                                : `<button class="btn btn-warning btn-sm ms-2" onclick="editItem(${index})">Edit</button>`
-                            }
+                            <div>
+                                ${editingIndex === index
+                                    ? `<button class="btn btn-success btn-sm ms-2" onclick="saveChanges(${index})">Save</button>`
+                                    : `<button class="btn btn-warning btn-sm ms-2" onclick="editItem(${index})">Edit</button>`
+                                }
+                            </div>
                         </div>
+                        
+                        <h5 class="card-title pt-2"><b> Sensors: </b></h5>
+                        <div>
+                            ${sensorsContent.join('')}
+                        </div>
+                        
+                        <button class="btn btn-danger btn-sm me-2" onclick="removeItem(${index})">Remove</button>
+                        <button class="btn btn-secondary btn-sm me-2" onclick="moveUp(${index})" ${index === 0 ? "disabled" : ""}>Move Up</button>
+                        <button class="btn btn-secondary btn-sm" onclick="moveDown(${index})" ${index === data.length - 1 ? "disabled" : ""}>Move Down</button>
                     </div>
-                    
-                    <h5 class="card-title pt-2"><b> Sensors: </b></h5>
-                    <p>
-                    ${sensors.map((sensor, sensorIndex) => {
-                        return `
-                        <span>
-                            <b> ID: </b> <a href="${apiBasePath}/sensors/${sensor.id}">${sensor.id}</a>,  <b>Name: </b> ${sensor.name},  <b>Unit: </b> ${sensor.unit}
-                        </span> 
-
-                        <i class="fa fa-times" 
-                            onclick="removeSensorFromGraph(${index}, ${sensorIndex})" 
-                            data-bs-toggle="tooltip" 
-                            data-bs-placement="top" 
-                            title="Remove Sensor"
-                            style="cursor: pointer;"
-                        >
-                        </i>
-                        <br/>
-                        `;
-                    }).join('')}
-                    </p>
-                    <button class="btn btn-danger btn-sm me-2" onclick="removeItem(${index})">Remove</button>
-                    <button class="btn btn-secondary btn-sm me-2" onclick="moveUp(${index})" ${index === 0 ? "disabled" : ""}>Move Up</button>
-                    <button class="btn btn-secondary btn-sm" onclick="moveDown(${index})" ${index === data.length - 1 ? "disabled" : ""}>Move Down</button>
                 </div>
-            </div>
-        `;
+            `;
 
             dataList.appendChild(col);
         }
