@@ -417,14 +417,16 @@
                                 </div>
                             </div>
                          
-                      
-                          <div class="mb-3">
-  
-                          </div>
-                      
-                          <div class="container">
-                            <div id="apiSensorsList" class="row"></div>
-                          </div>
+                            <div class="container">
+                                <div id="spinnerElement" class="d-flex justify-content-center align-items-center mb-2" style="height: 50vh; display: none !important;">
+                                    <div class="spinner-border text-primary" role="status" style="width: 4rem; height: 4rem;">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </div>
+                            
+                                <div id="apiSensorsList" class="row" style="display: none;"></div>
+                            </div>
+
                         </div>
                       </div>
                       
@@ -540,11 +542,28 @@
 
     // Fetch the sensors
     async function getSensors(graphIndex) {
-        const response = await fetch(sensorsApiUrl);
-        sensors = await response.json().then((data) => data.data);
-        renderApiSensors(sensors, graphIndex);
+        // Show the spinner and hide the data container while loading
+        document.getElementById('spinnerElement').style.display = 'flex';
+        document.getElementById('apiSensorsList').style.display = 'none';
+    
+        try {
+            const response = await fetch(sensorsApiUrl);
+            const data = await response.json();
+            const sensors = data.data;
+    
+            renderApiSensors(sensors, graphIndex);
+    
+            document.getElementById('spinnerElement').classList.add('hidden-important');
+            document.getElementById('apiSensorsList').style.display = 'block';
+        } catch (error) {
+            console.error('Error fetching sensors:', error);
+    
+            document.getElementById('spinnerElement').classList.add('hidden-important');
+            document.getElementById('apiSensorsList').style.display = 'block';
+            document.getElementById('apiSensorsList').innerHTML = '<p>Error loading data.</p>';
+        }
     }
-
+    
     // Function to render the data list
     async function renderData() {
         const dataList = document.getElementById("dataList");
