@@ -32,7 +32,7 @@
             </tr>
             <tr>
               <td>Account</td>
-              <td>{{ logged_in_user.account.name }}</td>
+              <td><a href="/accounts/{{ logged_in_user.account.id }}">{{ logged_in_user.account.name }}</a></td>
             </tr>
             {% if account_roles %}
             <tr>
