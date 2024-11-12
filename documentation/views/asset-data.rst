@@ -25,13 +25,20 @@ The asset page as data dashboard
 
 The data charts are maybe the most interesting feature - turning it into a data dashboard. When the most interesting sensors are shown, the replay button on the right creates a very meaningful dynamic insight!
 
-With the attribute `sensors_to_show` one can specify from which sensors the asset page should show data. In the example above, this happened by setting ``{"sensor_to_show": [3, 2]}`` (sensor 3 on top, followed by sensor 2 below).
 
-It is also possible to overlay data for multiple sensors within one plot, by setting the `sensors_to_show` attribute to a nested list. For example, ``{"sensor_to_show": [3, [2, 4]]}`` would show the data for sensor 4 laid over the data for sensor 2.
-While it is possible to show an arbitrary number of sensors this way, we recommend showing only the most crucial ones for faster loading, less page scrolling, and generally, a quick grasp of what the asset is up to.
+Sensors to show on Graph
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Finally, it is possible to set custom titles for sensor graphs, by setting within `sensors_to_show` a dictionary with a title and sensor or sensors. For example, ``{"title": "Outdoor Temperature", "sensor": 1}`` or ``{"title": "Energy Demand", "sensors": [2, 3]}`` will display the specified title for the corresponding sensor data.
+The `sensors_to_show`` field controls which sensor data appears in the plot. Use the "Add Graph" button to select from all available sensors associated with the asset, including public sensors, and 
+add them to your plot.
 
+You can overlay data from multiple sensors on a single graph. To do this, click on an existing plot and add more sensors from the available options on the right. 
+
+Finally, it is possible to set custom titles for any sensor graph by clicking on the "edit" button right next to the default or current title.
+
+.. image:: https://github.com/FlexMeasures/screenshots/blob/main/screenshot-asset-editgraph.png
+    :align: center
+..    :scale: 40%
 
 
 Status page
