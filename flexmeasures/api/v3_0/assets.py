@@ -79,6 +79,14 @@ class AssetAPI(FlaskView):
                 required=False, validate=validate.Range(min=1), load_default=10
             ),
             "filter": SearchFilterField(required=False, load_default=None),
+            "sort_by": fields.Str(
+                required=False,
+                load_default=None,
+            ),
+            "sort_dir": fields.Str(
+                required=False,
+                load_default=None,
+            ),
         },
         location="query",
     )
@@ -91,6 +99,8 @@ class AssetAPI(FlaskView):
         page: int | None = None,
         per_page: int | None = None,
         filter: list[str] | None = None,
+        sort_by: str | None = None,
+        sort_dir: str | None = None,
     ):
         """List all assets owned  by user's accounts, or a certain account or all accessible accounts.
 
@@ -161,6 +171,22 @@ class AssetAPI(FlaskView):
         query = query_assets_by_search_terms(
             search_terms=filter, filter_statement=filter_statement
         )
+
+        if sort_by is not None:
+            valid_sort_columns = {
+                "name": GenericAsset.name,
+                "owner": GenericAsset.account_id,
+            }
+
+            if sort_by not in valid_sort_columns:
+                return {"error": f"Invalid sort column: {sort_by}"}, 400
+
+            query = query.order_by(
+                valid_sort_columns[sort_by].asc()
+                if sort_dir == "asc"
+                else valid_sort_columns[sort_by].desc()
+            )
+
         if page is None:
             response = asset_schema.dump(db.session.scalars(query).all(), many=True)
         else:

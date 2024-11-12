@@ -53,10 +53,19 @@
       ],
       ajax: function (data, callback, settings) {
         let filter = data["search"]["value"];
+        let orderColumnIndex = data["order"][0]["column"]
+        let orderDirection = data["order"][0]["dir"];
+        let orderColumnName = data["columns"][orderColumnIndex]["data"];
+        
         let url = `{{url_for("AssetAPI:index")}}?page=${Math.floor((data["start"])/data["length"] ) + 1 }&per_page=${data["length"]}&all_accessible=true`;
         if (filter.length > 0) {
           url = `${url}&filter=${filter}`;
         }
+
+        if (orderColumnName){
+          url = `${url}&sort_by=${orderColumnName}&sort_dir=${orderDirection}`;
+        }
+
         $.ajax({
           type: "get",
           url: url,
