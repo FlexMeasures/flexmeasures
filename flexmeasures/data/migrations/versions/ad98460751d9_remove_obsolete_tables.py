@@ -61,6 +61,8 @@ def upgrade():
         batch_op.drop_index("power_datetime_idx", if_exists=True)
         batch_op.drop_index("power_sensor_id_idx", if_exists=True)
 
+    op.drop_constraint("asset_market_id_market_fkey", "asset", type_="foreignkey")
+
     with op.batch_alter_table("asset_type", schema=None) as batch_op:
         batch_op.drop_index("asset_type_can_curtail_idx", if_exists=True)
         batch_op.drop_index("asset_type_can_shift_idx", if_exists=True)
