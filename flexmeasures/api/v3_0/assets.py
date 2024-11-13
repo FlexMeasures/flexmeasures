@@ -82,10 +82,12 @@ class AssetAPI(FlaskView):
             "sort_by": fields.Str(
                 required=False,
                 load_default=None,
+                validate=validate.OneOf(["name", "owner"]),
             ),
             "sort_dir": fields.Str(
                 required=False,
                 load_default=None,
+                validate=validate.OneOf(["asc", "desc"]),
             ),
         },
         location="query",
@@ -172,14 +174,11 @@ class AssetAPI(FlaskView):
             search_terms=filter, filter_statement=filter_statement
         )
 
-        if sort_by is not None:
+        if sort_by is not None and sort_dir is not None:
             valid_sort_columns = {
                 "name": GenericAsset.name,
                 "owner": GenericAsset.account_id,
             }
-
-            if sort_by not in valid_sort_columns:
-                return {"error": f"Invalid sort column: {sort_by}"}, 400
 
             query = query.order_by(
                 valid_sort_columns[sort_by].asc()

@@ -67,7 +67,7 @@ def test_get_asset_nonaccount_access(client, setup_api_test_data, requesting_use
 
 
 @pytest.mark.parametrize(
-    "requesting_user, account_name, num_assets, use_pagination, sort_by, sort_dir, expected_asset_name",
+    "requesting_user, account_name, num_assets, use_pagination, sort_by, sort_dir, expected_name_of_first_asset",
     [
         ("test_admin_user@seita.nl", "Prosumer", 1, False, None, None, None),
         ("test_admin_user@seita.nl", "Supplier", 2, False, None, None, None),
@@ -103,7 +103,7 @@ def test_get_assets(
     use_pagination,
     sort_by,
     sort_dir,
-    expected_asset_name,
+    expected_name_of_first_asset,
     requesting_user,
 ):
     """
@@ -136,7 +136,7 @@ def test_get_assets(
         assets = get_assets_response.json
 
         if sort_by:
-            assert assets[0]["name"] == expected_asset_name
+            assert assets[0]["name"] == expected_name_of_first_asset
 
     assert len(assets) == num_assets
 

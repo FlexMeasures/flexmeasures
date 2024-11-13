@@ -43,12 +43,12 @@
     $("#assetTable").dataTable({
       serverSide: true,
       columns: [
-        {data: "name", title: "Name"},
-        {data: "id", title: "Asset ID"},
-        {data: "owner", title: "Account"},
-        {data: "location", title: "Location"},
-        {data: "num_sensors", title: "Sensors"},
-        {data: "status", title: "Status"},
+        {data: "name", title: "Name", orderable: true},
+        {data: "id", title: "Asset ID", orderable: false},
+        {data: "owner", title: "Account", orderable: true},
+        {data: "location", title: "Location", orderable: false},
+        {data: "num_sensors", title: "Sensors", orderable: false},
+        {data: "status", title: "Status", orderable: false},
         {data: "url", title: "URL", className: "d-none"},
       ],
       ajax: function (data, callback, settings) {
