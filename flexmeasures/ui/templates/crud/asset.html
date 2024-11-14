@@ -463,25 +463,6 @@
 </script>
 
 <script>
-    document.addEventListener("click", function(event) {
-        const card = event.target.closest(".card-highlight");
-        const sensorCard = event.target.closest(".sensor-card");
-        const searchInput = event.target.id === "searchInput";
-        
-        if (card) {
-            document.querySelectorAll(".card-highlight").forEach(el => el.classList.remove("border-on-click"));
-            
-            card.classList.add("border-on-click");
-        } else if (sensorCard || searchInput) {
-            // Pass
-        } else {
-            document.querySelectorAll(".card-highlight").forEach(el => el.classList.remove("border-on-click"));
-            renderApiSensors([], undefined);
-        }
-    });
-</script>
-
-<script>
     const formModal = document.getElementById('sensorsToShowForm');
     const apiSensorsListElement = document.getElementById("apiSensorsList");
     const spinnerElement = document.getElementById('spinnerElement');
@@ -489,8 +470,9 @@
     rawJSON = rawJSON.replace(/'/g, '"');
     let data = JSON.parse(rawJSON);
     let sensors = [];
-    let editingIndex = null; 
-    let savedGraphIndex = null;
+    let editingIndex; 
+    let savedGraphIndex;
+    let selectedGraphTitle;
     const apiBasePath = window.location.origin;
     const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=10&asset_id={{ asset.id }}&include_public_assets=true`;
 
@@ -552,7 +534,15 @@
     async function getSensors(graphIndex) {
         spinnerElement.style.display = 'flex';
         apiSensorsListElement.style.display = 'none';
-        savedGraphIndex = graphIndex;
+        if (graphIndex !== undefined){
+            savedGraphIndex = graphIndex;
+            selectedGraphTitle = data[graphIndex]?.title;
+        } else {
+            savedGraphIndex = undefined;
+            selectedGraphTitle = undefined;
+            renderData();
+        }
+        
     
         try {
             const response = await fetch(sensorsApiUrl);
@@ -618,7 +608,7 @@
 
             col.innerHTML = `
                 <div class="card m-0 p-1">
-                    <div class="card-body card-highlight" onclick="getSensors(${index})">
+                    <div class="card-body card-highlight ${item.title === selectedGraphTitle ? "border-on-click" : ""}" onclick="getSensors(${index})">
                         <div class="d-flex align-items-center">
                             <div>
                                 ${editingIndex === index
@@ -695,6 +685,7 @@
     }
 
     async function removeItem(index) {
+        selectedGraphTitle = undefined;
         data.splice(index, 1);
         try {
             renderData(); 
@@ -705,6 +696,7 @@
 
     async function moveUp(index) {
         if (index > 0) {
+            selectedGraphTitle = data[index]?.title;
             [data[index - 1], data[index]] = [data[index], data[index - 1]]; // Swap items
             try {
                 renderData(); 
@@ -716,6 +708,7 @@
 
     async function moveDown(index) {
         if (index < data.length - 1) {
+            selectedGraphTitle = data[index]?.title;
             [data[index], data[index + 1]] = [data[index + 1], data[index]]; // Swap items
             try {
                 renderData(); 
@@ -760,7 +753,7 @@
 
             col.innerHTML = `
                 <div class="card m-0">
-                    <div class="card-body p-0 sensor-card"">
+                    <div class="card-body p-0 sensor-card">
                         <h5 class="card-title">${sensor.name}</h5>
                         <p class="card-text">
                             <b>ID:</b> <a href="${apiBasePath}/sensors/${sensor.id}">${sensor.id}</a>, 
@@ -782,6 +775,10 @@
     }
 
     async function updateSensorToShow() {
+        const graphSpinnerElement = document.getElementById('spinner');
+        // Show spinner
+        graphSpinnerElement.style.display = 'block';
+
         const apiURL = apiBasePath + "/api/v3_0/assets/{{ asset.id }}";
         const dataJson = JSON.stringify( {sensors_to_show: JSON.stringify(data)} );
     
@@ -794,6 +791,7 @@
         });
     
         if (!response.ok) {
+            // graphSpinnerElement.style.display = 'none';
             showToast("Failed to update the asset", "error");
         } else{
             document.dispatchEvent(new Event('sensorsToShowUpdated'));
@@ -824,11 +822,38 @@
     // Remove sensor from the graph sensor list
     function removeSensorFromGraph(graphIndex, sensorIndex) {
         data[graphIndex].sensors.splice(sensorIndex, 1);
+        selectedGraphTitle = data[graphIndex].title;
         renderData();
     }
 
     // Initial render of data list
     renderData();
+
+    document.addEventListener("click", function(event) {
+        const card = event.target.closest(".card-highlight");
+        const sensorCard = event.target.closest(".sensor-card");
+        const searchInput = event.target.id === "searchInput";
+        const cardBody = event.target.closest(".card-body");
+
+        
+        if (card) {
+            if (card.classList.contains("border-on-click")) {
+                // Pass
+            } else {
+                document.querySelectorAll(".card-highlight").forEach(el => el.classList.remove("border-on-click"));
+                card.classList.add("border-on-click");
+            }
+        } else if (
+            cardBody !== null && cardBody !== undefined || 
+            sensorCard !== null && sensorCard !== undefined || 
+            searchInput !== null && searchInput!== undefined
+            ) {
+            // Pass
+        } else {
+            document.querySelectorAll(".card-highlight").forEach(el => el.classList.remove("border-on-click"));
+            renderApiSensors([], undefined);
+        }
+    });
 </script>
 
 <script type="text/javascript">
