@@ -67,12 +67,30 @@ def test_get_asset_nonaccount_access(client, setup_api_test_data, requesting_use
 
 
 @pytest.mark.parametrize(
-    "requesting_user, account_name, num_assets, use_pagination",
+    "requesting_user, account_name, num_assets, use_pagination, sort_by, sort_dir, expected_name_of_first_asset",
     [
-        ("test_admin_user@seita.nl", "Prosumer", 1, False),
-        ("test_admin_user@seita.nl", "Supplier", 2, False),
-        ("test_consultant@seita.nl", "ConsultancyClient", 1, False),
-        ("test_admin_user@seita.nl", "Prosumer", 1, True),
+        ("test_admin_user@seita.nl", "Prosumer", 1, False, None, None, None),
+        ("test_admin_user@seita.nl", "Supplier", 2, False, None, None, None),
+        (
+            "test_admin_user@seita.nl",
+            "Supplier",
+            2,
+            False,
+            "name",
+            "asc",
+            "incineration line",
+        ),
+        (
+            "test_admin_user@seita.nl",
+            "Supplier",
+            2,
+            False,
+            "name",
+            "desc",
+            "Test wind turbine",
+        ),
+        ("test_consultant@seita.nl", "ConsultancyClient", 1, False, None, None, None),
+        ("test_admin_user@seita.nl", "Prosumer", 1, True, None, None, None),
     ],
     indirect=["requesting_user"],
 )
@@ -83,6 +101,9 @@ def test_get_assets(
     account_name,
     num_assets,
     use_pagination,
+    sort_by,
+    sort_dir,
+    expected_name_of_first_asset,
     requesting_user,
 ):
     """
@@ -93,6 +114,12 @@ def test_get_assets(
     query = {"account_id": setup_accounts[account_name].id}
     if use_pagination:
         query["page"] = 1
+
+    if sort_by:
+        query["sort_by"] = sort_by
+
+    if sort_dir:
+        query["sort_dir"] = sort_dir
 
     get_assets_response = client.get(
         url_for("AssetAPI:index"),
@@ -107,6 +134,9 @@ def test_get_assets(
         assert get_assets_response.json["filtered-records"] == num_assets
     else:
         assets = get_assets_response.json
+
+        if sort_by:
+            assert assets[0]["name"] == expected_name_of_first_asset
 
     assert len(assets) == num_assets
 
