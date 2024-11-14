@@ -1920,7 +1920,7 @@ body.touched [title]:hover:after {
 }
 
 .border-on-click {
-    border: 2px solid var(--primary-color);;
+    border: 2px solid var(--primary-color);
     border-radius: 4px;
 }
 

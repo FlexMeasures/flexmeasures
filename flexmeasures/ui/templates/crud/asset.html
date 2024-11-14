@@ -465,24 +465,32 @@
 <script>
     document.addEventListener("click", function(event) {
         const card = event.target.closest(".card-highlight");
+        const sensorCard = event.target.closest(".sensor-card");
+        const searchInput = event.target.id === "searchInput";
         
         if (card) {
             document.querySelectorAll(".card-highlight").forEach(el => el.classList.remove("border-on-click"));
             
             card.classList.add("border-on-click");
+        } else if (sensorCard || searchInput) {
+            // Pass
         } else {
             document.querySelectorAll(".card-highlight").forEach(el => el.classList.remove("border-on-click"));
+            renderApiSensors([], undefined);
         }
     });
 </script>
 
 <script>
     const formModal = document.getElementById('sensorsToShowForm');
+    const apiSensorsListElement = document.getElementById("apiSensorsList");
+    const spinnerElement = document.getElementById('spinnerElement');
     let rawJSON = "{{ asset.sensors_to_show | safe}}";
     rawJSON = rawJSON.replace(/'/g, '"');
     let data = JSON.parse(rawJSON);
     let sensors = [];
     let editingIndex = null; 
+    let savedGraphIndex = null;
     const apiBasePath = window.location.origin;
     const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=10&asset_id={{ asset.id }}&include_public_assets=true`;
 
@@ -542,24 +550,29 @@
 
     // Fetch the sensors
     async function getSensors(graphIndex) {
-        document.getElementById('spinnerElement').style.display = 'flex';
-        document.getElementById('apiSensorsList').style.display = 'none';
+        spinnerElement.style.display = 'flex';
+        apiSensorsListElement.style.display = 'none';
+        savedGraphIndex = graphIndex;
     
         try {
             const response = await fetch(sensorsApiUrl);
             const data = await response.json();
-            const sensors = data.data;
+            const fetchedSensors = data.data;
+
+            if (sensors.length > 0){
+                renderApiSensors(sensors, graphIndex);
+            } else {
+                renderApiSensors(fetchedSensors, graphIndex);
+            }
     
-            renderApiSensors(sensors, graphIndex);
-    
-            document.getElementById('spinnerElement').classList.add('hidden-important');
-            document.getElementById('apiSensorsList').style.display = 'block';
+            spinnerElement.classList.add('hidden-important');
+            apiSensorsListElement.style.display = 'block';
         } catch (error) {
             console.error('Error fetching sensors:', error);
     
-            document.getElementById('spinnerElement').classList.add('hidden-important');
-            document.getElementById('apiSensorsList').style.display = 'block';
-            document.getElementById('apiSensorsList').innerHTML = '<p>Error loading data.</p>';
+            spinnerElement.classList.add('hidden-important');
+            apiSensorsListElement.style.display = 'block';
+            apiSensorsListElement.innerHTML = '<p>Error loading data.</p>';
         }
     }
     
@@ -582,7 +595,8 @@
                     <div class="p-1 mb-3 border-bottom border-secondary">
                         <span>
                             <b>ID:</b> <a href="${apiBasePath}/sensors/${sensorData.id}">${sensorData.id}</a>, 
-                            <b>Unit:</b> ${sensorData.unit}
+                            <b>Unit:</b> ${sensorData.unit},
+                            <b>Name:</b> ${sensorData.name},
                             <i class="fa fa-times" 
                                 onclick="removeSensorFromGraph(${index}, ${sensorIndex})" 
                                 data-bs-toggle="tooltip" 
@@ -640,9 +654,14 @@
     async function filterData() {
         const searchValue = document.getElementById("searchInput").value.toLowerCase();
         const filterValue = document.getElementById("unitsSelect").value;
+
+        // check if apiSensorsList has been rendered
+        if (apiSensorsListElement.innerHTML === "") {
+            document.getElementById('apiSensorsList').style.display = 'block';
+        }
     
         const params = new URLSearchParams();
-    
+        
         if (searchValue) {
             params.append('filter', searchValue);
         }
@@ -662,9 +681,14 @@
     
             const data = await response.json();
             const filteredSensors = data.data;
-    
+            sensors = filteredSensors;
+
             // Render the fetched sensors
-            renderApiSensors(filteredSensors);
+            if (savedGraphIndex !== null && savedGraphIndex !== undefined) {
+                renderApiSensors(filteredSensors, savedGraphIndex);
+            } else {
+                renderApiSensors(filteredSensors);
+            }
         } catch (error) {
             showToast("Failed to filter/search sesnors", "error");
         }
@@ -721,7 +745,6 @@
         // graphIndex is defined when the sensors are being added to the data list. In other words 
         // when more sensors are being added to single graph
         
-        const apiSensorsList = document.getElementById("apiSensorsList");
         apiSensorsList.innerHTML = ""; // Clear the previous sensors
         sensors.forEach(async (sensor) => {
             const Asset = await getAsset(sensor.generic_asset_id);
@@ -730,18 +753,23 @@
             const col = document.createElement("div");
             col.classList.add("col-12", "mb-1");
 
+            let selectedSensorGraphName = "";
+            if (graphIndex !== undefined) {
+                selectedSensorGraphName = data[graphIndex].title
+            }
+
             col.innerHTML = `
                 <div class="card m-0">
-                    <div class="card-body p-0">
+                    <div class="card-body p-0 sensor-card"">
                         <h5 class="card-title">${sensor.name}</h5>
                         <p class="card-text">
                             <b>ID:</b> <a href="${apiBasePath}/sensors/${sensor.id}">${sensor.id}</a>, 
-                            <b>Unit:</b> ${sensor.unit}, 
+                            <b>Unit:</b> ${sensor.unit},
                             <b>Asset:</b> ${Asset.name},
                             <b>Account:</b> ${Account ? Account.name : "PUBLIC"}
                         </p>
                         ${graphIndex !== undefined 
-                        ? `<button class="btn btn-primary btn-sm" onclick="addSensorToGraph(${graphIndex}, ${sensor.id})">Add</button>` 
+                        ? `<button class="btn btn-primary btn-sm" onclick="addSensorToGraph(${graphIndex}, ${sensor.id})">Add to '${selectedSensorGraphName}' Graph</button>` 
                         : `<button class="btn btn-primary btn-sm" onclick="addSensorToList(${sensor.id})">Add to Graph</button>`
                         }
                         
