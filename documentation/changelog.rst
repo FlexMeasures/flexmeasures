@@ -20,11 +20,13 @@ New features
 * Simplify and Globalize toasts in the flexmeasures project [see `PR #1207 <https://github.com/FlexMeasures/flexmeasures/pull/1207>_`]
 * Added form to edit an asset's sensors_to_show data directly from the UI [see `PR #1212 <https://github.com/FlexMeasures/flexmeasures/pull/1212>_`]
 
+
 Infrastructure / Support
 ----------------------
 * Speed up status page by choosing for a faster query (only latest belief needed) [see `PR #1142 <https://github.com/FlexMeasures/flexmeasures/pull/1142>`_]
 * For MacOS developers, install HiGHS solver automatically [see `PR #1187 <https://github.com/FlexMeasures/flexmeasures/pull/1187>`_]
 * Add dedicated ``sensors_to_show`` field to asset model and logic to migrate data from parent source(attributes field) [see `PR #1200 <https://github.com/FlexMeasures/flexmeasures/pull/1200>`_]
+* Add support for installing FlexMeasures under Python 3.12 [see `PR #1233 <https://github.com/FlexMeasures/flexmeasures/pull/1233>`_]
 
 Bugfixes
 -----------
@@ -33,6 +35,14 @@ Bugfixes
 * Show the correct UTC offset for the data's time span as shown under sensor stats in the UI [see `PR #1213 <https://github.com/FlexMeasures/flexmeasures/pull/1213>`_]
 * Fixed issue where audit log buttons are visible to users without the necessary permissions. [see `PR #1228 <https://github.com/FlexMeasures/flexmeasures/pull/1228>`_]
 * Fix issue with displaying ``deactivate user`` and ``reset password`` buttons for non admin users [see `PR #1220 <https://github.com/FlexMeasures/flexmeasures/pull/1220>`_]
+
+
+v0.23.1 | November 12, 2024
+============================
+
+Bugfixes
+-----------
+* Correct unit conversion of reporter output to output sensor [see `PR #1238 <https://github.com/FlexMeasures/flexmeasures/pull/1238>`_]
 
 
 v0.23.0 | September 18, 2024
