@@ -59,6 +59,16 @@ class UserAPI(FlaskView):
                 required=False, validate=validate.Range(min=1), load_default=1
             ),
             "filter": SearchFilterField(required=False, load_default=None),
+            "sort_by": fields.Str(
+                required=False,
+                load_default=None,
+                validate=validate.OneOf(["username", "email"]),
+            ),
+            "sort_dir": fields.Str(
+                required=False,
+                load_default=None,
+                validate=validate.OneOf(["asc", "desc"]),
+            ),
         },
         location="query",
     )
@@ -69,7 +79,9 @@ class UserAPI(FlaskView):
         include_inactive: bool = False,
         page: int | None = None,
         per_page: int | None = None,
-        filter: str | None = None,
+        filter: list[str] | None = None,
+        sort_by: str | None = None,
+        sort_dir: str | None = None,
     ):
         """
         API endpoint to list all users.
@@ -127,6 +139,18 @@ class UserAPI(FlaskView):
             search_terms=filter, filter_statement=filter_statement
         )
 
+        if sort_by is not None and sort_dir is not None:
+            valid_sort_columns = {
+                "username": UserModel.username,
+                "email": UserModel.email,
+            }
+
+            query = query.order_by(
+                valid_sort_columns[sort_by].asc()
+                if sort_dir == "asc"
+                else valid_sort_columns[sort_by].desc()
+            )
+
         if page is not None:
             num_records = db.session.scalar(
                 select(func.count(UserModel.id)).where(filter_statement)
@@ -154,7 +178,6 @@ class UserAPI(FlaskView):
             }
         else:
             users = db.session.execute(query).scalars().all()
-
             response = [
                 {
                     **user_schema.dump(user),
