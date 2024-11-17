@@ -382,13 +382,6 @@ def add_sensor(**args):
         click.secho("Attributes should be a dict.", **MsgStyle.ERROR)
         raise click.Abort()
     sensor.attributes = attributes
-    if sensor.measures_power:
-        if "capacity_in_mw" not in sensor.attributes:
-            click.secho(
-                "A sensor which measures power needs a capacity (see --attributes).",
-                **MsgStyle.ERROR,
-            )
-            raise click.Abort()
     db.session.add(sensor)
     db.session.commit()
     click.secho(f"Successfully created sensor with ID {sensor.id}", **MsgStyle.SUCCESS)
