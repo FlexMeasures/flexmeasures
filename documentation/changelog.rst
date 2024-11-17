@@ -87,7 +87,7 @@ Bugfixes
 * Allow reassigning a public asset to private ownership using the ``flexmeasures edit transfer-ownership`` CLI command [see `PR #1123 <https://github.com/FlexMeasures/flexmeasures/pull/1123>`_]
 * Fix missing value on spring :abbr:`DST (Daylight Saving Time)` transition for ``PandasReporter`` using daily sensor as input [see `PR #1122 <https://github.com/FlexMeasures/flexmeasures/pull/1122>`_]
 * Fix date range persistence on session across different pages [see `PR #1165 <https://github.com/FlexMeasures/flexmeasures/pull/1165>`_]
-* Fix issue with account creation failing when the --logo-url flag is omitted. [see related PRs `PR #1167 <https://github.com/FlexMeasures/flexmeasures/pull/1167>`_ and `PR #1145 <https://github.com/FlexMeasures/flexmeasures/pull/1145>`_]
+* Fix issue with account creation failing when the ``--logo-url`` option is omitted. [see related PRs `PR #1167 <https://github.com/FlexMeasures/flexmeasures/pull/1167>`_ and `PR #1145 <https://github.com/FlexMeasures/flexmeasures/pull/1145>`_]
 * Fix ordering of audit logs (asset, account) and job list on status page [see `PR #1179 <https://github.com/FlexMeasures/flexmeasures/pull/1179>_` and `PR #1183 <https://github.com/FlexMeasures/flexmeasures/pull/1183>`_]
 
 
