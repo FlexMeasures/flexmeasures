@@ -43,20 +43,29 @@
     $("#assetTable").dataTable({
       serverSide: true,
       columns: [
-        {data: "name", title: "Name"},
-        {data: "id", title: "Asset ID"},
-        {data: "owner", title: "Account"},
-        {data: "location", title: "Location"},
-        {data: "num_sensors", title: "Sensors"},
-        {data: "status", title: "Status"},
+        {data: "name", title: "Name", orderable: true},
+        {data: "id", title: "Asset ID", orderable: false},
+        {data: "owner", title: "Account", orderable: true},
+        {data: "location", title: "Location", orderable: false},
+        {data: "num_sensors", title: "Sensors", orderable: false},
+        {data: "status", title: "Status", orderable: false},
         {data: "url", title: "URL", className: "d-none"},
       ],
       ajax: function (data, callback, settings) {
         let filter = data["search"]["value"];
+        let orderColumnIndex = data["order"][0]["column"]
+        let orderDirection = data["order"][0]["dir"];
+        let orderColumnName = data["columns"][orderColumnIndex]["data"];
+        
         let url = `{{url_for("AssetAPI:index")}}?page=${Math.floor((data["start"])/data["length"] ) + 1 }&per_page=${data["length"]}&all_accessible=true`;
         if (filter.length > 0) {
           url = `${url}&filter=${filter}`;
         }
+
+        if (orderColumnName){
+          url = `${url}&sort_by=${orderColumnName}&sort_dir=${orderDirection}`;
+        }
+
         $.ajax({
           type: "get",
           url: url,
