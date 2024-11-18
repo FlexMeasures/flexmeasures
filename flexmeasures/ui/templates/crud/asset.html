@@ -301,9 +301,9 @@
                         shown has been copied to your clipboard.</div>
                 </div>
             </div>
+
             <div class="sensors-asset card">
                 <h3>All sensors for {{ asset.name }}</h3>
-
                 <div class="table-responsive">
 
                     <table class="table table-striped paginate nav-on-click" title="View data" id="sensorsTable">
@@ -374,14 +374,47 @@
             </div>
         </div>
     </div>
-
+    
     <!-- Modal -->
     <div class="modal fade modal-xl" id="sensorsToShowForm" tabindex="-1" aria-labelledby="sensorsToShowFormLabel"
         aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Edit Dashboard Graphs</h5>
+                    <h5 class="modal-title pe-2">Edit Dashboard Graphs</h5>
+                    
+                    <div class="dropdown" data-bs-auto-close="outside">
+                        <span
+                          class="fa fa-info dropdown-toggle"
+                          role="button"
+                          data-bs-toggle="dropdown"
+                          aria-expanded="false"
+                          rel="tooltip"
+                          aria-hidden="true"
+                          tabindex="0"
+                          data-bs-placement="right"
+                          data-bs-toggle="tooltip"
+                          title="Primary color to use in UI, in hex format. Defaults to FlexMeasures' primary color (#1a3443)"
+                        ></span>
+                      
+                        <div class="dropdown-menu p-3" style="width: 400px;">
+                            <div>
+                                <strong>Dashboard Graphs Help</strong>
+                                <p class="mb-2">
+                                  Here you can edit what data is shown in the Dashboard Graphs. Each graph can show one or more sensors 
+                                  (<em>it makes sense to show sensors in a graph that share the same unit</em>).
+                                </p>
+                                <p class="mb-2">
+                                  You can also set the title of each graph and re-order them. Select a graph 
+                                  <span class="text-primary">(by clicking on its card)</span> to add sensors to it.
+                                </p>
+                                <p class="mb-0">
+                                  Sensors can be searched on the right. This will list sensors on the asset or its child asset, as well as public assets.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                      
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                   </div>
                 <div class="modal-body">
@@ -449,6 +482,18 @@
 <!-- Initialise the map -->
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet-src.min.js"></script>
 <script src="{{ url_for('flexmeasures_ui.static', filename='js/map-init.js') }}"></script>
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const modal = document.getElementById('sensorsToShowForm');
+    
+        modal.addEventListener('shown.bs.modal', () => {
+            const tooltipTriggerList = [].slice.call(modal.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            tooltipTriggerList.map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
+        });
+    });
+    
+</script>
 
 <script>
     let units = {{available_units | tojson}};
@@ -542,19 +587,17 @@
             selectedGraphTitle = undefined;
             renderData();
         }
-        
-    
-        try {
-            const response = await fetch(sensorsApiUrl);
-            const data = await response.json();
-            const fetchedSensors = data.data;
 
-            if (sensors.length > 0){
-                renderApiSensors(sensors, graphIndex);
-            } else {
-                renderApiSensors(fetchedSensors, graphIndex);
+        try {
+            if (sensors.length <= 0){
+                const response = await fetch(sensorsApiUrl);
+                const data = await response.json();
+                const fetchedSensors = data.data
+                sensors = fetchedSensors;
             }
-    
+
+            renderApiSensors(sensors, graphIndex);
+
             spinnerElement.classList.add('hidden-important');
             apiSensorsListElement.style.display = 'block';
         } catch (error) {
@@ -599,7 +642,7 @@
                             <div style="padding-top: 1px;"></div>
 
                             <b>Asset:</b> ${Asset.name},
-                            <b>Account:</b> ${Account ? Account.name : "PUBLIC"}
+                            <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
                         </span>
                     </div>
                     `;
@@ -739,6 +782,10 @@
         // when more sensors are being added to single graph
         
         apiSensorsList.innerHTML = ""; // Clear the previous sensors
+        if (sensors.length === 0) {
+            apiSensorsList.innerHTML = "<h3>No sensors found</h3>";
+            return;
+        }
         sensors.forEach(async (sensor) => {
             const Asset = await getAsset(sensor.generic_asset_id);
             const Account = await getAccount(Asset.account_id);
@@ -759,7 +806,7 @@
                             <b>ID:</b> <a href="${apiBasePath}/sensors/${sensor.id}">${sensor.id}</a>, 
                             <b>Unit:</b> ${sensor.unit},
                             <b>Asset:</b> ${Asset.name},
-                            <b>Account:</b> ${Account ? Account.name : "PUBLIC"}
+                            <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
                         </p>
                         ${graphIndex !== undefined 
                         ? `<button class="btn btn-primary btn-sm" onclick="addSensorToGraph(${graphIndex}, ${sensor.id})">Add to '${selectedSensorGraphName}' Graph</button>` 

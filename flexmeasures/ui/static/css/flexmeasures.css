@@ -1927,3 +1927,7 @@ body.touched [title]:hover:after {
 .hidden-important {
     display: none !important;
 }
+
+.dropdown-toggle.fa-info::after {
+    content: none;
+}
