@@ -62,7 +62,7 @@ class UserAPI(FlaskView):
             "sort_by": fields.Str(
                 required=False,
                 load_default=None,
-                validate=validate.OneOf(["username", "email"]),
+                validate=validate.OneOf(["username", "email", "lastLogin", "lastSeen"]),
             ),
             "sort_dir": fields.Str(
                 required=False,
@@ -143,6 +143,8 @@ class UserAPI(FlaskView):
             valid_sort_columns = {
                 "username": UserModel.username,
                 "email": UserModel.email,
+                "lastLogin": UserModel.last_login_at,
+                "lastSeen": UserModel.last_seen_at,
             }
 
             query = query.order_by(
