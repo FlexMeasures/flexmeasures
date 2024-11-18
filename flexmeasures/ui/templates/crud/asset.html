@@ -484,18 +484,6 @@
 <script src="{{ url_for('flexmeasures_ui.static', filename='js/map-init.js') }}"></script>
 
 <script>
-    document.addEventListener("DOMContentLoaded", () => {
-        const modal = document.getElementById('sensorsToShowForm');
-    
-        modal.addEventListener('shown.bs.modal', () => {
-            const tooltipTriggerList = [].slice.call(modal.querySelectorAll('[data-bs-toggle="tooltip"]'));
-            tooltipTriggerList.map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
-        });
-    });
-    
-</script>
-
-<script>
     let units = {{available_units | tojson}};
     const selectElement = document.getElementById('unitsSelect');
 
