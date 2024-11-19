@@ -4,7 +4,7 @@ CLI commands for monitoring functionality.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import click
 from flask import current_app as app
@@ -250,7 +250,9 @@ def monitor_last_seen(
 
     # find users we haven't seen in the given time window
     users: list[User] = db.session.scalars(
-        select(User).filter(User.last_seen_at < datetime.utcnow() - last_seen_delta)
+        select(User).filter(
+            User.last_seen_at < datetime.now(timezone.utc) - last_seen_delta
+        )
     ).all()
     # role filters
     if account_role is not None:
