@@ -41,26 +41,35 @@
       let unit = "";
       // Initialize the DataTable
       const table = $("#accountsTable").dataTable({
+        order: [[1, "asc"]],
         serverSide: true,
         // make the table row vertically aligned with header
         columns: [
-          { data: "id", title: "ID" },
-          { data: "name", title: "Name" },
-          { data: "assets", title: "Assets" },
-          { data: "users", title: "Users" },
-          { data: "roles", title: "Roles" },
+          { data: "id", title: "ID", orderable: false},
+          { data: "name", title: "Name", orderable: true},
+          { data: "assets", title: "Assets", orderable: true},
+          { data: "users", title: "Users", orderable: true},
+          { data: "roles", title: "Roles", orderable: false},
           { data: "url", title: "URL", className: "d-none" },
         ],
 
         ajax: function (data, callback, settings) {
           const basePath = window.location.origin;
           let filter = data["search"]["value"];
+          let orderColumnIndex = data["order"][0]["column"]
+          let orderDirection = data["order"][0]["dir"];
+          let orderColumnName = data["columns"][orderColumnIndex]["data"];
+
           let url = `${basePath}/api/v3_0/accounts?page=${
             data["start"] / data["length"] + 1
           }&per_page=${data["length"]}`; 
 
           if (filter.length > 0) {
             url = `${url}&filter=${filter}`;
+          }
+
+          if (orderColumnName){
+            url = `${url}&sort_by=${orderColumnName}&sort_dir=${orderDirection}`;
           }
 
           $.ajax({

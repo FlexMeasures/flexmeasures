@@ -51,6 +51,16 @@ class AccountAPI(FlaskView):
                 required=False, validate=validate.Range(min=1), load_default=10
             ),
             "filter": SearchFilterField(required=False, load_default=None),
+            "sort_by": fields.Str(
+                required=False,
+                load_default=None,
+                validate=validate.OneOf(["name", "assets", "users"]),
+            ),
+            "sort_dir": fields.Str(
+                required=False,
+                load_default=None,
+                validate=validate.OneOf(["asc", "desc"]),
+            ),
         },
         location="query",
     )
@@ -60,6 +70,8 @@ class AccountAPI(FlaskView):
         page: int | None = None,
         per_page: int | None = None,
         filter: list[str] | None = None,
+        sort_by: str | None = None,
+        sort_dir: str | None = None,
     ):
         """API endpoint to list all accounts accessible to the current user.
 
@@ -126,6 +138,20 @@ class AccountAPI(FlaskView):
             search_terms = filter[0].split(" ")
             query = query.filter(
                 or_(*[Account.name.ilike(f"%{term}%") for term in search_terms])
+            )
+
+        if sort_by is not None and sort_dir is not None:
+            valid_sort_columns = {
+                "name": Account.name,
+                "assets": func.count(GenericAsset.id),
+                "users": func.count(User.id),
+            }
+
+            query = query.join(GenericAsset, isouter=True).join(User, isouter=True)
+            query = query.group_by(Account.id).order_by(
+                valid_sort_columns[sort_by].asc()
+                if sort_dir == "asc"
+                else valid_sort_columns[sort_by].desc()
             )
 
         if page:
