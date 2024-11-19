@@ -643,27 +643,27 @@
                         <div class="d-flex align-items-center">
                             <div>
                                 ${editingIndex === index
-                                    ? `<input type="text" class="form-control mb-2 me-2" id="editTitle_${index}" value="${item.title}" onkeydown="handleSubmit(event, ${index})" />`
+                                    ? `<input type="text" class="form-control mb-2 me-2" id="editTitle_${index}" value="${item.title}" onkeydown="handleEnterKeyEvent(event, ${index})" />`
                                     : `<h5 class="card-title me-2">${item.title}</h5>`
                                 }
                             </div>
 
                             <div>
                                 ${editingIndex === index
-                                    ? `<button class="btn btn-success btn-sm ms-2" onclick="saveChanges(${index})">Save</button>`
-                                    : `<button class="btn btn-warning btn-sm ms-2" onclick="editItem(${index})">Edit</button>`
+                                    ? `<button class="btn btn-success btn-sm ms-2" onclick="saveGraphChanges(${index})">Save</button>`
+                                    : `<button class="btn btn-warning btn-sm ms-2" onclick="editGraphTitle(${index})">Edit</button>`
                                 }
                             </div>
                         </div>
-                        
+                        sensorsContent
                         <h5 class="card-title pt-2"><b> Sensors: </b></h5>
                         <div>
-                            ${sensorsContent.join('')}
+                            ${sensorsContent.length > 0 ? sensorsContent.join("") : "<i>Add sensors on the right side</i>"}
                         </div>
                         
-                        <button class="btn btn-danger btn-sm me-2" onclick="removeItem(${index})">Remove</button>
-                        <button class="btn btn-secondary btn-sm me-2" onclick="moveUp(${index})" ${index === 0 ? "disabled" : ""}>Move Up</button>
-                        <button class="btn btn-secondary btn-sm" onclick="moveDown(${index})" ${index === data.length - 1 ? "disabled" : ""}>Move Down</button>
+                        <button class="btn btn-danger btn-sm me-2" onclick="removeGraph(${index})">Remove</button>
+                        <button class="btn btn-secondary btn-sm me-2" onclick="moveGraphUp(${index})" ${index === 0 ? "disabled" : ""}>Move Up</button>
+                        <button class="btn btn-secondary btn-sm" onclick="moveGraphDown(${index})" ${index === data.length - 1 ? "disabled" : ""}>Move Down</button>
                     </div>
                 </div>
             `;
@@ -715,7 +715,7 @@
         }
     }
 
-    async function removeItem(index) {
+    async function removeGraph(index) {
         selectedGraphTitle = undefined;
         data.splice(index, 1);
         try {
@@ -725,7 +725,7 @@
         }
     }
 
-    async function moveUp(index) {
+    async function moveGraphUp(index) {
         if (index > 0) {
             selectedGraphTitle = data[index]?.title;
             [data[index - 1], data[index]] = [data[index], data[index - 1]]; // Swap items
@@ -737,7 +737,7 @@
         }
     }
 
-    async function moveDown(index) {
+    async function moveGraphDown(index) {
         if (index < data.length - 1) {
             selectedGraphTitle = data[index]?.title;
             [data[index], data[index + 1]] = [data[index + 1], data[index]]; // Swap items
@@ -749,23 +749,23 @@
         }
     }
 
-    function editItem(index) {
+    function editGraphTitle(index) {
         editingIndex = index;
         renderData();
     }
 
-    function handleSubmit(event, index) {
+    function handleEnterKeyEvent(event, index) {
         if (event.key === "Enter") {
-            saveChanges(index);
+            saveGraphChanges(index);
         }
     }
 
     // Save the edited item
-    async function saveChanges(index) {
+    async function saveGraphChanges(index) {
         const newTitle = document.getElementById(`editTitle_${index}`).value;
         data[index].title = newTitle;
         editingIndex = null;
-            
+        selectedGraphTitle = newTitle;
         renderData(); 
     }
 
