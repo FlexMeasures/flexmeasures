@@ -421,7 +421,7 @@
                     <div class="row">
                         <div class="col">
 
-                            <button class="btn btn-primary mb-3" onclick="getSensors()">
+                            <button class="btn btn-primary mb-3" onclick="addBlankGraph()">
                                 Add Graph
                             </button>
 
@@ -643,7 +643,7 @@
                         <div class="d-flex align-items-center">
                             <div>
                                 ${editingIndex === index
-                                    ? `<input type="text" class="form-control mb-2 me-2" id="editTitle_${index}" value="${item.title}" />`
+                                    ? `<input type="text" class="form-control mb-2 me-2" id="editTitle_${index}" value="${item.title}" onkeydown="handleSubmit(event, ${index})" />`
                                     : `<h5 class="card-title me-2">${item.title}</h5>`
                                 }
                             </div>
@@ -754,6 +754,12 @@
         renderData();
     }
 
+    function handleSubmit(event, index) {
+        if (event.key === "Enter") {
+            saveChanges(index);
+        }
+    }
+
     // Save the edited item
     async function saveChanges(index) {
         const newTitle = document.getElementById(`editTitle_${index}`).value;
@@ -845,6 +851,18 @@
             sensors: [id], 
         };
         data.push(newAsset);
+        renderData();
+    }
+
+    // Add blank graph to the data list
+    function addBlankGraph() {
+        const newAsset = {
+            title: "No Title " + (data.length + 1), 
+            sensors: [], 
+        };
+        selectedGraphTitle = newAsset.title;
+        data.push(newAsset);
+        getSensors(data.length - 1)
         renderData();
     }
 
