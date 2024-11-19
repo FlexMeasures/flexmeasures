@@ -438,13 +438,13 @@
                                         id="searchInput"
                                         class="form-control"
                                         placeholder="Search by title..."
-                                        oninput="filterData()"
+                                        oninput="filterSensors()"
                                     />
                                 </div>
                         
                                 <div class="col-4">
                                     <select id="unitsSelect" class="form-select" aria-label="Default select example"
-                                        onchange="filterData()">
+                                        onchange="filterSensors()">
                                         <option selected>Units</option>
                                     </select>
                                 </div>
@@ -672,7 +672,7 @@
         }
     }
 
-    async function filterData() {
+    async function filterSensors() {
         const searchValue = document.getElementById("searchInput").value.toLowerCase();
         const filterValue = document.getElementById("unitsSelect").value;
 
@@ -718,22 +718,14 @@
     async function removeGraph(index) {
         selectedGraphTitle = undefined;
         data.splice(index, 1);
-        try {
-            renderData(); 
-        } catch (error) {
-            showToast("Failed to save changes: " + error, "error");
-        }
+        renderData(); 
     }
 
     async function moveGraphUp(index) {
         if (index > 0) {
             selectedGraphTitle = data[index]?.title;
             [data[index - 1], data[index]] = [data[index], data[index - 1]]; // Swap items
-            try {
-                renderData(); 
-            } catch (error) {
-                showToast("Failed to save changes: " + error, "error");
-            }
+            renderData(); 
         }
     }
 
@@ -741,11 +733,7 @@
         if (index < data.length - 1) {
             selectedGraphTitle = data[index]?.title;
             [data[index], data[index + 1]] = [data[index + 1], data[index]]; // Swap items
-            try {
-                renderData(); 
-            } catch (error) {
-                showToast("Failed to save changes: " + error, "error");
-            }
+            renderData(); 
         }
     }
 
