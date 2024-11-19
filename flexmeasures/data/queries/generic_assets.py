@@ -154,10 +154,20 @@ def get_asset_group_queries(
 def query_assets_by_search_terms(
     search_terms: list[str] | None,
     filter_statement: bool = True,
+    sort_by: str | None = None,
+    sort_dir: str | None = None,
 ) -> Select:
     select_statement = select(GenericAsset)
+
+    valid_sort_columns = {
+        "name": GenericAsset.name,
+        "owner": GenericAsset.account_id,
+    }
+
+    # Initialize base query
+    query = select_statement
+
     if search_terms is not None:
-        # Search terms in the search filter should either come back in the asset name or account name
         private_select_statement = select_statement.join(
             Account, Account.id == GenericAsset.account_id
         )
@@ -176,12 +186,39 @@ def query_assets_by_search_terms(
             & GenericAsset.account_id.is_(None)
             & and_(GenericAsset.name.ilike(f"%{term}%") for term in search_terms)
         )
+
+        if sort_by is not None and sort_dir is not None:
+            if sort_by in valid_sort_columns:
+                order_by_clause = (
+                    valid_sort_columns[sort_by].asc()
+                    if sort_dir == "asc"
+                    else valid_sort_columns[sort_by].desc()
+                )
+                private_select_statement = private_select_statement.order_by(
+                    order_by_clause
+                )
+                public_select_statement = public_select_statement.order_by(
+                    order_by_clause
+                )
+
+        # Combine private and public queries
         subquery = union_all(
             private_select_statement.where(private_filter_statement),
             public_select_statement.where(public_filter_statement),
         ).subquery()
+
         asset_alias = aliased(GenericAsset, subquery)
-        query = select(asset_alias).order_by(asset_alias.id)
+        query = select(asset_alias)
+
     else:
-        query = select_statement.where(filter_statement)
+        query = query.where(filter_statement)
+
+        if sort_by is not None and sort_dir is not None:
+            if sort_by in valid_sort_columns:
+                order_by_clause = (
+                    valid_sort_columns[sort_by].asc()
+                    if sort_dir == "asc"
+                    else valid_sort_columns[sort_by].desc()
+                )
+                query = query.order_by(order_by_clause)
     return query

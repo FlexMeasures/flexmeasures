@@ -41,10 +41,11 @@
 
   $(document).ready(function() {  
     $("#assetTable").dataTable({
+      order: [[1, "asc"]],
       serverSide: true,
       columns: [
+        {data: "id", title: "ID", orderable: false},
         {data: "name", title: "Name", orderable: true},
-        {data: "id", title: "Asset ID", orderable: false},
         {data: "owner", title: "Account", orderable: true},
         {data: "location", title: "Location", orderable: false},
         {data: "num_sensors", title: "Sensors", orderable: false},
@@ -52,12 +53,16 @@
         {data: "url", title: "URL", className: "d-none"},
       ],
       ajax: function (data, callback, settings) {
+        const basePath = window.location.origin;
         let filter = data["search"]["value"];
         let orderColumnIndex = data["order"][0]["column"]
         let orderDirection = data["order"][0]["dir"];
         let orderColumnName = data["columns"][orderColumnIndex]["data"];
         
-        let url = `{{url_for("AssetAPI:index")}}?page=${Math.floor((data["start"])/data["length"] ) + 1 }&per_page=${data["length"]}&all_accessible=true`;
+        let url = `${basePath}/api/v3_0/assets?page=${
+          Math.floor(data["start"] / data["length"]) + 1
+        }&per_page=${data["length"]}&include_public=true`;
+
         if (filter.length > 0) {
           url = `${url}&filter=${filter}`;
         }
