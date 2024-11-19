@@ -30,16 +30,47 @@ def test_get_users_bad_auth(requesting_user, client, setup_api_test_data):
         assert get_users_response.status_code == 401
 
 
-@pytest.mark.parametrize("include_inactive", [False, True])
 @pytest.mark.parametrize(
-    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+    "requesting_user, include_inactive, sort_by, sort_dir, expected_name_of_first_user",
+    [
+        ("test_prosumer_user_2@seita.nl", False, None, None, None),
+        (
+            "test_prosumer_user_2@seita.nl",
+            True,
+            "username",
+            "asc",
+            "inactive test admin",
+        ),
+        (
+            "test_prosumer_user_2@seita.nl",
+            True,
+            "username",
+            "desc",
+            "Test Prosumer User 2",
+        ),
+    ],
+    indirect=["requesting_user"],
 )
-def test_get_users_inactive(
-    requesting_user, client, setup_api_test_data, setup_inactive_user, include_inactive
+def test_get_users_inatest_get_users_inactivective(
+    requesting_user,
+    client,
+    setup_api_test_data,
+    setup_inactive_user,
+    include_inactive,
+    sort_by,
+    sort_dir,
+    expected_name_of_first_user,
 ):
     query = {}
     if include_inactive in (True, False):
         query["include_inactive"] = include_inactive
+
+    if sort_by:
+        query["sort_by"] = sort_by
+
+    if sort_dir:
+        query["sort_dir"] = sort_dir
+
     get_users_response = client.get(
         url_for("UserAPI:index"),
         query_string=query,
@@ -50,7 +81,11 @@ def test_get_users_inactive(
     if include_inactive is False:
         assert len(get_users_response.json) == 3
     else:
-        assert len(get_users_response.json) == 5
+        users = get_users_response.json
+        assert len(users) == 5
+
+        if sort_by:
+            assert users[0]["username"] == expected_name_of_first_user
 
 
 @pytest.mark.parametrize(
