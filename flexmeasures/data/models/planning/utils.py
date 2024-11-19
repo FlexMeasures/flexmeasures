@@ -18,6 +18,7 @@ from flexmeasures.data.models.planning.exceptions import (
 from flexmeasures import Asset
 from flexmeasures.data.queries.utils import simplify_index
 
+from flexmeasures.utils.flexmeasures_inflection import capitalize, pluralize
 from flexmeasures.utils.unit_utils import ur, convert_units
 from pint.errors import UndefinedUnitError, DimensionalityError
 
@@ -152,25 +153,38 @@ def get_prices(
             )
             query_window = (first_event_start, last_event_end)
         else:
-            current_app.logger.warning(
-                f"Prices partially unknown for planning window (sensor {price_sensor.id}). "
-                f"Assuming the first price is valid from the start of the planning window ({query_window[0]}), "
-                f"and the last price is valid until the end of the planning window ({query_window[-1]})."
+            price_df = extend_to_edges(
+                df=price_df, query_window=query_window, resolution=resolution
             )
-            index = initialize_index(
-                start=query_window[0],
-                end=query_window[1],
-                resolution=resolution,
-            )
-            price_df = price_df.reindex(index)
-            # or to also forward fill intermediate NaN values, use: price_df = price_df.ffill().bfill()
-            price_df[: price_df.first_valid_index()] = price_df[
-                price_df.index == price_df.first_valid_index()
-            ].values[0]
-            price_df[price_df.last_valid_index() :] = price_df[
-                price_df.index == price_df.last_valid_index()
-            ].values[0]
     return price_df, query_window
+
+
+def extend_to_edges(
+    df: pd.DataFrame | pd.Series,
+    query_window: tuple[datetime, datetime],
+    resolution: timedelta,
+    kind_of_values: str = "price",
+):
+    """Values are extended to the edges of the query window.
+
+    - The first available value serves as a naive backcasts.
+    - The last available value serves as a naive forecast.
+    """
+    current_app.logger.warning(
+        f"{capitalize(pluralize(kind_of_values))} partially unknown for planning window (sensor {df.sensor.id}). "
+        f"Assuming the first {kind_of_values} is valid from the start of the planning window ({query_window[0]}), "
+        f"and the last {kind_of_values} is valid until the end of the planning window ({query_window[-1]})."
+    )
+    index = initialize_index(
+        start=query_window[0],
+        end=query_window[1],
+        resolution=resolution,
+    )
+    df = df.reindex(index)
+    # or to also forward fill intermediate NaN values, use: df = df.ffill().bfill()
+    df[: df.first_valid_index()] = df[df.index == df.first_valid_index()].values[0]
+    df[df.last_valid_index() :] = df[df.index == df.last_valid_index()].values[0]
+    return df
 
 
 def get_power_values(
@@ -334,6 +348,7 @@ def get_series_from_quantity_or_sensor(
     beliefs_before: datetime | None = None,
     as_instantaneous_events: bool = True,
     boundary_policy: str | None = None,
+    fill_sides: bool = False,
 ) -> pd.Series:
     """
     Get a time series given a quantity or sensor defined on a time window.
@@ -350,6 +365,11 @@ def get_series_from_quantity_or_sensor(
                                     at that time.
     :param as_instantaneous_events: Optionally, convert to instantaneous events, in which case the passed resolution is
                                     interpreted as the desired frequency of the data.
+    :param boundary_policy:         When upsampling to instantaneous events,
+                                    take the 'max', 'min' or 'first' value at event boundaries.
+    :param fill_sides               If True, values are extended to the edges of the query window:
+                                    - The first available value serves as a naive backcast.
+                                    - The last available value serves as a naive forecast.
     :return:                        Pandas Series with the requested time series data.
     """
 
@@ -390,6 +410,11 @@ def get_series_from_quantity_or_sensor(
             f"quantity_or_sensor {variable_quantity} should be a pint Quantity or timely-beliefs Sensor"
         )
 
+    if fill_sides:
+        time_series = extend_to_edges(
+            df=time_series, query_window=query_window, resolution=resolution
+        )
+
     return time_series
 
 
@@ -404,6 +429,7 @@ def get_continuous_series_sensor_or_quantity(
     max_value: float | int | pd.Series = np.nan,
     as_instantaneous_events: bool = False,
     boundary_policy: str | None = None,
+    fill_sides: bool = False,
 ) -> pd.Series:
     """Creates a time series from a sensor, time series specification, or quantity within a specified window,
     falling back to a given `fallback_attribute` and making sure no values exceed `max_value`.
@@ -418,6 +444,9 @@ def get_continuous_series_sensor_or_quantity(
     :param max_value:               Maximum value (also replacing NaN values).
     :param as_instantaneous_events: optionally, convert to instantaneous events, in which case the passed resolution is
                                     interpreted as the desired frequency of the data.
+    :param fill_sides               If True, values are extended to the edges of the query window:
+                                    - The first available value serves as a naive backcast.
+                                    - The last available value serves as a naive forecast.
     :returns:                       time series data with missing values handled based on the chosen method.
     """
     if variable_quantity is None:
@@ -435,6 +464,7 @@ def get_continuous_series_sensor_or_quantity(
         beliefs_before=beliefs_before,
         as_instantaneous_events=as_instantaneous_events,
         boundary_policy=boundary_policy,
+        fill_sides=fill_sides,
     )
 
     # Apply upper limit
