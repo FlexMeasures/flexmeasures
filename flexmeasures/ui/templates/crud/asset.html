@@ -437,7 +437,7 @@
                                         type="text"
                                         id="searchInput"
                                         class="form-control"
-                                        placeholder="Search by title..."
+                                        placeholder="Search sensors..."
                                         oninput="filterSensors()"
                                     />
                                 </div>
@@ -563,42 +563,21 @@
         return sensor;
     }
 
-    // Fetch the sensors
-    async function getSensors(graphIndex) {
-        spinnerElement.style.display = 'flex';
-        apiSensorsListElement.style.display = 'none';
+    // highlight selected graph 
+    async function selectGraph(graphIndex) {
         if (graphIndex !== undefined){
             savedGraphIndex = graphIndex;
             selectedGraphTitle = data[graphIndex]?.title;
+            apiSensorsList.innerHTML = ""; 
         } else {
             savedGraphIndex = undefined;
             selectedGraphTitle = undefined;
-            renderData();
-        }
-
-        try {
-            if (sensors.length <= 0){
-                const response = await fetch(sensorsApiUrl);
-                const data = await response.json();
-                const fetchedSensors = data.data
-                sensors = fetchedSensors;
-            }
-
-            renderApiSensors(sensors, graphIndex);
-
-            spinnerElement.classList.add('hidden-important');
-            apiSensorsListElement.style.display = 'block';
-        } catch (error) {
-            console.error('Error fetching sensors:', error);
-    
-            spinnerElement.classList.add('hidden-important');
-            apiSensorsListElement.style.display = 'block';
-            apiSensorsListElement.innerHTML = '<p>Error loading data.</p>';
+            renderGraphCards();
         }
     }
-    
-    // Function to render the data list
-    async function renderData() {
+
+    // Function to render the graph cards
+    async function renderGraphCards() {
         const dataList = document.getElementById("dataList");
         dataList.innerHTML = ""; 
 
@@ -639,7 +618,7 @@
 
             col.innerHTML = `
                 <div class="card m-0 p-1">
-                    <div class="card-body card-highlight ${item.title === selectedGraphTitle ? "border-on-click" : ""}" onclick="getSensors(${index})">
+                    <div class="card-body card-highlight ${item.title === selectedGraphTitle ? "border-on-click" : ""}" id="graph_${index}" onclick="selectGraph(${index})">
                         <div class="d-flex align-items-center">
                             <div>
                                 ${editingIndex === index
@@ -650,12 +629,11 @@
 
                             <div>
                                 ${editingIndex === index
-                                    ? `<button class="btn btn-success btn-sm ms-2" onclick="saveGraphChanges(${index})">Save</button>`
+                                    ? `<button class="btn btn-success btn-sm ms-2" onclick="saveGraphTitle(${index})">Save</button>`
                                     : `<button class="btn btn-warning btn-sm ms-2" onclick="editGraphTitle(${index})">Edit</button>`
                                 }
                             </div>
                         </div>
-                        sensorsContent
                         <h5 class="card-title pt-2"><b> Sensors: </b></h5>
                         <div>
                             ${sensorsContent.length > 0 ? sensorsContent.join("") : "<i>Add sensors on the right side</i>"}
@@ -675,6 +653,22 @@
     async function filterSensors() {
         const searchValue = document.getElementById("searchInput").value.toLowerCase();
         const filterValue = document.getElementById("unitsSelect").value;
+        const highlightedCard = document.querySelector('.border-on-click');
+        spinnerElement.style.display = 'flex';
+        apiSensorsListElement.style.display = 'none';
+
+        // Due to the nature of async functions, the highlightedCard might not be available
+        // when the filterSensors function is called. So, we need to check if it exists
+        if (highlightedCard) {
+            const cardId = highlightedCard.id;
+            const index = cardId.split("_")[1];
+            savedGraphIndex = index;
+            selectedGraphTitle = data[index].title;
+            console.log("selectedGraphTitle - highlighted", selectedGraphTitle);
+        } else {
+            savedGraphIndex = undefined;
+            selectedGraphTitle = undefined;
+        }
 
         // check if apiSensorsList has been rendered
         if (apiSensorsListElement.innerHTML === "") {
@@ -702,7 +696,6 @@
     
             const data = await response.json();
             const filteredSensors = data.data;
-            sensors = filteredSensors;
 
             // Render the fetched sensors
             if (savedGraphIndex !== null && savedGraphIndex !== undefined) {
@@ -710,57 +703,64 @@
             } else {
                 renderApiSensors(filteredSensors);
             }
+
+            spinnerElement.classList.add('hidden-important');
+            apiSensorsListElement.style.display = 'block';
         } catch (error) {
             showToast("Failed to filter/search sesnors", "error");
         }
     }
 
+
+    // ============== Graph Cards Management ============== //
+
     async function removeGraph(index) {
-        selectedGraphTitle = undefined;
         data.splice(index, 1);
-        renderData(); 
+        renderGraphCards(); 
     }
 
-    async function moveGraphUp(index) {
-        if (index > 0) {
-            selectedGraphTitle = data[index]?.title;
-            [data[index - 1], data[index]] = [data[index], data[index - 1]]; // Swap items
-            renderData(); 
+    async function swapItems(index1, index2) {
+        if (index1 >= 0 && index2 >= 0 && index1 < data.length && index2 < data.length) {
+            [data[index1], data[index2]] = [data[index2], data[index1]];
+            renderGraphCards()
         }
     }
-
+    
+    async function moveGraphUp(index) {
+        if (index > 0) {
+            selectedGraphTitle = data[index].title; // This is to keep the selected graph highlighted
+            await swapItems(index, index - 1);
+        }
+    }
+    
     async function moveGraphDown(index) {
         if (index < data.length - 1) {
-            selectedGraphTitle = data[index]?.title;
-            [data[index], data[index + 1]] = [data[index + 1], data[index]]; // Swap items
-            renderData(); 
+            selectedGraphTitle = data[index].title; // This is to keep the selected graph highlighted
+            await swapItems(index, index + 1);
         }
     }
 
     function editGraphTitle(index) {
         editingIndex = index;
-        renderData();
+        renderGraphCards();
     }
 
-    function handleEnterKeyEvent(event, index) {
-        if (event.key === "Enter") {
-            saveGraphChanges(index);
-        }
-    }
-
-    // Save the edited item
-    async function saveGraphChanges(index) {
+    async function saveGraphTitle(index) {
         const newTitle = document.getElementById(`editTitle_${index}`).value;
         data[index].title = newTitle;
         editingIndex = null;
         selectedGraphTitle = newTitle;
-        renderData(); 
+        renderGraphCards(); 
     }
+    
+    // ============== Graph Cards Management ============== //
+
+
 
     // Render the available API sensors
     function renderApiSensors(sensors, graphIndex) {
         // graphIndex is undefined when the sensors are being added to the graph
-        // graphIndex is defined when the sensors are being added to the data list. In other words 
+        // graphIndex is defined when the sensors are being added to the graph cards. In other words 
         // when more sensors are being added to single graph
         
         apiSensorsList.innerHTML = ""; // Clear the previous sensors
@@ -775,11 +775,6 @@
             const col = document.createElement("div");
             col.classList.add("col-12", "mb-1");
 
-            let selectedSensorGraphName = "";
-            if (graphIndex !== undefined) {
-                selectedSensorGraphName = data[graphIndex].title
-            }
-
             col.innerHTML = `
                 <div class="card m-0">
                     <div class="card-body p-0 sensor-card">
@@ -791,8 +786,8 @@
                             <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
                         </p>
                         ${graphIndex !== undefined 
-                        ? `<button class="btn btn-primary btn-sm" onclick="addSensorToGraph(${graphIndex}, ${sensor.id})">Add to '${selectedSensorGraphName}' Graph</button>` 
-                        : `<button class="btn btn-primary btn-sm" onclick="addSensorToList(${sensor.id})">Add to Graph</button>`
+                        ? `<button class="btn btn-primary btn-sm" onclick="addSensorToExistingGraph(${graphIndex}, ${sensor.id})">Add to '${selectedGraphTitle}' Graph</button>` 
+                        : `<button class="btn btn-primary btn-sm" onclick="addSensorAsGraph(${sensor.id})">Add to Graph</button>`
                         }
                         
                     </div>
@@ -803,7 +798,7 @@
         });
     }
 
-    async function updateSensorToShow() {
+    async function updateAssetSensorsToShow() {
         const graphSpinnerElement = document.getElementById('spinner');
         // Show spinner
         graphSpinnerElement.style.display = 'block';
@@ -820,7 +815,6 @@
         });
     
         if (!response.ok) {
-            // graphSpinnerElement.style.display = 'none';
             showToast("Failed to update the asset", "error");
         } else{
             document.dispatchEvent(new Event('sensorsToShowUpdated'));
@@ -828,21 +822,17 @@
         }
     }
 
-    formModal.addEventListener('hidden.bs.modal', function () {
-        updateSensorToShow();
-    });
-
-    // Add sensor to the data list
-    function addSensorToList(id) {
+    // Add a sensor as a new graph card
+    function addSensorAsGraph(id) {
         const newAsset = {
             title: "No Title", 
             sensors: [id], 
         };
         data.push(newAsset);
-        renderData();
+        renderGraphCards();
     }
 
-    // Add blank graph to the data list
+    // Add blank graph to the graph cards
     function addBlankGraph() {
         const newAsset = {
             title: "No Title " + (data.length + 1), 
@@ -850,25 +840,34 @@
         };
         selectedGraphTitle = newAsset.title;
         data.push(newAsset);
-        getSensors(data.length - 1)
-        renderData();
+        selectGraph(data.length - 1)
+        renderGraphCards();
     }
 
-    // Add Sensor to graph sensor list
-    function addSensorToGraph(graphIndex, sensorId) {
+    // Add Sensor to an existing graph card
+    function addSensorToExistingGraph(graphIndex, sensorId) {
         data[graphIndex].sensors.push(sensorId);
-        renderData();
+        renderGraphCards();
     }
 
     // Remove sensor from the graph sensor list
     function removeSensorFromGraph(graphIndex, sensorIndex) {
         data[graphIndex].sensors.splice(sensorIndex, 1);
         selectedGraphTitle = data[graphIndex].title;
-        renderData();
+        renderGraphCards();
     }
 
-    // Initial render of data list
-    renderData();
+    function handleEnterKeyEvent(event, index) {
+        if (event.key === "Enter") {
+            saveGraphTitle(index);
+        }
+    }
+    // Initial render of graph cards
+    renderGraphCards();
+
+    formModal.addEventListener('hidden.bs.modal', function () {
+        updateAssetSensorsToShow();
+    });
 
     document.addEventListener("click", function(event) {
         const card = event.target.closest(".card-highlight");
