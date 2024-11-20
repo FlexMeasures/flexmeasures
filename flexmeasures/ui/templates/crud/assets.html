@@ -61,7 +61,7 @@
         
         let url = `${basePath}/api/v3_0/assets?page=${
           Math.floor(data["start"] / data["length"]) + 1
-        }&per_page=${data["length"]}&include_public=true`;
+        }&per_page=${data["length"]}&all_accessible=true`;
 
         if (filter.length > 0) {
           url = `${url}&filter=${filter}`;
