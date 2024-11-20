@@ -37,6 +37,16 @@ class UserForm(FlaskForm):
     last_login_at = DateTimeField("Last Login was at", validators=[DataRequired()])
     active = BooleanField("Activation Status", validators=[DataRequired()])
 
+def get_asset_count(account_id: int, user: User):
+    """Returns the asset count for an user"""
+    asset_count = 0
+    if user:
+        get_users_assets_response = InternalApi().get(
+            url_for("AssetAPI:index", account_id=account_id)
+        )
+        asset_count = len(get_users_assets_response.json())
+    return asset_count
+
 
 def render_user(user: User | None, asset_count: int = 0, msg: str | None = None):
     user_form = UserForm()
@@ -136,8 +146,10 @@ class UserCrudUI(FlaskView):
         patched_user: User = process_internal_api_response(
             user_response.json(), make_obj=True
         )
+        asset_count = get_asset_count(int(id), user)
         return render_user(
             user,
+            asset_count=asset_count,
             msg="User %s's new activation status is now %s."
             % (patched_user.username, patched_user.active),
         )
@@ -151,8 +163,10 @@ class UserCrudUI(FlaskView):
         InternalApi().patch(
             url_for("UserAPI:reset_user_password", id=id),
         )
+        asset_count = get_asset_count(int(id), user)
         return render_user(
             user,
+            asset_count=asset_count,
             msg="The user's password has been changed to a random password"
             " and password reset instructions have been sent to the user."
             " Cookies and the API access token have also been invalidated.",
