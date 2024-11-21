@@ -585,11 +585,15 @@
             const col = document.createElement("div");
             col.classList.add("col-12", "mb-1");
 
+            let multipleUnits = false;
+            const sensorsUnits = [];
+
             const sensorsContent = await Promise.all(
                 item.sensors.map(async (sensor, sensorIndex) => {
                     const sensorData = await getSensor(sensor);
                     const Asset = await getAsset(sensorData.generic_asset_id);
                     const Account = await getAccount(Asset.account_id);
+                    sensorsUnits.push(sensorData.unit);
             
                     return `
                     <div class="p-1 mb-3 border-bottom border-secondary">
@@ -616,6 +620,11 @@
                 })
             );
 
+            const uniqueUnits = [...new Set(sensorsUnits)];
+            if (uniqueUnits.length > 1) {
+                multipleUnits = true;
+            }
+
             col.innerHTML = `
                 <div class="card m-0 p-1">
                     <div class="card-body card-highlight ${item.title === selectedGraphTitle ? "border-on-click" : ""}" id="graph_${index}" onclick="selectGraph(${index})">
@@ -637,6 +646,7 @@
                         <h5 class="card-title pt-2"><b> Sensors: </b></h5>
                         <div>
                             ${sensorsContent.length > 0 ? sensorsContent.join("") : "<i>Add sensors on the right side</i>"}
+                            ${multipleUnits ? `<div class="alert alert-warning" role="alert">Note that you are showing sensors with different units</div>` : ""}
                         </div>
                         
                         <button class="btn btn-danger btn-sm me-2" onclick="removeGraph(${index})">Remove</button>
@@ -664,7 +674,6 @@
             const index = cardId.split("_")[1];
             savedGraphIndex = index;
             selectedGraphTitle = data[index].title;
-            console.log("selectedGraphTitle - highlighted", selectedGraphTitle);
         } else {
             savedGraphIndex = undefined;
             selectedGraphTitle = undefined;
@@ -999,7 +1008,7 @@
                         });
                     },
                     error: function (request, status, error) {
-                        console.log("Error: ", error);
+                        showToast("Failed to fetch sensors" + error.message, "error");
                     },
                 });
             },
