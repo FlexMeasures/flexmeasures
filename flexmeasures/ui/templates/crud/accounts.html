@@ -41,11 +41,11 @@
       let unit = "";
       // Initialize the DataTable
       const table = $("#accountsTable").dataTable({
-        order: [[1, "asc"]],
+        order: [[0, "asc"]],
         serverSide: true,
         // make the table row vertically aligned with header
         columns: [
-          { data: "id", title: "ID", orderable: false},
+          { data: "id", title: "ID", orderable: true},
           { data: "name", title: "Name", orderable: true},
           { data: "assets", title: "Assets", orderable: true},
           { data: "users", title: "Users", orderable: true},

@@ -54,7 +54,7 @@ class AccountAPI(FlaskView):
             "sort_by": fields.Str(
                 required=False,
                 load_default=None,
-                validate=validate.OneOf(["name", "assets", "users"]),
+                validate=validate.OneOf(["id", "name", "assets", "users"]),
             ),
             "sort_dir": fields.Str(
                 required=False,
@@ -142,6 +142,7 @@ class AccountAPI(FlaskView):
 
         if sort_by is not None and sort_dir is not None:
             valid_sort_columns = {
+                "id": Account.id,
                 "name": Account.name,
                 "assets": func.count(GenericAsset.id),
                 "users": func.count(User.id),
