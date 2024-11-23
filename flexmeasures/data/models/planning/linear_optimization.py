@@ -523,7 +523,7 @@ def device_scheduler(  # noqa C901
     for g, v in subcommitment_costs.items():
         c = commitment_mapping[g]
         commitment_costs[c] = commitment_costs.get(c, 0) + v
-    
+
     planned_power_per_device = []
     for d in model.d:
         planned_device_power = [model.ems_power[d, j].value for j in model.j]

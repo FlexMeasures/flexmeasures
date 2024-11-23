@@ -2432,7 +2432,7 @@ def test_multiple_commitments_per_group():
             initial_stock=soc_at_start,
         )
         print(results.solver.termination_condition)
-    
+
         schedule = initialize_series(
             data=[model.ems_power[0, j].value for j in model.j],
             start=start,
@@ -2470,7 +2470,7 @@ def test_multiple_commitments_per_group():
     assert all(np.isclose(schedule.values[-4:], [-0.1, -0.1, -0.1, -0.1]))
 
     # Check costs
-    assert costs == (commitments[0]["downwards deviation price"][-4:]*-0.1).sum()
+    assert costs == (commitments[0]["downwards deviation price"][-4:] * -0.1).sum()
 
     # Peak Power Commitment
     commitments.append(empty_commitment.copy())
@@ -2486,10 +2486,12 @@ def test_multiple_commitments_per_group():
     # Discharge the whole battery
     assert np.isclose(sum(schedule), -0.4)
     assert all(np.isclose(schedule.values, [-0.4 / len(schedule)] * len(schedule)))
-    
+
     # Check costs
-    cost_of_energy = (commitments[0]["downwards deviation price"]*(-0.4 / len(schedule))).sum()
-    cost_of_energy_peak = -80 * -0.4/len(schedule)
+    cost_of_energy = (
+        commitments[0]["downwards deviation price"] * (-0.4 / len(schedule))
+    ).sum()
+    cost_of_energy_peak = -80 * -0.4 / len(schedule)
     expected_cost = cost_of_energy + cost_of_energy_peak
     assert costs == pytest.approx(expected_cost)
 
