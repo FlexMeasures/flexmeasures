@@ -2441,9 +2441,10 @@ def test_multiple_commitments_per_group():
         )
         print(schedule)
         costs = value(model.costs)
-        return schedule, results, costs
+        commitment_costs = model.commitment_costs
+        return schedule, results, costs, commitment_costs
 
-    schedule, results, costs = run_scheduler()
+    schedule, results, costs, commitment_costs = run_scheduler()
 
     # Discharge the whole battery
     assert np.isclose(sum(schedule), -0.4)
@@ -2462,7 +2463,7 @@ def test_multiple_commitments_per_group():
     commitments[-1]["upwards deviation price"] = np.nan
     commitments[-1]["group"] = 1
 
-    schedule, results, costs = run_scheduler()
+    schedule, results, costs, commitment_costs = run_scheduler()
 
     # Discharge the whole battery
     assert np.isclose(sum(schedule), -0.4)
@@ -2480,7 +2481,7 @@ def test_multiple_commitments_per_group():
     commitments[-1]["upwards deviation price"] = 80
     commitments[-1]["group"] = 1
 
-    schedule, results, costs = run_scheduler()
+    schedule, results, costs, commitment_costs = run_scheduler()
 
     # Discharge the whole battery
     assert np.isclose(sum(schedule), -0.4)
@@ -2491,3 +2492,6 @@ def test_multiple_commitments_per_group():
     cost_of_energy_peak = -80 * -0.4/len(schedule)
     expected_cost = cost_of_energy + cost_of_energy_peak
     assert costs == pytest.approx(expected_cost)
+
+    assert len(commitment_costs) == len(commitments)
+    assert sum(commitment_costs.values()) == pytest.approx(expected_cost)
