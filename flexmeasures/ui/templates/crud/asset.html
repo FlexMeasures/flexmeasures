@@ -581,6 +581,10 @@
         const dataList = document.getElementById("dataList");
         dataList.innerHTML = ""; 
 
+        if (data.length === 0) {
+            return;
+        }
+
         for (const [index, item] of data.entries()) {
             const col = document.createElement("div");
             col.classList.add("col-12", "mb-1");
@@ -590,6 +594,9 @@
 
             const sensorsContent = await Promise.all(
                 item.sensors.map(async (sensor, sensorIndex) => {
+                    if (!sensor) {
+                        return;
+                    }
                     const sensorData = await getSensor(sensor);
                     const Asset = await getAsset(sensorData.generic_asset_id);
                     const Account = await getAccount(Asset.account_id);
