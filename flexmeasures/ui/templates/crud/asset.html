@@ -588,15 +588,28 @@
         for (const [index, item] of data.entries()) {
             const col = document.createElement("div");
             col.classList.add("col-12", "mb-1");
+            let newItem = {}
 
             let multipleUnits = false;
             const sensorsUnits = [];
 
+            if (item.sensors === undefined){
+                let modifiedItem = {
+                    title: "No Title",
+                    sensors: []
+                }
+                if (item.length > 0){
+                    modifiedItem.sensors = item;
+                } else {
+                    modifiedItem.sensors.push(item);
+                }
+                newItem = modifiedItem;
+            } else[
+                newItem = item
+            ]
+
             const sensorsContent = await Promise.all(
-                item.sensors.map(async (sensor, sensorIndex) => {
-                    if (!sensor) {
-                        return;
-                    }
+                newItem.sensors.map(async (sensor, sensorIndex) => {
                     const sensorData = await getSensor(sensor);
                     const Asset = await getAsset(sensorData.generic_asset_id);
                     const Account = await getAccount(Asset.account_id);
@@ -609,7 +622,7 @@
                             <b>Unit:</b> ${sensorData.unit},
                             <b>Name:</b> ${sensorData.name},
                             <i class="fa fa-times" 
-                                onclick="removeSensorFromGraph(${index}, ${sensorIndex})" 
+                                onclick="removeSensorFromGraph(${index}, ${sensorIndex})"
                                 data-bs-toggle="tooltip" 
                                 data-bs-placement="top" 
                                 title="Remove Sensor"
@@ -634,12 +647,12 @@
 
             col.innerHTML = `
                 <div class="card m-0 p-1">
-                    <div class="card-body card-highlight ${item.title === selectedGraphTitle ? "border-on-click" : ""}" id="graph_${index}" onclick="selectGraph(${index})">
+                    <div class="card-body card-highlight ${newItem.title === selectedGraphTitle ? "border-on-click" : ""}" id="graph_${index}" onclick="selectGraph(${index})">
                         <div class="d-flex align-items-center">
                             <div>
                                 ${editingIndex === index
-                                    ? `<input type="text" class="form-control mb-2 me-2" id="editTitle_${index}" value="${item.title}" onkeydown="handleEnterKeyEvent(event, ${index})" />`
-                                    : `<h5 class="card-title me-2">${item.title}</h5>`
+                                    ? `<input type="text" class="form-control mb-2 me-2" id="editTitle_${index}" value="${newItem.title}" onkeydown="handleEnterKeyEvent(event, ${index})" />`
+                                    : `<h5 class="card-title me-2">${newItem.title}</h5>`
                                 }
                             </div>
 
