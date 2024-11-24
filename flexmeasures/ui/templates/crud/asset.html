@@ -588,25 +588,13 @@
         for (const [index, item] of data.entries()) {
             const col = document.createElement("div");
             col.classList.add("col-12", "mb-1");
-            let newItem = {}
 
             let multipleUnits = false;
             const sensorsUnits = [];
-
-            if (item.sensors === undefined){
-                let modifiedItem = {
-                    title: "No Title",
-                    sensors: []
-                }
-                if (item.length > 0){
-                    modifiedItem.sensors = item;
-                } else {
-                    modifiedItem.sensors.push(item);
-                }
-                newItem = modifiedItem;
-            } else[
-                newItem = item
-            ]
+            const newItem = {
+                title: item.title ?? "No Title", 
+                sensors: item.sensors ?? (Array.isArray(item) ? item : [item]),  
+            }
 
             const sensorsContent = await Promise.all(
                 newItem.sensors.map(async (sensor, sensorIndex) => {
