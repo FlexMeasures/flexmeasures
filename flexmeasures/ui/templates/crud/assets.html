@@ -41,10 +41,10 @@
 
   $(document).ready(function() {  
     $("#assetTable").dataTable({
-      order: [[1, "asc"]],
+      order: [[0, "asc"]],
       serverSide: true,
       columns: [
-        {data: "id", title: "ID", orderable: false},
+        {data: "id", title: "ID", orderable: true},
         {data: "name", title: "Name", orderable: true},
         {data: "owner", title: "Account", orderable: true},
         {data: "location", title: "Location", orderable: false},

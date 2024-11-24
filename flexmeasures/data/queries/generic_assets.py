@@ -160,6 +160,7 @@ def query_assets_by_search_terms(
     select_statement = select(GenericAsset)
 
     valid_sort_columns = {
+        "id": GenericAsset.id,
         "name": GenericAsset.name,
         "owner": GenericAsset.account_id,
     }

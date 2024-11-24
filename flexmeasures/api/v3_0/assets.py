@@ -82,7 +82,7 @@ class AssetAPI(FlaskView):
             "sort_by": fields.Str(
                 required=False,
                 load_default=None,
-                validate=validate.OneOf(["name", "owner"]),
+                validate=validate.OneOf(["id", "name", "owner"]),
             ),
             "sort_dir": fields.Str(
                 required=False,
