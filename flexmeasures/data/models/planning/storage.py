@@ -142,6 +142,7 @@ class MetaStorageScheduler(Scheduler):
                 resolution=resolution,
                 beliefs_before=belief_time,
                 fallback_attribute="market_id",
+                fill_sides=True,
             ).to_frame()
         else:
             up_deviation_prices, (start, end) = get_prices(
@@ -165,6 +166,7 @@ class MetaStorageScheduler(Scheduler):
                 resolution=resolution,
                 beliefs_before=belief_time,
                 fallback_attribute="market_id",
+                fill_sides=True,
             ).to_frame()
         else:
             down_deviation_prices, (start, end) = get_prices(
@@ -222,6 +224,7 @@ class MetaStorageScheduler(Scheduler):
                 resolution=resolution,
                 beliefs_before=belief_time,
                 max_value=np.inf,  # np.nan -> np.inf to ignore commitment if no quantity is given
+                fill_sides=True,
             )
             ems_peak_consumption_price = self.flex_context.get(
                 "ems_peak_consumption_price"
@@ -245,6 +248,7 @@ class MetaStorageScheduler(Scheduler):
                 resolution=resolution,
                 beliefs_before=belief_time,
                 max_value=np.inf,  # np.nan -> np.inf to ignore commitment if no quantity is given
+                fill_sides=True,
             )
             ems_peak_production_price = self.flex_context.get(
                 "ems_peak_production_price"

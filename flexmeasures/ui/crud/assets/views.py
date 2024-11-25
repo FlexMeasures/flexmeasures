@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from flask import url_for, current_app, request
 from flask_classful import FlaskView, route
 from flask_security import login_required, current_user
@@ -113,6 +114,7 @@ class AssetCrudUI(FlaskView):
 
         get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_one", id=id))
         asset_dict = get_asset_response.json()
+
         asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
 
         asset_form = AssetForm()
