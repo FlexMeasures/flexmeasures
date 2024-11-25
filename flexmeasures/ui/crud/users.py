@@ -38,7 +38,7 @@ class UserForm(FlaskForm):
     active = BooleanField("Activation Status", validators=[DataRequired()])
 
 def get_asset_count(account_id: int, user: User):
-    """Returns the asset count for an user"""
+    """Returns the asset count for a user."""
     asset_count = 0
     if user:
         get_users_assets_response = InternalApi().get(
