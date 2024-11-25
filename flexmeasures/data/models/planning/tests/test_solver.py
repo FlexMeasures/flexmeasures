@@ -28,6 +28,8 @@ from flexmeasures.utils.calculations import (
 from flexmeasures.tests.utils import get_test_sensor
 from flexmeasures.utils.unit_utils import convert_units, ur
 
+from pyomo.environ import value
+
 TOLERANCE = 0.00001
 
 
@@ -2438,13 +2440,18 @@ def test_multiple_commitments_per_group():
             resolution=resolution,
         )
         print(schedule)
-        return schedule, results
+        costs = value(model.costs)
+        commitment_costs = model.commitment_costs
+        return schedule, results, costs, commitment_costs
 
-    schedule, results = run_scheduler()
+    schedule, results, costs, commitment_costs = run_scheduler()
 
     # Discharge the whole battery
     assert np.isclose(sum(schedule), -0.4)
     assert np.isclose(schedule.values[-1], -0.4)
+
+    # Check costs
+    assert costs == -36.4
 
     # Production Capacity Breach Commitment
     commitments.append(empty_commitment.copy())
@@ -2456,11 +2463,14 @@ def test_multiple_commitments_per_group():
     commitments[-1]["upwards deviation price"] = np.nan
     commitments[-1]["group"] = 1
 
-    schedule, results = run_scheduler()
+    schedule, results, costs, commitment_costs = run_scheduler()
 
     # Discharge the whole battery
     assert np.isclose(sum(schedule), -0.4)
     assert all(np.isclose(schedule.values[-4:], [-0.1, -0.1, -0.1, -0.1]))
+
+    # Check costs
+    assert costs == (commitments[0]["downwards deviation price"][-4:] * -0.1).sum()
 
     # Peak Power Commitment
     commitments.append(empty_commitment.copy())
@@ -2471,8 +2481,19 @@ def test_multiple_commitments_per_group():
     commitments[-1]["upwards deviation price"] = 80
     commitments[-1]["group"] = 1
 
-    schedule, results = run_scheduler()
+    schedule, results, costs, commitment_costs = run_scheduler()
 
     # Discharge the whole battery
     assert np.isclose(sum(schedule), -0.4)
     assert all(np.isclose(schedule.values, [-0.4 / len(schedule)] * len(schedule)))
+
+    # Check costs
+    cost_of_energy = (
+        commitments[0]["downwards deviation price"] * (-0.4 / len(schedule))
+    ).sum()
+    cost_of_energy_peak = -80 * -0.4 / len(schedule)
+    expected_cost = cost_of_energy + cost_of_energy_peak
+    assert costs == pytest.approx(expected_cost)
+
+    assert len(commitment_costs) == len(commitments)
+    assert sum(commitment_costs.values()) == pytest.approx(expected_cost)

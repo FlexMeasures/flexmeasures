@@ -72,6 +72,8 @@ def device_scheduler(  # noqa C901
             - either a single value (same value for each flow value) or a Series (different value for each flow value)
         commitment_upwards_deviation_price: penalty for upwards deviations of the flow
 
+    Separate costs for each commitment are stored in a dictionary under `model.commitment_costs` (indexed by commitment).
+
     All Series and DataFrames should have the same resolution.
 
     For now, we pass in the various constraints and prices as separate variables, from which we make a MultiIndex
@@ -149,8 +151,9 @@ def device_scheduler(  # noqa C901
         we return (sub)commitments A1, A2, A3, B1, B2 and B3,
         where A,B,C is the enumerated contract and 1,2,3 is the enumerated group.
         """
+        commitment_mapping = {}
         all_groups = []
-        for df in dfs:
+        for c, df in enumerate(dfs):
             df["j"] = range(len(df.index))
             groups = list(df["group"].unique())
             for group in groups:
@@ -166,6 +169,7 @@ def device_scheduler(  # noqa C901
                         "Cannot have non-unique downwards deviation prices."
                     )
                 if len(sub_commitment) == 1:
+                    commitment_mapping[len(all_groups)] = c
                     all_groups.append(sub_commitment)
                 else:
                     down_commitment = sub_commitment.copy().drop(
@@ -174,10 +178,12 @@ def device_scheduler(  # noqa C901
                     up_commitment = sub_commitment.copy().drop(
                         columns="downwards deviation price"
                     )
+                    commitment_mapping[len(all_groups)] = c
+                    commitment_mapping[len(all_groups) + 1] = c
                     all_groups.extend([down_commitment, up_commitment])
-        return all_groups
+        return all_groups, commitment_mapping
 
-    commitments: list[pd.DataFrame] = convert_commitments_to_subcommitments(commitments)
+    commitments, commitment_mapping = convert_commitments_to_subcommitments(commitments)
 
     bigM_columns = ["derivative max", "derivative min", "derivative equals"]
     # Compute a good value for M
@@ -479,9 +485,13 @@ def device_scheduler(  # noqa C901
     # Add objective
     def cost_function(m):
         costs = 0
+        m.commitment_costs = {
+            c: m.commitment_downwards_deviation[c] * m.down_price[c]
+            + m.commitment_upwards_deviation[c] * m.up_price[c]
+            for c in m.c
+        }
         for c in m.c:
-            costs += m.commitment_downwards_deviation[c] * m.down_price[c]
-            costs += m.commitment_upwards_deviation[c] * m.up_price[c]
+            costs += m.commitment_costs[c]
         return costs
 
     model.costs = Objective(rule=cost_function, sense=minimize)
@@ -505,6 +515,14 @@ def device_scheduler(  # noqa C901
         model.solutions.load_from(results)
 
     planned_costs = value(model.costs)
+    subcommitment_costs = {g: value(cost) for g, cost in model.commitment_costs.items()}
+    commitment_costs = {}
+
+    # Map subcommitment costs to commitments
+    for g, v in subcommitment_costs.items():
+        c = commitment_mapping[g]
+        commitment_costs[c] = commitment_costs.get(c, 0) + v
+
     planned_power_per_device = []
     for d in model.d:
         planned_device_power = [model.ems_power[d, j].value for j in model.j]
@@ -517,6 +535,7 @@ def device_scheduler(  # noqa C901
             )
         )
 
+    model.commitment_costs = commitment_costs
     # model.pprint()
     # model.display()
     # print(results.solver.termination_condition)
