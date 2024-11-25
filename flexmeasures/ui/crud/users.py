@@ -37,6 +37,7 @@ class UserForm(FlaskForm):
     last_login_at = DateTimeField("Last Login was at", validators=[DataRequired()])
     active = BooleanField("Activation Status", validators=[DataRequired()])
 
+
 def get_asset_count(account_id: int, user: User):
     """Returns the asset count for a user."""
     asset_count = 0
