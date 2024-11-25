@@ -19,7 +19,7 @@ def get_ancestry(entity: Sensor | Asset | Account | None) -> list[dict]:
     """
     # Allow customization for assets and sensors (for this, set "breadcrumb_ancestry" attribute)
     custom_ancestry = None
-    if not isinstance(entity, Account):
+    if entity is not None and not isinstance(entity, Account):
         custom_ancestry = entity.get_attribute("breadcrumb_ancestry")
     if custom_ancestry is not None and isinstance(custom_ancestry, list):
         return custom_ancestry
