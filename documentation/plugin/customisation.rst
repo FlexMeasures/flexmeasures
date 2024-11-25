@@ -1,7 +1,7 @@
 .. _plugin_customization:
 
 
-Plugin Customizations
+Plugin Customization
 =======================
 
 
@@ -219,6 +219,25 @@ Then, overwrite the ``/favicon.ico`` route which FlexMeasures uses to get the fa
         )
 
 Here we assume your favicon is a PNG file. You can also use a classic `.ico` file, then your mime type probably works best as ``image/x-icon``.
+
+
+Customizing the breadcrumbs
+---------------------------------
+
+On asset and sensor pages, we show breadcrumbs on top (e.g. Account -> Asset -> ChildAsset -> Sensor).
+Say you want to adapt this, so that some asset has a unique breadcrumb path
+
+Add an attribute to an asset or sensor "breadcrumb_ancestry", e.g.:
+
+.. code-block:: python
+
+    my_asset.attributes["breadcrumb_ancestry"] = 
+        [
+            {"url": my_url, "name": "Top-level", "type": "Asset"},
+            {"url": another_url, "name": "2nd-level", "type": "Asset"}
+        ]
+
+Then the page will show these two breadcrumbs.
 
 
 Validating arguments in your CLI commands with marshmallow
