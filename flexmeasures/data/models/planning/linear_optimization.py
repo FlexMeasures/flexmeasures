@@ -72,8 +72,7 @@ def device_scheduler(  # noqa C901
             - either a single value (same value for each flow value) or a Series (different value for each flow value)
         commitment_upwards_deviation_price: penalty for upwards deviations of the flow
 
-    Now also separate costs for each commitment are calculated and stored in the `commitment_costs` dictionary (indexed by commitment group).
-    Commitment costs are aggregated from sub-commitments to provide total planned costs.
+    Separate costs for each commitment are stored in a dictionary under `model.commitment_costs` (indexed by commitment).
 
     All Series and DataFrames should have the same resolution.
 
