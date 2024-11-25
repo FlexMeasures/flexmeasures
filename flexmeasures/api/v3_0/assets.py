@@ -82,7 +82,7 @@ class AssetAPI(FlaskView):
             "sort_by": fields.Str(
                 required=False,
                 load_default=None,
-                validate=validate.OneOf(["name", "owner"]),
+                validate=validate.OneOf(["id", "name", "owner"]),
             ),
             "sort_dir": fields.Str(
                 required=False,
@@ -171,20 +171,11 @@ class AssetAPI(FlaskView):
             filter_statement = filter_statement | GenericAsset.account_id.is_(None)
 
         query = query_assets_by_search_terms(
-            search_terms=filter, filter_statement=filter_statement
+            search_terms=filter,
+            filter_statement=filter_statement,
+            sort_by=sort_by,
+            sort_dir=sort_dir,
         )
-
-        if sort_by is not None and sort_dir is not None:
-            valid_sort_columns = {
-                "name": GenericAsset.name,
-                "owner": GenericAsset.account_id,
-            }
-
-            query = query.order_by(
-                valid_sort_columns[sort_by].asc()
-                if sort_dir == "asc"
-                else valid_sort_columns[sort_by].desc()
-            )
 
         if page is None:
             response = asset_schema.dump(db.session.scalars(query).all(), many=True)
