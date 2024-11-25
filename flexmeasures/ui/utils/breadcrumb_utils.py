@@ -14,6 +14,16 @@ def get_breadcrumb_info(entity: Sensor | Asset | Account | None) -> dict:
 
 
 def get_ancestry(entity: Sensor | Asset | Account | None) -> list[dict]:
+    """
+    Return a list of ancestors meta data, with URLs for their pages and type.
+    """
+    # Allow customization for assets and sensors (for this, set "breadcrumb_ancestry" attribute)
+    custom_ancestry = None
+    if not isinstance(entity, Account):
+        custom_ancestry = entity.get_attribute("breadcrumb_ancestry")
+    if custom_ancestry is not None and isinstance(custom_ancestry, list):
+        return custom_ancestry
+
     # Public account
     if entity is None:
         return [{"url": None, "name": "PUBLIC", "type": "Account"}]
