@@ -344,11 +344,17 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         model_incl_version = self.model if self.model else ""
         if self.model and self.version:
             model_incl_version += f" (v{self.version})"
+        if "forecast" in self.type.lower():
+            _type = "forecaster"  # e.g. 'forecaster' or 'forecasting script'
+        elif "schedul" in self.type.lower():  # e.g. 'scheduler' or 'scheduling script'
+            _type = "scheduler"
+        else:
+            _type = "other"
         return dict(
             id=self.id,
             name=self.name,
             model=model_incl_version,
-            type=self.type if self.type in ("forecaster", "scheduler") else "other",
+            type=_type,
             description=self.description,
         )
 
