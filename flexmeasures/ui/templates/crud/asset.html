@@ -723,6 +723,7 @@
             apiSensorsListElement.style.display = 'block';
         } catch (error) {
             showToast("Failed to filter/search sesnors", "error");
+            console.error(error);
         }
     }
 
