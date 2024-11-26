@@ -29,8 +29,8 @@ The data charts are maybe the most interesting feature - turning it into a data 
 Sensors to show on Graph
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The `sensors_to_show`` field controls which sensor data appears in the plot. Use the "Add Graph" button to select from all available sensors associated with the asset, including public sensors, and 
-add them to your plot.
+The `sensors_to_show`` field controls which sensor data appears in the plot. Use the "Add Graph" button to create graphs. For each graph, you can select one or more sensors, from all available sensors associated with the asset, including public sensors, and add them to your plot.  
+(This internally edits the `sensors_to_show`  field on the asset)
 
 You can overlay data from multiple sensors on a single graph. To do this, click on an existing plot and add more sensors from the available options on the right. 
 
