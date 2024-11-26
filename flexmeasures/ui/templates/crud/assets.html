@@ -63,11 +63,11 @@
           Math.floor(data["start"] / data["length"]) + 1
         }&per_page=${data["length"]}`;
 
-        if ("{{ account }}" != "None") {
-          url = `${url}&account_id={{ account.id }}`;
-        } else {
-          url = `${url}&all_accessible=true`;
-        }
+        {% if account %}
+          url += "&account_id={{ account.id }}";
+        {% else %}
+          url += "&all_accessible=true";
+        {% endif %}
 
         if (filter.length > 0) {
           url = `${url}&filter=${filter}`;
