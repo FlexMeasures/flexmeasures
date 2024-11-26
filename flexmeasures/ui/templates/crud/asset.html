@@ -589,7 +589,6 @@
             const col = document.createElement("div");
             col.classList.add("col-12", "mb-1");
 
-            let multipleUnits = false;
             const sensorsUnits = [];
             const newItem = {
                 title: item.title ?? "No Title", 
@@ -629,9 +628,6 @@
             );
 
             const uniqueUnits = [...new Set(sensorsUnits)];
-            if (uniqueUnits.length > 1) {
-                multipleUnits = true;
-            }
 
             col.innerHTML = `
                 <div class="card m-0 p-1">
@@ -654,7 +650,7 @@
                         <h5 class="card-title pt-2"><b> Sensors: </b></h5>
                         <div>
                             ${sensorsContent.length > 0 ? sensorsContent.join("") : "<i>Add sensors on the right side</i>"}
-                            ${multipleUnits ? `<div class="alert alert-warning" role="alert">Note that you are showing sensors with different units</div>` : ""}
+                            ${uniqueUnits.length > 1 ? `<div class="alert alert-warning" role="alert">Note that you are showing sensors with different units</div>` : ""}
                         </div>
                         
                         <button class="btn btn-danger btn-sm me-2" onclick="removeGraph(${index})">Remove</button>
