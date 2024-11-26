@@ -225,9 +225,9 @@ Customizing the breadcrumbs
 ---------------------------------
 
 On asset and sensor pages, we show breadcrumbs on top (e.g. Account -> Asset -> ChildAsset -> Sensor).
-Say you want to adapt this, so that some asset has a unique breadcrumb path
+Say you want to adapt this, so that some asset has a unique breadcrumb path.
 
-Add an attribute to an asset or sensor "breadcrumb_ancestry", e.g.:
+Add an attribute to an asset or sensor named "breadcrumb_ancestry", e.g.:
 
 .. code-block:: python
 
@@ -238,6 +238,8 @@ Add an attribute to an asset or sensor "breadcrumb_ancestry", e.g.:
         ]
 
 Then the page will show these two breadcrumbs.
+
+.. note:: For child assets without their own custom attribute, their breadcrumbs will also have these breadcrumbs on the left, but they will add their won breadcrumbs as usual.
 
 
 Validating arguments in your CLI commands with marshmallow
