@@ -394,7 +394,6 @@
                           tabindex="0"
                           data-bs-placement="right"
                           data-bs-toggle="tooltip"
-                          title="Primary color to use in UI, in hex format. Defaults to FlexMeasures' primary color (#1a3443)"
                         ></span>
                       
                         <div class="dropdown-menu p-3" style="width: 400px;">
@@ -805,7 +804,7 @@
                         </p>
                         ${graphIndex !== undefined 
                         ? `<button class="btn btn-primary btn-sm" onclick="addSensorToExistingGraph(${graphIndex}, ${sensor.id})">Add to '${selectedGraphTitle}' Graph</button>` 
-                        : `<button class="btn btn-primary btn-sm" onclick="addSensorAsGraph(${sensor.id})">Add to Graph</button>`
+                        : `<button class="btn btn-primary btn-sm" onclick="addSensorAsGraph(${sensor.id})">Add to new Graph</button>`
                         }
                         
                     </div>
