@@ -580,6 +580,7 @@
     async function renderGraphCards() {
         const dataList = document.getElementById("dataList");
         dataList.innerHTML = ""; 
+        const newData = [];
 
         if (data.length === 0) {
             return;
@@ -594,6 +595,7 @@
                 title: item.title ?? "No Title", 
                 sensors: item.sensors ?? (Array.isArray(item) ? item : [item]),  
             }
+            newData.push(newItem);
 
             const sensorsContent = await Promise.all(
                 newItem.sensors.map(async (sensor, sensorIndex) => {
@@ -661,6 +663,7 @@
             `;
 
             dataList.appendChild(col);
+            data = newData;
         }
     }
 
@@ -759,10 +762,12 @@
     }
 
     async function saveGraphTitle(index) {
+        console.log("data:  ", data);
         const newTitle = document.getElementById(`editTitle_${index}`).value;
         data[index].title = newTitle;
         editingIndex = null;
         selectedGraphTitle = newTitle;
+        console.log("data:  ", data);
         renderGraphCards(); 
     }
     
