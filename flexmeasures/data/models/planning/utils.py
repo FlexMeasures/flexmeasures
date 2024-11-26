@@ -137,25 +137,14 @@ def get_prices(
         raise UnknownPricesException(
             f"Prices unknown for planning window. (sensor {price_sensor.id})"
         )
-    elif (
-        nan_prices.any()
-        or pd.Timestamp(price_df.index[0]).tz_convert("UTC")
-        != pd.Timestamp(query_window[0]).tz_convert("UTC")
-        or pd.Timestamp(price_df.index[-1]).tz_convert("UTC") + resolution
-        != pd.Timestamp(query_window[-1]).tz_convert("UTC")
-    ):
-        if allow_trimmed_query_window:
-            first_event_start = price_df.first_valid_index()
-            last_event_end = price_df.last_valid_index() + resolution
-            current_app.logger.warning(
-                f"Prices partially unknown for planning window (sensor {price_sensor.id}). "
-                f"Trimming planning window (from {query_window[0]} until {query_window[-1]}) to {first_event_start} until {last_event_end}."
-            )
-            query_window = (first_event_start, last_event_end)
-        else:
-            price_df = extend_to_edges(
-                df=price_df, query_window=query_window, resolution=resolution
-            )
+    else:
+        price_df = extend_to_edges(
+            df=price_df,
+            query_window=query_window,
+            resolution=resolution,
+            sensor=price_sensor,
+            allow_trimmed_query_window=allow_trimmed_query_window,
+        )
     return price_df, query_window
 
 
@@ -164,26 +153,58 @@ def extend_to_edges(
     query_window: tuple[datetime, datetime],
     resolution: timedelta,
     kind_of_values: str = "price",
+    sensor: Sensor = None,
+    allow_trimmed_query_window: bool = False,
 ):
     """Values are extended to the edges of the query window.
 
     - The first available value serves as a naive backcasts.
     - The last available value serves as a naive forecast.
     """
-    current_app.logger.warning(
-        f"{capitalize(pluralize(kind_of_values))} partially unknown for planning window (sensor {df.sensor.id}). "
-        f"Assuming the first {kind_of_values} is valid from the start of the planning window ({query_window[0]}), "
-        f"and the last {kind_of_values} is valid until the end of the planning window ({query_window[-1]})."
-    )
-    index = initialize_index(
-        start=query_window[0],
-        end=query_window[1],
-        resolution=resolution,
-    )
-    df = df.reindex(index)
-    # or to also forward fill intermediate NaN values, use: df = df.ffill().bfill()
-    df[: df.first_valid_index()] = df[df.index == df.first_valid_index()].values[0]
-    df[df.last_valid_index() :] = df[df.index == df.last_valid_index()].values[0]
+
+    nan_values = df.isnull().values
+    if (
+        nan_values.any()
+        or pd.Timestamp(df.index[0]).tz_convert("UTC")
+        != pd.Timestamp(query_window[0].tz_convert("UTC"))
+        or pd.Timestamp(df.index[-1]).tz_convert("UTC") + resolution
+        != pd.Timestamp(query_window[-1]).tz_convert("UTC")
+    ):
+        if allow_trimmed_query_window:
+            first_event_start = df.first_valid_index()
+            last_event_end = df.last_valid_index() + resolution
+            sensor_info = (
+                f" (sensor {sensor.id})" if sensor and hasattr(sensor, "id") else ""
+            )
+
+            current_app.logger.warning(
+                f"Prices partially unknown for planning window ({sensor_info}). "
+                f"Trimming planning window (from {query_window[0]} until {query_window[-1]}) to {first_event_start} until {last_event_end}."
+            )
+        else:
+            sensor_info = (
+                f" (sensor {df.sensor.id})"
+                if hasattr(df, "sensor") and hasattr(df.sensor, "id")
+                else ""
+            )
+            current_app.logger.warning(
+                f"{capitalize(pluralize(kind_of_values))} partially unknown for planning window ({sensor_info}). "
+                f"Assuming the first {kind_of_values} is valid from the start of the planning window ({query_window[0]}), "
+                f"and the last {kind_of_values} is valid until the end of the planning window ({query_window[-1]})."
+            )
+            index = initialize_index(
+                start=query_window[0],
+                end=query_window[1],
+                resolution=resolution,
+            )
+            df = df.reindex(index)
+            # or to also forward fill intermediate NaN values, use: df = df.ffill().bfill()
+            df[: df.first_valid_index()] = df[
+                df.index == df.first_valid_index()
+            ].values[0]
+            df[df.last_valid_index() :] = df[df.index == df.last_valid_index()].values[
+                0
+            ]
     return df
 
 
