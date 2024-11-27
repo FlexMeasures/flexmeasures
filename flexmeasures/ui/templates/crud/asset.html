@@ -440,9 +440,12 @@
                                 </div>
                         
                                 <div class="col-4">
-                                    <select id="unitsSelect" class="form-select" aria-label="Default select example"
+                                    <select class="form-select" aria-label="Default select example"
                                         onchange="filterSensors()">
                                         <option selected>Units</option>
+                                        {% for unit in available_units %}
+                                        <option>{{ unit }}</option>
+                                        {% endfor %}
                                     </select>
                                 </div>
                             </div>
@@ -480,17 +483,6 @@
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet-src.min.js"></script>
 <script src="{{ url_for('flexmeasures_ui.static', filename='js/map-init.js') }}"></script>
 
-<script>
-    let units = {{available_units | tojson}};
-    const selectElement = document.getElementById('unitsSelect');
-
-    units.forEach((unit, index) => {
-        const option = document.createElement('option');
-        option.value = unit;
-        option.text = unit;
-        selectElement.appendChild(option);
-    });
-</script>
 
 <script>
     const formModal = document.getElementById('sensorsToShowForm');
