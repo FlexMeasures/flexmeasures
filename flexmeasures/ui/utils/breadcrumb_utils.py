@@ -70,6 +70,12 @@ def get_ancestry(entity: Sensor | Asset | Account | None) -> list[dict]:
 
 
 def get_siblings(entity: Sensor | Asset | Account | None) -> list[dict]:
+    # Allow customization (for this, set "breadcrumb_siblings" attribute)
+    custom_siblings = None
+    if entity is not None and not isinstance(entity, Account):
+        custom_siblings = entity.get_attribute("breadcrumb_siblings")
+    if custom_siblings is not None and isinstance(custom_siblings, list):
+        return custom_siblings
     siblings = []
     if isinstance(entity, Sensor):
         siblings = [

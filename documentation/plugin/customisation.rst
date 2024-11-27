@@ -242,6 +242,10 @@ Then the page will show these two breadcrumbs.
 .. note:: For child assets without their own custom attribute, their breadcrumbs will also have these breadcrumbs on the left, but they will add their won breadcrumbs as usual.
 
 
+In the same way, you can customize the siblings that are shown as drop-down for the current (right-most) breadcrumb.
+For this, the attribute is named "breadcrumb_siblings" and follows the same syntax. One use case might be to set it to empty (``[]``).
+
+
 Validating arguments in your CLI commands with marshmallow
 -----------------------------------------------------------
 
