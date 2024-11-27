@@ -401,59 +401,71 @@
       let unit = "";
       // Initialize the DataTable
       const table = $("#sensorsTable").dataTable({
+        order: [[0, "asc"]],
         serverSide: true,
         // make the table row vertically aligned with header
         columns: [
-          { data: "id", title: "ID" },
-          { data: "name", title: "Name" },
-          { data: "unit", title: "Unit" },
-          { data: "resolution", title: "Resolution" },
-          { data: "entity_address", title: "Entity address" },
+          { data: "id", title: "ID", orderable: true },
+          { data: "name", title: "Name", orderable: true },
+          { data: "unit", title: "Unit", orderable: false },
+          { data: "resolution", title: "Resolution", orderable: true },
+          { data: "entity_address", title: "Entity address", orderable: false },
           { data: "url", title: "URL", className: "d-none" },
         ],
   
         ajax: function (data, callback, settings) {
-          const basePath = window.location.origin;
-          let filter = data["search"]["value"];
-          let url = `${basePath}/api/v3_0/assets/{{asset.id}}/sensors?page=${
-            data["start"] / data["length"] + 1
-          }&per_page=4`;
+            const basePath = window.location.origin;
+            let filter = data["search"]["value"];
+            let orderColumnIndex = data["order"][0]["column"]
+            let orderDirection = data["order"][0]["dir"];
+            let orderColumnName = data["columns"][orderColumnIndex]["data"];
+
+            let url = `${basePath}/api/v3_0/assets/{{asset.id}}/sensors?page=${
+                data["start"] / data["length"] + 1
+            }&per_page=4`;
+    
+            if (orderColumnName){
+                url = `${url}&sort_by=${orderColumnName}&sort_dir=${orderDirection}`;
+            }
+            
+            if (filter.length > 0) {
+                url = `${url}&filter=${filter}`;
+            }
+
+            if (unit !== "") {
+                url = `${url}&unit=${unit}`;
+            }
+
+            
   
-          if (filter.length > 0) {
-            url = `${url}&filter=${filter}`;
-          }
-          if (unit !== "") {
-            url = `${url}&unit=${unit}`;
-          }
-  
-          $.ajax({
-            type: "get",
-            url: url,
-            success: function (response, text) {
-              let clean_response = [];
-              response["data"].forEach((element) =>
-                clean_response.push(
-                  new Sensor(
-                    element["id"],
-                    element["name"],
-                    element["unit"],
-                    element["event_resolution"],
-                    element["entity_address"],
-                    element["active"]
-                  )
-                )
-              );
-  
-              callback({
-                data: clean_response,
-                recordsTotal: response["num-records"],
-                recordsFiltered: response["filtered-records"],
-              });
-            },
-            error: function (request, status, error) {
-              console.log("Error: ", error);
-            },
-          });
+            $.ajax({
+                type: "get",
+                url: url,
+                success: function (response, text) {
+                let clean_response = [];
+                response["data"].forEach((element) =>
+                    clean_response.push(
+                    new Sensor(
+                        element["id"],
+                        element["name"],
+                        element["unit"],
+                        element["event_resolution"],
+                        element["entity_address"],
+                        element["active"]
+                    )
+                    )
+                );
+    
+                callback({
+                    data: clean_response,
+                    recordsTotal: response["num-records"],
+                    recordsFiltered: response["filtered-records"],
+                });
+                },
+                error: function (request, status, error) {
+                console.log("Error: ", error);
+                },
+            });
         },
       });
   
