@@ -499,6 +499,7 @@
     let rawJSON = "{{ asset.sensors_to_show | safe}}";
     rawJSON = rawJSON.replace(/'/g, '"');
     let data = JSON.parse(rawJSON);
+    let cachedFilteredSensors = []; // keeps track of the filtered sensors
     let editingIndex; // keeps track of which graph we are currently editing
     let savedGraphIndex; // keeps track of the graph that is currently selected
     let selectedGraphTitle; // keeps track of the graph title that is currently selected
@@ -564,7 +565,7 @@
         if (graphIndex !== undefined){
             savedGraphIndex = graphIndex;
             selectedGraphTitle = data[graphIndex]?.title;
-            apiSensorsList.innerHTML = ""; 
+            renderApiSensors(cachedFilteredSensors, graphIndex);
         } else {
             savedGraphIndex = undefined;
             selectedGraphTitle = undefined;
@@ -716,6 +717,8 @@
                 renderApiSensors(filteredSensors);
             }
 
+            cachedFilteredSensors = filteredSensors;
+
             spinnerElement.classList.add('hidden-important');
             apiSensorsListElement.style.display = 'block';
         } catch (error) {
@@ -759,12 +762,10 @@
     }
 
     async function saveGraphTitle(index) {
-        console.log("data:  ", data);
         const newTitle = document.getElementById(`editTitle_${index}`).value;
         data[index].title = newTitle;
         editingIndex = null;
         selectedGraphTitle = newTitle;
-        console.log("data:  ", data);
         renderGraphCards(); 
     }
     
