@@ -183,6 +183,35 @@
     {# Div blocks that child pages can reference #}
     {% block divs %}
 
+    {% block breadcrumbs %}
+    {% if breadcrumb_info is defined %}
+    <nav aria-label="breadcrumb ">
+        <ol class="breadcrumb p-2">
+            {% for breadcrumb in breadcrumb_info["ancestors"] %}
+            <li class="breadcrumb-item{% if loop.last %} dropdown active{% endif %}" {% if loop.last %}aria-current="page"{% endif %}>
+              {% if breadcrumb["url"] is not none and not loop.last %}
+                <a href="{{ breadcrumb['url'] }}">{{ breadcrumb['name'] }}</a>
+              {% else %}
+                {% if breadcrumb_info["siblings"]|length > 0 %}
+                <a href="{{ breadcrumb['url'] }}" class="dropdown-toggle" data-bs-toggle="dropdown"  aria-expanded="false" role="button">{{ breadcrumb['name'] }}</a>
+                <ul class="dropdown-menu">
+                    {% for sibling in breadcrumb_info["siblings"] %}
+                    <li><a  class="p-3 dropdown-item" href="{{ sibling['url'] }}">{{ sibling["name"] }}</a></li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <a href="{{ breadcrumb['url'] }}" role="button">{{ breadcrumb['name'] }}</a>
+                {% endif %}
+              {% endif %}
+            </li>
+            {% endfor %}
+        </ol>
+    </nav>
+    {% endif %}
+    {% endblock %}
+
+
+
     {% block forecastpicker %}
 
     <div class="form-group row">
@@ -843,6 +872,8 @@
     <script src="{{ url_for('flexmeasures_ui.static', filename='js/flexmeasures.js') }}?v={{ flexmeasures_version }}"></script>
 
     {% endblock scripts %}
+
+
 
     {% block paginate_tables_script %}
     <script src="https://cdn.datatables.net/1.10.22/js/jquery.dataTables.min.js"></script>

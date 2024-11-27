@@ -14,6 +14,17 @@ def get_breadcrumb_info(entity: Sensor | Asset | Account | None) -> dict:
 
 
 def get_ancestry(entity: Sensor | Asset | Account | None) -> list[dict]:
+    """
+    Return a list of ancestors meta data, with URLs for their pages, their name and type.
+    This function calls itself recursively to go up the ancestral tree, up to the account.
+    This function also allows customization for assets and sensors (for this, set "breadcrumb_ancestry" attribute).
+    """
+    custom_ancestry = None
+    if entity is not None and not isinstance(entity, Account):
+        custom_ancestry = entity.get_attribute("breadcrumb_ancestry")
+    if custom_ancestry is not None and isinstance(custom_ancestry, list):
+        return custom_ancestry
+
     # Public account
     if entity is None:
         return [{"url": None, "name": "PUBLIC", "type": "Account"}]
@@ -60,6 +71,15 @@ def get_ancestry(entity: Sensor | Asset | Account | None) -> list[dict]:
 
 
 def get_siblings(entity: Sensor | Asset | Account | None) -> list[dict]:
+    """
+    Return a list of siblings meta data, with URLs for their pages, name and type.
+    This function also allows customization (for this, set "breadcrumb_siblings" attribute).
+    """
+    custom_siblings = None
+    if entity is not None and not isinstance(entity, Account):
+        custom_siblings = entity.get_attribute("breadcrumb_siblings")
+    if custom_siblings is not None and isinstance(custom_siblings, list):
+        return custom_siblings
     siblings = []
     if isinstance(entity, Sensor):
         siblings = [

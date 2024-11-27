@@ -15,10 +15,11 @@ New features
 * Speed up loading the users page, by making the pagination backend-based and adding support for that in the API [see `PR #1160 <https://github.com/FlexMeasures/flexmeasures/pull/1160>`_]
 * X-axis labels in CLI plots show datetime values in a readable and informative format [see `PR #1172 <https://github.com/FlexMeasures/flexmeasures/pull/1172>`_]
 * Enhanced API for listing sensors: Added filtering and pagination on sensor index endpoint and created new endpoint to get all sensors under an asset [see `PR #1191 <https://github.com/FlexMeasures/flexmeasures/pull/1191>`_ and `PR #1219 <https://github.com/FlexMeasures/flexmeasures/pull/1219>`_]
-* Speed up loading the accounts page,by making the pagination backend-based and adding support for that in the API [see `PR #1196 <https://github.com/FlexMeasures/flexmeasures/pull/1196>`_]
+* Speed up loading the accounts page by making the pagination backend-based and adding support for that in the API [see `PR #1196 <https://github.com/FlexMeasures/flexmeasures/pull/1196>`_]
 * Speed up loading the account detail page by by switching to server-side pagination for assets, replacing client-side pagination [see `PR #1202 <https://github.com/FlexMeasures/flexmeasures/pull/1202>`_]
-* Simplify and Globalize toasts in the flexmeasures project [see `PR #1207 <https://github.com/FlexMeasures/flexmeasures/pull/1207>`_]
-* Power sensors created through the CLI no longer require a capacity attribute to be set [see `PR #1234 <https://github.com/FlexMeasures/flexmeasures/pull/1234>_`]
+* Simplify and globalize UI messages, using Toast [see `PR #1207 <https://github.com/FlexMeasures/flexmeasures/pull/1207>`_]
+* Power sensors created through the CLI no longer require a capacity attribute to be set [see `PR #1234 <https://github.com/FlexMeasures/flexmeasures/pull/1234>`_]
+* The breadcrumbs on asset and sensor pages can now be customized [see `PR #1257 <https://github.com/FlexMeasures/flexmeasures/pull/1257>`_]
 
 Infrastructure / Support
 ----------------------
