@@ -215,6 +215,16 @@ class AssetAPI(FlaskView):
             "per_page": fields.Int(
                 required=False, validate=validate.Range(min=1), dump_default=10
             ),
+            "sort_by": fields.Str(
+                required=False,
+                load_default=None,
+                validate=validate.OneOf(["id", "name", "resolution"]),
+            ),
+            "sort_dir": fields.Str(
+                required=False,
+                load_default=None,
+                validate=validate.OneOf(["asc", "desc"]),
+            ),
         },
         location="query",
     )
@@ -225,6 +235,8 @@ class AssetAPI(FlaskView):
         asset: GenericAsset | None,
         page: int | None = None,
         per_page: int | None = None,
+        sort_by: str | None = None,
+        sort_dir: str | None = None,
     ):
         """
         List all sensors under an asset.
@@ -276,6 +288,19 @@ class AssetAPI(FlaskView):
         query_statement = Sensor.generic_asset_id == asset.id
 
         query = select(Sensor).filter(query_statement)
+
+        if sort_by is not None and sort_dir is not None:
+            valid_sort_columns = {
+                "id": Sensor.id,
+                "name": Sensor.name,
+                "resolution": Sensor.event_resolution,
+            }
+
+            query = query.order_by(
+                valid_sort_columns[sort_by].asc()
+                if sort_dir == "asc"
+                else valid_sort_columns[sort_by].desc()
+            )
 
         select_pagination: SelectPagination = db.paginate(
             query, per_page=per_page, page=page
