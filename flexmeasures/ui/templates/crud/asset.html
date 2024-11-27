@@ -420,11 +420,11 @@
                     <div class="row">
                         <div class="col">
 
-                            <button class="btn btn-primary mb-3" onclick="addBlankGraph()">
+                            <button class="btn btn-primary mb-3" onclick="addNewGraph()">
                                 Add Graph
                             </button>
 
-                            <div id="dataList" class="row"></div>
+                            <div id="graphList" class="row"></div>
                         </div>
                       
                         <div class="col">
@@ -499,10 +499,9 @@
     let rawJSON = "{{ asset.sensors_to_show | safe}}";
     rawJSON = rawJSON.replace(/'/g, '"');
     let data = JSON.parse(rawJSON);
-    let sensors = [];
-    let editingIndex; 
-    let savedGraphIndex;
-    let selectedGraphTitle;
+    let editingIndex; // keeps track of which graph we are currently editing
+    let savedGraphIndex; // keeps track of the graph that is currently selected
+    let selectedGraphTitle; // keeps track of the graph title that is currently selected
     const apiBasePath = window.location.origin;
     const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=10&asset_id={{ asset.id }}&include_public_assets=true`;
 
@@ -575,8 +574,8 @@
 
     // Function to render the graph cards
     async function renderGraphCards() {
-        const dataList = document.getElementById("dataList");
-        dataList.innerHTML = ""; 
+        const graphList = document.getElementById("graphList");
+        graphList.innerHTML = ""; 
         const newData = [];
 
         if (data.length === 0) {
@@ -659,7 +658,7 @@
                 </div>
             `;
 
-            dataList.appendChild(col);
+            graphList.appendChild(col);
             data = newData;
         }
     }
@@ -849,7 +848,7 @@
     }
 
     // Add blank graph to the graph cards
-    function addBlankGraph() {
+    function addNewGraph() {
         const newAsset = {
             title: "No Title " + (data.length + 1), 
             sensors: [], 
