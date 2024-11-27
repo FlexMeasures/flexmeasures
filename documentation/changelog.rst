@@ -30,6 +30,7 @@ Infrastructure / Support
 Bugfixes
 -----------
 * Fix table sorting on the assets and users page (regression from `PR #988 <https://github.com/FlexMeasures/flexmeasures/pull/988>`_) [see `PR #1239 <https://github.com/FlexMeasures/flexmeasures/pull/1239>`_ and `PR #1242 <https://github.com/FlexMeasures/flexmeasures/pull/1242>`_ ]
+* Fix asset count on the user page, which showed 0 assets after (de)activating a user or resetting their password [see `PR #1251 <https://github.com/FlexMeasures/flexmeasures/pull/1251>`_]
 * The UI footer now stays at the bottom even on pages with little content [see `PR #1204 <https://github.com/FlexMeasures/flexmeasures/pull/1204>`_]
 * Correct stroke dash (based on source type) for forecasts made by forecasters included in FlexMeasures [see `PR #1211 <https://www.github.com/FlexMeasures/flexmeasures/pull/1211>`_]
 * Show the correct :abbr:`UTC (Coordinated Universal Time)` offset for the data's time span as shown under sensor stats in the UI [see `PR #1213 <https://github.com/FlexMeasures/flexmeasures/pull/1213>`_]
