@@ -394,7 +394,7 @@
                           tabindex="0"
                           data-bs-placement="right"
                           data-bs-toggle="tooltip"
-                        ></span>
+                       ></span>
                       
                         <div class="dropdown-menu p-3" style="width: 400px;">
                             <div>
@@ -440,7 +440,7 @@
                                 </div>
                         
                                 <div class="col-4">
-                                    <select class="form-select" aria-label="Default select example"
+                                    <select id="unitsSelect" class="form-select" aria-label="Default select example"
                                         onchange="filterSensors()">
                                         <option selected>Units</option>
                                         {% for unit in available_units %}
@@ -488,77 +488,77 @@
     const formModal = document.getElementById('sensorsToShowForm');
     const apiSensorsListElement = document.getElementById("apiSensorsList");
     const spinnerElement = document.getElementById('spinnerElement');
-    let rawJSON = "{{ asset.sensors_to_show | safe}}";
+    let rawJSON = "{{ asset.sensors_to_show | safe }}";
     rawJSON = rawJSON.replace(/'/g, '"');
-    let data = JSON.parse(rawJSON);
+    let sensorsToShow = JSON.parse(rawJSON);
     let cachedFilteredSensors = []; // keeps track of the filtered sensors
     let editingIndex; // keeps track of which graph we are currently editing
     let savedGraphIndex; // keeps track of the graph that is currently selected
     let selectedGraphTitle; // keeps track of the graph title that is currently selected
     const apiBasePath = window.location.origin;
     const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=10&asset_id={{ asset.id }}&include_public_assets=true`;
-
+    
     // Fetch Account Details
-    async function getAccount(accountId){
+    async function getAccount(accountId) {
         const cacheKey = `account_${accountId}`;
         const cachedData = localStorage.getItem(cacheKey);
-
+    
         if (cachedData) {
             return JSON.parse(cachedData);
         }
-
+    
         const apiUrl = apiBasePath + "/api/v3_0/accounts/" + accountId;
         const response = await fetch(apiUrl);
         const account = await response.json();
-
+    
         localStorage.setItem(cacheKey, JSON.stringify(account));
-
+    
         return account;
     }
-
+    
     // Fetch Asset Details
-    async function getAsset(assetId){
+    async function getAsset(assetId) {
         const cacheKey = `asset_${assetId}`;
         const cachedData = localStorage.getItem(cacheKey);
-
+    
         if (cachedData) {
             return JSON.parse(cachedData);
         }
-
+    
         const apiUrl = apiBasePath + "/api/v3_0/assets/" + assetId;
         const response = await fetch(apiUrl);
         const asset = await response.json();
-
+    
         localStorage.setItem(cacheKey, JSON.stringify(asset));
-
+    
         return asset;
     }
-
+    
     // Fetch Sensor Details
     async function getSensor(id) {
         const cacheKey = `sensor_${id}`;
         const cachedData = localStorage.getItem(cacheKey);
-
+    
         if (cachedData) {
             return JSON.parse(cachedData);
         }
-
+    
         const apiUrl = apiBasePath + "/api/v3_0/sensors/" + id;
         const response = await fetch(apiUrl);
         const sensor = await response.json();
-        
+    
         localStorage.setItem(cacheKey, JSON.stringify(sensor));
-        
+    
         return sensor;
     }
-
+    
     // highlight selected graph 
     async function selectGraph(graphIndex) {
-        if (graphIndex !== undefined){
+        if (graphIndex !== undefined) {
             savedGraphIndex = graphIndex;
-            selectedGraphTitle = data[graphIndex]?.title;
+            selectedGraphTitle = sensorsToShow[graphIndex]?.title;
             // check if graphIndex still exists(This is because this function is called when the removed button is clicked as well)
-            if (data[graphIndex]) {
+            if (sensorsToShow[graphIndex]) {
                 renderApiSensors(cachedFilteredSensors, graphIndex);
             } else {
                 renderApiSensors(cachedFilteredSensors);
@@ -569,124 +569,121 @@
             renderGraphCards();
         }
     }
-
+    
     // Function to render the graph cards
     async function renderGraphCards() {
         const graphList = document.getElementById("graphList");
-        graphList.innerHTML = ""; 
-        const newData = [];
-
-        if (data.length === 0) {
+        graphList.innerHTML = "";
+        const newSensorsToShow = [];
+    
+        if (sensorsToShow.length === 0) {
             return;
         }
-
-        for (const [index, item] of data.entries()) {
+    
+        for (const [index, item] of sensorsToShow.entries()) {
             const col = document.createElement("div");
             col.classList.add("col-12", "mb-1");
-
+    
             const sensorsUnits = [];
             const newItem = {
-                title: item.title ?? "No Title", 
-                sensors: item.sensors ?? (Array.isArray(item) ? item : [item]),  
+                title: item.title ?? "No Title",
+                sensors: item.sensors ?? (Array.isArray(item) ? item : [item]),
             }
-            newData.push(newItem);
-
+            newSensorsToShow.push(newItem);
+    
             const sensorsContent = await Promise.all(
                 newItem.sensors.map(async (sensor, sensorIndex) => {
                     const sensorData = await getSensor(sensor);
                     const Asset = await getAsset(sensorData.generic_asset_id);
                     const Account = await getAccount(Asset.account_id);
                     sensorsUnits.push(sensorData.unit);
-            
-                    return `
+    
+                return `
                     <div class="p-1 mb-3 border-bottom border-secondary">
                         <span>
-                            <b>ID:</b> <a href="${apiBasePath}/sensors/${sensorData.id}">${sensorData.id}</a>, 
+                            <b>ID:</b> <a href="${apiBasePath}/sensors/${sensorData.id}">${sensorData.id}</a>,
                             <b>Unit:</b> ${sensorData.unit},
                             <b>Name:</b> ${sensorData.name},
-                            <i class="fa fa-times" 
+                            <i class="fa fa-times"
                                 onclick="removeSensorFromGraph(${index}, ${sensorIndex})"
-                                data-bs-toggle="tooltip" 
-                                data-bs-placement="top" 
+                                data-bs-toggle="tooltip"
+                                data-bs-placement="top"
                                 title="Remove Sensor"
                                 style="cursor: pointer;"
-                            >
-                            </i>
+                            ></i>
 
                             <div style="padding-top: 1px;"></div>
 
                             <b>Asset:</b> ${Asset.name},
                             <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
                         </span>
-                    </div>
-                    `;
-                })
-            );
+                    </div>`;
+            }));
 
             const uniqueUnits = [...new Set(sensorsUnits)];
 
             col.innerHTML = `
-                <div class="card m-0 p-1">
-                    <div class="card-body card-highlight ${newItem.title === selectedGraphTitle ? "border-on-click" : ""}" id="graph_${index}" onclick="selectGraph(${index})">
-                        <div class="d-flex align-items-center">
-                            <div>
-                                ${editingIndex === index
-                                    ? `<input type="text" class="form-control mb-2 me-2" id="editTitle_${index}" value="${newItem.title}" onkeydown="handleEnterKeyEvent(event, ${index})" />`
-                                    : `<h5 class="card-title me-2">${newItem.title}</h5>`
-                                }
-                            </div>
-
-                            <div>
-                                ${editingIndex === index
-                                    ? `<button class="btn btn-success btn-sm ms-2" onclick="saveGraphTitle(${index})">Save</button>`
-                                    : `<button class="btn btn-warning btn-sm ms-2" onclick="editGraphTitle(${index})">Edit</button>`
-                                }
-                            </div>
-                        </div>
-                        <h5 class="card-title pt-2"><b> Sensors: </b></h5>
+            <div class="card m-0 p-1">
+                <div class="card-body card-highlight ${newItem.title === selectedGraphTitle ? " border-on-click" : ""}" id="graph_${index}" onclick="selectGraph(${index})">
+                    <div class="d-flex align-items-center">
                         <div>
-                            ${sensorsContent.length > 0 ? sensorsContent.join("") : "<i>Add sensors on the right side</i>"}
-                            ${uniqueUnits.length > 1 ? `<div class="alert alert-warning" role="alert">Note that you are showing sensors with different units</div>` : ""}
+                            ${editingIndex === index
+                            ? `<input type="text" class="form-control mb-2 me-2" id="editTitle_${index}" value="${newItem.title}" onkeydown="handleEnterKeyEvent(event, ${index})" />`
+                            : `<h5 class="card-title me-2">${newItem.title}</h5>`
+                        }
                         </div>
-                        
-                        <button class="btn btn-danger btn-sm me-2" onclick="removeGraph(${index})">Remove</button>
-                        <button class="btn btn-secondary btn-sm me-2" onclick="moveGraphUp(${index})" ${index === 0 ? "disabled" : ""}>Move Up</button>
-                        <button class="btn btn-secondary btn-sm" onclick="moveGraphDown(${index})" ${index === data.length - 1 ? "disabled" : ""}>Move Down</button>
+
+                        <div>
+                            ${editingIndex === index
+                            ? `<button class="btn btn-success btn-sm ms-2" onclick="saveGraphTitle(${index})">Save</button>`
+                            : `<button class="btn btn-warning btn-sm ms-2" onclick="editGraphTitle(${index})">Edit</button>`
+                        }
+                        </div>
                     </div>
+                    <h5 class="card-title pt-2"><b> Sensors: </b></h5>
+                    <div>
+                        ${sensorsContent.length > 0 ? sensorsContent.join("") : "<i>Add sensors on the right side</i>"}
+                        ${uniqueUnits.length > 1 ? `<div class="alert alert-warning" role="alert">Note that you are showing sensors with different units</div>` : ""}
+                    </div>
+
+                    <button class="btn btn-danger btn-sm me-2" onclick="removeGraph(${index})">Remove</button>
+                    <button class="btn btn-secondary btn-sm me-2" onclick="moveGraphUp(${index})" ${index === 0 ? "disabled" : ""}>Move Up</button>
+                    <button class="btn btn-secondary btn-sm" onclick="moveGraphDown(${index})" ${index === sensorsToShow.length - 1 ? "disabled" : ""}>Move Down</button>
                 </div>
-            `;
+            </div>`;
 
             graphList.appendChild(col);
-            data = newData;
         }
+    
+        sensorsToShow = newSensorsToShow;
     }
-
+    
     async function filterSensors() {
         const searchValue = document.getElementById("searchInput").value.toLowerCase();
         const filterValue = document.getElementById("unitsSelect").value;
         const highlightedCard = document.querySelector('.border-on-click');
         spinnerElement.style.display = 'flex';
         apiSensorsListElement.style.display = 'none';
-
+    
         // Due to the nature of async functions, the highlightedCard might not be available
         // when the filterSensors function is called. So, we need to check if it exists
         if (highlightedCard) {
             const cardId = highlightedCard.id;
             const index = cardId.split("_")[1];
             savedGraphIndex = index;
-            selectedGraphTitle = data[index].title;
+            selectedGraphTitle = sensorsToShow[index].title;
         } else {
             savedGraphIndex = undefined;
             selectedGraphTitle = undefined;
         }
-
+    
         // check if apiSensorsList has been rendered
         if (apiSensorsListElement.innerHTML === "") {
             document.getElementById('apiSensorsList').style.display = 'block';
         }
     
         const params = new URLSearchParams();
-        
+    
         if (searchValue) {
             params.append('filter', searchValue);
         }
@@ -695,27 +692,27 @@
             params.append('unit', filterValue);
         }
     
-        const apiUrl = `${sensorsApiUrl}&${params.toString()}`;
+        const apiUrl = `${sensorsApiUrl}&${params.toString()} `;
     
         try {
             const response = await fetch(apiUrl);
-            
+    
             if (!response.ok) {
                 throw new Error('Failed to fetch sensors');
             }
     
-            const data = await response.json();
-            const filteredSensors = data.data;
-
+            const responseData = await response.json();
+            const filteredSensors = responseData.data;
+    
             // Render the fetched sensors
             if (savedGraphIndex !== null && savedGraphIndex !== undefined) {
                 renderApiSensors(filteredSensors, savedGraphIndex);
             } else {
                 renderApiSensors(filteredSensors);
             }
-
+    
             cachedFilteredSensors = filteredSensors;
-
+    
             spinnerElement.classList.add('hidden-important');
             apiSensorsListElement.style.display = 'block';
         } catch (error) {
@@ -723,59 +720,59 @@
             console.error(error);
         }
     }
-
-
+    
+    
     // ============== Graph Cards Management ============== //
-
+    
     async function removeGraph(index) {
-        data.splice(index, 1);
-        renderGraphCards(); 
+        sensorsToShow.splice(index, 1);
+        renderGraphCards();
     }
-
+    
     async function swapItems(index1, index2) {
-        if (index1 >= 0 && index2 >= 0 && index1 < data.length && index2 < data.length) {
-            [data[index1], data[index2]] = [data[index2], data[index1]];
+        if (index1 >= 0 && index2 >= 0 && index1 < sensorsToShow.length && index2 < sensorsToShow.length) {
+            [sensorsToShow[index1], sensorsToShow[index2]] = [sensorsToShow[index2], sensorsToShow[index1]];
             renderGraphCards()
         }
     }
     
     async function moveGraphUp(index) {
         if (index > 0) {
-            selectedGraphTitle = data[index].title; // This is to keep the selected graph highlighted
+            selectedGraphTitle = sensorsToShow[index].title; // This is to keep the selected graph highlighted
             await swapItems(index, index - 1);
         }
     }
     
     async function moveGraphDown(index) {
-        if (index < data.length - 1) {
-            selectedGraphTitle = data[index].title; // This is to keep the selected graph highlighted
+        if (index < sensorsToShow.length - 1) {
+            selectedGraphTitle = sensorsToShow[index].title; // This is to keep the selected graph highlighted
             await swapItems(index, index + 1);
         }
     }
-
+    
     function editGraphTitle(index) {
         editingIndex = index;
         renderGraphCards();
     }
-
+    
     async function saveGraphTitle(index) {
         const newTitle = document.getElementById(`editTitle_${index}`).value;
-        data[index].title = newTitle;
+        sensorsToShow[index].title = newTitle;
         editingIndex = null;
         selectedGraphTitle = newTitle;
-        renderGraphCards(); 
+        renderGraphCards();
     }
     
     // ============== Graph Cards Management ============== //
-
-
-
+    
+    
+    
     // Render the available API sensors
     function renderApiSensors(sensors, graphIndex) {
         // graphIndex is undefined when the sensors are being added to the graph
         // graphIndex is defined when the sensors are being added to the graph cards. In other words 
         // when more sensors are being added to single graph
-
+    
         apiSensorsList.innerHTML = ""; // Clear the previous sensors
         if (sensors.length === 0) {
             apiSensorsList.innerHTML = "<h3>No sensors found</h3>";
@@ -784,94 +781,93 @@
         sensors.forEach(async (sensor) => {
             const Asset = await getAsset(sensor.generic_asset_id);
             const Account = await getAccount(Asset.account_id);
-
+    
             const col = document.createElement("div");
             col.classList.add("col-12", "mb-1");
-
+    
             col.innerHTML = `
-                <div class="card m-0">
-                    <div class="card-body p-0 sensor-card">
-                        <h5 class="card-title">${sensor.name}</h5>
-                        <p class="card-text">
-                            <b>ID:</b> <a href="${apiBasePath}/sensors/${sensor.id}">${sensor.id}</a>, 
-                            <b>Unit:</b> ${sensor.unit},
-                            <b>Asset:</b> ${Asset.name},
-                            <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
-                        </p>
-                        ${graphIndex !== undefined && savedGraphIndex !== undefined && selectedGraphTitle !== savedGraphIndex
-                        ? `<button class="btn btn-primary btn-sm" onclick="addSensorToExistingGraph(${graphIndex}, ${sensor.id})">Add to '${selectedGraphTitle}' Graph</button>` 
+            <div class="card m-0">
+                <div class="card-body p-0 sensor-card">
+                    <h5 class="card-title">${sensor.name}</h5>
+                    <p class="card-text">
+                        <b>ID:</b> <a href="${apiBasePath}/sensors/${sensor.id}">${sensor.id}</a>,
+                        <b>Unit:</b> ${sensor.unit},
+                        <b>Asset:</b> ${Asset.name},
+                        <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
+                    </p>
+                    ${graphIndex !== undefined && savedGraphIndex !== undefined && selectedGraphTitle !== savedGraphIndex
+                        ? `<button class="btn btn-primary btn-sm" onclick="addSensorToExistingGraph(${graphIndex}, ${sensor.id})">Add to '${selectedGraphTitle}' Graph</button>`
                         : `<button class="btn btn-primary btn-sm" onclick="addSensorAsGraph(${sensor.id})">Add to new Graph</button>`
-                        }
-                        
-                    </div>
+                    }
                 </div>
-            `;
-
+            </div>
+        `;
+    
             apiSensorsList.appendChild(col);
         });
     }
-
+    
     async function updateAssetSensorsToShow() {
         const graphSpinnerElement = document.getElementById('spinner');
         // Show spinner
         graphSpinnerElement.style.display = 'block';
-
+    
         const apiURL = apiBasePath + "/api/v3_0/assets/{{ asset.id }}";
-        const dataJson = JSON.stringify( {sensors_to_show: JSON.stringify(data)} );
+        const sensorsToShowJson = JSON.stringify({ sensors_to_show: JSON.stringify(sensorsToShow) });
     
         const response = await fetch(apiURL, {
             method: "PATCH",
             headers: {
                 "Content-Type": "application/json",
             },
-            body: dataJson,
+            body: sensorsToShowJson,
         });
     
         if (!response.ok) {
             showToast("Failed to update the asset", "error");
-        } else{
+        } else {
             document.dispatchEvent(new Event('sensorsToShowUpdated'));
             showToast("Changes saved successfully", "success");
         }
     }
-
+    
     // Add a sensor as a new graph card
     function addSensorAsGraph(id) {
         const newAsset = {
-            title: "No Title", 
-            sensors: [id], 
+            title: "No Title",
+            sensors: [id],
         };
-        data.push(newAsset);
+        sensorsToShow.push(newAsset);
         renderGraphCards();
     }
-
+    
     // Add blank graph to the graph cards
     function addNewGraph() {
         const newAsset = {
-            title: "No Title " + (data.length + 1), 
-            sensors: [], 
+            title: "No Title " + (sensorsToShow.length + 1),
+            sensors: [],
         };
         selectedGraphTitle = newAsset.title;
-        data.push(newAsset);
-        selectGraph(data.length - 1)
+        sensorsToShow.push(newAsset);
+        selectGraph(sensorsToShow.length - 1)
         renderGraphCards();
     }
-
+    
     // Add Sensor to an existing graph card
     function addSensorToExistingGraph(graphIndex, sensorId) {
-        data[graphIndex].sensors.push(sensorId);
+        sensorsToShow[graphIndex].sensors.push(sensorId);
         renderGraphCards();
     }
-
+    
     // Remove sensor from the graph sensor list
     function removeSensorFromGraph(graphIndex, sensorIndex) {
-        data[graphIndex].sensors.splice(sensorIndex, 1);
+        sensorsToShow[graphIndex].sensors.splice(sensorIndex, 1);
         savedGraphIndex = undefined;
         selectedGraphTitle = undefined;
         editingIndex = undefined;
         renderGraphCards();
     }
-
+    
     function handleEnterKeyEvent(event, index) {
         if (event.key === "Enter") {
             saveGraphTitle(index);
@@ -879,12 +875,12 @@
     }
     // Initial render of graph cards
     renderGraphCards();
-
+    
     formModal.addEventListener('hidden.bs.modal', function () {
         updateAssetSensorsToShow();
     });
-
-    document.addEventListener("click", function(event) {
+    
+    document.addEventListener("click", function (event) {
         /**
         The logic in this block is majorly to remove the border on click of the card and add it to the selected card
         but as this event is added to the document, it will be triggered on any click event on the page
@@ -894,7 +890,7 @@
         const sensorCard = event.target.closest(".sensor-card");
         const searchInput = event.target.id === "searchInput";
         const cardBody = event.target.closest(".card-body");
-
+    
         if (card) {
             if (card.classList.contains("border-on-click")) {
                 // Pass
@@ -903,10 +899,10 @@
                 card.classList.add("border-on-click");
             }
         } else if (
-            cardBody !== null && cardBody !== undefined || 
-            sensorCard !== null && sensorCard !== undefined || 
-            searchInput !== null && searchInput!== undefined
-            ) {
+            cardBody !== null && cardBody !== undefined ||
+            sensorCard !== null && sensorCard !== undefined ||
+            searchInput !== null && searchInput !== undefined
+        ) {
             // Pass
         } else {
             document.querySelectorAll(".card-highlight").forEach(el => el.classList.remove("border-on-click"));
@@ -914,7 +910,6 @@
         }
     });
 </script>
-
 <script type="text/javascript">
 
     // create map
