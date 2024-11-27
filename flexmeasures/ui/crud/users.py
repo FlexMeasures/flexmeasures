@@ -128,12 +128,7 @@ class UserCrudUI(FlaskView):
         user: User = process_internal_api_response(
             get_user_response.json(), make_obj=True
         )
-        asset_count = 0
-        if user:
-            get_users_assets_response = InternalApi().get(
-                url_for("AssetAPI:index", account_id=user.account_id)
-            )
-            asset_count = len(get_users_assets_response.json())
+        asset_count = get_asset_count(user)
         return render_user(user, asset_count=asset_count)
 
     @roles_required(ADMIN_ROLE)
