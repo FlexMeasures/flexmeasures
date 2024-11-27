@@ -893,12 +893,16 @@
     });
 
     document.addEventListener("click", function(event) {
+        /**
+        The logic in this block is majorly to remove the border on click of the card and add it to the selected card
+        but as this event is added to the document, it will be triggered on any click event on the page
+        so the if statements are used to check if the click event is on the card or not
+        */
         const card = event.target.closest(".card-highlight");
         const sensorCard = event.target.closest(".sensor-card");
         const searchInput = event.target.id === "searchInput";
         const cardBody = event.target.closest(".card-body");
 
-        
         if (card) {
             if (card.classList.contains("border-on-click")) {
                 // Pass
