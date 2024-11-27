@@ -27,7 +27,7 @@ setup(
     description="The *FlexMeasures Platform* is the intelligent backend to support real-time energy flexibility apps, rapidly and scalable.",
     author="Seita BV",
     author_email="nicolas@seita.nl",
-    url="https://github.com/seitabv/flexmeasures",
+    url="https://github.com/FlexMeasures/flexmeasures",
     keywords=["smart grid", "renewables", "balancing", "forecasting", "scheduling"],
     python_requires=">=3.8",  # not enforced, just info
     install_requires=load_requirements("app"),
