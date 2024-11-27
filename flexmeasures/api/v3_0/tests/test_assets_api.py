@@ -149,16 +149,42 @@ def test_get_assets(
         assert turbine["account_id"] == setup_accounts["Supplier"].id
 
 
-@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
-def test_fetch_asset_sensors(client, setup_api_test_data, requesting_user):
+@pytest.mark.parametrize(
+    "requesting_user, sort_by, sort_dir, expected_name_of_first_sensor",
+    [
+        ("test_admin_user@seita.nl", None, None, None),
+        ("test_admin_user@seita.nl", "name", "asc", "empty temperature sensor"),
+        ("test_admin_user@seita.nl", "name", "desc", "some temperature sensor"),
+    ],
+    indirect=["requesting_user"],
+)
+def test_fetch_asset_sensors(
+    client,
+    setup_api_test_data,
+    requesting_user,
+    sort_by,
+    sort_dir,
+    expected_name_of_first_sensor,
+):
     """
     Retrieve all sensors associated with a specific asset.
 
     This test checks for these metadata fields and the number of sensors returned, as well as
     confirming that the response is a list of dictionaries, each containing a valid unit.
     """
+
+    query = {}
+
+    if sort_by:
+        query["sort_by"] = sort_by
+
+    if sort_dir:
+        query["sort_dir"] = sort_dir
+
     asset_id = setup_api_test_data["some gas sensor"].generic_asset_id
-    response = client.get(url_for("AssetAPI:asset_sensors", id=asset_id))
+    response = client.get(
+        url_for("AssetAPI:asset_sensors", id=asset_id), query_string=query
+    )
 
     print("Server responded with:\n%s" % response.json)
 
@@ -169,6 +195,9 @@ def test_fetch_asset_sensors(client, setup_api_test_data, requesting_user):
     assert is_valid_unit(response.json["data"][0]["unit"])
     assert response.json["num-records"] == 3
     assert response.json["filtered-records"] == 3
+
+    if sort_by:
+        assert response.json["data"][0]["name"] == expected_name_of_first_sensor
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
