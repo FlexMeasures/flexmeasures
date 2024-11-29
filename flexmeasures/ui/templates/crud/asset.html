@@ -642,7 +642,7 @@
                     </div>
                     <h5 class="card-title pt-2"><b> Sensors: </b></h5>
                     <div>
-                        ${sensorsContent.length > 0 ? sensorsContent.join("") : "<div class="alert alert-warning" role="alert"> No sensors added to this graph. Add sensors by selecting them from the right</div>"}
+                        ${sensorsContent.length > 0 ? sensorsContent.join("") : `<div class="alert alert-warning" role="alert"> No sensors added to this graph. Add sensors by selecting them from the right</div>`}
                         ${uniqueUnits.length > 1 ? `<div class="alert alert-warning" role="alert">Note that you are showing sensors with different units</div>` : ""}
                     </div>
 
