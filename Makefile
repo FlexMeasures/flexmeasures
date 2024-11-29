@@ -43,7 +43,7 @@ install-for-dev:
 	make ensure-deps-folder
 	pip-sync requirements/${PYV}/app.txt requirements/${PYV}/dev.txt requirements/${PYV}/test.txt
 	make install-flexmeasures
-# Locally install HiGS on macOS
+# Locally install HiGHS on macOS
 	if [ "$(shell uname)" = "Darwin" ]; then \
 		make install-highs-macos; \
 	fi
@@ -57,7 +57,7 @@ else
 	pip install --upgrade -r requirements/app.in -r requirements/test.in
 endif
 	make install-flexmeasures
-# Locally install HiGS on macOS
+# Locally install HiGHS on macOS
 	if [ "$(shell uname)" = "Darwin" ]; then \
 		make install-highs-macos; \
 	fi
