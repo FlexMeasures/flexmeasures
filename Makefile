@@ -44,7 +44,7 @@ install-for-dev:
 	pip-sync requirements/${PYV}/app.txt requirements/${PYV}/dev.txt requirements/${PYV}/test.txt
 	make install-flexmeasures
 # Locally install HiGHS on macOS
-	if [ "$(shell uname)" = "Darwin" ]; then \
+	@if [ "$(shell uname)" = "Darwin" ]; then \
 		make install-highs-macos; \
 	fi
 
@@ -58,12 +58,12 @@ else
 endif
 	make install-flexmeasures
 # Locally install HiGHS on macOS
-	if [ "$(shell uname)" = "Darwin" ]; then \
+	@if [ "$(shell uname)" = "Darwin" ]; then \
 		make install-highs-macos; \
 	fi
 
 $(HIGHS_DIR):
-	if [ ! -d $(HIGHS_DIR) ]; then \
+	@if [ ! -d $(HIGHS_DIR) ]; then \
 		git clone https://github.com/ERGO-Code/HiGHS.git $(HIGHS_DIR); \
 	fi
 	brew install cmake;
