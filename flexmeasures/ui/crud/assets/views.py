@@ -61,6 +61,7 @@ class AssetCrudUI(FlaskView):
             "crud/assets.html",
             asset_icon_map=ICON_MAPPING,
             message=msg,
+            account=None,
             user_can_create_assets=user_can_create_assets(),
         )
 

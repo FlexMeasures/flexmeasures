@@ -39,7 +39,8 @@ def test_user_page(client, as_admin, requests_mock):
     requests_mock.get(
         "http://localhost//api/v3_0/assets",
         status_code=200,
-        json=[{}, {}, {}],  # we only care about the length
+        # the UI page only cares about the asset count, which is derived from the length
+        json=[{}, {}, {}],
     )
     user_page = client.get(url_for("UserCrudUI:get", id=2), follow_redirects=True)
     assert user_page.status_code == 200
@@ -56,12 +57,19 @@ def test_deactivate_user(client, as_admin, requests_mock):
         status_code=200,
         json={"active": False},
     )
+    requests_mock.get(
+        "http://localhost//api/v3_0/assets",
+        status_code=200,
+        # the UI page only cares about the asset count, which is derived from the length
+        json=[{}, {}, {}],
+    )
     # de-activate
     user_page = client.get(
         url_for("UserCrudUI:toggle_active", id=user2.id), follow_redirects=True
     )
     assert user_page.status_code == 200
     assert user2.username in str(user_page.data)
+    assert (">3</a>").encode() in user_page.data  # this is the asset count
     assert b"new activation status is now False" in user_page.data
 
 
@@ -72,9 +80,16 @@ def test_reset_password(client, as_admin, requests_mock):
         f"http://localhost//api/v3_0/users/{user2.id}/password-reset",
         status_code=200,
     )
+    requests_mock.get(
+        "http://localhost//api/v3_0/assets",
+        status_code=200,
+        # the UI page only cares about the asset count, which is derived from the length
+        json=[{}, {}, {}],
+    )
     user_page = client.get(
         url_for("UserCrudUI:reset_password_for", id=user2.id),
         follow_redirects=True,
     )
     assert user_page.status_code == 200
+    assert (">3</a>").encode() in user_page.data  # this is the asset count
     assert b"has been changed to a random password" in user_page.data
