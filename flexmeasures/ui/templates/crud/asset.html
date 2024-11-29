@@ -600,10 +600,15 @@
     
                 return `
                     <div class="p-1 mb-3 border-bottom border-secondary">
-                        <span>
-                            <b>ID:</b> <a href="${apiBasePath}/sensors/${sensorData.id}">${sensorData.id}</a>,
-                            <b>Unit:</b> ${sensorData.unit},
-                            <b>Name:</b> ${sensorData.name},
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <b>ID:</b> <a href="${apiBasePath}/sensors/${sensorData.id}">${sensorData.id}</a>,
+                                <b>Unit:</b> ${sensorData.unit},
+                                <b>Name:</b> ${sensorData.name},
+                                <div style="padding-top: 1px;"></div>
+                                <b>Asset:</b> ${Asset.name},
+                                <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
+                            </div>
                             <i class="fa fa-times"
                                 onclick="removeSensorFromGraph(${index}, ${sensorIndex})"
                                 data-bs-toggle="tooltip"
@@ -611,12 +616,8 @@
                                 title="Remove Sensor"
                                 style="cursor: pointer;"
                             ></i>
+                        </div>
 
-                            <div style="padding-top: 1px;"></div>
-
-                            <b>Asset:</b> ${Asset.name},
-                            <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
-                        </span>
                     </div>`;
             }));
 
