@@ -585,6 +585,7 @@
             col.classList.add("col-12", "mb-1");
     
             const sensorsUnits = [];
+            // the initializing of the newItem is to handle the case where the item is an array of ID's instead of an object
             const newItem = {
                 title: item.title ?? "No Title",
                 sensors: item.sensors ?? (Array.isArray(item) ? item : [item]),
