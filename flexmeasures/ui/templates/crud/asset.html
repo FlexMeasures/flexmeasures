@@ -471,7 +471,7 @@
     let savedGraphIndex; // keeps track of the graph that is currently selected
     let selectedGraphTitle; // keeps track of the graph title that is currently selected
     const apiBasePath = window.location.origin;
-    const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=10&asset_id={{ asset.id }}&include_public_assets=true`;
+    const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ asset.id }}&include_public_assets=true`;
     
     // Fetch Account Details
     async function getAccount(accountId) {
@@ -774,7 +774,7 @@
                     </p>
                     ${graphIndex !== undefined && savedGraphIndex !== undefined && selectedGraphTitle !== savedGraphIndex
                         ? `<button class="btn btn-primary btn-sm" onclick="addSensorToExistingGraph(${graphIndex}, ${sensor.id})">Add to '${selectedGraphTitle}' Graph</button>`
-                        : `<button class="btn btn-primary btn-sm" onclick="addSensorAsGraph(${sensor.id})">Add to new Graph</button>`
+                        : `<button class="btn btn-primary btn-sm" onclick="addSensorAsGraph(${sensor.id})">Add new Graph</button>`
                     }
                 </div>
             </div>
@@ -850,8 +850,10 @@
             saveGraphTitle(index);
         }
     }
-    // Initial render of graph cards
-    renderGraphCards();
+
+    // Initial renders
+    renderGraphCards(); // Initial render of graph cards
+    filterSensors(); // Initial render of sensors
     
     formModal.addEventListener('hidden.bs.modal', function () {
         updateAssetSensorsToShow();
