@@ -15,6 +15,7 @@ from sentry_sdk import (
     set_context as set_sentry_context,
 )
 from sqlalchemy import select
+from tabulate import tabulate
 
 from flexmeasures.data import db
 from flexmeasures.data.models.task_runs import LatestTaskRun
@@ -126,16 +127,18 @@ def send_lastseen_monitoring_alert(
     """
     Tell monitoring recipients and Sentry about user(s) we haven't seen in a while.
     """
-    user_info_list = [
-        f"{user.username} (last contact was {user.last_seen_at})" for user in users
+
+    user_info = [
+        [user.username, user.last_seen_at.strftime("%d %b %Y %I:%M:%S %p")]
+        for user in users
     ]
 
     msg = (
         f"The following user(s) have not contacted this FlexMeasures server for more"
-        f" than {last_seen_delta}, even though we expect they would have:\n"
+        f" than {last_seen_delta}, even though we expect they would have:\n\n"
     )
-    for user_info in user_info_list:
-        msg += f"\n- {user_info}"
+
+    msg += tabulate(user_info, headers=["User", "Last contact"])
 
     # Sentry
     set_sentry_context(
@@ -251,7 +254,7 @@ def monitor_last_seen(
             > latest_run.datetime
         ]
         if len(users) < original_length:
-            txt_about_ignored_users = "There are (also) users who have been absent long, but one of the earlier monitoring run already included them (run monitoring with --include-all-users-each-run to see them)."
+            txt_about_ignored_users = "There are (also) users who have been absent long, but one of the earlier monitoring runs already included them (run monitoring with --include-all-users-each-run to see them)."
     if not users:
         click.secho(
             f"All good ― no users were found with relevant criteria and last_seen_at longer than {maximum_minutes_since_last_seen} minutes ago. {txt_about_ignored_users}",
