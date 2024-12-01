@@ -121,6 +121,7 @@ def send_lastseen_monitoring_alert(
     alerted_users: bool,
     account_role: str | None = None,
     user_role: str | None = None,
+    txt_about_ignored_users: str = "",
 ):
     """
     Tell monitoring recipients and Sentry about user(s) we haven't seen in a while.
@@ -154,6 +155,8 @@ def send_lastseen_monitoring_alert(
         msg += f"\nThis alert concerns users whose accounts have the role '{account_role}'."
     if user_role:
         msg += f"\nThis alert concerns users who have the role '{user_role}'."
+    if txt_about_ignored_users:
+        msg += f"\n{txt_about_ignored_users}"
     if alerted_users:
         msg += "\n\nThe user(s) has/have been notified by email, as well."
     else:
@@ -238,17 +241,20 @@ def monitor_last_seen(
     if user_role is not None:
         users = [user for user in users if user.has_role(user_role)]
     # filter out users who we already included in this check's last run
+    txt_about_ignored_users = ""
     if not include_all_users_each_run and latest_run:
+        original_length = len(users)
         users = [
             user
             for user in users
             if user.last_seen_at.replace(tzinfo=timezone.utc) + last_seen_delta
             > latest_run.datetime
         ]
-
+        if len(users) < original_length:
+            txt_about_ignored_users = "There are (also) users who have been absent long, but one of the earlier monitoring run already included them (run monitoring with --include-all-users-each-run to see them)."
     if not users:
         click.secho(
-            f"All good ― no users were found with relevant criteria and last_seen_at longer than {maximum_minutes_since_last_seen} minutes ago.",
+            f"All good ― no users were found with relevant criteria and last_seen_at longer than {maximum_minutes_since_last_seen} minutes ago. {txt_about_ignored_users}",
             **MsgStyle.SUCCESS,
         )
         raise click.Abort()
@@ -282,6 +288,7 @@ def monitor_last_seen(
         alerted_users=alert_users,
         account_role=account_role,
         user_role=user_role,
+        txt_about_ignored_users=txt_about_ignored_users,
     )
 
     # remember that we checked at this time
