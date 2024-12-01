@@ -4,7 +4,7 @@ CLI commands for monitoring functionality.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import click
 from flask import current_app as app
@@ -201,12 +201,19 @@ def send_lastseen_monitoring_alert(
     default="",
     help="Add this message to the monitoring alert email to users (if one is sent).",
 )
+@click.option(
+    "--include-all-users-each-run/--only-include-users-once-per-run",
+    type=bool,
+    default=False,
+    help="If False, a user is only included in this alert once after they were absent for too long. Defaults to False, so as to keep regular emails to low volume with newsworthy alerts.",
+)
 def monitor_last_seen(
     maximum_minutes_since_last_seen: int,
     alert_users: bool = False,
     account_role: str | None = None,
     user_role: str | None = None,
     custom_user_message: str | None = None,
+    include_all_users_each_run: bool = False,
 ):
     """
     Check if given users last contact (via a request) happened less than the allowed time ago.
@@ -218,6 +225,8 @@ def monitor_last_seen(
     The set of users can be narrowed down by roles.
     """
     last_seen_delta = timedelta(minutes=maximum_minutes_since_last_seen)
+    task_name = "monitor-last-seen-users"
+    latest_run: LatestTaskRun = db.session.get(LatestTaskRun, task_name)
 
     # find users we haven't seen in the given time window
     users: list[User] = db.session.scalars(
@@ -228,6 +237,14 @@ def monitor_last_seen(
         users = [user for user in users if user.account.has_role(account_role)]
     if user_role is not None:
         users = [user for user in users if user.has_role(user_role)]
+    # filter out users who we already included in this check's last run
+    if not include_all_users_each_run and latest_run:
+        users = [
+            user
+            for user in users
+            if user.last_seen_at.replace(tzinfo=timezone.utc) + last_seen_delta
+            > latest_run.datetime
+        ]
 
     if not users:
         click.secho(
@@ -266,6 +283,10 @@ def monitor_last_seen(
         account_role=account_role,
         user_role=user_role,
     )
+
+    # remember that we checked at this time
+    LatestTaskRun.record_run(task_name, True)
+    db.session.commit()
 
 
 app.cli.add_command(fm_monitor)
