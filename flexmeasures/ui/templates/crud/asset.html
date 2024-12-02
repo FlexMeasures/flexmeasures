@@ -842,6 +842,7 @@
         selectedGraphTitle = undefined;
         editingIndex = undefined;
         renderGraphCards();
+        renderApiSensors(cachedFilteredSensors);
     }
     
     function handleEnterKeyEvent(event, index) {
@@ -849,13 +850,15 @@
             saveGraphTitle(index);
         }
     }
-
-    // Initial renders
-    renderGraphCards(); // Initial render of graph cards
-    filterSensors(); // Initial render of sensors
     
     formModal.addEventListener('hidden.bs.modal', function () {
         updateAssetSensorsToShow();
+    });
+
+    formModal.addEventListener('shown.bs.modal', function () {
+        // Initial renders
+        renderGraphCards(); // Initial render of graph cards
+        filterSensors(); // Initial render of sensors
     });
     
     document.addEventListener("click", function (event) {
