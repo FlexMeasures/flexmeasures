@@ -208,10 +208,16 @@ def send_lastseen_monitoring_alert(
     help="Add this message to the monitoring alert email to users (if one is sent).",
 )
 @click.option(
-    "--include-all-users-each-run/--only-include-users-once-per-run",
+    "--only-newly-absent-users/--all-absent-users",
     type=bool,
-    default=False,
+    default=True,
     help="If False, a user is only included in this alert once after they were absent for too long. Defaults to False, so as to keep regular emails to low volume with newsworthy alerts.",
+)
+@click.option(
+    "--task-name",
+    type=str,
+    default="monitor-last-seen-users",
+    help="Optional name of the task, to distinguish finding out when the last monitoring happened (see --only-newly-absent-users).",
 )
 def monitor_last_seen(
     maximum_minutes_since_last_seen: int,
@@ -219,7 +225,8 @@ def monitor_last_seen(
     account_role: str | None = None,
     user_role: str | None = None,
     custom_user_message: str | None = None,
-    include_all_users_each_run: bool = False,
+    only_newly_absent_users: bool = True,
+    task_name: str = "monitor-last-seen-users",
 ):
     """
     Check if given users last contact (via a request) happened less than the allowed time ago.
@@ -229,13 +236,18 @@ def monitor_last_seen(
     The user can be informed, as well.
 
     The set of users can be narrowed down by roles.
-    As default, this function will only alert you once per user.
+
+    Per default, this function will only alert you once per absent user (to avoid information overload).
+    To (still) keep an overview over all absentees, we recommend to run this command in short regular intervals as-is
+    and with --all-absent-users once per longer interval (e.g. per 24h).
+
+    If you run distinct filters, you can use distinct task names, so the --only-newly-absent-users feature
+    will work for all filters independently.
     """
     last_seen_delta = timedelta(minutes=maximum_minutes_since_last_seen)
-    task_name = "monitor-last-seen-users"
     latest_run: LatestTaskRun = db.session.get(LatestTaskRun, task_name)
 
-    # find users we haven't seen in the given time window
+    # find users we haven't seen in the given time window (last_seen_at is naive UTC)
     users: list[User] = db.session.scalars(
         select(User).filter(User.last_seen_at < datetime.utcnow() - last_seen_delta)
     ).all()
@@ -246,7 +258,7 @@ def monitor_last_seen(
         users = [user for user in users if user.has_role(user_role)]
     # filter out users who we already included in this check's last run
     txt_about_already_alerted_users = ""
-    if not include_all_users_each_run and latest_run:
+    if only_newly_absent_users and latest_run:
         original_length = len(users)
         users = [
             user
