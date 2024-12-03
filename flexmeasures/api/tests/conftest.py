@@ -1,5 +1,4 @@
-from datetime import datetime, timedelta
-import pytz
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -40,7 +39,7 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users):
     older_task = LatestTaskRun(
         name="task-A",
         status=True,
-        datetime=datetime.utcnow().replace(tzinfo=pytz.utc) - timedelta(days=1),
+        datetime=datetime.now(timezone.utc) - timedelta(days=1),
     )
     recent_task = LatestTaskRun(name="task-B", status=False)
     db.session.add(older_task)
