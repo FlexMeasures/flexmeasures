@@ -211,7 +211,7 @@ def send_lastseen_monitoring_alert(
     "--only-newly-absent-users/--all-absent-users",
     type=bool,
     default=True,
-    help="If False, a user is only included in this alert once after they were absent for too long. Defaults to False, so as to keep regular emails to low volume with newsworthy alerts.",
+    help="If True, a user is only included in this alert once after they were absent for too long. Defaults to True, so as to keep regular emails to low volume with newsworthy alerts.",
 )
 @click.option(
     "--task-name",
