@@ -7,7 +7,7 @@ from __future__ import annotations
 import os
 import sys
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from logging.config import dictConfig as loggingDictConfig
 from pathlib import Path
 
@@ -133,7 +133,7 @@ def read_config(app: Flask, custom_path_to_config: str | None):
     app.logger.setLevel(app.config.get("LOGGING_LEVEL", "INFO"))
     # print("Logging level is %s" % logging.getLevelName(app.logger.level))
 
-    app.config["START_TIME"] = datetime.utcnow()
+    app.config["START_TIME"] = datetime.now(timezone.utc)
 
 
 def read_custom_config(
