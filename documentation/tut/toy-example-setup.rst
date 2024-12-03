@@ -107,6 +107,7 @@ Install Flexmeasures and the database
         .. code-block:: bash
 
             $ pip install flexmeasures
+            $ pip install highspy
             $ export SQLALCHEMY_DATABASE_URI="postgresql://flexmeasures-user:fm-db-passwd@localhost:5432/flexmeasures-db" SECRET_KEY=notsecret LOGGING_LEVEL="INFO" DEBUG=0
             $ export FLEXMEASURES_ENV="development"
             $ flexmeasures db upgrade
