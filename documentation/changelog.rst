@@ -20,6 +20,7 @@ New features
 * Simplify and globalize UI messages, using Toast [see `PR #1207 <https://github.com/FlexMeasures/flexmeasures/pull/1207>`_]
 * Power sensors created through the CLI no longer require a capacity attribute to be set [see `PR #1234 <https://github.com/FlexMeasures/flexmeasures/pull/1234>`_]
 * The breadcrumbs on asset and sensor pages can now be customized [see `PR #1257 <https://github.com/FlexMeasures/flexmeasures/pull/1257>`_]
+* The monitoring command to check for users who have been absent to long now can be used to keep data volume low and be more effective [see `PR #1268 <https://github.com/FlexMeasures/flexmeasures/pull/1268>`_]
 
 Infrastructure / Support
 ----------------------

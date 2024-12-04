@@ -5,7 +5,7 @@ Utils for dealing with time
 from __future__ import annotations
 
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from flask import current_app
 from flask_security.core import current_user
@@ -18,7 +18,7 @@ from dateutil import tz
 
 def server_now() -> datetime:
     """The current time (timezone aware), converted to the timezone of the FlexMeasures platform."""
-    return get_timezone().fromutc(datetime.utcnow())
+    return datetime.now(get_timezone())
 
 
 def ensure_local_timezone(
@@ -114,7 +114,7 @@ def naturalized_datetime_str(
     if isinstance(dt, str):
         dt = datetime.strptime(dt, "%a, %d %b %Y %H:%M:%S %Z")
     if now is None:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
     naive_utc_now = naive_utc_from(now)
 
     # Convert or localize to utc
