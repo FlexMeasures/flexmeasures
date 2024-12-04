@@ -605,7 +605,7 @@
                     <div class="d-flex align-items-center">
                         <div>
                             ${editingIndex === index
-                            ? `<input type="text" class="form-control mb-2 me-2" id="editTitle_${index}" value="${newItem.title}" onkeydown="handleEnterKeyEvent(event, ${index})" />`
+                            ? `<input type="text" class="form-control mb-2 me-2" id="editTitle_${index}" value="${newItem.title}" onkeydown="handleEnterKeyEventForTitleEditing(event, ${index})" />`
                             : `<h5 class="card-title me-2">${newItem.title}</h5>`
                         }
                         </div>
@@ -845,7 +845,7 @@
         renderApiSensors(cachedFilteredSensors);
     }
     
-    function handleEnterKeyEvent(event, index) {
+    function handleEnterKeyEventForTitleEditing(event, index) {
         if (event.key === "Enter") {
             saveGraphTitle(index);
         }
