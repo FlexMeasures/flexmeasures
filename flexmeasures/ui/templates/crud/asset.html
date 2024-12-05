@@ -65,6 +65,7 @@
                     <div id="datepicker"></div>
                 </div>
             </div>
+            {% if user_can_update_asset %}
             <div class="sidepanel-container">
                 <div class="left-sidepanel-label">Edit asset</div>
                 <div class="sidepanel left-sidepanel">
@@ -197,6 +198,7 @@
                     </form>
                 </div>
             </div>
+            {% endif %}
         </div>
         <div class="col-md-8">
             <div id="spinner" hidden="hidden">

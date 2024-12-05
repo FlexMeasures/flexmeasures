@@ -22,6 +22,7 @@ from flexmeasures.ui.crud.assets.utils import (
     process_internal_api_response,
     user_can_create_assets,
     user_can_delete,
+    user_can_update,
 )
 from flexmeasures.data.services.sensors import (
     build_sensor_status_data,
@@ -133,6 +134,7 @@ class AssetCrudUI(FlaskView):
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
             user_can_create_assets=user_can_create_assets(),
             user_can_delete_asset=user_can_delete(asset),
+            user_can_update_asset=user_can_update(asset),
             event_starts_after=request.args.get("start_time"),
             event_ends_before=request.args.get("end_time"),
             available_units=available_units(),
