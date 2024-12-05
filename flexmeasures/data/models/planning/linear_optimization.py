@@ -35,7 +35,7 @@ def device_scheduler(  # noqa C901
     commitment_downwards_deviation_price: list[pd.Series] | list[float] | None = None,
     commitment_upwards_deviation_price: list[pd.Series] | list[float] | None = None,
     commitments: list[pd.DataFrame] | None = None,
-    initial_stock: float = 0,
+    initial_stock: float | list[float] = 0, 
 ) -> tuple[list[pd.Series], float, SolverResults, ConcreteModel]:
     """This generic device scheduler is able to handle an EMS with multiple devices,
     with various types of constraints on the EMS level and on the device level,
@@ -72,8 +72,7 @@ def device_scheduler(  # noqa C901
             - either a single value (same value for each flow value) or a Series (different value for each flow value)
         commitment_upwards_deviation_price: penalty for upwards deviations of the flow
 
-    Now also separate costs for each commitment are calculated and stored in the `commitment_costs` dictionary (indexed by commitment group).
-    Commitment costs are aggregated from sub-commitments to provide total planned costs.
+    Separate costs for each commitment are stored in a dictionary under `model.commitment_costs` (indexed by commitment).
 
     All Series and DataFrames should have the same resolution.
 
@@ -370,6 +369,11 @@ def device_scheduler(  # noqa C901
     def device_bounds(m, d, j):
         """Apply conversion efficiencies to conversion from flow to stock change and vice versa,
         and apply storage efficiencies to stock levels from one datetime to the next."""
+        if isinstance(initial_stock, list):
+            initial_stock_d = initial_stock[d]
+        else:
+            initial_stock_d = initial_stock
+    
         stock_changes = [
             (
                 m.device_power_down[d, k] / m.device_derivative_down_efficiency[d, k]
@@ -382,9 +386,9 @@ def device_scheduler(  # noqa C901
         return (
             m.device_min[d, j],
             [
-                stock - initial_stock
+                stock - initial_stock_d
                 for stock in apply_stock_changes_and_losses(
-                    initial_stock, stock_changes, efficiencies
+                    initial_stock_d, stock_changes, efficiencies
                 )
             ][-1],
             m.device_max[d, j],
