@@ -17,6 +17,7 @@ Account overview {% endblock %} {% block divs %}
 <div class="container-fluid">
   <div class="row">
     <div class="col-md-2">
+      {% if user_can_update_account %}  
       <div class="sidepanel-container">
         <div
           class="left-sidepanel-label"
@@ -173,6 +174,7 @@ Account overview {% endblock %} {% block divs %}
           </form>
         </div>
       </div>
+      {% endif %}
     </div>
     <div class="col-md-8">
       <div class="card">
@@ -562,7 +564,7 @@ $(document).ready(function () {
           showToast("Account updated successfully!", "success");
         } else {
           if (data.message && typeof data.message === "string") {
-            showToast(data.message, "error", toastStack, closeToastBtn);
+            showToast(data.message, "error");
           } else {
             const errors = data.message.json;
 

@@ -62,6 +62,7 @@
                     <div id="datepicker"></div>
                 </div>
             </div>
+            {% if user_can_update_asset %}
             <div class="sidepanel-container">
                 <div class="left-sidepanel-label">Edit asset</div>
                 <div class="sidepanel left-sidepanel">
@@ -180,6 +181,7 @@
                     </form>
                 </div>
             </div>
+            {% endif %}
         </div>
         <div class="col-md-8">
             <div id="spinner" hidden="hidden">
@@ -402,6 +404,8 @@
       // Initialize the DataTable
       const table = $("#sensorsTable").dataTable({
         order: [[0, "asc"]],
+        pageLength: 5,
+        lengthMenu: [5, 10, 25, 50, 75, 100],
         serverSide: true,
         // make the table row vertically aligned with header
         columns: [
@@ -422,7 +426,7 @@
 
             let url = `${basePath}/api/v3_0/assets/{{asset.id}}/sensors?page=${
                 data["start"] / data["length"] + 1
-            }&per_page=4`;
+            }&per_page=${data["length"]}`;
     
             if (orderColumnName){
                 url = `${url}&sort_by=${orderColumnName}&sort_dir=${orderDirection}`;
