@@ -367,7 +367,7 @@ class UserAPI(FlaskView):
     @use_kwargs(
         {
             "page": fields.Int(
-                required=False, validate=validate.Range(min=1), load_default=1
+                required=False, validate=validate.Range(min=1), load_default=None
             ),
             "per_page": fields.Int(
                 required=False, validate=validate.Range(min=1), load_default=10
@@ -453,28 +453,45 @@ class UserAPI(FlaskView):
                 else valid_sort_columns[sort_by].desc()
             )
 
-        select_pagination: SelectPagination = db.paginate(
-            query, per_page=per_page, page=page
-        )
+        if page is None:
+            audit_logs = db.session.execute(query).scalars().all()
 
-        num_records = db.session.scalar(
-            select(func.count(AuditLog.id)).where(query_statement)
-        )
+            response = [
+                {
+                    "event": audit_log.event,
+                    "event_datetime": naturalized_datetime_str(
+                        audit_log.event_datetime
+                    ),
+                    "active_user_name": audit_log.active_user_name,
+                    "active_user_id": audit_log.active_user_id,
+                }
+                for audit_log in audit_logs
+            ]
+        else:
+            select_pagination: SelectPagination = db.paginate(
+                query, per_page=per_page, page=page
+            )
 
-        audit_logs_response = [
-            {
-                "event": audit_log.event,
-                "event_datetime": naturalized_datetime_str(audit_log.event_datetime),
-                "active_user_name": audit_log.active_user_name,
-                "active_user_id": audit_log.active_user_id,
+            num_records = db.session.scalar(
+                select(func.count(AuditLog.id)).where(query_statement)
+            )
+
+            audit_logs_response = [
+                {
+                    "event": audit_log.event,
+                    "event_datetime": naturalized_datetime_str(
+                        audit_log.event_datetime
+                    ),
+                    "active_user_name": audit_log.active_user_name,
+                    "active_user_id": audit_log.active_user_id,
+                }
+                for audit_log in select_pagination.items
+            ]
+
+            response = {
+                "data": audit_logs_response,
+                "num-records": num_records,
+                "filtered-records": select_pagination.total,
             }
-            for audit_log in select_pagination.items
-        ]
-
-        response = {
-            "data": audit_logs_response,
-            "num-records": num_records,
-            "filtered-records": select_pagination.total,
-        }
 
         return response, 200
