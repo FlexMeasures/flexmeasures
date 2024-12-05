@@ -62,11 +62,18 @@ class AccountCrudUI(FlaskView):
         except (Forbidden, Unauthorized):
             user_can_view_account_auditlog = False
 
+        user_can_update_account = True
+        try:
+            check_access(account, "update")
+        except (Forbidden, Unauthorized):
+            user_can_update_account = False
+
         return render_flexmeasures_template(
             "crud/account.html",
             account=account,
             accounts=accounts,
             include_inactive=include_inactive,
+            user_can_update_account=user_can_update_account,
             can_view_account_auditlog=user_can_view_account_auditlog,
         )
 
