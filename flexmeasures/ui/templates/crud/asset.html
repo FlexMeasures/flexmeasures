@@ -612,8 +612,8 @@
 
                         <div>
                             ${editingIndex === index
-                            ? `<button class="btn btn-success btn-sm ms-2" onclick="saveGraphTitle(${index})">Save</button>`
-                            : `<button class="btn btn-warning btn-sm ms-2" onclick="editGraphTitle(${index})">Edit</button>`
+                            ? `<button class="btn btn-success btn-sm ms-2" id="saveTitleBtn" onclick="saveGraphTitle(${index})">Save</button>`
+                            : `<button class="btn btn-warning btn-sm ms-2" id="editTitleBtn" onclick="editGraphTitle(${index})">Edit</button>`
                         }
                         </div>
                     </div>
@@ -623,7 +623,7 @@
                         ${uniqueUnits.length > 1 ? `<div class="alert alert-warning" role="alert">Note that you are showing sensors with different units</div>` : ""}
                     </div>
 
-                    <button class="btn btn-danger btn-sm me-2" onclick="removeGraph(${index})">Remove</button>
+                    <button class="btn btn-danger btn-sm me-2" onclick="(function(e) { e.stopPropagation(); removeGraph(${index}); })(event)">Remove</button>
                     <button class="btn btn-secondary btn-sm me-2" onclick="(function(e) { e.stopPropagation(); moveGraphUp(${index}); })(event)" ${index === 0 ? "disabled" : ""}>Move Up</button>
                     <button class="btn btn-secondary btn-sm" onclick="(function(e) { e.stopPropagation(); moveGraphDown(${index}); })(event)" ${index === sensorsToShow.length - 1 ? "disabled" : ""}>Move Down</button>
                 </div>
@@ -703,7 +703,11 @@
     
     async function removeGraph(index) {
         sensorsToShow.splice(index, 1);
+        savedGraphIndex = undefined;
+        selectedGraphTitle = undefined;
+        editingIndex = undefined;
         renderGraphCards();
+        renderApiSensors(cachedFilteredSensors);
     }
     
     async function swapItems(index1, index2) {
@@ -728,7 +732,6 @@
     
     function editGraphTitle(index) {
         editingIndex = index;
-        renderGraphCards();
     }
     
     async function saveGraphTitle(index) {
@@ -771,7 +774,7 @@
                         <b>Asset:</b> ${Asset.name},
                         <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
                     </p>
-                    ${graphIndex !== undefined && savedGraphIndex !== undefined && selectedGraphTitle !== savedGraphIndex
+                    ${graphIndex !== undefined && savedGraphIndex !== undefined && selectedGraphTitle !== undefined
                         ? `<button class="btn btn-primary btn-sm" onclick="addSensorToExistingGraph(${graphIndex}, ${sensor.id})">Add to '${selectedGraphTitle}' Graph</button>`
                         : `<button class="btn btn-primary btn-sm" onclick="addSensorAsGraph(${sensor.id})">Add new Graph</button>`
                     }
@@ -838,9 +841,6 @@
     // Remove sensor from the graph sensor list
     function removeSensorFromGraph(graphIndex, sensorIndex) {
         sensorsToShow[graphIndex].sensors.splice(sensorIndex, 1);
-        savedGraphIndex = undefined;
-        selectedGraphTitle = undefined;
-        editingIndex = undefined;
         renderGraphCards();
         renderApiSensors(cachedFilteredSensors);
     }
@@ -871,13 +871,19 @@
         const sensorCard = event.target.closest(".sensor-card");
         const searchInput = event.target.id === "searchInput";
         const cardBody = event.target.closest(".card-body");
-    
+        const editTitleBtn = event.target.id === "editTitleBtn";
+        const saveTitleBtn = event.target.id === "saveTitleBtn";
+
         if (card) {
             if (card.classList.contains("border-on-click")) {
+                if (editTitleBtn || saveTitleBtn) {
+                    renderGraphCards();
+                }
                 // Pass
             } else {
                 document.querySelectorAll(".card-highlight").forEach(el => el.classList.remove("border-on-click"));
                 card.classList.add("border-on-click");
+                renderGraphCards();
             }
         } else if (
             cardBody !== null && cardBody !== undefined ||
