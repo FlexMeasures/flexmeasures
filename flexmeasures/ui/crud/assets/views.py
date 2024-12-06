@@ -304,10 +304,7 @@ class AssetCrudUI(FlaskView):
         asset_dict = get_asset_response.json()
         asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
 
-        audit_log_response = InternalApi().get(url_for("AssetAPI:auditlog", id=id))
-        audit_logs_response = audit_log_response.json()
         return render_flexmeasures_template(
             "crud/asset_audit_log.html",
-            audit_logs=audit_logs_response,
             asset=asset,
         )
