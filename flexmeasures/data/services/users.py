@@ -235,13 +235,3 @@ def delete_user(user: User):
         affected_account_id=user.account_id,
     )
     db.session.add(user_audit_log)
-
-
-def get_audit_log_records(user: User):
-    """
-    Get history of user actions
-    """
-    audit_log_records = (
-        db.session.query(AuditLog).filter_by(affected_user_id=user.id).all()
-    )
-    return audit_log_records
