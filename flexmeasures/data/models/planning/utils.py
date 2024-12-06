@@ -165,7 +165,7 @@ def extend_to_edges(
     if (
         nan_values.any()
         or pd.Timestamp(df.index[0]).tz_convert("UTC")
-        != pd.Timestamp(query_window[0].tz_convert("UTC"))
+        != pd.Timestamp(query_window[0]).tz_convert("UTC")
         or pd.Timestamp(df.index[-1]).tz_convert("UTC") + resolution
         != pd.Timestamp(query_window[-1]).tz_convert("UTC")
     ):
