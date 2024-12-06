@@ -1317,33 +1317,37 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     float: none !important;
 }
 
-.header-action-button>div button {
+.header-action-button>div button,
+.header-action-button>div label {
     font-size: 15px;
     padding: 15px 30px;
-    border: none;
     line-height: 16px;
-    outline: none !important;
-    box-shadow: none;
-    border-radius: 0px;
+    border-radius: 0px !important;
     text-align: center;
     width: 100%;
-    background: var(--primary-color);
-    border-top-left-radius: 0;
-    border-top-right-radius: 0;
-    border-bottom-left-radius: 0;
-    border-bottom-right-radius: 0;
-    border-right: 1px solid var(--primary-border-color) !important;
-    -webkit-border-radius: 0px;
-    -moz-border-radius: 0px;
-    -ms-border-radius: 0px;
-    -o-border-radius: 0px;
+    border-top-left-radius: 0 !important;
+    border-top-right-radius: 0 !important;
+    border-bottom-left-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+    -webkit-border-radius: 0px !important;
+    -moz-border-radius: 0px !important;
+    -ms-border-radius: 0px !important;
+    -o-border-radius: 0px !important;
     transition: .4s;
     -webkit-transition: .4s;
     -moz-transition: .4s;
     -ms-transition: .4s;
     -o-transition: .4s;
 }
-.rq-style.header-action-button>div button {
+.header-action-button>div button {
+    border: none;
+    outline: none !important;
+    box-shadow: none;
+    background: var(--primary-color);
+    border-right: 1px solid var(--primary-border-color) !important;
+}
+.rq-style.header-action-button>div button,
+.rq-style.header-action-button>div label {
     padding: 15px 25px;
 }
 
@@ -1351,15 +1355,19 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     background: var(--primary-hover-color) !important;
 }
 
-.header-action-button>div:first-child button {
-    border-top-left-radius: 15px;
-    border-bottom-left-radius: 15px;
+.header-action-button>div:first-child button,
+.header-action-button>div:first-child label {
+    border-top-left-radius: 15px !important;
+    border-bottom-left-radius: 15px !important;
 }
 
+.header-action-button>div:last-child button,
+.header-action-button>div:last-child label {
+    border-top-right-radius: 15px !important;
+    border-bottom-right-radius: 15px !important;
+}
 .header-action-button>div:last-child button {
     border-right: none;
-    border-top-right-radius: 15px;
-    border-bottom-right-radius: 15px;
 }
 
 .create-button:hover {
@@ -1377,7 +1385,8 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
         width: 100%;
     }
 
-    .header-action-button>div button {
+    .header-action-button>div button,
+    .header-action-button>div label {
         margin-bottom: 15px;
         border-radius: 15px !important;
         -webkit-border-radius: 15px !important;

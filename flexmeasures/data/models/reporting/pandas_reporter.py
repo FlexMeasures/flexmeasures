@@ -181,8 +181,8 @@ class PandasReporter(Reporter):
                 output_data *= convert_units(
                     1,
                     from_unit=output_unit,
-                    to_unit=output_data.sensor.unit,
-                    event_resolution=output_data.sensor.event_resolution,
+                    to_unit=output_description["sensor"].unit,
+                    event_resolution=output_description["sensor"].event_resolution,
                 )
 
             result["data"] = output_data

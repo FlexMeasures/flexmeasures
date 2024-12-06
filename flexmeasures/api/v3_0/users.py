@@ -1,27 +1,33 @@
+from __future__ import annotations
 from flask_classful import FlaskView, route
 from marshmallow import fields
+import marshmallow.validate as validate
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import select
+from sqlalchemy import and_, select, func
+from flask_sqlalchemy.pagination import SelectPagination
 from webargs.flaskparser import use_kwargs
 from flask_security import current_user, auth_required
 from flask_security.recoverable import send_reset_password_instructions
 from flask_json import as_json
-from werkzeug.exceptions import Forbidden, Unauthorized
+from werkzeug.exceptions import Forbidden
 from flexmeasures.auth.policy import check_access
 
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import User as UserModel, Account
 from flexmeasures.api.common.schemas.users import AccountIdField, UserIdField
+from flexmeasures.api.common.schemas.search import SearchFilterField
+from flexmeasures.api.v3_0.assets import get_accessible_accounts
+from flexmeasures.data.queries.users import query_users_by_search_terms
+from flexmeasures.data.schemas.account import AccountSchema
 from flexmeasures.data.schemas.users import UserSchema
 from flexmeasures.data.services.users import (
-    get_users,
     set_random_password,
     remove_cookie_and_token_access,
     get_audit_log_records,
 )
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
-from flexmeasures.utils.time_utils import server_now
+from flexmeasures.utils.time_utils import server_now, naturalized_datetime_str
 
 """
 API endpoints to manage users.
@@ -33,6 +39,7 @@ Both POST (to create) and DELETE are not accessible via the API, but as CLI func
 user_schema = UserSchema()
 users_schema = UserSchema(many=True)
 partial_user_schema = UserSchema(partial=True)
+account_schema = AccountSchema()
 
 
 class UserAPI(FlaskView):
@@ -45,13 +52,39 @@ class UserAPI(FlaskView):
         {
             "account": AccountIdField(data_key="account_id", load_default=None),
             "include_inactive": fields.Bool(load_default=False),
+            "page": fields.Int(
+                required=False, validate=validate.Range(min=1), load_default=None
+            ),
+            "per_page": fields.Int(
+                required=False, validate=validate.Range(min=1), load_default=1
+            ),
+            "filter": SearchFilterField(required=False, load_default=None),
+            "sort_by": fields.Str(
+                required=False,
+                load_default=None,
+                validate=validate.OneOf(["username", "email", "lastLogin", "lastSeen"]),
+            ),
+            "sort_dir": fields.Str(
+                required=False,
+                load_default=None,
+                validate=validate.OneOf(["asc", "desc"]),
+            ),
         },
         location="query",
     )
     @as_json
-    def index(self, account: Account, include_inactive: bool = False):
-        """API endpoint to list all users.
-
+    def index(
+        self,
+        account: Account,
+        include_inactive: bool = False,
+        page: int | None = None,
+        per_page: int | None = None,
+        filter: list[str] | None = None,
+        sort_by: str | None = None,
+        sort_dir: str | None = None,
+    ):
+        """
+        API endpoint to list all users.
 
         .. :quickref: User; Download user list
 
@@ -91,26 +124,76 @@ class UserAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-
         if account is not None:
             check_access(account, "read")
             accounts = [account]
         else:
-            accounts = []
-            for account in db.session.scalars(select(Account)).all():
-                try:
-                    check_access(account, "read")
-                    accounts.append(account)
-                except (Forbidden, Unauthorized):
-                    pass
+            accounts = get_accessible_accounts()
 
-        users = []
-        for account in accounts:
-            users += get_users(
-                account_name=account.name,
-                only_active=not include_inactive,
+        filter_statement = UserModel.account_id.in_([a.id for a in accounts])
+
+        if include_inactive is False:
+            filter_statement = and_(filter_statement, UserModel.active.is_(True))
+
+        query = query_users_by_search_terms(
+            search_terms=filter, filter_statement=filter_statement
+        )
+
+        if sort_by is not None and sort_dir is not None:
+            valid_sort_columns = {
+                "username": UserModel.username,
+                "email": UserModel.email,
+                "lastLogin": UserModel.last_login_at,
+                "lastSeen": UserModel.last_seen_at,
+            }
+
+            query = query.order_by(
+                valid_sort_columns[sort_by].asc()
+                if sort_dir == "asc"
+                else valid_sort_columns[sort_by].desc()
             )
-        return users_schema.dump(users), 200
+
+        if page is not None:
+            num_records = db.session.scalar(
+                select(func.count(UserModel.id)).where(filter_statement)
+            )
+            paginated_users: SelectPagination = db.paginate(
+                query, per_page=per_page, page=page
+            )
+
+            users_response: list = [
+                {
+                    **user_schema.dump(user),
+                    "account": account_schema.dump(user.account),
+                    "flexmeasures_roles": [
+                        role.name for role in user.flexmeasures_roles
+                    ],
+                    "last_login_at": naturalized_datetime_str(user.last_login_at),
+                    "last_seen_at": naturalized_datetime_str(user.last_seen_at),
+                }
+                for user in paginated_users.items
+            ]
+            response: dict | list = {
+                "data": users_response,
+                "num-records": num_records,
+                "filtered-records": paginated_users.total,
+            }
+        else:
+            users = db.session.execute(query).scalars().all()
+            response = [
+                {
+                    **user_schema.dump(user),
+                    "account": account_schema.dump(user.account),
+                    "flexmeasures_roles": [
+                        role.name for role in user.flexmeasures_roles
+                    ],
+                    "last_login_at": naturalized_datetime_str(user.last_login_at),
+                    "last_seen_at": naturalized_datetime_str(user.last_seen_at),
+                }
+                for user in users
+            ]
+
+        return response, 200
 
     @route("/<id>")
     @use_kwargs({"user": UserIdField(data_key="id")}, location="path")
