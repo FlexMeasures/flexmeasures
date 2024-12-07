@@ -847,9 +847,10 @@
         renderApiSensors(cachedFilteredSensors);
     }
     
-    function handleEnterKeyEventForTitleEditing(event, index) {
+    function handleEnterKeyEventForTitleEditing(event, graphIndex) {
         if (event.key === "Enter") {
-            saveGraphTitle(index);
+            saveGraphTitle(graphIndex);
+            renderApiSensors(cachedFilteredSensors, graphIndex);
         }
     }
     
