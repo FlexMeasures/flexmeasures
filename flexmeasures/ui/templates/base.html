@@ -48,6 +48,15 @@
             --create-color: var(--green);
             --delete-color: var(--red);
         }
+        #asset_audit_log.nav-on-click tr {
+            cursor: default;
+        }
+        #account_audit_log.nav-on-click tr {
+            cursor: default; 
+        }
+        #user_audit_log.nav-on-click tr {
+            cursor: default; 
+        }
     </style>
     <!-- Leaflet -->
     <link href="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.css" rel="stylesheet" />
@@ -78,7 +87,7 @@
     {% endblock %}
 </head>
 
-<body>
+<body class="d-flex flex-column min-vh-100">
 
     {% block body %}
 
@@ -156,10 +165,18 @@
           </div>
         </div>
     </nav>
-      
-      
-
     {% endblock nav %}
+
+    <div
+        class="position-fixed bottom-0 end-0 p-3"
+        id="toast-container"
+        role="alert"
+        aria-live="assertive"
+        aria-atomic="true"
+        style="z-index: 11"
+    >
+        <button id="close-all-toasts" class="btn">Close All</button>
+    </div>
 
     {% if message and message != "" %}
     <div class="col-md-12 alert alert-info">{{ message}} </div>
@@ -174,6 +191,35 @@
 
     {# Div blocks that child pages can reference #}
     {% block divs %}
+
+    {% block breadcrumbs %}
+    {% if breadcrumb_info is defined %}
+    <nav aria-label="breadcrumb ">
+        <ol class="breadcrumb p-2">
+            {% for breadcrumb in breadcrumb_info["ancestors"] %}
+            <li class="breadcrumb-item{% if loop.last %} dropdown active{% endif %}" {% if loop.last %}aria-current="page"{% endif %}>
+              {% if breadcrumb["url"] is not none and not loop.last %}
+                <a href="{{ breadcrumb['url'] }}">{{ breadcrumb['name'] }}</a>
+              {% else %}
+                {% if breadcrumb_info["siblings"]|length > 0 %}
+                <a href="{{ breadcrumb['url'] }}" class="dropdown-toggle" data-bs-toggle="dropdown"  aria-expanded="false" role="button">{{ breadcrumb['name'] }}</a>
+                <ul class="dropdown-menu">
+                    {% for sibling in breadcrumb_info["siblings"] %}
+                    <li><a  class="p-3 dropdown-item" href="{{ sibling['url'] }}">{{ sibling["name"] }}</a></li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <a href="{{ breadcrumb['url'] }}" role="button">{{ breadcrumb['name'] }}</a>
+                {% endif %}
+              {% endif %}
+            </li>
+            {% endfor %}
+        </ol>
+    </nav>
+    {% endif %}
+    {% endblock %}
+
+
 
     {% block forecastpicker %}
 
@@ -356,6 +402,11 @@
             }
         });
     }
+
+    // event listener to refresh graph
+    document.addEventListener('sensorsToShowUpdated', async function() {
+        await embedAndLoad(chartSpecsPath + 'event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&', elementId, datasetName, previousResult, storeStartDate, storeEndDate);
+    })
 
     var combineLegend = 'true';
     {% if active_page == "assets" %}
@@ -728,6 +779,14 @@
 
     <!-- JS to enable toast -->
     <script defer>
+        const toastStack = document.getElementById("toast-container");
+        const closeToastBtn = document.getElementById("close-all-toasts");
+        
+        // written like this since this script(order) is ontop of the main script
+        document.addEventListener("DOMContentLoaded", function () {
+            initiateToastCloseBtn(closeToastBtn);
+        });
+
         function initiateToastCloseBtn(closeToastBtn){
             // hide button
             closeToastBtn.style.display = "none";
@@ -755,7 +814,7 @@
             });
         }
 
-        function showToast(message, type, toastStack, closeToastBtn) {
+        function showToast(message, type) {
             let colorClass;
             let colorStyle = "";
             let title;
@@ -809,115 +868,6 @@
           }
     </script>
 
-    <script>
-        function User(
-          id,
-          username,
-          email,
-          roles,
-          account,
-          timezone,
-          lastLogin,
-          lastSeen,
-          active
-        ) {
-          this.id = id;
-          this.username = `<span>${username}</span>`;
-          this.email = `<a href="mailto:${email}" title="Mail this user">${email}</a>`;
-          this.roles = roles.map((role) => role).join(", ");
-          this.url = `/users/${id}`;
-      
-          if (account == null) this.account = "PUBLIC";
-          else
-            this.account = `
-                <a href="/accounts/${account["id"]}" title="View this account">${account["name"]}</a>
-              `;
-          this.timezone = timezone;
-          this.lastLogin = lastLogin;
-          this.lastSeen = lastSeen;
-          this.active = active;
-        }
-      
-        $(document).ready(function () {
-          let includeInactive = false;
-          const tableTitle = $("#usersTableTitle");
-          // Initialize the DataTable
-          const table = $("#usersTable").dataTable({
-            order: [[3, "desc"]],
-            serverSide: true,
-            // make the table row vertically aligned with header
-            columns: [
-              { data: "username", title: "Username" },
-              { data: "email", title: "Email" },
-              { data: "roles", title: "Roles" },
-              { data: "account", title: "Account" },
-              { data: "timezone", title: "Timezone" },
-              { data: "lastLogin", title: "Last login" },
-              { data: "lastSeen", title: "Last seen" },
-              { data: "active", title: "Active" },
-              { data: "url", title: "URL", className: "d-none" },
-            ],
-      
-            ajax: function (data, callback, settings) {
-              const basePath = window.location.origin;
-              let filter = data["search"]["value"];
-              let url = `${basePath}/api/v3_0/users?page=${
-                data["start"] / data["length"] + 1
-              }&per_page=${data["length"]}&include_inactive=${includeInactive}`;
-      
-              if (filter.length > 0) {
-                url = `${url}&filter=${filter}`;
-              }
-      
-              $.ajax({
-                type: "get",
-                url: url,
-                success: function (response, text) {
-                  let clean_response = [];
-                  response["data"].forEach((element) =>
-                    clean_response.push(
-                      new User(
-                        element["id"],
-                        element["username"],
-                        element["email"],
-                        element["flexmeasures_roles"],
-                        element["account"],
-                        element["timezone"],
-                        element["last_login_at"],
-                        element["last_seen_at"],
-                        element["active"]
-                      )
-                    )
-                  );
-      
-                  callback({
-                    data: clean_response,
-                    recordsTotal: response["num-records"],
-                    recordsFiltered: response["filtered-records"],
-                  });
-                },
-                error: function (request, status, error) {
-                  console.log("Error: ", error);
-                },
-              });
-            },
-          });
-      
-      
-          // Event listener for the checkbox to toggle includeInactive state
-          $("#inactiveUsersCheckbox").change(function () {
-            includeInactive = this.checked;
-            table.api().ajax.reload();
-            if (!includeInactive) {
-              tableTitle.text("All users");
-            } else {
-              tableTitle.text("All active users");
-            }
-          });
-        });
-      </script>
-
-
     <!-- External scripts -->
     <script src="https://cdn.jsdelivr.net/npm/ion-rangeslider@2.3.1/js/ion.rangeSlider.min.js"></script>
     <script src="https://d3js.org/d3.v6.min.js"></script>
@@ -937,13 +887,15 @@
 
     {% endblock scripts %}
 
+
+
     {% block paginate_tables_script %}
     <script src="https://cdn.datatables.net/1.10.22/js/jquery.dataTables.min.js"></script>
     <script
         src="https://cdn.datatables.net/plug-ins/1.10.22/features/conditionalPaging/dataTables.conditionalPaging.js"></script>
     {% endblock paginate_tables_script %}
 
-    <footer class="page-footer font-small pt-4 mt-4">
+    <footer class="page-footer font-small pt-4 mt-auto">
         <div class="footer text-center">
             <div class="container-fluid">
                 {% block copyright_notice %}

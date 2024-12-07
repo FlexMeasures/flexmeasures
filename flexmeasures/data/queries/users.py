@@ -21,7 +21,6 @@ def query_users_by_search_terms(
                 for term in search_terms
             )
         )
-        query = select_statement.where(filter_statement).order_by(UserModel.id)
-    else:
-        query = select_statement.where(filter_statement).order_by(UserModel.id)
+
+    query = select_statement.where(filter_statement)
     return query

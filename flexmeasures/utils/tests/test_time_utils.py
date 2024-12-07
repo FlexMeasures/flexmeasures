@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from isodate import duration_isoformat as original_duration_isoformat
 import pandas as pd
@@ -55,7 +55,14 @@ def test_original_duration_isoformat(td: timedelta, iso: str):
     [
         (None, pd.Timestamp.utcnow(), "UTC", 3, "3 hours ago"),
         (None, pd.Timestamp.utcnow().tz_convert("Asia/Seoul"), "UTC", 3, "3 hours ago"),
-        (None, datetime.utcnow(), "UTC", 3, "3 hours ago"),
+        (None, datetime.now(timezone.utc), "UTC", 3, "3 hours ago"),
+        (
+            None,
+            datetime.now(timezone.utc).replace(tzinfo=None),
+            "UTC",
+            3,
+            "3 hours ago",
+        ),
         (
             None,
             datetime(2021, 5, 17, 3),

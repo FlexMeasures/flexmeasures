@@ -20,7 +20,7 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.services.accounts import get_accounts, get_audit_log_records
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.data.schemas.account import AccountSchema
-from flexmeasures.api.common.schemas.generic_assets import SearchFilterField
+from flexmeasures.api.common.schemas.search import SearchFilterField
 from flexmeasures.utils.time_utils import server_now
 
 """
@@ -45,12 +45,22 @@ class AccountAPI(FlaskView):
     @use_kwargs(
         {
             "page": fields.Int(
-                required=False, validate=validate.Range(min=1), default=1
+                required=False, validate=validate.Range(min=1), load_default=None
             ),
             "per_page": fields.Int(
-                required=False, validate=validate.Range(min=1), default=10
+                required=False, validate=validate.Range(min=1), load_default=10
             ),
-            "filter": SearchFilterField(required=False, default=None),
+            "filter": SearchFilterField(required=False, load_default=None),
+            "sort_by": fields.Str(
+                required=False,
+                load_default=None,
+                validate=validate.OneOf(["id", "name", "assets", "users"]),
+            ),
+            "sort_dir": fields.Str(
+                required=False,
+                load_default=None,
+                validate=validate.OneOf(["asc", "desc"]),
+            ),
         },
         location="query",
     )
@@ -60,6 +70,8 @@ class AccountAPI(FlaskView):
         page: int | None = None,
         per_page: int | None = None,
         filter: list[str] | None = None,
+        sort_by: str | None = None,
+        sort_dir: str | None = None,
     ):
         """API endpoint to list all accounts accessible to the current user.
 
@@ -126,6 +138,21 @@ class AccountAPI(FlaskView):
             search_terms = filter[0].split(" ")
             query = query.filter(
                 or_(*[Account.name.ilike(f"%{term}%") for term in search_terms])
+            )
+
+        if sort_by is not None and sort_dir is not None:
+            valid_sort_columns = {
+                "id": Account.id,
+                "name": Account.name,
+                "assets": func.count(GenericAsset.id),
+                "users": func.count(User.id),
+            }
+
+            query = query.join(GenericAsset, isouter=True).join(User, isouter=True)
+            query = query.group_by(Account.id).order_by(
+                valid_sort_columns[sort_by].asc()
+                if sort_dir == "asc"
+                else valid_sort_columns[sort_by].desc()
             )
 
         if page:
@@ -295,7 +322,7 @@ class AccountAPI(FlaskView):
         for k, v in account_data.items():
             setattr(account, k, v)
 
-        event_message = f"Account {account.name} has been updated. Modified fields: {modified_fields_str}"
+        event_message = f"Account Updated, Field: {modified_fields_str}"
 
         # Add Audit log
         account_audit_log = AuditLog(
