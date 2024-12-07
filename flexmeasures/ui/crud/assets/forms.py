@@ -44,7 +44,6 @@ class AssetForm(FlaskForm):
         render_kw={"placeholder": "--Click the map or enter a longitude--"},
     )
     attributes = StringField("Other attributes (JSON)", default="{}")
-    sensors_to_show = StringField("Sensors to show (JSON)", default="[]")
     production_price_sensor_id = SelectField(
         "Production price sensor", coerce=int, validate_choice=False
     )

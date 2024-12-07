@@ -28,6 +28,7 @@ from flexmeasures.data.services.sensors import (
     build_sensor_status_data,
     build_asset_jobs_data,
 )
+from flexmeasures.ui.utils.view_utils import available_units
 
 
 """
@@ -136,6 +137,7 @@ class AssetCrudUI(FlaskView):
             user_can_update_asset=user_can_update(asset),
             event_starts_after=request.args.get("start_time"),
             event_ends_before=request.args.get("end_time"),
+            available_units=available_units(),
         )
 
     @login_required
