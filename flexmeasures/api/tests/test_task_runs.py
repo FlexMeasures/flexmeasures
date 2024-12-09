@@ -1,9 +1,8 @@
 import pytest
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from flask import url_for
-import pytz
 import isodate
 
 from flexmeasures.api.tests.utils import get_auth_token, get_task_run, post_task_run
@@ -73,7 +72,7 @@ def test_api_task_run_get_recent_entry(client):
     assert task_run.json["process"] == "FlexMeasures"
     assert task_run.json["server"] == "test"
     task_time = isodate.parse_datetime(task_run.json.get("lastrun"))
-    utcnow = datetime.utcnow().replace(tzinfo=pytz.utc)
+    utcnow = datetime.now(timezone.utc)
     assert task_time <= utcnow
     assert task_time >= utcnow - timedelta(minutes=2)
     assert task_run.json.get("status") == "ERROR"
@@ -84,7 +83,7 @@ def test_api_task_run_get_older_entry_then_update(client, requesting_user):
     task_run = get_task_run(client, "task-A")
     assert task_run.status_code == 200
     task_time = isodate.parse_datetime(task_run.json.get("lastrun"))
-    utcnow = datetime.utcnow().replace(tzinfo=pytz.utc)
+    utcnow = datetime.now(timezone.utc)
     assert task_time <= utcnow - timedelta(days=1)
     assert task_time >= utcnow - timedelta(days=1, minutes=1)
     assert task_run.json.get("status") == "OK"
@@ -93,7 +92,7 @@ def test_api_task_run_get_older_entry_then_update(client, requesting_user):
     assert task_update.status_code == 200
     task_run = get_task_run(client, "task-A")
     task_time = isodate.parse_datetime(task_run.json.get("lastrun"))
-    utcnow = datetime.utcnow().replace(tzinfo=pytz.utc)
+    utcnow = datetime.now(timezone.utc)
     assert task_time <= utcnow
     assert task_time >= utcnow - timedelta(minutes=1)
     assert task_run.json.get("status") == "ERROR"

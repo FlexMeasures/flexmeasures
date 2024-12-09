@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from flask import url_for, current_app, request
 from flask_classful import FlaskView, route
 from flask_security import login_required, current_user
@@ -21,6 +22,7 @@ from flexmeasures.ui.crud.assets.utils import (
     process_internal_api_response,
     user_can_create_assets,
     user_can_delete,
+    user_can_update,
 )
 from flexmeasures.data.services.sensors import (
     build_sensor_status_data,
@@ -59,6 +61,7 @@ class AssetCrudUI(FlaskView):
             "crud/assets.html",
             asset_icon_map=ICON_MAPPING,
             message=msg,
+            account=None,
             user_can_create_assets=user_can_create_assets(),
         )
 
@@ -113,6 +116,7 @@ class AssetCrudUI(FlaskView):
 
         get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_one", id=id))
         asset_dict = get_asset_response.json()
+
         asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
 
         asset_form = AssetForm()
@@ -129,6 +133,7 @@ class AssetCrudUI(FlaskView):
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
             user_can_create_assets=user_can_create_assets(),
             user_can_delete_asset=user_can_delete(asset),
+            user_can_update_asset=user_can_update(asset),
             event_starts_after=request.args.get("start_time"),
             event_ends_before=request.args.get("end_time"),
         )

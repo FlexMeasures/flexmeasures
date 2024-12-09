@@ -27,7 +27,7 @@ setup(
     description="The *FlexMeasures Platform* is the intelligent backend to support real-time energy flexibility apps, rapidly and scalable.",
     author="Seita BV",
     author_email="nicolas@seita.nl",
-    url="https://github.com/seitabv/flexmeasures",
+    url="https://github.com/FlexMeasures/flexmeasures",
     keywords=["smart grid", "renewables", "balancing", "forecasting", "scheduling"],
     python_requires=">=3.8",  # not enforced, just info
     install_requires=load_requirements("app"),
@@ -54,6 +54,7 @@ setup(
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
         "Framework :: Flask",
         "Development Status :: 5 - Production/Stable",
         "License :: OSI Approved :: Apache Software License",
@@ -79,7 +80,7 @@ A closer look at FlexMeasures' three core value drivers:
  * Uncertainty models ― Dealing with uncertain forecasts and outcomes is crucial. FlexMeasures is built on [timely-beliefs](https://github.com/SeitaBV/timely-beliefs), so we model this real-world aspect accurately.
  * Developer support ― Building customer-facing apps & services is where developers make impact. FlexMeasures make their work easy with a well-documented API, data visualisation and multi-tenancy, and it supports plugins to customise and extend the platform to your needs.
 
-Energy Flexibility is one of the key ingredients to reducing CO2. FlexMeasures is meant
+Energy Flexibility is one of the key ingredients to reducing CO₂. FlexMeasures is meant
 to facilitate the transition to a carbon-free energy system. By open-sourcing FlexMeasures,
 we hope to speed up this transition world-wide.
 

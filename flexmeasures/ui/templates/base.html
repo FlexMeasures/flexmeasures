@@ -48,6 +48,15 @@
             --create-color: var(--green);
             --delete-color: var(--red);
         }
+        #asset_audit_log.nav-on-click tr {
+            cursor: default;
+        }
+        #account_audit_log.nav-on-click tr {
+            cursor: default; 
+        }
+        #user_audit_log.nav-on-click tr {
+            cursor: default; 
+        }
     </style>
     <!-- Leaflet -->
     <link href="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.css" rel="stylesheet" />
@@ -78,7 +87,7 @@
     {% endblock %}
 </head>
 
-<body>
+<body class="d-flex flex-column min-vh-100">
 
     {% block body %}
 
@@ -156,10 +165,18 @@
           </div>
         </div>
     </nav>
-      
-      
-
     {% endblock nav %}
+
+    <div
+        class="position-fixed bottom-0 end-0 p-3"
+        id="toast-container"
+        role="alert"
+        aria-live="assertive"
+        aria-atomic="true"
+        style="z-index: 11"
+    >
+        <button id="close-all-toasts" class="btn">Close All</button>
+    </div>
 
     {% if message and message != "" %}
     <div class="col-md-12 alert alert-info">{{ message}} </div>
@@ -174,6 +191,35 @@
 
     {# Div blocks that child pages can reference #}
     {% block divs %}
+
+    {% block breadcrumbs %}
+    {% if breadcrumb_info is defined %}
+    <nav aria-label="breadcrumb ">
+        <ol class="breadcrumb p-2">
+            {% for breadcrumb in breadcrumb_info["ancestors"] %}
+            <li class="breadcrumb-item{% if loop.last %} dropdown active{% endif %}" {% if loop.last %}aria-current="page"{% endif %}>
+              {% if breadcrumb["url"] is not none and not loop.last %}
+                <a href="{{ breadcrumb['url'] }}">{{ breadcrumb['name'] }}</a>
+              {% else %}
+                {% if breadcrumb_info["siblings"]|length > 0 %}
+                <a href="{{ breadcrumb['url'] }}" class="dropdown-toggle" data-bs-toggle="dropdown"  aria-expanded="false" role="button">{{ breadcrumb['name'] }}</a>
+                <ul class="dropdown-menu">
+                    {% for sibling in breadcrumb_info["siblings"] %}
+                    <li><a  class="p-3 dropdown-item" href="{{ sibling['url'] }}">{{ sibling["name"] }}</a></li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <a href="{{ breadcrumb['url'] }}" role="button">{{ breadcrumb['name'] }}</a>
+                {% endif %}
+              {% endif %}
+            </li>
+            {% endfor %}
+        </ol>
+    </nav>
+    {% endif %}
+    {% endblock %}
+
+
 
     {% block forecastpicker %}
 
@@ -319,7 +365,6 @@
     }
 
     async function embedAndLoad(chartSpecsPath, elementId, datasetName, previousResult, startDate, endDate) {
-        var combineLegend = 'true';
 
         await vegaEmbed('#'+elementId, chartSpecsPath + 'dataset_name=' + datasetName + '&combine_legend='+ combineLegend + '&width=container&include_sensor_annotations=false&include_asset_annotations=false&chart_type=' + chartType, {{ chart_options | safe }})
         .then(function (result) {
@@ -358,10 +403,15 @@
         });
     }
 
+    var combineLegend = 'true';
     {% if active_page == "assets" %}
         var dataPath = '/api/v3_0/assets/' + {{ asset.id }};
         var dataDevPath = '/api/dev/asset/' + {{ asset.id }};
         var datasetName = 'asset_' + {{ asset.id }};
+        {% set total_sensors = asset.sensors_to_show | map(attribute='sensors') | map('length') | sum %}
+        {% if total_sensors > 7 %}
+            combineLegend = 'false';
+        {% endif %}
     {% elif active_page == "sensors" %}
         var dataPath = '/api/dev/sensor/' + {{ sensor.id }};
         var dataDevPath = '/api/dev/sensor/' + {{ sensor.id }};
@@ -724,6 +774,14 @@
 
     <!-- JS to enable toast -->
     <script defer>
+        const toastStack = document.getElementById("toast-container");
+        const closeToastBtn = document.getElementById("close-all-toasts");
+        
+        // written like this since this script(order) is ontop of the main script
+        document.addEventListener("DOMContentLoaded", function () {
+            initiateToastCloseBtn(closeToastBtn);
+        });
+
         function initiateToastCloseBtn(closeToastBtn){
             // hide button
             closeToastBtn.style.display = "none";
@@ -751,7 +809,7 @@
             });
         }
 
-        function showToast(message, type, toastStack, closeToastBtn) {
+        function showToast(message, type) {
             let colorClass;
             let colorStyle = "";
             let title;
@@ -805,8 +863,6 @@
           }
     </script>
 
-
-
     <!-- External scripts -->
     <script src="https://cdn.jsdelivr.net/npm/ion-rangeslider@2.3.1/js/ion.rangeSlider.min.js"></script>
     <script src="https://d3js.org/d3.v6.min.js"></script>
@@ -826,13 +882,15 @@
 
     {% endblock scripts %}
 
+
+
     {% block paginate_tables_script %}
     <script src="https://cdn.datatables.net/1.10.22/js/jquery.dataTables.min.js"></script>
     <script
         src="https://cdn.datatables.net/plug-ins/1.10.22/features/conditionalPaging/dataTables.conditionalPaging.js"></script>
     {% endblock paginate_tables_script %}
 
-    <footer class="page-footer font-small pt-4 mt-4">
+    <footer class="page-footer font-small pt-4 mt-auto">
         <div class="footer text-center">
             <div class="container-fluid">
                 {% block copyright_notice %}

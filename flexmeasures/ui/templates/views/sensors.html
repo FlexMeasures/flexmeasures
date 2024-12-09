@@ -7,24 +7,9 @@
 
 
 {% block divs %}
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb p-2">
-                {% for breadcrumb in breadcrumb_info["ancestors"] %}
-                <li class="breadcrumb-item{% if loop.last %} dropdown active{% endif %}" {% if loop.last %}aria-current="page"{% endif %}>
-                    {% if breadcrumb["url"] is not none and not loop.last %}
-                    <a href="{{ breadcrumb['url'] }}">{{ breadcrumb['name'] }}</a>
-                    {% else %}
-                    <a href="{{ breadcrumb['url'] }}" class="dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" role="button">{{ breadcrumb['name'] }}</a>
-                    <ul class="dropdown-menu">
-                        {% for sibling in breadcrumb_info["siblings"] %}
-                        <li><a class="p-3 dropdown-item" href="{{ sibling['url'] }}">{{ sibling["name"] }}</a></li>
-                        {% endfor %}
-                    </ul>
-                    {% endif %}
-                </li>
-                {% endfor %}
-            </ol>
-        </nav>
+
+    {% block breadcrumbs %} {{ super() }} {% endblock %}
+    
       <div class="sensor-data charts text-center">
           <div class="row">
               <div class="alert alert-info" id="tzwarn" style="display:none;"></div>
@@ -72,7 +57,7 @@
                                   <td>{{ sensor.unit }}</td>
                               </tr>
                               <tr>
-                                  <th>Event Resolution</th>
+                                  <th>Event resolution</th>
                                   <td>{{ sensor.event_resolution }}</td>
                               </tr>
                               <tr>
@@ -80,7 +65,7 @@
                                   <td>{{ sensor.timezone }}</td>
                               </tr>
                               <tr>
-                                  <th>Knowledge Horizon Type</th>
+                                  <th>Knowledge horizon type</th>
                                   <td>{{ sensor.knowledge_horizon_fnc }}</td>
                               </tr>
                           </table>
@@ -178,38 +163,22 @@
                                 function updateTable(stats) {
                                     tableBody.innerHTML = ''; // Clear the table body
 
-                                    // This list is used to format the table content. Simple sorting is not possible.
-                                    const keys = [
-                                        "min_event_start",
-                                        "max_event_start",
-                                        "min_value",
-                                        "max_value",
-                                        "mean_value",
-                                        "sum_values",
-                                        "count_values"
-                                    ];
+                                    Object.entries(stats).forEach(([key, val]) => {
+                                        const row = document.createElement('tr');
+                                        const keyCell = document.createElement('th');
+                                        const valueCell = document.createElement('td');
 
-                                    keys.forEach(key => {
-                                        if (key in stats) {
-                                            // Create a display key by removing underscores and capitalizing words
-                                            const displayKey = key.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase());
-
-                                            const row = document.createElement('tr');
-                                            const keyCell = document.createElement('th');
-                                            const valueCell = document.createElement('td');
-
-                                            keyCell.textContent = displayKey;
-                                            // Round value to 2 decimal points if it's a number
-                                            if (typeof stats[key] === 'number' & key != 'count_values') {
-                                                valueCell.textContent = stats[key].toFixed(4);
-                                            } else {
-                                                valueCell.textContent = stats[key];
-                                            }
-
-                                            row.appendChild(keyCell);
-                                            row.appendChild(valueCell);
-                                            tableBody.appendChild(row);
+                                        keyCell.textContent = key;
+                                        // Round value to 2 decimal points if it's a number
+                                        if (typeof val === 'number' & key != 'Number of values') {
+                                            valueCell.textContent = val.toFixed(4);
+                                        } else {
+                                            valueCell.textContent = val;
                                         }
+
+                                        row.appendChild(keyCell);
+                                        row.appendChild(valueCell);
+                                        tableBody.appendChild(row);
                                     });
                                 }
                             });

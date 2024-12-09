@@ -4,15 +4,18 @@ from datetime import datetime
 
 from flask import request, url_for
 from flask_classful import FlaskView
+from flask_security.core import current_user
 from flask_security import login_required
 from flask_wtf import FlaskForm
 from wtforms import StringField, FloatField, DateTimeField, BooleanField
 from wtforms.validators import DataRequired
+from werkzeug.exceptions import Forbidden, Unauthorized
 from sqlalchemy import select
 
-from flexmeasures.auth.policy import ADMIN_READER_ROLE, ADMIN_ROLE
+from flexmeasures.auth.policy import ADMIN_READER_ROLE, ADMIN_ROLE, check_access
 from flexmeasures.auth.decorators import roles_required, roles_accepted
 from flexmeasures.data import db
+from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import User, Role, Account
 from flexmeasures.data.services.users import (
     get_user,
@@ -35,11 +38,31 @@ class UserForm(FlaskForm):
     active = BooleanField("Activation Status", validators=[DataRequired()])
 
 
+def get_asset_count(user: User):
+    """Returns the asset count for a user."""
+    asset_count = 0
+    if user:
+        get_users_assets_response = InternalApi().get(
+            url_for("AssetAPI:index", account_id=user.account_id)
+        )
+        asset_count = len(get_users_assets_response.json())
+    return asset_count
+
+
 def render_user(user: User | None, asset_count: int = 0, msg: str | None = None):
     user_form = UserForm()
     user_form.process(obj=user)
+
+    user_view_user_auditlog = True
+    try:
+        check_access(AuditLog.user_table_acl(current_user), "read")
+    except (Forbidden, Unauthorized):
+        user_view_user_auditlog = False
+
     return render_flexmeasures_template(
         "crud/user.html",
+        can_view_user_auditlog=user_view_user_auditlog,
+        logged_in_user=current_user,
         user=user,
         user_form=user_form,
         asset_count=asset_count,
@@ -74,23 +97,6 @@ def process_internal_api_response(
     return user_data
 
 
-def get_users_by_account(
-    account_id: int | str, include_inactive: bool = False
-) -> list[User]:
-    get_users_response = InternalApi().get(
-        url_for(
-            "UserAPI:index",
-            account_id=account_id,
-            include_inactive=include_inactive,
-        )
-    )
-    users = [
-        process_internal_api_response(user, make_obj=True)
-        for user in get_users_response.json()
-    ]
-    return users
-
-
 def get_all_users(include_inactive: bool = False) -> list[User]:
     get_users_response = InternalApi().get(
         url_for(
@@ -98,10 +104,7 @@ def get_all_users(include_inactive: bool = False) -> list[User]:
             include_inactive=include_inactive,
         )
     )
-    users = [
-        process_internal_api_response(user, make_obj=True)
-        for user in get_users_response.json()
-    ]
+    users = [user for user in get_users_response.json()]
     return users
 
 
@@ -113,10 +116,8 @@ class UserCrudUI(FlaskView):
     def index(self):
         """/users"""
         include_inactive = request.args.get("include_inactive", "0") != "0"
-        users = get_all_users(include_inactive)
-
         return render_flexmeasures_template(
-            "crud/users.html", users=users, include_inactive=include_inactive
+            "crud/users.html", include_inactive=include_inactive
         )
 
     @login_required
@@ -127,12 +128,7 @@ class UserCrudUI(FlaskView):
         user: User = process_internal_api_response(
             get_user_response.json(), make_obj=True
         )
-        asset_count = 0
-        if user:
-            get_users_assets_response = InternalApi().get(
-                url_for("AssetAPI:index", account_id=user.account_id)
-            )
-            asset_count = len(get_users_assets_response.json())
+        asset_count = get_asset_count(user)
         return render_user(user, asset_count=asset_count)
 
     @roles_required(ADMIN_ROLE)
@@ -146,8 +142,10 @@ class UserCrudUI(FlaskView):
         patched_user: User = process_internal_api_response(
             user_response.json(), make_obj=True
         )
+        asset_count = get_asset_count(user)
         return render_user(
             user,
+            asset_count=asset_count,
             msg="User %s's new activation status is now %s."
             % (patched_user.username, patched_user.active),
         )
@@ -161,8 +159,10 @@ class UserCrudUI(FlaskView):
         InternalApi().patch(
             url_for("UserAPI:reset_user_password", id=id),
         )
+        asset_count = get_asset_count(user)
         return render_user(
             user,
+            asset_count=asset_count,
             msg="The user's password has been changed to a random password"
             " and password reset instructions have been sent to the user."
             " Cookies and the API access token have also been invalidated.",

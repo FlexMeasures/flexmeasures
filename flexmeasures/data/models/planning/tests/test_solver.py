@@ -18,7 +18,7 @@ from flexmeasures.data.models.planning.storage import (
     build_device_soc_values,
 )
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
-from flexmeasures.data.models.planning.tests.utils import check_constraints
+from flexmeasures.data.models.planning.tests.utils import check_constraints, get_sensors_from_db
 from flexmeasures.data.models.planning.utils import initialize_series, initialize_df
 from flexmeasures.data.schemas.sensors import TimedEventSchema
 from flexmeasures.utils.calculations import (
@@ -1015,19 +1015,6 @@ def test_infeasible_problem_error(db, add_battery_assets):
         ValueError, match="The input data yields an infeasible problem."
     ):
         compute_schedule(flex_model)
-
-
-def get_sensors_from_db(
-    db, battery_assets, battery_name="Test battery", power_sensor_name="power"
-):
-    # get the sensors from the database
-    epex_da = get_test_sensor(db)
-    battery = [
-        s for s in battery_assets[battery_name].sensors if s.name == power_sensor_name
-    ][0]
-    assert battery.get_attribute("market_id") == epex_da.id
-
-    return epex_da, battery
 
 
 def test_numerical_errors(app_with_each_solver, setup_planning_test_data, db):

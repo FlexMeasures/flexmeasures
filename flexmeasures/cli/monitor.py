@@ -4,7 +4,7 @@ CLI commands for monitoring functionality.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import click
 from flask import current_app as app
@@ -15,6 +15,7 @@ from sentry_sdk import (
     set_context as set_sentry_context,
 )
 from sqlalchemy import select
+from tabulate import tabulate
 
 from flexmeasures.data import db
 from flexmeasures.data.models.task_runs import LatestTaskRun
@@ -61,35 +62,6 @@ def send_task_monitoring_alert(
         app.mail.send(email)
 
     app.logger.error(f"{msg} {latest_run_txt} NOTE: {custom_msg}")
-
-
-@fm_monitor.command("tasks")  # TODO: deprecate, this is the old name
-@with_appcontext
-@click.option(
-    "--task",
-    type=(str, int),
-    multiple=True,
-    required=True,
-    help="The name of the task and the maximal allowed minutes between successful runs. Use multiple times if needed.",
-)
-@click.option(
-    "--custom-message",
-    type=str,
-    default="",
-    help="Add this message to the monitoring alert (if one is sent).",
-)
-@click.pass_context
-def monitor_task(ctx, task, custom_message):
-    """
-    DEPRECATED, use `latest-run`.
-    Check if the given task's last successful execution happened less than the allowed time ago.
-    If not, alert someone, via email or sentry.
-    """
-    click.secho(
-        "This function has been renamed (and is now deprecated). Please use flexmeasures monitor latest-run.",
-        **MsgStyle.ERROR,
-    )
-    ctx.forward(monitor_latest_run)
 
 
 @fm_monitor.command("latest-run")
@@ -150,20 +122,23 @@ def send_lastseen_monitoring_alert(
     alerted_users: bool,
     account_role: str | None = None,
     user_role: str | None = None,
+    txt_about_already_alerted_users: str = "",
 ):
     """
     Tell monitoring recipients and Sentry about user(s) we haven't seen in a while.
     """
-    user_info_list = [
-        f"{user.username} (last contact was {user.last_seen_at})" for user in users
+
+    user_info = [
+        [user.username, user.last_seen_at.strftime("%d %b %Y %I:%M:%S %p")]
+        for user in users
     ]
 
     msg = (
         f"The following user(s) have not contacted this FlexMeasures server for more"
-        f" than {last_seen_delta}, even though we expect they would have:\n"
+        f" than {last_seen_delta}, even though we expect they would have:\n\n"
     )
-    for user_info in user_info_list:
-        msg += f"\n- {user_info}"
+
+    msg += tabulate(user_info, headers=["User", "Last contact"])
 
     # Sentry
     set_sentry_context(
@@ -183,6 +158,8 @@ def send_lastseen_monitoring_alert(
         msg += f"\nThis alert concerns users whose accounts have the role '{account_role}'."
     if user_role:
         msg += f"\nThis alert concerns users who have the role '{user_role}'."
+    if txt_about_already_alerted_users:
+        msg += f"\n{txt_about_already_alerted_users}"
     if alerted_users:
         msg += "\n\nThe user(s) has/have been notified by email, as well."
     else:
@@ -230,12 +207,26 @@ def send_lastseen_monitoring_alert(
     default="",
     help="Add this message to the monitoring alert email to users (if one is sent).",
 )
+@click.option(
+    "--only-newly-absent-users/--all-absent-users",
+    type=bool,
+    default=True,
+    help="If True, a user is only included in this alert once after they were absent for too long. Defaults to True, so as to keep regular emails to low volume with newsworthy alerts.",
+)
+@click.option(
+    "--task-name",
+    type=str,
+    default="monitor-last-seen-users",
+    help="Optional name of the task, to distinguish finding out when the last monitoring happened (see --only-newly-absent-users).",
+)
 def monitor_last_seen(
     maximum_minutes_since_last_seen: int,
     alert_users: bool = False,
     account_role: str | None = None,
     user_role: str | None = None,
     custom_user_message: str | None = None,
+    only_newly_absent_users: bool = True,
+    task_name: str = "monitor-last-seen-users",
 ):
     """
     Check if given users last contact (via a request) happened less than the allowed time ago.
@@ -245,22 +236,43 @@ def monitor_last_seen(
     The user can be informed, as well.
 
     The set of users can be narrowed down by roles.
+
+    Per default, this function will only alert you once per absent user (to avoid information overload).
+    To (still) keep an overview over all absentees, we recommend to run this command in short regular intervals as-is
+    and with --all-absent-users once per longer interval (e.g. per 24h).
+
+    If you run distinct filters, you can use distinct task names, so the --only-newly-absent-users feature
+    will work for all filters independently.
     """
     last_seen_delta = timedelta(minutes=maximum_minutes_since_last_seen)
+    latest_run: LatestTaskRun = db.session.get(LatestTaskRun, task_name)
 
-    # find users we haven't seen in the given time window
+    # find users we haven't seen in the given time window (last_seen_at is naive UTC)
     users: list[User] = db.session.scalars(
-        select(User).filter(User.last_seen_at < datetime.utcnow() - last_seen_delta)
+        select(User).filter(
+            User.last_seen_at < datetime.now(timezone.utc) - last_seen_delta
+        )
     ).all()
     # role filters
     if account_role is not None:
         users = [user for user in users if user.account.has_role(account_role)]
     if user_role is not None:
         users = [user for user in users if user.has_role(user_role)]
-
+    # filter out users who we already included in this check's last run
+    txt_about_already_alerted_users = ""
+    if only_newly_absent_users and latest_run:
+        original_length = len(users)
+        users = [
+            user
+            for user in users
+            if user.last_seen_at.replace(tzinfo=timezone.utc) + last_seen_delta
+            > latest_run.datetime
+        ]
+        if len(users) < original_length:
+            txt_about_already_alerted_users = "There are (also) users who have been absent long, but one of the earlier monitoring runs already included them (run monitoring with --include-all-users-each-run to see them)."
     if not users:
         click.secho(
-            f"All good ― no users were found with relevant criteria and last_seen_at longer than {maximum_minutes_since_last_seen} minutes ago.",
+            f"All good ― no users were found with relevant criteria and last_seen_at longer than {maximum_minutes_since_last_seen} minutes ago. {txt_about_already_alerted_users}",
             **MsgStyle.SUCCESS,
         )
         raise click.Abort()
@@ -294,7 +306,12 @@ def monitor_last_seen(
         alerted_users=alert_users,
         account_role=account_role,
         user_role=user_role,
+        txt_about_already_alerted_users=txt_about_already_alerted_users,
     )
+
+    # remember that we checked at this time
+    LatestTaskRun.record_run(task_name, True)
+    db.session.commit()
 
 
 app.cli.add_command(fm_monitor)
