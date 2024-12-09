@@ -9,6 +9,10 @@ repos:
     hooks:
     - id: black
       name: black (code formatting)
+- repo: https://github.com/kynan/nbstripout
+  rev: 0.8.1
+  hooks:
+    - id: nbstripout      
 -   repo: local
     hooks:
     - id: mypy
@@ -17,7 +21,3 @@ repos:
       language: script
       entry: ci/run_mypy.sh
       verbose: true
-- repo: https://github.com/kynan/nbstripout
-  rev: 0.8.1
-  hooks:
-    - id: nbstripout
