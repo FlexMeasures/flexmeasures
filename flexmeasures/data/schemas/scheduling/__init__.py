@@ -32,6 +32,8 @@ class FlexContextSchema(Schema):
     # todo: deprecated since flexmeasures==0.23
     consumption_price_sensor = SensorIdField(data_key="consumption-price-sensor")
     production_price_sensor = SensorIdField(data_key="production-price-sensor")
+    curtailable_device_sensors = fields.List(
+        SensorIdField(), data_key="curtailable-device-sensors"
 
     consumption_price = VariableQuantityField(
         "/MWh",
