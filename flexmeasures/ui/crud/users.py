@@ -38,6 +38,17 @@ class UserForm(FlaskForm):
     active = BooleanField("Activation Status", validators=[DataRequired()])
 
 
+def get_asset_count(user: User):
+    """Returns the asset count for a user."""
+    asset_count = 0
+    if user:
+        get_users_assets_response = InternalApi().get(
+            url_for("AssetAPI:index", account_id=user.account_id)
+        )
+        asset_count = len(get_users_assets_response.json())
+    return asset_count
+
+
 def render_user(user: User | None, asset_count: int = 0, msg: str | None = None):
     user_form = UserForm()
     user_form.process(obj=user)
@@ -117,12 +128,7 @@ class UserCrudUI(FlaskView):
         user: User = process_internal_api_response(
             get_user_response.json(), make_obj=True
         )
-        asset_count = 0
-        if user:
-            get_users_assets_response = InternalApi().get(
-                url_for("AssetAPI:index", account_id=user.account_id)
-            )
-            asset_count = len(get_users_assets_response.json())
+        asset_count = get_asset_count(user)
         return render_user(user, asset_count=asset_count)
 
     @roles_required(ADMIN_ROLE)
@@ -136,8 +142,10 @@ class UserCrudUI(FlaskView):
         patched_user: User = process_internal_api_response(
             user_response.json(), make_obj=True
         )
+        asset_count = get_asset_count(user)
         return render_user(
             user,
+            asset_count=asset_count,
             msg="User %s's new activation status is now %s."
             % (patched_user.username, patched_user.active),
         )
@@ -151,8 +159,10 @@ class UserCrudUI(FlaskView):
         InternalApi().patch(
             url_for("UserAPI:reset_user_password", id=id),
         )
+        asset_count = get_asset_count(user)
         return render_user(
             user,
+            asset_count=asset_count,
             msg="The user's password has been changed to a random password"
             " and password reset instructions have been sent to the user."
             " Cookies and the API access token have also been invalidated.",
@@ -164,10 +174,7 @@ class UserCrudUI(FlaskView):
         View all user actions.
         """
         user: User = get_user(id)
-        audit_log_response = InternalApi().get(url_for("UserAPI:auditlog", id=id))
-        audit_logs_response = audit_log_response.json()
         return render_flexmeasures_template(
             "crud/user_audit_log.html",
             user=user,
-            audit_logs=audit_logs_response,
         )

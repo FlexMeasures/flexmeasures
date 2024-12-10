@@ -15,9 +15,14 @@ New features
 * Speed up loading the users page, by making the pagination backend-based and adding support for that in the API [see `PR #1160 <https://github.com/FlexMeasures/flexmeasures/pull/1160>`_]
 * X-axis labels in CLI plots show datetime values in a readable and informative format [see `PR #1172 <https://github.com/FlexMeasures/flexmeasures/pull/1172>`_]
 * Enhanced API for listing sensors: Added filtering and pagination on sensor index endpoint and created new endpoint to get all sensors under an asset [see `PR #1191 <https://github.com/FlexMeasures/flexmeasures/pull/1191>`_ and `PR #1219 <https://github.com/FlexMeasures/flexmeasures/pull/1219>`_]
-* Speed up loading the accounts page,by making the pagination backend-based and adding support for that in the API [see `PR #1196 <https://github.com/FlexMeasures/flexmeasures/pull/1196>`_]
+* Speed up loading the accounts page by making the pagination backend-based and adding support for that in the API [see `PR #1196 <https://github.com/FlexMeasures/flexmeasures/pull/1196>`_]
 * Speed up loading the account detail page by by switching to server-side pagination for assets, replacing client-side pagination [see `PR #1202 <https://github.com/FlexMeasures/flexmeasures/pull/1202>`_]
-* Simplify and Globalize toasts in the flexmeasures project [see `PR #1207 <https://github.com/FlexMeasures/flexmeasures/pull/1207>_`]
+* Added form to edit an asset's sensors_to_show data directly from the UI [see `PR #1212 <https://github.com/FlexMeasures/flexmeasures/pull/1212>`_]
+* Speed up loading on audit log tables page by switching to server-side pagination, replacing client-side pagination [see `PR #1274 <https://github.com/FlexMeasures/flexmeasures/pull/1274>`_ and `PR #1272 <https://github.com/FlexMeasures/flexmeasures/pull/1272>`_]
+* Simplify and globalize UI messages, using Toast [see `PR #1207 <https://github.com/FlexMeasures/flexmeasures/pull/1207>`_]
+* Power sensors created through the CLI no longer require a capacity attribute to be set [see `PR #1234 <https://github.com/FlexMeasures/flexmeasures/pull/1234>`_]
+* The breadcrumbs on asset and sensor pages can now be customized [see `PR #1257 <https://github.com/FlexMeasures/flexmeasures/pull/1257>`_]
+* The monitoring command to check for users who have been absent to long now can be used to keep data volume low and be more effective [see `PR #1268 <https://github.com/FlexMeasures/flexmeasures/pull/1268>`_]
 
 Infrastructure / Support
 ----------------------
@@ -28,11 +33,21 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Fix table sorting on the assets, accounts and users page (regression from `PR #988 <https://github.com/FlexMeasures/flexmeasures/pull/988>`_) [see `PR #1239 <https://github.com/FlexMeasures/flexmeasures/pull/1239>`_ and `PR #1242 <https://github.com/FlexMeasures/flexmeasures/pull/1242>`_ and `PR #1248 <https://github.com/FlexMeasures/flexmeasures/pull/1248>`_ and `PR #1247 <https://github.com/FlexMeasures/flexmeasures/pull/1247>`_ and `PR #1272 <https://github.com/FlexMeasures/flexmeasures/pull/1272>`_]
+* Fix asset count on the user page, which showed 0 assets after (de)activating a user or resetting their password [see `PR #1251 <https://github.com/FlexMeasures/flexmeasures/pull/1251>`_]
 * The UI footer now stays at the bottom even on pages with little content [see `PR #1204 <https://github.com/FlexMeasures/flexmeasures/pull/1204>`_]
 * Correct stroke dash (based on source type) for forecasts made by forecasters included in FlexMeasures [see `PR #1211 <https://www.github.com/FlexMeasures/flexmeasures/pull/1211>`_]
-* Show the correct UTC offset for the data's time span as shown under sensor stats in the UI [see `PR #1213 <https://github.com/FlexMeasures/flexmeasures/pull/1213>`_]
+* Show the correct :abbr:`UTC (Coordinated Universal Time)` offset for the data's time span as shown under sensor stats in the UI [see `PR #1213 <https://github.com/FlexMeasures/flexmeasures/pull/1213>`_]
 * Fixed issue where audit log buttons are visible to users without the necessary permissions. [see `PR #1228 <https://github.com/FlexMeasures/flexmeasures/pull/1228>`_]
 * Fix issue with displaying ``deactivate user`` and ``reset password`` buttons for non admin users [see `PR #1220 <https://github.com/FlexMeasures/flexmeasures/pull/1220>`_]
+
+
+v0.23.1 | November 12, 2024
+============================
+
+Bugfixes
+-----------
+* Correct unit conversion of reporter output to output sensor [see `PR #1238 <https://github.com/FlexMeasures/flexmeasures/pull/1238>`_]
 
 
 v0.23.0 | September 18, 2024
@@ -77,8 +92,8 @@ Bugfixes
 * Allow reassigning a public asset to private ownership using the ``flexmeasures edit transfer-ownership`` CLI command [see `PR #1123 <https://github.com/FlexMeasures/flexmeasures/pull/1123>`_]
 * Fix missing value on spring :abbr:`DST (Daylight Saving Time)` transition for ``PandasReporter`` using daily sensor as input [see `PR #1122 <https://github.com/FlexMeasures/flexmeasures/pull/1122>`_]
 * Fix date range persistence on session across different pages [see `PR #1165 <https://github.com/FlexMeasures/flexmeasures/pull/1165>`_]
-* Fix issue with account creation failing when the --logo-url flag is omitted. [see related PRs `PR #1167 <https://github.com/FlexMeasures/flexmeasures/pull/1167>`_ and `PR #1145 <https://github.com/FlexMeasures/flexmeasures/pull/1145>`_]
-* Fix ordering of audit logs (asset, account) and job list on status page [see PR `PR #1179 <https://github.com/FlexMeasures/flexmeasures/pull/1179>_` and `PR #1183 <https://github.com/FlexMeasures/flexmeasures/pull/1183>`_]
+* Fix issue with account creation failing when the ``--logo-url`` option is omitted. [see related PRs `PR #1167 <https://github.com/FlexMeasures/flexmeasures/pull/1167>`_ and `PR #1145 <https://github.com/FlexMeasures/flexmeasures/pull/1145>`_]
+* Fix ordering of audit logs (asset, account) and job list on status page [see `PR #1179 <https://github.com/FlexMeasures/flexmeasures/pull/1179>_` and `PR #1183 <https://github.com/FlexMeasures/flexmeasures/pull/1183>`_]
 
 
 v0.22.0 | June 29, 2024

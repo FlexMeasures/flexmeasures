@@ -1,5 +1,4 @@
-from datetime import datetime
-import pytz
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 
@@ -14,9 +13,7 @@ class LatestTaskRun(db.Model):
     """
 
     name = db.Column(db.String(80), primary_key=True)
-    datetime = db.Column(
-        db.DateTime(timezone=True), default=datetime.utcnow().replace(tzinfo=pytz.utc)
-    )
+    datetime = db.Column(db.DateTime(timezone=True), default=datetime.now(timezone.utc))
     status = db.Column(db.Boolean, default=True)
 
     def __repr__(self):
@@ -39,5 +36,5 @@ class LatestTaskRun(db.Model):
         if task_run is None:
             task_run = LatestTaskRun(name=task_name)
             db.session.add(task_run)
-        task_run.datetime = datetime.utcnow().replace(tzinfo=pytz.utc)
+        task_run.datetime = datetime.now(timezone.utc)
         task_run.status = status
