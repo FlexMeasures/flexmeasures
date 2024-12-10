@@ -37,6 +37,7 @@ Infrastructure / Support
 ----------------------
 * Speed up status page by choosing for a faster query (only latest belief needed) [see `PR #1142 <https://github.com/FlexMeasures/flexmeasures/pull/1142>`_]
 * For MacOS developers, install HiGHS solver automatically [see `PR #1187 <https://github.com/FlexMeasures/flexmeasures/pull/1187>`_]
+* Migrate data for the ``sensors_to_show`` asset attribute to a dedicated column in the database table for assets [see `PR #1200 <https://github.com/FlexMeasures/flexmeasures/pull/1200>`_ and `PR #1282 <https://github.com/FlexMeasures/flexmeasures/pull/1282>`_]
 * Add support for installing FlexMeasures under Python 3.12 [see `PR #1233 <https://github.com/FlexMeasures/flexmeasures/pull/1233>`_]
 * Add dedicated ``sensors_to_show`` field to asset model and logic to migrate data from parent source(attributes field) [see `PR #1200 <https://github.com/FlexMeasures/flexmeasures/pull/1200>`_]
 
