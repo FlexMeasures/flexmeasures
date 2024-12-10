@@ -8,7 +8,11 @@ from flexmeasures.data.schemas.reporting import (
 )
 
 from flexmeasures.data.schemas.io import RequiredInput, RequiredOutput
-from timely_beliefs import BeliefsDataFrame
+from timely_beliefs import BeliefsDataFrame, BeliefsSeries
+
+
+from pandas.core.resample import Resampler
+from pandas.core.groupby.grouper import Grouper
 
 
 class PandasMethodCall(Schema):
@@ -24,27 +28,38 @@ class PandasMethodCall(Schema):
     def validate_method_call(self, data, **kwargs):
 
         method = data["method"]
-        method_callable = getattr(
-            BeliefsDataFrame, method, None
-        )  # what if the object which is applied to is not a BeliefsDataFrame...
+        is_callable = []
+        bad_arguments = True
 
-        if not callable(method_callable):
-            raise ValidationError(
-                f"method {method} is not a valid BeliefsDataFrame method."
-            )
+        for base_class in [BeliefsSeries, BeliefsDataFrame, Resampler, Grouper]:
+            method_callable = getattr(base_class, method, None)
+            if method_callable is None:
+                is_callable.append(False)
+                continue
 
-        method_signature = signature(method_callable)
+            is_callable.append(callable(method_callable))
 
-        try:
-            args = data.get("args", []).copy()
-            _kwargs = data.get("kwargs", {}).copy()
+            method_signature = signature(method_callable)
 
-            args.insert(0, BeliefsDataFrame)
+            try:
+                args = data.get("args", []).copy()
+                _kwargs = data.get("kwargs", {}).copy()
 
-            method_signature.bind(*args, **_kwargs)
-        except TypeError:
+                args.insert(0, BeliefsDataFrame)
+
+                method_signature.bind(*args, **_kwargs)
+                bad_arguments = False
+            except TypeError:
+                pass
+
+        if bad_arguments:
             raise ValidationError(
                 f"Bad arguments or keyword arguments for method {method}"
+            )
+
+        if not any(is_callable):
+            raise ValidationError(
+                f"method {method} is not a valid BeliefsSeries, BeliefsDataFrame, Resampler or Grouper method."
             )
 
 
