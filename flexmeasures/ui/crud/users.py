@@ -129,7 +129,7 @@ class UserCrudUI(FlaskView):
         )
         asset_count = get_asset_count(user)
         return render_user(
-            user,
+            patched_user,
             asset_count=asset_count,
             msg="User %s's new activation status is now %s."
             % (patched_user.username, patched_user.active),
