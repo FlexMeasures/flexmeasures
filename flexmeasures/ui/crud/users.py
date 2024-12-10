@@ -6,9 +6,6 @@ from flask import request, url_for
 from flask_classful import FlaskView
 from flask_security.core import current_user
 from flask_security import login_required
-from flask_wtf import FlaskForm
-from wtforms import StringField, FloatField, DateTimeField, BooleanField
-from wtforms.validators import DataRequired
 from werkzeug.exceptions import Forbidden, Unauthorized
 from sqlalchemy import select
 
@@ -29,15 +26,6 @@ User Crud views for admins.
 """
 
 
-class UserForm(FlaskForm):
-    email = StringField("Email", validators=[DataRequired()])
-    username = StringField("Username", validators=[DataRequired()])
-    roles = FloatField("Roles", validators=[DataRequired()])
-    timezone = StringField("Timezone", validators=[DataRequired()])
-    last_login_at = DateTimeField("Last Login was at", validators=[DataRequired()])
-    active = BooleanField("Activation Status", validators=[DataRequired()])
-
-
 def get_asset_count(user: User):
     """Returns the asset count for a user."""
     asset_count = 0
@@ -50,8 +38,6 @@ def get_asset_count(user: User):
 
 
 def render_user(user: User | None, asset_count: int = 0, msg: str | None = None):
-    user_form = UserForm()
-    user_form.process(obj=user)
 
     user_view_user_auditlog = True
     try:
@@ -64,7 +50,6 @@ def render_user(user: User | None, asset_count: int = 0, msg: str | None = None)
         can_view_user_auditlog=user_view_user_auditlog,
         logged_in_user=current_user,
         user=user,
-        user_form=user_form,
         asset_count=asset_count,
         msg=msg,
     )
