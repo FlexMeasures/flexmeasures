@@ -183,6 +183,7 @@ class AssetAuditLog(db.Model, AuthModelMixin):
             affected_asset_id=asset.id,
         )
         db.session.add(audit_log)
+        db.session.commit()
 
 
 def truncate_string(value: str, max_length: int) -> str:
