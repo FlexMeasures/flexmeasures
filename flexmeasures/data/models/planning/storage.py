@@ -143,7 +143,7 @@ class MetaStorageScheduler(Scheduler):
                 beliefs_before=belief_time,
                 fallback_attribute="market_id",
                 fill_sides=True,
-            ).to_frame()
+            ).to_frame(name="event_value")
         else:
             up_deviation_prices, (start, end) = get_prices(
                 (start, end),
@@ -167,7 +167,7 @@ class MetaStorageScheduler(Scheduler):
                 beliefs_before=belief_time,
                 fallback_attribute="market_id",
                 fill_sides=True,
-            ).to_frame()
+            ).to_frame(name="event_value")
         else:
             down_deviation_prices, (start, end) = get_prices(
                 (start, end),
