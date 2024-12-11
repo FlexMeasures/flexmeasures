@@ -136,7 +136,11 @@ class MetaStorageScheduler(Scheduler):
                 unit=(
                     consumption_price.unit
                     if isinstance(consumption_price, Sensor)
-                    else str(consumption_price.units)
+                    else (
+                        consumption_price[0]["value"].units
+                        if isinstance(consumption_price, list)
+                        else str(consumption_price.units)
+                    )
                 ),
                 query_window=(start, end),
                 resolution=resolution,
@@ -160,7 +164,11 @@ class MetaStorageScheduler(Scheduler):
                 unit=(
                     production_price.unit
                     if isinstance(production_price, Sensor)
-                    else str(production_price.units)
+                    else (
+                        production_price[0]["value"].units
+                        if isinstance(production_price, list)
+                        else str(production_price.units)
+                    )
                 ),
                 query_window=(start, end),
                 resolution=resolution,
