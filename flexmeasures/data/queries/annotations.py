@@ -8,26 +8,32 @@ from sqlalchemy.orm import Query
 from flexmeasures.data.models.annotations import (
     Annotation,
     GenericAssetAnnotationRelationship,
+    SensorAnnotationRelationship,
 )
 from flexmeasures.data.models.data_sources import DataSource
 
 
 def query_asset_annotations(
-    asset_id: int,
+    asset_or_sensor_id: int,
+    relationship_module,
     annotations_after: datetime | None = None,
     annotations_before: datetime | None = None,
     sources: list[DataSource] | None = None,
     annotation_type: str | None = None,
 ) -> Query:
     """Match annotations assigned to the given asset."""
-    query = (
-        select(Annotation)
-        .join(GenericAssetAnnotationRelationship)
-        .filter(
-            GenericAssetAnnotationRelationship.generic_asset_id == asset_id,
-            GenericAssetAnnotationRelationship.annotation_id == Annotation.id,
-        )
+    query = select(Annotation).join(
+        relationship_module, relationship_module.annotation_id == Annotation.id
     )
+
+    if relationship_module is GenericAssetAnnotationRelationship:
+        query = query.filter(
+            GenericAssetAnnotationRelationship.generic_asset_id == asset_or_sensor_id
+        )
+    else:
+        query = query.filter(
+            SensorAnnotationRelationship.sensor_id == asset_or_sensor_id
+        )
 
     if annotations_after is not None:
         query = query.filter(
