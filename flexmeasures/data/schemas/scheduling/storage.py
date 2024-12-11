@@ -61,6 +61,7 @@ class StorageFlexModelSchema(Schema):
         return_magnitude=True,
         data_key="soc-at-start",
     )
+    soc = VariableQuantityField("MWh", data_key="soc", required=False)
 
     soc_min = QuantityField(
         validate=validate.Range(

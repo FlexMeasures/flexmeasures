@@ -8,6 +8,7 @@ import pandas as pd
 from pandas.tseries.frequencies import to_offset
 import numpy as np
 import timely_beliefs as tb
+from sqlalchemy import select
 
 from flexmeasures.data import db
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
@@ -451,3 +452,14 @@ def nanmin_of_series_and_value(s: pd.Series, value: float | pd.Series) -> pd.Ser
         # [right]: datetime64[ns, UTC]
         value = value.tz_convert("UTC")
     return s.fillna(value).clip(upper=value)
+
+
+def get_soc_sensor_value(sensor: Sensor, start: datetime):
+    soc_value = db.session.execute(
+        select(TimedBelief).filter_by(sensor_id=sensor.id, event_start=start)
+    ).scalar_one_or_none()
+    if soc_value is not None:
+        soc_value = soc_value.event_value
+    else:
+        soc_value = 0
+    return soc_value
