@@ -11,7 +11,7 @@ from flask import current_app
 
 
 from flexmeasures import Sensor
-from flexmeasures.data.models.planning import Scheduler, SchedulerOutputType
+from flexmeasures.data.models.planning import Commitment, Scheduler, SchedulerOutputType
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.planning.utils import (
     get_prices,
@@ -246,6 +246,7 @@ class MetaStorageScheduler(Scheduler):
 
         # Set up commitments DataFrame
         commitment = build_commitment(
+            name="energy",
             quantity=commitment_quantities,
             up_price=commitment_upwards_deviation_price,
             down_price=commitment_downwards_deviation_price,
@@ -285,6 +286,7 @@ class MetaStorageScheduler(Scheduler):
 
             # Set up commitments DataFrame
             commitment = build_commitment(
+                name="consumption peak",
                 quantity=ems_peak_consumption,
                 # positive price because breaching in the upwards (consumption) direction is penalized
                 up_price=ems_peak_consumption_price,
@@ -323,6 +325,7 @@ class MetaStorageScheduler(Scheduler):
 
             # Set up commitments DataFrame
             commitment = build_commitment(
+                name="production peak",
                 quantity=-ems_peak_production,  # production is negative quantity
                 # negative price because peaking in the downwards (production) direction is penalized
                 down_price=-ems_peak_production_price,
@@ -375,6 +378,7 @@ class MetaStorageScheduler(Scheduler):
 
             # Set up commitments DataFrame to penalize any breach
             commitment = build_commitment(
+                name="any consumption breach",
                 quantity=ems_consumption_capacity,
                 # positive price because breaching in the upwards (consumption) direction is penalized
                 up_price=ems_consumption_breach_price,
@@ -385,6 +389,7 @@ class MetaStorageScheduler(Scheduler):
 
             # Set up commitments DataFrame to penalize each breach
             commitment = build_commitment(
+                name="all consumption breaches",
                 quantity=ems_consumption_capacity,
                 # positive price because breaching in the upwards (consumption) direction is penalized
                 up_price=ems_consumption_breach_price,
@@ -402,6 +407,7 @@ class MetaStorageScheduler(Scheduler):
 
             # Set up commitments DataFrame to penalize any breach
             commitment = build_commitment(
+                name="any production breach",
                 quantity=ems_production_capacity,
                 # positive price because breaching in the upwards (consumption) direction is penalized
                 down_price=-ems_production_breach_price,
@@ -412,6 +418,7 @@ class MetaStorageScheduler(Scheduler):
 
             # Set up commitments DataFrame to penalize each breach
             commitment = build_commitment(
+                name="all production breaches",
                 quantity=ems_production_capacity,
                 # positive price because breaching in the upwards (consumption) direction is penalized
                 down_price=-ems_production_breach_price,
@@ -842,10 +849,10 @@ class StorageScheduler(MetaStorageScheduler):
             commitments,
         ) = self._prepare(skip_validation=skip_validation)
 
-        ems_schedule, expected_costs, scheduler_results, _ = device_scheduler(
+        ems_schedule, expected_costs, scheduler_results, model = device_scheduler(
             device_constraints,
             ems_constraints,
-            commitments=commitments,
+            commitments=[c.to_frame() for c in commitments],
             initial_stock=soc_at_start * (timedelta(hours=1) / resolution),
         )
         if scheduler_results.solver.termination_condition == "infeasible":
@@ -865,7 +872,16 @@ class StorageScheduler(MetaStorageScheduler):
                     "name": "storage_schedule",
                     "sensor": sensor,
                     "data": storage_schedule,
-                }
+                },
+                {
+                    "name": "commitment_costs",
+                    "data": {
+                        c.name: costs
+                        for c, costs in zip(
+                            commitments, model.commitment_costs.values()
+                        )
+                    },
+                },
             ]
         else:
             return storage_schedule
@@ -889,12 +905,13 @@ def create_constraint_violations_message(constraint_violations: list) -> str:
 
 
 def build_commitment(
+    name: str,
     quantity: pd.Series,
     index: pd.DatetimeIndex,
     up_price: float | pd.Series = 0,
     down_price: float | pd.Series = 0,
     _type="each",
-) -> pd.DataFrame:
+) -> Commitment:
     """
     :param _type: 'any' or 'each'. Any deviation is penalized via 1 group, whereas each deviation is penalized via n groups.
     """
@@ -910,7 +927,13 @@ def build_commitment(
         commitment["group"] = list(range(len(quantity)))
     else:
         raise ValueError('Commitment `_type` must be "any" or "each".')
-    return commitment
+    return Commitment(
+        name=name,
+        quantity=commitment["quantity"],
+        upwards_deviation_price=commitment["upwards deviation price"],
+        downwards_deviation_price=commitment["downwards deviation price"],
+        group=commitment["group"],
+    )
 
 
 def build_device_soc_values(

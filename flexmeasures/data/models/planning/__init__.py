@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Type, Union
 
@@ -203,6 +204,27 @@ class Scheduler:
         Raises ValidationErrors or ValueErrors.
         """
         pass
+
+
+@dataclass
+class Commitment:
+    name: str
+    quantity: pd.Series
+    upwards_deviation_price: pd.Series
+    downwards_deviation_price: pd.Series
+    group: pd.Series
+
+    def to_frame(self) -> pd.DataFrame:
+        """Contains all info apart from the name."""
+        return pd.concat(
+            [
+                self.quantity,
+                self.upwards_deviation_price,
+                self.downwards_deviation_price,
+                self.group,
+            ],
+            axis=1,
+        )
 
 
 """
