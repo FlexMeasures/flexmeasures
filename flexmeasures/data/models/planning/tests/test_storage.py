@@ -85,16 +85,16 @@ def test_battery_solver_multi_commitment(add_battery_assets, db):
     # Check costs are correct
     # 60 EUR for 600 kWh consumption priced at 100 EUR/MWh
     np.testing.assert_almost_equal(costs["energy"], 100 * (1 - 0.4))
-    # 24000 EUR for any 24 kWh consumption breach priced at 1000 EUR/kW
+    # 24000 EUR for any 24 kW consumption breach priced at 1000 EUR/kW
     np.testing.assert_almost_equal(costs["any consumption breach"], 1000 * (25 - 1))
-    # 24000 EUR for each 24 kWh consumption breach per 15 minutes priced at 1000 EUR/kW
+    # 24000 EUR for each 24 kW consumption breach per 15 minutes priced at 1000 EUR/kW
     np.testing.assert_almost_equal(
         costs["all consumption breaches"], 1000 * (25 - 1) * 96
     )
     # No production breaches
     np.testing.assert_almost_equal(costs["any production breach"], 0)
     np.testing.assert_almost_equal(costs["all production breaches"], 0 * 96)
-    # 1.3 EUR for the 5 kWh extra consumption peak priced at 260 EUR/MW
+    # 1.3 EUR for the 5 kW extra consumption peak priced at 260 EUR/MW
     np.testing.assert_almost_equal(costs["consumption peak"], 260 / 1000 * (25 - 20))
     # No production peak
     np.testing.assert_almost_equal(costs["production peak"], 0)
