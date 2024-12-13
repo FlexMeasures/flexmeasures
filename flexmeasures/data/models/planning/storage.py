@@ -438,7 +438,7 @@ class MetaStorageScheduler(Scheduler):
             ems_constraints["derivative min"] = -ems_power_capacity_in_mw
         else:
             # Take the contracted capacity as a hard constraint
-            ems_constraints["derivative min"] = -ems_production_capacity
+            ems_constraints["derivative min"] = ems_production_capacity
 
         # Set up device constraints: only one scheduled flexible device for this EMS (at index 0), plus the forecasted inflexible devices (at indices 1 to n).
         device_constraints = [
