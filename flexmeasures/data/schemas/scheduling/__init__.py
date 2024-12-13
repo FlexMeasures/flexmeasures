@@ -1,5 +1,6 @@
 from marshmallow import Schema, fields, validate, validates_schema, ValidationError
 
+from flexmeasures import Sensor
 from flexmeasures.data.schemas.sensors import (
     VariableQuantityField,
     SensorIdField,
@@ -121,15 +122,16 @@ class FlexContextSchema(Schema):
         for field in self.declared_fields:
             if field[-5:] == "price" and field in data:
                 if isinstance(data[field], ur.Quantity):
-                    price = data[field]
+                    price_unit = str(data[field].units)
                 elif isinstance(data[field], list):
-                    price = data[field][0]["value"]
+                    price_unit = str(data[field][0]["value"].units)
                     # todo: make sure the 'value' in each dict shares the same unit
+                elif isinstance(data[field], Sensor):
+                    price_unit = data[field].unit
                 else:
-                    # todo: check unit in case of a Sensor, too
                     continue
                 price_field = self.declared_fields[field]
-                currency_unit = str(price.units).split("/")[0]
+                currency_unit = price_unit.split("/")[0]
 
                 if previous_currency_unit is None:
                     previous_currency_unit = currency_unit
@@ -137,7 +139,7 @@ class FlexContextSchema(Schema):
                 elif units_are_convertible(currency_unit, previous_currency_unit):
                     # Make sure all compatible currency units are on the same scale (e.g. not kEUR mixed with EUR)
                     if currency_unit != previous_currency_unit:
-                        denominator_unit = str(price.units).split("/")[1]
+                        denominator_unit = price_unit.split("/")[1]
                         if isinstance(data[field], ur.Quantity):
                             data[field] = data[field].to(
                                 f"{previous_currency_unit}/{denominator_unit}"
@@ -147,6 +149,10 @@ class FlexContextSchema(Schema):
                                 data[field][j]["value"] = data[field][j]["value"].to(
                                     f"{previous_currency_unit}/{denominator_unit}"
                                 )
+                        elif isinstance(data[field], Sensor):
+                            raise ValidationError(
+                                f"Please convert all flex-context prices to the unit of the {data[field]} sensor ({price_unit})."
+                            )
 
                 else:
                     field_name = price_field.data_key
