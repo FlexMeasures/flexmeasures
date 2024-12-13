@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Type, Union
 
@@ -208,11 +208,69 @@ class Scheduler:
 
 @dataclass
 class Commitment:
+    """
+    :param _type: 'any' or 'each'. Any deviation is penalized via 1 group, whereas each deviation is penalized via n groups.
+    """
+
     name: str
-    quantity: pd.Series
-    upwards_deviation_price: pd.Series
-    downwards_deviation_price: pd.Series
-    group: pd.Series
+    group: pd.Series = field(init=False)
+    index: pd.DatetimeIndex = field(repr=False)
+    _type: str = field(repr=False, default="each")
+    quantity: pd.Series = 0
+    upwards_deviation_price: pd.Series = 0
+    downwards_deviation_price: pd.Series = 0
+
+    def __post_init__(self):
+        # Try to set the time series index for the commitment
+        if self.index is None:
+            if isinstance(self.quantity, pd.Series) and isinstance(
+                self.quantity.index, pd.DatetimeIndex
+            ):
+                self.index = self.quantity.index
+            elif isinstance(self.upwards_deviation_price, pd.Series) and isinstance(
+                self.upwards_deviation_price.index, pd.DatetimeIndex
+            ):
+                self.index = self.upwards_deviation_price.index
+            elif isinstance(self.downwards_deviation_price, pd.Series) and isinstance(
+                self.downwards_deviation_price.index, pd.DatetimeIndex
+            ):
+                self.index = self.downwards_deviation_price.index
+            else:
+                raise ValueError(
+                    "Commitment must be initialized with a pd.DatetimeIndex. Hint: use the `index` argument."
+                )
+
+        # Force type conversion of repr fields to pd.Series
+        if not isinstance(self.quantity, pd.Series):
+            self.quantity = pd.Series(self.quantity, index=self.index)
+        if not isinstance(self.upwards_deviation_price, pd.Series):
+            self.upwards_deviation_price = pd.Series(
+                self.upwards_deviation_price,
+                index=self.index,
+            )
+        if not isinstance(self.downwards_deviation_price, pd.Series):
+            self.downwards_deviation_price = pd.Series(
+                self.downwards_deviation_price,
+                index=self.index,
+            )
+        if self._type == "any":
+            # add all time steps to the same group
+            self.group = pd.Series(0, index=self.index)
+        elif self._type == "each":
+            # add each time step to their own group
+            self.group = pd.Series(list(range(len(self.index))), index=self.index)
+        else:
+            raise ValueError('Commitment `_type` must be "any" or "each".')
+
+        # Name the Series as expected by our device scheduler
+        self.quantity = self.quantity.rename("quantity")
+        self.upwards_deviation_price = self.upwards_deviation_price.rename(
+            "upwards deviation price"
+        )
+        self.downwards_deviation_price = self.downwards_deviation_price.rename(
+            "downwards deviation price"
+        )
+        self.group = self.group.rename("group")
 
     def to_frame(self) -> pd.DataFrame:
         """Contains all info apart from the name."""
