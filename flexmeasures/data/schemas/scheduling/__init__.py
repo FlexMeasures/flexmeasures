@@ -119,13 +119,11 @@ class FlexContextSchema(Schema):
         currency_unit = None
         for field in self.declared_fields:
             if (
-                "price" in field
-                and "sensor" not in field
+                field[-5:] == "price"
                 and field in data
                 and isinstance(data[field], ur.Quantity)
             ):
                 price_field = self.declared_fields[field]
-                print(f"price_field: {price_field}")
                 price_unit = str(data[field].units).split("/")[0]
 
                 if currency_unit is None:
