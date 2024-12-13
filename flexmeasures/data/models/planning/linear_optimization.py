@@ -141,7 +141,7 @@ def device_scheduler(  # noqa C901
 
     def convert_commitments_to_subcommitments(
         dfs: list[pd.DataFrame],
-    ) -> list[pd.DataFrame]:
+    ) -> tuple[list[pd.DataFrame], dict[int, int]]:
         """Transform commitments, each specifying a group for each time step, to sub-commitments, one per group.
 
         We also enumerate the time steps in a new column "j".
