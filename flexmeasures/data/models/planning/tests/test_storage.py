@@ -67,7 +67,16 @@ def test_battery_solver_multi_commitment(add_battery_assets, db):
             "site-peak-consumption": "20 kW",
             "site-peak-production": "20 kW",
             "site-peak-consumption-price": "260 EUR/MW",
-            "site-peak-production-price": "260 EUR/MW",
+            # The following is a constant price, but this checks currency conversion in case a later price field is
+            # set to a time series specs (i.e. a list of dicts, where each dict represents a time slot)
+            "site-peak-production-price": [
+                {
+                    "start": i.isoformat(),
+                    "duration": "PT1H",
+                    "value": "260 EUR/MW",
+                }
+                for i in production_prices.index
+            ],
         },
         return_multiple=True,
     )
