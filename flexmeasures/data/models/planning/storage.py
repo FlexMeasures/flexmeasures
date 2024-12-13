@@ -279,7 +279,11 @@ class MetaStorageScheduler(Scheduler):
                 unit=(
                     ems_peak_consumption_price.unit
                     if isinstance(ems_peak_consumption_price, Sensor)
-                    else str(ems_peak_consumption_price.units)
+                    else (
+                        ems_peak_consumption_price[0]["value"].units
+                        if isinstance(ems_peak_consumption_price, list)
+                        else str(ems_peak_consumption_price.units)
+                    )
                 ),
                 query_window=(start, end),
                 resolution=resolution,
@@ -318,7 +322,11 @@ class MetaStorageScheduler(Scheduler):
                 unit=(
                     ems_peak_production_price.unit
                     if isinstance(ems_peak_production_price, Sensor)
-                    else str(ems_peak_production_price.units)
+                    else (
+                        ems_peak_production_price[0]["value"].units
+                        if isinstance(ems_peak_production_price, list)
+                        else str(ems_peak_production_price.units)
+                    )
                 ),
                 query_window=(start, end),
                 resolution=resolution,
@@ -359,7 +367,11 @@ class MetaStorageScheduler(Scheduler):
                 unit=(
                     ems_consumption_breach_price.unit
                     if isinstance(ems_consumption_breach_price, Sensor)
-                    else str(ems_consumption_breach_price.units)
+                    else (
+                        ems_consumption_breach_price[0]["value"].units
+                        if isinstance(ems_consumption_breach_price, list)
+                        else str(ems_consumption_breach_price.units)
+                    )
                 ),
                 query_window=(start, end),
                 resolution=resolution,
@@ -404,7 +416,11 @@ class MetaStorageScheduler(Scheduler):
                 unit=(
                     ems_production_breach_price.unit
                     if isinstance(ems_production_breach_price, Sensor)
-                    else str(ems_production_breach_price.units)
+                    else (
+                        ems_production_breach_price[0]["value"].units
+                        if isinstance(ems_production_breach_price, list)
+                        else str(ems_production_breach_price.units)
+                    )
                 ),
                 query_window=(start, end),
                 resolution=resolution,
