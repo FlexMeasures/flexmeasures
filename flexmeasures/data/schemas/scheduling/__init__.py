@@ -99,7 +99,13 @@ class FlexContextSchema(Schema):
 
     @validates_schema
     def check_prices(self, data: dict, **kwargs):
-        """Check whether the flex-context contains at most 1 consumption price and at most 1 production price field."""
+        """Check assumptions about prices.
+
+        1. The flex-context must contain at most 1 consumption price and at most 1 production price field.
+        2. All prices must share the same currency.
+        """
+
+        # The flex-context must contain at most 1 consumption price and at most 1 production price field
         if "consumption_price_sensor" in data and "consumption_price" in data:
             raise ValidationError(
                 "Must pass either consumption-price or consumption-price-sensor."
@@ -108,3 +114,24 @@ class FlexContextSchema(Schema):
             raise ValidationError(
                 "Must pass either production-price or production-price-sensor."
             )
+
+        # All prices must share the same currency
+        currency_unit = None
+        for field in self.declared_fields:
+            if (
+                "price" in field
+                and "sensor" not in field
+                and field in data
+                and isinstance(data[field], ur.Quantity)
+            ):
+                price_field = self.declared_fields[field]
+                print(f"price_field: {price_field}")
+                price_unit = str(data[field].units).split("/")[0]
+
+                if currency_unit is None:
+                    currency_unit = price_unit
+                elif price_unit != currency_unit:
+                    raise ValidationError(
+                        "Prices must share the same monetary unit.",
+                        field_name=price_field.data_key,
+                    )
