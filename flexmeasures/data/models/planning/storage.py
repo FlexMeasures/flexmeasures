@@ -236,13 +236,17 @@ class MetaStorageScheduler(Scheduler):
         index = initialize_index(start, end, self.resolution)
         commitment_quantities = initialize_series(0, start, end, self.resolution)
 
-        # Todo: convert to EUR/(deviation of commitment, which is in MW)
-        commitment_upwards_deviation_price = up_deviation_prices.loc[
-            start : end - resolution
-        ]["event_value"]
-        commitment_downwards_deviation_price = down_deviation_prices.loc[
-            start : end - resolution
-        ]["event_value"]
+        # Convert energy prices to EUR/(deviation of commitment, which is in MW)
+        commitment_upwards_deviation_price = (
+            up_deviation_prices.loc[start : end - resolution]["event_value"]
+            * resolution
+            / pd.Timedelta("1h")
+        )
+        commitment_downwards_deviation_price = (
+            down_deviation_prices.loc[start : end - resolution]["event_value"]
+            * resolution
+            / pd.Timedelta("1h")
+        )
 
         # Set up commitments DataFrame
         commitment = Commitment(
