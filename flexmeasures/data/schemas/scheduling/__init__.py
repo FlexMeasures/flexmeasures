@@ -4,7 +4,7 @@ from flexmeasures.data.schemas.sensors import (
     VariableQuantityField,
     SensorIdField,
 )
-from flexmeasures.utils.unit_utils import ur
+from flexmeasures.utils.unit_utils import ur, units_are_convertible
 
 
 class FlexContextSchema(Schema):
@@ -116,23 +116,42 @@ class FlexContextSchema(Schema):
             )
 
         # All prices must share the same currency
-        currency_unit = None
+        previous_currency_unit = None
         previous_field_name = None
         for field in self.declared_fields:
-            if (
-                field[-5:] == "price"
-                and field in data
-                and isinstance(data[field], ur.Quantity)
-            ):
+            if field[-5:] == "price" and field in data:
+                if isinstance(data[field], ur.Quantity):
+                    price = data[field]
+                elif isinstance(data[field], list):
+                    price = data[field][0]["value"]
+                    # todo: make sure the 'value' in each dict shares the same unit
+                else:
+                    # todo: check unit in case of a Sensor, too
+                    continue
                 price_field = self.declared_fields[field]
-                price_unit = str(data[field].units).split("/")[0]
+                currency_unit = str(price.units).split("/")[0]
 
-                if currency_unit is None:
-                    currency_unit = price_unit
+                if previous_currency_unit is None:
+                    previous_currency_unit = currency_unit
                     previous_field_name = price_field.data_key
-                elif price_unit != currency_unit:
+                elif units_are_convertible(currency_unit, previous_currency_unit):
+                    # Make sure all compatible currency units are on the same scale (e.g. not kEUR mixed with EUR)
+                    if currency_unit != previous_currency_unit:
+                        denominator_unit = str(price.units).split("/")[1]
+                        if isinstance(data[field], ur.Quantity):
+                            data[field] = data[field].to(
+                                f"{previous_currency_unit}/{denominator_unit}"
+                            )
+                        elif isinstance(data[field], list):
+                            for j in range(len(data[field])):
+                                data[field][j]["value"] = data[field][j]["value"].to(
+                                    f"{previous_currency_unit}/{denominator_unit}"
+                                )
+
+                else:
                     field_name = price_field.data_key
                     raise ValidationError(
-                        f"Prices must share the same monetary unit. '{field_name}' uses '{price_unit}', but '{previous_field_name}' used '{currency_unit}'.",
+                        f"Prices must share the same monetary unit. '{field_name}' uses '{currency_unit}', but '{previous_field_name}' used '{previous_currency_unit}'.",
                         field_name=field_name,
                     )
+        return data
