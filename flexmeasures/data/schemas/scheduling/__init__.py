@@ -125,7 +125,15 @@ class FlexContextSchema(Schema):
                     price_unit = str(data[field].units)
                 elif isinstance(data[field], list):
                     price_unit = str(data[field][0]["value"].units)
-                    # todo: make sure the 'value' in each dict shares the same unit
+                    if not all(
+                        str(data[field][j]["value"].units) == price_unit
+                        for j in range(len(data[field]))
+                    ):
+                        field_name = self.declared_fields[field].data_key
+                        raise ValidationError(
+                            "Prices must share the same monetary unit.",
+                            field_name=field_name,
+                        )
                 elif isinstance(data[field], Sensor):
                     price_unit = data[field].unit
                 else:
