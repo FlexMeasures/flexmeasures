@@ -22,6 +22,7 @@ from pyomo.environ import UnknownSolver  # noqa F401
 from pyomo.environ import value
 from pyomo.opt import SolverFactory, SolverResults
 
+from flexmeasures.data.models.planning import Commitment
 from flexmeasures.data.models.planning.utils import initialize_series, initialize_df
 from flexmeasures.utils.calculations import apply_stock_changes_and_losses
 
@@ -34,7 +35,7 @@ def device_scheduler(  # noqa C901
     commitment_quantities: list[pd.Series] | None = None,
     commitment_downwards_deviation_price: list[pd.Series] | list[float] | None = None,
     commitment_upwards_deviation_price: list[pd.Series] | list[float] | None = None,
-    commitments: list[pd.DataFrame] | None = None,
+    commitments: list[pd.DataFrame] | list[Commitment] | None = None,
     initial_stock: float | list[float] = 0,
 ) -> tuple[list[pd.Series], float, SolverResults, ConcreteModel]:
     """This generic device scheduler is able to handle an EMS with multiple devices,
@@ -95,6 +96,10 @@ def device_scheduler(  # noqa C901
     # Move commitments from old structure to new
     if commitments is None:
         commitments = []
+    else:
+        commitments = [
+            c.to_frame() if isinstance(c, Commitment) else c for c in commitments
+        ]
     if commitment_quantities is not None:
         for quantity, down, up in zip(
             commitment_quantities,

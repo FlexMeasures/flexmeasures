@@ -860,7 +860,7 @@ class StorageScheduler(MetaStorageScheduler):
         ems_schedule, expected_costs, scheduler_results, model = device_scheduler(
             device_constraints,
             ems_constraints,
-            commitments=[c.to_frame() for c in commitments],
+            commitments=commitments,
             initial_stock=soc_at_start * (timedelta(hours=1) / resolution),
         )
         if scheduler_results.solver.termination_condition == "infeasible":
