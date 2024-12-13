@@ -117,6 +117,7 @@ class FlexContextSchema(Schema):
 
         # All prices must share the same currency
         currency_unit = None
+        previous_field_name = None
         for field in self.declared_fields:
             if (
                 field[-5:] == "price"
@@ -128,8 +129,10 @@ class FlexContextSchema(Schema):
 
                 if currency_unit is None:
                     currency_unit = price_unit
+                    previous_field_name = price_field.data_key
                 elif price_unit != currency_unit:
+                    field_name = price_field.data_key
                     raise ValidationError(
-                        "Prices must share the same monetary unit.",
-                        field_name=price_field.data_key,
+                        f"Prices must share the same monetary unit. '{field_name}' uses '{price_unit}', but '{previous_field_name}' used '{currency_unit}'.",
+                        field_name=field_name,
                     )
