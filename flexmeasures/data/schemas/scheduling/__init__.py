@@ -4,6 +4,7 @@ from flexmeasures.data.schemas.sensors import (
     VariableQuantityField,
     SensorIdField,
 )
+from flexmeasures.utils.unit_utils import ur
 
 
 class FlexContextSchema(Schema):
@@ -47,14 +48,14 @@ class FlexContextSchema(Schema):
         validate=validate.Range(min=0),
     )
     ems_consumption_breach_price = VariableQuantityField(
-        "EUR/MW",
+        "/MW",
         data_key="site-consumption-breach-price",
         required=False,
         validate=validate.Range(min=0),
         default=None,
     )
     ems_production_breach_price = VariableQuantityField(
-        "EUR/MW",
+        "/MW",
         data_key="site-production-breach-price",
         required=False,
         validate=validate.Range(min=0),
@@ -69,7 +70,7 @@ class FlexContextSchema(Schema):
         validate=validate.Range(min=0),
     )
     ems_peak_consumption_price = VariableQuantityField(
-        "EUR/MW",
+        "/MW",
         data_key="site-peak-consumption-price",
         required=False,
         validate=validate.Range(min=0),
@@ -84,7 +85,7 @@ class FlexContextSchema(Schema):
         validate=validate.Range(min=0),
     )
     ems_peak_production_price = VariableQuantityField(
-        "EUR/MW",
+        "/MW",
         data_key="site-peak-production-price",
         required=False,
         validate=validate.Range(min=0),
