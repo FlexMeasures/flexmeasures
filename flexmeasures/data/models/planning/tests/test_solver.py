@@ -18,7 +18,10 @@ from flexmeasures.data.models.planning.storage import (
     build_device_soc_values,
 )
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
-from flexmeasures.data.models.planning.tests.utils import check_constraints, get_sensors_from_db
+from flexmeasures.data.models.planning.tests.utils import (
+    check_constraints,
+    get_sensors_from_db,
+)
 from flexmeasures.data.models.planning.utils import initialize_series, initialize_df
 from flexmeasures.data.schemas.sensors import TimedEventSchema
 from flexmeasures.utils.calculations import (
