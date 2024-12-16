@@ -5,6 +5,12 @@ Summary of the changes introduced in this PR. Try to use bullet points as much a
 - [ ] ...
 - [ ] Added changelog item in `documentation/changelog.rst`
 
+<!--
+Note regarding our changelog:
+- The 'New features' section targets API / CLI / UI users.
+- The 'Infrastructure / Support' section targets plugin developers and hosts.
+-->
+
 ## Look & Feel
 
 This section can contain example pictures for UI, Input/Output for CLI, Request / Response for API endpoint, etc.
