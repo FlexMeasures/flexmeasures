@@ -858,7 +858,7 @@ def build_device_soc_values(
     2010-01-01 05:30:00    2.0
     2010-01-01 05:45:00    2.5
     2010-01-01 06:00:00    3.0
-    Freq: 15T, dtype: float64
+    Freq: 15min, dtype: float64
 
     TODO: this function could become the deserialization method of a new TimedEventSchema (targets, plural), which wraps TimedEventSchema.
 
