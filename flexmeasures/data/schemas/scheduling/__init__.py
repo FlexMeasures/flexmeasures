@@ -116,6 +116,29 @@ class FlexContextSchema(Schema):
                 "Must pass either production-price or production-price-sensor."
             )
 
+        # New price fields can only be used after updating to the new consumption-price and production-price fields
+        field_map = {
+            field.data_key: field_var
+            for field_var, field in self.declared_fields.items()
+        }
+        if any(
+            field_map[field] in data
+            for field in (
+                "site-consumption-breach-price",
+                "site-production-breach-price",
+                "site-peak-consumption-price",
+                "site-peak-production-price",
+            )
+        ):
+            if field_map["consumption-price-sensor"] in data:
+                raise ValidationError(
+                    f"""Please switch to using `consumption-price: {{"sensor": {data[field_map["consumption-price-sensor"]].id}}}`."""
+                )
+            if field_map["production-price-sensor"] in data:
+                raise ValidationError(
+                    f"""Please switch to using `production-price: {{"sensor": {data[field_map["production-price-sensor"]].id}}}`."""
+                )
+
         # All prices must share the same currency
         previous_currency_unit = None
         previous_field_name = None
@@ -161,7 +184,6 @@ class FlexContextSchema(Schema):
                             raise ValidationError(
                                 f"Please convert all flex-context prices to the unit of the {data[field]} sensor ({price_unit})."
                             )
-
                 else:
                     field_name = price_field.data_key
                     raise ValidationError(
