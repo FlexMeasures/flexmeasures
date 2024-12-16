@@ -209,7 +209,7 @@ class Scheduler:
 @dataclass
 class Commitment:
     """Contractual commitment specifying prices for deviating from a given position.
-
+    ::
     Parameters
     ----------
     name:
