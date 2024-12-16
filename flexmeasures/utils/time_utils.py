@@ -257,6 +257,18 @@ def get_first_day_of_next_month() -> datetime:
     return (datetime.now().replace(day=1) + timedelta(days=32)).replace(day=1)
 
 
+def freq_label_to_human_readable_label(freq_label: str) -> str:
+    """Translate pandas frequency labels to human-readable labels."""
+    f2h_map = {
+        "5T": "5 minutes",
+        "15T": "15 minutes",
+        "1h": "1 hour",
+        "24h": "1 day",
+        "168h": "1 week",
+    }
+    return f2h_map.get(freq_label, freq_label)
+
+
 def forecast_horizons_for(resolution: str | timedelta) -> list[str] | list[timedelta]:
     """Return a list of horizons that are supported per resolution.
     Return values or of the same type as the input."""

@@ -44,6 +44,12 @@ def render_flexmeasures_template(html_filename: str, **variables):
     variables["page"] = html_filename.split("/")[-1].replace(".html", "")
 
     variables["resolution"] = session.get("resolution", "")
+    variables["resolution_human"] = time_utils.freq_label_to_human_readable_label(
+        session.get("resolution", "")
+    )
+    variables["horizon_human"] = time_utils.freq_label_to_human_readable_label(
+        session.get("forecast_horizon", "")
+    )
 
     variables["flexmeasures_version"] = flexmeasures_version
 
