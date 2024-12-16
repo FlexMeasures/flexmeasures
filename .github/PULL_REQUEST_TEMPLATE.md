@@ -15,7 +15,7 @@ it can be used to set some example data to be used in a new UI feature.
 
 ## Further Improvements
 
-Potential improvements to be done in the same PR or follow up Issues/Discussions/PRs.
+Potential improvements to be done in the same PR or follow-up Issues/Discussions/PRs.
 
 ## Related Items
 
