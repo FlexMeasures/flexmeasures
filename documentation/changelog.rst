@@ -4,7 +4,15 @@ FlexMeasures Changelog
 **********************
 
 
-v0.24.0 | October XX, 2024
+v0.23.2 | December 16, 2024
+============================
+
+Bugfixes
+-----------
+* Correct source filters on reporter input, and support piping additional transformations in the ``PandasReporter`` [see `PR #1284 <https://github.com/FlexMeasures/flexmeasures/pull/1284>`_]
+
+
+v0.23.1 | November 12, 2024
 ============================
 
 New features
