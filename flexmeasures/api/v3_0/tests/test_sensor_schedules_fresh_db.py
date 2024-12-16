@@ -464,7 +464,7 @@ def test_multiple_contracts(
     duration = get_schedule_response.json["duration"]
 
     consumption_schedule = pd.Series(
-        [-v for v in power_values],
+        data=power_values,
         index=pd.date_range(
             start=start,
             end=pd.Timestamp(start) + pd.Timedelta(duration),
@@ -494,10 +494,10 @@ def test_multiple_contracts(
     print(soc_schedule)
 
     # Check for absence of consumption breaches over 1 kW, i.e. any breach costs are avoided
-    assert all(v >= -0.001 for v in consumption_schedule)
+    assert all(v <= 0.001 for v in consumption_schedule)
 
     # Check for absence of extra production peaks over 20 kW, i.e. any peak costs are avoided
-    assert all(v <= 0.02 for v in consumption_schedule)
+    assert all(v >= -0.02 for v in consumption_schedule)
 
     # Check target is met
     for target in soc_targets:
