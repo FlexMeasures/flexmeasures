@@ -140,7 +140,7 @@ def resolution_to_hour_factor(resolution: str | timedelta) -> float:
     """Return the factor with which a value needs to be multiplied in order to get the value per hour,
     e.g. 10 MW at a resolution of 15min are 2.5 MWh per time step.
 
-    :param resolution: timedelta or pandas offset such as "15min" or "h"
+    :param resolution: timedelta or pandas offset such as "15T" or "1H"
     """
     if isinstance(resolution, timedelta):
         return resolution / timedelta(hours=1)
@@ -153,7 +153,7 @@ def decide_resolution(start: datetime | None, end: datetime | None) -> str:
     Useful for querying or plotting.
     """
     if start is None or end is None:
-        return "15min"  # default if we cannot tell period
+        return "15T"  # default if we cannot tell period
     period_length = end - start
     if period_length > timedelta(weeks=16):
         resolution = "168h"  # So upon switching from days to weeks, you get at least 16 data points
@@ -162,9 +162,9 @@ def decide_resolution(start: datetime | None, end: datetime | None) -> str:
     elif period_length > timedelta(hours=48):
         resolution = "1h"  # So upon switching from 15min to hours, you get at least 48 data points
     elif period_length > timedelta(hours=8):
-        resolution = "15min"
+        resolution = "15T"
     else:
-        resolution = "5min"  # we are (currently) not going lower than 5 minutes
+        resolution = "5T"  # we are (currently) not going lower than 5 minutes
     return resolution
 
 
@@ -277,9 +277,9 @@ def forecast_horizons_for(resolution: str | timedelta) -> list[str] | list[timed
     else:
         resolution_str = resolution
     horizons = []
-    if resolution_str in ("5T", "5min", "10T", "10min"):
+    if resolution_str in ("5T", "10T"):
         horizons = ["1h", "6h", "24h"]
-    elif resolution_str in ("15T", "15min", "1h", "H"):
+    elif resolution_str in ("15T", "1h", "H"):
         horizons = ["1h", "6h", "24h", "48h"]
     elif resolution_str in ("24h", "D"):
         horizons = ["24h", "48h"]
@@ -405,7 +405,7 @@ def apply_offset_chain(
             if offset.strip().lower() == "db":  # db = day begin
                 _dt = _dt.floor("D")
             elif offset.strip().lower() == "hb":  # hb = hour begin
-                _dt = _dt.floor("h")
+                _dt = _dt.floor("H")
 
     # Return output in the same type as the input
     if isinstance(dt, datetime):

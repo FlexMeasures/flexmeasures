@@ -74,7 +74,7 @@ def add_test_weather_sensor_and_forecasts(db: SQLAlchemy, setup_generic_asset_ty
         sensor = Sensor(name=sensor_name, generic_asset=weather_station, unit=unit)
         db.session.add(sensor)
         time_slots = pd.date_range(
-            datetime(2015, 1, 1), datetime(2015, 1, 2, 23, 45), freq="15min"
+            datetime(2015, 1, 1), datetime(2015, 1, 2, 23, 45), freq="15T"
         )
         values = [random() * (1 + np.sin(x / 15)) for x in range(len(time_slots))]
         if sensor_name == "temperature":

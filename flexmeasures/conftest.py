@@ -537,7 +537,7 @@ def create_assets(
 
         # one day of test data (one complete sine curve)
         time_slots = pd.date_range(
-            datetime(2015, 1, 1), datetime(2015, 1, 1, 23, 45), freq="15min"
+            datetime(2015, 1, 1), datetime(2015, 1, 1, 23, 45), freq="15T"
         ).tz_localize("UTC")
         seed(42)  # ensure same results over different test runs
         add_beliefs(
@@ -1251,7 +1251,7 @@ def capacity_sensors(db, add_battery_assets, setup_sources):
     db.session.flush()
 
     time_slots = pd.date_range(
-        datetime(2015, 1, 2), datetime(2015, 1, 2, 7, 45), freq="15min"
+        datetime(2015, 1, 2), datetime(2015, 1, 2, 7, 45), freq="15T"
     ).tz_localize("Europe/Amsterdam")
 
     add_beliefs(
@@ -1289,7 +1289,7 @@ def capacity_sensors(db, add_battery_assets, setup_sources):
     db.session.commit()
 
     time_slots = pd.date_range(
-        datetime(2016, 1, 2), datetime(2016, 1, 2, 7, 45), freq="15min"
+        datetime(2016, 1, 2), datetime(2016, 1, 2, 7, 45), freq="15T"
     ).tz_localize("Europe/Amsterdam")
     values = [250] * 4 * 4 + [150] * 4 * 4
     beliefs = [
@@ -1346,7 +1346,7 @@ def soc_sensors(db, add_battery_assets, setup_sources) -> tuple:
     db.session.flush()
 
     time_slots = pd.date_range(
-        datetime(2015, 1, 1, 2), datetime(2015, 1, 2), freq="15min"
+        datetime(2015, 1, 1, 2), datetime(2015, 1, 2), freq="15T"
     ).tz_localize("Europe/Amsterdam")
 
     values = np.arange(len(time_slots)) / (len(time_slots) - 1)

@@ -181,7 +181,7 @@ def add_inflexible_device_forecasts(
     time_slots = initialize_index(
         start=pd.Timestamp("2015-01-01").tz_localize("Europe/Amsterdam"),
         end=pd.Timestamp("2015-01-03").tz_localize("Europe/Amsterdam"),
-        resolution="15min",
+        resolution="15T",
     )
 
     # PV (8 hours at zero capacity, 8 hours at 90% capacity, and again 8 hours at zero capacity)
