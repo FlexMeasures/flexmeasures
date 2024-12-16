@@ -2,6 +2,9 @@
 
 Summary of the changes introduced in this PR. Try to use bullet points as much as possible.
 
+- [ ] ...
+- [ ] Added changelog item in `documentation/changelog.rst`
+
 ## Look & Feel
 
 This section can contain example pictures for UI, Input/Output for CLI, Request / Response for API endpoint, etc.
