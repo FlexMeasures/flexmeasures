@@ -208,8 +208,24 @@ class Scheduler:
 
 @dataclass
 class Commitment:
-    """
-    :param _type: 'any' or 'each'. Any deviation is penalized via 1 group, whereas each deviation is penalized via n groups.
+    """Contractual commitment specifying prices for deviating from a given position.
+
+    Parameters
+    ----------
+    name:
+        Name of the commitment.
+    index:
+        Pandas DatetimeIndex defining the time slots to which the commitment applies.
+    _type:
+        'any' or 'each'. Any deviation is penalized via 1 group, whereas each deviation is penalized via n groups.
+    group:
+        Each time slot is assigned to a group. Deviations are determined for each group.
+    quantity:
+        The deviation for each group is determined with respect to this quantity.
+    upwards_deviation_price:
+        The deviation in the upwards direction is prices against this price. Use a positive price to set a penalty.
+    downwards_deviation_price:
+        The deviation in the downwards direction is prices against this price. Use a negative price to set a penalty.
     """
 
     name: str
