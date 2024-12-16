@@ -213,9 +213,9 @@ class Commitment:
     """
 
     name: str
-    group: pd.Series = field(init=False)
-    index: pd.DatetimeIndex = field(repr=False)
+    index: pd.DatetimeIndex = field(repr=False, default=None)
     _type: str = field(repr=False, default="each")
+    group: pd.Series = field(init=False)
     quantity: pd.Series = 0
     upwards_deviation_price: pd.Series = 0
     downwards_deviation_price: pd.Series = 0
