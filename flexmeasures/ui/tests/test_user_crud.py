@@ -31,21 +31,18 @@ def test_user_page_as_nonadmin(client, as_prosumer_user1, view):
     assert user_page.status_code == 403
 
 
-def test_user_page(client, as_admin, requests_mock):
+def test_user_page(client, as_admin, requests_mock, setup_accounts):
     mock_user = mock_user_response(as_list=False)
     requests_mock.get(
         "http://localhost//api/v3_0/users/2", status_code=200, json=mock_user
     )
-    requests_mock.get(
-        "http://localhost//api/v3_0/assets",
-        status_code=200,
-        # the UI page only cares about the asset count, which is derived from the length
-        json=[{}, {}, {}],
-    )
     user_page = client.get(url_for("UserCrudUI:get", id=2), follow_redirects=True)
     assert user_page.status_code == 200
     assert ("User: %s" % mock_user["username"]).encode() in user_page.data
-    assert (">3</a>").encode() in user_page.data  # this is the asset count
+    user_account = setup_accounts[
+        "Prosumer"
+    ]  # see mock_user_response, his ID is in there
+    assert (f">{user_account.number_of_assets}</a>").encode() in user_page.data
     assert mock_user["email"].encode() in user_page.data
 
 
@@ -55,13 +52,12 @@ def test_deactivate_user(client, as_admin, requests_mock):
     requests_mock.patch(
         f"http://localhost//api/v3_0/users/{user2.id}",
         status_code=200,
-        json={"active": False},
-    )
-    requests_mock.get(
-        "http://localhost//api/v3_0/assets",
-        status_code=200,
-        # the UI page only cares about the asset count, which is derived from the length
-        json=[{}, {}, {}],
+        json={
+            "id": user2.id,
+            "username": user2.username,
+            "active": False,
+            "account_id": 1,
+        },
     )
     # de-activate
     user_page = client.get(
@@ -69,7 +65,6 @@ def test_deactivate_user(client, as_admin, requests_mock):
     )
     assert user_page.status_code == 200
     assert user2.username in str(user_page.data)
-    assert (">3</a>").encode() in user_page.data  # this is the asset count
     assert b"new activation status is now False" in user_page.data
 
 
@@ -80,16 +75,9 @@ def test_reset_password(client, as_admin, requests_mock):
         f"http://localhost//api/v3_0/users/{user2.id}/password-reset",
         status_code=200,
     )
-    requests_mock.get(
-        "http://localhost//api/v3_0/assets",
-        status_code=200,
-        # the UI page only cares about the asset count, which is derived from the length
-        json=[{}, {}, {}],
-    )
     user_page = client.get(
         url_for("UserCrudUI:reset_password_for", id=user2.id),
         follow_redirects=True,
     )
     assert user_page.status_code == 200
-    assert (">3</a>").encode() in user_page.data  # this is the asset count
     assert b"has been changed to a random password" in user_page.data
