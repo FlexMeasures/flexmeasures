@@ -139,28 +139,19 @@ class FlexContextSchema(Schema):
                     f"""Please switch to using `production-price: {{"sensor": {data[field_map["production-price-sensor"]].id}}}`."""
                 )
 
-        # All prices must share the same currency
+        # All prices must share the same unit
+        data = self._try_to_convert_price_units(data)
+
+        return data
+
+    def _try_to_convert_price_units(self, data):
+        """Convert price units to the same unit and scale if they can (incl. same currency)."""
+
         previous_currency_unit = None
         previous_field_name = None
         for field in self.declared_fields:
             if field[-5:] == "price" and field in data:
-                if isinstance(data[field], ur.Quantity):
-                    price_unit = str(data[field].units)
-                elif isinstance(data[field], list):
-                    price_unit = str(data[field][0]["value"].units)
-                    if not all(
-                        str(data[field][j]["value"].units) == price_unit
-                        for j in range(len(data[field]))
-                    ):
-                        field_name = self.declared_fields[field].data_key
-                        raise ValidationError(
-                            "Prices must share the same monetary unit.",
-                            field_name=field_name,
-                        )
-                elif isinstance(data[field], Sensor):
-                    price_unit = data[field].unit
-                else:
-                    continue
+                price_unit = self._get_variable_quantity_unit(field, data[field])
                 price_field = self.declared_fields[field]
                 currency_unit = price_unit.split("/")[0]
 
@@ -191,3 +182,28 @@ class FlexContextSchema(Schema):
                         field_name=field_name,
                     )
         return data
+
+    def _get_variable_quantity_unit(
+        self, field: str, variable_quantity: ur.Quantity | list[dict | Sensor]
+    ) -> str:
+        """Gets the unit from the variable quantity."""
+        if isinstance(variable_quantity, ur.Quantity):
+            unit = str(variable_quantity.units)
+        elif isinstance(variable_quantity, list):
+            unit = str(variable_quantity[0]["value"].units)
+            if not all(
+                str(variable_quantity[j]["value"].units) == unit
+                for j in range(len(variable_quantity))
+            ):
+                field_name = self.declared_fields[field].data_key
+                raise ValidationError(
+                    "Segments of a time series must share the same unit.",
+                    field_name=field_name,
+                )
+        elif isinstance(variable_quantity, Sensor):
+            unit = variable_quantity.unit
+        else:
+            raise NotImplementedError(
+                f"Unexpected type '{type(variable_quantity)}' for '{field}': {variable_quantity}."
+            )
+        return unit
