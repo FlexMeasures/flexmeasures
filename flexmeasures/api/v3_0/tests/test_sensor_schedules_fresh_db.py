@@ -471,7 +471,7 @@ def test_multiple_contracts(
             freq="15min",
             inclusive="left",
         ),
-    )  # For consumption schedules, positive values denote consumption. For the db, consumption is negative
+    )
 
     start_soc = message["flex-model"]["soc-at-start"] / 1000  # in MWh
     roundtrip_efficiency = (
