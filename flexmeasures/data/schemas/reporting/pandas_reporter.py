@@ -59,7 +59,7 @@ class PandasMethodCall(Schema):
 
         if not any(is_callable):
             raise ValidationError(
-                f"method {method} is not a valid BeliefsSeries, BeliefsDataFrame, Resampler or Grouper method."
+                f"Method {method} is not a valid BeliefsSeries, BeliefsDataFrame, Resampler or Grouper method."
             )
 
 
