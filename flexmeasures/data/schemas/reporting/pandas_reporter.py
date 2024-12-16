@@ -47,32 +47,44 @@ class PandasMethodCall(Schema):
         is_callable = []
         bad_arguments = True
 
+        # Iterate through the base classes to validate the method
         for base_class in [BeliefsSeries, BeliefsDataFrame, Resampler, Grouper]:
+
+            # Check if the method exists in the base class
             method_callable = getattr(base_class, method, None)
             if method_callable is None:
+                # Method does not exist in this base class
                 is_callable.append(False)
                 continue
 
+            # Check if the found method is callable
             is_callable.append(callable(method_callable))
 
+            # Retrieve the method's signature for argument validation
             method_signature = signature(method_callable)
 
             try:
+                # Copy `args` and `kwargs` to avoid modifying the input data
                 args = data.get("args", []).copy()
                 _kwargs = data.get("kwargs", {}).copy()
 
+                # Insert the base class as the first argument to the method (self/cls context)
                 args.insert(0, BeliefsDataFrame)
 
+                # Bind the arguments to the method's signature for validation
                 method_signature.bind(*args, **_kwargs)
-                bad_arguments = False
+                bad_arguments = False  # Arguments are valid if binding succeeds
             except TypeError:
+                # If binding raises a TypeError, the arguments are invalid
                 pass
 
+        # Raise an error if all arguments are invalid across all base classes
         if bad_arguments:
             raise ValidationError(
                 f"Bad arguments or keyword arguments for method {method}"
             )
 
+        # Raise an error if the method is not callable in any of the base classes
         if not any(is_callable):
             raise ValidationError(
                 f"Method {method} is not a valid BeliefsSeries, BeliefsDataFrame, Resampler or Grouper method."
