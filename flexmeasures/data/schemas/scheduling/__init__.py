@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from marshmallow import Schema, fields, validate, validates_schema, ValidationError
 
 from flexmeasures import Sensor
