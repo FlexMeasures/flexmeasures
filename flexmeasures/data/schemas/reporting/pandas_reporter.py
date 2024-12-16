@@ -26,6 +26,22 @@ class PandasMethodCall(Schema):
 
     @validates_schema
     def validate_method_call(self, data, **kwargs):
+        """Validates the method name and its arguments against a set of base classes.
+
+        This validation ensures that the provided method exists in one of the
+        specified base classes (`BeliefsSeries`, `BeliefsDataFrame`, `Resampler`, `Grouper`)
+        and that the provided arguments (`args` and `kwargs`) are valid for the method's
+        signature.
+
+        Args:
+            data (dict): A dictionary containing the method name (`method`) and optionally
+                         the method arguments (`args` as a list and `kwargs` as a dictionary).
+            **kwargs: Additional keyword arguments passed by the validation framework.
+
+        Raises:
+            ValidationError: If the method is not callable in any of the base classes or
+                             if the provided arguments do not match the method signature.
+        """
 
         method = data["method"]
         is_callable = []
