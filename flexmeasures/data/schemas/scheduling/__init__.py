@@ -52,14 +52,14 @@ class FlexContextSchema(Schema):
         "/MW",
         data_key="site-consumption-breach-price",
         required=False,
-        validate=validate.Range(min=0),
+        # validate=validate.Range(min=0),
         default=None,
     )
     ems_production_breach_price = VariableQuantityField(
         "/MW",
         data_key="site-production-breach-price",
         required=False,
-        validate=validate.Range(min=0),
+        # validate=validate.Range(min=0),
         default=None,
     )
 
@@ -89,7 +89,7 @@ class FlexContextSchema(Schema):
         "/MW",
         data_key="site-peak-production-price",
         required=False,
-        validate=validate.Range(min=0),
+        # validate=validate.Range(min=0),
         default=None,
     )
     # todo: group by month start (MS), something like a commitment resolution, or a list of datetimes representing splits of the commitments
