@@ -246,7 +246,7 @@ def test_efficiency_pair(
         ),
         (
             {
-                "consumption-price": "1 KRW/MWh",
+                "consumption-price": "1 MKRW/MWh",
                 "site-peak-production-price": "1 KRW/MW",
             },
             False,
