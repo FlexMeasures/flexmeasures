@@ -392,6 +392,121 @@ def test_inflexible_device_sensors_priority(
         assert len(call_args) == expect_sensor_num
 
 
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_multiple_contracts(
+    app,
+    fresh_db,
+    add_market_prices_fresh_db,
+    add_battery_assets_fresh_db,
+    battery_soc_sensor_fresh_db,
+    requesting_user,
+):
+    """Check planning against an energy contract, a breach contract and a peak contract."""
+    message, asset_name = (
+        message_for_trigger_schedule(with_targets=True, use_time_window=True),
+        "Test battery",
+    )
+    message["force_new_job_creation"] = True
+
+    price_sensor_id = add_market_prices_fresh_db["epex_da"].id
+    message["flex-context"] = {
+        "consumption-price": {"sensor": price_sensor_id},
+        "production-price": {"sensor": price_sensor_id},
+        "site-power-capacity": "2 MW",  # should be big enough to avoid any infeasibilities
+        "site-consumption-capacity": "1 kW",  # we'll need to breach this to reach the target
+        "site-consumption-breach-price": "1000 EUR/kW",
+        "site-production-breach-price": "1000 EUR/kW",
+        "site-peak-consumption": "20 kW",
+        "site-peak-production": "20 kW",
+        "site-peak-consumption-price": "260 EUR/MW",
+        "site-peak-production-price": "260 EUR/MW",
+    }
+
+    sensor = (
+        Sensor.query.filter(Sensor.name == "power")
+        .join(GenericAsset, GenericAsset.id == Sensor.generic_asset_id)
+        .filter(GenericAsset.name == asset_name)
+        .one_or_none()
+    )
+
+    with app.test_client() as client:
+        trigger_schedule_response = client.post(
+            url_for("SensorAPI:trigger_schedule", id=sensor.id),
+            json=message,
+        )
+        print("Server responded with:\n%s" % trigger_schedule_response.json)
+        assert trigger_schedule_response.status_code == 200
+        job_id = trigger_schedule_response.json["schedule"]
+
+    # process the scheduling queue
+    work_on_rq(
+        app.queues["scheduling"], exc_handler=handle_scheduling_exception, max_jobs=1
+    )
+    job = Job.fetch(job_id, connection=app.queues["scheduling"].connection)
+    assert job.is_finished is True
+
+    # First, make sure the scheduler data source is now there
+    job.refresh()  # catch meta info that was added on this very instance
+    scheduler_source = get_data_source_for_job(job)
+    assert scheduler_source is not None
+
+    # try to retrieve the schedule through the /sensors/<id>/schedules/<job_id> [GET] api endpoint
+    get_schedule_response = client.get(
+        url_for("SensorAPI:get_schedule", id=sensor.id, uuid=job_id),
+        query_string={"duration": "PT48H"},
+    )
+    print("Server responded with:\n%s" % get_schedule_response.json)
+    assert get_schedule_response.status_code == 200
+    power_values = get_schedule_response.json["values"]
+    start = get_schedule_response.json["start"]
+    duration = get_schedule_response.json["duration"]
+
+    consumption_schedule = pd.Series(
+        [-v for v in power_values],
+        index=pd.date_range(
+            start=start,
+            end=pd.Timestamp(start) + pd.Timedelta(duration),
+            freq="15min",
+            inclusive="left",
+        ),
+    )  # For consumption schedules, positive values denote consumption. For the db, consumption is negative
+
+    start_soc = message["flex-model"]["soc-at-start"] / 1000  # in MWh
+    roundtrip_efficiency = (
+        float(message["flex-model"]["roundtrip-efficiency"].replace("%", "")) / 100.0
+    )
+    storage_efficiency = (
+        float(message["flex-model"]["storage-efficiency"].replace("%", "")) / 100.0
+    )
+    soc_targets = message["flex-model"].get("soc-targets")
+
+    soc_schedule = integrate_time_series(
+        consumption_schedule,
+        start_soc,
+        up_efficiency=roundtrip_efficiency**0.5,
+        down_efficiency=roundtrip_efficiency**0.5,
+        storage_efficiency=storage_efficiency,
+        decimal_precision=6,
+    )
+    print(consumption_schedule)
+    print(soc_schedule)
+
+    # Check for absence of consumption breaches over 1 kW, i.e. any breach costs are avoided
+    assert all(v >= -0.001 for v in consumption_schedule)
+
+    # Check for absence of extra production peaks over 20 kW, i.e. any peak costs are avoided
+    assert all(v <= 0.02 for v in consumption_schedule)
+
+    # Check target is met
+    for target in soc_targets:
+        assert (
+            soc_schedule[target.get("datetime", target.get("end"))]
+            == target["value"] / 1000
+        )
+
+
 def setup_inflexible_device_sensors(fresh_db, asset, sensor_name, sensor_num):
     """Test helper function to add sensor_num sensors to an asset"""
     sensors = list()
