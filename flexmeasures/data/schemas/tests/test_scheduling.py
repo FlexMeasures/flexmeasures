@@ -251,6 +251,12 @@ def test_efficiency_pair(
             },
             False,
         ),
+        (
+            {
+                "site-peak-production-price": "-1 KRW/MW",
+            },
+            {"site-peak-production-price": "Must be greater than or equal to 0."},
+        ),
     ],
 )
 def test_flex_context_schema(db, app, setup_site_capacity_sensor, flex_context, fails):
