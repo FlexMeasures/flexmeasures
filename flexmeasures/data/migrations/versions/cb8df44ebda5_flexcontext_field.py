@@ -6,12 +6,8 @@ Create Date: 2024-12-16 18:39:34.168732
 
 """
 
-from calendar import c
-from turtle import update
 from alembic import op
-import attr
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = "cb8df44ebda5"
@@ -122,6 +118,7 @@ def downgrade():
         "generic_asset",
         sa.MetaData(),
         sa.Column("id", sa.Integer, primary_key=True),
+        sa.Column("attributes", sa.JSON),
         sa.Column("flex_context", sa.JSON),
     )
 
@@ -133,9 +130,12 @@ def downgrade():
     results = conn.execute(select_stmt)
 
     for row in results:
-        asset_id, flex_context = row
+        asset_id, flex_context, attributes_data = row
         consumption_price_sensor_id = flex_context.get("consumption-price")
         production_price_sensor_id = flex_context.get("production-price")
+
+        market_id = consumption_price_sensor_id
+        attributes_data["market_id"] = market_id
 
         update_stmt = (
             generic_asset_table.update()
@@ -143,6 +143,7 @@ def downgrade():
             .values(
                 consumption_price_sensor_id=consumption_price_sensor_id,
                 production_price_sensor_id=production_price_sensor_id,
+                attributes=attributes_data,
             )
         )
         conn.execute(update_stmt)
