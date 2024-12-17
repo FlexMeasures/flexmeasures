@@ -89,9 +89,9 @@ class GenericAsset(db.Model, AuthModelMixin):
     sensors_to_show = db.Column(
         MutableList.as_mutable(db.JSON), nullable=False, default=[]
     )
-    # flex_context = db.Column(
-    #     MutableDict.as_mutable(db.JSON), nullable=False, default={}
-    # )
+    flex_context = db.Column(
+        MutableDict.as_mutable(db.JSON), nullable=False, default={}
+    )
     # One-to-many (or many-to-one?) relationships
     parent_asset_id = db.Column(
         db.Integer, db.ForeignKey("generic_asset.id", ondelete="CASCADE"), nullable=True
@@ -112,23 +112,23 @@ class GenericAsset(db.Model, AuthModelMixin):
         backref=db.backref("generic_assets", lazy=True),
     )
 
-    consumption_price_sensor_id = db.Column(
-        db.Integer, db.ForeignKey("sensor.id", ondelete="SET NULL"), nullable=True
-    )
-    consumption_price_sensor = db.relationship(
-        "Sensor",
-        foreign_keys=[consumption_price_sensor_id],
-        backref=db.backref("assets_with_this_consumption_price_context", lazy=True),
-    )
+    # consumption_price_sensor_id = db.Column(
+    #     db.Integer, db.ForeignKey("sensor.id", ondelete="SET NULL"), nullable=True
+    # )
+    # consumption_price_sensor = db.relationship(
+    #     "Sensor",
+    #     foreign_keys=[consumption_price_sensor_id],
+    #     backref=db.backref("assets_with_this_consumption_price_context", lazy=True),
+    # )
 
-    production_price_sensor_id = db.Column(
-        db.Integer, db.ForeignKey("sensor.id", ondelete="SET NULL"), nullable=True
-    )
-    production_price_sensor = db.relationship(
-        "Sensor",
-        foreign_keys=[production_price_sensor_id],
-        backref=db.backref("assets_with_this_production_price_context", lazy=True),
-    )
+    # production_price_sensor_id = db.Column(
+    #     db.Integer, db.ForeignKey("sensor.id", ondelete="SET NULL"), nullable=True
+    # )
+    # production_price_sensor = db.relationship(
+    #     "Sensor",
+    #     foreign_keys=[production_price_sensor_id],
+    #     backref=db.backref("assets_with_this_production_price_context", lazy=True),
+    # )
 
     # Many-to-many relationships
     annotations = db.relationship(
@@ -136,13 +136,13 @@ class GenericAsset(db.Model, AuthModelMixin):
         secondary="annotations_assets",
         backref=db.backref("assets", lazy="dynamic"),
     )
-    inflexible_device_sensors = db.relationship(
-        "Sensor",
-        secondary="assets_inflexible_sensors",
-        backref=db.backref(
-            "assets_considering_this_as_inflexible_sensor_in_scheduling", lazy="dynamic"
-        ),
-    )
+    # inflexible_device_sensors = db.relationship(
+    #     "Sensor",
+    #     secondary="assets_inflexible_sensors",
+    #     backref=db.backref(
+    #         "assets_considering_this_as_inflexible_sensor_in_scheduling", lazy="dynamic"
+    #     ),
+    # )
 
     def __acl__(self):
         """
