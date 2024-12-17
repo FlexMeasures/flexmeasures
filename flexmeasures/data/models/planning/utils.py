@@ -332,7 +332,7 @@ def get_series_from_quantity_or_sensor(
     resolution: timedelta,
     beliefs_before: datetime | None = None,
     as_instantaneous_events: bool = True,
-    boundary_policy: str | None = None,
+    resolve_overlaps: str = "first",
 ) -> pd.Series:
     """
     Get a time series given a quantity or sensor defined on a time window.
@@ -349,6 +349,9 @@ def get_series_from_quantity_or_sensor(
                                     at that time.
     :param as_instantaneous_events: Optionally, convert to instantaneous events, in which case the passed resolution is
                                     interpreted as the desired frequency of the data.
+    :param resolve_overlaps:        If time series segments overlap (e.g. when upsampling to instantaneous events),
+                                    take the 'max', 'min' or 'first' value during overlapping time spans
+                                    (or at instantaneous moments, such as at event boundaries).
     :return:                        Pandas Series with the requested time series data.
     """
 
@@ -373,16 +376,29 @@ def get_series_from_quantity_or_sensor(
             one_deterministic_belief_per_event=True,
         )
         if as_instantaneous_events:
-            bdf = bdf.resample_events(timedelta(0), boundary_policy=boundary_policy)
+            bdf = bdf.resample_events(timedelta(0), boundary_policy=resolve_overlaps)
         time_series = simplify_index(bdf).reindex(index).squeeze()
         time_series = convert_units(time_series, variable_quantity.unit, unit)
     elif isinstance(variable_quantity, list):
-        time_series = pd.Series(np.nan, index=index)
-        for event in variable_quantity:
+        time_series_segments = pd.DataFrame(
+            np.nan, index=index, columns=list(range(len(variable_quantity)))
+        )
+        for segment, event in enumerate(variable_quantity):
             value = event["value"]
+            if isinstance(value, ur.Quantity):
+                if np.isnan(value.magnitude):
+                    value = np.nan
+                else:
+                    value = value.to(unit).magnitude
             start = event["start"]
             end = event["end"]
-            time_series[start : end - resolution] = value
+            time_series_segments.loc[start : end - resolution, segment] = value
+        if resolve_overlaps == "first":
+            time_series = time_series_segments.fillna(method="bfill", axis=1).iloc[:, 0]
+        else:
+            time_series = getattr(time_series_segments, resolve_overlaps)(
+                axis=1
+            ).rename("event_value")
 
     else:
         raise TypeError(
@@ -402,7 +418,7 @@ def get_continuous_series_sensor_or_quantity(
     fallback_attribute: str | None = None,
     max_value: float | int | pd.Series = np.nan,
     as_instantaneous_events: bool = False,
-    boundary_policy: str | None = None,
+    resolve_overlaps: str = "first",
 ) -> pd.Series:
     """Creates a time series from a sensor, time series specification, or quantity within a specified window,
     falling back to a given `fallback_attribute` and making sure no values exceed `max_value`.
@@ -417,6 +433,9 @@ def get_continuous_series_sensor_or_quantity(
     :param max_value:               Maximum value (also replacing NaN values).
     :param as_instantaneous_events: optionally, convert to instantaneous events, in which case the passed resolution is
                                     interpreted as the desired frequency of the data.
+    :param resolve_overlaps:        If time series segments overlap (e.g. when upsampling to instantaneous events),
+                                    take the 'max', 'min' or 'first' value during overlapping time spans
+                                    (or at instantaneous moments, such as at event boundaries).
     :returns:                       time series data with missing values handled based on the chosen method.
     """
     if variable_quantity is None:
@@ -433,7 +452,7 @@ def get_continuous_series_sensor_or_quantity(
         resolution=resolution,
         beliefs_before=beliefs_before,
         as_instantaneous_events=as_instantaneous_events,
-        boundary_policy=boundary_policy,
+        resolve_overlaps=resolve_overlaps,
     )
 
     # Apply upper limit
