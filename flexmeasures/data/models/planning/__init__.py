@@ -223,9 +223,9 @@ class Commitment:
     quantity:
         The deviation for each group is determined with respect to this quantity.
     upwards_deviation_price:
-        The deviation in the upwards direction is prices against this price. Use a positive price to set a penalty.
+        The deviation in the upwards direction is priced against this price. Use a positive price to set a penalty.
     downwards_deviation_price:
-        The deviation in the downwards direction is prices against this price. Use a negative price to set a penalty.
+        The deviation in the downwards direction is priced against this price. Use a negative price to set a penalty.
     """
 
     name: str
