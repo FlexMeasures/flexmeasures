@@ -159,7 +159,7 @@ def device_scheduler(  # noqa C901
         where A,B,C is the enumerated contract and 1,2,3 is the enumerated group.
         """
         commitment_mapping = {}
-        all_groups = []
+        sub_commitments = []
         for c, df in enumerate(dfs):
             df["j"] = range(len(df.index))
             groups = list(df["group"].unique())
@@ -180,8 +180,8 @@ def device_scheduler(  # noqa C901
                         "Commitment groups cannot have non-unique downwards deviation prices."
                     )
                 if len(sub_commitment) == 1:
-                    commitment_mapping[len(all_groups)] = c
-                    all_groups.append(sub_commitment)
+                    commitment_mapping[len(sub_commitments)] = c
+                    sub_commitments.append(sub_commitment)
                 else:
                     down_commitment = sub_commitment.copy().drop(
                         columns="upwards deviation price"
@@ -189,10 +189,10 @@ def device_scheduler(  # noqa C901
                     up_commitment = sub_commitment.copy().drop(
                         columns="downwards deviation price"
                     )
-                    commitment_mapping[len(all_groups)] = c
-                    commitment_mapping[len(all_groups) + 1] = c
-                    all_groups.extend([down_commitment, up_commitment])
-        return all_groups, commitment_mapping
+                    commitment_mapping[len(sub_commitments)] = c
+                    commitment_mapping[len(sub_commitments) + 1] = c
+                    sub_commitments.extend([down_commitment, up_commitment])
+        return sub_commitments, commitment_mapping
 
     commitments, commitment_mapping = convert_commitments_to_subcommitments(commitments)
 
