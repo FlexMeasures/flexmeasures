@@ -216,16 +216,21 @@ class Commitment:
         Name of the commitment.
     index:
         Pandas DatetimeIndex defining the time slots to which the commitment applies.
+        The index is shared by the group, quantity. upwards_deviation_price and downwards_deviation_price Pandas Series.
     _type:
         'any' or 'each'. Any deviation is penalized via 1 group, whereas each deviation is penalized via n groups.
     group:
         Each time slot is assigned to a group. Deviations are determined for each group.
+        The deviation of a group is determined by the time slot with the maximum deviation within that group.
     quantity:
         The deviation for each group is determined with respect to this quantity.
+        Can be initialized with a constant value, but always returns a Pandas Series (see also the `index` parameter).
     upwards_deviation_price:
         The deviation in the upwards direction is priced against this price. Use a positive price to set a penalty.
+        Can be initialized with a constant value, but always returns a Pandas Series (see also the `index` parameter).
     downwards_deviation_price:
         The deviation in the downwards direction is priced against this price. Use a negative price to set a penalty.
+        Can be initialized with a constant value, but always returns a Pandas Series (see also the `index` parameter).
     """
 
     name: str
