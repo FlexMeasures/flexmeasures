@@ -59,7 +59,7 @@ def device_scheduler(  # noqa C901
     :param ems_constraints:     EMS constraints are on an EMS level. Handled constraints (listed by column name):
                                     derivative max: maximum flow
                                     derivative min: minimum flow
-    :param commitments:         Commitments are on an EMS level. Handled parameter (listed by column name):
+    :param commitments:         Commitments are on an EMS level. Handled parameters (listed by column name):
                                     quantity:                   for example, 5.5
                                     downwards deviation price:  10.1
                                     upwards deviation price:    10.2
