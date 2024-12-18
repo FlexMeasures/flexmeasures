@@ -2271,6 +2271,7 @@ def test_unavoidable_capacity_breach():
     commitments[0]["quantity"] = 0
     commitments[0]["downwards deviation price"] = 90 + slope
     commitments[0]["upwards deviation price"] = 100 + slope
+    # `len(commitments[0])` is the number of time slots. Each slot is part of a unique group.
     commitments[0]["group"] = list(range(len(commitments[0])))
 
     # Consumption Capacity Breach Commitment (1 group, so penalized once)
