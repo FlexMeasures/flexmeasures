@@ -64,6 +64,8 @@ def device_scheduler(  # noqa C901
         downwards deviation price:  10.1
         upwards deviation price:    10.2
         group:                      1 (defaults to the enumerate time step j)
+    :param initial_stock:       initial stock for each device. Use a list with the same number of devices as device_constraints,
+                                or use a single value to set the initial stock to be the same for all devices.
 
     Potentially deprecated arguments:
         commitment_quantities: amounts of flow specified in commitments (both previously ordered and newly requested)
