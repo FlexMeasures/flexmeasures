@@ -168,12 +168,16 @@ def device_scheduler(  # noqa C901
 
                 # Catch non-uniqueness
                 if len(sub_commitment["quantity"].unique()) > 1:
-                    raise ValueError("Cannot have non-unique quantities.")
+                    raise ValueError(
+                        "Commitment groups cannot have non-unique quantities."
+                    )
                 if len(sub_commitment["upwards deviation price"].unique()) > 1:
-                    raise ValueError("Cannot have non-unique upwards deviation prices.")
+                    raise ValueError(
+                        "Commitment groups cannot have non-unique upwards deviation prices."
+                    )
                 if len(sub_commitment["downwards deviation price"].unique()) > 1:
                     raise ValueError(
-                        "Cannot have non-unique downwards deviation prices."
+                        "Commitment groups cannot have non-unique downwards deviation prices."
                     )
                 if len(sub_commitment) == 1:
                     commitment_mapping[len(all_groups)] = c
