@@ -45,25 +45,25 @@ def device_scheduler(  # noqa C901
     The commitments are assumed to be with regard to the flow of energy to the device (positive for consumption,
     negative for production). The solver minimises the costs of deviating from the commitments.
 
-    :param device_constraints:   Device constraints are on a device level. Handled constraints (listed by column name):
-        max: maximum stock assuming an initial stock of zero (e.g. in MWh or boxes)
-        min: minimum stock assuming an initial stock of zero
-        equal: exact amount of stock (we do this by clamping min and max)
-        efficiency: amount of stock left at the next datetime (the rest is lost)
-        derivative max: maximum flow (e.g. in MW or boxes/h)
-        derivative min: minimum flow
-        derivative equals: exact amount of flow (we do this by clamping derivative min and derivative max)
-        derivative down efficiency: conversion efficiency of flow out of a device (flow out : stock decrease)
-        derivative up efficiency: conversion efficiency of flow into a device (stock increase : flow in)
-        stock delta: predefined stock delta to apply to the storage device. Positive values cause an increase and negative values a decrease
+    :param device_constraints:  Device constraints are on a device level. Handled constraints (listed by column name):
+                                    max: maximum stock assuming an initial stock of zero (e.g. in MWh or boxes)
+                                    min: minimum stock assuming an initial stock of zero
+                                    equal: exact amount of stock (we do this by clamping min and max)
+                                    efficiency: amount of stock left at the next datetime (the rest is lost)
+                                    derivative max: maximum flow (e.g. in MW or boxes/h)
+                                    derivative min: minimum flow
+                                    derivative equals: exact amount of flow (we do this by clamping derivative min and derivative max)
+                                    derivative down efficiency: conversion efficiency of flow out of a device (flow out : stock decrease)
+                                    derivative up efficiency: conversion efficiency of flow into a device (stock increase : flow in)
+                                    stock delta: predefined stock delta to apply to the storage device. Positive values cause an increase and negative values a decrease
     :param ems_constraints:     EMS constraints are on an EMS level. Handled constraints (listed by column name):
-        derivative max: maximum flow
-        derivative min: minimum flow
+                                    derivative max: maximum flow
+                                    derivative min: minimum flow
     :param commitments:         Commitments are on an EMS level. Handled parameter (listed by column name):
-        quantity:                   for example, 5.5
-        downwards deviation price:  10.1
-        upwards deviation price:    10.2
-        group:                      1 (defaults to the enumerate time step j)
+                                    quantity:                   for example, 5.5
+                                    downwards deviation price:  10.1
+                                    upwards deviation price:    10.2
+                                    group:                      1 (defaults to the enumerate time step j)
     :param initial_stock:       initial stock for each device. Use a list with the same number of devices as device_constraints,
                                 or use a single value to set the initial stock to be the same for all devices.
 
