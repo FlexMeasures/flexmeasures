@@ -57,13 +57,13 @@ For more details on the possible formats for field values, see :ref:`variable_qu
      - ``{"sensor": 5}``
        or
        ``"0.29 EUR/kWh"``
-     - The price of consuming energy. Can be (a sensor recording) market prices, but also CO₂ intensity - whatever fits your optimization problem. [#price_field]_ (This field replaced the ``consumption-price-sensor`` field. [#old_sensor_field]_)
+     - The price of consuming energy. Can be (a sensor recording) market prices, but also CO₂ intensity - whatever fits your optimization problem. (This field replaced the ``consumption-price-sensor`` field. [#old_sensor_field]_)
    * - ``production-price``
      - ``{"sensor": 6}``
        or
        ``"0.12 EUR/kWh"``
      - The price of producing energy.
-       Can be (a sensor recording) market prices, but also CO₂ intensity - whatever fits your optimization problem. [#price_field]_ (This field replaced the ``production-price-sensor`` field. [#old_sensor_field]_)
+       Can be (a sensor recording) market prices, but also CO₂ intensity - whatever fits your optimization problem, as long as the unit matches the ``consumption-price`` unit. (This field replaced the ``production-price-sensor`` field. [#old_sensor_field]_)
    * - ``site-power-capacity``
      - ``"45kVA"``
      - Maximum achievable power at the grid connection point, in either direction [#asymmetric]_ (defaults to the Asset attribute ``capacity_in_mw``).
@@ -79,7 +79,7 @@ For more details on the possible formats for field values, see :ref:`variable_qu
      - ``"1000 EUR/kW"``
      - The price of breaching the ``site-consumption-capacity``.
        Can be (a sensor recording) contractual penalties, but also a theoretical penalty just to allow the scheduler to breach the consumption capacity, while influencing how badly breaches should be avoided.
-       The price is applied both to the largest breach in the planning window and to each breach that occurs. [#price_field]_
+       The price is applied both to the largest breach in the planning window and to each breach that occurs. [#penalty_field]_
    * - ``site-production-capacity``
      - ``"0kW"``
      - Maximum production power at the grid connection point (defaults to the Asset attribute ``production_capacity_in_mw``).
@@ -90,29 +90,29 @@ For more details on the possible formats for field values, see :ref:`variable_qu
      - ``"1000 EUR/kW"``
      - The price of breaching the ``site-production-capacity``.
        Can be (a sensor recording) contractual penalties, but also a theoretical penalty just to allow the scheduler to breach the production capacity, while influencing how badly breaches should be avoided.
-       The price is applied both to the largest breach in the planning window and to each breach that occurs. [#price_field]_
+       The price is applied both to the largest breach in the planning window and to each breach that occurs. [#penalty_field]_
    * - ``site-peak-consumption``
      - ``{"sensor": 7}``
      - Current peak consumption.
        Costs from peaks below it are considered sunk costs. Default to 0 kW.
    * - ``site-peak-consumption-price``
      - ``"260 EUR/MWh"``
-     - Consumption peaks above the ``site-peak-consumption`` are penalized against this per-kW price. [#price_field]_
+     - Consumption peaks above the ``site-peak-consumption`` are penalized against this per-kW price. [#penalty_field]_
    * - ``site-peak-production``
      - ``{"sensor": 8}``
      - Current peak production.
        Costs from peaks below it are considered sunk costs. Default to 0 kW.
    * - ``site-peak-production-price``
      - ``"260 EUR/MWh"``
-     - Production peaks above the ``site-peak-production`` are penalized against this per-kW price. [#price_field]_
-
-.. [#price_field] Prices must to share the same currency.
+     - Production peaks above the ``site-peak-production`` are penalized against this per-kW price. [#penalty_field]_
 
 .. [#old_sensor_field] The old field only accepted an integer (sensor ID).
 
 .. [#asymmetric] ``site-consumption-capacity`` and ``site-production-capacity`` allow defining asymmetric contracted transport capacities for each direction (i.e. production and consumption).
 
 .. [#consumption] Example: with a connection capacity (``site-power-capacity``) of 1 MVA (apparent power) and a consumption capacity (``site-consumption-capacity``) of 800 kW (active power), the scheduler will make sure that the grid outflow doesn't exceed 800 kW.
+
+.. [#penalty_field] Prices must share the same currency. Negative prices are not allowed (penalties only).
 
 .. [#production] Example: with a connection capacity (``site-power-capacity``) of 1 MVA (apparent power) and a production capacity (``site-production-capacity``) of 400 kW (active power), the scheduler will make sure that the grid inflow doesn't exceed 400 kW.
 
