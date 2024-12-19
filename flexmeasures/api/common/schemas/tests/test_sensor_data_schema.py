@@ -398,3 +398,9 @@ def test_build_asset_jobs_data(db, app, add_battery_assets):
             assert metadata["job_id"] == scheduling_job.id
         assert job_data["status"] == "queued"
         assert job_data["entity"] == f"sensor: {battery.name} (Id: {battery.id})"
+
+    # Clean up queues
+    app.queues["scheduling"].empty()
+    app.queues["forecasting"].empty()
+    assert app.queues["scheduling"].count == 0
+    assert app.queues["forecasting"].count == 0

@@ -237,6 +237,26 @@ def test_efficiency_pair(
             {"site-power-capacity": {"sensor": "site-power-capacity"}},
             False,
         ),
+        (
+            {
+                "consumption-price": "1 KRW/MWh",
+                "site-peak-production-price": "1 EUR/MW",
+            },
+            {"site-peak-production-price": "Prices must share the same monetary unit."},
+        ),
+        (
+            {
+                "consumption-price": "1 MKRW/MWh",
+                "site-peak-production-price": "1 KRW/MW",
+            },
+            False,
+        ),
+        (
+            {
+                "site-peak-production-price": "-1 KRW/MW",
+            },
+            {"site-peak-production-price": "Must be greater than or equal to 0."},
+        ),
     ],
 )
 def test_flex_context_schema(db, app, setup_site_capacity_sensor, flex_context, fails):

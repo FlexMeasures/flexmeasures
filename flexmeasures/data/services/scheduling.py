@@ -351,7 +351,11 @@ def make_schedule(
         rq_job.meta["data_source_info"] = data_source_info
         rq_job.save_meta()
 
+    # Save any result that specifies a sensor to save it to
     for result in consumption_schedule:
+        if "sensor" not in result:
+            continue
+
         sign = 1
 
         if result["sensor"].measures_power and result["sensor"].get_attribute(
