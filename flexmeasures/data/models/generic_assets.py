@@ -388,12 +388,11 @@ class GenericAsset(db.Model, AuthModelMixin):
         from flexmeasures.data.models.time_series import Sensor
 
         # Need to load consumption_price_sensor manually as generic_asset does not get to SQLAlchemy session context.
-        if self.consumption_price_sensor_id and not self.consumption_price_sensor:
-            self.consumption_price_sensor = Sensor.query.get(
-                self.consumption_price_sensor_id
+        if self.flex_context.get("consumption-price"):
+            consumption_price_sensor = Sensor.query.get(
+                self.flex_context["consumption-price"]
             )
-        if self.consumption_price_sensor:
-            return self.consumption_price_sensor
+            return consumption_price_sensor or None
         if self.parent_asset:
             return self.parent_asset.get_consumption_price_sensor()
         return None
@@ -403,13 +402,13 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         from flexmeasures.data.models.time_series import Sensor
 
+        production_price_sensor = None
         # Need to load production_price_sensor manually as generic_asset does not get to SQLAlchemy session context.
-        if self.production_price_sensor_id and not self.production_price_sensor:
-            self.production_price_sensor = Sensor.query.get(
-                self.production_price_sensor_id
+        if self.flex_context.get("consumption-price"):
+            production_price_sensor = Sensor.query.get(
+                self.flex_context["consumption-price"]
             )
-        if self.production_price_sensor:
-            return self.production_price_sensor
+            return production_price_sensor or None
         if self.parent_asset:
             return self.parent_asset.get_production_price_sensor()
         return None
@@ -423,21 +422,11 @@ class GenericAsset(db.Model, AuthModelMixin):
         from flexmeasures.data.models.time_series import Sensor
 
         # Need to load inflexible_device_sensors manually as generic_asset does not get to SQLAlchemy session context.
-        if not self.inflexible_device_sensors:
-            self.inflexible_device_sensors = (
-                db.session.query(Sensor)
-                .join(
-                    GenericAssetInflexibleSensorRelationship,
-                    GenericAssetInflexibleSensorRelationship.inflexible_sensor_id
-                    == Sensor.id,
-                )
-                .filter(
-                    GenericAssetInflexibleSensorRelationship.generic_asset_id == self.id
-                )
-                .all()
-            )
-        if self.inflexible_device_sensors:
-            return self.inflexible_device_sensors
+        if self.flex_context.get("inflexible-device-sensors"):
+            sensors = Sensor.query.filter(
+                Sensor.id.in_(self.flex_context["inflexible-device-sensors"])
+            ).all()
+            return sensors or []
         if self.parent_asset:
             return self.parent_asset.get_inflexible_device_sensors()
         return []

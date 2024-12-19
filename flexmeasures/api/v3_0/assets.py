@@ -32,6 +32,7 @@ from flexmeasures.auth.policy import check_access
 from werkzeug.exceptions import Forbidden, Unauthorized
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.schemas.scheduling import FlexContextSchema
 from flexmeasures.utils.time_utils import naturalized_datetime_str
 
 asset_schema = AssetSchema()
@@ -501,6 +502,9 @@ class AssetAPI(FlaskView):
                             f"Updated Attr: {attr_key}, From: {current_attributes.get(attr_key)}, To: {attr_value}"
                         )
                 continue
+            if k == "flex_context":
+                current_flex_context = getattr(db_asset, k)
+                FlexContextSchema().load(current_flex_context)
             audit_log_data.append(
                 f"Updated Field: {k}, From: {getattr(db_asset, k)}, To: {v}"
             )

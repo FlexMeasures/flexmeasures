@@ -61,7 +61,7 @@ def upgrade():
         select_stmt = sa.select(inflexible_sensors_table.c.inflexible_sensor_id).where(
             inflexible_sensors_table.c.generic_asset_id == asset_id
         )
-        inflexible_sensors = conn.execute(select_stmt)
+        inflexible_device_sensors = conn.execute(select_stmt)
 
         market_id = attributes_data.get("market_id")
         attributes_data.pop("market_id", None)
@@ -70,9 +70,9 @@ def upgrade():
             consumption_price_sensor_id = market_id
 
         flex_context = {
-            "consumption-price": consumption_price_sensor_id,
-            "production-price": production_price_sensor_id,
-            "inflexible-sensors": [s[0] for s in inflexible_sensors],
+            "consumption-price": {"sensor": consumption_price_sensor_id},
+            "production-price": {"sensor": production_price_sensor_id},
+            "inflexible-device-sensors": [s[0] for s in inflexible_device_sensors],
         }
 
         update_stmt = (
@@ -188,8 +188,16 @@ def downgrade():
 
     for row in results:
         asset_id, flex_context, attributes_data = row
-        consumption_price_sensor_id = flex_context.get("consumption-price")
-        production_price_sensor_id = flex_context.get("production-price")
+        consumption_price_sensor_id = (
+            flex_context.get("consumption-price")["sensor"]
+            if flex_context.get("consumption-price")
+            else None
+        )
+        production_price_sensor_id = (
+            flex_context.get("production-price")["sensor"]
+            if flex_context.get("production-price")
+            else None
+        )
 
         market_id = consumption_price_sensor_id
         attributes_data["market_id"] = market_id
@@ -205,7 +213,7 @@ def downgrade():
         )
         conn.execute(update_stmt)
 
-        for sensor_id in flex_context.get("inflexible-sensors", []):
+        for sensor_id in flex_context.get("inflexible-device-sensors", []):
             insert_stmt = inflexible_sensors_table.insert().values(
                 generic_asset_id=asset_id, inflexible_sensor_id=sensor_id
             )
