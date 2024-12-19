@@ -112,37 +112,12 @@ class GenericAsset(db.Model, AuthModelMixin):
         backref=db.backref("generic_assets", lazy=True),
     )
 
-    # consumption_price_sensor_id = db.Column(
-    #     db.Integer, db.ForeignKey("sensor.id", ondelete="SET NULL"), nullable=True
-    # )
-    # consumption_price_sensor = db.relationship(
-    #     "Sensor",
-    #     foreign_keys=[consumption_price_sensor_id],
-    #     backref=db.backref("assets_with_this_consumption_price_context", lazy=True),
-    # )
-
-    # production_price_sensor_id = db.Column(
-    #     db.Integer, db.ForeignKey("sensor.id", ondelete="SET NULL"), nullable=True
-    # )
-    # production_price_sensor = db.relationship(
-    #     "Sensor",
-    #     foreign_keys=[production_price_sensor_id],
-    #     backref=db.backref("assets_with_this_production_price_context", lazy=True),
-    # )
-
     # Many-to-many relationships
     annotations = db.relationship(
         "Annotation",
         secondary="annotations_assets",
         backref=db.backref("assets", lazy="dynamic"),
     )
-    # inflexible_device_sensors = db.relationship(
-    #     "Sensor",
-    #     secondary="assets_inflexible_sensors",
-    #     backref=db.backref(
-    #         "assets_considering_this_as_inflexible_sensor_in_scheduling", lazy="dynamic"
-    #     ),
-    # )
 
     def __acl__(self):
         """
