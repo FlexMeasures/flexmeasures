@@ -67,8 +67,8 @@ class ProfitOrLossReporter(Reporter):
                             It is used to filter input, and to assign a recording time to output.
         """
 
-        production_price_sensor: Sensor = self._config.get("production_price_sensor")
-        consumption_price_sensor: Sensor = self._config.get("consumption_price_sensor")
+        production_price_sensor: Sensor = self._config.get("production-price")
+        consumption_price_sensor: Sensor = self._config.get("consumption-price")
         loss_is_positive: bool = self._config.get("loss_is_positive", False)
 
         input_sensor: Sensor = input[0]["sensor"]  # power or energy sensor

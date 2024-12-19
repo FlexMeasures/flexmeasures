@@ -1,4 +1,3 @@
-import pytest
 from datetime import timedelta
 
 from flexmeasures.data.models.generic_assets import (
@@ -7,48 +6,6 @@ from flexmeasures.data.models.generic_assets import (
 )
 from flexmeasures.data.models.time_series import Sensor
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
-
-
-@pytest.mark.parametrize(
-    "setup_data, sensors_argument, expect_sensors_len",
-    [
-        # Both sensors linked, unlink them
-        ({"link_sensor1": True, "link_sensor2": True}, [-1], 0),
-        # 1 sensor is linked, adding another one
-        ({"link_sensor1": True}, [1, 2], 2),
-        # 1 sensor is linked, unlinking it
-        ({"link_sensor1": True}, [-1], 0),
-        # 1 sensor is linked, replacing it with another
-        ({"link_sensor1": True}, [2], 1),
-        # no sensors linked, adding both
-        ({}, [1, 2], 2),
-    ],
-)
-def test_set_inflexible_sensors(
-    db,
-    setup_generic_asset_types,
-    setup_accounts,
-    setup_data,
-    sensors_argument,
-    expect_sensors_len,
-):
-    """Check set_inflexible_sensors works as expected."""
-
-    with NewAssetWithSensors(
-        db, setup_generic_asset_types, setup_accounts, setup_data
-    ) as new_asset_decorator:
-        ids_substitution = {
-            -1: -1,
-            1: new_asset_decorator.price_sensor1.id,
-            2: new_asset_decorator.price_sensor2.id,
-        }
-        sensors_argument = [ids_substitution[id] for id in sensors_argument]
-        new_asset_decorator.test_battery.set_inflexible_sensors(sensors_argument)
-
-        assert (
-            db.session.query(GenericAssetInflexibleSensorRelationship).count()
-            == expect_sensors_len
-        )
 
 
 class NewAssetWithSensors:

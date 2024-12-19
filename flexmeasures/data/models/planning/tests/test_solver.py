@@ -572,9 +572,9 @@ def test_building_solver_day_2(
             "storage_efficiency": battery.get_attribute("storage_efficiency", 1),
         },
         flex_context={
-            "inflexible_device_sensors": inflexible_devices.values(),
-            "production_price_sensor": production_price_sensor,
-            "consumption_price_sensor": consumption_price_sensor,
+            "inflexible-device-sensors": inflexible_devices.values(),
+            "production-price-sensor": production_price_sensor,
+            "consumption-price-sensor": consumption_price_sensor,
         },
     )
     scheduler.config_deserialized = (
