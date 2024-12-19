@@ -36,9 +36,10 @@ The flex-context
 -----------------
 
 The ``flex-context`` is independent of the type of flexible device that is optimized.
-With the flexibility context, we aim to describe the system in which the flexible assets operate.
+With the flexibility context, we aim to describe the system in which the flexible assets operate, such as its physical and contractual limitations.
 
-The full list of flex-context fields is as follows:
+The full list of flex-context fields follows below.
+For more details on the possible formats for field values, see :ref:`variable_quantities`.
 
 
 .. list-table::
@@ -50,26 +51,62 @@ The full list of flex-context fields is as follows:
      - Description 
    * - ``inflexible-device-sensors``
      - ``[3,4]``
-     - Power sensors that are relevant, but not flexible, such as a sensor recording rooftop solar power connected behind the main meter, whose production falls under the same contract as the flexible device(s) being scheduled. Their power demand cannot be adjusted but still matters for finding the best schedule for other devices. Must be a list of integers.
+     - Power sensors that are relevant, but not flexible, such as a sensor recording rooftop solar power connected behind the main meter, whose production falls under the same contract as the flexible device(s) being scheduled.
+       Their power demand cannot be adjusted but still matters for finding the best schedule for other devices. Must be a list of integers.
    * - ``consumption-price``
      - ``{"sensor": 5}``
        or
        ``"0.29 EUR/kWh"``
-     - The price of consuming energy. Can be (a sensor recording) market prices, but also CO₂ intensity - whatever fits your optimization problem. (This field replaced the ``consumption-price-sensor`` field. [#old_sensor_field]_)
+     - The price of consuming energy. Can be (a sensor recording) market prices, but also CO₂ intensity - whatever fits your optimization problem. [#price_field]_ (This field replaced the ``consumption-price-sensor`` field. [#old_sensor_field]_)
    * - ``production-price``
      - ``{"sensor": 6}``
        or
        ``"0.12 EUR/kWh"``
-     - The price of producing energy. Can be (a sensor recording) market prices, but also CO₂ intensity - whatever fits your optimization problem. (This field replaced the ``production-price-sensor`` field. [#old_sensor_field]_)
+     - The price of producing energy.
+       Can be (a sensor recording) market prices, but also CO₂ intensity - whatever fits your optimization problem. [#price_field]_ (This field replaced the ``production-price-sensor`` field. [#old_sensor_field]_)
    * - ``site-power-capacity``
-     - ``"45kW"``
+     - ``"45kVA"``
      - Maximum achievable power at the grid connection point, in either direction [#asymmetric]_ (defaults to the Asset attribute ``capacity_in_mw``).
+       Becomes a hard constraint in the optimization problem, which is especially suitable for physical limitations.
    * - ``site-consumption-capacity``
      - ``"45kW"``
-     - Maximum consumption power at the grid connection point [#consumption]_ (defaults to the Asset attribute ``consumption_capacity_in_mw``). If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-consumption-capacity`` will be used.
+     - Maximum consumption power at the grid connection point (defaults to the Asset attribute ``consumption_capacity_in_mw``).
+       If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-consumption-capacity`` will be used. [#consumption]_
+       If a ``site-consumption-breach-price`` is defined, the ``site-consumption-capacity`` becomes a soft constraint in the optimization problem.
+       Otherwise, it becomes a hard constraint.
+
+   * - ``site-consumption-breach-price``
+     - ``"1000 EUR/kW"``
+     - The price of breaching the ``site-consumption-capacity``.
+       Can be (a sensor recording) contractual penalties, but also a theoretical penalty just to allow the scheduler to breach the consumption capacity, while influencing how badly breaches should be avoided.
+       The price is applied both to the largest breach in the planning window and to each breach that occurs. [#price_field]_
    * - ``site-production-capacity``
      - ``"0kW"``
-     - Maximum production power at the grid connection point [#production]_ (defaults to the Asset attribute ``production_capacity_in_mw``). If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-production-capacity`` will be used.
+     - Maximum production power at the grid connection point (defaults to the Asset attribute ``production_capacity_in_mw``).
+       If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-production-capacity`` will be used. [#production]_
+       If a ``site-production-breach-price`` is defined, the ``site-production-capacity`` becomes a soft constraint in the optimization problem.
+       Otherwise, it becomes a hard constraint.
+   * - ``site-production-breach-price``
+     - ``"1000 EUR/kW"``
+     - The price of breaching the ``site-production-capacity``.
+       Can be (a sensor recording) contractual penalties, but also a theoretical penalty just to allow the scheduler to breach the production capacity, while influencing how badly breaches should be avoided.
+       The price is applied both to the largest breach in the planning window and to each breach that occurs. [#price_field]_
+   * - ``site-peak-consumption``
+     - ``{"sensor": 7}``
+     - Current peak consumption.
+       Costs from peaks below it are considered sunk costs. Default to 0 kW.
+   * - ``site-peak-consumption-price``
+     - ``"260 EUR/MWh"``
+     - Consumption peaks above the ``site-peak-consumption`` are penalized against this per-kW price. [#price_field]_
+   * - ``site-peak-production``
+     - ``{"sensor": 8}``
+     - Current peak production.
+       Costs from peaks below it are considered sunk costs. Default to 0 kW.
+   * - ``site-peak-production-price``
+     - ``"260 EUR/MWh"``
+     - Production peaks above the ``site-peak-production`` are penalized against this per-kW price. [#price_field]_
+
+.. [#price_field] Prices must to share the same currency.
 
 .. [#old_sensor_field] The old field only accepted an integer (sensor ID).
 
@@ -81,8 +118,6 @@ The full list of flex-context fields is as follows:
 
 .. note:: If no (symmetric, consumption and production) site capacity is defined (also not as defaults), the scheduler will not enforce any bound on the site power.
           The flexible device can still have its own power limit defined in its flex-model.
-
-For more details on the possible formats for field values, see :ref:`variable_quantities`.
 
 
 .. _flex_models_and_schedulers:
@@ -114,7 +149,8 @@ You can do a lot with this ― examples for storage devices are:
 The ``flex-model`` for storage devices describes to the scheduler what the flexible asset's state is,
 and what constraints or preferences should be taken into account.
 
-The full list of flex-model fields for the storage scheduler is as follows:
+The full list of flex-model fields for the storage scheduler follows below.
+For more details on the possible formats for field values, see :ref:`variable_quantities`.
 
 .. list-table::
    :header-rows: 1
