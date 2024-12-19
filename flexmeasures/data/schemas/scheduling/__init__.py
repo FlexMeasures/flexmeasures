@@ -71,6 +71,7 @@ class FlexContextSchema(Schema):
         required=False,
         data_key="site-peak-consumption",
         value_validator=validate.Range(min=0),
+        default="0 kW",
     )
     ems_peak_consumption_price = VariableQuantityField(
         "/MW",
@@ -86,6 +87,7 @@ class FlexContextSchema(Schema):
         required=False,
         data_key="site-peak-production",
         value_validator=validate.Range(min=0),
+        default="0 kW",
     )
     ems_peak_production_price = VariableQuantityField(
         "/MW",
