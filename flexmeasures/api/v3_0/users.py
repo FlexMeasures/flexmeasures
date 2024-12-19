@@ -3,7 +3,7 @@ from flask_classful import FlaskView, route
 from marshmallow import fields
 import marshmallow.validate as validate
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import and_, select, func
+from sqlalchemy import and_, select, func, or_
 from flask_sqlalchemy.pagination import SelectPagination
 from webargs.flaskparser import use_kwargs
 from flask_security import current_user, auth_required
@@ -23,7 +23,6 @@ from flexmeasures.data.schemas.users import UserSchema
 from flexmeasures.data.services.users import (
     set_random_password,
     remove_cookie_and_token_access,
-    get_audit_log_records,
 )
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
@@ -365,19 +364,61 @@ class UserAPI(FlaskView):
         pass_ctx_to_loader=True,
         ctx_loader=AuditLog.user_table_acl,
     )
+    @use_kwargs(
+        {
+            "page": fields.Int(
+                required=False, validate=validate.Range(min=1), load_default=None
+            ),
+            "per_page": fields.Int(
+                required=False, validate=validate.Range(min=1), load_default=10
+            ),
+            "filter": SearchFilterField(required=False, load_default=None),
+            "sort_by": fields.Str(
+                required=False,
+                load_default=None,
+                validate=validate.OneOf(["event_datetime"]),
+            ),
+            "sort_dir": fields.Str(
+                required=False,
+                load_default=None,
+                validate=validate.OneOf(["asc", "desc"]),
+            ),
+        },
+        location="query",
+    )
     @as_json
-    def auditlog(self, id: int, user: UserModel):
+    def auditlog(
+        self,
+        id: int,
+        user: UserModel,
+        page: int | None = None,
+        per_page: int | None = None,
+        filter: list[str] | None = None,
+        sort_by: str | None = None,
+        sort_dir: str | None = None,
+    ):
         """API endpoint to get history of user actions.
+
+        The endpoint is paginated and supports search filters.
+            - If the `page` parameter is not provided, all audit logs are returned paginated by `per_page` (default is 10).
+            - If a `page` parameter is provided, the response will be paginated, showing a specific number of audit logs per page as defined by `per_page` (default is 10).
+            - If a search 'filter' is provided, the response will filter out audit logs where each search term is either present in the event or active user name.
+              The response schema for pagination is inspired by https://datatables.net/manual/server-side
+
         **Example response**
 
         .. sourcecode:: json
-            [
-                {
-                    'event': 'User test user deleted',
-                    'event_datetime': '2021-01-01T00:00:00',
-                    'active_user_name': 'Test user',
-                }
-            ]
+            {
+                "data" : [
+                    {
+                        'event': 'User test user deleted',
+                        'event_datetime': '2021-01-01T00:00:00',
+                        'active_user_name': 'Test user',
+                    }
+                ],
+                "num-records" : 1,
+                "filtered-records" : 1
+            }
 
         :reqheader Authorization: The authentication token
         :reqheader Content-Type: application/json
@@ -388,17 +429,69 @@ class UserAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        audit_logs = get_audit_log_records(user)
-        audit_logs = [
-            {
-                k: getattr(log, k)
-                for k in (
-                    "event",
-                    "event_datetime",
-                    "active_user_name",
-                    "active_user_id",
+        query_statement = AuditLog.affected_user_id == user.id
+        query = select(AuditLog).filter(query_statement)
+
+        if filter:
+            search_terms = filter[0].split(" ")
+            query = query.filter(
+                or_(
+                    *[AuditLog.event.ilike(f"%{term}%") for term in search_terms],
+                    *[
+                        AuditLog.active_user_name.ilike(f"%{term}%")
+                        for term in search_terms
+                    ],
                 )
+            )
+
+        if sort_by is not None and sort_dir is not None:
+            valid_sort_columns = {"event_datetime": AuditLog.event_datetime}
+
+            query = query.order_by(
+                valid_sort_columns[sort_by].asc()
+                if sort_dir == "asc"
+                else valid_sort_columns[sort_by].desc()
+            )
+
+        if page is None:
+            audit_logs = db.session.execute(query).scalars().all()
+
+            response = [
+                {
+                    "event": audit_log.event,
+                    "event_datetime": naturalized_datetime_str(
+                        audit_log.event_datetime
+                    ),
+                    "active_user_name": audit_log.active_user_name,
+                    "active_user_id": audit_log.active_user_id,
+                }
+                for audit_log in audit_logs
+            ]
+        else:
+            select_pagination: SelectPagination = db.paginate(
+                query, per_page=per_page, page=page
+            )
+
+            num_records = db.session.scalar(
+                select(func.count(AuditLog.id)).where(query_statement)
+            )
+
+            audit_logs_response = [
+                {
+                    "event": audit_log.event,
+                    "event_datetime": naturalized_datetime_str(
+                        audit_log.event_datetime
+                    ),
+                    "active_user_name": audit_log.active_user_name,
+                    "active_user_id": audit_log.active_user_id,
+                }
+                for audit_log in select_pagination.items
+            ]
+
+            response = {
+                "data": audit_logs_response,
+                "num-records": num_records,
+                "filtered-records": select_pagination.total,
             }
-            for log in audit_logs
-        ]
-        return audit_logs, 200
+
+        return response, 200

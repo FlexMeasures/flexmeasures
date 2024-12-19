@@ -32,7 +32,7 @@ from flexmeasures.auth.policy import check_access
 from werkzeug.exceptions import Forbidden, Unauthorized
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.models.time_series import Sensor
-
+from flexmeasures.utils.time_utils import naturalized_datetime_str
 
 asset_schema = AssetSchema()
 assets_schema = AssetSchema(many=True)
@@ -611,19 +611,63 @@ class AssetAPI(FlaskView):
         location="path",
     )
     @permission_required_for_context("read", ctx_arg_name="asset")
+    @use_kwargs(
+        {
+            "page": fields.Int(
+                required=False, validate=validate.Range(min=1), load_default=1
+            ),
+            "per_page": fields.Int(
+                required=False, validate=validate.Range(min=1), load_default=10
+            ),
+            "filter": SearchFilterField(required=False, load_default=None),
+            "sort_by": fields.Str(
+                required=False,
+                load_default=None,
+                validate=validate.OneOf(["event_datetime"]),
+            ),
+            "sort_dir": fields.Str(
+                required=False,
+                load_default=None,
+                validate=validate.OneOf(["asc", "desc"]),
+            ),
+        },
+        location="query",
+    )
     @as_json
-    def auditlog(self, id: int, asset: GenericAsset):
+    def auditlog(
+        self,
+        id: int,
+        asset: GenericAsset,
+        page: int | None = None,
+        per_page: int | None = None,
+        filter: list[str] | None = None,
+        sort_by: str | None = None,
+        sort_dir: str | None = None,
+    ):
         """API endpoint to get history of asset related actions.
+
+        The endpoint is paginated and supports search filters.
+
+            - If the `page` parameter is not provided, all audit logs are returned paginated by `per_page` (default is 10).
+            - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).
+            - If a search 'filter' is provided, the response will filter out audit logs where each search term is either present in the event or active user name.
+              The response schema for pagination is inspired by https://datatables.net/manual/server-side
+
+
         **Example response**
 
         .. sourcecode:: json
-            [
-                {
-                    'event': 'Asset test asset deleted',
-                    'event_datetime': '2021-01-01T00:00:00',
-                    'active_user_name': 'Test user',
-                }
-            ]
+            {
+                "data" : [
+                    {
+                        'event': 'Asset test asset deleted',
+                        'event_datetime': '2021-01-01T00:00:00',
+                        'active_user_name': 'Test user',
+                    }
+                ],
+                "num-records" : 1,
+                "filtered-records" : 1
+            }
 
         :reqheader Authorization: The authentication token
         :reqheader Content-Type: application/json
@@ -634,19 +678,52 @@ class AssetAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        audit_logs = (
-            db.session.query(AssetAuditLog).filter_by(affected_asset_id=asset.id).all()
-        )
-        audit_logs = [
-            {
-                k: getattr(log, k)
-                for k in (
-                    "event",
-                    "event_datetime",
-                    "active_user_name",
-                    "active_user_id",
+        query_statement = AssetAuditLog.affected_asset_id == asset.id
+        query = select(AssetAuditLog).filter(query_statement)
+
+        if filter:
+            search_terms = filter[0].split(" ")
+            query = query.filter(
+                or_(
+                    *[AssetAuditLog.event.ilike(f"%{term}%") for term in search_terms],
+                    *[
+                        AssetAuditLog.active_user_name.ilike(f"%{term}%")
+                        for term in search_terms
+                    ],
                 )
+            )
+
+        if sort_by is not None and sort_dir is not None:
+            valid_sort_columns = {"event_datetime": AssetAuditLog.event_datetime}
+
+            query = query.order_by(
+                valid_sort_columns[sort_by].asc()
+                if sort_dir == "asc"
+                else valid_sort_columns[sort_by].desc()
+            )
+
+        select_pagination: SelectPagination = db.paginate(
+            query, per_page=per_page, page=page
+        )
+
+        num_records = db.session.scalar(
+            select(func.count(AssetAuditLog.id)).where(query_statement)
+        )
+
+        audit_logs_response: list = [
+            {
+                "event": audit_log.event,
+                "event_datetime": naturalized_datetime_str(audit_log.event_datetime),
+                "active_user_name": audit_log.active_user_name,
+                "active_user_id": audit_log.active_user_id,
             }
-            for log in audit_logs
+            for audit_log in select_pagination.items
         ]
-        return audit_logs, 200
+
+        response = {
+            "data": audit_logs_response,
+            "num-records": num_records,
+            "filtered-records": select_pagination.total,
+        }
+
+        return response, 200
