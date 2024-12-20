@@ -8,10 +8,7 @@ from rq.job import Job
 from unittest.mock import patch
 
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
-from flexmeasures.data.models.generic_assets import (
-    GenericAsset,
-    GenericAssetInflexibleSensorRelationship,
-)
+from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.planning.utils import get_prices, get_power_values
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.tests.utils import work_on_rq
@@ -412,8 +409,9 @@ def setup_inflexible_device_sensors(fresh_db, asset, sensor_name, sensor_num):
 
 
 def link_sensors(fresh_db, asset, sensors):
-    for sensor in sensors:
-        asset_inflexible_sensor_relationship = GenericAssetInflexibleSensorRelationship(
-            generic_asset_id=asset.id, inflexible_sensor_id=sensor.id
-        )
-        fresh_db.session.add(asset_inflexible_sensor_relationship)
+    if asset.flex_context.get("inflexible-device-sensors") is None:
+        asset.flex_context["inflexible-device-sensors"] = list()
+    asset.flex_context["inflexible-device-sensors"].append(
+        [sensor.id for sensor in sensors]
+    )
+    fresh_db.session.add(asset)

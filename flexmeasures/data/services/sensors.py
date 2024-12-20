@@ -234,7 +234,7 @@ def build_sensor_status_data(
         sensors_list = list(asset.sensors)
         if not is_child_asset:
             sensors_list += [
-                *asset.inflexible_device_sensors,
+                *asset.get_inflexible_device_sensors(),
                 production_price_sensor,
                 consumption_price_sensor,
             ]

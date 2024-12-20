@@ -1,10 +1,7 @@
 from datetime import timedelta
 
 from flexmeasures import Asset, AssetType, Account, Sensor
-from flexmeasures.data.models.generic_assets import (
-    GenericAsset,
-    GenericAssetInflexibleSensorRelationship,
-)
+from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.ui.utils.breadcrumb_utils import get_ancestry
 
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
@@ -107,12 +104,12 @@ class NewAsset:
             self.test_battery.flex_context["production-price"] = self.price_sensor.id
             self.db.session.add(self.test_battery)
         if self.new_asset_data.get("have_linked_sensors"):
-            relationship = GenericAssetInflexibleSensorRelationship(
-                generic_asset_id=self.test_battery.id,
-                inflexible_sensor_id=self.price_sensor.id,
+            if self.test_battery.flex_context.get("inflexible-device-sensors") is None:
+                self.test_battery.flex_context["inflexible-device-sensors"] = list()
+            self.test_battery.flex_context["inflexible-device-sensors"].append(
+                self.price_sensor.id
             )
-            self.db.session.add(relationship)
-
+            self.db.session.add(self.test_battery)
         self.db.session.commit()
 
         return self

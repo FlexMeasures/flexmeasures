@@ -318,9 +318,9 @@ def test_build_asset_status_data(
     db.session.add(production_price_sensor)
     db.session.flush()
 
-    asset.flex_context["consumption-price"] = wind_sensor.id
-    asset.flex_context["production-price"] = [production_price_sensor.id]
-    asset.flex_context["inflexible-sensors"] = [temperature_sensor.id]
+    asset.flex_context["consumption-price"] = {"sensor": wind_sensor.id}
+    asset.flex_context["production-price"] = {"sensor": production_price_sensor.id}
+    asset.flex_context["inflexible-device-sensors"] = [temperature_sensor.id]
     db.session.add(asset)
 
     wind_speed_res, temperature_res = {"staleness": True}, {"staleness": False}

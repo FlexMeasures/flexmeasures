@@ -42,24 +42,24 @@ class GenericAssetType(db.Model):
         return "<GenericAssetType %s: %r>" % (self.id, self.name)
 
 
-class GenericAssetInflexibleSensorRelationship(db.Model):
-    """Links assets to inflexible sensors."""
+# class GenericAssetInflexibleSensorRelationship(db.Model):
+#     """Links assets to inflexible sensors."""
 
-    __tablename__ = "assets_inflexible_sensors"
+#     __tablename__ = "assets_inflexible_sensors"
 
-    generic_asset_id = db.Column(
-        db.Integer, db.ForeignKey("generic_asset.id"), primary_key=True
-    )
-    inflexible_sensor_id = db.Column(
-        db.Integer, db.ForeignKey("sensor.id"), primary_key=True
-    )
-    __table_args__ = (
-        db.UniqueConstraint(
-            "inflexible_sensor_id",
-            "generic_asset_id",
-            name="assets_inflexible_sensors_key",
-        ),
-    )
+#     generic_asset_id = db.Column(
+#         db.Integer, db.ForeignKey("generic_asset.id"), primary_key=True
+#     )
+#     inflexible_sensor_id = db.Column(
+#         db.Integer, db.ForeignKey("sensor.id"), primary_key=True
+#     )
+#     __table_args__ = (
+#         db.UniqueConstraint(
+#             "inflexible_sensor_id",
+#             "generic_asset_id",
+#             name="assets_inflexible_sensors_key",
+#         ),
+#     )
 
 
 class GenericAsset(db.Model, AuthModelMixin):
