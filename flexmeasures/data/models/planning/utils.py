@@ -90,7 +90,7 @@ def add_tiny_price_slope(
 
 def get_market(sensor: Sensor) -> Sensor:
     """Get market sensor from the sensor's attributes."""
-    price_sensor = db.session.get(Sensor, sensor.get_attribute("market_id"))
+    price_sensor = db.session.get(Sensor, sensor.get_attribute("consumption-price"))
     if price_sensor is None:
         raise UnknownMarketException
     return price_sensor
