@@ -174,6 +174,14 @@ def user_can_delete(asset) -> bool:
     return True
 
 
+def user_can_update(asset) -> bool:
+    try:
+        check_access(asset, "update")
+    except Exception:
+        return False
+    return True
+
+
 def get_assets_by_account(account_id: int | str | None) -> list[GenericAsset]:
     if account_id is not None:
         get_assets_response = InternalApi().get(

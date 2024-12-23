@@ -107,7 +107,14 @@
         </div>
       </div>
     </div>
-    <div class="col-md-2"></div>
+    <div class="col-md-2">
+      {% if can_view_user_auditlog %}
+      <form action="/users/auditlog/{{ user.id }}" method="get" class="mb-md-0 mb-3 mt-3">
+          <button class="btn btn-sm btn-responsive btn-info" type="submit"
+          title="View history of user actions.">User audit log</button>
+      </form>
+      {% endif %}
+    </div>
   </div>
 </div>
 
