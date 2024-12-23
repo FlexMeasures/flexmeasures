@@ -1378,7 +1378,7 @@ def add_schedule_for_storage(  # noqa C901
     tb_utils.replace_deprecated_argument(
         "optimization-context-id",
         optimization_context_sensor,
-        "consumption-price-sensor",
+        "consumption-price",
         consumption_price_sensor,
     )
 
@@ -1437,8 +1437,8 @@ def add_schedule_for_storage(  # noqa C901
             "roundtrip-efficiency": roundtrip_efficiency,
         },
         flex_context={
-            "consumption-price-sensor": consumption_price_sensor.id,
-            "production-price-sensor": production_price_sensor.id,
+            "consumption-price": consumption_price_sensor.id,
+            "production-price": production_price_sensor.id,
             "inflexible-device-sensors": [s.id for s in inflexible_device_sensors],
         },
     )
@@ -1608,7 +1608,7 @@ def add_schedule_process(
 
     if consumption_price_sensor is not None:
         scheduling_kwargs["flex_context"] = {
-            "consumption-price-sensor": consumption_price_sensor.id,
+            "consumption-price": consumption_price_sensor.id,
         }
 
     if as_job:
