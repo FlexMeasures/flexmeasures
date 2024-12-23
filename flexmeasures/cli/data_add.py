@@ -1437,8 +1437,8 @@ def add_schedule_for_storage(  # noqa C901
             "roundtrip-efficiency": roundtrip_efficiency,
         },
         flex_context={
-            "consumption-price": consumption_price_sensor.id,
-            "production-price": production_price_sensor.id,
+            "consumption-price": {"sensor": consumption_price_sensor.id},
+            "production-price": {"sensor": production_price_sensor.id},
             "inflexible-device-sensors": [s.id for s in inflexible_device_sensors],
         },
     )
