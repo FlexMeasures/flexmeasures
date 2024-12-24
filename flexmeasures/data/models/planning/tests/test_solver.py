@@ -212,8 +212,8 @@ def run_test_charge_discharge_sign(
             "prefer-charging-sooner": True,
         },
         flex_context={
-            "consumption-price": consumption_price_sensor_id,
-            "production-price": production_price_sensor_id,
+            "consumption-price": {"sensor": consumption_price_sensor_id},
+            "production-price": {"sensor": production_price_sensor_id},
         },
     )
 
@@ -573,8 +573,8 @@ def test_building_solver_day_2(
         },
         flex_context={
             "inflexible-device-sensors": inflexible_devices.values(),
-            "production-price": production_price_sensor,
-            "consumption-price": consumption_price_sensor,
+            "production-price": {"sensor": production_price_sensor.id},
+            "consumption-price": {"sensor": consumption_price_sensor.id},
         },
     )
     scheduler.config_deserialized = (
@@ -1226,8 +1226,8 @@ def test_capacity(
     }
 
     flex_context = {
-        "production-price": add_market_prices["epex_da_production"].id,
-        "consumption-price": add_market_prices["epex_da"].id,
+        "production-price": {"sensor": add_market_prices["epex_da_production"].id},
+        "consumption-price": {"sensor": add_market_prices["epex_da"].id},
     }
 
     def set_if_not_none(dictionary, key, value):
