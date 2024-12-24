@@ -87,6 +87,32 @@ from flexmeasures.utils.unit_utils import ur
                 name="event_value",
             ),
         ),
+        # Test case 4: switch order of segments in list, with respect to test case 3
+        (
+            pd.date_range("2023-01-01", "2023-01-05", freq="1h", inclusive="left"),
+            [
+                {
+                    "value": ur.Quantity(2, "m"),
+                    "start": pd.Timestamp("2023-01-03"),
+                    "end": pd.Timestamp("2023-01-05"),
+                },
+                {
+                    "value": ur.Quantity(1, "m"),
+                    "start": pd.Timestamp("2023-01-01"),
+                    "end": pd.Timestamp("2023-01-04"),
+                },
+            ],
+            "km",
+            pd.Timedelta("1h"),
+            "first",
+            pd.Series(
+                [0.001] * 24 * 2 + [0.002] * 24 * 2,
+                index=pd.date_range(
+                    "2023-01-01", "2023-01-05", freq="1h", inclusive="left"
+                ),
+                name="event_value",
+            ),
+        ),
     ],
 )
 def test_process_time_series_segments(
