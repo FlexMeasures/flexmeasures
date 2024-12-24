@@ -2019,8 +2019,8 @@ def test_soc_maxima_minima_targets(db, add_battery_assets, soc_sensors):
             flex_model=flex_model,
             flex_context={
                 "site-power-capacity": "100 MW",
-                "production-price": epex_da.id,
-                "consumption-price": epex_da.id,
+                "production-price": {"sensor": epex_da.id},
+                "consumption-price": {"sensor": epex_da.id},
             },
         )
         return scheduler.compute()
