@@ -60,8 +60,7 @@ class ProcessScheduler(Scheduler):
         resolution = self.resolution
         belief_time = self.belief_time
         sensor = self.sensor
-
-        consumption_price_sensor: Sensor = self.flex_context.get("consumption-price")
+        consumption_price_sensor: Sensor = self.flex_context.get("consumption_price")
         duration: timedelta = self.flex_model.get("duration")
         power = self.flex_model.get("power")
         optimization_direction = self.flex_model.get("optimization_direction")
