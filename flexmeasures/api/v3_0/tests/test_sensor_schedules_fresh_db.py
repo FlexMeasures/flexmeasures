@@ -246,32 +246,32 @@ def test_price_sensor_priority(
         for name, other_name in zip(sensor_types, reversed(sensor_types))
     }
     used_sensor, unused_sensor = (
-        f"{sensor_type}-price-sensor",
-        f"{other_sensors[sensor_type]}-price-sensor",
+        f"{sensor_type}-price",
+        f"{other_sensors[sensor_type]}-price",
     )
 
     price_sensor_id = None
-    sensor_attribute = f"{sensor_type}_price_sensor_id"
+    sensor_attribute = f"{sensor_type}-price"
     # preparation: ensure the asset actually has the price sensor set as attribute
     if asset_sensor:
         price_sensor_id = add_market_prices_fresh_db[asset_sensor].id
         battery_asset = add_battery_assets_fresh_db[asset_name]
-        setattr(battery_asset, sensor_attribute, price_sensor_id)
+        battery_asset.flex_context[sensor_attribute] = {"sensor": price_sensor_id}
         fresh_db.session.add(battery_asset)
     if parent_sensor:
         price_sensor_id = add_market_prices_fresh_db[parent_sensor].id
         building_asset = add_battery_assets_fresh_db["Test building"]
-        setattr(building_asset, sensor_attribute, price_sensor_id)
+        building_asset.flex_context[sensor_attribute] = {"sensor": price_sensor_id}
         fresh_db.session.add(building_asset)
 
     # Adding unused sensor to context (e.g consumption price sensor if we test production sensor)
     message["flex-context"] = {
-        unused_sensor: add_market_prices_fresh_db["epex_da"].id,
+        unused_sensor: {"sensor": add_market_prices_fresh_db["epex_da"].id},
         "site-power-capacity": "1 TW",  # should be big enough to avoid any infeasibilities
     }
     if context_sensor:
         price_sensor_id = add_market_prices_fresh_db[context_sensor].id
-        message["flex-context"][used_sensor] = price_sensor_id
+        message["flex-context"][used_sensor] = {"sensor": price_sensor_id}
 
     # trigger a schedule through the /sensors/<id>/schedules/trigger [POST] api endpoint
     assert len(app.queues["scheduling"]) == 0
@@ -411,7 +411,7 @@ def setup_inflexible_device_sensors(fresh_db, asset, sensor_name, sensor_num):
 def link_sensors(fresh_db, asset, sensors):
     if asset.flex_context.get("inflexible-device-sensors") is None:
         asset.flex_context["inflexible-device-sensors"] = list()
-    asset.flex_context["inflexible-device-sensors"].append(
+    asset.flex_context["inflexible-device-sensors"].extend(
         [sensor.id for sensor in sensors]
     )
     fresh_db.session.add(asset)
