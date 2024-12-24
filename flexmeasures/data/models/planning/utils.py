@@ -380,32 +380,71 @@ def get_series_from_quantity_or_sensor(
         time_series = simplify_index(bdf).reindex(index).squeeze()
         time_series = convert_units(time_series, variable_quantity.unit, unit)
     elif isinstance(variable_quantity, list):
-        time_series_segments = pd.DataFrame(
-            np.nan, index=index, columns=list(range(len(variable_quantity)))
+        time_series = process_time_series_segments(
+            index=index,
+            variable_quantity=variable_quantity,
+            unit=unit,
+            resolution=resolution,
+            resolve_overlaps=resolve_overlaps,
         )
-        for segment, event in enumerate(variable_quantity):
-            value = event["value"]
-            if isinstance(value, ur.Quantity):
-                if np.isnan(value.magnitude):
-                    value = np.nan
-                else:
-                    value = value.to(unit).magnitude
-            start = event["start"]
-            end = event["end"]
-            time_series_segments.loc[start : end - resolution, segment] = value
-        if resolve_overlaps == "first":
-            time_series = time_series_segments.fillna(method="bfill", axis=1).iloc[:, 0]
-        else:
-            time_series = getattr(time_series_segments, resolve_overlaps)(
-                axis=1
-            ).rename("event_value")
-
     else:
         raise TypeError(
             f"quantity_or_sensor {variable_quantity} should be a pint Quantity or timely-beliefs Sensor"
         )
 
     return time_series
+
+
+def process_time_series_segments(
+    index: pd.DatetimeIndex,
+    variable_quantity: list[dict],
+    unit: str,
+    resolution: timedelta,
+    resolve_overlaps: str,
+) -> pd.Series:
+    """
+    Process a time series defined by a list of dicts, while resolving overlapping segments.
+
+    Parameters:
+        index:              The index for the time series DataFrame.
+        variable_quantity:  List of events, where each event is a dictionary containing:
+                            - 'value': The value of the event (can be a Quantity or scalar).
+                            - 'start': The start datetime of the event.
+                            - 'end': The end datetime of the event.
+        unit:               The unit to convert the value into if it's a Quantity.
+        resolution:         The resolution to subtract from the 'end' to avoid overlap.
+        resolve_overlaps:   How to handle overlaps (e.g., 'first', 'last', 'mean', etc.).
+
+    Returns:                A time series with resolved event values.
+    """
+    # Initialize a DataFrame to hold the segments
+    time_series_segments = pd.DataFrame(
+        np.nan, index=index, columns=list(range(len(variable_quantity)))
+    )
+
+    # Fill in the DataFrame with event values
+    for segment, event in enumerate(variable_quantity):
+        value = event["value"]
+        if isinstance(value, ur.Quantity):
+            # Convert value to the specified unit if it's a Quantity
+            if np.isnan(value.magnitude):
+                value = np.nan
+            else:
+                value = value.to(unit).magnitude
+        start = event["start"]
+        end = event["end"]
+        # Assign the value to the corresponding segment in the DataFrame
+        time_series_segments.loc[start : end - resolution, segment] = value
+
+    # Resolve overlaps using the specified method
+    if resolve_overlaps == "first":
+        # Use backfill to fill NaNs with the first non-NaN value
+        time_series = time_series_segments.fillna(method="bfill", axis=1).iloc[:, 0]
+    else:
+        # Use the specified method to resolve overlaps (e.g., mean, max)
+        time_series = getattr(time_series_segments, resolve_overlaps)(axis=1)
+
+    return time_series.rename("event_value")
 
 
 def get_continuous_series_sensor_or_quantity(
