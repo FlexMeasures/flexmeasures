@@ -246,8 +246,8 @@ def test_price_sensor_priority(
         for name, other_name in zip(sensor_types, reversed(sensor_types))
     }
     used_sensor, unused_sensor = (
-        f"{sensor_type}-price",
-        f"{other_sensors[sensor_type]}-price",
+        f"{sensor_type}-price-sensor",
+        f"{other_sensors[sensor_type]}-price-sensor",
     )
 
     price_sensor_id = None
