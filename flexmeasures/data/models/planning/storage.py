@@ -88,17 +88,18 @@ class MetaStorageScheduler(Scheduler):
         prefer_charging_sooner = self.flex_model.get("prefer_charging_sooner", True)
 
         consumption_price_sensor = (
-            self.flex_context.get("consumption-price")
+            self.flex_context.get("consumption_price")
             or self.sensor.generic_asset.get_consumption_price_sensor()
         )
+
         production_price_sensor = (
-            self.flex_context.get("production-price")
+            self.flex_context.get("production_price")
             or self.sensor.generic_asset.get_production_price_sensor()
         )
-        consumption_price = self.flex_context.get("consumption-price")
-        production_price = self.flex_context.get("production-price")
+        consumption_price = self.flex_context.get("consumption_price")
+        production_price = self.flex_context.get("production_price")
         inflexible_device_sensors = (
-            self.flex_context.get("inflexible-device-sensors")
+            self.flex_context.get("inflexible_device_sensors")
             or self.sensor.generic_asset.get_inflexible_device_sensors()
         )
 

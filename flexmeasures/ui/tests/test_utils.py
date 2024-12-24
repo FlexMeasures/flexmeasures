@@ -101,7 +101,9 @@ class NewAsset:
         self.db.session.flush()
 
         if self.new_asset_data.get("set_production_price_sensor_id"):
-            self.test_battery.flex_context["production-price"] = self.price_sensor.id
+            self.test_battery.flex_context["production-price"][
+                "sensor"
+            ] = self.price_sensor.id
             self.db.session.add(self.test_battery)
         if self.new_asset_data.get("have_linked_sensors"):
             if self.test_battery.flex_context.get("inflexible-device-sensors") is None:
