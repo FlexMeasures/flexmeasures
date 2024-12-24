@@ -221,7 +221,7 @@ def test_impossible_schedules(
         "time-restrictions": time_restrictions,
     }
     flex_context = {
-        "consumption-price": epex_da.id,
+        "consumption-price": {"sensor": epex_da.id},
     }
 
     scheduler = ProcessScheduler(
