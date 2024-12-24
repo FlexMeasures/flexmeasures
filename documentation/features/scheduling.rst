@@ -74,10 +74,9 @@ For more details on the possible formats for field values, see :ref:`variable_qu
        If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-consumption-capacity`` will be used. [#consumption]_
        If a ``site-consumption-breach-price`` is defined, the ``site-consumption-capacity`` becomes a soft constraint in the optimization problem.
        Otherwise, it becomes a hard constraint.
-
    * - ``site-consumption-breach-price``
      - ``"1000 EUR/kW"``
-     - The price of breaching the ``site-consumption-capacity``.
+     - The price of breaching the ``site-consumption-capacity``, useful to treat ``site-consumption-capacity`` as a soft constraint but still make the scheduler attempt to respect it.
        Can be (a sensor recording) contractual penalties, but also a theoretical penalty just to allow the scheduler to breach the consumption capacity, while influencing how badly breaches should be avoided.
        The price is applied both to the largest breach in the planning window and to each breach that occurs. [#penalty_field]_
    * - ``site-production-capacity``
@@ -88,7 +87,7 @@ For more details on the possible formats for field values, see :ref:`variable_qu
        Otherwise, it becomes a hard constraint.
    * - ``site-production-breach-price``
      - ``"1000 EUR/kW"``
-     - The price of breaching the ``site-production-capacity``.
+     - The price of breaching the ``site-production-capacity``, useful to treat ``site-production-capacity`` as a soft constraint but still make the scheduler attempt to respect it.
        Can be (a sensor recording) contractual penalties, but also a theoretical penalty just to allow the scheduler to breach the production capacity, while influencing how badly breaches should be avoided.
        The price is applied both to the largest breach in the planning window and to each breach that occurs. [#penalty_field]_
    * - ``site-peak-consumption``
