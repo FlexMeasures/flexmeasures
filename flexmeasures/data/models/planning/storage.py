@@ -344,7 +344,7 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
-                fallback_attribute="production_capacity",
+                fallback_attribute="production-capacity",
                 max_value=power_capacity_in_mw,
             )
         if sensor.get_attribute("is_strictly_non_negative"):
@@ -358,7 +358,7 @@ class MetaStorageScheduler(Scheduler):
                     query_window=(start, end),
                     resolution=resolution,
                     beliefs_before=belief_time,
-                    fallback_attribute="consumption_capacity",
+                    fallback_attribute="consumption-capacity",
                     max_value=power_capacity_in_mw,
                 )
             )
@@ -507,17 +507,17 @@ class MetaStorageScheduler(Scheduler):
         )
 
         if "ems_soft_consumption_capacity_in_mw" in self.flex_context:
-            ems_constraints[
-                "derivative soft max"
-            ] = get_continuous_series_sensor_or_quantity(
-                quantity_or_sensor=self.flex_context.get(
-                    "ems_soft_consumption_capacity_in_mw"
-                ),
-                actuator=sensor.generic_asset,
-                unit="MW",
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
+            ems_constraints["derivative soft max"] = (
+                get_continuous_series_sensor_or_quantity(
+                    quantity_or_sensor=self.flex_context.get(
+                        "ems_soft_consumption_capacity_in_mw"
+                    ),
+                    actuator=sensor.generic_asset,
+                    unit="MW",
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                )
             )
         if "ems_soft_production_capacity_in_mw" in self.flex_context:
             ems_constraints["derivative soft min"] = (
