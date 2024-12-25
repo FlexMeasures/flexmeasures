@@ -415,7 +415,7 @@ def test_multiple_contracts(
         "consumption-price": {"sensor": price_sensor_id},
         "production-price": {"sensor": price_sensor_id},
         "site-power-capacity": "2 MW",  # should be big enough to avoid any infeasibilities
-        "site-consumption-capacity": "1 kW",  # we'll need to breach this to reach the target
+        "site-consumption-capacity": "0.25 kW",  # we'll need to breach this to reach the target (25 - 12.1 kWh) / 47 hours
         "site-consumption-breach-price": "1000 EUR/kW",
         "site-production-breach-price": "1000 EUR/kW",
         "site-peak-consumption": "20 kW",
@@ -493,8 +493,9 @@ def test_multiple_contracts(
     print(consumption_schedule)
     print(soc_schedule)
 
-    # Check for absence of consumption breaches over 1 kW, i.e. any breach costs are avoided
-    assert all(v <= 0.001 for v in consumption_schedule)
+    # Check for consumption breaches over 0.25 kW, i.e. any breach costs are avoided as much as possible
+    assert all(v <= 0.000298 for v in consumption_schedule)
+    assert any(v > 0.00025 for v in consumption_schedule)
 
     # Check for absence of extra production peaks over 20 kW, i.e. any peak costs are avoided
     assert all(v >= -0.02 for v in consumption_schedule)
@@ -502,8 +503,8 @@ def test_multiple_contracts(
     # Check target is met
     for target in soc_targets:
         assert (
-            soc_schedule[target.get("datetime", target.get("end"))]
-            == target["value"] / 1000
+            int(soc_schedule[target.get("datetime", target.get("end"))] * 1000)
+            == target["value"]
         )
 
 
