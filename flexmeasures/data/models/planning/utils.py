@@ -344,7 +344,10 @@ def get_quantity_from_attribute(
     :return:            The retrieved quantity or the provided default.
     """
     # Get the default value from the entity attribute
-    value: str | float | int = entity.get_attribute(attribute, np.nan)
+    if isinstance(entity, Asset):
+        value: str | float | int = entity.get_attribute(attribute, np.nan)
+    else:
+        value: str | float | int = entity.generic_asset.get_attribute(attribute, np.nan)
 
     # Try to convert it to a quantity in the desired unit
     try:
