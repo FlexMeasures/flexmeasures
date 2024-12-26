@@ -379,9 +379,9 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         production_price_sensor = None
         # Need to load production_price_sensor manually as generic_asset does not get to SQLAlchemy session context.
-        if self.flex_context.get("consumption-price"):
+        if self.flex_context.get("production-price"):
             production_price_sensor = Sensor.query.get(
-                self.flex_context["consumption-price"]["sensor"]
+                self.flex_context["production-price"]["sensor"]
             )
             return production_price_sensor or None
         if self.parent_asset:
