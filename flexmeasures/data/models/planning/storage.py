@@ -531,6 +531,10 @@ class MetaStorageScheduler(Scheduler):
                     index=index,
                 )
                 stock_commitments.append(stock_commitment)
+
+                # soc-minima will become a soft constraint (modelled as stock commitments), so remove hard constraint
+                soc_minima = None
+
         if isinstance(soc_maxima, Sensor):
             soc_maxima = get_continuous_series_sensor_or_quantity(
                 variable_quantity=soc_maxima,
@@ -574,6 +578,9 @@ class MetaStorageScheduler(Scheduler):
                     index=index,
                 )
                 stock_commitments.append(stock_commitment)
+
+                # soc-maxima will become a soft constraint (modelled as stock commitments), so remove hard constraint
+                soc_maxima = None
 
         device_constraints[0] = add_storage_constraints(
             start,
