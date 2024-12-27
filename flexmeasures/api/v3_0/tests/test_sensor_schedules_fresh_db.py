@@ -393,6 +393,13 @@ def test_inflexible_device_sensors_priority(
 
 
 @pytest.mark.parametrize(
+    "include_consumption_breach",
+    [
+        False,
+        True,
+    ],
+)
+@pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
 def test_multiple_contracts(
@@ -401,21 +408,36 @@ def test_multiple_contracts(
     add_market_prices_fresh_db,
     add_battery_assets_fresh_db,
     battery_soc_sensor_fresh_db,
+    include_consumption_breach,
     requesting_user,
 ):
     """Check planning against an energy contract, a breach contract and a peak contract."""
     message, asset_name = (
-        message_for_trigger_schedule(with_targets=True, use_time_window=True),
+        message_for_trigger_schedule(
+            with_targets=True, use_time_window=True, use_perfect_efficiencies=True
+        ),
         "Test battery",
     )
     message["force_new_job_creation"] = True
+
+    if include_consumption_breach:
+        # we'll need to breach this site_consumption_capacity to reach the target:
+        # target = 25 kWh
+        # start = 12.1 kWh
+        # delta = 12.9 kWh
+        # time to reach target = 46.75 hours ( from 2015-01-01T00:00:00+01:00 to 2015-01-02T22:45:00+01:00)
+        # minimum power required = 12.9 / 46.75 ≃ 0.276 kW (assuming 100% efficiencies)
+        site_consumption_capacity = 0.25
+    else:
+        # we won't need to breach this site_consumption_capacity to reach the target
+        site_consumption_capacity = 1
 
     price_sensor_id = add_market_prices_fresh_db["epex_da"].id
     message["flex-context"] = {
         "consumption-price": {"sensor": price_sensor_id},
         "production-price": {"sensor": price_sensor_id},
         "site-power-capacity": "2 MW",  # should be big enough to avoid any infeasibilities
-        "site-consumption-capacity": "0.25 kW",  # we'll need to breach this to reach the target (25 - 12.1 kWh) / 47 hours
+        "site-consumption-capacity": f"{site_consumption_capacity} kW",
         "site-consumption-breach-price": "1000 EUR/kW",
         "site-production-breach-price": "1000 EUR/kW",
         "site-peak-consumption": "20 kW",
@@ -493,9 +515,14 @@ def test_multiple_contracts(
     print(consumption_schedule)
     print(soc_schedule)
 
-    # Check for consumption breaches over 0.25 kW, i.e. any breach costs are avoided as much as possible
-    assert all(v <= 0.000298 for v in consumption_schedule)
-    assert any(v > 0.00025 for v in consumption_schedule)
+    # Check for consumption breaches
+    if include_consumption_breach:
+        # Check for consumption breaches over 0.25 kW, i.e. any breach costs are avoided as much as possible
+        assert all(v <= 0.000276 for v in consumption_schedule)
+        assert any(v > site_consumption_capacity / 1000 for v in consumption_schedule)
+    else:
+        # Check for absence of consumption breaches over 1 kW, i.e. any breach costs is avoided
+        assert all(v <= site_consumption_capacity / 1000 for v in consumption_schedule)
 
     # Check for absence of extra production peaks over 20 kW, i.e. any peak costs are avoided
     assert all(v >= -0.02 for v in consumption_schedule)
