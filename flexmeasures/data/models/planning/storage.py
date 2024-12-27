@@ -15,6 +15,7 @@ from flexmeasures.data.models.planning import (
     FlowCommitment,
     Scheduler,
     SchedulerOutputType,
+    StockCommitment,
 )
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.planning.utils import (
@@ -486,6 +487,7 @@ class MetaStorageScheduler(Scheduler):
                 as_instantaneous_events=True,
                 boundary_policy="first",
             )
+            # todo: check flex-model for soc_minima_breach_price and soc_maxima_breach_price fields; if these are defined, create a StockCommitment using both prices (if only 1 price is given, still create the commitment, but only penalize one direction)
         if isinstance(soc_minima, Sensor):
             soc_minima = get_continuous_series_sensor_or_quantity(
                 variable_quantity=soc_minima,
@@ -497,6 +499,38 @@ class MetaStorageScheduler(Scheduler):
                 as_instantaneous_events=True,
                 boundary_policy="max",
             )
+            if self.flex_model.get("soc_minima_breach_price", None) is not None:
+                soc_minima_breach_price = self.flex_context.get(
+                    "soc_minima_breach_price"
+                )
+                soc_minima_breach_price = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_minima_breach_price,
+                    actuator=sensor,
+                    unit=(
+                        soc_minima_breach_price.unit
+                        if isinstance(soc_minima_breach_price, Sensor)
+                        else (
+                            soc_minima_breach_price[0]["value"].units
+                            if isinstance(soc_minima_breach_price, list)
+                            else str(soc_minima_breach_price.units)
+                        )
+                    ),
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    fallback_attribute="soc-minima-breach-price",
+                    fill_sides=True,
+                )
+                # Set up commitments DataFrame
+                stock_commitment = StockCommitment(
+                    name="soc minima",
+                    quantity=soc_minima,
+                    # negative price because breaching in the downwards (shortage) direction is penalized
+                    downwards_deviation_price=-soc_minima_breach_price,
+                    _type="any",
+                    index=index,
+                )
+                stock_commitments.append(stock_commitment)
         if isinstance(soc_maxima, Sensor):
             soc_maxima = get_continuous_series_sensor_or_quantity(
                 variable_quantity=soc_maxima,
@@ -508,6 +542,38 @@ class MetaStorageScheduler(Scheduler):
                 as_instantaneous_events=True,
                 boundary_policy="min",
             )
+            if self.flex_model.get("soc_maxima_breach_price", None) is not None:
+                soc_maxima_breach_price = self.flex_context.get(
+                    "soc_maxima_breach_price"
+                )
+                soc_maxima_breach_price = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_maxima_breach_price,
+                    actuator=sensor,
+                    unit=(
+                        soc_maxima_breach_price.unit
+                        if isinstance(soc_maxima_breach_price, Sensor)
+                        else (
+                            soc_maxima_breach_price[0]["value"].units
+                            if isinstance(soc_maxima_breach_price, list)
+                            else str(soc_maxima_breach_price.units)
+                        )
+                    ),
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    fallback_attribute="soc-maxima-breach-price",
+                    fill_sides=True,
+                )
+                # Set up commitments DataFrame
+                stock_commitment = StockCommitment(
+                    name="soc maxima",
+                    quantity=soc_maxima,
+                    # positive price because breaching in the upwards (surplus) direction is penalized
+                    upwards_deviation_price=soc_maxima_breach_price,
+                    _type="any",
+                    index=index,
+                )
+                stock_commitments.append(stock_commitment)
 
         device_constraints[0] = add_storage_constraints(
             start,
