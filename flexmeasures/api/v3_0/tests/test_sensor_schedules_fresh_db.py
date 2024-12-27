@@ -518,8 +518,9 @@ def test_multiple_contracts(
 
     # Check for consumption breaches
     if include_consumption_breach:
-        # Check for consumption breaches over 0.25 kW, i.e. any breach costs are avoided as much as possible
+        # The minimum power level to reach the target is 0.276 kW; higher breaches cost more and thus are avoided
         assert all(v <= 0.000276 for v in consumption_schedule)
+        # Check for consumption breaches over 0.25 kW
         assert any(v > site_consumption_capacity / 1000 for v in consumption_schedule)
     else:
         # Check for absence of consumption breaches over 1 kW, i.e. any breach costs is avoided
