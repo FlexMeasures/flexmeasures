@@ -11,7 +11,11 @@ from flask import current_app
 
 
 from flexmeasures import Sensor
-from flexmeasures.data.models.planning import Commitment, Scheduler, SchedulerOutputType
+from flexmeasures.data.models.planning import (
+    FlowCommitment,
+    Scheduler,
+    SchedulerOutputType,
+)
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.planning.utils import (
     get_prices,
@@ -231,7 +235,8 @@ class MetaStorageScheduler(Scheduler):
         )
 
         # Set up commitments to optimise for
-        commitments = []
+        flow_commitments = []
+        stock_commitments = []
 
         index = initialize_index(start, end, self.resolution)
         commitment_quantities = initialize_series(0, start, end, self.resolution)
@@ -249,14 +254,14 @@ class MetaStorageScheduler(Scheduler):
         )
 
         # Set up commitments DataFrame
-        commitment = Commitment(
+        flow_commitment = FlowCommitment(
             name="energy",
             quantity=commitment_quantities,
             upwards_deviation_price=commitment_upwards_deviation_price,
             downwards_deviation_price=commitment_downwards_deviation_price,
             index=index,
         )
-        commitments.append(commitment)
+        flow_commitments.append(flow_commitment)
 
         # Set up peak commitments
         if self.flex_context.get("ems_peak_consumption_price", None) is not None:
@@ -293,7 +298,7 @@ class MetaStorageScheduler(Scheduler):
             )
 
             # Set up commitments DataFrame
-            commitment = Commitment(
+            flow_commitment = FlowCommitment(
                 name="consumption peak",
                 quantity=ems_peak_consumption,
                 # positive price because breaching in the upwards (consumption) direction is penalized
@@ -301,7 +306,7 @@ class MetaStorageScheduler(Scheduler):
                 _type="any",
                 index=index,
             )
-            commitments.append(commitment)
+            flow_commitments.append(flow_commitment)
         if self.flex_context.get("ems_peak_production_price", None) is not None:
             ems_peak_production = get_continuous_series_sensor_or_quantity(
                 variable_quantity=self.flex_context.get("ems_peak_production_in_mw"),
@@ -336,7 +341,7 @@ class MetaStorageScheduler(Scheduler):
             )
 
             # Set up commitments DataFrame
-            commitment = Commitment(
+            flow_commitment = FlowCommitment(
                 name="production peak",
                 quantity=-ems_peak_production,  # production is negative quantity
                 # negative price because peaking in the downwards (production) direction is penalized
@@ -344,7 +349,7 @@ class MetaStorageScheduler(Scheduler):
                 _type="any",
                 index=index,
             )
-            commitments.append(commitment)
+            flow_commitments.append(flow_commitment)
 
         # Set up capacity breach commitments and EMS capacity constraints
         ems_consumption_breach_price = self.flex_context.get(
@@ -381,7 +386,7 @@ class MetaStorageScheduler(Scheduler):
             )
 
             # Set up commitments DataFrame to penalize any breach
-            commitment = Commitment(
+            flow_commitment = FlowCommitment(
                 name="any consumption breach",
                 quantity=ems_consumption_capacity,
                 # positive price because breaching in the upwards (consumption) direction is penalized
@@ -389,17 +394,17 @@ class MetaStorageScheduler(Scheduler):
                 _type="any",
                 index=index,
             )
-            commitments.append(commitment)
+            flow_commitments.append(flow_commitment)
 
             # Set up commitments DataFrame to penalize each breach
-            commitment = Commitment(
+            flow_commitment = FlowCommitment(
                 name="all consumption breaches",
                 quantity=ems_consumption_capacity,
                 # positive price because breaching in the upwards (consumption) direction is penalized
                 upwards_deviation_price=ems_consumption_breach_price,
                 index=index,
             )
-            commitments.append(commitment)
+            flow_commitments.append(flow_commitment)
 
             # Take the physical capacity as a hard constraint
             ems_constraints["derivative max"] = ems_power_capacity_in_mw
@@ -430,7 +435,7 @@ class MetaStorageScheduler(Scheduler):
             )
 
             # Set up commitments DataFrame to penalize any breach
-            commitment = Commitment(
+            flow_commitment = FlowCommitment(
                 name="any production breach",
                 quantity=ems_production_capacity,
                 # positive price because breaching in the upwards (consumption) direction is penalized
@@ -438,17 +443,17 @@ class MetaStorageScheduler(Scheduler):
                 _type="any",
                 index=index,
             )
-            commitments.append(commitment)
+            flow_commitments.append(flow_commitment)
 
             # Set up commitments DataFrame to penalize each breach
-            commitment = Commitment(
+            flow_commitment = FlowCommitment(
                 name="all production breaches",
                 quantity=ems_production_capacity,
                 # positive price because breaching in the upwards (consumption) direction is penalized
                 downwards_deviation_price=-ems_production_breach_price,
                 index=index,
             )
-            commitments.append(commitment)
+            flow_commitments.append(flow_commitment)
 
             # Take the physical capacity as a hard constraint
             ems_constraints["derivative min"] = -ems_power_capacity_in_mw
@@ -663,7 +668,7 @@ class MetaStorageScheduler(Scheduler):
             soc_at_start,
             device_constraints,
             ems_constraints,
-            commitments,
+            flow_commitments,
         )
 
     def persist_flex_model(self):

@@ -306,6 +306,14 @@ class Commitment:
         )
 
 
+class FlowCommitment(Commitment):
+    pass
+
+
+class StockCommitment(Commitment):
+    pass
+
+
 """
 Deprecations
 """
