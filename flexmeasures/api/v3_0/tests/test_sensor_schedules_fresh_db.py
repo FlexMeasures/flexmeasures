@@ -421,6 +421,7 @@ def test_multiple_contracts(
     message["force_new_job_creation"] = True
 
     if include_consumption_breach:
+        # Given the soc-model defined in message_for_trigger_schedule,
         # we'll need to breach this site_consumption_capacity to reach the target:
         # target = 25 kWh
         # start = 12.1 kWh
