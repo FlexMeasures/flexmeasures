@@ -261,6 +261,8 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
                                       a quantity of 1 EUR/kWh with to_unit='/MWh' is deserialized to 1000 EUR/MWh.
         :param default_src_unit:    What unit to use in case of getting a numeric value.
                                     Does not apply to time series or sensors.
+                                    In case to_unit is dimensionless, default_src_unit defaults to dimensionless;
+                                    as a result, numeric values are accepted.
         :param return_magnitude:    In case of getting a time series, whether the result should include
                                     the magnitude of each quantity, or each Quantity object itself.
         :param timezone:            Only used in case a time series is specified and one of the *timed events*
@@ -278,6 +280,10 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
                 f"Variable `to_unit='{to_unit}'` must define a denominator."
             )
         self.to_unit = to_unit
+        if default_src_unit is None and units_are_convertible(
+            self.to_unit, "dimensionless"
+        ):
+            default_src_unit = "dimensionless"
         self.default_src_unit = default_src_unit
         self.return_magnitude = return_magnitude
 
