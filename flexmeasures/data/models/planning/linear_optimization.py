@@ -151,8 +151,12 @@ def device_scheduler(  # noqa C901
     ) -> tuple[list[pd.DataFrame], dict[int, int]]:
         """Transform commitments, each specifying a group for each time step, to sub-commitments, one per group.
 
+        'Groups' are a commitment concept (grouping time slots of a commitment),
+        making it possible that deviations/breaches can be accounted for properly within this group
+        (e.g. highest breach per calendar month defines the penalty).
+        Here, we define sub-commitments, by separating commitments by group and by direction of deviation (up, down).
+
         We also enumerate the time steps in a new column "j".
-        We also split by the direction of the deviation.
 
         For example, given contracts A and B (represented by 2 DataFrames), each with 3 groups,
         we return (sub)commitments A1, A2, A3, B1, B2 and B3,
