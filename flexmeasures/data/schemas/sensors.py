@@ -248,8 +248,8 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
 
         # todo: Sensor should perhaps deserialize already to sensor data
 
-        NB any validators passed are only applied to Quantities.
-        For example, validate=validate.Range(min=0) will raise a ValidationError in case of negative quantities,
+        NB any value validators passed are only applied to Quantities.
+        For example, value_validator=validate.Range(min=0) will raise a ValidationError in case of negative quantities,
         but will let pass any sensor that has recorded negative values.
 
         :param to_unit:             Unit to which the sensor, time series or quantity should be convertible.
@@ -266,12 +266,11 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         :param timezone:            Only used in case a time series is specified and one of the *timed events*
                                     in the time series uses a nominal duration, such as "P1D".
         """
-        _validate = kwargs.pop("validate", None)
         super().__init__(*args, **kwargs)
-        if _validate is not None:
+        if value_validator is not None:
             # Insert validation into self.validators so that multiple errors can be stored.
-            validator = RepurposeValidatorToIgnoreSensors(_validate)
-            self.validators.insert(0, validator)
+            value_validator = RepurposeValidatorToIgnoreSensorsAndLists(value_validator)
+            self.validators.insert(0, value_validator)
         self.timezone = timezone
         self.value_validator = value_validator
         if to_unit.startswith("/") and len(to_unit) < 2:
@@ -371,15 +370,15 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         return super().convert(_value, param, ctx, **kwargs)
 
 
-class RepurposeValidatorToIgnoreSensors(validate.Validator):
-    """Validator that executes another validator (the one you initialize it with) only on non-Sensor values."""
+class RepurposeValidatorToIgnoreSensorsAndLists(validate.Validator):
+    """Validator that executes another validator (the one you initialize it with) only on non-Sensor and non-list values."""
 
     def __init__(self, original_validator, *, error: str | None = None):
         self.error = error
         self.original_validator = original_validator
 
     def __call__(self, value):
-        if not isinstance(value, Sensor):
+        if not isinstance(value, (Sensor, list)):
             self.original_validator(value)
         return value
 
