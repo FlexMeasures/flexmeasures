@@ -448,8 +448,8 @@ def device_scheduler(  # noqa C901
         """Couple device stocks to each commitment."""
         if "d" not in commitments[c] or commitments[c]["d"] != d:
             # Commitment c does not concern device d
-            return
-        if commitments[c]["class"] == "FlowCommitment":
+            return Constraint.Skip
+        if not all(cl.__name__ == "StockCommitment" for cl in commitments[c]["class"]):
             raise NotImplementedError(
                 "FlowCommitment on a device level has not been implemented. Please file a GitHub ticket explaining your use case."
             )
@@ -499,8 +499,10 @@ def device_scheduler(  # noqa C901
         """
         if "d" in commitments[c]:
             # Commitment c does not concern EMS
-            return
-        if commitments[c]["class"] == "StockCommitment":
+            return Constraint.Skip
+        if "class" in commitments[c].columns and not all(
+            cl.__name__ == "FlowCommitment" for cl in commitments[c]["class"]
+        ):
             raise NotImplementedError(
                 "StockCommitment on an EMS level has not been implemented. Please file a GitHub ticket explaining your use case."
             )
