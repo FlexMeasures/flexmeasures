@@ -214,6 +214,8 @@ class Commitment:
     ----------
     name:
         Name of the commitment.
+    device:
+        Device to which the commitment pertains. If None, the commitment pertains to the EMS.
     index:
         Pandas DatetimeIndex defining the time slots to which the commitment applies.
         The index is shared by the group, quantity. upwards_deviation_price and downwards_deviation_price Pandas Series.
@@ -234,6 +236,7 @@ class Commitment:
     """
 
     name: str
+    device: pd.Series = None
     index: pd.DatetimeIndex = field(repr=False, default=None)
     _type: str = field(repr=False, default="each")
     group: pd.Series = field(init=False)
@@ -262,6 +265,8 @@ class Commitment:
                 )
 
         # Force type conversion of repr fields to pd.Series
+        if not isinstance(self.device, pd.Series):
+            self.device = pd.Series(self.device, index=self.index)
         if not isinstance(self.quantity, pd.Series):
             self.quantity = pd.Series(self.quantity, index=self.index)
         if not isinstance(self.upwards_deviation_price, pd.Series):
@@ -284,6 +289,7 @@ class Commitment:
             raise ValueError('Commitment `_type` must be "any" or "each".')
 
         # Name the Series as expected by our device scheduler
+        self.device = self.device.rename("device")
         self.quantity = self.quantity.rename("quantity")
         self.upwards_deviation_price = self.upwards_deviation_price.rename(
             "upwards deviation price"
