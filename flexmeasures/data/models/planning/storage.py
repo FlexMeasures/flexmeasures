@@ -236,8 +236,7 @@ class MetaStorageScheduler(Scheduler):
         )
 
         # Set up commitments to optimise for
-        flow_commitments = []
-        stock_commitments = []
+        commitments = []
 
         index = initialize_index(start, end, self.resolution)
         commitment_quantities = initialize_series(0, start, end, self.resolution)
@@ -255,14 +254,14 @@ class MetaStorageScheduler(Scheduler):
         )
 
         # Set up commitments DataFrame
-        flow_commitment = FlowCommitment(
+        commitment = FlowCommitment(
             name="energy",
             quantity=commitment_quantities,
             upwards_deviation_price=commitment_upwards_deviation_price,
             downwards_deviation_price=commitment_downwards_deviation_price,
             index=index,
         )
-        flow_commitments.append(flow_commitment)
+        commitments.append(commitment)
 
         # Set up peak commitments
         if self.flex_context.get("ems_peak_consumption_price", None) is not None:
@@ -299,7 +298,7 @@ class MetaStorageScheduler(Scheduler):
             )
 
             # Set up commitments DataFrame
-            flow_commitment = FlowCommitment(
+            commitment = FlowCommitment(
                 name="consumption peak",
                 quantity=ems_peak_consumption,
                 # positive price because breaching in the upwards (consumption) direction is penalized
@@ -307,7 +306,7 @@ class MetaStorageScheduler(Scheduler):
                 _type="any",
                 index=index,
             )
-            flow_commitments.append(flow_commitment)
+            commitments.append(commitment)
         if self.flex_context.get("ems_peak_production_price", None) is not None:
             ems_peak_production = get_continuous_series_sensor_or_quantity(
                 variable_quantity=self.flex_context.get("ems_peak_production_in_mw"),
@@ -342,7 +341,7 @@ class MetaStorageScheduler(Scheduler):
             )
 
             # Set up commitments DataFrame
-            flow_commitment = FlowCommitment(
+            commitment = FlowCommitment(
                 name="production peak",
                 quantity=-ems_peak_production,  # production is negative quantity
                 # negative price because peaking in the downwards (production) direction is penalized
@@ -350,7 +349,7 @@ class MetaStorageScheduler(Scheduler):
                 _type="any",
                 index=index,
             )
-            flow_commitments.append(flow_commitment)
+            commitments.append(commitment)
 
         # Set up capacity breach commitments and EMS capacity constraints
         ems_consumption_breach_price = self.flex_context.get(
@@ -387,7 +386,7 @@ class MetaStorageScheduler(Scheduler):
             )
 
             # Set up commitments DataFrame to penalize any breach
-            flow_commitment = FlowCommitment(
+            commitment = FlowCommitment(
                 name="any consumption breach",
                 quantity=ems_consumption_capacity,
                 # positive price because breaching in the upwards (consumption) direction is penalized
@@ -395,17 +394,17 @@ class MetaStorageScheduler(Scheduler):
                 _type="any",
                 index=index,
             )
-            flow_commitments.append(flow_commitment)
+            commitments.append(commitment)
 
             # Set up commitments DataFrame to penalize each breach
-            flow_commitment = FlowCommitment(
+            commitment = FlowCommitment(
                 name="all consumption breaches",
                 quantity=ems_consumption_capacity,
                 # positive price because breaching in the upwards (consumption) direction is penalized
                 upwards_deviation_price=ems_consumption_breach_price,
                 index=index,
             )
-            flow_commitments.append(flow_commitment)
+            commitments.append(commitment)
 
             # Take the physical capacity as a hard constraint
             ems_constraints["derivative max"] = ems_power_capacity_in_mw
@@ -436,7 +435,7 @@ class MetaStorageScheduler(Scheduler):
             )
 
             # Set up commitments DataFrame to penalize any breach
-            flow_commitment = FlowCommitment(
+            commitment = FlowCommitment(
                 name="any production breach",
                 quantity=ems_production_capacity,
                 # positive price because breaching in the upwards (consumption) direction is penalized
@@ -444,17 +443,17 @@ class MetaStorageScheduler(Scheduler):
                 _type="any",
                 index=index,
             )
-            flow_commitments.append(flow_commitment)
+            commitments.append(commitment)
 
             # Set up commitments DataFrame to penalize each breach
-            flow_commitment = FlowCommitment(
+            commitment = FlowCommitment(
                 name="all production breaches",
                 quantity=ems_production_capacity,
                 # positive price because breaching in the upwards (consumption) direction is penalized
                 downwards_deviation_price=-ems_production_breach_price,
                 index=index,
             )
-            flow_commitments.append(flow_commitment)
+            commitments.append(commitment)
 
             # Take the physical capacity as a hard constraint
             ems_constraints["derivative min"] = -ems_power_capacity_in_mw
@@ -522,7 +521,7 @@ class MetaStorageScheduler(Scheduler):
                     fill_sides=True,
                 )
                 # Set up commitments DataFrame
-                stock_commitment = StockCommitment(
+                commitment = StockCommitment(
                     name="soc minima",
                     quantity=soc_minima,
                     # negative price because breaching in the downwards (shortage) direction is penalized
@@ -530,7 +529,7 @@ class MetaStorageScheduler(Scheduler):
                     _type="any",
                     index=index,
                 )
-                stock_commitments.append(stock_commitment)
+                commitments.append(commitment)
 
                 # soc-minima will become a soft constraint (modelled as stock commitments), so remove hard constraint
                 soc_minima = None
@@ -569,7 +568,7 @@ class MetaStorageScheduler(Scheduler):
                     fill_sides=True,
                 )
                 # Set up commitments DataFrame
-                stock_commitment = StockCommitment(
+                commitment = StockCommitment(
                     name="soc maxima",
                     quantity=soc_maxima,
                     # positive price because breaching in the upwards (surplus) direction is penalized
@@ -577,7 +576,7 @@ class MetaStorageScheduler(Scheduler):
                     _type="any",
                     index=index,
                 )
-                stock_commitments.append(stock_commitment)
+                commitments.append(commitment)
 
                 # soc-maxima will become a soft constraint (modelled as stock commitments), so remove hard constraint
                 soc_maxima = None
@@ -741,7 +740,7 @@ class MetaStorageScheduler(Scheduler):
             soc_at_start,
             device_constraints,
             ems_constraints,
-            flow_commitments,
+            commitments,
         )
 
     def persist_flex_model(self):

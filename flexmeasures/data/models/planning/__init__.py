@@ -301,6 +301,7 @@ class Commitment:
                 self.upwards_deviation_price,
                 self.downwards_deviation_price,
                 self.group,
+                pd.Series(self.__class__, index=self.index, name="class"),
             ],
             axis=1,
         )
