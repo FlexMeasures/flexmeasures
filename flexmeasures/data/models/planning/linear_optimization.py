@@ -476,6 +476,8 @@ def device_scheduler(  # noqa C901
             ),
             # 0 if "upwards deviation price" in commitments[c].columns else None,  # todo: possible simplification
             m.commitment_quantity[c]
+            + m.commitment_downwards_deviation[c]
+            + m.commitment_upwards_deviation[c]
             - [
                 stock - initial_stock_d
                 for stock in apply_stock_changes_and_losses(
