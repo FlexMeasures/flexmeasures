@@ -59,11 +59,12 @@ def device_scheduler(  # noqa C901
     :param ems_constraints:     EMS constraints are on an EMS level. Handled constraints (listed by column name):
                                     derivative max: maximum flow
                                     derivative min: minimum flow
-    :param commitments:         Commitments are on an EMS level. Handled parameters (listed by column name):
+    :param commitments:         Commitments are on an EMS level by default. Handled parameters (listed by column name):
                                     quantity:                   for example, 5.5
                                     downwards deviation price:  10.1
                                     upwards deviation price:    10.2
                                     group:                      1 (defaults to the enumerate time step j)
+                                    device:                     0 (corresponds to device d; if not set, commitment is on an EMS level)
     :param initial_stock:       initial stock for each device. Use a list with the same number of devices as device_constraints,
                                 or use a single value to set the initial stock to be the same for all devices.
 
@@ -443,12 +444,68 @@ def device_scheduler(  # noqa C901
     def ems_derivative_bounds(m, j):
         return m.ems_derivative_min[j], sum(m.ems_power[:, j]), m.ems_derivative_max[j]
 
+    def device_stock_commitment_equalities(m, c, j, d):
+        """Couple device stocks to each commitment."""
+        if "d" not in commitments[c] or commitments[c]["d"] != d:
+            # Commitment c does not concern device d
+            return Constraint.Skip
+        if not all(cl.__name__ == "StockCommitment" for cl in commitments[c]["class"]):
+            raise NotImplementedError(
+                "FlowCommitment on a device level has not been implemented. Please file a GitHub ticket explaining your use case."
+            )
+        if isinstance(initial_stock, list):
+            initial_stock_d = initial_stock[d]
+        else:
+            initial_stock_d = initial_stock
+
+        stock_changes = [
+            (
+                m.device_power_down[d, k] / m.device_derivative_down_efficiency[d, k]
+                + m.device_power_up[d, k] * m.device_derivative_up_efficiency[d, k]
+                + m.stock_delta[d, k]
+            )
+            for k in range(0, j + 1)
+        ]
+        efficiencies = [m.device_efficiency[d, k] for k in range(0, j + 1)]
+        return (
+            (
+                0
+                if len(commitments[c]) == 1
+                or "upwards deviation price" in commitments[c].columns
+                else None
+            ),
+            # 0 if "upwards deviation price" in commitments[c].columns else None,  # todo: possible simplification
+            m.commitment_quantity[c]
+            - [
+                stock - initial_stock_d
+                for stock in apply_stock_changes_and_losses(
+                    initial_stock_d, stock_changes, efficiencies
+                )
+            ][-1],
+            (
+                0
+                if len(commitments[c]) == 1
+                or "downwards deviation price" in commitments[c].columns
+                else None
+            ),
+            # 0 if "downwards deviation price" in commitments[c].columns else None,  # todo: possible simplification
+        )
+
     def ems_flow_commitment_equalities(m, c, j):
         """Couple EMS flows (sum over devices) to each commitment.
 
         - Creates an inequality for one-sided commitments.
         - Creates an equality for two-sided commitments and for groups of size 1.
         """
+        if "d" in commitments[c]:
+            # Commitment c does not concern EMS
+            return Constraint.Skip
+        if "class" in commitments[c].columns and not all(
+            cl.__name__ == "FlowCommitment" for cl in commitments[c]["class"]
+        ):
+            raise NotImplementedError(
+                "StockCommitment on an EMS level has not been implemented. Please file a GitHub ticket explaining your use case."
+            )
         return (
             (
                 0
@@ -497,6 +554,9 @@ def device_scheduler(  # noqa C901
     model.ems_power_bounds = Constraint(model.j, rule=ems_derivative_bounds)
     model.ems_power_commitment_equalities = Constraint(
         model.cj, rule=ems_flow_commitment_equalities
+    )
+    model.device_energy_commitment_equalities = Constraint(
+        model.cj, model.d, rule=device_stock_commitment_equalities
     )
     model.device_power_equalities = Constraint(
         model.d, model.j, rule=device_derivative_equalities
