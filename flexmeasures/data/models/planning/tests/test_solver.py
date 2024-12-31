@@ -18,7 +18,10 @@ from flexmeasures.data.models.planning.storage import (
     build_device_soc_values,
 )
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
-from flexmeasures.data.models.planning.tests.utils import check_constraints, get_sensors_from_db
+from flexmeasures.data.models.planning.tests.utils import (
+    check_constraints,
+    get_sensors_from_db,
+)
 from flexmeasures.data.models.planning.utils import initialize_series, initialize_df
 from flexmeasures.data.schemas.sensors import TimedEventSchema
 from flexmeasures.utils.calculations import (
@@ -2268,6 +2271,7 @@ def test_unavoidable_capacity_breach():
     commitments[0]["quantity"] = 0
     commitments[0]["downwards deviation price"] = 90 + slope
     commitments[0]["upwards deviation price"] = 100 + slope
+    # `len(commitments[0])` is the number of time slots. Each slot is part of a unique group.
     commitments[0]["group"] = list(range(len(commitments[0])))
 
     # Consumption Capacity Breach Commitment (1 group, so penalized once)

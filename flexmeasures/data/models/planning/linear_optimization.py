@@ -22,6 +22,7 @@ from pyomo.environ import UnknownSolver  # noqa F401
 from pyomo.environ import value
 from pyomo.opt import SolverFactory, SolverResults
 
+from flexmeasures.data.models.planning import Commitment
 from flexmeasures.data.models.planning.utils import initialize_series, initialize_df
 from flexmeasures.utils.calculations import apply_stock_changes_and_losses
 
@@ -34,7 +35,7 @@ def device_scheduler(  # noqa C901
     commitment_quantities: list[pd.Series] | None = None,
     commitment_downwards_deviation_price: list[pd.Series] | list[float] | None = None,
     commitment_upwards_deviation_price: list[pd.Series] | list[float] | None = None,
-    commitments: list[pd.DataFrame] | None = None,
+    commitments: list[pd.DataFrame] | list[Commitment] | None = None,
     initial_stock: float | list[float] = 0,
 ) -> tuple[list[pd.Series], float, SolverResults, ConcreteModel]:
     """This generic device scheduler is able to handle an EMS with multiple devices,
@@ -44,25 +45,27 @@ def device_scheduler(  # noqa C901
     The commitments are assumed to be with regard to the flow of energy to the device (positive for consumption,
     negative for production). The solver minimises the costs of deviating from the commitments.
 
-    :param device_constraints:   Device constraints are on a device level. Handled constraints (listed by column name):
-        max: maximum stock assuming an initial stock of zero (e.g. in MWh or boxes)
-        min: minimum stock assuming an initial stock of zero
-        equal: exact amount of stock (we do this by clamping min and max)
-        efficiency: amount of stock left at the next datetime (the rest is lost)
-        derivative max: maximum flow (e.g. in MW or boxes/h)
-        derivative min: minimum flow
-        derivative equals: exact amount of flow (we do this by clamping derivative min and derivative max)
-        derivative down efficiency: conversion efficiency of flow out of a device (flow out : stock decrease)
-        derivative up efficiency: conversion efficiency of flow into a device (stock increase : flow in)
-        stock delta: predefined stock delta to apply to the storage device. Positive values cause an increase and negative values a decrease
+    :param device_constraints:  Device constraints are on a device level. Handled constraints (listed by column name):
+                                    max: maximum stock assuming an initial stock of zero (e.g. in MWh or boxes)
+                                    min: minimum stock assuming an initial stock of zero
+                                    equal: exact amount of stock (we do this by clamping min and max)
+                                    efficiency: amount of stock left at the next datetime (the rest is lost)
+                                    derivative max: maximum flow (e.g. in MW or boxes/h)
+                                    derivative min: minimum flow
+                                    derivative equals: exact amount of flow (we do this by clamping derivative min and derivative max)
+                                    derivative down efficiency: conversion efficiency of flow out of a device (flow out : stock decrease)
+                                    derivative up efficiency: conversion efficiency of flow into a device (stock increase : flow in)
+                                    stock delta: predefined stock delta to apply to the storage device. Positive values cause an increase and negative values a decrease
     :param ems_constraints:     EMS constraints are on an EMS level. Handled constraints (listed by column name):
-        derivative max: maximum flow
-        derivative min: minimum flow
-    :param commitments:         Commitments are on an EMS level. Handled parameter (listed by column name):
-        quantity:                   for example, 5.5
-        downwards deviation price:  10.1
-        upwards deviation price:    10.2
-        group:                      1 (defaults to the enumerate time step j)
+                                    derivative max: maximum flow
+                                    derivative min: minimum flow
+    :param commitments:         Commitments are on an EMS level. Handled parameters (listed by column name):
+                                    quantity:                   for example, 5.5
+                                    downwards deviation price:  10.1
+                                    upwards deviation price:    10.2
+                                    group:                      1 (defaults to the enumerate time step j)
+    :param initial_stock:       initial stock for each device. Use a list with the same number of devices as device_constraints,
+                                or use a single value to set the initial stock to be the same for all devices.
 
     Potentially deprecated arguments:
         commitment_quantities: amounts of flow specified in commitments (both previously ordered and newly requested)
@@ -95,6 +98,10 @@ def device_scheduler(  # noqa C901
     # Move commitments from old structure to new
     if commitments is None:
         commitments = []
+    else:
+        commitments = [
+            c.to_frame() if isinstance(c, Commitment) else c for c in commitments
+        ]
     if commitment_quantities is not None:
         for quantity, down, up in zip(
             commitment_quantities,
@@ -141,18 +148,22 @@ def device_scheduler(  # noqa C901
 
     def convert_commitments_to_subcommitments(
         dfs: list[pd.DataFrame],
-    ) -> list[pd.DataFrame]:
+    ) -> tuple[list[pd.DataFrame], dict[int, int]]:
         """Transform commitments, each specifying a group for each time step, to sub-commitments, one per group.
 
+        'Groups' are a commitment concept (grouping time slots of a commitment),
+        making it possible that deviations/breaches can be accounted for properly within this group
+        (e.g. highest breach per calendar month defines the penalty).
+        Here, we define sub-commitments, by separating commitments by group and by direction of deviation (up, down).
+
         We also enumerate the time steps in a new column "j".
-        We also split by the direction of the deviation.
 
         For example, given contracts A and B (represented by 2 DataFrames), each with 3 groups,
         we return (sub)commitments A1, A2, A3, B1, B2 and B3,
         where A,B,C is the enumerated contract and 1,2,3 is the enumerated group.
         """
         commitment_mapping = {}
-        all_groups = []
+        sub_commitments = []
         for c, df in enumerate(dfs):
             df["j"] = range(len(df.index))
             groups = list(df["group"].unique())
@@ -161,16 +172,20 @@ def device_scheduler(  # noqa C901
 
                 # Catch non-uniqueness
                 if len(sub_commitment["quantity"].unique()) > 1:
-                    raise ValueError("Cannot have non-unique quantities.")
+                    raise ValueError(
+                        "Commitment groups cannot have non-unique quantities."
+                    )
                 if len(sub_commitment["upwards deviation price"].unique()) > 1:
-                    raise ValueError("Cannot have non-unique upwards deviation prices.")
+                    raise ValueError(
+                        "Commitment groups cannot have non-unique upwards deviation prices."
+                    )
                 if len(sub_commitment["downwards deviation price"].unique()) > 1:
                     raise ValueError(
-                        "Cannot have non-unique downwards deviation prices."
+                        "Commitment groups cannot have non-unique downwards deviation prices."
                     )
                 if len(sub_commitment) == 1:
-                    commitment_mapping[len(all_groups)] = c
-                    all_groups.append(sub_commitment)
+                    commitment_mapping[len(sub_commitments)] = c
+                    sub_commitments.append(sub_commitment)
                 else:
                     down_commitment = sub_commitment.copy().drop(
                         columns="upwards deviation price"
@@ -178,10 +193,10 @@ def device_scheduler(  # noqa C901
                     up_commitment = sub_commitment.copy().drop(
                         columns="downwards deviation price"
                     )
-                    commitment_mapping[len(all_groups)] = c
-                    commitment_mapping[len(all_groups) + 1] = c
-                    all_groups.extend([down_commitment, up_commitment])
-        return all_groups, commitment_mapping
+                    commitment_mapping[len(sub_commitments)] = c
+                    commitment_mapping[len(sub_commitments) + 1] = c
+                    sub_commitments.extend([down_commitment, up_commitment])
+        return sub_commitments, commitment_mapping
 
     commitments, commitment_mapping = convert_commitments_to_subcommitments(commitments)
 
