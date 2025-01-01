@@ -31,7 +31,7 @@ from flexmeasures.utils.time_utils import determine_minimum_resampling_resolutio
 class GenericAssetType(db.Model):
     """An asset type defines what type an asset belongs to.
 
-    Examples of asset types: WeatherStation, Market, CP, EVSE, , SolarPanel, Building.
+    Examples of asset types: WeatherStation, Market, CP, EVSE, WindTurbine, SolarPanel, Building.
     """
 
     id = db.Column(db.Integer, primary_key=True)
