@@ -337,8 +337,8 @@ def test_inflexible_device_sensors_priority(
 
     price_sensor_id = add_market_prices_fresh_db["epex_da"].id
     message["flex-context"] = {
-        "consumption-price": {"sensor": price_sensor_id},
-        "production-price": {"sensor": price_sensor_id},
+        "consumption-price-sensor": price_sensor_id,
+        "production-price-sensor": price_sensor_id,
         "site-power-capacity": "1 TW",  # should be big enough to avoid any infeasibilities
     }
     if context_sensor_num:
