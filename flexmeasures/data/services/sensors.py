@@ -193,9 +193,9 @@ def _get_sensor_asset_relation(
     relations = list()
     if sensor.generic_asset_id == asset.id:
         relations.append("included device")
-    if asset.flex_context["consumption-price"]["sensor"] == sensor.id:
+    if asset.flex_context["consumption-price-sensor"] == sensor.id:
         relations.append("consumption price")
-    if asset.flex_context["production-price"]["sensor"] == sensor.id:
+    if asset.flex_context["production-price-sensor"] == sensor.id:
         relations.append("production price")
     inflexible_device_sensors_ids = {sensor.id for sensor in inflexible_device_sensors}
     if sensor.id in inflexible_device_sensors_ids:
@@ -253,6 +253,7 @@ def build_sensor_status_data(
             )
             sensor_ids.add(sensor.id)
             sensors.append(sensor_status)
+    print("====================================", sensors)
     return sensors
 
 
