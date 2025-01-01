@@ -256,7 +256,7 @@ def test_price_sensor_priority(
     if asset_sensor:
         price_sensor_id = add_market_prices_fresh_db[asset_sensor].id
         battery_asset = add_battery_assets_fresh_db[asset_name]
-        battery_asset.flex_context[sensor_attribute] = {"sensor": price_sensor_id}
+        battery_asset.flex_context[sensor_attribute] = price_sensor_id
         fresh_db.session.add(battery_asset)
     if parent_sensor:
         price_sensor_id = add_market_prices_fresh_db[parent_sensor].id
