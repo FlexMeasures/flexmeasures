@@ -251,7 +251,7 @@ def test_price_sensor_priority(
     )
 
     price_sensor_id = None
-    sensor_attribute = f"{sensor_type}-price"
+    sensor_attribute = f"{sensor_type}-price-sensor"
     # preparation: ensure the asset actually has the price sensor set as attribute
     if asset_sensor:
         price_sensor_id = add_market_prices_fresh_db[asset_sensor].id
