@@ -1378,7 +1378,7 @@ def add_schedule_for_storage(  # noqa C901
     tb_utils.replace_deprecated_argument(
         "optimization-context-id",
         optimization_context_sensor,
-        "consumption-price",
+        "consumption-price-sensor",
         consumption_price_sensor,
     )
 
