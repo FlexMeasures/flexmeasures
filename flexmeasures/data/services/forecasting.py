@@ -86,10 +86,6 @@ def create_forecasting_jobs(
 
     Returns the redis-queue forecasting jobs which were created.
     """
-    if not current_app.testing and custom_model_params is not None:
-        raise MisconfiguredForecastingJobException(
-            "Model parameters can only be customized during testing."
-        )
     if horizons is None:
         if resolution is None:
             raise MisconfiguredForecastingJobException(
