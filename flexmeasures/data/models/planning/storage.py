@@ -126,6 +126,7 @@ class MetaStorageScheduler(Scheduler):
             query_window=(start, end),
             resolution=resolution,
             beliefs_before=belief_time,
+            resolve_overlaps="min",
         )
 
         # Check for known prices or price forecasts, trimming planning window accordingly
@@ -208,6 +209,7 @@ class MetaStorageScheduler(Scheduler):
             resolution=resolution,
             beliefs_before=belief_time,
             fallback_attribute="capacity_in_mw",
+            resolve_overlaps="min",
         )
         ems_consumption_capacity = get_continuous_series_sensor_or_quantity(
             variable_quantity=self.flex_context.get("ems_consumption_capacity_in_mw"),
