@@ -217,8 +217,8 @@ def run_test_charge_discharge_sign(
             "prefer-charging-sooner": True,
         },
         flex_context={
-            "consumption-price-sensor": consumption_price_sensor_id,
-            "production-price-sensor": production_price_sensor_id,
+            "consumption-price": {"sensor": consumption_price_sensor_id},
+            "production-price": {"sensor": production_price_sensor_id},
         },
     )
 
@@ -574,8 +574,8 @@ def test_building_solver_day_2(
         },
         flex_context={
             "inflexible_device_sensors": inflexible_devices.values(),
-            "production_price_sensor": production_price_sensor,
-            "consumption_price_sensor": consumption_price_sensor,
+            "production_price": production_price_sensor,
+            "consumption_price": consumption_price_sensor,
         },
     )
     scheduler.config_deserialized = (
@@ -1210,8 +1210,8 @@ def test_capacity(
     }
 
     flex_context = {
-        "production-price-sensor": add_market_prices["epex_da_production"].id,
-        "consumption-price-sensor": add_market_prices["epex_da"].id,
+        "production-price": {"sensor": add_market_prices["epex_da_production"].id},
+        "consumption-price": {"sensor": add_market_prices["epex_da"].id},
     }
 
     def set_if_not_none(dictionary, key, value):
@@ -2001,8 +2001,8 @@ def test_soc_maxima_minima_targets(db, add_battery_assets, soc_sensors):
             flex_model=flex_model,
             flex_context={
                 "site-power-capacity": "100 MW",
-                "production-price-sensor": epex_da.id,
-                "consumption-price-sensor": epex_da.id,
+                "production-price": {"sensor": epex_da.id},
+                "consumption-price": {"sensor": epex_da.id},
             },
         )
         return scheduler.compute()

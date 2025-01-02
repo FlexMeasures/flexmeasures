@@ -92,6 +92,7 @@ class MetaStorageScheduler(Scheduler):
             self.flex_context.get("consumption_price_sensor")
             or self.sensor.generic_asset.get_consumption_price_sensor()
         )
+
         production_price_sensor = (
             self.flex_context.get("production_price_sensor")
             or self.sensor.generic_asset.get_production_price_sensor()
