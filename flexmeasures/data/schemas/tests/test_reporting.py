@@ -60,7 +60,7 @@ import pytest
                     {"df_output": "output1", "df_input": "sensor_1", "method": "copy"},
                     {"method": "copy"},
                     {"df_output": "final_output", "method": "resample", "args": ["1h"]},
-                    {"method": "sum"},
+                    {"method": "asfreq"},
                 ],
             },
             True,

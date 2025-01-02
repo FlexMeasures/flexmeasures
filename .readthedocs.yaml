@@ -8,8 +8,8 @@ sphinx:
   configuration: documentation/conf.py
 
 # Optionally build your docs in additional formats such as PDF
-formats:
-  - pdf
+#formats:
+#  - pdf  # stopped working (e.g. https://readthedocs.org/projects/flexmeasures/builds/26604114/, also not required)
 
 build:
   os: ubuntu-20.04

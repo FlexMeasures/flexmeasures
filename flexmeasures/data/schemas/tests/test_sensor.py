@@ -20,6 +20,8 @@ from marshmallow import ValidationError
         ({"sensor": 2}, "EUR/kWh", False, None),
         ({"sensor": 2}, "EUR", True, None),
         # deserialize a quantity
+        (1, "%", False, "100.0 %"),
+        (5, "%", False, "500.0 %"),
         ("1MWh", "MWh", False, "1 MWh"),
         ("1 MWh", "kWh", False, "1000.0 kWh"),
         ("1 MWh", "kW", True, None),
@@ -78,7 +80,7 @@ def test_quantity_or_sensor_deserialize(
 
     try:
         dst_quantity = schema.deserialize(src_quantity)
-        if isinstance(src_quantity, ur.Quantity):
+        if isinstance(src_quantity, (ur.Quantity, int, float)):
             assert dst_quantity == ur.Quantity(exp_dst_quantity)
             assert str(dst_quantity) == exp_dst_quantity
         elif isinstance(src_quantity, list):

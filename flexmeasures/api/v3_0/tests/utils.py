@@ -63,6 +63,7 @@ def message_for_trigger_schedule(
     realistic_targets: bool = True,
     too_far_into_the_future_targets: bool = False,
     use_time_window: bool = False,
+    use_perfect_efficiencies: bool = False,
 ) -> dict:
     message = {
         "start": "2015-01-01T00:00:00+01:00",
@@ -78,8 +79,8 @@ def message_for_trigger_schedule(
         "soc-min": 0,  # in kWh, according to soc-unit
         "soc-max": 40,  # in kWh, according to soc-unit
         "soc-unit": "kWh",
-        "roundtrip-efficiency": "98%",
-        "storage-efficiency": "99.99%",
+        "roundtrip-efficiency": "98%" if not use_perfect_efficiencies else "100%",
+        "storage-efficiency": "99.99%" if not use_perfect_efficiencies else 1,
         "power-capacity": "2 MW",  # same as capacity_in_mw attribute of test battery and test charging station
     }
     if with_targets:
