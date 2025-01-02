@@ -49,6 +49,11 @@ Unless stated otherwise, values of such fields can take one of the following for
 
   Note the two distinct ways of specifying a time period (``"end"`` in combination with ``"duration"`` also works).
 
+.. note:: In case a field defines partially overlapping time periods, FlexMeasures automatically resolves this.
+          By default, time periods that are defined earlier in the list take precedence.
+          Fields that deviate from this policy will note so explicitly.
+          (For example, for fields dealing with capacities, the minimum is selected instead.)
+
 - A reference to a sensor that records a variable quantity, which allows cross-referencing to dynamic contexts that are already recorded as sensor data in FlexMeasures. For instance, a site's contracted consumption capacity that changes over time.
 
   .. code-block:: json

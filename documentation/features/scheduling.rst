@@ -67,13 +67,13 @@ For more details on the possible formats for field values, see :ref:`variable_qu
    * - ``site-power-capacity``
      - ``"45kVA"``
      - Maximum achievable power at the grid connection point, in either direction [#asymmetric]_ (defaults to the Asset attribute ``capacity_in_mw``).
-       Becomes a hard constraint in the optimization problem, which is especially suitable for physical limitations.
+       Becomes a hard constraint in the optimization problem, which is especially suitable for physical limitations. [#minimum_capacity_overlap]_
    * - ``site-consumption-capacity``
      - ``"45kW"``
      - Maximum consumption power at the grid connection point (defaults to the Asset attribute ``consumption_capacity_in_mw``).
        If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-consumption-capacity`` will be used. [#consumption]_
        If a ``site-consumption-breach-price`` is defined, the ``site-consumption-capacity`` becomes a soft constraint in the optimization problem.
-       Otherwise, it becomes a hard constraint.
+       Otherwise, it becomes a hard constraint. [#minimum_capacity_overlap]_
    * - ``site-consumption-breach-price``
      - ``"1000 EUR/kW"``
      - The price of breaching the ``site-consumption-capacity``, useful to treat ``site-consumption-capacity`` as a soft constraint but still make the scheduler attempt to respect it.
@@ -84,7 +84,7 @@ For more details on the possible formats for field values, see :ref:`variable_qu
      - Maximum production power at the grid connection point (defaults to the Asset attribute ``production_capacity_in_mw``).
        If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-production-capacity`` will be used. [#production]_
        If a ``site-production-breach-price`` is defined, the ``site-production-capacity`` becomes a soft constraint in the optimization problem.
-       Otherwise, it becomes a hard constraint.
+       Otherwise, it becomes a hard constraint. [#minimum_capacity_overlap]_
    * - ``site-production-breach-price``
      - ``"1000 EUR/kW"``
      - The price of breaching the ``site-production-capacity``, useful to treat ``site-production-capacity`` as a soft constraint but still make the scheduler attempt to respect it.
@@ -108,6 +108,8 @@ For more details on the possible formats for field values, see :ref:`variable_qu
 .. [#old_sensor_field] The old field only accepted an integer (sensor ID).
 
 .. [#asymmetric] ``site-consumption-capacity`` and ``site-production-capacity`` allow defining asymmetric contracted transport capacities for each direction (i.e. production and consumption).
+
+.. [#minimum_capacity_overlap] In case this capacity field defines partially overlapping time periods, the minimum value is selected.
 
 .. [#consumption] Example: with a connection capacity (``site-power-capacity``) of 1 MVA (apparent power) and a consumption capacity (``site-consumption-capacity``) of 800 kW (active power), the scheduler will make sure that the grid outflow doesn't exceed 800 kW.
 
@@ -174,10 +176,10 @@ For more details on the possible formats for field values, see :ref:`variable_qu
      - A constant upper boundary for all values in the schedule (defaults to max soc target, if provided). [#quantity_field]_
    * - ``soc-minima``
      - ``[{"datetime": "2024-02-05T08:00:00+01:00", value: "8.2 kWh"}]``
-     - Set points that form lower boundaries, e.g. to target a full car battery in the morning (defaults to NaN values).
+     - Set points that form lower boundaries, e.g. to target a full car battery in the morning (defaults to NaN values). [#maximum_overlap]_
    * - ``soc-maxima``
      - ``{"value": "51 kWh", "start": "2024-02-05T12:00:00+01:00", "end": "2024-02-05T13:30:00+01:00"}``
-     - Set points that form upper boundaries at certain times (defaults to NaN values).
+     - Set points that form upper boundaries at certain times (defaults to NaN values). [#minimum_overlap]_
    * - ``soc-targets``
      - ``[{"datetime": "2024-02-05T08:00:00+01:00", value: "3.2 kWh"}]``
      - Exact set point(s) that the scheduler needs to realize (defaults to NaN values).
@@ -204,15 +206,19 @@ For more details on the possible formats for field values, see :ref:`variable_qu
      - Tie-breaking policy to apply if conditions are stable (defaults to True, which also signals a preference to discharge later). Boolean option only.
    * - ``power-capacity``
      - ``50kW``
-     - Device-level power constraint. How much power can be applied to this asset (defaults to the Sensor attribute ``capacity_in_mw``).
+     - Device-level power constraint. How much power can be applied to this asset (defaults to the Sensor attribute ``capacity_in_mw``). [#minimum_overlap]_
    * - ``consumption-capacity``
      - ``{"sensor": 56}``
-     - Device-level power constraint on consumption. How much power can be drawn by this asset.
+     - Device-level power constraint on consumption. How much power can be drawn by this asset. [#minimum_overlap]_
    * - ``production-capacity``
      - ``0kW`` (only consumption)
-     - Device-level power constraint on production. How much power can be supplied by this asset.
+     - Device-level power constraint on production. How much power can be supplied by this asset. [#minimum_overlap]_
 
 .. [#quantity_field] Can only be set as a fixed quantity.
+
+.. [#maximum_overlap] In case this field defines partially overlapping time periods, the maximum value is selected.
+
+.. [#minimum_overlap] In case this field defines partially overlapping time periods, the minimum value is selected.
 
 .. [#storage_efficiency] The storage efficiency (e.g. 95% or 0.95) to use for the schedule is applied over each time step equal to the sensor resolution. For example, a storage efficiency of 95 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of :math:`0.95^{1/24} = 0.997865`.
 
