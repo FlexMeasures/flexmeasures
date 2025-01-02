@@ -442,8 +442,8 @@ def process_time_series_segments(
     unit: str,
     resolution: timedelta,
     resolve_overlaps: str,
-    fill_sides: bool,
-    query_window: tuple[datetime, datetime],
+    fill_sides: bool = False,
+    query_window: tuple[datetime, datetime] = None,
 ) -> pd.Series:
     """
     Process a time series defined by a list of dicts, while resolving overlapping segments.
