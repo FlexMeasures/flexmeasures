@@ -426,7 +426,6 @@ def get_series_from_quantity_or_sensor(
             resolution=resolution,
             resolve_overlaps=resolve_overlaps,
             fill_sides=fill_sides,
-            query_window=query_window,
         )
     else:
         raise TypeError(
@@ -443,7 +442,6 @@ def process_time_series_segments(
     resolution: timedelta,
     resolve_overlaps: str,
     fill_sides: bool = False,
-    query_window: tuple[datetime, datetime] = None,
 ) -> pd.Series:
     """
     Process a time series defined by a list of dicts, while resolving overlapping segments.
@@ -457,8 +455,7 @@ def process_time_series_segments(
         unit:               The unit to convert the value into if it's a Quantity.
         resolution:         The resolution to subtract from the 'end' to avoid overlap.
         resolve_overlaps:   How to handle overlaps (e.g., 'first', 'last', 'mean', etc.).
-        fill_sides:         Whether to extend values to the edges of the query window.
-        query_window:       The original query window.
+        fill_sides:         Whether to extend values to cover the whole index.
 
     Returns:                A time series with resolved event values.
     """
@@ -491,7 +488,9 @@ def process_time_series_segments(
 
     if fill_sides:
         time_series = extend_to_edges(
-            df=time_series, query_window=query_window, resolution=resolution
+            df=time_series,
+            query_window=(index[0], index[-1] + resolution),
+            resolution=resolution,
         )
 
     return time_series.rename("event_value")
