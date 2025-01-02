@@ -47,7 +47,7 @@ Unless stated otherwise, values of such fields can take one of the following for
          ]
      }
 
-  Note the two distinct ways of specifying a time period (``"end"`` + ``"duration"`` also works).
+  Note the two distinct ways of specifying a time period (``"end"`` in combination with ``"duration"`` also works).
 
 - A reference to a sensor that records a variable quantity, which allows cross-referencing to dynamic contexts that are already recorded as sensor data in FlexMeasures. For instance, a site's contracted consumption capacity that changes over time.
 
