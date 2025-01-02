@@ -109,7 +109,7 @@ For more details on the possible formats for field values, see :ref:`variable_qu
 
 .. [#asymmetric] ``site-consumption-capacity`` and ``site-production-capacity`` allow defining asymmetric contracted transport capacities for each direction (i.e. production and consumption).
 
-.. [#minimum_capacity_overlap] In case this capacity field defines partially overlapping time periods, the minimum value is selected.
+.. [#minimum_capacity_overlap] In case this capacity field defines partially overlapping time periods, the minimum value is selected. See :ref:`variable_quantities`.
 
 .. [#consumption] Example: with a connection capacity (``site-power-capacity``) of 1 MVA (apparent power) and a consumption capacity (``site-consumption-capacity``) of 800 kW (active power), the scheduler will make sure that the grid outflow doesn't exceed 800 kW.
 
@@ -216,9 +216,9 @@ For more details on the possible formats for field values, see :ref:`variable_qu
 
 .. [#quantity_field] Can only be set as a fixed quantity.
 
-.. [#maximum_overlap] In case this field defines partially overlapping time periods, the maximum value is selected.
+.. [#maximum_overlap] In case this field defines partially overlapping time periods, the maximum value is selected. See :ref:`variable_quantities`.
 
-.. [#minimum_overlap] In case this field defines partially overlapping time periods, the minimum value is selected.
+.. [#minimum_overlap] In case this field defines partially overlapping time periods, the minimum value is selected. See :ref:`variable_quantities`.
 
 .. [#storage_efficiency] The storage efficiency (e.g. 95% or 0.95) to use for the schedule is applied over each time step equal to the sensor resolution. For example, a storage efficiency of 95 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of :math:`0.95^{1/24} = 0.997865`.
 
