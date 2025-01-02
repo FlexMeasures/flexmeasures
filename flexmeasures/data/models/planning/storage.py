@@ -126,6 +126,7 @@ class MetaStorageScheduler(Scheduler):
             query_window=(start, end),
             resolution=resolution,
             beliefs_before=belief_time,
+            resolve_overlaps="min",
         )
 
         # Check for known prices or price forecasts, trimming planning window accordingly
@@ -208,6 +209,7 @@ class MetaStorageScheduler(Scheduler):
             resolution=resolution,
             beliefs_before=belief_time,
             fallback_attribute="capacity_in_mw",
+            resolve_overlaps="min",
         )
         ems_consumption_capacity = get_continuous_series_sensor_or_quantity(
             variable_quantity=self.flex_context.get("ems_consumption_capacity_in_mw"),
@@ -218,6 +220,7 @@ class MetaStorageScheduler(Scheduler):
             beliefs_before=belief_time,
             fallback_attribute="consumption_capacity_in_mw",
             max_value=ems_power_capacity_in_mw,
+            resolve_overlaps="min",
         )
         ems_production_capacity = -1 * get_continuous_series_sensor_or_quantity(
             variable_quantity=self.flex_context.get("ems_production_capacity_in_mw"),
@@ -228,6 +231,7 @@ class MetaStorageScheduler(Scheduler):
             beliefs_before=belief_time,
             fallback_attribute="production_capacity_in_mw",
             max_value=ems_power_capacity_in_mw,
+            resolve_overlaps="min",
         )
 
         # Set up commitments to optimise for
@@ -479,7 +483,7 @@ class MetaStorageScheduler(Scheduler):
                 resolution=resolution,
                 beliefs_before=belief_time,
                 as_instantaneous_events=True,
-                boundary_policy="first",
+                resolve_overlaps="first",
             )
         if isinstance(soc_minima, Sensor):
             soc_minima = get_continuous_series_sensor_or_quantity(
@@ -490,7 +494,7 @@ class MetaStorageScheduler(Scheduler):
                 resolution=resolution,
                 beliefs_before=belief_time,
                 as_instantaneous_events=True,
-                boundary_policy="max",
+                resolve_overlaps="max",
             )
         if isinstance(soc_maxima, Sensor):
             soc_maxima = get_continuous_series_sensor_or_quantity(
@@ -501,7 +505,7 @@ class MetaStorageScheduler(Scheduler):
                 resolution=resolution,
                 beliefs_before=belief_time,
                 as_instantaneous_events=True,
-                boundary_policy="min",
+                resolve_overlaps="min",
             )
 
         device_constraints[0] = add_storage_constraints(
@@ -533,6 +537,7 @@ class MetaStorageScheduler(Scheduler):
                 beliefs_before=belief_time,
                 fallback_attribute="production_capacity",
                 max_value=power_capacity_in_mw,
+                resolve_overlaps="min",
             )
         if sensor.get_attribute("is_strictly_non_negative"):
             device_constraints[0]["derivative max"] = 0
@@ -547,6 +552,7 @@ class MetaStorageScheduler(Scheduler):
                     beliefs_before=belief_time,
                     fallback_attribute="consumption_capacity",
                     max_value=power_capacity_in_mw,
+                    resolve_overlaps="min",
                 )
             )
 

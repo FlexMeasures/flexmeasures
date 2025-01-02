@@ -43,6 +43,7 @@ Bugfixes
 * Show the correct :abbr:`UTC (Coordinated Universal Time)` offset for the data's time span as shown under sensor stats in the UI [see `PR #1213 <https://github.com/FlexMeasures/flexmeasures/pull/1213>`_]
 * Fixed issue where audit log buttons are visible to users without the necessary permissions. [see `PR #1228 <https://github.com/FlexMeasures/flexmeasures/pull/1228>`_]
 * Fix issue with displaying ``deactivate user`` and ``reset password`` buttons for non admin users [see `PR #1220 <https://github.com/FlexMeasures/flexmeasures/pull/1220>`_]
+* Resolve overlapping time series segments in several flex-model and flex-context fields in a way befitting their nature [see `PR #1223 <https://github.com/FlexMeasures/flexmeasures/pull/1223>`_]
 
 
 v0.23.2 | December 16, 2024
