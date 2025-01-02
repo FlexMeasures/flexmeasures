@@ -25,15 +25,14 @@ def handle_generic_http_exception(e: HTTPException):
         error_code = e.code
     error_text = getattr(e, "description", str(e))
     kwargs = dict(
-        "error.html",
         error_class=e.__class__.__name__,
         error_description="We encountered an Http exception.",
         error_message=error_text,
     )
     try:
-        return (render_flexmeasures_template(**kwargs), error_code)
+        return (render_flexmeasures_template("error.html", **kwargs), error_code)
     except Exception:  # noqa: B902
-        return (render_template(**kwargs), error_code)
+        return (render_template("error.html", **kwargs), error_code)
 
 
 def handle_500_error(e: InternalServerError):
