@@ -1,6 +1,6 @@
 """Error views for UI purposes."""
 
-from flask import Flask
+from flask import Flask, render_template
 from werkzeug.exceptions import BadRequest, InternalServerError, HTTPException
 
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
@@ -24,15 +24,16 @@ def handle_generic_http_exception(e: HTTPException):
     if hasattr(e, "code") and e.code is not None:
         error_code = e.code
     error_text = getattr(e, "description", str(e))
-    return (
-        render_flexmeasures_template(
-            "error.html",
-            error_class=e.__class__.__name__,
-            error_description="We encountered an Http exception.",
-            error_message=error_text,
-        ),
-        error_code,
+    kwargs = dict(
+        "error.html",
+        error_class=e.__class__.__name__,
+        error_description="We encountered an Http exception.",
+        error_message=error_text,
     )
+    try:
+        return (render_flexmeasures_template(**kwargs), error_code)
+    except Exception:  # noqa: B902
+        return (render_template(**kwargs), error_code)
 
 
 def handle_500_error(e: InternalServerError):
