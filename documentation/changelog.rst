@@ -33,6 +33,7 @@ Infrastructure / Support
 * For MacOS developers, install HiGHS solver automatically [see `PR #1187 <https://github.com/FlexMeasures/flexmeasures/pull/1187>`_]
 * Migrate data for the ``sensors_to_show`` asset attribute to a dedicated column in the database table for assets [see `PR #1200 <https://github.com/FlexMeasures/flexmeasures/pull/1200>`_ and `PR #1282 <https://github.com/FlexMeasures/flexmeasures/pull/1282>`_]
 * Add support for installing FlexMeasures under Python 3.12 [see `PR #1233 <https://github.com/FlexMeasures/flexmeasures/pull/1233>`_]
+* Better error handling in UI, for example, in case of a forgotten ``flexmeasures db upgrade`` [see `PR #1302 <https://github.com/FlexMeasures/flexmeasures/pull/1302>`_]
 
 Bugfixes
 -----------
