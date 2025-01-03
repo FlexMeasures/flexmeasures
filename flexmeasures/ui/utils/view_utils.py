@@ -31,8 +31,9 @@ def fall_back_to_flask_template(render_function):
         try:
             return render_function(template_name, *args, **kwargs)
         except Exception as e:
-            current_app.logger.error(
-                f"render_flexmeasures_template failed to load {template_name}, due to {e}."
+            current_app.logger.warning(
+                f"""Rendering via Flask's render_template("{template_name}"). """
+                f"""Failed to render via {render_function.__name__}("{template_name}") due to {e}."""
             )
             return render_template(template_name, **kwargs)
 
