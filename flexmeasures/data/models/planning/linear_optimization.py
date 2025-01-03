@@ -446,7 +446,10 @@ def device_scheduler(  # noqa C901
 
     def device_stock_commitment_equalities(m, c, j, d):
         """Couple device stocks to each commitment."""
-        if "d" not in commitments[c] or commitments[c]["d"] != d:
+        if (
+            "device" not in commitments[c].columns
+            or (commitments[c]["device"] != d).all()
+        ):
             # Commitment c does not concern device d
             return Constraint.Skip
         if not all(cl.__name__ == "StockCommitment" for cl in commitments[c]["class"]):
@@ -499,7 +502,7 @@ def device_scheduler(  # noqa C901
         - Creates an inequality for one-sided commitments.
         - Creates an equality for two-sided commitments and for groups of size 1.
         """
-        if "d" in commitments[c]:
+        if "device" in commitments[c].columns:
             # Commitment c does not concern EMS
             return Constraint.Skip
         if "class" in commitments[c].columns and not all(
