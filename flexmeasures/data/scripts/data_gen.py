@@ -311,7 +311,8 @@ def depopulate_measurements(
     query = delete(TimedBelief).filter(TimedBelief.belief_horizon <= timedelta(hours=0))
     if sensor_id is not None:
         query = query.filter(TimedBelief.sensor_id == sensor_id)
-    num_measurements_deleted = db.session.execute(query)
+    deletion_result = db.session.execute(query)
+    num_measurements_deleted = deletion_result.rowcount
 
     click.echo("Deleted %d measurements (ex-post beliefs)" % num_measurements_deleted)
 
@@ -346,7 +347,7 @@ def depopulate_prognoses(
         query = query.filter(TimedBelief.sensor_id == sensor_id)
     deletion_result = db.session.execute(query)
     num_forecasts_deleted = deletion_result.rowcount
-    
+
     if not sensor_id:
         click.echo("Deleted %d Forecast Jobs" % num_forecasting_jobs_deleted)
         click.echo("Deleted %d Schedule Jobs" % num_scheduling_jobs_deleted)
