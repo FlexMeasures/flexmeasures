@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from functools import wraps
 import json
 import os
 import subprocess
@@ -22,6 +23,24 @@ from flexmeasures.ui.utils.chart_defaults import chart_options
 from flexmeasures.ui.utils.color_defaults import get_color_settings
 
 
+def fall_back_to_flask_template(render_function):
+    """In case the render_function is raising an error, fall back to using flask.render_template."""
+
+    @wraps(render_function)
+    def wrapper(template_name, *args, **kwargs):
+        try:
+            return render_function(template_name, *args, **kwargs)
+        except Exception as e:
+            current_app.logger.warning(
+                f"""Rendering via Flask's render_template("{template_name}"). """
+                f"""Failed to render via {render_function.__name__}("{template_name}") due to {e}."""
+            )
+            return render_template(template_name, **kwargs)
+
+    return wrapper
+
+
+@fall_back_to_flask_template
 def render_flexmeasures_template(html_filename: str, **variables):
     """Render template and add all expected template variables, plus the ones given as **variables."""
     variables["FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY"] = current_app.config.get(
