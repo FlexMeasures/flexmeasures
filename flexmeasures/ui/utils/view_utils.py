@@ -34,10 +34,6 @@ def fall_back_to_flask_template(render_function):
             current_app.logger.error(
                 f"render_flexmeasures_template failed to load {template_name}, due to {e}."
             )
-            if template_name == "error.html":
-                current_app.logger.error(
-                    f"The error page was attempting to show: {kwargs}"
-                )
             return render_template(template_name, **kwargs)
 
     return wrapper
