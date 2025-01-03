@@ -30,7 +30,10 @@ def fall_back_to_flask_template(render_function):
     def wrapper(template_name, *args, **kwargs):
         try:
             return render_function(template_name, *args, **kwargs)
-        except Exception:  # noqa: B902
+        except Exception as e:
+            current_app.logger.error(
+                f"render_flexmeasures_template failed to load {template_name}, due to {e}."
+            )
             return render_template(template_name, **kwargs)
 
     return wrapper
