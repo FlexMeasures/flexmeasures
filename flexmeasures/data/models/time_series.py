@@ -835,4 +835,8 @@ def search_wrapper(
             bdf = bdf[bdf.event_starts >= event_starts_after]
         if event_ends_before is not None:
             bdf = bdf[bdf.event_ends <= event_ends_before]
+
+    # Sensor instead of DBSensor
+    bdf.sensor = Sensor.query.get(bdf.sensor.id)
+
     return bdf.sensor, bdf
