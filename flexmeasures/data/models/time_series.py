@@ -821,7 +821,8 @@ def search_wrapper(
         else:
             bdf = bdf.for_each_belief(get_median_belief)
 
-    if resolution is not None:
+    # NB resampling will be triggered if resolutions are not an exact match (also in case of str vs timedelta)
+    if resolution is not None and resolution != bdf.event_resolution:
         bdf = bdf.resample_events(
             resolution, keep_only_most_recent_belief=most_recent_beliefs_only
         )
