@@ -928,7 +928,8 @@ def create_test_battery_assets(
     )
     db.session.add(test_battery_sensor_small)
 
-    db.session.flush()
+    # Commit session so other (parallel search) sessions can find the data set up by this fixture
+    db.session.commit()
     return {
         "Test building": test_building,
         "Test battery": test_battery,
@@ -1376,6 +1377,8 @@ def soc_sensors(db, add_battery_assets, setup_sources) -> tuple:
         source=setup_sources["Seita"],
     )
 
+    # Commit session so other (parallel search) sessions can find the data set up by this fixture
+    db.session.commit()
     yield soc_maxima, soc_minima, soc_targets, values
 
 

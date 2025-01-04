@@ -732,7 +732,11 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
             processes=current_app.config.get("FLEXMEASURES_PARALLEL_PROCESSES", 4)
         ) as pool:
             results = pool.starmap(
-                search_wrapper, [(s, search_kwargs) for s in sensors]
+                search_wrapper,
+                [
+                    (s.id if isinstance(s, Sensor) else s, search_kwargs)
+                    for s in sensors
+                ],
             )
         bdf_dict = dict(results)
         if sum_multiple:
