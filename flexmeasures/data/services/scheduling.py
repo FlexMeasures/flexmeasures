@@ -16,6 +16,7 @@ import inspect
 from flask import current_app
 import click
 from rq import get_current_job, Callback
+from rq.exceptions import InvalidJobOperation
 from rq.job import Job
 import timely_beliefs as tb
 import pandas as pd
@@ -226,7 +227,10 @@ def create_scheduling_job(
     job.save_meta()
 
     # in case the function enqueues it
-    job_status = job.get_status(refresh=True)
+    try:
+        job_status = job.get_status(refresh=True)
+    except InvalidJobOperation:
+        job_status = None
 
     # with job_status=None, we ensure that only fresh new jobs are enqueued (in the contrary they should be requeued)
     if enqueue and not job_status:
@@ -347,7 +351,11 @@ def make_schedule(
         rq_job.meta["data_source_info"] = data_source_info
         rq_job.save_meta()
 
+    # Save any result that specifies a sensor to save it to
     for result in consumption_schedule:
+        if "sensor" not in result:
+            continue
+
         sign = 1
 
         if result["sensor"].measures_power and result["sensor"].get_attribute(

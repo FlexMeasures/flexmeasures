@@ -8,78 +8,92 @@
 
 <script>
 
-const asset_icon_map = JSON.parse('{{ asset_icon_map | tojson | safe }}');
+  const asset_icon_map = JSON.parse('{{ asset_icon_map | tojson | safe }}');
 
-function Asset ( id, name, asset_type, sensors, account, latitude, longitude) {
-    let icon = asset_icon_map[asset_type.toLowerCase()];
-    if (icon === undefined)
-      icon = `icon-${asset_type}`
+  function Asset ( id, name, asset_type, sensors, account, latitude, longitude) {
+      let icon = asset_icon_map[asset_type.toLowerCase()];
+      if (icon === undefined)
+        icon = `icon-${asset_type}`
 
-    this.name = `
-      <i class="${ icon } left-icon">${ name }</i>
-    `;
+      this.name = `
+        <i class="${ icon } left-icon">${ name }</i>
+      `;
 
-    this.id = id;
-    this.location = "";
-    this.url = `/assets/${id}`
-    this.status = `
-      <a href="/assets/${id}/status">
-        <button type="button" class="btn btn-primary">Status</button>
-      </a>
-    `;
+      this.id = id;
+      this.location = "";
+      this.url = `/assets/${id}`
+      this.status = `
+        <a href="/assets/${id}/status">
+          <button type="button" class="btn btn-primary">Status</button>
+        </a>
+      `;
 
-    if (account == null) this.owner = "PUBLIC";
-    else
-      this.owner = `
-        <a href="/accounts/${ account['id'] }" title="View this account">${ account["name"] }</a>
-      `
+      if (account == null) this.owner = "PUBLIC";
+      else
+        this.owner = `
+          <a href="/accounts/${ account['id'] }" title="View this account">${ account["name"] }</a>
+        `
 
-    this.num_sensors = sensors.length;
+      this.num_sensors = sensors.length;
 
-    if (latitude !=  null && longitude != null) this.location = `LAT: ${latitude}, LONG: ${longitude}`;
-};
+      if (latitude !=  null && longitude != null) this.location = `LAT: ${latitude}, LONG: ${longitude}`;
+  };
 
-$(document).ready(function() {  
+  $(document).ready(function() {  
+    $("#assetTable").dataTable({
+      order: [[0, "asc"]],
+      serverSide: true,
+      columns: [
+        {data: "id", title: "ID", orderable: true},
+        {data: "name", title: "Name", orderable: true},
+        {data: "owner", title: "Account", orderable: true},
+        {data: "location", title: "Location", orderable: false},
+        {data: "num_sensors", title: "Sensors", orderable: false},
+        {data: "status", title: "Status", orderable: false},
+        {data: "url", title: "URL", className: "d-none"},
+      ],
+      ajax: function (data, callback, settings) {
+        const basePath = window.location.origin;
+        let filter = data["search"]["value"];
+        let orderColumnIndex = data["order"][0]["column"]
+        let orderDirection = data["order"][0]["dir"];
+        let orderColumnName = data["columns"][orderColumnIndex]["data"];
+        
+        let url = `${basePath}/api/v3_0/assets?page=${
+          Math.floor(data["start"] / data["length"]) + 1
+        }&per_page=${data["length"]}`;
 
-  /*
-  Initialize a DataTable on an HTML element with the ID #assetTable, enabling server-side processing. 
-  The table is configured to display columns for the asset's name, ID, account owner, location, number of sensors, status, and a hidden URL field. 
-  The data for the table is fetched from a server using AJAX.
-  */
-  $("#assetTable").dataTable({
-    serverSide: true,
-    columns: [
-      {data: "name", title: "Name"},
-      {data: "id", title: "Asset ID"},
-      {data: "owner", title: "Account"},
-      {data: "location", title: "Location"},
-      {data: "num_sensors", title: "Sensors"},
-      {data: "status", title: "Status"},
-      {data: "url", title: "URL", className: "d-none"},
-    ],
-    ajax: function (data, callback, settings) {
-      let filter = data["search"]["value"];
-      let url = `{{url_for("AssetAPI:index")}}?page=${Math.floor((data["start"])/data["length"] ) + 1 }&per_page=${data["length"]}&all_accessible=true`;
-      if (filter.length > 0) {
-        url = `${url}&filter=${filter}`;
-      }
-      $.ajax({
-        type: "get",
-        url: url,
-        success: function(response, text) {
-          let clean_response = [];
-          response["data"].forEach( (element) => clean_response.push(
-            new Asset(element["id"], element["name"], element["generic_asset_type"]["name"], element["sensors"], element["owner"], element["latitude"], element["longitude"])
-          )) 
-          callback({"data": clean_response, "recordsTotal": response["num-records"], "recordsFiltered": response["filtered-records"]});
-        },
-        error: function (request, status, error) {
-          console.log("Error: ", error)
+        {% if account %}
+          url += "&account_id={{ account.id }}";
+        {% else %}
+          url += "&all_accessible=true";
+        {% endif %}
+
+        if (filter.length > 0) {
+          url = `${url}&filter=${filter}`;
         }
-      });
-    }
-  });
-})
+
+        if (orderColumnName){
+          url = `${url}&sort_by=${orderColumnName}&sort_dir=${orderDirection}`;
+        }
+
+        $.ajax({
+          type: "get",
+          url: url,
+          success: function(response, text) {
+            let clean_response = [];
+            response["data"].forEach( (element) => clean_response.push(
+              new Asset(element["id"], element["name"], element["generic_asset_type"]["name"], element["sensors"], element["owner"], element["latitude"], element["longitude"])
+            )) 
+            callback({"data": clean_response, "recordsTotal": response["num-records"], "recordsFiltered": response["filtered-records"]});
+          },
+          error: function (request, status, error) {
+            console.log("Error: ", error)
+          }
+        });
+      }
+    });
+  })
 
 </script>
 

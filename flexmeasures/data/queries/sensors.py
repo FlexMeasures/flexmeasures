@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy.sql import Select, select
+from sqlalchemy import select, Select
 
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.queries.utils import potentially_limit_assets_query_to_account

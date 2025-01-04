@@ -23,6 +23,7 @@ from flexmeasures.utils.flexmeasures_inflection import (
 from flexmeasures.utils.time_utils import (
     localized_datetime_str,
     naturalized_datetime_str,
+    to_utc_timestamp,
 )
 from flexmeasures.utils.app_utils import (
     parse_config_entry_by_account_roles,
@@ -117,10 +118,11 @@ def register_rq_dashboard(app):
         return
 
     # Logged-in users can view queues on the demo server, but only admins can view them on other servers
-    if app.config.get("FLEXMEASURES_MODE", "") == "demo":
-        rq_dashboard.blueprint.before_request(basic_auth)
-    else:
-        rq_dashboard.blueprint.before_request(basic_admin_auth)
+    if app.config.get("FLEXMEASURES_ENV") != "documentation":
+        if app.config.get("FLEXMEASURES_MODE", "") == "demo":
+            rq_dashboard.blueprint.before_request(basic_auth)
+        else:
+            rq_dashboard.blueprint.before_request(basic_admin_auth)
 
     # To set template variables, use set_global_template_variables in app.py
     app.register_blueprint(rq_dashboard.blueprint, url_prefix="/tasks")
@@ -135,6 +137,7 @@ def add_jinja_filters(app):
     )  # Allow expression statements (e.g. for modifying lists)
     app.jinja_env.filters["localized_datetime"] = localized_datetime_str
     app.jinja_env.filters["naturalized_datetime"] = naturalized_datetime_str
+    app.jinja_env.filters["to_utc_timestamp"] = to_utc_timestamp
     app.jinja_env.filters["naturalized_timedelta"] = naturaldelta
     app.jinja_env.filters["capitalize"] = capitalize
     app.jinja_env.filters["pluralize"] = pluralize
@@ -149,12 +152,12 @@ def add_jinja_filters(app):
     app.jinja_env.filters["asset_icon"] = asset_icon_name
     app.jinja_env.filters["username"] = username
     app.jinja_env.filters["accountname"] = accountname
-    app.jinja_env.filters[
-        "parse_config_entry_by_account_roles"
-    ] = parse_config_entry_by_account_roles
-    app.jinja_env.filters[
-        "find_first_applicable_config_entry"
-    ] = find_first_applicable_config_entry
+    app.jinja_env.filters["parse_config_entry_by_account_roles"] = (
+        parse_config_entry_by_account_roles
+    )
+    app.jinja_env.filters["find_first_applicable_config_entry"] = (
+        find_first_applicable_config_entry
+    )
 
 
 def add_jinja_variables(app):

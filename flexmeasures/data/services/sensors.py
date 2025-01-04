@@ -8,6 +8,7 @@ from functools import lru_cache
 from isodate import duration_isoformat
 import time
 from timely_beliefs import BeliefsDataFrame
+import pandas as pd
 
 from humanize.time import naturaldelta
 
@@ -38,12 +39,12 @@ def get_sensors(
     :param sensor_name_allowlist:   optionally, allow only sensors whose name is in this list
     """
     sensor_query = sa.select(Sensor)
-    if account is None:
-        account_ids = []
-    elif isinstance(account, list):
-        account_ids = [account.id for account in account]
+    if isinstance(account, list):
+        accounts = account
     else:
-        account_ids = [account.id]
+        accounts: list = [account] if account else []
+    account_ids: list = [acc.id for acc in accounts]
+
     sensor_query = sensor_query.join(
         GenericAsset, GenericAsset.id == Sensor.generic_asset_id
     ).filter(Sensor.generic_asset_id == GenericAsset.id)
@@ -60,14 +61,19 @@ def get_sensors(
         sensor_query = sensor_query.filter(Sensor.id.in_(sensor_id_allowlist))
     if sensor_name_allowlist:
         sensor_query = sensor_query.filter(Sensor.name.in_(sensor_name_allowlist))
+
     return db.session.scalars(sensor_query).all()
 
 
 def _get_sensor_bdf(sensor: Sensor, staleness_search: dict) -> BeliefsDataFrame | None:
-    """Get bdf for a given sensor with given search parameters."""
+    """
+    Retrieve the BeliefsDataFrame for a given sensor using the specified search parameters. The 'most_recent_only'
+    parameter is set to True, which ensures that only the most recent belief from the most recent event is returned.
+    """
     bdf = TimedBelief.search(
         sensors=sensor,
-        most_recent_events_only=True,
+        most_recent_beliefs_only=False,
+        most_recent_only=True,
         **staleness_search,
     )
     if bdf.empty:
@@ -389,14 +395,22 @@ def _get_sensor_stats(sensor: Sensor, ttl_hash=None) -> dict:
             sum_values,
             count_values,
         ) = row
+        first_event_start = (
+            pd.Timestamp(min_event_start).tz_convert(sensor.timezone).isoformat()
+        )
+        last_event_end = (
+            pd.Timestamp(max_event_start + sensor.event_resolution)
+            .tz_convert(sensor.timezone)
+            .isoformat()
+        )
         stats[data_source] = {
-            "min_event_start": min_event_start,
-            "max_event_start": max_event_start,
-            "min_value": min_value,
-            "max_value": max_value,
-            "mean_value": mean_value,
-            "sum_values": sum_values,
-            "count_values": count_values,
+            "First event start": first_event_start,
+            "Last event end": last_event_end,
+            "Min value": min_value,
+            "Max value": max_value,
+            "Mean value": mean_value,
+            "Sum over values": sum_values,
+            "Number of values": count_values,
         }
     return stats
 

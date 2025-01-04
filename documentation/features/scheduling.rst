@@ -36,9 +36,10 @@ The flex-context
 -----------------
 
 The ``flex-context`` is independent of the type of flexible device that is optimized.
-With the flexibility context, we aim to describe the system in which the flexible assets operate.
+With the flexibility context, we aim to describe the system in which the flexible assets operate, such as its physical and contractual limitations.
 
-The full list of flex-context fields is as follows:
+The full list of flex-context fields follows below.
+For more details on the possible formats for field values, see :ref:`variable_quantities`.
 
 
 .. list-table::
@@ -50,7 +51,8 @@ The full list of flex-context fields is as follows:
      - Description 
    * - ``inflexible-device-sensors``
      - ``[3,4]``
-     - Power sensors that are relevant, but not flexible, such as a sensor recording rooftop solar power connected behind the main meter, whose production falls under the same contract as the flexible device(s) being scheduled. Their power demand cannot be adjusted but still matters for finding the best schedule for other devices. Must be a list of integers.
+     - Power sensors that are relevant, but not flexible, such as a sensor recording rooftop solar power connected behind the main meter, whose production falls under the same contract as the flexible device(s) being scheduled.
+       Their power demand cannot be adjusted but still matters for finding the best schedule for other devices. Must be a list of integers.
    * - ``consumption-price``
      - ``{"sensor": 5}``
        or
@@ -60,29 +62,63 @@ The full list of flex-context fields is as follows:
      - ``{"sensor": 6}``
        or
        ``"0.12 EUR/kWh"``
-     - The price of producing energy. Can be (a sensor recording) market prices, but also CO₂ intensity - whatever fits your optimization problem. (This field replaced the ``production-price-sensor`` field. [#old_sensor_field]_)
+     - The price of producing energy.
+       Can be (a sensor recording) market prices, but also CO₂ intensity - whatever fits your optimization problem, as long as the unit matches the ``consumption-price`` unit. (This field replaced the ``production-price-sensor`` field. [#old_sensor_field]_)
    * - ``site-power-capacity``
-     - ``"45kW"``
+     - ``"45kVA"``
      - Maximum achievable power at the grid connection point, in either direction [#asymmetric]_ (defaults to the Asset attribute ``capacity_in_mw``).
+       Becomes a hard constraint in the optimization problem, which is especially suitable for physical limitations. [#minimum_capacity_overlap]_
    * - ``site-consumption-capacity``
      - ``"45kW"``
-     - Maximum consumption power at the grid connection point [#consumption]_ (defaults to the Asset attribute ``consumption_capacity_in_mw``). If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-consumption-capacity`` will be used.
+     - Maximum consumption power at the grid connection point (defaults to the Asset attribute ``consumption_capacity_in_mw``).
+       If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-consumption-capacity`` will be used. [#consumption]_
+       If a ``site-consumption-breach-price`` is defined, the ``site-consumption-capacity`` becomes a soft constraint in the optimization problem.
+       Otherwise, it becomes a hard constraint. [#minimum_capacity_overlap]_
+   * - ``site-consumption-breach-price``
+     - ``"1000 EUR/kW"``
+     - The price of breaching the ``site-consumption-capacity``, useful to treat ``site-consumption-capacity`` as a soft constraint but still make the scheduler attempt to respect it.
+       Can be (a sensor recording) contractual penalties, but also a theoretical penalty just to allow the scheduler to breach the consumption capacity, while influencing how badly breaches should be avoided.
+       The price is applied both to the largest breach in the planning window and to each breach that occurs. [#penalty_field]_
    * - ``site-production-capacity``
      - ``"0kW"``
-     - Maximum production power at the grid connection point [#production]_ (defaults to the Asset attribute ``production_capacity_in_mw``). If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-production-capacity`` will be used.
+     - Maximum production power at the grid connection point (defaults to the Asset attribute ``production_capacity_in_mw``).
+       If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-production-capacity`` will be used. [#production]_
+       If a ``site-production-breach-price`` is defined, the ``site-production-capacity`` becomes a soft constraint in the optimization problem.
+       Otherwise, it becomes a hard constraint. [#minimum_capacity_overlap]_
+   * - ``site-production-breach-price``
+     - ``"1000 EUR/kW"``
+     - The price of breaching the ``site-production-capacity``, useful to treat ``site-production-capacity`` as a soft constraint but still make the scheduler attempt to respect it.
+       Can be (a sensor recording) contractual penalties, but also a theoretical penalty just to allow the scheduler to breach the production capacity, while influencing how badly breaches should be avoided.
+       The price is applied both to the largest breach in the planning window and to each breach that occurs. [#penalty_field]_
+   * - ``site-peak-consumption``
+     - ``{"sensor": 7}``
+     - Current peak consumption.
+       Costs from peaks below it are considered sunk costs. Default to 0 kW.
+   * - ``site-peak-consumption-price``
+     - ``"260 EUR/MWh"``
+     - Consumption peaks above the ``site-peak-consumption`` are penalized against this per-kW price. [#penalty_field]_
+   * - ``site-peak-production``
+     - ``{"sensor": 8}``
+     - Current peak production.
+       Costs from peaks below it are considered sunk costs. Default to 0 kW.
+   * - ``site-peak-production-price``
+     - ``"260 EUR/MWh"``
+     - Production peaks above the ``site-peak-production`` are penalized against this per-kW price. [#penalty_field]_
 
 .. [#old_sensor_field] The old field only accepted an integer (sensor ID).
 
 .. [#asymmetric] ``site-consumption-capacity`` and ``site-production-capacity`` allow defining asymmetric contracted transport capacities for each direction (i.e. production and consumption).
 
+.. [#minimum_capacity_overlap] In case this capacity field defines partially overlapping time periods, the minimum value is selected. See :ref:`variable_quantities`.
+
 .. [#consumption] Example: with a connection capacity (``site-power-capacity``) of 1 MVA (apparent power) and a consumption capacity (``site-consumption-capacity``) of 800 kW (active power), the scheduler will make sure that the grid outflow doesn't exceed 800 kW.
+
+.. [#penalty_field] Prices must share the same currency. Negative prices are not allowed (penalties only).
 
 .. [#production] Example: with a connection capacity (``site-power-capacity``) of 1 MVA (apparent power) and a production capacity (``site-production-capacity``) of 400 kW (active power), the scheduler will make sure that the grid inflow doesn't exceed 400 kW.
 
 .. note:: If no (symmetric, consumption and production) site capacity is defined (also not as defaults), the scheduler will not enforce any bound on the site power.
           The flexible device can still have its own power limit defined in its flex-model.
-
-For more details on the possible formats for field values, see :ref:`variable_quantities`.
 
 
 .. _flex_models_and_schedulers:
@@ -114,7 +150,8 @@ You can do a lot with this ― examples for storage devices are:
 The ``flex-model`` for storage devices describes to the scheduler what the flexible asset's state is,
 and what constraints or preferences should be taken into account.
 
-The full list of flex-model fields for the storage scheduler is as follows:
+The full list of flex-model fields for the storage scheduler follows below.
+For more details on the possible formats for field values, see :ref:`variable_quantities`.
 
 .. list-table::
    :header-rows: 1
@@ -139,10 +176,10 @@ The full list of flex-model fields for the storage scheduler is as follows:
      - A constant upper boundary for all values in the schedule (defaults to max soc target, if provided). [#quantity_field]_
    * - ``soc-minima``
      - ``[{"datetime": "2024-02-05T08:00:00+01:00", value: "8.2 kWh"}]``
-     - Set points that form lower boundaries, e.g. to target a full car battery in the morning (defaults to NaN values).
+     - Set points that form lower boundaries, e.g. to target a full car battery in the morning (defaults to NaN values). [#maximum_overlap]_
    * - ``soc-maxima``
      - ``{"value": "51 kWh", "start": "2024-02-05T12:00:00+01:00", "end": "2024-02-05T13:30:00+01:00"}``
-     - Set points that form upper boundaries at certain times (defaults to NaN values).
+     - Set points that form upper boundaries at certain times (defaults to NaN values). [#minimum_overlap]_
    * - ``soc-targets``
      - ``[{"datetime": "2024-02-05T08:00:00+01:00", value: "3.2 kWh"}]``
      - Exact set point(s) that the scheduler needs to realize (defaults to NaN values).
@@ -169,15 +206,19 @@ The full list of flex-model fields for the storage scheduler is as follows:
      - Tie-breaking policy to apply if conditions are stable (defaults to True, which also signals a preference to discharge later). Boolean option only.
    * - ``power-capacity``
      - ``50kW``
-     - Device-level power constraint. How much power can be applied to this asset (defaults to the Sensor attribute ``capacity_in_mw``).
+     - Device-level power constraint. How much power can be applied to this asset (defaults to the Sensor attribute ``capacity_in_mw``). [#minimum_overlap]_
    * - ``consumption-capacity``
      - ``{"sensor": 56}``
-     - Device-level power constraint on consumption. How much power can be drawn by this asset.
+     - Device-level power constraint on consumption. How much power can be drawn by this asset. [#minimum_overlap]_
    * - ``production-capacity``
      - ``0kW`` (only consumption)
-     - Device-level power constraint on production. How much power can be supplied by this asset.
+     - Device-level power constraint on production. How much power can be supplied by this asset. [#minimum_overlap]_
 
 .. [#quantity_field] Can only be set as a fixed quantity.
+
+.. [#maximum_overlap] In case this field defines partially overlapping time periods, the maximum value is selected. See :ref:`variable_quantities`.
+
+.. [#minimum_overlap] In case this field defines partially overlapping time periods, the minimum value is selected. See :ref:`variable_quantities`.
 
 .. [#storage_efficiency] The storage efficiency (e.g. 95% or 0.95) to use for the schedule is applied over each time step equal to the sensor resolution. For example, a storage efficiency of 95 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of :math:`0.95^{1/24} = 0.997865`.
 

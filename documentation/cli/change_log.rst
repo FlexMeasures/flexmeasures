@@ -4,14 +4,18 @@
 FlexMeasures CLI Changelog
 **********************
 
-since v.0.22.0 | June 29, 2024
+since v0.24.0 | October XX, 2024
 =================================
 
+* ``flexmeasures show beliefs`` shows datetime values on x-axis labels.
+* ``flexmeasures add sensor`` no longer requires the ``capacity_in_mw`` attribute to be set for power sensors.
+
+since v0.22.0 | June 29, 2024
+=================================
 
 * Add ``--resolution`` option to ``flexmeasures show chart`` to produce charts in different time resolutions.
 
-
-since v.0.21.0 | April 16, 2024
+since v0.21.0 | April 16, 2024
 =================================
 
 * Include started, deferred and scheduled jobs in the overview printed by the CLI command ``flexmeasures jobs show-queues``.

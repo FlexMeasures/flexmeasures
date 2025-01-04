@@ -18,7 +18,10 @@ from flexmeasures.data.models.planning.storage import (
     build_device_soc_values,
 )
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
-from flexmeasures.data.models.planning.tests.utils import check_constraints
+from flexmeasures.data.models.planning.tests.utils import (
+    check_constraints,
+    get_sensors_from_db,
+)
 from flexmeasures.data.models.planning.utils import initialize_series, initialize_df
 from flexmeasures.data.schemas.sensors import TimedEventSchema
 from flexmeasures.utils.calculations import (
@@ -27,6 +30,8 @@ from flexmeasures.utils.calculations import (
 )
 from flexmeasures.tests.utils import get_test_sensor
 from flexmeasures.utils.unit_utils import convert_units, ur
+
+from pyomo.environ import value
 
 TOLERANCE = 0.00001
 
@@ -86,11 +91,11 @@ def test_battery_solver_day_1(
         resolution,
         flex_model={"soc-at-start": soc_at_start},
         flex_context={
-            "inflexible-device-sensors": [
-                s.id for s in add_inflexible_device_forecasts.keys()
-            ]
-            if use_inflexible_device
-            else [],
+            "inflexible-device-sensors": (
+                [s.id for s in add_inflexible_device_forecasts.keys()]
+                if use_inflexible_device
+                else []
+            ),
             "site-power-capacity": "2 MW",
         },
     )
@@ -225,17 +230,13 @@ def run_test_charge_discharge_sign(
         soc_at_start,
         device_constraints,
         ems_constraints,
-        commitment_quantities,
-        commitment_downwards_deviation_price,
-        commitment_upwards_deviation_price,
+        commitments,
     ) = scheduler._prepare(skip_validation=True)
 
     _, _, results, model = device_scheduler(
         device_constraints,
         ems_constraints,
-        commitment_quantities,
-        commitment_downwards_deviation_price,
-        commitment_upwards_deviation_price,
+        commitments=commitments,
         initial_stock=soc_at_start * (timedelta(hours=1) / resolution),
     )
 
@@ -455,7 +456,7 @@ def test_fallback_to_unsolvable_problem(
     soc_targets = initialize_series(np.nan, start, end, resolution, inclusive="right")
     soc_targets.loc[target_soc_datetime] = target_soc
     kwargs = {
-        "sensor": charging_station,
+        "asset_or_sensor": charging_station,
         "start": start,
         "end": end,
         "resolution": resolution,
@@ -614,9 +615,9 @@ def test_building_solver_day_2(
     capacity["battery consumption headroom"] = capacity["consumption headroom"].clip(
         upper=battery.get_attribute("capacity_in_mw")
     )
-    capacity[
-        "schedule"
-    ] = schedule.values  # consumption is positive, production is negative
+    capacity["schedule"] = (
+        schedule.values
+    )  # consumption is positive, production is negative
     with pd.option_context(
         "display.max_rows", None, "display.max_columns", None, "display.width", 2000
     ):
@@ -1019,19 +1020,6 @@ def test_infeasible_problem_error(db, add_battery_assets):
         compute_schedule(flex_model)
 
 
-def get_sensors_from_db(
-    db, battery_assets, battery_name="Test battery", power_sensor_name="power"
-):
-    # get the sensors from the database
-    epex_da = get_test_sensor(db)
-    battery = [
-        s for s in battery_assets[battery_name].sensors if s.name == power_sensor_name
-    ][0]
-    assert battery.get_attribute("market_id") == epex_da.id
-
-    return epex_da, battery
-
-
 def test_numerical_errors(app_with_each_solver, setup_planning_test_data, db):
     """Test that a soc-target = soc-max can exceed this value due to numerical errors in the operations
     to compute the device constraint DataFrame.
@@ -1083,17 +1071,13 @@ def test_numerical_errors(app_with_each_solver, setup_planning_test_data, db):
         soc_at_start,
         device_constraints,
         ems_constraints,
-        commitment_quantities,
-        commitment_downwards_deviation_price,
-        commitment_upwards_deviation_price,
+        commitments,
     ) = scheduler._prepare(skip_validation=True)
 
     _, _, results, model = device_scheduler(
         device_constraints,
         ems_constraints,
-        commitment_quantities,
-        commitment_downwards_deviation_price,
-        commitment_upwards_deviation_price,
+        commitments=commitments,
         initial_stock=soc_at_start * (timedelta(hours=1) / resolution),
     )
 
@@ -1265,9 +1249,7 @@ def test_capacity(
         soc_at_start,
         device_constraints,
         ems_constraints,
-        commitment_quantities,
-        commitment_downwards_deviation_price,
-        commitment_upwards_deviation_price,
+        commitments,
     ) = scheduler._prepare(skip_validation=True)
 
     assert all(device_constraints[0]["derivative min"] == -expected_capacity)
@@ -2236,3 +2218,273 @@ def test_battery_storage_with_time_series_in_flex_model(
         assert schedule[4:].sum() * 0.25 == pytest.approx(-0.75)
     else:
         assert schedule[4:].sum() * 0.25 == pytest.approx(-0.85)
+
+
+def test_unavoidable_capacity_breach():
+    """Check our ability to limit a capacity breach.
+
+    We want to check two behaviours:
+    1) The breach should be as small as possible (i.e. flattened from the top).
+    2) The breach should not be repeated if that can be avoided (i.e. no taking advantage of created slacks).
+    """
+    start = pd.Timestamp("2020-01-01T00:00:00+01")
+    end = pd.Timestamp("2020-01-02T00:00:00+01")
+    resolution = timedelta(hours=1)
+    soc_at_start = 0.4
+    soc_max = 1
+    soc_min = 0
+    power_capacity = 0.1
+
+    # This target means we must breach the consumption capacity (from 0.1 to 0.2)
+    soc_target = 0.6
+    soc_target_datetime = pd.Timestamp("2020-01-01T01:00:00+01")
+
+    device_constraints = [
+        initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
+    ]
+    ems_constraints = initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
+    empty_commitment = initialize_df(
+        [
+            "quantity",
+            "downwards deviation price",
+            "upwards deviation price",
+            "group",
+        ],
+        start,
+        end,
+        resolution,
+    )
+    commitments = []
+    commitments.append(empty_commitment.copy())
+
+    device_constraints[0]["max"] = soc_max - soc_at_start
+    device_constraints[0]["min"] = soc_min - soc_at_start
+    device_constraints[0]["derivative max"] = 1
+    device_constraints[0]["derivative min"] = -1
+
+    slope = np.arange(0, len(commitments[0])) / (len(commitments[0]) - 1)
+
+    # Introduce an amazing chance to consume without costs
+    slope[10] = -100
+
+    # Day Ahead market commitment
+    commitments[0]["quantity"] = 0
+    commitments[0]["downwards deviation price"] = 90 + slope
+    commitments[0]["upwards deviation price"] = 100 + slope
+    # `len(commitments[0])` is the number of time slots. Each slot is part of a unique group.
+    commitments[0]["group"] = list(range(len(commitments[0])))
+
+    # Consumption Capacity Breach Commitment (1 group, so penalized once)
+    commitments.append(empty_commitment.copy())
+    commitments[-1]["quantity"] = power_capacity
+    # positive price because breaching in the upwards (consumption) direction is penalized
+    commitments[-1]["upwards deviation price"] = 1000
+    # todo: also allow None values to model a one-sided commitment
+    commitments[-1]["downwards deviation price"] = np.nan
+    commitments[-1]["group"] = 1
+
+    def run_scheduler(device_constraints):
+        _, _, results, model = device_scheduler(
+            device_constraints,
+            ems_constraints,
+            commitments=commitments,
+            initial_stock=soc_at_start,
+        )
+        print(results.solver.termination_condition)
+
+        schedule = initialize_series(
+            data=[model.ems_power[0, j].value for j in model.j],
+            start=start,
+            end=end,
+            resolution=resolution,
+        )
+        print(schedule)
+        return schedule, results
+
+    schedule, results = run_scheduler(device_constraints)
+
+    # Discharge the whole battery, right at the end
+    assert np.isclose(sum(schedule), -0.4)
+    assert np.isclose(schedule.values[-1], -0.5)
+    # Take advantage of the free consumption
+    assert np.isclose(schedule.values[10], 0.1)
+    # Do nothing otherwise
+    assert all(np.isclose(schedule.values[:10], 0))
+    assert all(np.isclose(schedule.values[11:-1], 0))
+
+    targets = initialize_series(None, start, end, resolution)
+    targets[soc_target_datetime] = soc_target
+    # device_constraints[0]["equals"] = targets - soc_at_start
+
+    # Convert SoC datetimes to periods with a start and end.
+    soc_values = [{"datetime": soc_target_datetime, "value": soc_target}]
+    for soc in soc_values:
+        TimedEventSchema().check_time_window(soc)
+    device_constraints[0]["equals"] = build_device_soc_values(
+        soc_values=soc_values,
+        soc_at_start=soc_at_start,
+        start_of_schedule=start,
+        end_of_schedule=end,
+        resolution=resolution,
+    )
+
+    schedule, results = run_scheduler(device_constraints)
+
+    # Discharge the whole battery
+    assert np.isclose(max(schedule), 0.2)  # this is the breach
+    # the breach should happen twice:
+    # - once for reaching the SoC target, and
+    # - once for exploiting the slack that was created for reaching the SoC target
+    assert len(schedule[np.isclose(schedule, 0.2)]) == 2
+    assert np.isclose(sum(schedule), -0.4)
+    # Reach the target (from 0.4 to 0.6)
+    assert np.isclose(schedule.values[0], 0.2)
+    # Take (too much) advantage of the free consumption
+    assert np.isclose(schedule.values[10], 0.2)
+    # Do nothing otherwise
+    assert all(np.isclose(schedule.values[1:10], 0))
+    assert all(np.isclose(schedule.values[11:-1], 0))
+
+    # Consumption Capacity Breach Commitment (n groups, so penalized with every breach)
+    commitments.append(empty_commitment.copy())
+    commitments[-1]["quantity"] = power_capacity
+    # positive price because breaching in the upwards (consumption) direction is penalized
+    commitments[-1]["upwards deviation price"] = 1000
+    # todo: also allow None values to model a one-sided commitment
+    commitments[-1]["downwards deviation price"] = np.nan
+    commitments[-1]["group"] = list(range(len(commitments[0])))
+
+    schedule, results = run_scheduler(device_constraints)
+
+    # Discharge the whole battery
+    assert np.isclose(max(schedule), 0.2)  # this is the breach
+    # the breach should now happen only once, for reaching the SoC target
+    assert len(schedule[np.isclose(schedule, 0.2)]) == 1
+    assert np.isclose(sum(schedule), -0.4)
+    # Reach the target (from 0.4 to 0.6)
+    assert np.isclose(schedule.values[0], 0.2)
+    # Take advantage of the free consumption
+    assert np.isclose(schedule.values[10], 0.1)
+    # Do nothing otherwise
+    assert all(np.isclose(schedule.values[1:10], 0))
+    assert all(np.isclose(schedule.values[11:-1], 0))
+
+
+def test_multiple_commitments_per_group():
+    """Check draining a battery while expanding the number of commitments:
+
+    1) against increasing prices -> discharge all in the last step
+    2) also with a limited capacity -> discharge as late as possible
+    3) also with peak pricing -> discharge at a constant rate
+    """
+    start = pd.Timestamp("2020-01-01T00:00:00")
+    end = pd.Timestamp("2020-01-02T00:00:00")
+    resolution = timedelta(hours=1)
+    soc_at_start = 0.4
+    soc_max = 1
+    soc_min = 0
+
+    device_constraints = [
+        initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
+    ]
+    ems_constraints = initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
+    empty_commitment = initialize_df(
+        [
+            "quantity",
+            "downwards deviation price",
+            "upwards deviation price",
+            "group",
+        ],
+        start,
+        end,
+        resolution,
+    )
+    commitments = []
+    commitments.append(empty_commitment.copy())
+
+    device_constraints[0]["max"] = soc_max - soc_at_start
+    device_constraints[0]["min"] = soc_min - soc_at_start
+    device_constraints[0]["derivative max"] = 1
+    device_constraints[0]["derivative min"] = -1
+
+    slope = np.arange(0, len(commitments[0])) / (len(commitments[0]) - 1)
+
+    # Day Ahead market commitment
+    commitments[0]["quantity"] = 0
+    commitments[0]["downwards deviation price"] = 90 + slope
+    commitments[0]["upwards deviation price"] = 100 + slope
+    commitments[0]["group"] = list(range(len(commitments[0])))
+
+    def run_scheduler():
+        _, _, results, model = device_scheduler(
+            device_constraints,
+            ems_constraints,
+            commitments=commitments,
+            initial_stock=soc_at_start,
+        )
+        print(results.solver.termination_condition)
+
+        schedule = initialize_series(
+            data=[model.ems_power[0, j].value for j in model.j],
+            start=start,
+            end=end,
+            resolution=resolution,
+        )
+        print(schedule)
+        costs = value(model.costs)
+        commitment_costs = model.commitment_costs
+        return schedule, results, costs, commitment_costs
+
+    schedule, results, costs, commitment_costs = run_scheduler()
+
+    # Discharge the whole battery
+    assert np.isclose(sum(schedule), -0.4)
+    assert np.isclose(schedule.values[-1], -0.4)
+
+    # Check costs
+    assert costs == -36.4
+
+    # Production Capacity Breach Commitment
+    commitments.append(empty_commitment.copy())
+    commitments[-1]["quantity"] = -0.1
+    # negative price because breaching in the downwards (production) direction is penalized
+    commitments[-1]["downwards deviation price"] = -1000
+    # positive price because breaching in the upwards (consumption) direction is penalized
+    # todo: also allow None values to model a one-sided commitment
+    commitments[-1]["upwards deviation price"] = np.nan
+    commitments[-1]["group"] = 1
+
+    schedule, results, costs, commitment_costs = run_scheduler()
+
+    # Discharge the whole battery
+    assert np.isclose(sum(schedule), -0.4)
+    assert all(np.isclose(schedule.values[-4:], [-0.1, -0.1, -0.1, -0.1]))
+
+    # Check costs
+    assert costs == (commitments[0]["downwards deviation price"][-4:] * -0.1).sum()
+
+    # Peak Power Commitment
+    commitments.append(empty_commitment.copy())
+    commitments[-1]["quantity"] = 0
+    # negative price because peaking in the downwards (production) direction is penalized
+    commitments[-1]["downwards deviation price"] = -80
+    # positive price because breaching in the upwards (consumption) direction is penalized
+    commitments[-1]["upwards deviation price"] = 80
+    commitments[-1]["group"] = 1
+
+    schedule, results, costs, commitment_costs = run_scheduler()
+
+    # Discharge the whole battery
+    assert np.isclose(sum(schedule), -0.4)
+    assert all(np.isclose(schedule.values, [-0.4 / len(schedule)] * len(schedule)))
+
+    # Check costs
+    cost_of_energy = (
+        commitments[0]["downwards deviation price"] * (-0.4 / len(schedule))
+    ).sum()
+    cost_of_energy_peak = -80 * -0.4 / len(schedule)
+    expected_cost = cost_of_energy + cost_of_energy_peak
+    assert costs == pytest.approx(expected_cost)
+
+    assert len(commitment_costs) == len(commitments)
+    assert sum(commitment_costs.values()) == pytest.approx(expected_cost)

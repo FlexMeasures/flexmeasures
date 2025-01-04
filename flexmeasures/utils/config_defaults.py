@@ -132,6 +132,7 @@ class Config(object):
         # todo: expand with other js versions used in FlexMeasures
     )
     FLEXMEASURES_JSON_COMPACT = False
+    JSON_SORT_KEYS = False
 
     FLEXMEASURES_FALLBACK_REDIRECT: bool = False
 
@@ -188,7 +189,6 @@ class DevelopmentConfig(Config):
     # PRESERVE_CONTEXT_ON_EXCEPTION: bool = False  # might need this to make our transaction handling work in debug mode
     FLEXMEASURES_MODE: str = "development"
     FLEXMEASURES_PROFILE_REQUESTS: bool = True
-    FLEXMEASURES_JSON_COMPACT = False
 
 
 class TestingConfig(Config):
