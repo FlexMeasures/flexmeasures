@@ -722,6 +722,9 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
             most_recent_beliefs_only=most_recent_beliefs_only,
             most_recent_events_only=most_recent_events_only,
             most_recent_only=most_recent_only,
+            one_deterministic_belief_per_event=one_deterministic_belief_per_event,
+            one_deterministic_belief_per_event_per_source=one_deterministic_belief_per_event_per_source,
+            resolution=resolution,
             custom_filter_criteria=source_criteria,
             custom_join_targets=custom_join_targets,
         )
@@ -787,13 +790,13 @@ def search_wrapper(
     session = Session()
     search_kwargs["session"] = session
 
-    one_deterministic_belief_per_event = search_kwargs.get(
-        "one_deterministic_belief_per_event"
+    one_deterministic_belief_per_event = search_kwargs.pop(
+        "one_deterministic_belief_per_event", None
     )
-    one_deterministic_belief_per_event_per_source = search_kwargs.get(
-        "one_deterministic_belief_per_event_per_source"
+    one_deterministic_belief_per_event_per_source = search_kwargs.pop(
+        "one_deterministic_belief_per_event_per_source", None
     )
-    resolution = search_kwargs.get("resolution")
+    resolution = search_kwargs.pop("resolution", None)
     most_recent_beliefs_only = search_kwargs.get("most_recent_beliefs_only")
     event_starts_after = search_kwargs.get("event_starts_after")
     event_ends_before = search_kwargs.get("event_ends_before")
@@ -823,6 +826,8 @@ def search_wrapper(
             resolution, keep_only_most_recent_belief=most_recent_beliefs_only
         )
         # Workaround (2nd half) for https://github.com/FlexMeasures/flexmeasures/issues/484
-        bdf = bdf[bdf.event_starts >= event_starts_after]
-        bdf = bdf[bdf.event_ends <= event_ends_before]
+        if event_starts_after is not None:
+            bdf = bdf[bdf.event_starts >= event_starts_after]
+        if event_ends_before is not None:
+            bdf = bdf[bdf.event_ends <= event_ends_before]
     return bdf.sensor, bdf
