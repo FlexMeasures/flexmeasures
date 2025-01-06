@@ -4,7 +4,7 @@ FlexMeasures Changelog
 **********************
 
 
-v0.24.0 | October XX, 2024
+v0.24.0 | January 6, 2024
 ============================
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
