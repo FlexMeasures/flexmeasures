@@ -4,7 +4,7 @@ FlexMeasures Changelog
 **********************
 
 
-v0.24.0 | January 6, 2024
+v0.24.0 | January 7, 2025
 ============================
 
 .. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/024-more-expressive-congestion-modeling-data-dashboards/>`_.
