@@ -4,7 +4,20 @@ FlexMeasures Changelog
 **********************
 
 
-v0.24.0 | January 6, 2024
+v0.25.0 | February XX, 2025
+============================
+
+New features
+-------------
+
+Infrastructure / Support
+----------------------
+
+Bugfixes
+-----------
+
+
+v0.24.0 | January 7, 2025
 ============================
 
 .. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/024-more-expressive-congestion-modeling-data-dashboards/>`_.
@@ -40,7 +53,7 @@ Infrastructure / Support
 Bugfixes
 -----------
 * Fix table sorting on the assets, accounts and users page (regression from `PR #988 <https://github.com/FlexMeasures/flexmeasures/pull/988>`_) [see `PR #1239 <https://github.com/FlexMeasures/flexmeasures/pull/1239>`_, `PR #1242 <https://github.com/FlexMeasures/flexmeasures/pull/1242>`_, `PR #1248 <https://github.com/FlexMeasures/flexmeasures/pull/1248>`_, `PR #1247 <https://github.com/FlexMeasures/flexmeasures/pull/1247>`_ and `PR #1272 <https://github.com/FlexMeasures/flexmeasures/pull/1272>`_]
-* Fix `flexmeasures delete measurements` and `flexmeasures delete prognoses` which had an error in counting affected rows after SQLAlchemy2.0 upgrade [see `PR #1095 <https://github.com/FlexMeasures/flexmeasures/pull/1095>`_ and `PR #1303 <https://github.com/FlexMeasures/flexmeasures/pull/1303>`_]
+* Fix ``flexmeasures delete measurements`` and ``flexmeasures delete prognoses`` which had an error in counting affected rows after SQLAlchemy2.0 upgrade [see `PR #1095 <https://github.com/FlexMeasures/flexmeasures/pull/1095>`_ and `PR #1303 <https://github.com/FlexMeasures/flexmeasures/pull/1303>`_]
 * Fix asset count on the user page, which showed 0 assets after (de)activating a user or resetting their password [see `PR #1251 <https://github.com/FlexMeasures/flexmeasures/pull/1251>`_]
 * The UI footer now stays at the bottom even on pages with little content [see `PR #1204 <https://github.com/FlexMeasures/flexmeasures/pull/1204>`_]
 * Correct stroke dash (based on source type) for forecasts made by forecasters included in FlexMeasures [see `PR #1211 <https://www.github.com/FlexMeasures/flexmeasures/pull/1211>`_]
