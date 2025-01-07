@@ -173,8 +173,6 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             return getattr(self, attribute)
         if attribute in self.attributes:
             return self.attributes[attribute]
-        if hasattr(self.generic_asset, attribute):
-            return getattr(self.generic_asset, attribute)
         return self.generic_asset.get_attribute(attribute, default)
 
     def has_attribute(self, attribute: str) -> bool:

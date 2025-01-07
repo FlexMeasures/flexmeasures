@@ -369,6 +369,8 @@ class GenericAsset(db.Model, AuthModelMixin):
         )
 
     def get_attribute(self, attribute: str, default: Any = None):
+        if hasattr(self, attribute):
+            return getattr(self, attribute)
         if attribute in self.attributes:
             return self.attributes[attribute]
         return default
