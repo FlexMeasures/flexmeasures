@@ -52,7 +52,7 @@ class PandasReporter(Reporter):
         input: dict,
         resolution: timedelta | None = None,
         belief_time: datetime | None = None,
-        use_latest_version_only: bool = False,
+        use_latest_version_only: bool = True,
     ):
         """
         Fetches the time_beliefs from the database
