@@ -161,7 +161,7 @@ def test_source_transition(setup_dummy_data, db):
     From 12:00 to 24:00, there are events belonging to Source 2 with value -1.
 
     We expect the reporter to use only the values defined in the `sources` array in the `input` field.
-    In case of encountering more that one source per event, the first source defined in the sources
+    In case of encountering more than one source per event, the first source defined in the sources
     array is prioritized.
 
     """
