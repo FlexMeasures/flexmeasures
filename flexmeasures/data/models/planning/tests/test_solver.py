@@ -2488,3 +2488,90 @@ def test_multiple_commitments_per_group():
 
     assert len(commitment_costs) == len(commitments)
     assert sum(commitment_costs.values()) == pytest.approx(expected_cost)
+
+
+def test_multiple_devices():
+    """Check draining a battery while expanding the number of commitments:
+
+    1) against increasing prices -> discharge all in the last step
+    2) also with a limited capacity -> discharge as late as possible
+    3) also with peak pricing -> discharge at a constant rate
+    """
+    start = pd.Timestamp("2020-01-01T00:00:00")
+    end = pd.Timestamp("2020-01-02T00:00:00")
+    resolution = timedelta(hours=1)
+    soc_at_start = 0.4
+    soc_max = 1
+    soc_min = 0
+
+    device_constraints = [
+        initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
+    ]
+    ems_constraints = initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
+    empty_commitment = initialize_df(
+        [
+            "quantity",
+            "downwards deviation price",
+            "upwards deviation price",
+            "group",
+        ],
+        start,
+        end,
+        resolution,
+    )
+    commitments = []
+    commitments.append(empty_commitment.copy())
+
+    device_constraints[0]["max"] = soc_max - soc_at_start
+    device_constraints[0]["min"] = soc_min - soc_at_start
+    device_constraints[0]["derivative max"] = 1
+    device_constraints[0]["derivative min"] = -1
+
+    slope = np.arange(0, len(commitments[0])) / (len(commitments[0]) - 1)
+
+    # Day Ahead market commitment
+    commitments[0]["quantity"] = 0
+    commitments[0]["downwards deviation price"] = 90 + slope
+    commitments[0]["upwards deviation price"] = 100 + slope
+    commitments[0]["group"] = list(range(len(commitments[0])))
+
+    def run_scheduler():
+        _, _, results, model = device_scheduler(
+            device_constraints,
+            ems_constraints,
+            commitments=commitments,
+            initial_stock=soc_at_start,
+        )
+        print(results.solver.termination_condition)
+
+        schedule = initialize_series(
+            data=[model.ems_power[0, j].value for j in model.j],
+            start=start,
+            end=end,
+            resolution=resolution,
+        )
+        print(schedule)
+        costs = value(model.costs)
+        commitment_costs = model.commitment_costs
+        return schedule, results, costs, commitment_costs
+
+    schedule, results, costs, commitment_costs = run_scheduler()
+
+    # Discharge the whole battery
+    assert np.isclose(sum(schedule), -0.4)
+    assert np.isclose(schedule.values[-1], -0.4)
+
+    # Check costs
+    assert costs == -36.4
+
+    # Production Capacity Breach Commitment
+    commitments.append(empty_commitment.copy())
+    commitments[-1]["quantity"] = -0.1
+    # negative price because breaching in the downwards (production) direction is penalized
+    commitments[-1]["downwards deviation price"] = -1000
+    # positive price because breaching in the upwards (consumption) direction is penalized
+    # todo: also allow None values to model a one-sided commitment
+    commitments[-1]["upwards deviation price"] = np.nan
+    commitments[-1]["group"] = 1
+
+    schedule, results, costs, commitment_costs = run_scheduler()
