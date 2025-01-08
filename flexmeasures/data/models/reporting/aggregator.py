@@ -44,7 +44,7 @@ class AggregatorReporter(Reporter):
         """
 
         method: str = self._config.get("method")
-        weights: list = self._config.get("weights", {})
+        weights: dict = self._config.get("weights", {})
 
         dataframes = []
 
