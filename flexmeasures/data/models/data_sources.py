@@ -390,8 +390,4 @@ def keep_latest_version(data_sources: list[DataSource]) -> list[DataSource]:
                 key=lambda x: Version(x.version if x.version else "0.0.0"),
             )
 
-    last_version_sources = []
-    for source in sources.values():
-        last_version_sources.append(source)
-
-    return last_version_sources
+    return list(sources.values())
