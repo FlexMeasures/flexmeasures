@@ -37,8 +37,8 @@ def device_scheduler(  # noqa C901
     device_upwards_price: list[pd.Series],
     device_future_reward: list[float],
     initial_stock: float = 0,
-    ems_flow_relaxation_cost: float
-    | None = None,  # TODO: compute this value based on input data
+    # TODO: compute the ems_flow_relaxation_cost value based on input data
+    ems_flow_relaxation_cost: float | None = None,
     stock_relaxation_cost: float | None = None,
     ems_flow_soft_derivative_cost: float | None = None,
 ) -> tuple[list[pd.Series], float, SolverResults, ConcreteModel]:
