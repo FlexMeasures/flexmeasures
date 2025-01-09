@@ -5,7 +5,6 @@ from typing import Any
 
 import pandas as pd
 
-from flexmeasures.data.models.data_sources import keep_latest_version
 from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.schemas.reporting.aggregation import (
     AggregatorConfigSchema,
@@ -35,7 +34,6 @@ class AggregatorReporter(Reporter):
         output: list[dict[str, Any]],
         resolution: timedelta | None = None,
         belief_time: datetime | None = None,
-        use_latest_version_only: bool = True,
     ) -> list[dict[str, Any]]:
         """
         This method merges all the BeliefDataFrames into a single one, dropping
@@ -60,17 +58,6 @@ class AggregatorReporter(Reporter):
 
             source = input_description.get("source")
             source = input_description.get("sources", source)
-            if use_latest_version_only and source is None:
-                source = sensor.search_data_sources(
-                    event_ends_after=start,
-                    event_starts_before=end,
-                    source_types=input_description.pop("source_types", None),
-                    exclude_source_types=input_description.pop(
-                        "exclude_source_types", None
-                    ),
-                )
-                if len(source) > 0:
-                    source = keep_latest_version(source)
 
             df = sensor.search_beliefs(
                 event_starts_after=start,
