@@ -250,8 +250,7 @@ def setup_dummy_data(db, app, generic_report):
                 source=source2,
             )
         )
-
-    # add a belief belonging to Source 2 in the second half of the day ()
+    # add a belief belonging to Source 1 in the second half of the day
     beliefs.append(
         TimedBelief(
             event_start=datetime(2023, 4, 24, tzinfo=utc) + timedelta(hours=12),
