@@ -416,6 +416,8 @@ def keep_latest_version_in_bdf(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
         A new BeliefsDataFrame containing only the latest version of each source
         for each event_start, with the original index restored.
     """
+    if bdf.empty:
+        return bdf
 
     # Remember the original index, then reset it
     index_levels = bdf.index.names
