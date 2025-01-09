@@ -6,6 +6,7 @@ from typing import Any
 import pandas as pd
 
 from flexmeasures.data.models.reporting import Reporter
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.reporting.aggregation import (
     AggregatorConfigSchema,
     AggregatorParametersSchema,
@@ -50,14 +51,15 @@ class AggregatorReporter(Reporter):
             belief_time = server_now()
 
         for input_description in input:
-            sensor = input_description["sensor"]
+            sensor: Sensor = input_description.pop("sensor", None)
             # if name is not in belief_search_config, using the Sensor id instead
-            column_name = input_description.get(
-                "name", f"sensor_{input_description['sensor'].id}"
-            )
+            column_name = input_description.get("name", f"sensor_{sensor.id}")
 
-            source = input_description.get("source")
-            source = input_description.get("sources", source)
+            source = input_description.pop(
+                "source", input_description.pop("sources", None)
+            )
+            if source is not None and not isinstance(source, list):
+                source = [source]
 
             df = sensor.search_beliefs(
                 event_starts_after=start,
@@ -66,6 +68,7 @@ class AggregatorReporter(Reporter):
                 beliefs_before=belief_time,
                 source=source,
                 one_deterministic_belief_per_event=True,
+                **input_description,
             )
 
             # found multiple sources in the beliefs of df but no source is specified
