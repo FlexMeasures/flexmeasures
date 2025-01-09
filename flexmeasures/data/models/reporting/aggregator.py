@@ -53,7 +53,7 @@ class AggregatorReporter(Reporter):
         for input_description in input:
             sensor: Sensor = input_description.pop("sensor", None)
             # if name is not in belief_search_config, using the Sensor id instead
-            column_name = input_description.get("name", f"sensor_{sensor.id}")
+            column_name = input_description.pop("name", f"sensor_{sensor.id}")
 
             source = input_description.pop(
                 "source", input_description.pop("sources", None)
