@@ -4,6 +4,7 @@ import json
 from typing import TYPE_CHECKING, Any, ClassVar
 from sqlalchemy.ext.mutable import MutableDict
 
+import pandas as pd
 import timely_beliefs as tb
 
 from packaging.version import Version
@@ -391,3 +392,63 @@ def keep_latest_version(data_sources: list[DataSource]) -> list[DataSource]:
             )
 
     return list(sources.values())
+
+
+def keep_latest_version_in_bdf(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
+    """Filters the BeliefsDataFrame to keep the latest version of each source, for each event.
+
+    The function performs the following steps:
+    1. Resets the index to flatten the DataFrame.
+    2. Adds columns for the source's name, type, model, and version.
+    3. Sorts the rows by event_start and source.version in descending order.
+    4. Removes duplicates based on event_start, source.name, source.type, and source.model, keeping the latest version.
+    5. Drops the temporary columns added for source attributes.
+    6. Restores the original index.
+
+    Parameters:
+    -----------
+    bdf : tb.BeliefsDataFrame
+        The input BeliefsDataFrame containing event_start and source information.
+
+    Returns:
+    --------
+    tb.BeliefsDataFrame
+        A new BeliefsDataFrame containing only the latest version of each source
+        for each event_start, with the original index restored.
+    """
+
+    # Remember the original index, then reset it
+    index_levels = bdf.index.names
+    bdf = bdf.reset_index()
+
+    # Add source-related columns using vectorized operations for clarity
+    bdf[["source.name", "source.type", "source.model", "source.version"]] = bdf[
+        "source"
+    ].apply(
+        lambda s: pd.Series(
+            {
+                "source.name": s.name,
+                "source.type": s.type,
+                "source.model": s.model,
+                "source.version": Version(
+                    s.version if s.version is not None else "0.0.0"
+                ),
+            }
+        )
+    )
+
+    # Sort by event_start and version, keeping only the latest version
+    bdf = bdf.sort_values(by=["event_start", "source.version"], ascending=[True, False])
+
+    # Drop duplicates based on event_start and source identifiers, keeping the latest version
+    bdf = bdf.drop_duplicates(
+        ["event_start", "source.name", "source.type", "source.model"]
+    )
+
+    # Remove temporary columns and restore the original index
+    bdf = bdf.drop(
+        columns=["source.name", "source.type", "source.model", "source.version"]
+    )
+    bdf = bdf.set_index(index_levels)
+
+    return bdf

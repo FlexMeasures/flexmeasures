@@ -72,7 +72,21 @@ class AggregatorReporter(Reporter):
             )
 
             # found multiple sources in the beliefs of df but no source is specified
-            if len(df.lineage.sources) > 1 and (source is None or len(source) == 0):
+            unique_sources = df.lineage.sources
+            properties = [
+                "name",
+                "type",
+                "model",
+            ]  # properties to identify different versions of the same source
+            if (
+                len(unique_sources) > 1
+                and not all(
+                    getattr(source, prop) == getattr(unique_sources[0], prop)
+                    for prop in properties
+                    for source in unique_sources
+                )
+                and (source is None or len(source) == 0)
+            ):
                 raise ValueError(
                     "Missing attribute source or sources. The fields `source` or `sources` is required when having multiple sources within the time window."
                 )

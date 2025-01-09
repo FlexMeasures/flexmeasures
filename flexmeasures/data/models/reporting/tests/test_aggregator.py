@@ -225,3 +225,16 @@ def test_source_transition(setup_dummy_data, db):
             output=[dict(sensor=report_sensor)],
             belief_time=tz.localize(datetime(2023, 12, 1)),
         )[0]["data"]
+
+    # the exception to the above is when a new version of the same source recorded a value,
+    # in which case the latest version takes precedence. This happened in the last hour of the day.
+    result = agg_reporter.compute(
+        start=tz.localize(datetime(2023, 4, 24, 18, 0)),
+        end=tz.localize(datetime(2023, 4, 25)),
+        input=[dict(sensor=s3)],
+        output=[dict(sensor=report_sensor)],
+        belief_time=tz.localize(datetime(2023, 12, 1)),
+    )[0]["data"]
+
+    assert (result[:5] == -1).all().event_value  # beliefs from the older version
+    assert (result[5:] == 3).all().event_value  # belief from the latest version

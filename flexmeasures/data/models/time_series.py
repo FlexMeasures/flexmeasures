@@ -17,6 +17,7 @@ import timely_beliefs.utils as tb_utils
 
 from flexmeasures.auth.policy import AuthModelMixin
 from flexmeasures.data import db
+from flexmeasures.data.models.data_sources import keep_latest_version_in_bdf
 from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.data.services.annotations import prepare_annotations_for_chart
 from flexmeasures.data.services.timerange import get_timerange
@@ -649,6 +650,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         user_source_ids: int | list[int] | None = None,
         source_types: list[str] | None = None,
         exclude_source_types: list[str] | None = None,
+        use_latest_version_per_event: bool = True,
         most_recent_beliefs_only: bool = True,
         most_recent_events_only: bool = False,
         most_recent_only: bool = False,
@@ -672,6 +674,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         :param user_source_ids: Optional list of user source ids to query only specific user sources
         :param source_types: Optional list of source type names to query only specific source types *
         :param exclude_source_types: Optional list of source type names to exclude specific source types *
+        :param use_latest_version_per_event: only return the belief from the latest version of a source
         :param most_recent_beliefs_only: only return the most recent beliefs for each event from each source (minimum belief horizon). Defaults to True.
         :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start)
         :param most_recent_only: only return a single belief, the most recent from the most recent event. Fastest method if you only need one.
@@ -732,6 +735,8 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 custom_filter_criteria=source_criteria,
                 custom_join_targets=custom_join_targets,
             )
+            if use_latest_version_per_event:
+                bdf = keep_latest_version_in_bdf(bdf)
             if one_deterministic_belief_per_event:
                 # todo: compute median of collective belief instead of median of first belief (update expected test results accordingly)
                 # todo: move to timely-beliefs: select mean/median belief
