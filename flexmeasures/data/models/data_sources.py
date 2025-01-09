@@ -422,6 +422,12 @@ def keep_latest_version_in_bdf(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
     # Remember the original index, then reset it
     index_levels = bdf.index.names
     bdf = bdf.reset_index()
+    belief_column = "belief_time"
+    if belief_column not in index_levels:
+        belief_column = "belief_horizon"
+    event_column = "event_start"
+    if event_column not in index_levels:
+        event_column = "event_end"
 
     # Add source-related columns using vectorized operations for clarity
     bdf[["source.name", "source.type", "source.model", "source.version"]] = bdf[
@@ -440,11 +446,18 @@ def keep_latest_version_in_bdf(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
     )
 
     # Sort by event_start and version, keeping only the latest version
-    bdf = bdf.sort_values(by=["event_start", "source.version"], ascending=[True, False])
+    bdf = bdf.sort_values(by=[event_column, "source.version"], ascending=[True, False])
 
     # Drop duplicates based on event_start and source identifiers, keeping the latest version
     bdf = bdf.drop_duplicates(
-        ["event_start", "source.name", "source.type", "source.model"]
+        [
+            event_column,
+            belief_column,
+            "cumulative_probability",
+            "source.name",
+            "source.type",
+            "source.model",
+        ]
     )
 
     # Remove temporary columns and restore the original index
