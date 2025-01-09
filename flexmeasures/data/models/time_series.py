@@ -306,6 +306,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         user_source_ids: int | list[int] | None = None,
         source_types: list[str] | None = None,
         exclude_source_types: list[str] | None = None,
+        use_latest_version_per_event: bool = True,
         most_recent_beliefs_only: bool = True,
         most_recent_events_only: bool = False,
         most_recent_only: bool = False,
@@ -328,6 +329,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         :param user_source_ids: Optional list of user source ids to query only specific user sources
         :param source_types: Optional list of source type names to query only specific source types *
         :param exclude_source_types: Optional list of source type names to exclude specific source types *
+        :param use_latest_version_per_event: only return the belief from the latest version of a source
         :param most_recent_beliefs_only: only return the most recent beliefs for each event from each source (minimum belief horizon). Defaults to True.
         :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start). Defaults to False.
         :param most_recent_only: only return a single belief, the most recent from the most recent event. Fastest method if you only need one. Defaults to False. To use, also set most_recent_beliefs_only=False. Use with care when data uses cumulative probability (more than one belief per event_start and horizon).
@@ -349,6 +351,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             user_source_ids=user_source_ids,
             source_types=source_types,
             exclude_source_types=exclude_source_types,
+            use_latest_version_per_event=use_latest_version_per_event,
             most_recent_beliefs_only=most_recent_beliefs_only,
             most_recent_events_only=most_recent_events_only,
             most_recent_only=most_recent_only,
