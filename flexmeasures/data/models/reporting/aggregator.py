@@ -51,7 +51,7 @@ class AggregatorReporter(Reporter):
             belief_time = server_now()
 
         for input_description in input:
-            sensor: Sensor = input_description.pop("sensor", None)
+            sensor: Sensor = input_description.pop("sensor")
             # if name is not in belief_search_config, using the Sensor id instead
             column_name = input_description.pop("name", f"sensor_{sensor.id}")
 
