@@ -14,7 +14,6 @@ from flexmeasures.data.schemas.reporting.pandas_reporter import (
     PandasReporterParametersSchema,
 )
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.models.data_sources import keep_latest_version
 from flexmeasures.utils.time_utils import server_now
 
 
@@ -52,7 +51,7 @@ class PandasReporter(Reporter):
         input: dict,
         resolution: timedelta | None = None,
         belief_time: datetime | None = None,
-        use_latest_version_only: bool = True,
+        use_latest_version_only: bool = False,
     ):
         """
         Fetches the timed_beliefs from the database
@@ -63,6 +62,9 @@ class PandasReporter(Reporter):
         self.data = {}
         for input_search_parameters in input:
             _input_search_parameters = input_search_parameters.copy()
+
+            if use_latest_version_only:
+                _input_search_parameters["use_latest_version_per_event"] = True
 
             sensor: Sensor = _input_search_parameters.pop("sensor", None)
 
@@ -78,18 +80,6 @@ class PandasReporter(Reporter):
             source = _input_search_parameters.pop(
                 "source", _input_search_parameters.pop("sources", None)
             )
-
-            if use_latest_version_only and source is None:
-                source = sensor.search_data_sources(
-                    event_ends_after=start,
-                    event_starts_before=end,
-                    source_types=_input_search_parameters.pop("source_types", None),
-                    exclude_source_types=_input_search_parameters.pop(
-                        "exclude_source_types", None
-                    ),
-                )
-                if len(source) > 0:
-                    source = keep_latest_version(source)
 
             bdf = sensor.search_beliefs(
                 event_starts_after=event_starts_after,
