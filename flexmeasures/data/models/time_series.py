@@ -18,7 +18,7 @@ import timely_beliefs.utils as tb_utils
 
 from flexmeasures.auth.policy import AuthModelMixin
 from flexmeasures.data import db
-from flexmeasures.data.models.data_sources import keep_latest_version_in_bdf
+from flexmeasures.data.models.data_sources import keep_latest_version
 from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.data.services.annotations import prepare_annotations_for_chart
 from flexmeasures.data.services.timerange import get_timerange
@@ -740,7 +740,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 custom_join_targets=custom_join_targets,
             )
             if use_latest_version_per_event:
-                bdf = keep_latest_version_in_bdf(
+                bdf = keep_latest_version(
                     bdf=bdf,
                     one_deterministic_belief_per_event=one_deterministic_belief_per_event,
                 )

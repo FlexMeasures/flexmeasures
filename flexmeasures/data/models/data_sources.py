@@ -374,7 +374,7 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         self.attributes[attribute] = value
 
 
-def keep_latest_version(data_sources: list[DataSource]) -> list[DataSource]:
+def keep_latest_version_old(data_sources: list[DataSource]) -> list[DataSource]:
     """
     Filters the given list of data sources to only include the latest version
     of each unique combination of (name, type, and model).
@@ -394,7 +394,7 @@ def keep_latest_version(data_sources: list[DataSource]) -> list[DataSource]:
     return list(sources.values())
 
 
-def keep_latest_version_in_bdf(
+def keep_latest_version(
     bdf: tb.BeliefsDataFrame,
     one_deterministic_belief_per_event: bool,
 ) -> tb.BeliefsDataFrame:

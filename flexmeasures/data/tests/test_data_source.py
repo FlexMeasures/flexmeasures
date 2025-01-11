@@ -2,7 +2,7 @@ import pytest
 
 from flexmeasures.data.models.reporting import Reporter
 
-from flexmeasures.data.models.data_sources import keep_latest_version, DataSource
+from flexmeasures.data.models.data_sources import keep_latest_version_old, DataSource
 
 from datetime import datetime
 from pytz import UTC
@@ -154,13 +154,13 @@ def test_keep_last_version():
     s4 = DataSource(name="s1", model="model 2", type="scheduler")
 
     # the data source with no version is assumed to have version 0.0.0
-    assert keep_latest_version([s1, s2]) == [s1]
+    assert keep_latest_version_old([s1, s2]) == [s1]
 
     # sources with different models are preserved
-    assert keep_latest_version([s1, s2, s3]) == [s1, s3]
+    assert keep_latest_version_old([s1, s2, s3]) == [s1, s3]
 
     # two sources with the same model but different types
-    assert keep_latest_version([s3, s4]) == [s3, s4]
+    assert keep_latest_version_old([s3, s4]) == [s3, s4]
 
     # repeated source
-    assert keep_latest_version([s1, s1]) == [s1]
+    assert keep_latest_version_old([s1, s1]) == [s1]
