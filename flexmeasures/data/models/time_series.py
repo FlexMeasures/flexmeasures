@@ -740,7 +740,10 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 custom_join_targets=custom_join_targets,
             )
             if use_latest_version_per_event:
-                bdf = keep_latest_version_in_bdf(bdf)
+                bdf = keep_latest_version_in_bdf(
+                    bdf=bdf,
+                    one_deterministic_belief_per_event=one_deterministic_belief_per_event,
+                )
             if one_deterministic_belief_per_event:
                 if (
                     bdf.lineage.number_of_sources <= 1
