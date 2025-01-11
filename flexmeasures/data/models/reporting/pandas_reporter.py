@@ -51,11 +51,17 @@ class PandasReporter(Reporter):
         input: dict,
         resolution: timedelta | None = None,
         belief_time: datetime | None = None,
-        use_latest_version_only: bool = False,
+        use_latest_version_only: bool | None = None,  # deprecated
     ):
         """
         Fetches the timed_beliefs from the database
         """
+
+        # todo: deprecate the 'use_latest_version_only' argument (announced v0.25.0)
+        if use_latest_version_only is not None:
+            current_app.logger.warning(
+                """The `use_latest_version_only` argument to `PandasReporter.compute()` is deprecated. By default, data is sourced by the latest version of a data generator by default. You can still override this behaviour by calling `PandasReporter().compute(input=[dict(use_latest_version_per_event=False)])` instead."""
+            )
 
         droplevels = self._config.get("droplevels", False)
 
@@ -63,8 +69,10 @@ class PandasReporter(Reporter):
         for input_search_parameters in input:
             _input_search_parameters = input_search_parameters.copy()
 
-            if use_latest_version_only:
-                _input_search_parameters["use_latest_version_per_event"] = True
+            if use_latest_version_only is not None:
+                _input_search_parameters["use_latest_version_per_event"] = (
+                    use_latest_version_only
+                )
 
             sensor: Sensor = _input_search_parameters.pop("sensor", None)
 
