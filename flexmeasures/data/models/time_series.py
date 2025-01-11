@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Type
 from datetime import datetime as datetime_type, timedelta
 import json
+from packaging.version import Version
 from flask import current_app
 
 import pandas as pd
@@ -741,8 +742,6 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
             if use_latest_version_per_event:
                 bdf = keep_latest_version_in_bdf(bdf)
             if one_deterministic_belief_per_event:
-                # todo: compute median of collective belief instead of median of first belief (update expected test results accordingly)
-                # todo: move to timely-beliefs: select mean/median belief
                 if (
                     bdf.lineage.number_of_sources <= 1
                     and bdf.lineage.probabilistic_depth == 1
@@ -750,10 +749,23 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                     # Fast track, no need to loop over beliefs
                     pass
                 else:
-                    bdf = (
-                        bdf.for_each_belief(get_median_belief)
-                        .groupby(level=["event_start"], group_keys=False)
-                        .apply(lambda x: x.head(1))
+                    # First make deterministic
+                    bdf = bdf.for_each_belief(get_median_belief)
+                    # Then sort each event by most recent belief_time and most recent source version
+                    bdf = bdf.sort_values(
+                        by=["event_start", "belief_time", "source"],
+                        ascending=[True, False, False],
+                        key=lambda col: (
+                            col.map(
+                                lambda s: Version(s.version if s.version else "0.0.0")
+                            )
+                            if col.name == "source"
+                            else col
+                        ),
+                    )
+                    # Finally, take the first belief for each event, thus preference most recent belief_time first, latest version second
+                    bdf = bdf.groupby(level=["event_start"], group_keys=False).apply(
+                        lambda x: x.head(1)
                     )
             elif one_deterministic_belief_per_event_per_source:
                 if len(bdf) == 0 or bdf.lineage.probabilistic_depth == 1:

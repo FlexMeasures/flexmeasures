@@ -71,7 +71,16 @@ class AggregatorReporter(Reporter):
                 **input_description,
             )
 
-            # found multiple sources in the beliefs of df but no source is specified
+            # Check for multi-sourced events (i.e. multiple sources for a single event)
+            if len(df.lineage.events) != len(df):
+                duplicate_events = df[
+                    df.index.get_level_values("event_start").duplicated()
+                ]
+                raise ValueError(
+                    f"{len(duplicate_events)} event(s) are duplicate. First duplicate: {duplicate_events[0]}. Consider using (more) source filters."
+                )
+
+            # Check for multiple sources within the entire frame (excluding different versions of the same source)
             unique_sources = df.lineage.sources
             properties = [
                 "name",

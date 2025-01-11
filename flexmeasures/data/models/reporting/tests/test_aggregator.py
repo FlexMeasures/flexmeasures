@@ -214,7 +214,7 @@ def test_source_transition(setup_dummy_data, db):
     assert (result == -1).all().event_value
 
     # if no source is passed, the reporter should raise a ValueError
-    # as there are events with different time sources in the report time period.
+    # as there are events with different data sources in the report time period.
     # This is important, for instance, for sensors containing power and scheduled values
     # where we could get beliefs from both sources.
     with pytest.raises(ValueError):
@@ -226,7 +226,7 @@ def test_source_transition(setup_dummy_data, db):
             belief_time=tz.localize(datetime(2023, 12, 1)),
         )[0]["data"]
 
-    # the exception to the above is when a new version of the same source recorded a value,
+    # The exception to the above is when a new version of the same source recorded a value,
     # in which case the latest version takes precedence. This happened in the last hour of the day.
     result = agg_reporter.compute(
         start=tz.localize(datetime(2023, 4, 24, 18, 0)),
@@ -238,3 +238,38 @@ def test_source_transition(setup_dummy_data, db):
 
     assert (result[:5] == -1).all().event_value  # beliefs from the older version
     assert (result[5:] == 3).all().event_value  # belief from the latest version
+
+    # If we exclude source type "A" (source 1 is of that type) we should get the same result.
+    same_result = agg_reporter.compute(
+        start=tz.localize(datetime(2023, 4, 24, 18, 0)),
+        end=tz.localize(datetime(2023, 4, 25)),
+        input=[dict(sensor=s3, exclude_source_types=["A"])],
+        output=[dict(sensor=report_sensor)],
+        belief_time=tz.localize(datetime(2023, 12, 1)),
+    )[0]["data"]
+
+    assert (same_result == result).all().event_value
+
+    # If we exclude source type "B" (both versions of source 2 are of that type) we should get an empty result
+    result = agg_reporter.compute(
+        start=tz.localize(datetime(2023, 4, 24, 18, 0)),
+        end=tz.localize(datetime(2023, 4, 25)),
+        input=[dict(sensor=s3, exclude_source_types=["B"])],
+        output=[dict(sensor=report_sensor)],
+        belief_time=tz.localize(datetime(2023, 12, 1)),
+    )[0]["data"]
+
+    assert result.empty
+
+    # If we set use_latest_version_per_event=False, we should get both versions of source 2,
+    # and one_deterministic_belief_per_event=True kicks in to give back the most recent belief
+    result = agg_reporter.compute(
+        start=tz.localize(datetime(2023, 4, 24, 18, 0)),
+        end=tz.localize(datetime(2023, 4, 25)),
+        input=[dict(sensor=s3, use_latest_version_per_event=False)],
+        output=[dict(sensor=report_sensor)],
+        belief_time=tz.localize(datetime(2023, 12, 1)),
+    )[0]["data"]
+
+    assert len(result) == 6
+    assert (result == -1).all().event_value

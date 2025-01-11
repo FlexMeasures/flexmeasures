@@ -422,9 +422,6 @@ def keep_latest_version_in_bdf(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
     # Remember the original index, then reset it
     index_levels = bdf.index.names
     bdf = bdf.reset_index()
-    belief_column = "belief_time"
-    if belief_column not in index_levels:
-        belief_column = "belief_horizon"
     event_column = "event_start"
     if event_column not in index_levels:
         event_column = "event_end"
@@ -452,7 +449,6 @@ def keep_latest_version_in_bdf(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
     bdf = bdf.drop_duplicates(
         [
             event_column,
-            belief_column,
             "cumulative_probability",
             "source.name",
             "source.type",
