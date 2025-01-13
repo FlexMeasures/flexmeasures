@@ -1115,7 +1115,7 @@ def add_storage_constraints(
 
     :param start:                       Start of the schedule.
     :param end:                         End of the schedule.
-    :param resolution:                  Timedelta used to resample the forecasts to the resolution of the schedule.
+    :param resolution:                  Timedelta used to resample the constraints to the resolution of the schedule.
     :param soc_at_start:                State of charge at the start time.
     :param soc_targets:                 Exact targets for the state of charge at each time.
     :param soc_maxima:                  Maximum state of charge at each time.
