@@ -502,7 +502,7 @@ class MetaStorageScheduler(Scheduler):
                 as_instantaneous_events=True,
                 resolve_overlaps="max",
             )
-            if self.flex_model.get("soc_minima_breach_price", None) is not None:
+            if self.flex_context.get("soc_minima_breach_price", None) is not None:
                 soc_minima_breach_price = self.flex_context.get(
                     "soc_minima_breach_price"
                 )
@@ -550,7 +550,7 @@ class MetaStorageScheduler(Scheduler):
                 as_instantaneous_events=True,
                 resolve_overlaps="min",
             )
-            if self.flex_model.get("soc_maxima_breach_price", None) is not None:
+            if self.flex_context.get("soc_maxima_breach_price", None) is not None:
                 soc_maxima_breach_price = self.flex_context.get(
                     "soc_maxima_breach_price"
                 )

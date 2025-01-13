@@ -150,21 +150,6 @@ class StorageFlexModelSchema(Schema):
         validate=validate.Length(min=1),
     )
 
-    soc_minima_breach_price = VariableQuantityField(
-        "/MWh",
-        data_key="soc-minima-breach-price",
-        required=False,
-        value_validator=validate.Range(min=0),
-        default=None,
-    )
-    soc_maxima_breach_price = VariableQuantityField(
-        "/MWh",
-        data_key="soc-maxima-breach-price",
-        required=False,
-        value_validator=validate.Range(min=0),
-        default=None,
-    )
-
     def __init__(
         self,
         start: datetime,
