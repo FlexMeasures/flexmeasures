@@ -1,17 +1,19 @@
 from __future__ import annotations
 
+import isodate
 from datetime import datetime, timedelta
 
+from werkzeug.exceptions import Unauthorized
 from flask import current_app, url_for
 from flask_classful import FlaskView, route
 from flask_json import as_json
-from flask_security import auth_required
-import isodate
+from flask_security import auth_required, current_user
 from marshmallow import fields, ValidationError
+import marshmallow.validate as validate
 from rq.job import Job, NoSuchJobError
 from timely_beliefs import BeliefsDataFrame
 from webargs.flaskparser import use_args, use_kwargs
-from sqlalchemy import delete
+from sqlalchemy import delete, select, or_
 
 from flexmeasures.api.common.responses import (
     request_processed,
@@ -29,6 +31,7 @@ from flexmeasures.api.common.schemas.sensor_data import (
 )
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.utils.api_utils import save_and_enqueue
+from flexmeasures.auth.policy import check_access
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
 from flexmeasures.data.models.audit_log import AssetAuditLog
@@ -37,8 +40,11 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField
+from flexmeasures.data.schemas import AssetIdField
+from flexmeasures.api.common.schemas.search import SearchFilterField
+from flexmeasures.api.common.schemas.sensors import UnitField
 from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
-from flexmeasures.data.services.sensors import get_sensors, get_sensor_stats
+from flexmeasures.data.services.sensors import get_sensor_stats
 from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
     get_data_source_for_job,
@@ -62,22 +68,61 @@ class SensorAPI(FlaskView):
     @route("", methods=["GET"])
     @use_kwargs(
         {
-            "account": AccountIdField(
-                data_key="account_id", load_default=AccountIdField.load_current
+            "account": AccountIdField(data_key="account_id", required=False),
+            "asset": AssetIdField(data_key="asset_id", required=False),
+            "include_consultancy_clients": fields.Boolean(
+                required=False, load_default=False
             ),
+            "include_public_assets": fields.Boolean(required=False, load_default=False),
+            "page": fields.Int(
+                required=False, validate=validate.Range(min=1), load_default=None
+            ),
+            "per_page": fields.Int(
+                required=False, validate=validate.Range(min=1), load_default=10
+            ),
+            "filter": SearchFilterField(required=False, load_default=None),
+            "unit": UnitField(required=False, load_default=None),
         },
         location="query",
     )
-    @permission_required_for_context("read", ctx_arg_name="account")
     @as_json
-    def index(self, account: Account):
+    def index(
+        self,
+        account: Account | None = None,
+        asset: GenericAsset | None = None,
+        include_consultancy_clients: bool = False,
+        include_public_assets: bool = False,
+        page: int | None = None,
+        per_page: int | None = None,
+        filter: list[str] | None = None,
+        unit: str | None = None,
+    ):
         """API endpoint to list all sensors of an account.
 
         .. :quickref: Sensor; Download sensor list
 
         This endpoint returns all accessible sensors.
-        Accessible sensors are sensors in the same account as the current user.
+        By default, "accessible sensors" means all sensors in the same account as the current user (if they have read permission to the account).
+
+        You can also specify an `account` (an ID parameter), if the user has read access to that account. In this case, all assets under the
+        specified account will be retrieved, and the sensors associated with these assets will be returned.
+
+        Alternatively, you can filter by asset hierarchy by providing the `asset` parameter (ID). When this is set, all sensors on the specified
+        asset and its sub-assets are retrieved, provided the user has read access to the asset.
+
+        NOTE: You can't set both account and asset at the same time, you can only have one set. The only exception is if the asset being specified is
+        part of the account that was set, then we allow to see sensors under that asset but then ignore the account (account = None).
+
+        Finally, you can use the `include_consultancy_clients` parameter to include sensors from accounts for which the current user account is a consultant.
+        This is only possible if the user has the role of a consultant.
+
         Only admins can use this endpoint to fetch sensors from a different account (by using the `account_id` query parameter).
+
+        The `filter` parameter allows you to search for sensors by name or account name.
+        The `unit` parameter allows you to filter by unit.
+
+        For the pagination of the sensor list, you can use the `page` and `per_page` query parameters, the `page` parameter is used to trigger
+        pagination, and the `per_page` parameter is used to specify the number of records per page. The default value for `page` is 1 and for `per_page` is 10.
 
         **Example response**
 
@@ -85,7 +130,8 @@ class SensorAPI(FlaskView):
 
         .. sourcecode:: json
 
-            [
+        {
+            "data" : [
                 {
                     "entity_address": "ea1.2021-01.io.flexmeasures.company:fm1.42",
                     "event_resolution": PT15M,
@@ -95,7 +141,12 @@ class SensorAPI(FlaskView):
                     "unit": "m\u00b3/h"
                     "id": 2
                 }
-            ]
+            ],
+            "num-records" : 1,
+            "filtered-records" : 1
+        }
+
+        If no pagination is requested, the response only consists of the list under the "data" key.
 
         :reqheader Authorization: The authentication token
         :reqheader Content-Type: application/json
@@ -106,8 +157,109 @@ class SensorAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        sensors = get_sensors(account=account)
-        return sensors_schema.dump(sensors), 200
+        if account is None and asset is None:
+            if current_user.is_anonymous:
+                raise Unauthorized
+            account = current_user.account
+
+        if account is not None and asset is not None:
+            if asset.account_id != account.id:
+                return {
+                    "message": "Please provide either an account or an asset ID, not both"
+                }, 422
+            else:
+                account = None
+
+        if asset is not None:
+            check_access(asset, "read")
+
+            asset_tree = (
+                db.session.query(GenericAsset.id, GenericAsset.parent_asset_id)
+                .filter(GenericAsset.id == asset.id)
+                .cte(name="asset_tree", recursive=True)
+            )
+
+            recursive_part = db.session.query(
+                GenericAsset.id, GenericAsset.parent_asset_id
+            ).join(asset_tree, GenericAsset.parent_asset_id == asset_tree.c.id)
+
+            asset_tree = asset_tree.union(recursive_part)
+
+            child_assets = db.session.query(asset_tree).all()
+
+            filter_statement = GenericAsset.id.in_(
+                [asset.id] + [a.id for a in child_assets]
+            )
+        elif account is not None:
+            check_access(account, "read")
+
+            account_ids: list = [account.id]
+
+            if include_consultancy_clients:
+                if current_user.has_role("consultant"):
+                    consultancy_accounts = (
+                        db.session.query(Account)
+                        .filter(Account.consultancy_account_id == account.id)
+                        .all()
+                    )
+                    account_ids.extend([acc.id for acc in consultancy_accounts])
+
+            filter_statement = GenericAsset.account_id.in_(account_ids)
+        else:
+            filter_statement = None
+
+        if include_public_assets:
+            filter_statement = or_(
+                filter_statement,
+                GenericAsset.account_id.is_(None),
+            )
+
+        sensor_query = (
+            select(Sensor)
+            .join(GenericAsset, Sensor.generic_asset_id == GenericAsset.id)
+            .outerjoin(Account, GenericAsset.owner)
+            .filter(filter_statement)
+        )
+
+        if filter is not None:
+            sensor_query = sensor_query.filter(
+                or_(
+                    *(
+                        or_(
+                            Sensor.name.ilike(f"%{term}%"),
+                            Account.name.ilike(f"%{term}%"),
+                            GenericAsset.name.ilike(f"%{term}%"),
+                        )
+                        for term in filter
+                    )
+                )
+            )
+
+        if unit:
+            sensor_query = sensor_query.filter(Sensor.unit == unit)
+
+        sensors = (
+            db.session.scalars(sensor_query).all()
+            if page is None
+            else db.paginate(sensor_query, per_page=per_page, page=page).items
+        )
+
+        sensors = [sensor for sensor in sensors if check_access(sensor, "read") is None]
+
+        sensors_response = sensors_schema.dump(sensors)
+
+        # Return appropriate response for paginated or non-paginated data
+        if page is None:
+            return sensors_response, 200
+        else:
+            num_records = len(db.session.execute(sensor_query).scalars().all())
+            select_pagination = db.paginate(sensor_query, per_page=per_page, page=page)
+            response = {
+                "data": sensors_response,
+                "num-records": num_records,
+                "filtered-records": select_pagination.total,
+            }
+            return response, 200
 
     @route("/data", methods=["POST"])
     @use_args(
@@ -300,7 +452,16 @@ class SensorAPI(FlaskView):
 
 
         The battery consumption power capacity is limited by sensor 42 and the production capacity is constant (30 kW).
-        Finally, the site consumption capacity is limited by sensor 32.
+
+        Finally, the (contractual and physical) situation of the site is part of the flex-context.
+        The site has a physical power capacity of 100 kVA, but the production capacity is limited to 80 kW,
+        while the consumption capacity is limited by a dynamic capacity contract whose values are recorded under sensor 32.
+        Breaching either capacity is penalized heavily in the optimization problem, with a price of 1000 EUR/kW.
+        Finally, peaks over 50 kW in either direction are penalized with a price of 260 EUR/MW.
+        These penalties can be used to steer the schedule into a certain behaviour (e.g. avoiding breaches and peaks),
+        even if no direct financial impacts are expected at the given prices in the real world.
+        For example, site owners may be requested by their network operators to reduce stress on the grid,
+        be it explicitly or under a social contract.
 
         Note that, if forecasts for sensors 13, 14 and 15 are not available, a schedule cannot be computed.
 
@@ -331,9 +492,15 @@ class SensorAPI(FlaskView):
                     "consumption-price": {"sensor": 9},
                     "production-price": {"sensor": 10},
                     "inflexible-device-sensors": [13, 14, 15],
-                    "site-power-capacity": "100kW",
-                    "site-production-capacity": "80kW",
-                    "site-consumption-capacity": {"sensor": 32}
+                    "site-power-capacity": "100 kVA",
+                    "site-production-capacity": "80 kW",
+                    "site-consumption-capacity": {"sensor": 32},
+                    "site-production-breach-price": "1000 EUR/kW",
+                    "site-consumption-breach-price": "1000 EUR/kW",
+                    "site-peak-consumption": "50 kW",
+                    "site-peak-production": "50 kW",
+                    "site-peak-consumption-price": "260 EUR/MW",
+                    "site-peak-production-price": "260 EUR/MW"
                 }
             }
 

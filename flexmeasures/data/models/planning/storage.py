@@ -11,11 +11,12 @@ from flask import current_app
 
 
 from flexmeasures import Sensor
-from flexmeasures.data.models.planning import Scheduler, SchedulerOutputType
+from flexmeasures.data.models.planning import Commitment, Scheduler, SchedulerOutputType
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.planning.utils import (
     get_prices,
     add_tiny_price_slope,
+    initialize_index,
     initialize_series,
     initialize_df,
     get_power_values,
@@ -125,6 +126,7 @@ class MetaStorageScheduler(Scheduler):
             query_window=(start, end),
             resolution=resolution,
             beliefs_before=belief_time,
+            resolve_overlaps="min",
         )
 
         # Check for known prices or price forecasts, trimming planning window accordingly
@@ -135,13 +137,18 @@ class MetaStorageScheduler(Scheduler):
                 unit=(
                     consumption_price.unit
                     if isinstance(consumption_price, Sensor)
-                    else str(consumption_price.units)
+                    else (
+                        consumption_price[0]["value"].units
+                        if isinstance(consumption_price, list)
+                        else str(consumption_price.units)
+                    )
                 ),
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
                 fallback_attribute="market_id",
-            ).to_frame()
+                fill_sides=True,
+            ).to_frame(name="event_value")
         else:
             up_deviation_prices, (start, end) = get_prices(
                 (start, end),
@@ -158,13 +165,18 @@ class MetaStorageScheduler(Scheduler):
                 unit=(
                     production_price.unit
                     if isinstance(production_price, Sensor)
-                    else str(production_price.units)
+                    else (
+                        production_price[0]["value"].units
+                        if isinstance(production_price, list)
+                        else str(production_price.units)
+                    )
                 ),
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
                 fallback_attribute="market_id",
-            ).to_frame()
+                fill_sides=True,
+            ).to_frame(name="event_value")
         else:
             down_deviation_prices, (start, end) = get_prices(
                 (start, end),
@@ -188,16 +200,265 @@ class MetaStorageScheduler(Scheduler):
                 down_deviation_prices, "event_value"
             )
 
-        # Set up commitments to optimise for
-        commitment_quantities = [initialize_series(0, start, end, self.resolution)]
+        # Create Series with EMS capacities
+        ems_power_capacity_in_mw = get_continuous_series_sensor_or_quantity(
+            variable_quantity=self.flex_context.get("ems_power_capacity_in_mw"),
+            actuator=sensor.generic_asset,
+            unit="MW",
+            query_window=(start, end),
+            resolution=resolution,
+            beliefs_before=belief_time,
+            fallback_attribute="capacity_in_mw",
+            resolve_overlaps="min",
+        )
+        ems_consumption_capacity = get_continuous_series_sensor_or_quantity(
+            variable_quantity=self.flex_context.get("ems_consumption_capacity_in_mw"),
+            actuator=sensor.generic_asset,
+            unit="MW",
+            query_window=(start, end),
+            resolution=resolution,
+            beliefs_before=belief_time,
+            fallback_attribute="consumption_capacity_in_mw",
+            max_value=ems_power_capacity_in_mw,
+            resolve_overlaps="min",
+        )
+        ems_production_capacity = -1 * get_continuous_series_sensor_or_quantity(
+            variable_quantity=self.flex_context.get("ems_production_capacity_in_mw"),
+            actuator=sensor.generic_asset,
+            unit="MW",
+            query_window=(start, end),
+            resolution=resolution,
+            beliefs_before=belief_time,
+            fallback_attribute="production_capacity_in_mw",
+            max_value=ems_power_capacity_in_mw,
+            resolve_overlaps="min",
+        )
 
-        # Todo: convert to EUR/(deviation of commitment, which is in MW)
-        commitment_upwards_deviation_price = [
+        # Set up commitments to optimise for
+        commitments = []
+
+        index = initialize_index(start, end, self.resolution)
+        commitment_quantities = initialize_series(0, start, end, self.resolution)
+
+        # Convert energy prices to EUR/(deviation of commitment, which is in MW)
+        commitment_upwards_deviation_price = (
             up_deviation_prices.loc[start : end - resolution]["event_value"]
-        ]
-        commitment_downwards_deviation_price = [
+            * resolution
+            / pd.Timedelta("1h")
+        )
+        commitment_downwards_deviation_price = (
             down_deviation_prices.loc[start : end - resolution]["event_value"]
-        ]
+            * resolution
+            / pd.Timedelta("1h")
+        )
+
+        # Set up commitments DataFrame
+        commitment = Commitment(
+            name="energy",
+            quantity=commitment_quantities,
+            upwards_deviation_price=commitment_upwards_deviation_price,
+            downwards_deviation_price=commitment_downwards_deviation_price,
+            index=index,
+        )
+        commitments.append(commitment)
+
+        # Set up peak commitments
+        if self.flex_context.get("ems_peak_consumption_price", None) is not None:
+            ems_peak_consumption = get_continuous_series_sensor_or_quantity(
+                variable_quantity=self.flex_context.get("ems_peak_consumption_in_mw"),
+                actuator=sensor,
+                unit="MW",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                max_value=np.inf,  # np.nan -> np.inf to ignore commitment if no quantity is given
+                fill_sides=True,
+            )
+            ems_peak_consumption_price = self.flex_context.get(
+                "ems_peak_consumption_price"
+            )
+            ems_peak_consumption_price = get_continuous_series_sensor_or_quantity(
+                variable_quantity=ems_peak_consumption_price,
+                actuator=sensor,
+                unit=(
+                    ems_peak_consumption_price.unit
+                    if isinstance(ems_peak_consumption_price, Sensor)
+                    else (
+                        ems_peak_consumption_price[0]["value"].units
+                        if isinstance(ems_peak_consumption_price, list)
+                        else str(ems_peak_consumption_price.units)
+                    )
+                ),
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                fallback_attribute="ems-peak-consumption-price",
+                fill_sides=True,
+            )
+
+            # Set up commitments DataFrame
+            commitment = Commitment(
+                name="consumption peak",
+                quantity=ems_peak_consumption,
+                # positive price because breaching in the upwards (consumption) direction is penalized
+                upwards_deviation_price=ems_peak_consumption_price,
+                _type="any",
+                index=index,
+            )
+            commitments.append(commitment)
+        if self.flex_context.get("ems_peak_production_price", None) is not None:
+            ems_peak_production = get_continuous_series_sensor_or_quantity(
+                variable_quantity=self.flex_context.get("ems_peak_production_in_mw"),
+                actuator=sensor,
+                unit="MW",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                max_value=np.inf,  # np.nan -> np.inf to ignore commitment if no quantity is given
+                fill_sides=True,
+            )
+            ems_peak_production_price = self.flex_context.get(
+                "ems_peak_production_price"
+            )
+            ems_peak_production_price = get_continuous_series_sensor_or_quantity(
+                variable_quantity=ems_peak_production_price,
+                actuator=sensor,
+                unit=(
+                    ems_peak_production_price.unit
+                    if isinstance(ems_peak_production_price, Sensor)
+                    else (
+                        ems_peak_production_price[0]["value"].units
+                        if isinstance(ems_peak_production_price, list)
+                        else str(ems_peak_production_price.units)
+                    )
+                ),
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                fallback_attribute="ems-peak-production-price",
+                fill_sides=True,
+            )
+
+            # Set up commitments DataFrame
+            commitment = Commitment(
+                name="production peak",
+                quantity=-ems_peak_production,  # production is negative quantity
+                # negative price because peaking in the downwards (production) direction is penalized
+                downwards_deviation_price=-ems_peak_production_price,
+                _type="any",
+                index=index,
+            )
+            commitments.append(commitment)
+
+        # Set up capacity breach commitments and EMS capacity constraints
+        ems_consumption_breach_price = self.flex_context.get(
+            "ems_consumption_breach_price"
+        )
+
+        ems_production_breach_price = self.flex_context.get(
+            "ems_production_breach_price"
+        )
+
+        ems_constraints = initialize_df(
+            StorageScheduler.COLUMNS, start, end, resolution
+        )
+        if ems_consumption_breach_price is not None:
+
+            # Convert to Series
+            ems_consumption_breach_price = get_continuous_series_sensor_or_quantity(
+                variable_quantity=ems_consumption_breach_price,
+                actuator=sensor,
+                unit=(
+                    ems_consumption_breach_price.unit
+                    if isinstance(ems_consumption_breach_price, Sensor)
+                    else (
+                        ems_consumption_breach_price[0]["value"].units
+                        if isinstance(ems_consumption_breach_price, list)
+                        else str(ems_consumption_breach_price.units)
+                    )
+                ),
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                fallback_attribute="ems-consumption-breach-price",
+                fill_sides=True,
+            )
+
+            # Set up commitments DataFrame to penalize any breach
+            commitment = Commitment(
+                name="any consumption breach",
+                quantity=ems_consumption_capacity,
+                # positive price because breaching in the upwards (consumption) direction is penalized
+                upwards_deviation_price=ems_consumption_breach_price,
+                _type="any",
+                index=index,
+            )
+            commitments.append(commitment)
+
+            # Set up commitments DataFrame to penalize each breach
+            commitment = Commitment(
+                name="all consumption breaches",
+                quantity=ems_consumption_capacity,
+                # positive price because breaching in the upwards (consumption) direction is penalized
+                upwards_deviation_price=ems_consumption_breach_price,
+                index=index,
+            )
+            commitments.append(commitment)
+
+            # Take the physical capacity as a hard constraint
+            ems_constraints["derivative max"] = ems_power_capacity_in_mw
+        else:
+            # Take the contracted capacity as a hard constraint
+            ems_constraints["derivative max"] = ems_consumption_capacity
+
+        if ems_production_breach_price is not None:
+
+            # Convert to Series
+            ems_production_breach_price = get_continuous_series_sensor_or_quantity(
+                variable_quantity=ems_production_breach_price,
+                actuator=sensor,
+                unit=(
+                    ems_production_breach_price.unit
+                    if isinstance(ems_production_breach_price, Sensor)
+                    else (
+                        ems_production_breach_price[0]["value"].units
+                        if isinstance(ems_production_breach_price, list)
+                        else str(ems_production_breach_price.units)
+                    )
+                ),
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                fallback_attribute="ems-production-breach-price",
+                fill_sides=True,
+            )
+
+            # Set up commitments DataFrame to penalize any breach
+            commitment = Commitment(
+                name="any production breach",
+                quantity=ems_production_capacity,
+                # positive price because breaching in the upwards (consumption) direction is penalized
+                downwards_deviation_price=-ems_production_breach_price,
+                _type="any",
+                index=index,
+            )
+            commitments.append(commitment)
+
+            # Set up commitments DataFrame to penalize each breach
+            commitment = Commitment(
+                name="all production breaches",
+                quantity=ems_production_capacity,
+                # positive price because breaching in the upwards (consumption) direction is penalized
+                downwards_deviation_price=-ems_production_breach_price,
+                index=index,
+            )
+            commitments.append(commitment)
+
+            # Take the physical capacity as a hard constraint
+            ems_constraints["derivative min"] = -ems_power_capacity_in_mw
+        else:
+            # Take the contracted capacity as a hard constraint
+            ems_constraints["derivative min"] = ems_production_capacity
 
         # Set up device constraints: only one scheduled flexible device for this EMS (at index 0), plus the forecasted inflexible devices (at indices 1 to n).
         device_constraints = [
@@ -222,7 +483,7 @@ class MetaStorageScheduler(Scheduler):
                 resolution=resolution,
                 beliefs_before=belief_time,
                 as_instantaneous_events=True,
-                boundary_policy="first",
+                resolve_overlaps="first",
             )
         if isinstance(soc_minima, Sensor):
             soc_minima = get_continuous_series_sensor_or_quantity(
@@ -233,7 +494,7 @@ class MetaStorageScheduler(Scheduler):
                 resolution=resolution,
                 beliefs_before=belief_time,
                 as_instantaneous_events=True,
-                boundary_policy="max",
+                resolve_overlaps="max",
             )
         if isinstance(soc_maxima, Sensor):
             soc_maxima = get_continuous_series_sensor_or_quantity(
@@ -244,7 +505,7 @@ class MetaStorageScheduler(Scheduler):
                 resolution=resolution,
                 beliefs_before=belief_time,
                 as_instantaneous_events=True,
-                boundary_policy="min",
+                resolve_overlaps="min",
             )
 
         device_constraints[0] = add_storage_constraints(
@@ -276,6 +537,7 @@ class MetaStorageScheduler(Scheduler):
                 beliefs_before=belief_time,
                 fallback_attribute="production_capacity",
                 max_value=power_capacity_in_mw,
+                resolve_overlaps="min",
             )
         if sensor.get_attribute("is_strictly_non_negative"):
             device_constraints[0]["derivative max"] = 0
@@ -290,6 +552,7 @@ class MetaStorageScheduler(Scheduler):
                     beliefs_before=belief_time,
                     fallback_attribute="consumption_capacity",
                     max_value=power_capacity_in_mw,
+                    resolve_overlaps="min",
                 )
             )
 
@@ -398,44 +661,6 @@ class MetaStorageScheduler(Scheduler):
                     + message
                 )
 
-        # Set up EMS constraints
-        ems_constraints = initialize_df(
-            StorageScheduler.COLUMNS, start, end, resolution
-        )
-
-        ems_power_capacity_in_mw = get_continuous_series_sensor_or_quantity(
-            variable_quantity=self.flex_context.get("ems_power_capacity_in_mw"),
-            actuator=sensor.generic_asset,
-            unit="MW",
-            query_window=(start, end),
-            resolution=resolution,
-            beliefs_before=belief_time,
-            fallback_attribute="capacity_in_mw",
-        )
-
-        ems_constraints["derivative max"] = get_continuous_series_sensor_or_quantity(
-            variable_quantity=self.flex_context.get("ems_consumption_capacity_in_mw"),
-            actuator=sensor.generic_asset,
-            unit="MW",
-            query_window=(start, end),
-            resolution=resolution,
-            beliefs_before=belief_time,
-            fallback_attribute="consumption_capacity_in_mw",
-            max_value=ems_power_capacity_in_mw,
-        )
-        ems_constraints["derivative min"] = (
-            -1
-        ) * get_continuous_series_sensor_or_quantity(
-            variable_quantity=self.flex_context.get("ems_production_capacity_in_mw"),
-            actuator=sensor.generic_asset,
-            unit="MW",
-            query_window=(start, end),
-            resolution=resolution,
-            beliefs_before=belief_time,
-            fallback_attribute="production_capacity_in_mw",
-            max_value=ems_power_capacity_in_mw,
-        )
-
         return (
             sensor,
             start,
@@ -444,9 +669,7 @@ class MetaStorageScheduler(Scheduler):
             soc_at_start,
             device_constraints,
             ems_constraints,
-            commitment_quantities,
-            commitment_downwards_deviation_price,
-            commitment_upwards_deviation_price,
+            commitments,
         )
 
     def persist_flex_model(self):
@@ -606,9 +829,7 @@ class StorageFallbackScheduler(MetaStorageScheduler):
             soc_at_start,
             device_constraints,
             ems_constraints,
-            commitment_quantities,
-            commitment_downwards_deviation_price,
-            commitment_upwards_deviation_price,
+            commitments,
         ) = self._prepare(skip_validation=skip_validation)
 
         # Fallback policy if the problem was unsolvable
@@ -655,17 +876,13 @@ class StorageScheduler(MetaStorageScheduler):
             soc_at_start,
             device_constraints,
             ems_constraints,
-            commitment_quantities,
-            commitment_downwards_deviation_price,
-            commitment_upwards_deviation_price,
+            commitments,
         ) = self._prepare(skip_validation=skip_validation)
 
-        ems_schedule, expected_costs, scheduler_results, _ = device_scheduler(
+        ems_schedule, expected_costs, scheduler_results, model = device_scheduler(
             device_constraints,
             ems_constraints,
-            commitment_quantities,
-            commitment_downwards_deviation_price,
-            commitment_upwards_deviation_price,
+            commitments=commitments,
             initial_stock=soc_at_start * (timedelta(hours=1) / resolution),
         )
         if scheduler_results.solver.termination_condition == "infeasible":
@@ -685,7 +902,16 @@ class StorageScheduler(MetaStorageScheduler):
                     "name": "storage_schedule",
                     "sensor": sensor,
                     "data": storage_schedule,
-                }
+                },
+                {
+                    "name": "commitment_costs",
+                    "data": {
+                        c.name: costs
+                        for c, costs in zip(
+                            commitments, model.commitment_costs.values()
+                        )
+                    },
+                },
             ]
         else:
             return storage_schedule
@@ -728,7 +954,7 @@ def build_device_soc_values(
     2010-01-01 05:30:00    2.0
     2010-01-01 05:45:00    2.5
     2010-01-01 06:00:00    3.0
-    Freq: 15T, dtype: float64
+    Freq: 15min, dtype: float64
 
     TODO: this function could become the deserialization method of a new TimedEventSchema (targets, plural), which wraps TimedEventSchema.
 

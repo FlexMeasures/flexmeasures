@@ -13,8 +13,203 @@ from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.tests.utils import QueryCounter
+from flexmeasures.utils.unit_utils import is_valid_unit
+
 
 sensor_schema = SensorSchema()
+
+
+@pytest.mark.parametrize(
+    "requesting_user, search_by, search_value, exp_sensor_name, exp_num_results, include_consultancy_clients, use_pagination, expected_status_code, filter_account_id, filter_asset_id, asset_id_of_of_first_sensor_result",
+    [
+        (
+            "test_supplier_user_4@seita.nl",
+            "unit",
+            "°C",
+            "some temperature sensor",
+            2,
+            True,
+            False,
+            200,
+            None,
+            5,
+            None,
+        ),
+        (
+            "test_prosumer_user@seita.nl",
+            None,
+            None,
+            "power",
+            2,
+            False,
+            False,
+            200,
+            None,
+            7,
+            8,  # We test that the endpoint returns the sensor on a battery asset (ID: 8) while we filter for the building asset (ID: 7) that includes it
+        ),
+        (
+            "test_supplier_user_4@seita.nl",
+            "unit",
+            "m³/h",
+            "some gas sensor",
+            1,
+            True,
+            False,
+            200,
+            None,
+            5,
+            None,
+        ),
+        (
+            "test_supplier_user_4@seita.nl",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            422,  # Error expected due to both asset_id and account_id being provided
+            1,
+            5,
+            None,
+        ),
+        (
+            "test_dummy_account_admin@seita.nl",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            403,  # Error expected as the user lacks access to the specified asset
+            None,
+            5,
+            None,
+        ),
+        (
+            "test_supplier_user_4@seita.nl",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            403,  # Error expected as the user lacks access to the specified account
+            1,
+            None,
+            None,
+        ),
+        (
+            "test_supplier_user_4@seita.nl",
+            None,
+            None,
+            "some temperature sensor",
+            3,
+            True,
+            True,
+            200,
+            None,
+            5,
+            None,
+        ),
+        (
+            "test_supplier_user_4@seita.nl",
+            "filter",
+            "'some temperature sensor'",
+            "some temperature sensor",
+            1,
+            False,
+            False,
+            200,
+            None,
+            5,
+            None,
+        ),
+    ],
+    indirect=["requesting_user"],
+)
+def test_fetch_sensors(
+    client,
+    setup_api_test_data,
+    add_battery_assets,
+    requesting_user,
+    search_by,
+    search_value,
+    exp_sensor_name,
+    exp_num_results,
+    include_consultancy_clients,
+    use_pagination,
+    expected_status_code,
+    filter_account_id,
+    filter_asset_id,
+    asset_id_of_of_first_sensor_result,
+):
+    """
+    Retrieve all sensors.
+
+    Our user here is admin, so is allowed to see all sensors.
+    Pagination is tested only in passing, we should test filtering and page > 1
+
+    The `filter_asset_id` specifies the asset_id to filter for.
+
+    The `asset_id_of_of_first_sensor_result` specifies the asset_id of the first sensor
+    in the result list. This sensors is expected to be from a child asset of the asset
+    specified in `filter_asset_id`.
+
+    The `filter_account_id` specifies the account_id to filter for.
+
+    `check_errors` is used to test the error handling of the endpoint.
+    """
+    query = {search_by: search_value}
+
+    if use_pagination:
+        query["page"] = 1
+
+    if search_by == "unit":
+        query["unit"] = search_value
+    elif search_by == "filter":
+        query["filter"] = search_value
+
+    if include_consultancy_clients:
+        query["include_consultancy_clients"] = True
+
+    if filter_account_id:
+        query["account_id"] = filter_account_id
+
+    if filter_asset_id:
+        query["asset_id"] = filter_asset_id
+
+    response = client.get(
+        url_for("SensorAPI:index"),
+        query_string=query,
+    )
+
+    print("Server responded with:\n%s" % response.json)
+
+    assert response.status_code == expected_status_code
+    if expected_status_code == 200:
+        if use_pagination:
+            assert isinstance(response.json["data"][0], dict)
+            assert is_valid_unit(response.json["data"][0]["unit"])
+            assert response.json["num-records"] == exp_num_results
+            assert response.json["filtered-records"] == exp_num_results
+        else:
+            assert isinstance(response.json, list)
+            assert is_valid_unit(response.json[0]["unit"])
+            assert response.json[0]["name"] == exp_sensor_name
+            assert len(response.json) == exp_num_results
+
+            if asset_id_of_of_first_sensor_result is not None:
+                assert (
+                    response.json[0]["generic_asset_id"]
+                    == asset_id_of_of_first_sensor_result
+                )
+            elif filter_asset_id:
+                assert response.json[0]["generic_asset_id"] == filter_asset_id
+
+            if search_by == "unit":
+                assert response.json[0]["unit"] == search_value
 
 
 @pytest.mark.parametrize(
@@ -79,10 +274,12 @@ def test_post_a_sensor(client, setup_api_test_data, requesting_user, db):
     assert response.status_code == 201
     assert response.json["name"] == "power"
     assert response.json["event_resolution"] == "PT1H"
+    assert response.json["generic_asset_id"] == post_data["generic_asset_id"]
 
     sensor: Sensor = db.session.execute(
-        select(Sensor).filter_by(name="power")
+        select(Sensor).filter_by(name="power", unit="kWh")
     ).scalar_one_or_none()
+
     assert sensor is not None
     assert sensor.unit == "kWh"
     assert sensor.attributes["capacity_in_mw"] == 0.0074
@@ -250,7 +447,7 @@ def test_delete_a_sensor(client, setup_api_test_data, requesting_user, db):
 def test_fetch_sensor_stats(
     client, setup_api_test_data: dict[str, Sensor], requesting_user, db
 ):
-    # gas sensor is setup in add_gas_measurements
+    # gas sensor is set up in add_gas_measurements
     sensor_id = 1
     with QueryCounter(db.session.connection()) as counter1:
         response = client.get(
@@ -266,10 +463,10 @@ def test_fetch_sensor_stats(
             "Test Supplier User",
         ]
         for source, record in response_content.items():
-            assert record["min_event_start"] == "Sat, 01 May 2021 22:00:00 GMT"
-            assert record["max_event_start"] == "Sat, 01 May 2021 22:20:00 GMT"
-            assert record["min_value"] == 91.3
-            assert record["max_value"] == 92.1
+            assert record["First event start"] == "2021-05-01T22:00:00+00:00"
+            assert record["Last event end"] == "2021-05-01T22:30:00+00:00"
+            assert record["Min value"] == 91.3
+            assert record["Max value"] == 92.1
             if source == "Test Supplier User":
                 # values are: 91.3, 91.7, 92.1
                 sum_values = 275.1
@@ -280,12 +477,12 @@ def test_fetch_sensor_stats(
                 count_values = 3
             mean_value = 91.7
             assert math.isclose(
-                record["mean_value"], mean_value, rel_tol=1e-5
+                record["Mean value"], mean_value, rel_tol=1e-5
             ), f"mean_value is close to {mean_value}"
             assert math.isclose(
-                record["sum_values"], sum_values, rel_tol=1e-5
+                record["Sum over values"], sum_values, rel_tol=1e-5
             ), f"sum_values is close to {sum_values}"
-            assert record["count_values"] == count_values
+            assert record["Number of values"] == count_values
 
     with QueryCounter(db.session.connection()) as counter2:
         response = client.get(

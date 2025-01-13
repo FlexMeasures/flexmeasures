@@ -118,10 +118,11 @@ def register_rq_dashboard(app):
         return
 
     # Logged-in users can view queues on the demo server, but only admins can view them on other servers
-    if app.config.get("FLEXMEASURES_MODE", "") == "demo":
-        rq_dashboard.blueprint.before_request(basic_auth)
-    else:
-        rq_dashboard.blueprint.before_request(basic_admin_auth)
+    if app.config.get("FLEXMEASURES_ENV") != "documentation":
+        if app.config.get("FLEXMEASURES_MODE", "") == "demo":
+            rq_dashboard.blueprint.before_request(basic_auth)
+        else:
+            rq_dashboard.blueprint.before_request(basic_admin_auth)
 
     # To set template variables, use set_global_template_variables in app.py
     app.register_blueprint(rq_dashboard.blueprint, url_prefix="/tasks")

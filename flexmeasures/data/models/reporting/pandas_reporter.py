@@ -83,9 +83,9 @@ class PandasReporter(Reporter):
                 source = sensor.search_data_sources(
                     event_ends_after=start,
                     event_starts_before=end,
-                    source_types=_input_search_parameters.get("source_types"),
-                    exclude_source_types=_input_search_parameters.get(
-                        "exclude_source_types"
+                    source_types=_input_search_parameters.pop("source_types", None),
+                    exclude_source_types=_input_search_parameters.pop(
+                        "exclude_source_types", None
                     ),
                 )
                 if len(source) > 0:
@@ -181,8 +181,8 @@ class PandasReporter(Reporter):
                 output_data *= convert_units(
                     1,
                     from_unit=output_unit,
-                    to_unit=output_data.sensor.unit,
-                    event_resolution=output_data.sensor.event_resolution,
+                    to_unit=output_description["sensor"].unit,
+                    event_resolution=output_description["sensor"].event_resolution,
                 )
 
             result["data"] = output_data

@@ -4,15 +4,15 @@ from datetime import datetime
 
 from flask import request, url_for
 from flask_classful import FlaskView
+from flask_security.core import current_user
 from flask_security import login_required
-from flask_wtf import FlaskForm
-from wtforms import StringField, FloatField, DateTimeField, BooleanField
-from wtforms.validators import DataRequired
+from werkzeug.exceptions import Forbidden, Unauthorized
 from sqlalchemy import select
 
-from flexmeasures.auth.policy import ADMIN_READER_ROLE, ADMIN_ROLE
+from flexmeasures.auth.policy import ADMIN_READER_ROLE, ADMIN_ROLE, check_access
 from flexmeasures.auth.decorators import roles_required, roles_accepted
 from flexmeasures.data import db
+from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import User, Role, Account
 from flexmeasures.data.services.users import (
     get_user,
@@ -26,23 +26,19 @@ User Crud views for admins.
 """
 
 
-class UserForm(FlaskForm):
-    email = StringField("Email", validators=[DataRequired()])
-    username = StringField("Username", validators=[DataRequired()])
-    roles = FloatField("Roles", validators=[DataRequired()])
-    timezone = StringField("Timezone", validators=[DataRequired()])
-    last_login_at = DateTimeField("Last Login was at", validators=[DataRequired()])
-    active = BooleanField("Activation Status", validators=[DataRequired()])
+def render_user(user: User | None, msg: str | None = None):
 
+    user_view_user_auditlog = True
+    try:
+        check_access(AuditLog.user_table_acl(current_user), "read")
+    except (Forbidden, Unauthorized):
+        user_view_user_auditlog = False
 
-def render_user(user: User | None, asset_count: int = 0, msg: str | None = None):
-    user_form = UserForm()
-    user_form.process(obj=user)
     return render_flexmeasures_template(
         "crud/user.html",
+        can_view_user_auditlog=user_view_user_auditlog,
         user=user,
-        user_form=user_form,
-        asset_count=asset_count,
+        asset_count=user.account.number_of_assets,
         msg=msg,
     )
 
@@ -74,23 +70,6 @@ def process_internal_api_response(
     return user_data
 
 
-def get_users_by_account(
-    account_id: int | str, include_inactive: bool = False
-) -> list[User]:
-    get_users_response = InternalApi().get(
-        url_for(
-            "UserAPI:index",
-            account_id=account_id,
-            include_inactive=include_inactive,
-        )
-    )
-    users = [
-        process_internal_api_response(user, make_obj=True)
-        for user in get_users_response.json()
-    ]
-    return users
-
-
 def get_all_users(include_inactive: bool = False) -> list[User]:
     get_users_response = InternalApi().get(
         url_for(
@@ -98,10 +77,7 @@ def get_all_users(include_inactive: bool = False) -> list[User]:
             include_inactive=include_inactive,
         )
     )
-    users = [
-        process_internal_api_response(user, make_obj=True)
-        for user in get_users_response.json()
-    ]
+    users = [user for user in get_users_response.json()]
     return users
 
 
@@ -113,10 +89,8 @@ class UserCrudUI(FlaskView):
     def index(self):
         """/users"""
         include_inactive = request.args.get("include_inactive", "0") != "0"
-        users = get_all_users(include_inactive)
-
         return render_flexmeasures_template(
-            "crud/users.html", users=users, include_inactive=include_inactive
+            "crud/users.html", include_inactive=include_inactive
         )
 
     @login_required
@@ -127,13 +101,7 @@ class UserCrudUI(FlaskView):
         user: User = process_internal_api_response(
             get_user_response.json(), make_obj=True
         )
-        asset_count = 0
-        if user:
-            get_users_assets_response = InternalApi().get(
-                url_for("AssetAPI:index", account_id=user.account_id)
-            )
-            asset_count = len(get_users_assets_response.json())
-        return render_user(user, asset_count=asset_count)
+        return render_user(user)
 
     @roles_required(ADMIN_ROLE)
     def toggle_active(self, id: str):
@@ -147,7 +115,7 @@ class UserCrudUI(FlaskView):
             user_response.json(), make_obj=True
         )
         return render_user(
-            user,
+            patched_user,
             msg="User %s's new activation status is now %s."
             % (patched_user.username, patched_user.active),
         )
@@ -174,10 +142,7 @@ class UserCrudUI(FlaskView):
         View all user actions.
         """
         user: User = get_user(id)
-        audit_log_response = InternalApi().get(url_for("UserAPI:auditlog", id=id))
-        audit_logs_response = audit_log_response.json()
         return render_flexmeasures_template(
             "crud/user_audit_log.html",
             user=user,
-            audit_logs=audit_logs_response,
         )
