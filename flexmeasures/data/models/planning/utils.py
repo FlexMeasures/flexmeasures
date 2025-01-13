@@ -367,7 +367,7 @@ def get_series_from_quantity_or_sensor(
     resolution: timedelta,
     beliefs_before: datetime | None = None,
     as_instantaneous_events: bool = True,
-    boundary_policy: str | None = None,
+    resolve_overlaps: str = "first",
     fill_sides: bool = False,
 ) -> pd.Series:
     """
@@ -385,8 +385,9 @@ def get_series_from_quantity_or_sensor(
                                     at that time.
     :param as_instantaneous_events: Optionally, convert to instantaneous events, in which case the passed resolution is
                                     interpreted as the desired frequency of the data.
-    :param boundary_policy:         When upsampling to instantaneous events,
-                                    take the 'max', 'min' or 'first' value at event boundaries.
+    :param resolve_overlaps:        If time series segments overlap (e.g. when upsampling to instantaneous events),
+                                    take the 'max', 'min' or 'first' value during overlapping time spans
+                                    (or at instantaneous moments, such as at event boundaries).
     :param fill_sides               If True, values are extended to the edges of the query window:
                                     - The first available value serves as a naive backcast.
                                     - The last available value serves as a naive forecast.
@@ -414,28 +415,85 @@ def get_series_from_quantity_or_sensor(
             one_deterministic_belief_per_event=True,
         )
         if as_instantaneous_events:
-            bdf = bdf.resample_events(timedelta(0), boundary_policy=boundary_policy)
+            bdf = bdf.resample_events(timedelta(0), boundary_policy=resolve_overlaps)
         time_series = simplify_index(bdf).reindex(index).squeeze()
         time_series = convert_units(time_series, variable_quantity.unit, unit)
     elif isinstance(variable_quantity, list):
-        time_series = pd.Series(np.nan, index=index)
-        for event in variable_quantity:
-            value = event["value"]
-            start = event["start"]
-            end = event["end"]
-            time_series[start : end - resolution] = value
-
+        time_series = process_time_series_segments(
+            index=index,
+            variable_quantity=variable_quantity,
+            unit=unit,
+            resolution=resolution,
+            resolve_overlaps=resolve_overlaps,
+            fill_sides=fill_sides,
+        )
     else:
         raise TypeError(
             f"quantity_or_sensor {variable_quantity} should be a pint Quantity or timely-beliefs Sensor"
         )
 
+    return time_series
+
+
+def process_time_series_segments(
+    index: pd.DatetimeIndex,
+    variable_quantity: list[dict],
+    unit: str,
+    resolution: timedelta,
+    resolve_overlaps: str,
+    fill_sides: bool = False,
+) -> pd.Series:
+    """
+    Process a time series defined by a list of dicts, while resolving overlapping segments.
+
+    Parameters:
+        index:              The index for the time series DataFrame.
+        variable_quantity:  List of events, where each event is a dictionary containing:
+                            - 'value': The value of the event (can be a Quantity or scalar).
+                            - 'start': The start datetime of the event.
+                            - 'end': The end datetime of the event.
+        unit:               The unit to convert the value into if it's a Quantity.
+        resolution:         The resolution to subtract from the 'end' to avoid overlap.
+        resolve_overlaps:   How to handle overlaps (e.g., 'first', 'last', 'mean', etc.).
+        fill_sides:         Whether to extend values to cover the whole index.
+
+    Returns:                A time series with resolved event values.
+    """
+    # Initialize a DataFrame to hold the segments
+    time_series_segments = pd.DataFrame(
+        np.nan, index=index, columns=list(range(len(variable_quantity)))
+    )
+
+    # Fill in the DataFrame with event values
+    for segment, event in enumerate(variable_quantity):
+        value = event["value"]
+        if isinstance(value, ur.Quantity):
+            # Convert value to the specified unit if it's a Quantity
+            if np.isnan(value.magnitude):
+                value = np.nan
+            else:
+                value = value.to(unit).magnitude
+        start = event["start"]
+        end = event["end"]
+        # Assign the value to the corresponding segment in the DataFrame
+        time_series_segments.loc[start : end - resolution, segment] = value
+
+    # Resolve overlaps using the specified method
+    if resolve_overlaps == "first":
+        # Use backfill to fill NaNs with the first non-NaN value
+        time_series = time_series_segments.fillna(method="bfill", axis=1).iloc[:, 0]
+    else:
+        # Use the specified method to resolve overlaps (e.g., mean, max)
+        time_series = getattr(time_series_segments, resolve_overlaps)(axis=1)
+
     if fill_sides:
         time_series = extend_to_edges(
-            df=time_series, query_window=query_window, resolution=resolution
+            df=time_series,
+            query_window=(index[0], index[-1] + resolution),
+            resolution=resolution,
         )
 
-    return time_series
+    return time_series.rename("event_value")
 
 
 def get_continuous_series_sensor_or_quantity(
@@ -448,7 +506,7 @@ def get_continuous_series_sensor_or_quantity(
     fallback_attribute: str | None = None,
     max_value: float | int | pd.Series = np.nan,
     as_instantaneous_events: bool = False,
-    boundary_policy: str | None = None,
+    resolve_overlaps: str = "first",
     fill_sides: bool = False,
 ) -> pd.Series:
     """Creates a time series from a sensor, time series specification, or quantity within a specified window,
@@ -464,6 +522,9 @@ def get_continuous_series_sensor_or_quantity(
     :param max_value:               Maximum value (also replacing NaN values).
     :param as_instantaneous_events: optionally, convert to instantaneous events, in which case the passed resolution is
                                     interpreted as the desired frequency of the data.
+    :param resolve_overlaps:        If time series segments overlap (e.g. when upsampling to instantaneous events),
+                                    take the 'max', 'min' or 'first' value during overlapping time spans
+                                    (or at instantaneous moments, such as at event boundaries).
     :param fill_sides               If True, values are extended to the edges of the query window:
                                     - The first available value serves as a naive backcast.
                                     - The last available value serves as a naive forecast.
@@ -483,7 +544,7 @@ def get_continuous_series_sensor_or_quantity(
         resolution=resolution,
         beliefs_before=beliefs_before,
         as_instantaneous_events=as_instantaneous_events,
-        boundary_policy=boundary_policy,
+        resolve_overlaps=resolve_overlaps,
         fill_sides=fill_sides,
     )
 

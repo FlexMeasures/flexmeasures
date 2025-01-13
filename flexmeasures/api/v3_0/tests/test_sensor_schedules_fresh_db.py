@@ -500,9 +500,11 @@ def test_multiple_contracts(
     roundtrip_efficiency = (
         float(message["flex-model"]["roundtrip-efficiency"].replace("%", "")) / 100.0
     )
-    storage_efficiency = (
-        float(message["flex-model"]["storage-efficiency"].replace("%", "")) / 100.0
-    )
+    storage_efficiency_field = message["flex-model"]["storage-efficiency"]
+    if isinstance(storage_efficiency_field, str):
+        storage_efficiency = float(storage_efficiency_field.replace("%", "")) / 100.0
+    else:
+        storage_efficiency = storage_efficiency_field
     soc_targets = message["flex-model"].get("soc-targets")
 
     soc_schedule = integrate_time_series(

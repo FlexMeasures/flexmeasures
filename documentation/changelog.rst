@@ -4,14 +4,30 @@ FlexMeasures Changelog
 **********************
 
 
-v0.24.0 | October XX, 2024
+v0.25.0 | February XX, 2025
 ============================
+
+New features
+-------------
+
+Infrastructure / Support
+----------------------
+
+Bugfixes
+-----------
+
+
+v0.24.0 | January 7, 2025
+============================
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/024-more-expressive-congestion-modeling-data-dashboards/>`_.
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
 
 New features
 -------------
 * Allow scheduling against energy contracts, capacity contracts and peak contracts simultaneously, using various new ``flex-context`` fields [see `PR #1144 <https://github.com/FlexMeasures/flexmeasures/pull/1144>`_]
+* Allow using numeric values for ``flex-model`` fields accepting dimensionless quantities [see `PR #1144 <https://github.com/FlexMeasures/flexmeasures/pull/1299>`_]
 * The data chart on the asset page splits up its color-coded sensor legend when showing more than 7 sensors, becoming a legend per subplot [see `PR #1176 <https://github.com/FlexMeasures/flexmeasures/pull/1176>`_ and `PR #1193 <https://github.com/FlexMeasures/flexmeasures/pull/1193>`_]
 * Speed up loading the users page, by making the pagination backend-based and adding support for that in the API [see `PR #1160 <https://github.com/FlexMeasures/flexmeasures/pull/1160>`_]
 * X-axis labels in CLI plots show datetime values in a readable and informative format [see `PR #1172 <https://github.com/FlexMeasures/flexmeasures/pull/1172>`_]
@@ -32,16 +48,19 @@ Infrastructure / Support
 * For MacOS developers, install HiGHS solver automatically [see `PR #1187 <https://github.com/FlexMeasures/flexmeasures/pull/1187>`_]
 * Migrate data for the ``sensors_to_show`` asset attribute to a dedicated column in the database table for assets [see `PR #1200 <https://github.com/FlexMeasures/flexmeasures/pull/1200>`_ and `PR #1282 <https://github.com/FlexMeasures/flexmeasures/pull/1282>`_]
 * Add support for installing FlexMeasures under Python 3.12 [see `PR #1233 <https://github.com/FlexMeasures/flexmeasures/pull/1233>`_]
+* Better error handling in UI, for example, in case of a forgotten ``flexmeasures db upgrade`` [see `PR #1302 <https://github.com/FlexMeasures/flexmeasures/pull/1302>`_]
 
 Bugfixes
 -----------
 * Fix table sorting on the assets, accounts and users page (regression from `PR #988 <https://github.com/FlexMeasures/flexmeasures/pull/988>`_) [see `PR #1239 <https://github.com/FlexMeasures/flexmeasures/pull/1239>`_, `PR #1242 <https://github.com/FlexMeasures/flexmeasures/pull/1242>`_, `PR #1248 <https://github.com/FlexMeasures/flexmeasures/pull/1248>`_, `PR #1247 <https://github.com/FlexMeasures/flexmeasures/pull/1247>`_ and `PR #1272 <https://github.com/FlexMeasures/flexmeasures/pull/1272>`_]
+* Fix ``flexmeasures delete measurements`` and ``flexmeasures delete prognoses`` which had an error in counting affected rows after SQLAlchemy2.0 upgrade [see `PR #1095 <https://github.com/FlexMeasures/flexmeasures/pull/1095>`_ and `PR #1303 <https://github.com/FlexMeasures/flexmeasures/pull/1303>`_]
 * Fix asset count on the user page, which showed 0 assets after (de)activating a user or resetting their password [see `PR #1251 <https://github.com/FlexMeasures/flexmeasures/pull/1251>`_]
 * The UI footer now stays at the bottom even on pages with little content [see `PR #1204 <https://github.com/FlexMeasures/flexmeasures/pull/1204>`_]
 * Correct stroke dash (based on source type) for forecasts made by forecasters included in FlexMeasures [see `PR #1211 <https://www.github.com/FlexMeasures/flexmeasures/pull/1211>`_]
 * Show the correct :abbr:`UTC (Coordinated Universal Time)` offset for the data's time span as shown under sensor stats in the UI [see `PR #1213 <https://github.com/FlexMeasures/flexmeasures/pull/1213>`_]
 * Fixed issue where audit log buttons are visible to users without the necessary permissions. [see `PR #1228 <https://github.com/FlexMeasures/flexmeasures/pull/1228>`_]
 * Fix issue with displaying ``deactivate user`` and ``reset password`` buttons for non admin users [see `PR #1220 <https://github.com/FlexMeasures/flexmeasures/pull/1220>`_]
+* Resolve overlapping time series segments in several flex-model and flex-context fields in a way befitting their nature [see `PR #1223 <https://github.com/FlexMeasures/flexmeasures/pull/1223>`_]
 
 
 v0.23.2 | December 16, 2024
