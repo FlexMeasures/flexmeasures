@@ -144,6 +144,8 @@ class FlexContextSchema(Schema):
         if any(
             field_map[field] in data
             for field in (
+                "soc-minima-breach-price",
+                "soc-maxima-breach-price",
                 "site-consumption-breach-price",
                 "site-production-breach-price",
                 "site-peak-consumption-price",
