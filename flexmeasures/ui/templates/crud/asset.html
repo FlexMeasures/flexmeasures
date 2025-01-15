@@ -132,19 +132,17 @@
                                 </div>
 
                                 <div class="form-group">
-                                    {{ asset_form.flex_context.label(class="col-sm-3 control-label") }}
-                                    <div class="col-md-3">
-                                        {{ asset_form.flex_context(class_="form-control") }}
-                                        {% for error in asset_form.errors.flex_context %}
-                                        <span style="color: red;">[{{error}}]</span>
-                                        {% endfor %}
-                                    </div>
+                                    <label for="flex_context" class="col-sm-6 control-label">Flex Context: </label>
+                                
+                                    <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#flexContextModal">
+                                        Edit
+                                    </button>
                                 </div>
 
                                 <div class="form-group">
                                     <label for="sensors_to_show" class="col-sm-6 control-label">Sensor Graphs: </label>
                                 
-                                        <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#sensorsToShowForm">
+                                        <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#sensorsToShowModal">
                                             Edit Graphs
                                         </button>
                                 </div>
@@ -320,7 +318,7 @@
     </div>
     
     <!-- Modal -->
-    <div class="modal fade modal-xl" id="sensorsToShowForm" tabindex="-1" aria-labelledby="sensorsToShowFormLabel"
+    <div class="modal fade modal-xl" id="sensorsToShowModal" tabindex="-1" aria-labelledby="sensorsToShowModalLabel"
         aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -411,6 +409,82 @@
         </div>
     </div>
 
+        <!-- Flex Context Modal -->
+    <div class="modal fade modal-xl" id="flexContextModal" tabindex="-1" aria-labelledby="flexContextModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title pe-2">Edit Asset's FlexContext</h5>
+                    
+                    <div class="dropdown" data-bs-auto-close="outside">
+                        <span
+                          class="fa fa-info dropdown-toggle"
+                          role="button"
+                          data-bs-toggle="dropdown"
+                          aria-expanded="false"
+                          rel="tooltip"
+                          aria-hidden="true"
+                          tabindex="0"
+                          data-bs-placement="right"
+                          data-bs-toggle="tooltip"
+                       ></span>
+                      
+                        <div class="dropdown-menu p-3" style="width: 400px;">
+                            <div>
+                                <strong>Help</strong>
+                                <p class="mb-2">
+                                  Here you can edit the asset's flex context.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                      
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-7">
+                            <form id="flexContextForm">
+                            </form>
+
+                        </div>
+
+                        <div class="col-5">
+                            <div class="">
+                                <div id="spinnerElement" class="d-flex justify-content-center align-items-center mb-2" style="height: 50vh; display: none !important;">
+                                    <div class="spinner-border text-primary" role="status" style="width: 4rem; height: 4rem;">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </div>
+
+                                <div id="power-capacity-input" class="flex-input-group mb-4" style="display:none;">
+                                    <label for="power-capacity" class="form-label">Power Capacity</label>
+                                    <input type="text" id="power-capacity" class="form-control" placeholder="e.g. 15 kW">
+                                    <button class="btn btn-secondary btn-sm me-2 mt-2" onclick="udpateFlexContextFieldValue('power', 0)">Add Value</button>
+                                </div>
+            
+                                <div id="select-sensor-input" class="flex-input-group mb-4" style="display:none;">
+                                    <label for="sensor" class="form-label">Select Sensor: </label>
+                                    <input
+                                        type="text"
+                                        id="flexContextSensorSearch"
+                                        class="form-control"
+                                        placeholder="Search sensors..."
+                                        oninput="searchSensors()"
+                                    />
+                            
+                                    <div id="sensorsSearchResults" class="row mt-3" style="display: none;"></div>
+                                </div>  
+                            </div>
+                            
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
 </div>
 
@@ -426,14 +500,63 @@
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet-src.min.js"></script>
 <script src="{{ url_for('flexmeasures_ui.static', filename='js/map-init.js') }}"></script>
 
-
 <script>
-    const formModal = document.getElementById('sensorsToShowForm');
+    let senSearchResEle = document.getElementById("sensorsSearchResults")
+    let flexContextFormEle = document.getElementById("flexContextForm")
+    const flexContexFormModal = document.getElementById('flexContextModal');
+    let assetFlexContext = {
+        "site-power-capacity": null,
+        "consumption-price":  null,
+        "production-price":  null, 
+        "site-production-capacity":  null,
+        "site-consumption-capacity":  null,
+        "site-consumption-breach-price":  null,
+        "site-production-breach-price":  null,
+        "site-peak-consumption":  null,
+        "site-peak-consumption-price":  null,
+        "site-peak-production":  null,
+        "site-peak-production-price":  null,
+        "inflexible-device-sensors": []
+    }
+    let assetFlexContextRawJSON = "{{ asset.flex_context | safe }}";
+    assetFlexContextRawJSON = assetFlexContextRawJSON.replace(/'/g, '"');
+    // change None to null
+    assetFlexContextRawJSON = assetFlexContextRawJSON.replace(/None/g, 'null');
+    // update the assetFlexContext fields
+    assetFlexContextRawJSON = JSON.parse(assetFlexContextRawJSON);
+
+    for (const [key, value] of Object.entries(assetFlexContextRawJSON)) {
+        if (key in assetFlexContext) {
+            assetFlexContext[key] = assetFlexContextRawJSON[key];
+        } else {
+            assetFlexContext[key] = null;
+        }
+    }
+    $(document).ready(function () {
+        // Use event delegation to handle dynamically added elements
+        $(document).on('change', '[id^="input-type-"]', function () {
+            console.log("Input type changed");
+            let selectedOption = $(this).val();
+            $('.flex-input-group').hide();
+
+            if (selectedOption === 'power-capacity') {
+                $('#power-capacity-input').show();
+            } else if (selectedOption === 'select-sensor') {
+                $('#select-sensor-input').show();
+            }
+        });
+
+        // Trigger the change event initially to show the default option's input
+        $('#input-type-site-power-capacity').trigger('change');
+    });
+
+
+    const formModal = document.getElementById('sensorsToShowModal');
     const apiSensorsListElement = document.getElementById("apiSensorsList");
     const spinnerElement = document.getElementById('spinnerElement');
-    let rawJSON = "{{ asset.sensors_to_show | safe }}";
-    rawJSON = rawJSON.replace(/'/g, '"');
-    let sensorsToShow = JSON.parse(rawJSON);
+    let sensorsToShowRawJSON = "{{ asset.sensors_to_show | safe }}";
+    sensorsToShowRawJSON = sensorsToShowRawJSON.replace(/'/g, '"');
+    let sensorsToShow = JSON.parse(sensorsToShowRawJSON);
     let cachedFilteredSensors = []; // keeps track of the filtered sensors
     let editingIndex; // keeps track of which graph we are currently editing
     let savedGraphIndex; // keeps track of the graph that is currently selected
@@ -665,6 +788,40 @@
             console.error(error);
         }
     }
+
+    async function searchSensors() {
+        const searchValue = document.getElementById("flexContextSensorSearch").value.toLowerCase();
+        spinnerElement.style.display = 'flex';
+        senSearchResEle.style.display = 'none';
+
+        const params = new URLSearchParams();
+
+        if (searchValue) {
+            params.append('filter', searchValue);
+        }
+
+        const apiUrl = `${sensorsApiUrl}&${params.toString()} `;
+
+        try {
+            const response = await fetch(apiUrl);
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch sensors');
+            }
+
+            const responseData = await response.json();
+            const filteredSensors = responseData.data;
+
+            // Render the fetched sensors
+            renderSensorSearchResults(filteredSensors);
+
+            spinnerElement.classList.add('hidden-important');
+            senSearchResEle.style.display = 'block';
+        } catch (error) {
+            showToast("Failed to filter/search sesnors", "error");
+            console.error(error);
+        }
+    }
     
     
     // ============== Graph Cards Management ============== //
@@ -754,24 +911,64 @@
         });
     }
     
-    async function updateAssetSensorsToShow() {
-        const graphSpinnerElement = document.getElementById('spinner');
-        // Show spinner
-        graphSpinnerElement.style.display = 'block';
+    function renderSensorSearchResults(sensors){
+        senSearchResEle.innerHTML = "";
+        if (sensors.length === 0) {
+            apiSensorsList.innerHTML = "<h3>No sensors found</h3>";
+            return;
+        }
+
+        sensors.forEach(async (sensor) => {
+            const Asset = await getAsset(sensor.generic_asset_id);
+            const Account = await getAccount(Asset.account_id);
     
+            const col = document.createElement("div");
+            col.classList.add("col-12", "mb-1");
+    
+            col.innerHTML = `
+                <div class="card m-0">
+                    <div class="card-body p-0 sensor-card">
+                        <h5 class="card-title">${sensor.name}</h5>
+                        <p class="card-text">
+                            <b>ID:</b> <a href="${apiBasePath}/sensors/${sensor.id}">${sensor.id}</a>,
+                            <b>Unit:</b> ${sensor.unit},
+                            <b>Asset:</b> ${Asset.name},
+                            <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
+                        </p>
+                        <button class="btn btn-primary btn-sm" onclick="udpateFlexContextFieldValue('sensor', ${sensor.id})">Add Sensor</button>
+                    </div>
+                </div>
+            `;
+
+            senSearchResEle.appendChild(col);
+        });
+    }
+
+    async function updateAssetSensorsToShow(dataType) {
+
         const apiURL = apiBasePath + "/api/v3_0/assets/{{ asset.id }}";
-        const sensorsToShowJson = JSON.stringify({ sensors_to_show: JSON.stringify(sensorsToShow) });
-    
+        let requestBody;
+
+        if (dataType === "sensorToShow") {
+            requestBody = JSON.stringify({ sensors_to_show: JSON.stringify(sensorsToShow) });
+            // Only show the spinner if relevant to this specific data type
+            document.getElementById('spinner').style.display = 'block'; 
+        } else if (dataType === "flexContext") {
+            requestBody = JSON.stringify({ flex_context: JSON.stringify(assetFlexContext) });
+        }   
+
         const response = await fetch(apiURL, {
             method: "PATCH",
             headers: {
                 "Content-Type": "application/json",
             },
-            body: sensorsToShowJson,
+            body: requestBody,
         });
     
         if (!response.ok) {
-            showToast("Failed to update the asset", "error");
+            const errorData = await response.json(); 
+            const errorMessage = errorData?.message || errorData?.error || response.statusText; 
+            showToast(`Failed to update the asset: ${errorMessage}`, "error");
         } else {
             document.dispatchEvent(new Event('sensorsToShowUpdated'));
             showToast("Changes saved successfully", "success");
@@ -819,15 +1016,189 @@
             renderApiSensors(cachedFilteredSensors, graphIndex);
         }
     }
+
+
+    // ============== Flex Context Management ============== //
+
+    async function removeFlexContextValue(fieldName) {
+        assetFlexContext[fieldName] = null;
+        renderFlexContextForm();
+    }
+
+    async function removeFlexContextSensorValue(fieldName, sensorId) {
+        const sensorIndex = assetFlexContext[fieldName].indexOf(sensorId);
+        assetFlexContext[fieldName].splice(sensorIndex, 1);
+        renderFlexContextForm();
+    }
+
+    async function renderFlexContextInputField(fieldName) {
+        senSearchResEle.innerHTML = "";
+        let fieldValue = assetFlexContext[fieldName] 
+        let newFieldValue;
+        let sensorsContent = [];
+
+        if (fieldValue === null) {
+            newFieldValue = ""
+        } else if (typeof fieldValue === "object") {
+            if (fieldValue["sensor"]) {
+                newFieldValue = `{&quot;sensor&quot;: ${fieldValue["sensor"]}}`
+            isSensorValue = true;
+            } else if (fieldValue.length > 0) {
+                newFieldValue = fieldValue.join(", ")
+            }
+        } else if (typeof fieldValue == "string"){
+            newFieldValue = fieldValue
+        }
+
+        const isString = typeof fieldValue === "string";
+        const isArray = Array.isArray(fieldValue);
+        const isKeyValueObject = typeof fieldValue === "object" && 
+                       fieldValue !== null && 
+                       !Array.isArray(fieldValue) && // Exclude arrays
+                       Object.keys(fieldValue).length > 0;
+
+        const InputTitle = fieldName.split("-").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
+
+
+        if (isKeyValueObject){
+            const sensors = [fieldValue["sensor"]]
+            sensorsContent = await Promise.all(
+                sensors.map(async (sensor, sensorIndex) => {
+                    const sensorData = await getSensor(fieldValue["sensor"]);
+                    const Asset = await getAsset(sensorData.generic_asset_id);
+                    const Account = await getAccount(Asset.account_id);
+    
+                return `
+                    <div class="p-1 mb-3 border-bottom border-secondary">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <b>ID:</b> <a href="${apiBasePath}/sensors/${sensorData.id}">${sensorData.id}</a>,
+                                <b>Unit:</b> ${sensorData.unit},
+                                <b>Name:</b> ${sensorData.name},
+                                <div style="padding-top: 1px;"></div>
+                                <b>Asset:</b> ${Asset.name},
+                                <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
+                            </div>
+                            <i class="fa fa-times"
+                                onclick="removeFlexContextValue('${fieldName}')"
+                                data-bs-toggle="tooltip"
+                                data-bs-placement="top"
+                                title="Remove Sensor"
+                                style="cursor: pointer;"
+                            ></i>
+                        </div>
+
+                    </div>`;
+            }));
+        } else if (isArray) {
+            sensorsContent = await Promise.all(
+                fieldValue.map(async (sensor, sensorIndex) => {
+                    const sensorData = await getSensor(sensor);
+                    const Asset = await getAsset(sensorData.generic_asset_id);
+                    const Account = await getAccount(Asset.account_id);
+    
+                return `
+                    <div class="p-1 mb-3 border-bottom border-secondary">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <b>ID:</b> <a href="${apiBasePath}/sensors/${sensorData.id}">${sensorData.id}</a>,
+                                <b>Unit:</b> ${sensorData.unit},
+                                <b>Name:</b> ${sensorData.name},
+                                <div style="padding-top: 1px;"></div>
+                                <b>Asset:</b> ${Asset.name},
+                                <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
+                            </div>
+                            <i class="fa fa-times"
+                                onclick="removeFlexContextSensorValue('${fieldName}')"
+                                data-bs-toggle="tooltip"
+                                data-bs-placement="top"
+                                title="Remove Sensor"
+                                style="cursor: pointer;"
+                            ></i>
+                        </div>
+                    </div>`;
+            }));
+        }
+
+        return `
+            <div class="row g-2 my-1 card-highlight p-1">
+                <div class="col-8 mb-3">
+                    <label for="${fieldName}-control-input" class="form-label">${InputTitle}</label>
+                    <input type="text" class="form-control" id="${fieldName}-input" value="${newFieldValue ? newFieldValue : ''}" placeholder="15 KW or {&quot;sensor&quot;: 4}" disabled>
+                </div>
+
+                <div class="col-4 mb-3">
+                    <label for="input-type-${fieldName}" class="form-label">Input Type:</label>
+                    <select id="input-type-${fieldName}" class="form-select">
+                        <option value="select-type">Select Type</option>
+                        ${isArray ? "": `<option value="power-capacity">Power Capacity</option>`}
+                        <option value="select-sensor">Select Sensor</option>
+                    </select>
+                </div>
+
+                ${isKeyValueObject || isArray ? `
+                <div>
+                    ${sensorsContent.length > 0 ? sensorsContent.join("") : `<div class="alert alert-warning" role="alert"> No sensors added to this graph. Add sensors by selecting them from the right</div>`}
+                </div>
+                ` : ""}
+            </div>
+        `;
+    }
+
+    async function renderFlexContextForm() {
+        flexContextFormEle.innerHTML = "";
+        
+        for (const [key, value] of Object.entries(assetFlexContext)) {
+            flexContextFormEle.innerHTML += await renderFlexContextInputField(key);
+        }
+    }
+
+    function udpateFlexContextFieldValue(dataType, sensorId) {
+        const powerCapacityInputValue = document.getElementById("power-capacity").value;
+        const highlightedCard = document.querySelector('.border-on-click');
+        // get input element inside highlightedCard div
+        const input = highlightedCard.querySelector("input");
+        // get input id and remove '-input' at the end
+        const inputId = input.id.slice(0, -6);
+        console.log("inputId", inputId)
+        if (dataType === "power") {
+            assetFlexContext[inputId] = powerCapacityInputValue;
+        } else if (dataType === "sensor"){
+            const inflexibleDeviceSensorsInput = document.getElementById("inflexible-device-sensors-input");
+            if (inflexibleDeviceSensorsInput === input){
+                assetFlexContext[inputId].push(sensorId);
+            } else {
+                assetFlexContext[inputId] = {sensor: sensorId};
+            }
+        }
+        console.log("assetFlexContext", assetFlexContext)
+
+        renderFlexContextForm();
+    }
+
+
+
+    // ============== Flex Context Management ============== //
+
+
     
     formModal.addEventListener('hidden.bs.modal', function () {
-        updateAssetSensorsToShow();
+        updateAssetSensorsToShow("sensorToShow");
     });
 
     formModal.addEventListener('shown.bs.modal', function () {
         // Initial renders
         renderGraphCards(); // Initial render of graph cards
         filterSensors(); // Initial render of sensors
+    });
+
+    flexContexFormModal.addEventListener('shown.bs.modal', function () {
+        // Initial renders
+        renderFlexContextForm(); // Initial render of flex context form
+    });
+
+    flexContexFormModal.addEventListener('hidden.bs.modal', function () {
+        updateAssetSensorsToShow("flexContext");
     });
     
     document.addEventListener("click", function (event) {
