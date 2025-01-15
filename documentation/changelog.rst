@@ -15,6 +15,8 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Fix map not loading when editing an asset [see `PR #1310 <https://github.com/FlexMeasures/flexmeasures/pull/1310>`_]
+
 
 
 v0.24.0 | January 7, 2025
