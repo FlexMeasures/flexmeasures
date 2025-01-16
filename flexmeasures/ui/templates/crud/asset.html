@@ -921,10 +921,9 @@
         popupAnchor: [0, -50] // point from which the popup should open relative to the iconAnchor
     });
     var marker = L
-        .marker(
-            [{{ asset.latitude | replace("None", 10) }}, { { asset.longitude | replace("None", 10) } }],
-    { icon: asset_icon }
-        ).addTo(assetMap);
+    .marker(
+        [{{ asset.latitude | replace("None", 10) }}, {{ asset.longitude | replace("None", 10) }}], {icon: asset_icon}
+    ).addTo(assetMap);
 
     assetMap.on('click', function (e) {
         $("#latitude").val(e.latlng.lat.toFixed(4));
