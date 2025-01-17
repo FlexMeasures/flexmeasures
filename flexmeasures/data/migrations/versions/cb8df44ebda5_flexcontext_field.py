@@ -64,7 +64,7 @@ def upgrade():
         inflexible_device_sensors = conn.execute(select_stmt)
 
         market_id = attributes_data.get("market_id")
-        attributes_data.pop("market_id", None)
+        attributes_data.pop("market_id", None)  # remove market_id from attributes
 
         if consumption_price_sensor_id is None and market_id is not None:
             consumption_price_sensor_id = market_id
