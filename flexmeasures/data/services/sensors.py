@@ -253,7 +253,6 @@ def build_sensor_status_data(
             )
             sensor_ids.add(sensor.id)
             sensors.append(sensor_status)
-    print("====================================", sensors)
     return sensors
 
 
