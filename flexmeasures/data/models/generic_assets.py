@@ -343,11 +343,12 @@ class GenericAsset(db.Model, AuthModelMixin):
         from flexmeasures.data.models.time_series import Sensor
 
         # Need to load consumption_price_sensor manually as generic_asset does not get to SQLAlchemy session context.
-        if self.flex_context.get("consumption-price"):
-            consumption_price_sensor = Sensor.query.get(
-                self.flex_context["consumption-price"]["sensor"]
-            )
-            return consumption_price_sensor or None
+        sensor_id = (
+            self.flex_context.get("consumption-price-sensor")
+            or self.flex_context.get("consumption-price")["sensor"]
+        )
+        if sensor_id:
+            return Sensor.query.get(sensor_id) or None
         if self.parent_asset:
             return self.parent_asset.get_consumption_price_sensor()
         return None
@@ -356,13 +357,13 @@ class GenericAsset(db.Model, AuthModelMixin):
         """Searches for production_price_sensor upwards on the asset tree"""
         from flexmeasures.data.models.time_series import Sensor
 
-        production_price_sensor = None
         # Need to load production_price_sensor manually as generic_asset does not get to SQLAlchemy session context.
-        if self.flex_context.get("production-price"):
-            production_price_sensor = Sensor.query.get(
-                self.flex_context["production-price"]["sensor"]
-            )
-            return production_price_sensor or None
+        sensor_id = (
+            self.flex_context.get("production-price-sensor")
+            or self.flex_context.get("production-price")["sensor"]
+        )
+        if sensor_id:
+            return Sensor.query.get(sensor_id) or None
         if self.parent_asset:
             return self.parent_asset.get_production_price_sensor()
         return None
