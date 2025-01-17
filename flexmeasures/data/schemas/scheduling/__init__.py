@@ -211,3 +211,28 @@ class FlexContextSchema(Schema):
                 f"Unexpected type '{type(variable_quantity)}' for '{field}': {variable_quantity}."
             )
         return unit
+
+
+class DBFlexContextSchema(FlexContextSchema):
+
+    @validates_schema
+    def forbid_time_series_specs(self, data: dict, **kwargs):
+        """Do not allow time series specs for the flex-context fields saved in the db."""
+
+        # The flex-context must not contain time series specs
+        if "ems_power_capacity_in_mw" in data:
+            if isinstance(data["ems_power_capacity_in_mw"], list):
+                raise ValidationError(
+                    "Time series specs are not allowed in flex-context fields in the DB."
+                )
+
+            # todo: to the same for the other VariableQuantityFields
+
+    @validates_schema
+    def forbid_fixed_prices(self, data: dict, **kwargs):
+        """Do not allow fixed consumption price or fixed production price in the flex-context fields saved in the db."""
+        if "consumption_price" in data and isinstance(data["consumption_price"], str):
+            raise ValidationError(
+                "Fixed prices are not currently supported in flex-context fields in the DB."
+            )
+        # todo: likewise for production_price
