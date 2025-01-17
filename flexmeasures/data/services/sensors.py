@@ -193,9 +193,9 @@ def _get_sensor_asset_relation(
     relations = list()
     if sensor.generic_asset_id == asset.id:
         relations.append("included device")
-    if asset.flex_context["consumption-price-sensor"] == sensor.id:
+    if asset.get_consumption_price_sensor().id == sensor.id:
         relations.append("consumption price")
-    if asset.flex_context["production-price-sensor"] == sensor.id:
+    if asset.get_production_price_sensor().id == sensor.id:
         relations.append("production price")
     inflexible_device_sensors_ids = {sensor.id for sensor in inflexible_device_sensors}
     if sensor.id in inflexible_device_sensors_ids:
