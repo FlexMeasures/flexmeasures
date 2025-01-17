@@ -161,11 +161,10 @@ def extend_to_edges(
     - The first available value serves as a naive backcasts.
     - The last available value serves as a naive forecast.
     """
-    if df.isnull().all():
+    nan_values = df.isnull().values
+    if nan_values.all():
         current_app.logger.warning("No prices in planning window. Assuming 0 prices.")
         df = df.fillna(1)
-
-    nan_values = df.isnull().values
     if (
         nan_values.any()
         or pd.Timestamp(df.index[0]).tz_convert("UTC")
