@@ -504,6 +504,7 @@ class AssetAPI(FlaskView):
                 continue
             if k == "flex_context":
                 current_flex_context = getattr(db_asset, k)
+                # Validate the flex context schema
                 FlexContextSchema().load(current_flex_context)
             audit_log_data.append(
                 f"Updated Field: {k}, From: {getattr(db_asset, k)}, To: {v}"
