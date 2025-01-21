@@ -69,7 +69,7 @@ def test_create_sequential_jobs(db, app, flex_description_sequential, smart_buil
     # work tasks
     work_on_rq(queue)
 
-    # check that the jobs complete successfuly
+    # check that the jobs complete successfully
     assert jobs[0].get_status() == "finished"
     assert jobs[1].get_status() == "finished"
 
