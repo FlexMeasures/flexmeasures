@@ -223,28 +223,29 @@ class FlexContextSchema(Schema):
 
 class SequentialFlexModelSchema(Schema):
     """
+
+    This schema is agnostic to the underlying type of flex-model, which is governed by the chosen Scheduler instead.
+    Therefore, the underlying type of flex-model is not deserialized.
+
     So:
 
         {
-            "flex-model": {
-                "sensor": 1,
-                "soc-at-start": "10 kWh"
-            }
+            "sensor": 1,
+            "soc-at-start": "10 kWh"
         }
 
     becomes:
 
         {
-            "flex-model": {
-                "sensor": 1,
-                "sensor-flex-model": {
-                    "soc-at-start": "10 kWh"
-                }
+            "sensor": <Sensor 1>,
+            "sensor_flex_model": {
+                "soc-at-start": "10 kWh"
             }
         }
     """
 
     sensor = SensorIdField(required=True)
+    # it's up to the Scheduler to deserialize the underlying flex-model
     sensor_flex_model = fields.Dict(data_key="sensor-flex-model")
 
     @pre_load
