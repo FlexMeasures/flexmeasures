@@ -330,55 +330,54 @@ def smart_building(app, fresh_db, smart_building_types):
 def flex_description_sequential(
     smart_building, setup_markets_fresh_db, add_market_prices_fresh_db
 ):
-    """This is a partially deserialized flex model.
+    """Set up a flex-context and a partially deserialized flex-model.
 
     Specifically, the main flex model is deserialized, while the sensors' individual flex models are still serialized.
     """
     assets, sensors = smart_building
 
-    return {
-        "flex_model": [
-            {
-                "sensor": sensors["Test EV"],
-                "sensor_flex_model": {
-                    "consumption-capacity": "10kW",
-                    "production-capacity": "0kW",
-                    "power-capacity": "10kW",
-                    "soc-at-start": 0.00,  # 0 kWh
-                    "soc-unit": "MWh",
-                    "soc-min": 0.0,
-                    "soc-max": 0.05,  # 50 kWh
-                    "soc-targets": [
-                        {
-                            "start": "2015-01-03T00:00:00+01:00",
-                            "end": "2015-01-03T10:00:00+01:00",
-                            "value": 0.0,
-                        },
-                        {"datetime": "2015-01-03T23:45:00+01:00", "value": 0.05},
-                    ],
-                },
+    flex_model = [
+        {
+            "sensor": sensors["Test EV"],
+            "sensor_flex_model": {
+                "consumption-capacity": "10kW",
+                "production-capacity": "0kW",
+                "power-capacity": "10kW",
+                "soc-at-start": 0.00,  # 0 kWh
+                "soc-unit": "MWh",
+                "soc-min": 0.0,
+                "soc-max": 0.05,  # 50 kWh
+                "soc-targets": [
+                    {
+                        "start": "2015-01-03T00:00:00+01:00",
+                        "end": "2015-01-03T10:00:00+01:00",
+                        "value": 0.0,
+                    },
+                    {"datetime": "2015-01-03T23:45:00+01:00", "value": 0.05},
+                ],
             },
-            {
-                "sensor": sensors["Test Battery"],
-                "sensor_flex_model": {
-                    "consumption-capacity": "0kW",
-                    "production-capacity": "10kW",
-                    "power-capacity": "10kW",
-                    "soc-at-start": 0.1,  # Battery is initially full (100 kWh)
-                    "soc-unit": "MWh",
-                    "soc-min": 0.0,
-                    "soc-max": 0.1,  # 100 kWh
-                },
-            },
-        ],
-        "flex_context": {
-            "consumption-price-sensor": setup_markets_fresh_db["epex_da"].id,
-            "production-price-sensor": setup_markets_fresh_db["epex_da"].id,
-            "inflexible-device-sensors": [
-                sensors["Test Solar"].id,
-                sensors["Test Building"].id,
-            ],
-            "site-production-capacity": "0kW",
-            "site-consumption-capacity": "100kW",
         },
+        {
+            "sensor": sensors["Test Battery"],
+            "sensor_flex_model": {
+                "consumption-capacity": "0kW",
+                "production-capacity": "10kW",
+                "power-capacity": "10kW",
+                "soc-at-start": 0.1,  # Battery is initially full (100 kWh)
+                "soc-unit": "MWh",
+                "soc-min": 0.0,
+                "soc-max": 0.1,  # 100 kWh
+            },
+        },
+    ]
+    flex_context = {
+        "consumption-price-sensor": setup_markets_fresh_db["epex_da"].id,
+        "production-price-sensor": setup_markets_fresh_db["epex_da"].id,
+        "inflexible-device-sensors": [
+            sensors["Test Solar"].id,
+            sensors["Test Building"].id,
+        ],
+        "site-production-capacity": "0kW",
+        "site-consumption-capacity": "100kW",
     }
+    return dict(flex_model=flex_model, flex_context=flex_context)
