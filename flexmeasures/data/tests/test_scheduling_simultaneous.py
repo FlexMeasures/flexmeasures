@@ -31,7 +31,7 @@ def test_create_simultaneous_jobs(db, app, flex_description_sequential, smart_bu
     # The EV is scheduled firstly.
     assert jobs[0].kwargs["asset_or_sensor"] == {
         "id": assets["Test Site"].id,
-        "class": "Asset",
+        "class": "GenericAsset",
     }
     # It uses the inflexible-device-sensors that are defined in the flex-context, exclusively.
     assert jobs[0].kwargs["flex_context"]["inflexible-device-sensors"] == [
