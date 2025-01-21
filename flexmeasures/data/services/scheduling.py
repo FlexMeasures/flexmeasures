@@ -364,7 +364,6 @@ def create_simultaneous_scheduling_job(
     **scheduler_kwargs,
 ) -> list[Job]:
     jobs = []
-    scheduler_kwargs = deepcopy(scheduler_kwargs)  # todo: needed?
 
     # scheduler_kwargs["resolution"] = sensor.event_resolution  # todo: needed?
 
