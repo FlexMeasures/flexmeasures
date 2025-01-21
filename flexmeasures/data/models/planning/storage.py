@@ -25,7 +25,7 @@ from flexmeasures.data.models.planning.utils import (
 )
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
 from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
-from flexmeasures.data.schemas.scheduling import FlexContextSchema
+from flexmeasures.data.schemas.scheduling import FlexContextSchema, AssetTriggerSchema
 from flexmeasures.utils.time_utils import get_max_planning_horizon
 from flexmeasures.utils.coding_utils import deprecated
 from flexmeasures.utils.unit_utils import ur, convert_units
@@ -715,11 +715,22 @@ class MetaStorageScheduler(Scheduler):
         self.ensure_soc_min_max()
 
         # Now it's time to check if our flex configuration holds up to schemas
-        self.flex_model = StorageFlexModelSchema(
-            start=self.start,
-            sensor=self.sensor,
-            default_soc_unit=self.flex_model.get("soc-unit"),
-        ).load(self.flex_model)
+        if isinstance(self.flex_model, dict):
+            self.flex_model = StorageFlexModelSchema(
+                start=self.start,
+                sensor=self.sensor,
+                default_soc_unit=self.flex_model.get("soc-unit"),
+            ).load(self.flex_model)
+        elif isinstance(self.flex_model, list):
+            self.flex_model = AssetTriggerSchema(
+                start=self.start,
+                asset=self.asset,
+                default_soc_unit=self.flex_model.get("soc-unit"),
+            ).load(self.flex_model)
+        else:
+            raise TypeError(
+                f"Unsupported type of flex-model: '{type(self.flex_model)}'"
+            )
         self.flex_context = FlexContextSchema().load(self.flex_context)
 
         # Extend schedule period in case a target exceeds its end
