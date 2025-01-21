@@ -9,8 +9,9 @@ import os
 import sys
 import importlib.util
 from importlib.abc import Loader
-from typing import Type
+from typing import Callable, Type
 import inspect
+from copy import deepcopy
 
 
 from flask import current_app
@@ -100,6 +101,15 @@ def load_custom_scheduler(scheduler_specs: dict) -> type:
     return scheduler_class
 
 
+def success_callback(job, connection, result, *args, **kwargs):
+    queue = current_app.queues["scheduling"]
+    orginal_job = Job.fetch(job.meta["original_job_id"])
+
+    # requeue deferred jobs
+    for dependent_job_ids in orginal_job.dependent_ids:
+        queue.deferred_job_registry.requeue(dependent_job_ids)
+
+
 def trigger_optional_fallback(job, connection, type, value, traceback):
     """Create a fallback schedule job when the error is of type InfeasibleProblemException"""
 
@@ -134,8 +144,15 @@ def trigger_optional_fallback(job, connection, type, value, traceback):
                 force_new_job_creation=True,
                 enqueue=False,
                 scheduler_specs=scheduler_specs,
+                success_callback=Callback(success_callback),
                 **scheduler_kwargs,
             )
+
+            # keep track of the id of the original (non-fallback) job
+            fallback_job.meta["original_job_id"] = job.meta.get(
+                "original_job_id", job.id
+            )
+            fallback_job.save_meta()
 
             job.meta["fallback_job_id"] = fallback_job.id
             job.save_meta()
@@ -151,6 +168,8 @@ def create_scheduling_job(
     requeue: bool = False,
     force_new_job_creation: bool = False,
     scheduler_specs: dict | None = None,
+    depends_on: Job | list[Job] | None = None,
+    success_callback: Callable | None = None,
     **scheduler_kwargs,
 ) -> Job:
     """
@@ -173,6 +192,7 @@ def create_scheduling_job(
     :param requeue:                 if True, requeues the job in case it is not new and had previously failed
                                     (this argument is used by the @job_cache decorator)
     :param force_new_job_creation:  if True, this attribute forces a new job to be created (skipping cache)
+    :param success_callback:        callback function that runs on success.
                                     (this argument is used by the @job_cache decorator)
     :returns: the job
 
@@ -220,6 +240,8 @@ def create_scheduling_job(
             ).total_seconds()
         ),  # NB job.cleanup docs says a negative number of seconds means persisting forever
         on_failure=Callback(trigger_optional_fallback),
+        on_success=success_callback,
+        depends_on=depends_on,
     )
 
     job.meta["asset_or_sensor"] = asset_or_sensor
@@ -243,6 +265,92 @@ def create_scheduling_job(
         )
 
     return job
+
+
+def cb_done_sequential_scheduling_job(jobs_ids: list[str]):
+    """
+    TODO: add logic
+    """
+
+    # jobs = [Job.fetch(job_id) for job_id in jobs_ids]
+    pass
+
+
+def create_sequential_scheduling_job(
+    asset: Asset,
+    job_id: str | None = None,
+    enqueue: bool = True,
+    requeue: bool = False,
+    force_new_job_creation: bool = False,
+    scheduler_specs: dict | None = None,
+    depends_on: list[Job] | None = None,
+    **scheduler_kwargs,
+) -> list[Job]:
+    flex_model = scheduler_kwargs["flex_model"]
+    jobs = []
+    previous_sensors = []
+    previous_job = depends_on
+    for child_flex_model in flex_model:
+        sensor = child_flex_model.pop("sensor")
+
+        current_scheduler_kwargs = deepcopy(scheduler_kwargs)
+
+        current_scheduler_kwargs["flex_model"] = child_flex_model["sensor_flex_model"]
+        if "inflexible-device-sensors" not in current_scheduler_kwargs["flex_context"]:
+            current_scheduler_kwargs["flex_context"]["inflexible-device-sensors"] = []
+        current_scheduler_kwargs["flex_context"]["inflexible-device-sensors"].extend(
+            previous_sensors
+        )
+        current_scheduler_kwargs["resolution"] = sensor.event_resolution
+        current_scheduler_kwargs["sensor"] = sensor
+
+        job = create_scheduling_job(
+            **current_scheduler_kwargs,
+            scheduler_specs=scheduler_specs,
+            requeue=requeue,
+            job_id=job_id,
+            enqueue=False,  # we enqueue all jobs later in this method
+            depends_on=previous_job,
+            force_new_job_creation=force_new_job_creation,
+        )
+        jobs.append(job)
+        previous_sensors.append(sensor.id)
+        previous_job = job
+
+    # create job that triggers when the last job is done
+    job = Job.create(
+        func=cb_done_sequential_scheduling_job,
+        args=([j.id for j in jobs],),
+        depends_on=previous_job,
+        ttl=int(
+            current_app.config.get(
+                "FLEXMEASURES_JOB_TTL", timedelta(-1)
+            ).total_seconds()
+        ),
+        result_ttl=int(
+            current_app.config.get(
+                "FLEXMEASURES_PLANNING_TTL", timedelta(-1)
+            ).total_seconds()
+        ),  # NB job.cleanup docs says a negative number of seconds means persisting forever
+        connection=current_app.queues["scheduling"].connection,
+    )
+
+    job_status = job.get_status(refresh=True)
+
+    jobs.append(job)
+
+    # with job_status=None, we ensure that only fresh new jobs are enqueued (in the contrary they should be requeued)
+    if enqueue and not job_status:
+        for job in jobs:
+            current_app.queues["scheduling"].enqueue_job(job)
+            current_app.job_cache.add(
+                asset.id,
+                job.id,
+                queue="scheduling",
+                asset_or_sensor_type="asset",
+            )
+
+    return jobs
 
 
 def make_schedule(
