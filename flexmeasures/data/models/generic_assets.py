@@ -359,9 +359,8 @@ class GenericAsset(db.Model, AuthModelMixin):
         from flexmeasures.data.models.time_series import Sensor
 
         # Need to load production_price_sensor manually as generic_asset does not get to SQLAlchemy session context.
-        sensor_id = (
-            self.flex_context.get("production-price-sensor")
-            or self.flex_context.get("production-price")
+        sensor_id = self.flex_context.get("production-price-sensor") or (
+            self.flex_context.get("production-price")
             and self.flex_context["production-price"].get("sensor")
         )
         if sensor_id:
