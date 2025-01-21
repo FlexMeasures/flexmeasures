@@ -693,29 +693,29 @@ class MetaStorageScheduler(Scheduler):
         if self.flex_model is None:
             self.flex_model = {}
 
-        # Check state of charge.
-        # Preferably, a starting soc is given.
-        # Otherwise, we try to retrieve the current state of charge from the asset (if that is the valid one at the start).
-        # If that doesn't work, we set the starting soc to 0 (some assets don't use the concept of a state of charge,
-        # and without soc targets and limits the starting soc doesn't matter).
-        if (
-            "soc-at-start" not in self.flex_model
-            or self.flex_model["soc-at-start"] is None
-        ):
-            if (
-                self.start == self.sensor.get_attribute("soc_datetime")
-                and self.sensor.get_attribute("soc_in_mwh") is not None
-            ):
-                self.flex_model["soc-at-start"] = self.sensor.get_attribute(
-                    "soc_in_mwh"
-                )
-            else:
-                self.flex_model["soc-at-start"] = 0
-
-        self.ensure_soc_min_max()
-
-        # Now it's time to check if our flex configuration holds up to schemas
         if isinstance(self.flex_model, dict):
+            # Check state of charge.
+            # Preferably, a starting soc is given.
+            # Otherwise, we try to retrieve the current state of charge from the asset (if that is the valid one at the start).
+            # If that doesn't work, we set the starting soc to 0 (some assets don't use the concept of a state of charge,
+            # and without soc targets and limits the starting soc doesn't matter).
+            if (
+                "soc-at-start" not in self.flex_model
+                or self.flex_model["soc-at-start"] is None
+            ):
+                if (
+                    self.start == self.sensor.get_attribute("soc_datetime")
+                    and self.sensor.get_attribute("soc_in_mwh") is not None
+                ):
+                    self.flex_model["soc-at-start"] = self.sensor.get_attribute(
+                        "soc_in_mwh"
+                    )
+                else:
+                    self.flex_model["soc-at-start"] = 0
+
+            self.ensure_soc_min_max()
+
+            # Now it's time to check if our flex configuration holds up to schemas
             self.flex_model = StorageFlexModelSchema(
                 start=self.start,
                 sensor=self.sensor,
