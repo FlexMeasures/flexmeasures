@@ -23,22 +23,23 @@ For instance, in the picture below we include a price sensor from a public asset
 The asset page as data dashboard
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The data charts are maybe the most interesting feature - turning it into a data dashboard. When the most interesting sensors are shown, the replay button on the right creates a very meaningful dynamic insight!
+The data charts are maybe the most interesting feature - they form your own data dashboard. When the most interesting sensors are shown, the replay button on the right creates a very meaningful dynamic insight!
 
 
 Sensors to show on Graph
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The `sensors_to_show`` field controls which sensor data appears in the plot. Use the "Add Graph" button to create graphs. For each graph, you can select one or more sensors, from all available sensors associated with the asset, including public sensors, and add them to your plot.  
-(This internally edits the `sensors_to_show`  field on the asset)
+Use the "Add Graph" button to create graphs. For each graph, you can select one or more sensors, from all available sensors associated with the asset, including public sensors, and add them to your plot.  
 
 You can overlay data from multiple sensors on a single graph. To do this, click on an existing plot and add more sensors from the available options on the right. 
 
 Finally, it is possible to set custom titles for any sensor graph by clicking on the "edit" button right next to the default or current title.
 
-.. image:: https://github.com/FlexMeasures/screenshots/blob/main/screenshot-asset-editgraph.png
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot-asset-editgraph.png
     :align: center
 ..    :scale: 40%
+
+Internally, the asset has a `sensors_to_show`` field, which controls which sensor data appears in the plot. This can also be set by a script. Accepted formats are simple lists of sensor IDs (e.g. `[2, [5,6]]` or a more expressive format (e.g. `[{"title": "Power", "sensor": 2}, {"title": "Costs", "sensors": [5,6] }`). 
 
 
 Status page

@@ -115,7 +115,7 @@ In the case of the scheduler that we ran in the previous tutorial, which did not
     :align: center
 |
 
-.. note:: You can add arbitrary sensors to a chart using the attribute ``sensors_to_show``. See :ref:`view_asset-data` for more.
+.. note:: You can add arbitrary sensors to a chart using the asset UI or the attribute ``sensors_to_show``. See :ref:`view_asset-data` for more.
 
 A nice feature is that you can check the data connectivity status of your building asset. Now that we have made the schedule, both lamps are green. You can also view it in `FlexMeasures UI <http://localhost:5000/assets/2/status>`_ :
 
