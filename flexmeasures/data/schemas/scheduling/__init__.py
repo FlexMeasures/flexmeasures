@@ -222,6 +222,28 @@ class FlexContextSchema(Schema):
 
 
 class SequentialFlexModelSchema(Schema):
+    """
+    So:
+
+        {
+            "flex-model": {
+                "sensor": 1,
+                "soc-at-start": "10 kWh"
+            }
+        }
+
+    becomes:
+
+        {
+            "flex-model": {
+                "sensor": 1,
+                "sensor-flex-model": {
+                    "soc-at-start": "10 kWh"
+                }
+            }
+        }
+    """
+
     sensor = SensorIdField(required=True)
     sensor_flex_model = fields.Dict(data_key="sensor-flex-model")
 
@@ -239,6 +261,22 @@ class SequentialFlexModelSchema(Schema):
 
 
 class AssetTriggerSchema(Schema):
+    """
+    {
+        "start": "2025-01-21T15:00+01",
+        "flex-model": [
+            {
+                "sensor": 1,
+                "soc-at-start": "10 kWh"
+            },
+            {
+                "sensor": 2,
+                "soc-at-start": "20 kWh"
+            },
+        ]
+    }
+    """
+
     asset = GenericAssetIdField(data_key="id")
     start_of_schedule = AwareDateTimeField(
         data_key="start", format="iso", required=True
