@@ -8,7 +8,6 @@ from typing import Type
 import pandas as pd
 import numpy as np
 from flask import current_app
-from isodate import duration_isoformat
 
 
 from flexmeasures import Sensor
@@ -26,7 +25,10 @@ from flexmeasures.data.models.planning.utils import (
 )
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
 from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
-from flexmeasures.data.schemas.scheduling import FlexContextSchema, AssetTriggerSchema
+from flexmeasures.data.schemas.scheduling import (
+    FlexContextSchema,
+    SequentialFlexModelSchema,
+)
 from flexmeasures.utils.time_utils import get_max_planning_horizon
 from flexmeasures.utils.coding_utils import deprecated
 from flexmeasures.utils.unit_utils import ur, convert_units
@@ -694,6 +696,8 @@ class MetaStorageScheduler(Scheduler):
         if self.flex_model is None:
             self.flex_model = {}
 
+        self.flex_context = FlexContextSchema().load(self.flex_context)
+
         if isinstance(self.flex_model, dict):
             # Check state of charge.
             # Preferably, a starting soc is given.
@@ -722,26 +726,26 @@ class MetaStorageScheduler(Scheduler):
                 sensor=self.sensor,
                 default_soc_unit=self.flex_model.get("soc-unit"),
             ).load(self.flex_model)
+
+            # Extend schedule period in case a target exceeds its end
+            self.possibly_extend_end(soc_targets=self.flex_model.get("soc_targets"))
         elif isinstance(self.flex_model, list):
-            kwargs = {
-                "start": self.start.isoformat(),
-                "duration": duration_isoformat(self.end - self.start),
-                "id": self.asset.id,
-                "flex-model": self.flex_model,
-            }
-            self.flex_model = AssetTriggerSchema().load(kwargs)
+            self.flex_model = SequentialFlexModelSchema(many=True).load(self.flex_model)
+
+            # Extend schedule period in case a target exceeds its end
+            for child_flex_model in self.flex_model:
+                self.possibly_extend_end(
+                    soc_targets=child_flex_model.get("soc_targets")
+                )
+
         else:
             raise TypeError(
                 f"Unsupported type of flex-model: '{type(self.flex_model)}'"
             )
-        self.flex_context = FlexContextSchema().load(self.flex_context)
-
-        # Extend schedule period in case a target exceeds its end
-        self.possibly_extend_end()
 
         return self.flex_model
 
-    def possibly_extend_end(self):
+    def possibly_extend_end(self, soc_targets):
         """Extend schedule period in case a target exceeds its end.
 
         The schedule's duration is possibly limited by the server config setting 'FLEXMEASURES_MAX_PLANNING_HORIZON'.
@@ -749,7 +753,6 @@ class MetaStorageScheduler(Scheduler):
         todo: when deserialize_flex_config becomes a single schema for the whole scheduler,
               this function would become a class method with a @post_load decorator.
         """
-        soc_targets = self.flex_model.get("soc_targets")
 
         if soc_targets and not isinstance(soc_targets, Sensor):
             max_target_datetime = max([soc_target["end"] for soc_target in soc_targets])
