@@ -8,6 +8,7 @@ from typing import Type
 import pandas as pd
 import numpy as np
 from flask import current_app
+from isodate import duration_isoformat
 
 
 from flexmeasures import Sensor
@@ -722,10 +723,13 @@ class MetaStorageScheduler(Scheduler):
                 default_soc_unit=self.flex_model.get("soc-unit"),
             ).load(self.flex_model)
         elif isinstance(self.flex_model, list):
-            self.flex_model = AssetTriggerSchema(
-                start=self.start,
-                asset=self.asset,
-            ).load(self.flex_model)
+            kwargs = {
+                "start": self.start.isoformat(),
+                "duration": duration_isoformat(self.end - self.start),
+                "id": self.asset.id,
+                "flex-model": self.flex_model,
+            }
+            self.flex_model = AssetTriggerSchema().load(kwargs)
         else:
             raise TypeError(
                 f"Unsupported type of flex-model: '{type(self.flex_model)}'"

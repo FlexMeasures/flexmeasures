@@ -364,7 +364,7 @@ def flex_description_sequential(
                     "consumption-capacity": "0kW",
                     "production-capacity": "10kW",
                     "power-capacity": "10kW",
-                    "soc-at-start": 0.1,  # Batery is initially full (100 kWh)
+                    "soc-at-start": 0.1,  # Battery is initially full (100 kWh)
                     "soc-unit": "MWh",
                     "soc-min": 0.0,
                     "soc-max": 0.1,  # 100 kWh
