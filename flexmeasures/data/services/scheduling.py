@@ -363,53 +363,20 @@ def create_simultaneous_scheduling_job(
     depends_on: list[Job] | None = None,
     **scheduler_kwargs,
 ) -> list[Job]:
-    flex_model = scheduler_kwargs["flex_model"]
     jobs = []
-    previous_sensors = []
-    previous_job = depends_on
-    for child_flex_model in flex_model:
-        sensor = child_flex_model.pop("sensor")
+    scheduler_kwargs = deepcopy(scheduler_kwargs)  # todo: needed?
 
-        current_scheduler_kwargs = deepcopy(scheduler_kwargs)
+    # scheduler_kwargs["resolution"] = sensor.event_resolution  # todo: needed?
 
-        current_scheduler_kwargs["flex_model"] = child_flex_model["sensor_flex_model"]
-        if "inflexible-device-sensors" not in current_scheduler_kwargs["flex_context"]:
-            current_scheduler_kwargs["flex_context"]["inflexible-device-sensors"] = []
-        current_scheduler_kwargs["flex_context"]["inflexible-device-sensors"].extend(
-            previous_sensors
-        )
-        current_scheduler_kwargs["resolution"] = sensor.event_resolution
-        current_scheduler_kwargs["sensor"] = sensor
-
-        job = create_scheduling_job(
-            **current_scheduler_kwargs,
-            scheduler_specs=scheduler_specs,
-            requeue=requeue,
-            job_id=job_id,
-            enqueue=False,  # we enqueue all jobs later in this method
-            depends_on=previous_job,
-            force_new_job_creation=force_new_job_creation,
-        )
-        jobs.append(job)
-        previous_sensors.append(sensor.id)
-        previous_job = job
-
-    # create job that triggers when the last job is done
-    job = Job.create(
-        func=cb_done_sequential_scheduling_job,
-        args=([j.id for j in jobs],),
-        depends_on=previous_job,
-        ttl=int(
-            current_app.config.get(
-                "FLEXMEASURES_JOB_TTL", timedelta(-1)
-            ).total_seconds()
-        ),
-        result_ttl=int(
-            current_app.config.get(
-                "FLEXMEASURES_PLANNING_TTL", timedelta(-1)
-            ).total_seconds()
-        ),  # NB job.cleanup docs says a negative number of seconds means persisting forever
-        connection=current_app.queues["scheduling"].connection,
+    job = create_scheduling_job(
+        asset_or_sensor=asset,
+        **scheduler_kwargs,
+        scheduler_specs=scheduler_specs,
+        requeue=requeue,
+        job_id=job_id,
+        enqueue=False,  # we enqueue all jobs later in this method
+        depends_on=depends_on,
+        force_new_job_creation=force_new_job_creation,
     )
 
     job_status = job.get_status(refresh=True)
