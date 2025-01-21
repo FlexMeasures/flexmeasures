@@ -725,7 +725,6 @@ class MetaStorageScheduler(Scheduler):
             self.flex_model = AssetTriggerSchema(
                 start=self.start,
                 asset=self.asset,
-                default_soc_unit=self.flex_model.get("soc-unit"),
             ).load(self.flex_model)
         else:
             raise TypeError(
