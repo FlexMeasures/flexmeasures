@@ -4,6 +4,10 @@
 FlexMeasures CLI Changelog
 **********************
 
+since v0.25.0 | February XX, 2024
+=================================
+* Report parameters for ``flexmeasures add report`` can use any argument supported by ``Sensor.search_beliefs`` to allow more control over input for the report.
+
 since v0.24.0 | January 6, 2024
 =================================
 
