@@ -54,6 +54,7 @@ def test_create_simultaneous_jobs(db, app, flex_description_sequential, smart_bu
     work_on_rq(queue)
 
     # check that the jobs complete successfully
+    jobs[0].perform()
     assert jobs[0].get_status() == "finished"
 
     # check results
