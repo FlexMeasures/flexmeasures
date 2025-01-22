@@ -12,9 +12,12 @@ New features
 
 Infrastructure / Support
 ----------------------
+* Enhance reporting infrastructure by ensuring that all ``Sensor.search_beliefs`` filters can be used as report parameters [see `PR #1318 <https://github.com/FlexMeasures/flexmeasures/pull/1318>`_]
 
 Bugfixes
 -----------
+* Fix map not loading when editing an asset [see `PR #1310 <https://github.com/FlexMeasures/flexmeasures/pull/1310>`_]
+
 
 
 v0.24.0 | January 7, 2025
