@@ -40,7 +40,6 @@ class Input(Schema):
     most_recent_beliefs_only = fields.Boolean()
     most_recent_events_only = fields.Boolean()
 
-    use_latest_version_per_event = fields.Boolean()
     one_deterministic_belief_per_event = fields.Boolean()
     one_deterministic_belief_per_event_per_source = fields.Boolean()
     most_recent_only = fields.Boolean()
