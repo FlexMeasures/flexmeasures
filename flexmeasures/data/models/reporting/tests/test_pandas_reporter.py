@@ -224,3 +224,78 @@ def test_pandas_reporter_unit_conversion(app, setup_dummy_data):
     assert (
         result_output_w.event_value.values == result_kw.event_value.values * 0.001
     ).all()
+
+
+def test_pandas_reporter_valid_range(app, setup_dummy_data):
+    """
+    Check that we can select a valid range of values, where values outside the range are dropped.
+    """
+    s1, s2, s3, s4, report_sensor, daily_report_sensor = setup_dummy_data
+
+    range = [3, 7]
+
+    reporter_config = dict(
+        required_input=[
+            {"name": "any_values"},
+        ],
+        required_output=[
+            {"name": "ranged_values"},
+        ],
+        transformations=[
+            {
+                "df_input": "any_values",
+                "method": "gt",
+                "args": [range[0]],
+                "df_output": "gt_value",
+            },
+            {
+                "df_input": "any_values",
+                "method": "lt",
+                "args": [range[1]],
+                "df_output": "lt_value",
+            },
+            {
+                "df_input": "any_values",
+                "method": "where",
+                "args": ["@gt_value"],
+                "df_output": "ranged_values",
+            },
+            {
+                "df_input": "ranged_values",
+                "method": "where",
+                "args": ["@lt_value"],
+                "df_output": "ranged_values",
+            },
+            {
+                "df_input": "ranged_values",
+                "method": "dropna",
+                "df_output": "ranged_values",
+            },
+        ],
+    )
+
+    reporter = PandasReporter(config=reporter_config)
+
+    start = datetime(2023, 4, 10, tzinfo=utc)
+    end = datetime(2023, 4, 11, tzinfo=utc)
+    input = [
+        dict(name="any_values", sensor=s1),
+    ]
+    output = [
+        dict(name="ranged_values", sensor=s1),
+    ]
+
+    report = reporter.compute(start=start, end=end, input=input, output=output)
+    result = report[0]["data"]
+
+    # Check that some values were originally outside the range
+    original_values = s1.search_beliefs(
+        event_starts_after=start,
+        event_ends_before=end,
+    )
+    assert not (original_values.event_value.values > range[0]).all()
+    assert not (original_values.event_value.values < range[-1]).all()
+
+    # Check that all values are now inside the range
+    assert (result.event_value.values > range[0]).all()
+    assert (result.event_value.values < range[1]).all()
