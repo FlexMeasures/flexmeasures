@@ -7,11 +7,14 @@ FlexMeasures Changelog
 v0.25.0 | February XX, 2025
 ============================
 
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+
 New features
 -------------
 
 Infrastructure / Support
 ----------------------
+* Migrate data for the ``flex_context`` of an asset to a dedicated column in the database table for assets [see `PR #1293 <https://github.com/FlexMeasures/flexmeasures/pull/1293>`_]
 
 Bugfixes
 -----------
