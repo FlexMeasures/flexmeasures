@@ -50,6 +50,16 @@ Whether to allow overwriting existing data when saving data to the database.
 Default: ``False``
 
 
+.. _parallel-processes:
+
+FLEXMEASURES_PARALLEL_PROCESSES
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Number of processes to use to parallelize the search for sensor data in the database.
+
+Default: ``4``
+
+
 .. _solver-config:
 
 FLEXMEASURES_LP_SOLVER

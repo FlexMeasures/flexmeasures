@@ -136,6 +136,9 @@ def flexible_devices(db, building) -> dict[str, Sensor]:
         unit="MW",
     )
     db.session.add(battery_sensor)
+
+    # Commit session so other (parallel search) sessions can find the data set up by this fixture
+    db.session.commit()
     return {
         battery_sensor.name: battery_sensor,
     }
@@ -204,6 +207,8 @@ def add_inflexible_device_forecasts(
         setup_sources["Seita"],
     )
 
+    # Commit session so other (parallel search) sessions can find the data set up by this fixture
+    db.session.commit()
     return {
         pv_sensor: pv_values,
         residual_demand_sensor: residual_demand_values,
@@ -261,6 +266,8 @@ def efficiency_sensors(db, add_battery_assets, setup_sources) -> dict[str, Senso
         )
         sensors[name] = efficiency_sensor
 
+    # Commit session so other (parallel search) sessions can find the data set up by this fixture
+    db.session.commit()
     return sensors
 
 
@@ -314,6 +321,8 @@ def add_stock_delta(db, add_battery_assets, setup_sources) -> dict[str, Sensor]:
         )
         sensors[name] = stock_delta_sensor
 
+    # Commit session so other (parallel search) sessions can find the data set up by this fixture
+    db.session.commit()
     return sensors
 
 
@@ -372,6 +381,8 @@ def add_storage_efficiency(db, add_battery_assets, setup_sources) -> dict[str, S
         )
         sensors[name] = storage_efficiency_sensor
 
+    # Commit session so other (parallel search) sessions can find the data set up by this fixture
+    db.session.commit()
     return sensors
 
 
@@ -417,6 +428,8 @@ def add_soc_targets(db, add_battery_assets, setup_sources) -> dict[str, Sensor]:
         db.session.add(belief)
         sensors[name] = storage_constraint_sensor
 
+    # Commit session so other (parallel search) sessions can find the data set up by this fixture
+    db.session.commit()
     return sensors
 
 
