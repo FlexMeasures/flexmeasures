@@ -754,9 +754,9 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 else:
                     # First make deterministic
                     bdf = bdf.for_each_belief(get_median_belief)
-                    # Then sort each event by most recent belief_time and most recent source version
+                    # Then sort each event by most recent source version and most recent belief_time
                     bdf = bdf.sort_values(
-                        by=["event_start", "belief_time", "source"],
+                        by=["event_start", "source", "belief_time"],
                         ascending=[True, False, False],
                         key=lambda col: (
                             col.map(
