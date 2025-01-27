@@ -15,6 +15,7 @@ New features
 Infrastructure / Support
 ----------------------
 * Migrate data for the ``flex_context`` of an asset to a dedicated column in the database table for assets [see `PR #1293 <https://github.com/FlexMeasures/flexmeasures/pull/1293>`_]
+* Enhance reporting infrastructure by ensuring that all ``Sensor.search_beliefs`` filters can be used as report parameters [see `PR #1318 <https://github.com/FlexMeasures/flexmeasures/pull/1318>`_]
 
 Bugfixes
 -----------
