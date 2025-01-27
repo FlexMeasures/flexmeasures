@@ -220,6 +220,7 @@ class DBFlexContextSchema(FlexContextSchema):
         """Do not allow time series specs for the flex-context fields saved in the db."""
 
         # List of keys to check for time series specs
+        # All the keys in this list are all fields of type VaribaleQuantity
         keys_to_check = [
             "ems_power_capacity_in_mw",
             "ems_production_capacity_in_mw",
