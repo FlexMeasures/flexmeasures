@@ -29,10 +29,12 @@ class Input(Schema):
     event_ends_before = AwareDateTimeField()
 
     belief_time = AwareDateTimeField()
+    beliefs_after = AwareDateTimeField()
 
     horizons_at_least = DurationField()
     horizons_at_most = DurationField()
 
+    user_source_ids = fields.List(DataSourceIdField())
     source_types = fields.List(fields.Str())
     exclude_source_types = fields.List(fields.Str())
     most_recent_beliefs_only = fields.Boolean()
@@ -40,6 +42,7 @@ class Input(Schema):
 
     one_deterministic_belief_per_event = fields.Boolean()
     one_deterministic_belief_per_event_per_source = fields.Boolean()
+    most_recent_only = fields.Boolean()
     resolution = DurationField()
     sum_multiple = fields.Boolean()
 
