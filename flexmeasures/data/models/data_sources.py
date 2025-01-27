@@ -396,7 +396,7 @@ def keep_latest_version_old(data_sources: list[DataSource]) -> list[DataSource]:
 
 def keep_latest_version(
     bdf: tb.BeliefsDataFrame,
-    one_deterministic_belief_per_event: bool,
+    one_deterministic_belief_per_event: bool = False,
 ) -> tb.BeliefsDataFrame:
     """Filters the BeliefsDataFrame to keep the latest version of each source, for each event.
 
