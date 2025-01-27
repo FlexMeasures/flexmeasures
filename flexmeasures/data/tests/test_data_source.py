@@ -169,6 +169,18 @@ def test_keep_last_version():
             for s in sources
         ]
         bdf = tb.BeliefsDataFrame(beliefs)
+        bdf["source.name"] = (
+            bdf.index.get_level_values("source").map(lambda x: x.name).values
+        )
+        bdf["source.model"] = (
+            bdf.index.get_level_values("source").map(lambda x: x.model).values
+        )
+        bdf["source.type"] = (
+            bdf.index.get_level_values("source").map(lambda x: x.type).values
+        )
+        bdf["source.version"] = (
+            bdf.index.get_level_values("source").map(lambda x: x.version).values
+        )
         return bdf
 
     # the data source with no version is assumed to have version 0.0.0
