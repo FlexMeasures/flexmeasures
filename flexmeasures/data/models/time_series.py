@@ -302,6 +302,9 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         source: (
             DataSource | list[DataSource] | int | list[int] | str | list[str] | None
         ) = None,
+        user_source_ids: int | list[int] | None = None,
+        source_types: list[str] | None = None,
+        exclude_source_types: list[str] | None = None,
         most_recent_beliefs_only: bool = True,
         most_recent_events_only: bool = False,
         most_recent_only: bool = False,
@@ -321,6 +324,9 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         :param horizons_at_least: only return beliefs with a belief horizon equal or greater than this timedelta (for example, use timedelta(0) to get ante knowledge time beliefs)
         :param horizons_at_most: only return beliefs with a belief horizon equal or less than this timedelta (for example, use timedelta(0) to get post knowledge time beliefs)
         :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources. Without this set and a most recent parameter used (see below), the results can be of any source.
+        :param user_source_ids: Optional list of user source ids to query only specific user sources
+        :param source_types: Optional list of source type names to query only specific source types *
+        :param exclude_source_types: Optional list of source type names to exclude specific source types *
         :param most_recent_beliefs_only: only return the most recent beliefs for each event from each source (minimum belief horizon). Defaults to True.
         :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start). Defaults to False.
         :param most_recent_only: only return a single belief, the most recent from the most recent event. Fastest method if you only need one. Defaults to False. To use, also set most_recent_beliefs_only=False. Use with care when data uses cumulative probability (more than one belief per event_start and horizon).
@@ -339,6 +345,9 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             horizons_at_least=horizons_at_least,
             horizons_at_most=horizons_at_most,
             source=source,
+            user_source_ids=user_source_ids,
+            source_types=source_types,
+            exclude_source_types=exclude_source_types,
             most_recent_beliefs_only=most_recent_beliefs_only,
             most_recent_events_only=most_recent_events_only,
             most_recent_only=most_recent_only,

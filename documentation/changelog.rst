@@ -12,6 +12,7 @@ New features
 
 Infrastructure / Support
 ----------------------
+* Enhance reporting infrastructure by ensuring that all ``Sensor.search_beliefs`` filters can be used as report parameters [see `PR #1318 <https://github.com/FlexMeasures/flexmeasures/pull/1318>`_]
 
 Bugfixes
 -----------
