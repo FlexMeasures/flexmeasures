@@ -320,12 +320,12 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
     @property
     def description(self):
-        """Extended description
+        """Extended description.
 
         For example:
 
             >>> DataSource("Seita", type="forecaster", model="naive", version="1.2").description
-            <<< "Seita's naive forecaster v1.2.0"
+            <<< "Seita's naive forecaster v1.2"
             >>> DataSource("Seita", type="scheduler", model="StorageScheduler", version="2").description
             <<< "Seita's StorageScheduler model v2"
 
