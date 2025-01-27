@@ -325,12 +325,13 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         For example:
 
             >>> DataSource("Seita", type="forecaster", model="naive", version="1.2").description
-            <<< "Seita's naive model v1.2.0"
+            <<< "Seita's naive forecaster v1.2.0"
 
         """
         descr = self.name
         if self.model:
-            descr += f"'s {self.model} model"
+            descr += f"'s {self.model} "
+            descr += self.type if self.type else "model"
             if self.version:
                 descr += f" v{self.version}"
         return descr

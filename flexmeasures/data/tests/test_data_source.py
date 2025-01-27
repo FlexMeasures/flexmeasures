@@ -193,9 +193,7 @@ def test_keep_last_version():
 
     # two sources with the same model but different types
     bdf = create_dummy_frame([s3, s4])
-    np.testing.assert_array_equal(
-        keep_latest_version(bdf).sources, [s3, s4], strict=False
-    )
+    np.testing.assert_array_equal(keep_latest_version(bdf).sources, [s3, s4])
 
     # repeated source
     bdf = create_dummy_frame([s1, s1])
