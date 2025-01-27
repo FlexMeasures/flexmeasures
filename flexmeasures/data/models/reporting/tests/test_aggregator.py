@@ -262,7 +262,7 @@ def test_source_transition(setup_dummy_data, db):
     assert result.empty
 
     # If we set use_latest_version_per_event=False, we should get both versions of source 2,
-    # and one_deterministic_belief_per_event=True kicks in to give back the most recent belief
+    # and one_deterministic_belief_per_event=True kicks in to give back the most recent version
     result = agg_reporter.compute(
         start=tz.localize(datetime(2023, 4, 24, 18, 0)),
         end=tz.localize(datetime(2023, 4, 25)),
@@ -272,4 +272,5 @@ def test_source_transition(setup_dummy_data, db):
     )[0]["data"]
 
     assert len(result) == 6
-    assert (result == -1).all().event_value
+    assert (result[:5] == -1).all().event_value  # beliefs from the older version
+    assert (result[5:] == 3).all().event_value  # belief from the latest version
