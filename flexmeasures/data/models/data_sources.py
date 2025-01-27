@@ -326,12 +326,17 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
             >>> DataSource("Seita", type="forecaster", model="naive", version="1.2").description
             <<< "Seita's naive forecaster v1.2.0"
+            >>> DataSource("Seita", type="scheduler", model="StorageScheduler", version="2").description
+            <<< "Seita's StorageScheduler model v2"
 
         """
         descr = self.name
         if self.model:
             descr += f"'s {self.model} "
-            descr += self.type if self.type else "model"
+            # Mention the data source type unless the model name already mentions it
+            descr += (
+                self.type if self.type.lower() not in self.model.lower() else "model"
+            )
             if self.version:
                 descr += f" v{self.version}"
         return descr
