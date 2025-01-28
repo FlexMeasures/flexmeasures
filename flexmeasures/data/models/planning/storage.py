@@ -934,7 +934,10 @@ class StorageScheduler(MetaStorageScheduler):
             device_constraints,
             ems_constraints,
             commitments=commitments,
-            initial_stock=soc_at_start * (timedelta(hours=1) / resolution),
+            initial_stock=[
+                soc_at_start_d * (timedelta(hours=1) / resolution)
+                for soc_at_start_d in soc_at_start
+            ],
         )
         if scheduler_results.solver.termination_condition == "infeasible":
             raise InfeasibleProblemException()
