@@ -222,6 +222,8 @@ class DBFlexContextSchema(FlexContextSchema):
         # List of keys to check for time series specs
         # All the keys in this list are all fields of type VaribaleQuantity
         keys_to_check = [
+            "consumption_price",
+            "production_price",
             "ems_power_capacity_in_mw",
             "ems_production_capacity_in_mw",
             "ems_consumption_capacity_in_mw",
