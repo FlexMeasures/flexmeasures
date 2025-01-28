@@ -102,7 +102,9 @@ class MetaStorageScheduler(Scheduler):
         power_capacity_in_mw = [
             flex_model_d.get(
                 "power_capacity_in_mw",
-                flex_model_d["sensor"].get_attribute("capacity_in_mw", None),
+                flex_model_d.get("sensor", sensor).get_attribute(
+                    "capacity_in_mw", None
+                ),
             )
             for flex_model_d in flex_model
         ]
