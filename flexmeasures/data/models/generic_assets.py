@@ -42,26 +42,6 @@ class GenericAssetType(db.Model):
         return "<GenericAssetType %s: %r>" % (self.id, self.name)
 
 
-# class GenericAssetInflexibleSensorRelationship(db.Model):
-#     """Links assets to inflexible sensors."""
-
-#     __tablename__ = "assets_inflexible_sensors"
-
-#     generic_asset_id = db.Column(
-#         db.Integer, db.ForeignKey("generic_asset.id"), primary_key=True
-#     )
-#     inflexible_sensor_id = db.Column(
-#         db.Integer, db.ForeignKey("sensor.id"), primary_key=True
-#     )
-#     __table_args__ = (
-#         db.UniqueConstraint(
-#             "inflexible_sensor_id",
-#             "generic_asset_id",
-#             name="assets_inflexible_sensors_key",
-#         ),
-#     )
-
-
 class GenericAsset(db.Model, AuthModelMixin):
     """An asset is something that has economic value.
 
@@ -362,27 +342,32 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         from flexmeasures.data.models.time_series import Sensor
 
-        # Need to load consumption_price_sensor manually as generic_asset does not get to SQLAlchemy session context.
-        if self.flex_context.get("consumption-price-sensor"):
-            consumption_price_sensor = Sensor.query.get(
-                self.flex_context["consumption-price-sensor"]
-            )
-            return consumption_price_sensor or None
+        sensor_id = self.flex_context.get("consumption-price-sensor")
+
+        if sensor_id is None:
+            consumption_price_data = self.flex_context.get("consumption-price")
+            if consumption_price_data:
+                sensor_id = consumption_price_data.get("sensor")
+        if sensor_id:
+            return Sensor.query.get(sensor_id) or None
+
         if self.parent_asset:
             return self.parent_asset.get_consumption_price_sensor()
         return None
 
     def get_production_price_sensor(self):
         """Searches for production_price_sensor upwards on the asset tree"""
+
         from flexmeasures.data.models.time_series import Sensor
 
-        production_price_sensor = None
-        # Need to load production_price_sensor manually as generic_asset does not get to SQLAlchemy session context.
-        if self.flex_context.get("production-price-sensor"):
-            production_price_sensor = Sensor.query.get(
-                self.flex_context["production-price-sensor"]
-            )
-            return production_price_sensor or None
+        sensor_id = self.flex_context.get("production-price-sensor")
+
+        if sensor_id is None:
+            production_price_data = self.flex_context.get("production-price")
+            if production_price_data:
+                sensor_id = production_price_data.get("sensor")
+        if sensor_id:
+            return Sensor.query.get(sensor_id) or None
         if self.parent_asset:
             return self.parent_asset.get_production_price_sensor()
         return None

@@ -211,3 +211,46 @@ class FlexContextSchema(Schema):
                 f"Unexpected type '{type(variable_quantity)}' for '{field}': {variable_quantity}."
             )
         return unit
+
+
+class DBFlexContextSchema(FlexContextSchema):
+
+    @validates_schema
+    def forbid_time_series_specs(self, data: dict, **kwargs):
+        """Do not allow time series specs for the flex-context fields saved in the db."""
+
+        # List of keys to check for time series specs
+        # All the keys in this list are all fields of type VaribaleQuantity
+        keys_to_check = [
+            "consumption_price",
+            "production_price",
+            "ems_power_capacity_in_mw",
+            "ems_production_capacity_in_mw",
+            "ems_consumption_capacity_in_mw",
+            "ems_consumption_breach_price",
+            "ems_production_breach_price",
+            "ems_peak_consumption_in_mw",
+            "ems_peak_consumption_price",
+            "ems_peak_production_in_mw",
+            "ems_peak_production_price",
+        ]
+
+        # Check each key and raise a ValidationError if it's a list
+        for key in keys_to_check:
+            if key in data and isinstance(data[key], list):
+                raise ValidationError(
+                    f"Time series specs are not allowed in flex-context fields in the DB for '{key}'."
+                )
+
+    @validates_schema
+    def forbid_fixed_prices(self, data: dict, **kwargs):
+        """Do not allow fixed consumption price or fixed production price in the flex-context fields saved in the db."""
+        if "consumption_price" in data and isinstance(data["consumption_price"], str):
+            raise ValidationError(
+                "Fixed prices are not currently supported in flex-context fields in the DB."
+            )
+
+        if "production_price" in data and isinstance(data["production_price"], str):
+            raise ValidationError(
+                "Fixed prices are not currently supported in flex-context fields in the DB."
+            )

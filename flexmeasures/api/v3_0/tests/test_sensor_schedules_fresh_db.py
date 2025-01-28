@@ -556,8 +556,7 @@ def setup_inflexible_device_sensors(fresh_db, asset, sensor_name, sensor_num):
 
 
 def link_sensors(fresh_db, asset, sensors):
-    if asset.flex_context.get("inflexible-device-sensors") is None:
-        asset.flex_context["inflexible-device-sensors"] = list()
+    asset.flex_context.setdefault("inflexible-device-sensors", list())
     asset.flex_context["inflexible-device-sensors"].extend(
         [sensor.id for sensor in sensors]
     )

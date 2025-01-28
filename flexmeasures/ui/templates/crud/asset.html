@@ -247,7 +247,6 @@
             <div class="sensors-asset card">
                 <h3>All sensors for {{ asset.name }}</h3>
                 <div class="table-responsive">
-
                     <table class="table table-striped paginate nav-on-click" title="View data" id="sensorsTable">
                     </table>
                 </div>
@@ -1259,7 +1258,7 @@
     });
     var marker = L
         .marker(
-            [{{ asset.latitude | replace("None", 10) }}, { { asset.longitude | replace("None", 10) } }],
+            [{{ asset.latitude | replace("None", 10) }}, {{ asset.longitude | replace("None", 10) }}],
     { icon: asset_icon }
         ).addTo(assetMap);
 
