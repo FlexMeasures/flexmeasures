@@ -106,6 +106,8 @@ class MetaStorageScheduler(Scheduler):
             )
             for flex_model_d in flex_model
         ]
+        soc_gain = [flex_model_d.get("soc_gain", []) for flex_model_d in flex_model]
+        soc_usage = [flex_model_d.get("soc_usage", []) for flex_model_d in flex_model]
 
         # Get info from flex-context
         consumption_price_sensor = (
@@ -572,12 +574,9 @@ class MetaStorageScheduler(Scheduler):
                     )
                 )
 
-            soc_gain = flex_model.get("soc_gain", [])
-            soc_usage = flex_model.get("soc_usage", [])
-
             all_stock_delta = []
 
-            for is_usage, soc_delta in zip([False, True], [soc_gain, soc_usage]):
+            for is_usage, soc_delta in zip([False, True], [soc_gain[d], soc_usage[d]]):
                 for component in soc_delta:
                     stock_delta_series = get_continuous_series_sensor_or_quantity(
                         variable_quantity=component,
