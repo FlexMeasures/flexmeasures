@@ -4,3 +4,4 @@ sphinxcontrib.httpdomain
 sphinx_fontawesome
 sphinx_copybutton
 sphinx-tabs
+sphinxcontrib-mermaid
