@@ -81,53 +81,29 @@ class MetaStorageScheduler(Scheduler):
         resolution = self.resolution
         belief_time = self.belief_time
         sensor = self.sensor
+        flex_model = self.flex_model
+        if not isinstance(flex_model, list):
+            flex_model = [flex_model]
 
-        if isinstance(self.flex_model, list):
-            soc_at_start = [
-                flex_model.get("soc_at_start") for flex_model in self.flex_model
-            ]
-            soc_targets = [
-                flex_model.get("soc_targets") for flex_model in self.flex_model
-            ]
-            soc_min = [flex_model.get("soc_min") for flex_model in self.flex_model]
-            soc_max = [flex_model.get("soc_max") for flex_model in self.flex_model]
-            soc_minima = [
-                flex_model.get("soc_minima") for flex_model in self.flex_model
-            ]
-            soc_maxima = [
-                flex_model.get("soc_maxima") for flex_model in self.flex_model
-            ]
-            storage_efficiency = [
-                flex_model.get("storage_efficiency") for flex_model in self.flex_model
-            ]
-            prefer_charging_sooner = [
-                flex_model.get("prefer_charging_sooner")
-                for flex_model in self.flex_model
-            ]
-            power_capacity_in_mw = [
-                flex_model.get(
-                    "power_capacity_in_mw",
-                    flex_model["sensor"].get_attribute("capacity_in_mw", None),
-                )
-                for flex_model in self.flex_model
-            ]
-        else:
-            soc_at_start = [self.flex_model.get("soc_at_start")]
-            soc_targets = [self.flex_model.get("soc_targets")]
-            soc_min = [self.flex_model.get("soc_min")]
-            soc_max = [self.flex_model.get("soc_max")]
-            soc_minima = [self.flex_model.get("soc_minima")]
-            soc_maxima = [self.flex_model.get("soc_maxima")]
-            storage_efficiency = [self.flex_model.get("storage_efficiency")]
-            prefer_charging_sooner = [
-                self.flex_model.get("prefer_charging_sooner", True)
-            ]
-            power_capacity_in_mw = [
-                self.flex_model.get(
-                    "power_capacity_in_mw",
-                    self.sensor.get_attribute("capacity_in_mw", None),
-                )
-            ]
+        soc_at_start = [flex_model_d.get("soc_at_start") for flex_model_d in flex_model]
+        soc_targets = [flex_model_d.get("soc_targets") for flex_model_d in flex_model]
+        soc_min = [flex_model_d.get("soc_min") for flex_model_d in flex_model]
+        soc_max = [flex_model_d.get("soc_max") for flex_model_d in flex_model]
+        soc_minima = [flex_model_d.get("soc_minima") for flex_model_d in flex_model]
+        soc_maxima = [flex_model_d.get("soc_maxima") for flex_model_d in flex_model]
+        storage_efficiency = [
+            flex_model_d.get("storage_efficiency") for flex_model_d in flex_model
+        ]
+        prefer_charging_sooner = [
+            flex_model_d.get("prefer_charging_sooner") for flex_model_d in flex_model
+        ]
+        power_capacity_in_mw = [
+            flex_model_d.get(
+                "power_capacity_in_mw",
+                flex_model_d["sensor"].get_attribute("capacity_in_mw", None),
+            )
+            for flex_model_d in flex_model
+        ]
 
         # Get info from flex-context
         consumption_price_sensor = (
@@ -557,8 +533,8 @@ class MetaStorageScheduler(Scheduler):
             soc_min,
         )
 
-        consumption_capacity = self.flex_model.get("consumption_capacity")
-        production_capacity = self.flex_model.get("production_capacity")
+        consumption_capacity = flex_model.get("consumption_capacity")
+        production_capacity = flex_model.get("production_capacity")
 
         if sensor.get_attribute("is_strictly_non_positive"):
             device_constraints[0]["derivative min"] = 0
@@ -593,8 +569,8 @@ class MetaStorageScheduler(Scheduler):
                 )
             )
 
-        soc_gain = self.flex_model.get("soc_gain", [])
-        soc_usage = self.flex_model.get("soc_usage", [])
+        soc_gain = flex_model.get("soc_gain", [])
+        soc_usage = flex_model.get("soc_usage", [])
 
         all_stock_delta = []
 
@@ -627,7 +603,7 @@ class MetaStorageScheduler(Scheduler):
 
         # Apply round-trip efficiency evenly to charging and discharging
         charging_efficiency = get_continuous_series_sensor_or_quantity(
-            variable_quantity=self.flex_model.get("charging_efficiency"),
+            variable_quantity=flex_model.get("charging_efficiency"),
             actuator=sensor,
             unit="dimensionless",
             query_window=(start, end),
@@ -636,7 +612,7 @@ class MetaStorageScheduler(Scheduler):
             fallback_attribute="charging-efficiency",
         ).fillna(1)
         discharging_efficiency = get_continuous_series_sensor_or_quantity(
-            variable_quantity=self.flex_model.get("discharging_efficiency"),
+            variable_quantity=flex_model.get("discharging_efficiency"),
             actuator=sensor,
             unit="dimensionless",
             query_window=(start, end),
@@ -645,7 +621,7 @@ class MetaStorageScheduler(Scheduler):
             fallback_attribute="discharging-efficiency",
         ).fillna(1)
 
-        roundtrip_efficiency = self.flex_model.get(
+        roundtrip_efficiency = flex_model.get(
             "roundtrip_efficiency", self.sensor.get_attribute("roundtrip_efficiency", 1)
         )
 
