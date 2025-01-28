@@ -108,6 +108,12 @@ class MetaStorageScheduler(Scheduler):
         ]
         soc_gain = [flex_model_d.get("soc_gain", []) for flex_model_d in flex_model]
         soc_usage = [flex_model_d.get("soc_usage", []) for flex_model_d in flex_model]
+        consumption_capacity = [
+            flex_model_d.get("consumption_capacity") for flex_model_d in flex_model
+        ]
+        production_capacity = [
+            flex_model_d.get("production_capacity") for flex_model_d in flex_model
+        ]
 
         # Get info from flex-context
         consumption_price_sensor = (
@@ -538,8 +544,6 @@ class MetaStorageScheduler(Scheduler):
                 beliefs_before=belief_time,
                 resolve_overlaps="min",
             )
-            consumption_capacity = flex_model.get("consumption_capacity")
-            production_capacity = flex_model.get("production_capacity")
 
             if sensor.get_attribute("is_strictly_non_positive"):
                 device_constraints[d]["derivative min"] = 0
@@ -547,7 +551,7 @@ class MetaStorageScheduler(Scheduler):
                 device_constraints[d]["derivative min"] = (
                     -1
                 ) * get_continuous_series_sensor_or_quantity(
-                    variable_quantity=production_capacity,
+                    variable_quantity=production_capacity[d],
                     actuator=sensor,
                     unit="MW",
                     query_window=(start, end),
@@ -562,7 +566,7 @@ class MetaStorageScheduler(Scheduler):
             else:
                 device_constraints[d]["derivative max"] = (
                     get_continuous_series_sensor_or_quantity(
-                        variable_quantity=consumption_capacity,
+                        variable_quantity=consumption_capacity[d],
                         actuator=sensor,
                         unit="MW",
                         query_window=(start, end),
