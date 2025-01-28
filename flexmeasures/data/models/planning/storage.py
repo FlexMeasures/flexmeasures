@@ -127,21 +127,6 @@ class MetaStorageScheduler(Scheduler):
                 "Power capacity is not defined in the sensor attributes or the flex-model."
             )
 
-        if isinstance(power_capacity_in_mw, float) or isinstance(
-            power_capacity_in_mw, int
-        ):
-            power_capacity_in_mw = ur.Quantity(f"{power_capacity_in_mw} MW")
-
-        power_capacity_in_mw = get_continuous_series_sensor_or_quantity(
-            variable_quantity=power_capacity_in_mw,
-            actuator=sensor,
-            unit="MW",
-            query_window=(start, end),
-            resolution=resolution,
-            beliefs_before=belief_time,
-            resolve_overlaps="min",
-        )
-
         # Check for known prices or price forecasts, trimming planning window accordingly
         if consumption_price is not None:
             up_deviation_prices = get_continuous_series_sensor_or_quantity(
@@ -533,6 +518,20 @@ class MetaStorageScheduler(Scheduler):
             soc_min,
         )
 
+        if isinstance(power_capacity_in_mw, float) or isinstance(
+            power_capacity_in_mw, int
+        ):
+            power_capacity_in_mw = ur.Quantity(f"{power_capacity_in_mw} MW")
+
+        power_capacity_in_mw = get_continuous_series_sensor_or_quantity(
+            variable_quantity=power_capacity_in_mw,
+            actuator=sensor,
+            unit="MW",
+            query_window=(start, end),
+            resolution=resolution,
+            beliefs_before=belief_time,
+            resolve_overlaps="min",
+        )
         consumption_capacity = flex_model.get("consumption_capacity")
         production_capacity = flex_model.get("production_capacity")
 
