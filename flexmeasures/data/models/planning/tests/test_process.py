@@ -34,7 +34,7 @@ def test_process_scheduler(
     }
 
     flex_context = {
-        "consumption-price-sensor": epex_da.id,
+        "consumption-price": {"sensor": epex_da.id},
     }
 
     scheduler = ProcessScheduler(
@@ -78,7 +78,7 @@ def test_duration_exceeds_planning_window(
     }
 
     flex_context = {
-        "consumption-price-sensor": epex_da.id,
+        "consumption-price": {"sensor": epex_da.id},
     }
 
     scheduler = ProcessScheduler(
@@ -116,7 +116,7 @@ def test_process_scheduler_time_restrictions(add_battery_assets, process, db):
         ],
     }
     flex_context = {
-        "consumption-price-sensor": epex_da.id,
+        "consumption-price": {"sensor": epex_da.id},
     }
 
     scheduler = ProcessScheduler(
@@ -171,7 +171,7 @@ def test_breakable_scheduler_time_restrictions(add_battery_assets, process, db):
     }
 
     flex_context = {
-        "consumption-price-sensor": epex_da.id,
+        "consumption-price": {"sensor": epex_da.id},
     }
 
     scheduler = ProcessScheduler(
@@ -221,7 +221,7 @@ def test_impossible_schedules(
         "time-restrictions": time_restrictions,
     }
     flex_context = {
-        "consumption-price-sensor": epex_da.id,
+        "consumption-price": {"sensor": epex_da.id},
     }
 
     scheduler = ProcessScheduler(
