@@ -490,9 +490,9 @@ class MetaStorageScheduler(Scheduler):
         for d in range(num_devices):
 
             # fetch SOC constraints from sensors
-            if isinstance(soc_targets, Sensor):
-                soc_targets = get_continuous_series_sensor_or_quantity(
-                    variable_quantity=soc_targets,
+            if isinstance(soc_targets[d], Sensor):
+                soc_targets[d] = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_targets[d],
                     actuator=sensor,
                     unit="MWh",
                     query_window=(start, end),
@@ -501,9 +501,9 @@ class MetaStorageScheduler(Scheduler):
                     as_instantaneous_events=True,
                     resolve_overlaps="first",
                 )
-            if isinstance(soc_minima, Sensor):
-                soc_minima = get_continuous_series_sensor_or_quantity(
-                    variable_quantity=soc_minima,
+            if isinstance(soc_minima[d], Sensor):
+                soc_minima[d] = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_minima[d],
                     actuator=sensor,
                     unit="MWh",
                     query_window=(start, end),
@@ -512,9 +512,9 @@ class MetaStorageScheduler(Scheduler):
                     as_instantaneous_events=True,
                     resolve_overlaps="max",
                 )
-            if isinstance(soc_maxima, Sensor):
-                soc_maxima = get_continuous_series_sensor_or_quantity(
-                    variable_quantity=soc_maxima,
+            if isinstance(soc_maxima[d], Sensor):
+                soc_maxima[d] = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_maxima[d],
                     actuator=sensor,
                     unit="MWh",
                     query_window=(start, end),
@@ -536,13 +536,13 @@ class MetaStorageScheduler(Scheduler):
                 soc_min[d],
             )
 
-            if isinstance(power_capacity_in_mw, float) or isinstance(
-                power_capacity_in_mw, int
+            if isinstance(power_capacity_in_mw[d], float) or isinstance(
+                power_capacity_in_mw[d], int
             ):
-                power_capacity_in_mw = ur.Quantity(f"{power_capacity_in_mw} MW")
+                power_capacity_in_mw[d] = ur.Quantity(f"{power_capacity_in_mw[d]} MW")
 
-            power_capacity_in_mw = get_continuous_series_sensor_or_quantity(
-                variable_quantity=power_capacity_in_mw,
+            power_capacity_in_mw[d] = get_continuous_series_sensor_or_quantity(
+                variable_quantity=power_capacity_in_mw[d],
                 actuator=sensor,
                 unit="MW",
                 query_window=(start, end),
@@ -564,7 +564,7 @@ class MetaStorageScheduler(Scheduler):
                     resolution=resolution,
                     beliefs_before=belief_time,
                     fallback_attribute="production_capacity",
-                    max_value=power_capacity_in_mw,
+                    max_value=power_capacity_in_mw[d],
                     resolve_overlaps="min",
                 )
             if sensor.get_attribute("is_strictly_non_negative"):
@@ -579,7 +579,7 @@ class MetaStorageScheduler(Scheduler):
                         resolution=resolution,
                         beliefs_before=belief_time,
                         fallback_attribute="consumption_capacity",
-                        max_value=power_capacity_in_mw,
+                        max_value=power_capacity_in_mw[d],
                         resolve_overlaps="min",
                     )
                 )
@@ -614,7 +614,7 @@ class MetaStorageScheduler(Scheduler):
                 device_constraints[d]["stock delta"] *= timedelta(hours=1) / resolution
 
             # Apply round-trip efficiency evenly to charging and discharging
-            charging_efficiency = get_continuous_series_sensor_or_quantity(
+            charging_efficiency[d] = get_continuous_series_sensor_or_quantity(
                 variable_quantity=charging_efficiency[d],
                 actuator=sensor,
                 unit="dimensionless",
@@ -623,7 +623,7 @@ class MetaStorageScheduler(Scheduler):
                 beliefs_before=belief_time,
                 fallback_attribute="charging-efficiency",
             ).fillna(1)
-            discharging_efficiency = get_continuous_series_sensor_or_quantity(
+            discharging_efficiency[d] = get_continuous_series_sensor_or_quantity(
                 variable_quantity=discharging_efficiency[d],
                 actuator=sensor,
                 unit="dimensionless",
@@ -639,22 +639,24 @@ class MetaStorageScheduler(Scheduler):
             )
 
             # if roundtrip efficiency is provided in the flex-model or defined as an asset attribute
-            if "roundtrip_efficiency" in self.flex_model[
-                d
-            ] or self.sensor.has_attribute("roundtrip-efficiency"):
-                charging_efficiency = roundtrip_efficiency**0.5
-                discharging_efficiency = roundtrip_efficiency**0.5
+            if "roundtrip_efficiency" in flex_model[d] or self.sensor.has_attribute(
+                "roundtrip-efficiency"
+            ):
+                charging_efficiency[d] = roundtrip_efficiency**0.5
+                discharging_efficiency[d] = roundtrip_efficiency**0.5
 
-            device_constraints[d]["derivative down efficiency"] = discharging_efficiency
-            device_constraints[d]["derivative up efficiency"] = charging_efficiency
+            device_constraints[d]["derivative down efficiency"] = (
+                discharging_efficiency[d]
+            )
+            device_constraints[d]["derivative up efficiency"] = charging_efficiency[d]
 
             # Apply storage efficiency (accounts for losses over time)
-            if isinstance(storage_efficiency, ur.Quantity) or isinstance(
-                storage_efficiency, Sensor
+            if isinstance(storage_efficiency[d], ur.Quantity) or isinstance(
+                storage_efficiency[d], Sensor
             ):
                 device_constraints[d]["efficiency"] = (
                     get_continuous_series_sensor_or_quantity(
-                        variable_quantity=storage_efficiency,
+                        variable_quantity=storage_efficiency[d],
                         actuator=sensor,
                         unit="dimensionless",
                         query_window=(start, end),
@@ -666,16 +668,16 @@ class MetaStorageScheduler(Scheduler):
                     .fillna(1.0)
                     .clip(lower=0.0, upper=1.0)
                 )
-            elif storage_efficiency is not None:
-                device_constraints[d]["efficiency"] = storage_efficiency
+            elif storage_efficiency[d] is not None:
+                device_constraints[d]["efficiency"] = storage_efficiency[d]
 
             # check that storage constraints are fulfilled
             if not skip_validation:
                 constraint_violations = validate_storage_constraints(
                     constraints=device_constraints[d],
-                    soc_at_start=soc_at_start,
-                    soc_min=soc_min,
-                    soc_max=soc_max,
+                    soc_at_start=soc_at_start[d],
+                    soc_min=soc_min[d],
+                    soc_max=soc_max[d],
                     resolution=resolution,
                 )
 
