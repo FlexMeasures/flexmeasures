@@ -82,15 +82,54 @@ class MetaStorageScheduler(Scheduler):
         belief_time = self.belief_time
         sensor = self.sensor
 
-        soc_at_start = self.flex_model.get("soc_at_start")
-        soc_targets = self.flex_model.get("soc_targets")
-        soc_min = self.flex_model.get("soc_min")
-        soc_max = self.flex_model.get("soc_max")
-        soc_minima = self.flex_model.get("soc_minima")
-        soc_maxima = self.flex_model.get("soc_maxima")
-        storage_efficiency = self.flex_model.get("storage_efficiency")
-        prefer_charging_sooner = self.flex_model.get("prefer_charging_sooner", True)
+        if isinstance(self.flex_model, list):
+            soc_at_start = [
+                flex_model.get("soc_at_start") for flex_model in self.flex_model
+            ]
+            soc_targets = [
+                flex_model.get("soc_targets") for flex_model in self.flex_model
+            ]
+            soc_min = [flex_model.get("soc_min") for flex_model in self.flex_model]
+            soc_max = [flex_model.get("soc_max") for flex_model in self.flex_model]
+            soc_minima = [
+                flex_model.get("soc_minima") for flex_model in self.flex_model
+            ]
+            soc_maxima = [
+                flex_model.get("soc_maxima") for flex_model in self.flex_model
+            ]
+            storage_efficiency = [
+                flex_model.get("storage_efficiency") for flex_model in self.flex_model
+            ]
+            prefer_charging_sooner = [
+                flex_model.get("prefer_charging_sooner")
+                for flex_model in self.flex_model
+            ]
+            power_capacity_in_mw = [
+                flex_model.get(
+                    "power_capacity_in_mw",
+                    flex_model["sensor"].get_attribute("capacity_in_mw", None),
+                )
+                for flex_model in self.flex_model
+            ]
+        else:
+            soc_at_start = [self.flex_model.get("soc_at_start")]
+            soc_targets = [self.flex_model.get("soc_targets")]
+            soc_min = [self.flex_model.get("soc_min")]
+            soc_max = [self.flex_model.get("soc_max")]
+            soc_minima = [self.flex_model.get("soc_minima")]
+            soc_maxima = [self.flex_model.get("soc_maxima")]
+            storage_efficiency = [self.flex_model.get("storage_efficiency")]
+            prefer_charging_sooner = [
+                self.flex_model.get("prefer_charging_sooner", True)
+            ]
+            power_capacity_in_mw = [
+                self.flex_model.get(
+                    "power_capacity_in_mw",
+                    self.sensor.get_attribute("capacity_in_mw", None),
+                )
+            ]
 
+        # Get info from flex-context
         consumption_price_sensor = (
             self.flex_context.get("consumption_price_sensor")
             or self.sensor.generic_asset.get_consumption_price_sensor()
@@ -107,12 +146,7 @@ class MetaStorageScheduler(Scheduler):
         )
 
         # Check for required Sensor attributes
-        power_capacity_in_mw = self.flex_model.get(
-            "power_capacity_in_mw",
-            self.sensor.get_attribute("capacity_in_mw", None),
-        )
-
-        if power_capacity_in_mw is None:
+        if any([c is None for c in power_capacity_in_mw]):
             raise ValueError(
                 "Power capacity is not defined in the sensor attributes or the flex-model."
             )
