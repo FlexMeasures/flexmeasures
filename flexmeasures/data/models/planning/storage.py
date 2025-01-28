@@ -528,12 +528,12 @@ class MetaStorageScheduler(Scheduler):
                 start,
                 end,
                 resolution,
-                soc_at_start,
-                soc_targets,
-                soc_maxima,
-                soc_minima,
-                soc_max,
-                soc_min,
+                soc_at_start[d],
+                soc_targets[d],
+                soc_maxima[d],
+                soc_minima[d],
+                soc_max[d],
+                soc_min[d],
             )
 
             if isinstance(power_capacity_in_mw, float) or isinstance(
