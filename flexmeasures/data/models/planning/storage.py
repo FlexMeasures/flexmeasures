@@ -114,6 +114,12 @@ class MetaStorageScheduler(Scheduler):
         production_capacity = [
             flex_model_d.get("production_capacity") for flex_model_d in flex_model
         ]
+        charging_efficiency = [
+            flex_model_d.get("charging_efficiency") for flex_model_d in flex_model
+        ]
+        discharging_efficiency = [
+            flex_model_d.get("discharging_efficiency") for flex_model_d in flex_model
+        ]
 
         # Get info from flex-context
         consumption_price_sensor = (
@@ -609,7 +615,7 @@ class MetaStorageScheduler(Scheduler):
 
             # Apply round-trip efficiency evenly to charging and discharging
             charging_efficiency = get_continuous_series_sensor_or_quantity(
-                variable_quantity=flex_model.get("charging_efficiency"),
+                variable_quantity=charging_efficiency[d],
                 actuator=sensor,
                 unit="dimensionless",
                 query_window=(start, end),
@@ -618,7 +624,7 @@ class MetaStorageScheduler(Scheduler):
                 fallback_attribute="charging-efficiency",
             ).fillna(1)
             discharging_efficiency = get_continuous_series_sensor_or_quantity(
-                variable_quantity=flex_model.get("discharging_efficiency"),
+                variable_quantity=discharging_efficiency[d],
                 actuator=sensor,
                 unit="dimensionless",
                 query_window=(start, end),
