@@ -236,40 +236,40 @@ def test_pandas_reporter_valid_range(app, setup_dummy_data):
 
     reporter_config = dict(
         required_input=[
-            {"name": "any_values"},
+            {"name": "any values"},
         ],
         required_output=[
-            {"name": "ranged_values"},
+            {"name": "ranged values"},
         ],
         transformations=[
             {
-                "df_input": "any_values",
+                "df_input": "any values",
                 "method": "gt",
                 "args": [range[0]],
                 "df_output": "gt_value",
             },
             {
-                "df_input": "any_values",
+                "df_input": "any values",
                 "method": "lt",
                 "args": [range[1]],
                 "df_output": "lt_value",
             },
             {
-                "df_input": "any_values",
+                "df_input": "any values",
                 "method": "where",
                 "args": ["@gt_value"],
-                "df_output": "ranged_values",
+                "df_output": "ranged values",
             },
             {
-                "df_input": "ranged_values",
+                "df_input": "ranged values",
                 "method": "where",
                 "args": ["@lt_value"],
-                "df_output": "ranged_values",
+                "df_output": "ranged values",
             },
             {
-                "df_input": "ranged_values",
+                "df_input": "ranged values",
                 "method": "dropna",
-                "df_output": "ranged_values",
+                "df_output": "ranged values",
             },
         ],
     )
@@ -279,10 +279,10 @@ def test_pandas_reporter_valid_range(app, setup_dummy_data):
     start = datetime(2023, 4, 10, tzinfo=utc)
     end = datetime(2023, 4, 11, tzinfo=utc)
     input = [
-        dict(name="any_values", sensor=s1),
+        dict(name="any values", sensor=s1),
     ]
     output = [
-        dict(name="ranged_values", sensor=s1),
+        dict(name="ranged values", sensor=s1),
     ]
 
     report = reporter.compute(start=start, end=end, input=input, output=output)
