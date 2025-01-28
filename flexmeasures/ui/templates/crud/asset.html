@@ -953,6 +953,12 @@
             // Only show the spinner if relevant to this specific data type
             document.getElementById('spinner').style.display = 'block'; 
         } else if (dataType === "flexContext") {
+            // remove null fields
+            for (const [key, value] of Object.entries(assetFlexContext)) {
+                if (value === null) {
+                    delete assetFlexContext[key];
+                }
+            }
             requestBody = JSON.stringify({ flex_context: JSON.stringify(assetFlexContext) });
         }   
 
@@ -1159,7 +1165,6 @@
         const input = highlightedCard.querySelector("input");
         // get input id and remove '-input' at the end
         const inputId = input.id.slice(0, -6);
-        console.log("inputId", inputId)
         if (dataType === "power") {
             assetFlexContext[inputId] = powerCapacityInputValue;
         } else if (dataType === "sensor"){
@@ -1170,7 +1175,6 @@
                 assetFlexContext[inputId] = {sensor: sensorId};
             }
         }
-        console.log("assetFlexContext", assetFlexContext)
 
         renderFlexContextForm();
     }
