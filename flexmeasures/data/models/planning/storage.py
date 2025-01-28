@@ -633,15 +633,15 @@ class MetaStorageScheduler(Scheduler):
                 fallback_attribute="discharging-efficiency",
             ).fillna(1)
 
-            roundtrip_efficiency = flex_model.get(
+            roundtrip_efficiency = flex_model[d].get(
                 "roundtrip_efficiency",
                 self.sensor.get_attribute("roundtrip_efficiency", 1),
             )
 
             # if roundtrip efficiency is provided in the flex-model or defined as an asset attribute
-            if "roundtrip_efficiency" in self.flex_model or self.sensor.has_attribute(
-                "roundtrip-efficiency"
-            ):
+            if "roundtrip_efficiency" in self.flex_model[
+                d
+            ] or self.sensor.has_attribute("roundtrip-efficiency"):
                 charging_efficiency = roundtrip_efficiency**0.5
                 discharging_efficiency = roundtrip_efficiency**0.5
 
