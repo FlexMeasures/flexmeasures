@@ -1,3 +1,5 @@
+import pytest
+
 from datetime import datetime
 
 from pytz import utc
@@ -226,22 +228,39 @@ def test_pandas_reporter_unit_conversion(app, setup_dummy_data):
     ).all()
 
 
-def test_pandas_reporter_valid_range(app, setup_dummy_data):
+@pytest.mark.parametrize("shortcut", [True, False])
+def test_pandas_reporter_valid_range(app, setup_dummy_data, shortcut):
     """
     Check that we can select a valid range of values, where values outside the range are dropped.
+
+    If shortcut=True, we test a shorter approach (fewer transformations) using pd.eval.
     """
     s1, s2, s3, s4, report_sensor, daily_report_sensor = setup_dummy_data
 
     range = [3, 7]
 
-    reporter_config = dict(
-        required_input=[
-            {"name": "any values"},
-        ],
-        required_output=[
-            {"name": "ranged values"},
-        ],
-        transformations=[
+    if shortcut:
+        transformations = [
+            {
+                "df_input": "any values",
+                "method": "eval",
+                "args": [f"event_value > {range[0]} & event_value < {range[1]}"],
+                "df_output": "mask",
+            },
+            {
+                "df_input": "any values",
+                "method": "where",
+                "args": ["@mask"],
+                "df_output": "ranged values",
+            },
+            {
+                "df_input": "ranged values",
+                "method": "dropna",
+                "df_output": "ranged values",
+            },
+        ]
+    else:
+        transformations = [
             {
                 "df_input": "any values",
                 "method": "gt",
@@ -271,7 +290,16 @@ def test_pandas_reporter_valid_range(app, setup_dummy_data):
                 "method": "dropna",
                 "df_output": "ranged values",
             },
+        ]
+
+    reporter_config = dict(
+        required_input=[
+            {"name": "any values"},
         ],
+        required_output=[
+            {"name": "ranged values"},
+        ],
+        transformations=transformations,
     )
 
     reporter = PandasReporter(config=reporter_config)
