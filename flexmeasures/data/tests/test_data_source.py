@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import pytest
 
 from flexmeasures.data.models.reporting import Reporter
@@ -6,6 +8,9 @@ from flexmeasures.data.models.data_sources import keep_latest_version, DataSourc
 
 from datetime import datetime
 from pytz import UTC
+
+import numpy as np
+import timely_beliefs as tb
 
 
 def test_get_reporter_from_source(db, app, test_reporter, add_nearby_weather_sensors):
@@ -153,14 +158,45 @@ def test_keep_last_version():
     s3 = DataSource(name="s1", model="model 2", type="forecaster")
     s4 = DataSource(name="s1", model="model 2", type="scheduler")
 
+    def create_dummy_frame(sources: list[DataSource]) -> tb.BeliefsDataFrame:
+        sensor = tb.Sensor("A")
+        beliefs = [
+            tb.TimedBelief(
+                sensor=sensor,
+                event_start=datetime(2023, 1, 1, tzinfo=UTC),
+                belief_time=datetime(2023, 1, 1, tzinfo=UTC),
+                event_value=1,
+                source=s,
+            )
+            for s in sources
+        ]
+        bdf = tb.BeliefsDataFrame(beliefs)
+        bdf["source.name"] = (
+            bdf.index.get_level_values("source").map(lambda x: x.name).values
+        )
+        bdf["source.model"] = (
+            bdf.index.get_level_values("source").map(lambda x: x.model).values
+        )
+        bdf["source.type"] = (
+            bdf.index.get_level_values("source").map(lambda x: x.type).values
+        )
+        bdf["source.version"] = (
+            bdf.index.get_level_values("source").map(lambda x: x.version).values
+        )
+        return bdf
+
     # the data source with no version is assumed to have version 0.0.0
-    assert keep_latest_version([s1, s2]) == [s1]
+    bdf = create_dummy_frame([s1, s2])
+    np.testing.assert_array_equal(keep_latest_version(bdf).sources, [s1])
 
     # sources with different models are preserved
-    assert keep_latest_version([s1, s2, s3]) == [s1, s3]
+    bdf = create_dummy_frame([s1, s2, s3])
+    np.testing.assert_array_equal(keep_latest_version(bdf).sources, [s1, s3])
 
     # two sources with the same model but different types
-    assert keep_latest_version([s3, s4]) == [s3, s4]
+    bdf = create_dummy_frame([s3, s4])
+    np.testing.assert_array_equal(keep_latest_version(bdf).sources, [s3, s4])
 
     # repeated source
-    assert keep_latest_version([s1, s1]) == [s1]
+    bdf = create_dummy_frame([s1, s1])
+    np.testing.assert_array_equal(keep_latest_version(bdf).sources, [s1])
