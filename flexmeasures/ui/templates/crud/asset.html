@@ -1154,7 +1154,9 @@
         flexContextFormEle.innerHTML = "";
         
         for (const [key, value] of Object.entries(assetFlexContext)) {
-            flexContextFormEle.innerHTML += await renderFlexContextInputField(key);
+            if (value !== null){
+                flexContextFormEle.innerHTML += await renderFlexContextInputField(key);
+            }
         }
     }
 
