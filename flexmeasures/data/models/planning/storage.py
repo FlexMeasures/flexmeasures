@@ -994,7 +994,7 @@ class StorageScheduler(MetaStorageScheduler):
                 },
             ]
         else:
-            return storage_schedule
+            return storage_schedule[sensors[0]]
 
 
 def create_constraint_violations_message(constraint_violations: list) -> str:
