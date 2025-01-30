@@ -807,7 +807,7 @@ class MetaStorageScheduler(Scheduler):
         if soc_targets and not isinstance(soc_targets, Sensor):
             max_target_datetime = max([soc_target["end"] for soc_target in soc_targets])
             if max_target_datetime > self.end:
-                max_server_horizon = get_max_planning_horizon(sensor.resolution)
+                max_server_horizon = get_max_planning_horizon(sensor.event_resolution)
                 if max_server_horizon:
                     self.end = min(max_target_datetime, self.start + max_server_horizon)
                 else:
