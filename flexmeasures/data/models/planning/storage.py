@@ -793,7 +793,7 @@ class MetaStorageScheduler(Scheduler):
 
         return self.flex_model
 
-    def possibly_extend_end(self, soc_targets, sensor):
+    def possibly_extend_end(self, soc_targets, sensor: Sensor = None):
         """Extend schedule period in case a target exceeds its end.
 
         The schedule's duration is possibly limited by the server config setting 'FLEXMEASURES_MAX_PLANNING_HORIZON'.
