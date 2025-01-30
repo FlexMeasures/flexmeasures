@@ -67,6 +67,7 @@ def test_create_sequential_jobs(db, app, flex_description_sequential, smart_buil
         queue.enqueue_job(job)
 
     # work tasks
+    jobs[0].perform()
     work_on_rq(queue)
 
     # check that the jobs complete successfully
