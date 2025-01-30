@@ -762,12 +762,10 @@ class MetaStorageScheduler(Scheduler):
             breakpoint()
             self.flex_model = SequentialFlexModelSchema(many=True).load(self.flex_model)
             for d, sensor_flex_model in enumerate(self.flex_model):
-                # breakpoint()
                 self.flex_model[d] = StorageFlexModelSchema(
-                    start=self.start,
-                    sensor=sensor_flex_model["sensor"],
-                ).load(sensor_flex_model["sensor_flex_model"])
-
+                    start=self.start, sensor=sensor_flex_model["sensor"]
+                ).load(sensor_flex_model["sensor_flex_model"]["sensor-flex-model"])
+                self.flex_model[d]["sensor"] = sensor_flex_model["sensor"]
             # Extend schedule period in case a target exceeds its end
             for child_flex_model in self.flex_model:
                 self.possibly_extend_end(
