@@ -705,7 +705,7 @@ class MetaStorageScheduler(Scheduler):
                     )
 
         return (
-            sensor,
+            sensors,
             start,
             end,
             resolution,
@@ -936,7 +936,7 @@ class StorageScheduler(MetaStorageScheduler):
         """
 
         (
-            sensor,
+            sensors,
             start,
             end,
             resolution,
@@ -959,20 +959,30 @@ class StorageScheduler(MetaStorageScheduler):
             raise InfeasibleProblemException()
 
         # Obtain the storage schedule from all device schedules within the EMS
-        storage_schedule = ems_schedule[0]
-        storage_schedule = convert_units(storage_schedule, "MW", sensor.unit)
+        storage_schedule = {sensor: ems_schedule[d] for d, sensor in enumerate(sensors)}
+
+        # Convert each device schedule to the unit of the device's power sensor
+        storage_schedule = {
+            sensor: convert_units(storage_schedule[sensor], "MW", sensor.unit)
+            for sensor in sensors
+        }
 
         # Round schedule
         if self.round_to_decimals:
-            storage_schedule = storage_schedule.round(self.round_to_decimals)
+            storage_schedule = {
+                sensor: storage_schedule[sensor].round(self.round_to_decimals)
+                for sensor in sensors
+            }
 
         if self.return_multiple:
             return [
                 {
                     "name": "storage_schedule",
                     "sensor": sensor,
-                    "data": storage_schedule,
-                },
+                    "data": storage_schedule[sensor],
+                }
+                for sensor in sensors
+            ] + [
                 {
                     "name": "commitment_costs",
                     "data": {
