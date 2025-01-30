@@ -889,7 +889,7 @@ class StorageFallbackScheduler(MetaStorageScheduler):
         """
 
         (
-            sensor,
+            sensors,
             start,
             end,
             resolution,
@@ -900,25 +900,37 @@ class StorageFallbackScheduler(MetaStorageScheduler):
         ) = self._prepare(skip_validation=skip_validation)
 
         # Fallback policy if the problem was unsolvable
-        storage_schedule = fallback_charging_policy(
-            sensor, device_constraints[0], start, end, resolution
-        )
-        storage_schedule = convert_units(storage_schedule, "MW", sensor.unit)
+        storage_schedule = {
+            sensor: fallback_charging_policy(
+                sensor, device_constraints[0], start, end, resolution
+            )
+            for sensor in sensors
+        }
+
+        # Convert each device schedule to the unit of the device's power sensor
+        storage_schedule = {
+            sensor: convert_units(storage_schedule[sensor], "MW", sensor.unit)
+            for sensor in sensors
+        }
 
         # Round schedule
         if self.round_to_decimals:
-            storage_schedule = storage_schedule.round(self.round_to_decimals)
+            storage_schedule = {
+                sensor: storage_schedule[sensor].round(self.round_to_decimals)
+                for sensor in sensors
+            }
 
         if self.return_multiple:
             return [
                 {
                     "name": "storage_schedule",
                     "sensor": sensor,
-                    "data": storage_schedule,
+                    "data": storage_schedule[sensor],
                 }
+                for sensor in sensors
             ]
         else:
-            return storage_schedule
+            return storage_schedule[sensors[0]]
 
 
 class StorageScheduler(MetaStorageScheduler):
