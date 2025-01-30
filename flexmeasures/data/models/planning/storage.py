@@ -263,8 +263,8 @@ class MetaStorageScheduler(Scheduler):
         # Set up commitments to optimise for
         commitments = []
 
-        index = initialize_index(start, end, self.resolution)
-        commitment_quantities = initialize_series(0, start, end, self.resolution)
+        index = initialize_index(start, end, resolution)
+        commitment_quantities = initialize_series(0, start, end, resolution)
 
         # Convert energy prices to EUR/(deviation of commitment, which is in MW)
         commitment_upwards_deviation_price = (
@@ -782,7 +782,8 @@ class MetaStorageScheduler(Scheduler):
             # Extend schedule period in case a target exceeds its end
             for child_flex_model in self.flex_model:
                 self.possibly_extend_end(
-                    soc_targets=child_flex_model.get("soc_targets")
+                    soc_targets=child_flex_model.get("soc_targets"),
+                    sensor=child_flex_model["sensor"],
                 )
 
         else:
@@ -792,7 +793,7 @@ class MetaStorageScheduler(Scheduler):
 
         return self.flex_model
 
-    def possibly_extend_end(self, soc_targets):
+    def possibly_extend_end(self, soc_targets, sensor):
         """Extend schedule period in case a target exceeds its end.
 
         The schedule's duration is possibly limited by the server config setting 'FLEXMEASURES_MAX_PLANNING_HORIZON'.
@@ -800,11 +801,13 @@ class MetaStorageScheduler(Scheduler):
         todo: when deserialize_flex_config becomes a single schema for the whole scheduler,
               this function would become a class method with a @post_load decorator.
         """
+        if sensor is None:
+            sensor = self.sensor
 
         if soc_targets and not isinstance(soc_targets, Sensor):
             max_target_datetime = max([soc_target["end"] for soc_target in soc_targets])
             if max_target_datetime > self.end:
-                max_server_horizon = get_max_planning_horizon(self.resolution)
+                max_server_horizon = get_max_planning_horizon(sensor.resolution)
                 if max_server_horizon:
                     self.end = min(max_target_datetime, self.start + max_server_horizon)
                 else:
