@@ -367,7 +367,7 @@ def custom_model_params():
 
 
 def test_build_asset_jobs_data(db, app, add_battery_assets):
-    # """Test we get both types of jobs for a battery asset."""
+    """Check that we get both types of jobs for a battery asset."""
     battery_asset = add_battery_assets["Test battery"]
     battery = battery_asset.sensors[0]
     tz = pytz.timezone("Europe/Amsterdam")
