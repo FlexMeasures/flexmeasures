@@ -902,9 +902,9 @@ class StorageFallbackScheduler(MetaStorageScheduler):
         # Fallback policy if the problem was unsolvable
         storage_schedule = {
             sensor: fallback_charging_policy(
-                sensor, device_constraints[0], start, end, resolution
+                sensor, device_constraints[d], start, end, resolution
             )
-            for sensor in sensors
+            for d, sensor in enumerate(sensors)
         }
 
         # Convert each device schedule to the unit of the device's power sensor
