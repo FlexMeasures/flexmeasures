@@ -13,6 +13,7 @@ New features
 Infrastructure / Support
 ----------------------
 * Enhance reporting infrastructure by ensuring that all ``Sensor.search_beliefs`` filters can be used as report parameters [see `PR #1318 <https://github.com/FlexMeasures/flexmeasures/pull/1318>`_]
+* Improve searching for multi-sourced data by returning data from only the latest version of a data generator (e.g. forecaster or scheduler) by default, when using ``Sensor.search_beliefs`` [see `PR #1306 <https://github.com/FlexMeasures/flexmeasures/pull/1306>`_]
 
 Bugfixes
 -----------
