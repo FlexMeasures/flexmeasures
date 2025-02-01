@@ -385,7 +385,11 @@ def device_scheduler(  # noqa C901
         """Apply conversion efficiencies to conversion from flow to stock change and vice versa,
         and apply storage efficiencies to stock levels from one datetime to the next."""
         if isinstance(initial_stock, list):
-            initial_stock_d = initial_stock[d]
+            try:
+                initial_stock_d = initial_stock[d]
+            except IndexError:
+                # No initial stock defined for inflexible devices
+                initial_stock_d = 0
         else:
             initial_stock_d = initial_stock
 

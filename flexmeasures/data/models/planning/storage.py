@@ -25,9 +25,13 @@ from flexmeasures.data.models.planning.utils import (
 )
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
 from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
-from flexmeasures.data.schemas.scheduling import FlexContextSchema
+from flexmeasures.data.schemas.scheduling import (
+    FlexContextSchema,
+    SequentialFlexModelSchema,
+)
 from flexmeasures.utils.time_utils import get_max_planning_horizon
 from flexmeasures.utils.coding_utils import deprecated
+from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
 from flexmeasures.utils.unit_utils import ur, convert_units
 
 
@@ -78,56 +82,78 @@ class MetaStorageScheduler(Scheduler):
         resolution = self.resolution
         belief_time = self.belief_time
         sensor = self.sensor
+        if sensor is None:
+            sensors = [flex_model_d["sensor"] for flex_model_d in self.flex_model]
+            resolution = determine_minimum_resampling_resolution(
+                [s.event_resolution for s in sensors]
+            )
+            asset = self.asset
+        else:
+            sensors = [sensor]
+            asset = sensor.generic_asset
+        flex_model = self.flex_model
+        if not isinstance(flex_model, list):
+            flex_model = [flex_model]
+        # total number of flexible devices D described in the flex-model
+        num_devices = len(flex_model)
 
-        soc_at_start = self.flex_model.get("soc_at_start")
-        soc_targets = self.flex_model.get("soc_targets")
-        soc_min = self.flex_model.get("soc_min")
-        soc_max = self.flex_model.get("soc_max")
-        soc_minima = self.flex_model.get("soc_minima")
-        soc_maxima = self.flex_model.get("soc_maxima")
-        storage_efficiency = self.flex_model.get("storage_efficiency")
-        prefer_charging_sooner = self.flex_model.get("prefer_charging_sooner", True)
+        soc_at_start = [flex_model_d.get("soc_at_start") for flex_model_d in flex_model]
+        soc_targets = [flex_model_d.get("soc_targets") for flex_model_d in flex_model]
+        soc_min = [flex_model_d.get("soc_min") for flex_model_d in flex_model]
+        soc_max = [flex_model_d.get("soc_max") for flex_model_d in flex_model]
+        soc_minima = [flex_model_d.get("soc_minima") for flex_model_d in flex_model]
+        soc_maxima = [flex_model_d.get("soc_maxima") for flex_model_d in flex_model]
+        storage_efficiency = [
+            flex_model_d.get("storage_efficiency") for flex_model_d in flex_model
+        ]
+        prefer_charging_sooner = [
+            flex_model_d.get("prefer_charging_sooner") for flex_model_d in flex_model
+        ]
+        power_capacity_in_mw = [
+            flex_model_d.get(
+                "power_capacity_in_mw",
+                flex_model_d.get("sensor", sensor).get_attribute(
+                    "capacity_in_mw", None
+                ),
+            )
+            for flex_model_d in flex_model
+        ]
+        soc_gain = [flex_model_d.get("soc_gain", []) for flex_model_d in flex_model]
+        soc_usage = [flex_model_d.get("soc_usage", []) for flex_model_d in flex_model]
+        consumption_capacity = [
+            flex_model_d.get("consumption_capacity") for flex_model_d in flex_model
+        ]
+        production_capacity = [
+            flex_model_d.get("production_capacity") for flex_model_d in flex_model
+        ]
+        charging_efficiency = [
+            flex_model_d.get("charging_efficiency") for flex_model_d in flex_model
+        ]
+        discharging_efficiency = [
+            flex_model_d.get("discharging_efficiency") for flex_model_d in flex_model
+        ]
 
+        # Get info from flex-context
         consumption_price_sensor = (
             self.flex_context.get("consumption_price_sensor")
-            or self.sensor.generic_asset.get_consumption_price_sensor()
+            or asset.get_consumption_price_sensor()
         )
         production_price_sensor = (
             self.flex_context.get("production_price_sensor")
-            or self.sensor.generic_asset.get_production_price_sensor()
+            or asset.get_production_price_sensor()
         )
         consumption_price = self.flex_context.get("consumption_price")
         production_price = self.flex_context.get("production_price")
         inflexible_device_sensors = (
             self.flex_context.get("inflexible_device_sensors")
-            or self.sensor.generic_asset.get_inflexible_device_sensors()
+            or asset.get_inflexible_device_sensors()
         )
 
         # Check for required Sensor attributes
-        power_capacity_in_mw = self.flex_model.get(
-            "power_capacity_in_mw",
-            self.sensor.get_attribute("capacity_in_mw", None),
-        )
-
-        if power_capacity_in_mw is None:
+        if any([c is None for c in power_capacity_in_mw]):
             raise ValueError(
                 "Power capacity is not defined in the sensor attributes or the flex-model."
             )
-
-        if isinstance(power_capacity_in_mw, float) or isinstance(
-            power_capacity_in_mw, int
-        ):
-            power_capacity_in_mw = ur.Quantity(f"{power_capacity_in_mw} MW")
-
-        power_capacity_in_mw = get_continuous_series_sensor_or_quantity(
-            variable_quantity=power_capacity_in_mw,
-            actuator=sensor,
-            unit="MW",
-            query_window=(start, end),
-            resolution=resolution,
-            beliefs_before=belief_time,
-            resolve_overlaps="min",
-        )
 
         # Check for known prices or price forecasts, trimming planning window accordingly
         if consumption_price is not None:
@@ -203,7 +229,7 @@ class MetaStorageScheduler(Scheduler):
         # Create Series with EMS capacities
         ems_power_capacity_in_mw = get_continuous_series_sensor_or_quantity(
             variable_quantity=self.flex_context.get("ems_power_capacity_in_mw"),
-            actuator=sensor.generic_asset,
+            actuator=asset,
             unit="MW",
             query_window=(start, end),
             resolution=resolution,
@@ -213,7 +239,7 @@ class MetaStorageScheduler(Scheduler):
         )
         ems_consumption_capacity = get_continuous_series_sensor_or_quantity(
             variable_quantity=self.flex_context.get("ems_consumption_capacity_in_mw"),
-            actuator=sensor.generic_asset,
+            actuator=asset,
             unit="MW",
             query_window=(start, end),
             resolution=resolution,
@@ -224,7 +250,7 @@ class MetaStorageScheduler(Scheduler):
         )
         ems_production_capacity = -1 * get_continuous_series_sensor_or_quantity(
             variable_quantity=self.flex_context.get("ems_production_capacity_in_mw"),
-            actuator=sensor.generic_asset,
+            actuator=asset,
             unit="MW",
             query_window=(start, end),
             resolution=resolution,
@@ -237,8 +263,8 @@ class MetaStorageScheduler(Scheduler):
         # Set up commitments to optimise for
         commitments = []
 
-        index = initialize_index(start, end, self.resolution)
-        commitment_quantities = initialize_series(0, start, end, self.resolution)
+        index = initialize_index(start, end, resolution)
+        commitment_quantities = initialize_series(0, start, end, resolution)
 
         # Convert energy prices to EUR/(deviation of commitment, which is in MW)
         commitment_upwards_deviation_price = (
@@ -460,209 +486,226 @@ class MetaStorageScheduler(Scheduler):
             # Take the contracted capacity as a hard constraint
             ems_constraints["derivative min"] = ems_production_capacity
 
-        # Set up device constraints: only one scheduled flexible device for this EMS (at index 0), plus the forecasted inflexible devices (at indices 1 to n).
+        # Set up device constraints: scheduled flexible devices for this EMS (from index 0 to D-1), plus the forecasted inflexible devices (at indices D to n).
         device_constraints = [
             initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
-            for i in range(1 + len(inflexible_device_sensors))
+            for i in range(num_devices + len(inflexible_device_sensors))
         ]
         for i, inflexible_sensor in enumerate(inflexible_device_sensors):
-            device_constraints[i + 1]["derivative equals"] = get_power_values(
+            device_constraints[i + num_devices]["derivative equals"] = get_power_values(
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
                 sensor=inflexible_sensor,
             )
 
-        # fetch SOC constraints from sensors
-        if isinstance(soc_targets, Sensor):
-            soc_targets = get_continuous_series_sensor_or_quantity(
-                variable_quantity=soc_targets,
-                actuator=sensor,
-                unit="MWh",
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                as_instantaneous_events=True,
-                resolve_overlaps="first",
-            )
-        if isinstance(soc_minima, Sensor):
-            soc_minima = get_continuous_series_sensor_or_quantity(
-                variable_quantity=soc_minima,
-                actuator=sensor,
-                unit="MWh",
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                as_instantaneous_events=True,
-                resolve_overlaps="max",
-            )
-        if isinstance(soc_maxima, Sensor):
-            soc_maxima = get_continuous_series_sensor_or_quantity(
-                variable_quantity=soc_maxima,
-                actuator=sensor,
-                unit="MWh",
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                as_instantaneous_events=True,
-                resolve_overlaps="min",
+        for d in range(num_devices):
+            sensor_d = sensors[d]
+
+            # fetch SOC constraints from sensors
+            if isinstance(soc_targets[d], Sensor):
+                soc_targets[d] = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_targets[d],
+                    actuator=sensor_d,
+                    unit="MWh",
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    as_instantaneous_events=True,
+                    resolve_overlaps="first",
+                )
+            if isinstance(soc_minima[d], Sensor):
+                soc_minima[d] = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_minima[d],
+                    actuator=sensor_d,
+                    unit="MWh",
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    as_instantaneous_events=True,
+                    resolve_overlaps="max",
+                )
+            if isinstance(soc_maxima[d], Sensor):
+                soc_maxima[d] = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_maxima[d],
+                    actuator=sensor_d,
+                    unit="MWh",
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    as_instantaneous_events=True,
+                    resolve_overlaps="min",
+                )
+
+            device_constraints[d] = add_storage_constraints(
+                start,
+                end,
+                resolution,
+                soc_at_start[d],
+                soc_targets[d],
+                soc_maxima[d],
+                soc_minima[d],
+                soc_max[d],
+                soc_min[d],
             )
 
-        device_constraints[0] = add_storage_constraints(
-            start,
-            end,
-            resolution,
-            soc_at_start,
-            soc_targets,
-            soc_maxima,
-            soc_minima,
-            soc_max,
-            soc_min,
-        )
+            if isinstance(power_capacity_in_mw[d], float) or isinstance(
+                power_capacity_in_mw[d], int
+            ):
+                power_capacity_in_mw[d] = ur.Quantity(f"{power_capacity_in_mw[d]} MW")
 
-        consumption_capacity = self.flex_model.get("consumption_capacity")
-        production_capacity = self.flex_model.get("production_capacity")
-
-        if sensor.get_attribute("is_strictly_non_positive"):
-            device_constraints[0]["derivative min"] = 0
-        else:
-            device_constraints[0]["derivative min"] = (
-                -1
-            ) * get_continuous_series_sensor_or_quantity(
-                variable_quantity=production_capacity,
-                actuator=sensor,
+            power_capacity_in_mw[d] = get_continuous_series_sensor_or_quantity(
+                variable_quantity=power_capacity_in_mw[d],
+                actuator=sensor_d,
                 unit="MW",
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
-                fallback_attribute="production_capacity",
-                max_value=power_capacity_in_mw,
                 resolve_overlaps="min",
             )
-        if sensor.get_attribute("is_strictly_non_negative"):
-            device_constraints[0]["derivative max"] = 0
-        else:
-            device_constraints[0]["derivative max"] = (
-                get_continuous_series_sensor_or_quantity(
-                    variable_quantity=consumption_capacity,
-                    actuator=sensor,
+
+            if sensor_d.get_attribute("is_strictly_non_positive"):
+                device_constraints[d]["derivative min"] = 0
+            else:
+                device_constraints[d]["derivative min"] = (
+                    -1
+                ) * get_continuous_series_sensor_or_quantity(
+                    variable_quantity=production_capacity[d],
+                    actuator=sensor_d,
                     unit="MW",
                     query_window=(start, end),
                     resolution=resolution,
                     beliefs_before=belief_time,
-                    fallback_attribute="consumption_capacity",
-                    max_value=power_capacity_in_mw,
+                    fallback_attribute="production_capacity",
+                    max_value=power_capacity_in_mw[d],
                     resolve_overlaps="min",
                 )
-            )
-
-        soc_gain = self.flex_model.get("soc_gain", [])
-        soc_usage = self.flex_model.get("soc_usage", [])
-
-        all_stock_delta = []
-
-        for is_usage, soc_delta in zip([False, True], [soc_gain, soc_usage]):
-            for component in soc_delta:
-                stock_delta_series = get_continuous_series_sensor_or_quantity(
-                    variable_quantity=component,
-                    actuator=sensor,
-                    unit="MW",
-                    query_window=(start, end),
-                    resolution=resolution,
-                    beliefs_before=belief_time,
+            if sensor_d.get_attribute("is_strictly_non_negative"):
+                device_constraints[d]["derivative max"] = 0
+            else:
+                device_constraints[d]["derivative max"] = (
+                    get_continuous_series_sensor_or_quantity(
+                        variable_quantity=consumption_capacity[d],
+                        actuator=sensor_d,
+                        unit="MW",
+                        query_window=(start, end),
+                        resolution=resolution,
+                        beliefs_before=belief_time,
+                        fallback_attribute="consumption_capacity",
+                        max_value=power_capacity_in_mw[d],
+                        resolve_overlaps="min",
+                    )
                 )
 
-                # example: 4 MW sustained over 15 minutes gives 1 MWh
-                stock_delta_series *= resolution / timedelta(
-                    hours=1
-                )  # MW -> MWh / resolution
+            all_stock_delta = []
 
-                if is_usage:
-                    stock_delta_series *= -1
+            for is_usage, soc_delta in zip([False, True], [soc_gain[d], soc_usage[d]]):
+                for component in soc_delta:
+                    stock_delta_series = get_continuous_series_sensor_or_quantity(
+                        variable_quantity=component,
+                        actuator=sensor_d,
+                        unit="MW",
+                        query_window=(start, end),
+                        resolution=resolution,
+                        beliefs_before=belief_time,
+                    )
 
-                all_stock_delta.append(stock_delta_series)
+                    # example: 4 MW sustained over 15 minutes gives 1 MWh
+                    stock_delta_series *= resolution / timedelta(
+                        hours=1
+                    )  # MW -> MWh / resolution
 
-        if len(all_stock_delta) > 0:
-            all_stock_delta = pd.concat(all_stock_delta, axis=1)
+                    if is_usage:
+                        stock_delta_series *= -1
 
-            device_constraints[0]["stock delta"] = all_stock_delta.sum(1)
-            device_constraints[0]["stock delta"] *= timedelta(hours=1) / resolution
+                    all_stock_delta.append(stock_delta_series)
 
-        # Apply round-trip efficiency evenly to charging and discharging
-        charging_efficiency = get_continuous_series_sensor_or_quantity(
-            variable_quantity=self.flex_model.get("charging_efficiency"),
-            actuator=sensor,
-            unit="dimensionless",
-            query_window=(start, end),
-            resolution=resolution,
-            beliefs_before=belief_time,
-            fallback_attribute="charging-efficiency",
-        ).fillna(1)
-        discharging_efficiency = get_continuous_series_sensor_or_quantity(
-            variable_quantity=self.flex_model.get("discharging_efficiency"),
-            actuator=sensor,
-            unit="dimensionless",
-            query_window=(start, end),
-            resolution=resolution,
-            beliefs_before=belief_time,
-            fallback_attribute="discharging-efficiency",
-        ).fillna(1)
+            if len(all_stock_delta) > 0:
+                all_stock_delta = pd.concat(all_stock_delta, axis=1)
 
-        roundtrip_efficiency = self.flex_model.get(
-            "roundtrip_efficiency", self.sensor.get_attribute("roundtrip_efficiency", 1)
-        )
+                device_constraints[d]["stock delta"] = all_stock_delta.sum(1)
+                device_constraints[d]["stock delta"] *= timedelta(hours=1) / resolution
 
-        # if roundtrip efficiency is provided in the flex-model or defined as an asset attribute
-        if "roundtrip_efficiency" in self.flex_model or self.sensor.has_attribute(
-            "roundtrip-efficiency"
-        ):
-            charging_efficiency = roundtrip_efficiency**0.5
-            discharging_efficiency = roundtrip_efficiency**0.5
-
-        device_constraints[0]["derivative down efficiency"] = discharging_efficiency
-        device_constraints[0]["derivative up efficiency"] = charging_efficiency
-
-        # Apply storage efficiency (accounts for losses over time)
-        if isinstance(storage_efficiency, ur.Quantity) or isinstance(
-            storage_efficiency, Sensor
-        ):
-            device_constraints[0]["efficiency"] = (
-                get_continuous_series_sensor_or_quantity(
-                    variable_quantity=storage_efficiency,
-                    actuator=sensor,
-                    unit="dimensionless",
-                    query_window=(start, end),
-                    resolution=resolution,
-                    beliefs_before=belief_time,
-                    fallback_attribute="storage_efficiency",  # this should become storage-efficiency
-                    max_value=1,
-                )
-                .fillna(1.0)
-                .clip(lower=0.0, upper=1.0)
-            )
-        elif storage_efficiency is not None:
-            device_constraints[0]["efficiency"] = storage_efficiency
-
-        # check that storage constraints are fulfilled
-        if not skip_validation:
-            constraint_violations = validate_storage_constraints(
-                constraints=device_constraints[0],
-                soc_at_start=soc_at_start,
-                soc_min=soc_min,
-                soc_max=soc_max,
+            # Apply round-trip efficiency evenly to charging and discharging
+            charging_efficiency[d] = get_continuous_series_sensor_or_quantity(
+                variable_quantity=charging_efficiency[d],
+                actuator=sensor_d,
+                unit="dimensionless",
+                query_window=(start, end),
                 resolution=resolution,
+                beliefs_before=belief_time,
+                fallback_attribute="charging-efficiency",
+            ).fillna(1)
+            discharging_efficiency[d] = get_continuous_series_sensor_or_quantity(
+                variable_quantity=discharging_efficiency[d],
+                actuator=sensor_d,
+                unit="dimensionless",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                fallback_attribute="discharging-efficiency",
+            ).fillna(1)
+
+            roundtrip_efficiency = flex_model[d].get(
+                "roundtrip_efficiency",
+                sensor_d.get_attribute("roundtrip_efficiency", 1),
             )
 
-            if len(constraint_violations) > 0:
-                # TODO: include hints from constraint_violations into the error message
-                message = create_constraint_violations_message(constraint_violations)
-                raise ValueError(
-                    "The input data yields an infeasible problem. Constraint validation has found the following issues:\n"
-                    + message
+            # if roundtrip efficiency is provided in the flex-model or defined as an asset attribute
+            if "roundtrip_efficiency" in flex_model[d] or sensor_d.has_attribute(
+                "roundtrip-efficiency"
+            ):
+                charging_efficiency[d] = roundtrip_efficiency**0.5
+                discharging_efficiency[d] = roundtrip_efficiency**0.5
+
+            device_constraints[d]["derivative down efficiency"] = (
+                discharging_efficiency[d]
+            )
+            device_constraints[d]["derivative up efficiency"] = charging_efficiency[d]
+
+            # Apply storage efficiency (accounts for losses over time)
+            if isinstance(storage_efficiency[d], ur.Quantity) or isinstance(
+                storage_efficiency[d], Sensor
+            ):
+                device_constraints[d]["efficiency"] = (
+                    get_continuous_series_sensor_or_quantity(
+                        variable_quantity=storage_efficiency[d],
+                        actuator=sensor_d,
+                        unit="dimensionless",
+                        query_window=(start, end),
+                        resolution=resolution,
+                        beliefs_before=belief_time,
+                        fallback_attribute="storage_efficiency",  # this should become storage-efficiency
+                        max_value=1,
+                    )
+                    .fillna(1.0)
+                    .clip(lower=0.0, upper=1.0)
                 )
+            elif storage_efficiency[d] is not None:
+                device_constraints[d]["efficiency"] = storage_efficiency[d]
+
+            # check that storage constraints are fulfilled
+            if not skip_validation:
+                constraint_violations = validate_storage_constraints(
+                    constraints=device_constraints[d],
+                    soc_at_start=soc_at_start[d],
+                    soc_min=soc_min[d],
+                    soc_max=soc_max[d],
+                    resolution=resolution,
+                )
+
+                if len(constraint_violations) > 0:
+                    # TODO: include hints from constraint_violations into the error message
+                    message = create_constraint_violations_message(
+                        constraint_violations
+                    )
+                    raise ValueError(
+                        "The input data yields an infeasible problem. Constraint validation has found the following issues:\n"
+                        + message
+                    )
 
         return (
-            sensor,
+            sensors,
             start,
             end,
             resolution,
@@ -674,10 +717,13 @@ class MetaStorageScheduler(Scheduler):
 
     def persist_flex_model(self):
         """Store new soc info as GenericAsset attributes"""
-        self.sensor.generic_asset.set_attribute("soc_datetime", self.start.isoformat())
-        self.sensor.generic_asset.set_attribute(
-            "soc_in_mwh", self.flex_model["soc_at_start"]
-        )
+        if self.sensor is not None:
+            self.sensor.generic_asset.set_attribute(
+                "soc_datetime", self.start.isoformat()
+            )
+            self.sensor.generic_asset.set_attribute(
+                "soc_in_mwh", self.flex_model["soc_at_start"]
+            )
 
     def deserialize_flex_config(self):
         """
@@ -693,41 +739,61 @@ class MetaStorageScheduler(Scheduler):
         if self.flex_model is None:
             self.flex_model = {}
 
-        # Check state of charge.
-        # Preferably, a starting soc is given.
-        # Otherwise, we try to retrieve the current state of charge from the asset (if that is the valid one at the start).
-        # If that doesn't work, we set the starting soc to 0 (some assets don't use the concept of a state of charge,
-        # and without soc targets and limits the starting soc doesn't matter).
-        if (
-            "soc-at-start" not in self.flex_model
-            or self.flex_model["soc-at-start"] is None
-        ):
-            if (
-                self.start == self.sensor.get_attribute("soc_datetime")
-                and self.sensor.get_attribute("soc_in_mwh") is not None
-            ):
-                self.flex_model["soc-at-start"] = self.sensor.get_attribute(
-                    "soc_in_mwh"
-                )
-            else:
-                self.flex_model["soc-at-start"] = 0
-
-        self.ensure_soc_min_max()
-
-        # Now it's time to check if our flex configuration holds up to schemas
-        self.flex_model = StorageFlexModelSchema(
-            start=self.start,
-            sensor=self.sensor,
-            default_soc_unit=self.flex_model.get("soc-unit"),
-        ).load(self.flex_model)
         self.flex_context = FlexContextSchema().load(self.flex_context)
 
-        # Extend schedule period in case a target exceeds its end
-        self.possibly_extend_end()
+        if isinstance(self.flex_model, dict):
+            # Check state of charge.
+            # Preferably, a starting soc is given.
+            # Otherwise, we try to retrieve the current state of charge from the asset (if that is the valid one at the start).
+            # If that doesn't work, we set the starting soc to 0 (some assets don't use the concept of a state of charge,
+            # and without soc targets and limits the starting soc doesn't matter).
+            if (
+                "soc-at-start" not in self.flex_model
+                or self.flex_model["soc-at-start"] is None
+            ):
+                if (
+                    self.start == self.sensor.get_attribute("soc_datetime")
+                    and self.sensor.get_attribute("soc_in_mwh") is not None
+                ):
+                    self.flex_model["soc-at-start"] = self.sensor.get_attribute(
+                        "soc_in_mwh"
+                    )
+                else:
+                    self.flex_model["soc-at-start"] = 0
+
+            self.ensure_soc_min_max()
+
+            # Now it's time to check if our flex configuration holds up to schemas
+            self.flex_model = StorageFlexModelSchema(
+                start=self.start,
+                sensor=self.sensor,
+                default_soc_unit=self.flex_model.get("soc-unit"),
+            ).load(self.flex_model)
+
+            # Extend schedule period in case a target exceeds its end
+            self.possibly_extend_end(soc_targets=self.flex_model.get("soc_targets"))
+        elif isinstance(self.flex_model, list):
+            self.flex_model = SequentialFlexModelSchema(many=True).load(self.flex_model)
+            for d, sensor_flex_model in enumerate(self.flex_model):
+                self.flex_model[d] = StorageFlexModelSchema(
+                    start=self.start, sensor=sensor_flex_model["sensor"]
+                ).load(sensor_flex_model["sensor_flex_model"]["sensor-flex-model"])
+                self.flex_model[d]["sensor"] = sensor_flex_model["sensor"]
+            # Extend schedule period in case a target exceeds its end
+            for child_flex_model in self.flex_model:
+                self.possibly_extend_end(
+                    soc_targets=child_flex_model.get("soc_targets"),
+                    sensor=child_flex_model["sensor"],
+                )
+
+        else:
+            raise TypeError(
+                f"Unsupported type of flex-model: '{type(self.flex_model)}'"
+            )
 
         return self.flex_model
 
-    def possibly_extend_end(self):
+    def possibly_extend_end(self, soc_targets, sensor: Sensor = None):
         """Extend schedule period in case a target exceeds its end.
 
         The schedule's duration is possibly limited by the server config setting 'FLEXMEASURES_MAX_PLANNING_HORIZON'.
@@ -735,12 +801,13 @@ class MetaStorageScheduler(Scheduler):
         todo: when deserialize_flex_config becomes a single schema for the whole scheduler,
               this function would become a class method with a @post_load decorator.
         """
-        soc_targets = self.flex_model.get("soc_targets")
+        if sensor is None:
+            sensor = self.sensor
 
         if soc_targets and not isinstance(soc_targets, Sensor):
             max_target_datetime = max([soc_target["end"] for soc_target in soc_targets])
             if max_target_datetime > self.end:
-                max_server_horizon = get_max_planning_horizon(self.resolution)
+                max_server_horizon = get_max_planning_horizon(sensor.event_resolution)
                 if max_server_horizon:
                     self.end = min(max_target_datetime, self.start + max_server_horizon)
                 else:
@@ -822,7 +889,7 @@ class StorageFallbackScheduler(MetaStorageScheduler):
         """
 
         (
-            sensor,
+            sensors,
             start,
             end,
             resolution,
@@ -833,25 +900,37 @@ class StorageFallbackScheduler(MetaStorageScheduler):
         ) = self._prepare(skip_validation=skip_validation)
 
         # Fallback policy if the problem was unsolvable
-        storage_schedule = fallback_charging_policy(
-            sensor, device_constraints[0], start, end, resolution
-        )
-        storage_schedule = convert_units(storage_schedule, "MW", sensor.unit)
+        storage_schedule = {
+            sensor: fallback_charging_policy(
+                sensor, device_constraints[d], start, end, resolution
+            )
+            for d, sensor in enumerate(sensors)
+        }
+
+        # Convert each device schedule to the unit of the device's power sensor
+        storage_schedule = {
+            sensor: convert_units(storage_schedule[sensor], "MW", sensor.unit)
+            for sensor in sensors
+        }
 
         # Round schedule
         if self.round_to_decimals:
-            storage_schedule = storage_schedule.round(self.round_to_decimals)
+            storage_schedule = {
+                sensor: storage_schedule[sensor].round(self.round_to_decimals)
+                for sensor in sensors
+            }
 
         if self.return_multiple:
             return [
                 {
                     "name": "storage_schedule",
                     "sensor": sensor,
-                    "data": storage_schedule,
+                    "data": storage_schedule[sensor],
                 }
+                for sensor in sensors
             ]
         else:
-            return storage_schedule
+            return storage_schedule[sensors[0]]
 
 
 class StorageScheduler(MetaStorageScheduler):
@@ -869,7 +948,7 @@ class StorageScheduler(MetaStorageScheduler):
         """
 
         (
-            sensor,
+            sensors,
             start,
             end,
             resolution,
@@ -883,26 +962,39 @@ class StorageScheduler(MetaStorageScheduler):
             device_constraints,
             ems_constraints,
             commitments=commitments,
-            initial_stock=soc_at_start * (timedelta(hours=1) / resolution),
+            initial_stock=[
+                soc_at_start_d * (timedelta(hours=1) / resolution)
+                for soc_at_start_d in soc_at_start
+            ],
         )
         if scheduler_results.solver.termination_condition == "infeasible":
             raise InfeasibleProblemException()
 
         # Obtain the storage schedule from all device schedules within the EMS
-        storage_schedule = ems_schedule[0]
-        storage_schedule = convert_units(storage_schedule, "MW", sensor.unit)
+        storage_schedule = {sensor: ems_schedule[d] for d, sensor in enumerate(sensors)}
+
+        # Convert each device schedule to the unit of the device's power sensor
+        storage_schedule = {
+            sensor: convert_units(storage_schedule[sensor], "MW", sensor.unit)
+            for sensor in sensors
+        }
 
         # Round schedule
         if self.round_to_decimals:
-            storage_schedule = storage_schedule.round(self.round_to_decimals)
+            storage_schedule = {
+                sensor: storage_schedule[sensor].round(self.round_to_decimals)
+                for sensor in sensors
+            }
 
         if self.return_multiple:
             return [
                 {
                     "name": "storage_schedule",
                     "sensor": sensor,
-                    "data": storage_schedule,
-                },
+                    "data": storage_schedule[sensor],
+                }
+                for sensor in sensors
+            ] + [
                 {
                     "name": "commitment_costs",
                     "data": {
@@ -914,7 +1006,7 @@ class StorageScheduler(MetaStorageScheduler):
                 },
             ]
         else:
-            return storage_schedule
+            return storage_schedule[sensors[0]]
 
 
 def create_constraint_violations_message(constraint_violations: list) -> str:

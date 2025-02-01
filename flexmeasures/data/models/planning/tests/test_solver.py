@@ -223,7 +223,7 @@ def run_test_charge_discharge_sign(
     )
 
     (
-        sensor,
+        sensors,
         start,
         end,
         resolution,
@@ -237,7 +237,10 @@ def run_test_charge_discharge_sign(
         device_constraints,
         ems_constraints,
         commitments=commitments,
-        initial_stock=soc_at_start * (timedelta(hours=1) / resolution),
+        initial_stock=[
+            soc_at_start_d * (timedelta(hours=1) / resolution)
+            for soc_at_start_d in soc_at_start
+        ],
     )
 
     device_power_sign = pd.Series(model.device_power_sign.extract_values())[0]
@@ -265,7 +268,7 @@ def run_test_charge_discharge_sign(
 
     # Check if constraints were met
     soc_schedule = check_constraints(
-        battery, schedule, soc_at_start, roundtrip_efficiency, storage_efficiency
+        battery, schedule, soc_at_start[0], roundtrip_efficiency, storage_efficiency
     )
 
     return schedule.tz_convert(tz), soc_schedule.tz_convert(tz)
@@ -1064,7 +1067,7 @@ def test_numerical_errors(app_with_each_solver, setup_planning_test_data, db):
     )
 
     (
-        sensor,
+        sensors,
         start,
         end,
         resolution,
@@ -1078,7 +1081,10 @@ def test_numerical_errors(app_with_each_solver, setup_planning_test_data, db):
         device_constraints,
         ems_constraints,
         commitments=commitments,
-        initial_stock=soc_at_start * (timedelta(hours=1) / resolution),
+        initial_stock=[
+            soc_at_start_d * (timedelta(hours=1) / resolution)
+            for soc_at_start_d in soc_at_start
+        ],
     )
 
     assert device_constraints[0]["equals"].max() > device_constraints[0]["max"].max()
@@ -1242,7 +1248,7 @@ def test_capacity(
     )
 
     (
-        sensor,
+        sensors,
         start,
         end,
         resolution,
