@@ -75,6 +75,18 @@ def upgrade():
             "inflexible-device-sensors": [s[0] for s in inflexible_device_sensors],
         }
 
+        cleaned_flex_context = {}
+
+        # loop through flex_context and remove keys with null values or empty arrays
+        for key, value in flex_context.items():
+            if value and (isinstance(value, dict) or isinstance(value, list)):
+                if isinstance(value, dict) and value.get("sensor") is not None:
+                    cleaned_flex_context[key] = value
+                elif isinstance(value, list) and len(value) > 0:
+                    cleaned_flex_context[key] = value
+
+        flex_context = cleaned_flex_context
+
         update_stmt = (
             generic_asset_table.update()
             .where(generic_asset_table.c.id == asset_id)
