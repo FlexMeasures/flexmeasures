@@ -408,7 +408,7 @@
         </div>
     </div>
 
-        <!-- Flex Context Modal -->
+    <!-- Flex Context Modal -->
     <div class="modal fade modal-xl" id="flexContextModal" tabindex="-1" aria-labelledby="flexContextModalLabel"
         aria-hidden="true">
         <div class="modal-dialog">
@@ -444,20 +444,35 @@
 
                 <div class="modal-body">
                     <div class="row">
+                        <!-- Left Column -->
                         <div class="col-5">
                             <form id="flexContextForm">
                             </form>
-
                         </div>
 
+                        <!-- Right Column -->
                         <div class="col-7">
-                            <div class="">
+                            <div>
+                                <!-- Loading Spinner -->
                                 <div id="spinnerElement" class="d-flex justify-content-center align-items-center mb-2" style="height: 50vh; display: none !important;">
                                     <div class="spinner-border text-primary" role="status" style="width: 4rem; height: 4rem;">
                                         <span class="visually-hidden">Loading...</span>
                                     </div>
                                 </div>
 
+                                <!-- Settings -->
+                                <div>
+                                    <select class="form-select" id="mySelect">
+                                        <option value="">Select an option</option>
+                                        <option value="consumption-price">Option 1</option>
+                                        <option value="production-price">Option 2</option>
+                                    </select>
+                            
+                                    <div id="alertContainer" class="mt-3"></div> 
+                                </div>
+
+
+                                <!-- Filtered or Searched Sensors -->
                                 <div id="power-capacity-input" class="flex-input-group mb-4" style="display:none;">
                                     <label for="power-capacity" class="form-label">Power Capacity</label>
                                     <input type="text" id="power-capacity" class="form-control" placeholder="e.g. 15 kW">
@@ -504,9 +519,9 @@
     let flexContextFormEle = document.getElementById("flexContextForm")
     const flexContexFormModal = document.getElementById('flexContextModal');
     let assetFlexContext = {
-        "site-power-capacity": null,
         "consumption-price":  null,
         "production-price":  null, 
+        "site-power-capacity": null,
         "site-production-capacity":  null,
         "site-consumption-capacity":  null,
         "site-consumption-breach-price":  null,
