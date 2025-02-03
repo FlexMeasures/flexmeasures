@@ -444,13 +444,13 @@
 
                 <div class="modal-body">
                     <div class="row">
-                        <div class="col-7">
+                        <div class="col-5">
                             <form id="flexContextForm">
                             </form>
 
                         </div>
 
-                        <div class="col-5">
+                        <div class="col-7">
                             <div class="">
                                 <div id="spinnerElement" class="d-flex justify-content-center align-items-center mb-2" style="height: 50vh; display: none !important;">
                                     <div class="spinner-border text-primary" role="status" style="width: 4rem; height: 4rem;">
@@ -1127,23 +1127,20 @@
 
         return `
             <div class="row g-2 my-1 card-highlight p-1">
-                <div class="col-8 mb-3">
-                    <label for="${fieldName}-control-input" class="form-label">${InputTitle}</label>
-                    <input type="text" class="form-control" id="${fieldName}-input" value="${newFieldValue ? newFieldValue : ''}" placeholder="15 KW or {&quot;sensor&quot;: 4}" disabled>
-                </div>
-
-                <div class="col-4 mb-3">
-                    <label for="input-type-${fieldName}" class="form-label">Input Type:</label>
-                    <select id="input-type-${fieldName}" class="form-select">
-                        <option value="select-type">Select Type</option>
-                        ${isArray ? "": `<option value="power-capacity">Power Capacity</option>`}
-                        <option value="select-sensor">Select Sensor</option>
-                    </select>
+                <div class="mb-2 border-bottom border-secondary d-flex justify-content-between align-items-center pb-2">
+                    <label for="${fieldName}-control-input" class="form-label mb-0 fs-5 fw-semi-bold">${InputTitle}</label>
+                    <button class="btn btn-outline-primary btn-sm" onclick="">Edit</button>
                 </div>
 
                 ${isKeyValueObject || isArray ? `
                 <div>
                     ${sensorsContent.length > 0 ? sensorsContent.join("") : `<div class="alert alert-warning" role="alert"> No sensors added to this graph. Add sensors by selecting them from the right</div>`}
+                </div>
+                ` : ""}
+
+                ${isString ? `
+                <div class="shadow-sm border border-secondary p-2">
+                    <span class="fw-light fs-5">${newFieldValue}</span>
                 </div>
                 ` : ""}
             </div>
