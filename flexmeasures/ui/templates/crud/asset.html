@@ -462,15 +462,16 @@
 
                                 <!-- Settings -->
                                 <div>
-                                    <select class="form-select" id="mySelect">
+                                    <select class="form-select" id="flexSelect">
                                         <option value="">Select an option</option>
-                                        <option value="consumption-price">Option 1</option>
-                                        <option value="production-price">Option 2</option>
+                                        <option value="consumption-price">Consumption Price</option>
+                                        <option value="production-price">Production Price</option>
                                     </select>
                             
-                                    <div id="alertContainer" class="mt-3"></div> 
+                                    <div id="flexInfoContainer" class="mt-3"></div> 
                                 </div>
 
+                                <hr class="border border-dark"/>
 
                                 <!-- Filtered or Searched Sensors -->
                                 <div id="power-capacity-input" class="flex-input-group mb-4" style="display:none;">
@@ -515,9 +516,12 @@
 <script src="{{ url_for('flexmeasures_ui.static', filename='js/map-init.js') }}"></script>
 
 <script>
-    let senSearchResEle = document.getElementById("sensorsSearchResults")
-    let flexContextFormEle = document.getElementById("flexContextForm")
+    const senSearchResEle = document.getElementById("sensorsSearchResults")
+    const flexContextFormEle = document.getElementById("flexContextForm")
     const flexContexFormModal = document.getElementById('flexContextModal');
+    const flexSelect = document.getElementById('flexSelect');
+    const flexInfoContainer = document.getElementById('flexInfoContainer');
+
     let assetFlexContext = {
         "consumption-price":  null,
         "production-price":  null, 
@@ -563,7 +567,6 @@
         // Trigger the change event initially to show the default option's input
         $('#input-type-site-power-capacity').trigger('change');
     });
-
 
     const formModal = document.getElementById('sensorsToShowModal');
     const apiSensorsListElement = document.getElementById("apiSensorsList");
@@ -1193,11 +1196,10 @@
         renderFlexContextForm();
     }
 
-
-
     // ============== Flex Context Management ============== //
 
 
+    // ============== Page Events ============== //
     
     formModal.addEventListener('hidden.bs.modal', function () {
         updateAssetSensorsToShow("sensorToShow");
@@ -1253,6 +1255,33 @@
             renderApiSensors([], undefined);
         }
     });
+
+    flexSelect.addEventListener('change', function() {
+        const selectedOption = flexSelect.value;
+        flexInfoContainer.innerHTML = "";
+        const alertStyle = "alert alert-light";
+        if (selectedOption === "consumption-price") {
+            flexInfoContainer.innerHTML = `
+                <div class="${alertStyle}" role="alert">
+                    <b> About Field/Setting </b>
+                    <div class="pt-2">
+                        Set the sensor that represents the consumption price of the site. This value will be used in the optimization
+                    </div>
+                </div>
+            `;
+        } else if (selectedOption === "production-price") {
+            flexInfoContainer.innerHTML = `
+                <div class="${alertStyle}" role="alert">
+                    <b> About Field/Setting </b>
+                    <div class="pt-2">
+                        Set the sensor that represents the production price of the site. This value will be used in the optimization
+                    </div>
+                </div>
+            `;
+        }
+    });
+
+    // ============== Page Events ============== //
 </script>
 <script type="text/javascript">
 
