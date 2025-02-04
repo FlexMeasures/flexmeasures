@@ -174,11 +174,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
     )
     sensors = ma.Nested("SensorSchema", many=True, dump_only=True, only=("id", "name"))
     sensors_to_show = JSON(required=False)
-    production_price_sensor_id = fields.Int(required=False, allow_none=True)
-    consumption_price_sensor_id = fields.Int(required=False, allow_none=True)
-    inflexible_device_sensor_ids = fields.List(
-        fields.Int, required=False, allow_none=True
-    )
+    flex_context = JSON(required=False)
 
     class Meta:
         model = GenericAsset
