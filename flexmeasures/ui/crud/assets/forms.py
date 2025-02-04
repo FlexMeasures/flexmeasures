@@ -12,11 +12,10 @@ from wtforms import (
     SelectField,
 )
 from wtforms.validators import DataRequired, optional
-from typing import Optional
 
 from flexmeasures.auth.policy import user_has_admin_access
 from flexmeasures.data import db
-from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
+from flexmeasures.data.models.generic_assets import GenericAssetType
 from flexmeasures.data.models.user import Account
 
 
@@ -100,14 +99,6 @@ class AssetForm(FlaskForm):
                 (account.id, account.name)
                 for account in db.session.scalars(select(Account)).all()
             ]
-
-    def with_sensors(
-        self,
-        asset: GenericAsset,
-        account_id: Optional[int],
-    ) -> None:
-        if current_app.config.get("FLEXMEASURES_HIDE_FLEXCONTEXT_EDIT", False):
-            del self.flex_context
 
 
 class NewAssetForm(AssetForm):
