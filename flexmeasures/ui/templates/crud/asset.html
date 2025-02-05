@@ -483,6 +483,9 @@
 
                                 <hr class="border border-dark"/>
 
+                                <!-- Flex InputTypes -->
+                                <div id="flexInputsContainer" class="mt-3"></div> 
+
                                 <!-- Filtered or Searched Sensors -->
                                 <div id="power-capacity-input" class="flex-input-group mb-4" style="display:none;">
                                     <label for="power-capacity" class="form-label">Power Capacity</label>
@@ -531,6 +534,8 @@
     const flexContexFormModal = document.getElementById('flexContextModal');
     const flexSelect = document.getElementById('flexSelect');
     const flexInfoContainer = document.getElementById('flexInfoContainer');
+    const flexInputsContainer = document.getElementById('flexInputsContainer');
+    
 
     let assetFlexContext = {
         "consumption-price":  null,
@@ -1155,7 +1160,7 @@
         return `
             <div class="row g-2 my-1 card-highlight p-1">
                 <div class="mb-2 border-bottom border-secondary d-flex justify-content-between align-items-center pb-2">
-                    <label for="${fieldName}-control-input" class="form-label mb-0 fs-5 fw-semi-bold">${InputTitle}</label>
+                    <label id="${fieldName}-label" for="${fieldName}-control-input" class="form-label mb-0 fs-5 fw-semi-bold">${InputTitle}</label>
                     <button class="btn btn-outline-primary btn-sm" onclick="">Edit</button>
                 </div>
 
@@ -1205,6 +1210,40 @@
         renderFlexContextForm();
     }
 
+    function addFlexContextField(fieldName) {
+        assetFlexContext[fieldName] = "";
+        renderFlexContextForm();
+    }
+
+    function renderSelectInfoCards(contextKey, description, isArray=false) {
+        return `, 
+            <div>
+                <div class="alert alert-light" role="alert">
+                    <b> About Field/Setting </b>
+                    <div class="pt-2">
+                        ${description}
+                        
+                    </div>
+                </div>
+
+                <button class="btn btn-secondary btn-md" id="" ${assetFlexContext[contextKey] ? "disabled" : "" } onclick="addFlexContextField('${contextKey}')">Add Field</button>
+            </div>
+        `;
+    }
+
+    function renderFlexInputOptions(contextKey, isArray=false) {
+        return `
+            <div class="mb-3">
+                <label for="input-type-${contextKey}" class="form-label">Input Type:</label>
+                <select id="input-type-${contextKey}" class="form-select">
+                    <option value="select-type">Select Type</option>
+                    ${isArray ? "": `<option value="power-capacity">Power Capacity</option>`}
+                    <option value="select-sensor">Select Sensor</option>
+                </select>
+            </div>
+        `;
+    }
+
     // ============== Flex Context Management ============== //
 
 
@@ -1250,7 +1289,18 @@
                 // Pass
             } else {
                 document.querySelectorAll(".card-highlight").forEach(el => el.classList.remove("border-on-click"));
+                flexInputsContainer.innerHTML = "";
                 card.classList.add("border-on-click");
+                const cardLabel = card.querySelector("label");
+                if (cardLabel) {
+                    // remvoe "-label" at the end leaing the flexcontext key
+                    const flexKey = cardLabel.id.slice(0, -6);
+                    if (flexKey !== "inflexible-device-sensors") {
+                        flexInputsContainer.innerHTML = renderFlexInputOptions(flexKey);
+                    } else {
+                        flexInputsContainer.innerHTML = renderFlexContextForm(flexKey, true);
+                    }
+                }
                 renderGraphCards();
             }
         } else if (
@@ -1265,27 +1315,6 @@
         }
     });
 
-    function addFlexContextField(fieldName) {
-        assetFlexContext[fieldName] = "";
-        renderFlexContextForm();
-    }
-
-    function renderSelectInfoCards(contextKey, description){
-        return `
-            <div>
-                <div class="alert alert-light" role="alert">
-                    <b> About Field/Setting </b>
-                    <div class="pt-2">
-                        ${description}
-                        
-                    </div>
-                </div>
-
-                <button class="btn btn-secondary btn-md" id="" ${assetFlexContext[contextKey] ? "disabled" : "" } onclick="addFlexContextField('${contextKey}')">Add Field</button>
-            </div>
-        `;
-    }
-
     flexSelect.addEventListener('change', function() {
         const selectedOption = flexSelect.value;
         flexInfoContainer.innerHTML = "";
@@ -1293,39 +1322,51 @@
         if (selectedOption === "consumption-price") {
             const description = "Set the sensor that represents the consumption price of the site. This value will be used in the optimization";
             flexInfoContainer.innerHTML = renderSelectInfoCards("consumption-price", description);
+            // renderFlexInputOptions("consumption-price");
         } else if (selectedOption === "production-price") {
             const description = "Set the sensor that represents the production price of the site. This value will be used in the optimization";
             flexInfoContainer.innerHTML = renderSelectInfoCards("production-price", description);
+            // renderFlexInputOptions("production-price");
         } else if (selectedOption == "site-power-capacity"){
             const description = "This value represents the maximum power that the site can consume or produce. This value will be used in the optimization";
             flexInfoContainer.innerHTML = renderSelectInfoCards("site-power-capacity", description);
+            // renderFlexInputOptions("site-power-capacity");
         } else if (selectedOption == "site-production-capacity"){
             const description = "This value represents the maximum power that the site can produce. This value will be used in the optimization";
             flexInfoContainer.innerHTML = renderSelectInfoCards("site-production-capacity", description);
+            // renderFlexInputOptions("site-production-capacity");
         } else if (selectedOption == "site-consumption-capacity"){
             const description = "This value represents the maximum power that the site can consume. This value will be used in the optimization";
             flexInfoContainer.innerHTML = renderSelectInfoCards("site-consumption-capacity", description);
+            // renderFlexInputOptions("site-consumption-capacity");
         } else if (selectedOption == "site-consumption-breach-price"){
             const description = "This value represents the price that will be paid if the site consumes more power than the site consumption capacity. This value will be used in the optimization";
             flexInfoContainer.innerHTML = renderSelectInfoCards("site-consumption-breach-price", description);
+            // renderFlexInputOptions("site-consumption-breach-price");
         } else if (selectedOption == "site-production-breach-price"){
             const description = "This value represents the price that will be paid if the site produces more power than the site production capacity. This value will be used in the optimization";
             flexInfoContainer.innerHTML = renderSelectInfoCards("site-production-breach-price", description);
+            // renderFlexInputOptions("site-production-breach-price");
         } else if (selectedOption == "site-peak-consumption"){
             const description = "This value represents the peak consumption of the site. This value will be used in the optimization";
             flexInfoContainer.innerHTML = renderSelectInfoCards("site-peak-consumption", description);
+            // renderFlexInputOptions("site-peak-consumption");
         } else if (selectedOption == "site-peak-consumption-price"){
             const description = "This value represents the price that will be paid if the site consumes more power than the site peak consumption. This value will be used in the optimization";
             flexInfoContainer.innerHTML = renderSelectInfoCards("site-peak-consumption-price", description);
+            // renderFlexInputOptions("site-peak-consumption-price");
         } else if (selectedOption == "site-peak-production"){
             const description = "This value represents the peak production of the site. This value will be used in the optimization";
             flexInfoContainer.innerHTML = renderSelectInfoCards("site-peak-production", description);
+            // renderFlexInputOptions("site-peak-production");
         } else if (selectedOption == "site-peak-production-price"){
             const description = "This value represents the price that will be paid if the site produces more power than the site peak production. This value will be used in the optimization";
             flexInfoContainer.innerHTML = renderSelectInfoCards("site-peak-production-price", description);
+            // renderFlexInputOptions("site-peak-production-price");
         } else if (selectedOption == "inflexible-device-sensors"){
             const description = "This value represents the sensors that are inflexible and cannot be controlled. These sensors will be used in the optimization";
             flexInfoContainer.innerHTML = renderSelectInfoCards("inflexible-device-sensors", description);
+            // renderFlexInputOptions("inflexible-device-sensors", true);
         }
     });
 
