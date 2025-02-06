@@ -489,7 +489,7 @@
                                 <!-- Filtered or Searched Sensors -->
                                 <div id="power-capacity-input" class="flex-input-group mb-4" style="display:none;">
                                     <label for="power-capacity" class="form-label">Power Capacity</label>
-                                    <input type="text" id="power-capacity" class="form-control" placeholder="e.g. 15 kW">
+                                    <input type="text" id="power-capacity" class="form-control" placeholder="e.g. 15W">
                                     <button class="btn btn-secondary btn-sm me-2 mt-2" onclick="udpateFlexContextFieldValue('power', 0)">Add Value</button>
                                 </div>
             
@@ -1158,7 +1158,7 @@
         }
 
         return `
-            <div class="row g-2 my-1 card-highlight p-1">
+            <div class="row g-2 my-1 card-highlight p-1" id="${fieldName}-control">
                 <div class="mb-2 border-bottom border-secondary d-flex justify-content-between align-items-center pb-2">
                     <label id="${fieldName}-label" for="${fieldName}-control-input" class="form-label mb-0 fs-5 fw-semi-bold">${InputTitle}</label>
                     <button class="btn btn-outline-primary btn-sm" onclick="">Edit</button>
@@ -1192,18 +1192,16 @@
     function udpateFlexContextFieldValue(dataType, sensorId) {
         const powerCapacityInputValue = document.getElementById("power-capacity").value;
         const highlightedCard = document.querySelector('.border-on-click');
-        // get input element inside highlightedCard div
-        const input = highlightedCard.querySelector("input");
-        // get input id and remove '-input' at the end
-        const inputId = input.id.slice(0, -6);
+        // get card id and remove '-control' at the end
+        const cardId = highlightedCard.id;
+        const flexId = cardId.slice(0, -8);
         if (dataType === "power") {
-            assetFlexContext[inputId] = powerCapacityInputValue;
+            assetFlexContext[flexId] = powerCapacityInputValue;
         } else if (dataType === "sensor"){
-            const inflexibleDeviceSensorsInput = document.getElementById("inflexible-device-sensors-input");
-            if (inflexibleDeviceSensorsInput === input){
-                assetFlexContext[inputId].push(sensorId);
+            if (flexId === "inflexible-device-sensors") {
+                assetFlexContext[flexId].push(sensorId);
             } else {
-                assetFlexContext[inputId] = {sensor: sensorId};
+                assetFlexContext[flexId] = {sensor: sensorId};
             }
         }
 
