@@ -2490,88 +2490,217 @@ def test_multiple_commitments_per_group():
     assert sum(commitment_costs.values()) == pytest.approx(expected_cost)
 
 
-def test_multiple_devices():
-    """Check draining a battery while expanding the number of commitments:
-
-    1) against increasing prices -> discharge all in the last step
-    2) also with a limited capacity -> discharge as late as possible
-    3) also with peak pricing -> discharge at a constant rate
+def test_multiple_devices_simultaneous_scheduler():
     """
+    Test the device_scheduler for simultaneously scheduling multiple devices (2):
+    - Schedules are created for each device.
+    - Costs are calculated accurately.
+
+    Test cases:
+    1. All devices will reach target SOC
+    2. Lower EMS capacity, some unmet demand
+    """
+    # Test configuration
     start = pd.Timestamp("2020-01-01T00:00:00")
     end = pd.Timestamp("2020-01-02T00:00:00")
     resolution = timedelta(hours=1)
-    soc_at_start = 0.4
-    soc_max = 1
-    soc_min = 0
+    num_devices = 2
 
-    device_constraints = [
-        initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
+    # Device parameters
+    soc_at_start = [0] * num_devices
+    soc_max, soc_min = [1] * num_devices, [0] * num_devices
+    start_datetime = ["2020-01-01 01:00:00"] * num_devices
+    target_datetime = ["2020-01-01 04:00:00", "2020-01-01 03:00:00"]
+    target_value = [1] * num_devices
+
+    market_prices = [
+        0.8598,
+        1.4613,
+        2430.3887,
+        3000.1779,
+        18.6619,
+        369.3274,
+        169.8719,
+        174.2279,
+        174.2279,
+        174.2279,
+        175.4258,
+        1.5697,
+        174.2763,
+        174.2279,
+        175.2564,
+        202.6992,
+        218.4413,
+        229.9242,
+        295.1069,
+        240.7174,
+        249.2479,
+        238.2732,
+        229.8395,
+        216.5779,
     ]
+    soc_target_penalty = -10000
+
+    def initialize_combined_constraints(
+        num_devices, max_derivative=1, min_derivative=0
+    ):
+        device_constraints = []
+        for i in range(num_devices):
+            constraints = initialize_df(
+                StorageScheduler.COLUMNS, start, end, resolution
+            )
+            start_time = pd.Timestamp(start_datetime[i]) - timedelta(hours=1)
+            target_time = pd.Timestamp(target_datetime[i])
+            constraints["max"] = soc_max[i] - soc_at_start[i]
+            constraints["min"] = soc_min[i] - soc_at_start[i]
+            constraints["derivative max"] = max_derivative
+            constraints["derivative min"] = min_derivative
+            constraints.loc[
+                :start_time, ["max", "min", "derivative max", "derivative min"]
+            ] = 0
+            constraints.loc[
+                target_time + resolution :, ["derivative max", "derivative min"]
+            ] = 0
+            constraints.loc[target_time + resolution :, ["max", "min"]] = (
+                constraints.loc[target_time, ["max", "min"]].values
+            )
+            device_constraints.append(constraints)
+
+        return device_constraints
+
+    def initialize_combined_commitments(num_devices):
+        commitments = []
+        for _ in range(num_devices):
+            energy_commitment = initialize_df(
+                [
+                    "quantity",
+                    "downwards deviation price",
+                    "upwards deviation price",
+                    "group",
+                ],
+                start,
+                end,
+                resolution,
+            )
+            energy_commitment["quantity"] = 0
+            energy_commitment["downwards deviation price"] = market_prices
+            energy_commitment["upwards deviation price"] = market_prices
+            energy_commitment["group"] = list(range(len(energy_commitment)))
+            commitments.append(energy_commitment)
+
+        for i in range(num_devices):
+            stock_commitment = initialize_df(
+                [
+                    "quantity",
+                    "downwards deviation price",
+                    "upwards deviation price",
+                    "group",
+                ],
+                start,
+                end,
+                resolution,
+            )
+            stock_commitment["quantity"] = target_value[i] - soc_at_start[i]
+            stock_commitment["downwards deviation price"] = soc_target_penalty
+            stock_commitment["upwards deviation price"] = soc_target_penalty
+            stock_commitment["group"] = list(range(len(stock_commitment)))
+            commitments.append(stock_commitment)
+
+        return commitments
+
     ems_constraints = initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
-    empty_commitment = initialize_df(
-        [
-            "quantity",
-            "downwards deviation price",
-            "upwards deviation price",
-            "group",
-        ],
-        start,
-        end,
-        resolution,
+    ems_constraints["derivative max"] = 1
+    ems_constraints["derivative min"] = 0
+
+    device_constraints = initialize_combined_constraints(num_devices)
+    commitments = initialize_combined_commitments(num_devices)
+
+    # Test case 1: No unmet demand
+    initial_stocks = soc_at_start
+    _, _, results, model = device_scheduler(
+        device_constraints,
+        ems_constraints,
+        commitments=commitments,
+        initial_stock=initial_stocks,
     )
-    commitments = []
-    commitments.append(empty_commitment.copy())
 
-    device_constraints[0]["max"] = soc_max - soc_at_start
-    device_constraints[0]["min"] = soc_min - soc_at_start
-    device_constraints[0]["derivative max"] = 1
-    device_constraints[0]["derivative min"] = -1
-
-    slope = np.arange(0, len(commitments[0])) / (len(commitments[0]) - 1)
-
-    # Day Ahead market commitment
-    commitments[0]["quantity"] = 0
-    commitments[0]["downwards deviation price"] = 90 + slope
-    commitments[0]["upwards deviation price"] = 100 + slope
-    commitments[0]["group"] = list(range(len(commitments[0])))
-
-    def run_scheduler():
-        _, _, results, model = device_scheduler(
-            device_constraints,
-            ems_constraints,
-            commitments=commitments,
-            initial_stock=soc_at_start,
-        )
-        print(results.solver.termination_condition)
-
-        schedule = initialize_series(
-            data=[model.ems_power[0, j].value for j in model.j],
+    schedules = [
+        initialize_series(
+            data=[model.ems_power[i, j].value for j in model.j],
             start=start,
             end=end,
             resolution=resolution,
         )
-        print(schedule)
-        costs = value(model.costs)
-        commitment_costs = model.commitment_costs
-        return schedule, results, costs, commitment_costs
+        for i in range(num_devices)
+    ]
 
-    schedule, results, costs, commitment_costs = run_scheduler()
+    individual_costs = [
+        (i, sum(schedule[j] * market_prices[j] for j in range(len(market_prices))))
+        for i, schedule in enumerate(schedules)
+    ]
 
-    # Discharge the whole battery
-    assert np.isclose(sum(schedule), -0.4)
-    assert np.isclose(schedule.values[-1], -0.4)
+    # Expected results with no unmet demand
+    expected_schedules = [
+        [0] * 4 + [1] + [0] * 19,
+        [0, 1] + [0] * 22,
+    ]
+    expected_individual_costs = [(0, 18.66), (1, 1.46)]
 
-    # Check costs
-    assert costs == -36.4
+    # Assertions
+    assert all(
+        np.isclose(schedule, expected_schedules[i]).all()
+        for i, schedule in enumerate(schedules)
+    ), "Schedules mismatch: Device schedules do not match the expected schedules."
 
-    # Production Capacity Breach Commitment
-    commitments.append(empty_commitment.copy())
-    commitments[-1]["quantity"] = -0.1
-    # negative price because breaching in the downwards (production) direction is penalized
-    commitments[-1]["downwards deviation price"] = -1000
-    # positive price because breaching in the upwards (consumption) direction is penalized
-    # todo: also allow None values to model a one-sided commitment
-    commitments[-1]["upwards deviation price"] = np.nan
-    commitments[-1]["group"] = 1
+    assert all(
+        device == i and pytest.approx(cost, 0.01) == expected_individual_costs[i][1]
+        for i, (device, cost) in enumerate(individual_costs)
+    ), "Individual costs mismatch: Costs for one or more devices are not calculated as expected."
 
-    schedule, results, costs, commitment_costs = run_scheduler()
+    # Test case 2: With lower EMS capacity and unmet demand
+    ems_constraints = initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
+    ems_constraints["derivative max"] = 0.4
+    ems_constraints["derivative min"] = 0
+
+    device_constraints = initialize_combined_constraints(
+        num_devices, max_derivative=0.4, min_derivative=0
+    )
+    _, _, results, model = device_scheduler(
+        device_constraints,
+        ems_constraints,
+        commitments=commitments,
+        initial_stock=initial_stocks,
+    )
+
+    schedules = [
+        initialize_series(
+            data=[model.ems_power[i, j].value for j in model.j],
+            start=start,
+            end=end,
+            resolution=resolution,
+        )
+        for i in range(num_devices)
+    ]
+
+    individual_costs = [
+        (i, sum(schedule[j] * market_prices[j] for j in range(len(market_prices))))
+        for i, schedule in enumerate(schedules)
+    ]
+
+    # Expected results with unmet demand
+    expected_schedules = [
+        [0, 0.4, 0, 0, 0.4] + [0] * 19,
+        [0, 0, 0.4, 0.4] + [0] * 20,
+    ]
+    expected_individual_costs = [(0, 8.05), (1, 2172.23)]
+
+    # Assertions
+    assert all(
+        np.isclose(schedule, expected_schedules[i]).all()
+        for i, schedule in enumerate(schedules)
+    ), "Schedules mismatch: Device schedules do not match the expected schedules."
+
+    assert all(
+        device == i and pytest.approx(cost, 0.01) == expected_individual_costs[i][1]
+        for i, (device, cost) in enumerate(individual_costs)
+    ), "Individual costs mismatch: Costs for one or more devices are not calculated as expected."
