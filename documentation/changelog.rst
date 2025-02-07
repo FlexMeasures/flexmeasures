@@ -11,6 +11,7 @@ v0.25.0 | February XX, 2025
 
 New features
 -------------
+* Added form modal to edit an asset's ``flex_context`` [see `PR #1320 <https://github.com/FlexMeasures/flexmeasures/pull/1320>`_]
 
 Infrastructure / Support
 ----------------------
