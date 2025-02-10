@@ -254,9 +254,9 @@ def test_pandas_reporter_valid_range(app, setup_dummy_data, shortcut):
                 "df_output": "ranged values",
             },
             {
-                "df_input": "ranged values",
+                # "df_input": "ranged values",  # redundant: defaults to previous df_output
                 "method": "dropna",
-                "df_output": "ranged values",
+                # "df_output": "ranged values",  # redundant: defaults to current df_input
             },
         ]
     else:
@@ -280,15 +280,15 @@ def test_pandas_reporter_valid_range(app, setup_dummy_data, shortcut):
                 "df_output": "ranged values",
             },
             {
-                "df_input": "ranged values",
+                # "df_input": "ranged values",  # redundant: defaults to previous df_output
                 "method": "where",
                 "args": ["@lt_value"],
-                "df_output": "ranged values",
+                # "df_output": "ranged values",  # redundant: defaults to current df_input
             },
             {
-                "df_input": "ranged values",
+                # "df_input": "ranged values",  # redundant: defaults to previous df_output
                 "method": "dropna",
-                "df_output": "ranged values",
+                # "df_output": "ranged values",  # redundant: defaults to current df_input
             },
         ]
 
