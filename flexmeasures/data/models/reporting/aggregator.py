@@ -6,6 +6,7 @@ from typing import Any
 import pandas as pd
 
 from flexmeasures.data.models.reporting import Reporter
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.reporting.aggregation import (
     AggregatorConfigSchema,
     AggregatorParametersSchema,
@@ -42,7 +43,7 @@ class AggregatorReporter(Reporter):
         """
 
         method: str = self._config.get("method")
-        weights: list = self._config.get("weights", {})
+        weights: dict = self._config.get("weights", {})
 
         dataframes = []
 
@@ -50,14 +51,15 @@ class AggregatorReporter(Reporter):
             belief_time = server_now()
 
         for input_description in input:
-            sensor = input_description["sensor"]
+            sensor: Sensor = input_description.pop("sensor")
             # if name is not in belief_search_config, using the Sensor id instead
-            column_name = input_description.get(
-                "name", f"sensor_{input_description['sensor'].id}"
-            )
+            column_name = input_description.pop("name", f"sensor_{sensor.id}")
 
-            source = input_description.get("source")
-            source = input_description.get("sources", source)
+            source = input_description.pop(
+                "source", input_description.pop("sources", None)
+            )
+            if source is not None and not isinstance(source, list):
+                source = [source]
 
             df = sensor.search_beliefs(
                 event_starts_after=start,
@@ -66,10 +68,34 @@ class AggregatorReporter(Reporter):
                 beliefs_before=belief_time,
                 source=source,
                 one_deterministic_belief_per_event=True,
+                **input_description,
             )
 
-            # found multiple sources in the beliefs of df but no source is specified
-            if len(df.lineage.sources) > 1 and (source is None or len(source) == 0):
+            # Check for multi-sourced events (i.e. multiple sources for a single event)
+            if len(df.lineage.events) != len(df):
+                duplicate_events = df[
+                    df.index.get_level_values("event_start").duplicated()
+                ]
+                raise ValueError(
+                    f"{len(duplicate_events)} event(s) are duplicate. First duplicate: {duplicate_events[0]}. Consider using (more) source filters."
+                )
+
+            # Check for multiple sources within the entire frame (excluding different versions of the same source)
+            unique_sources = df.lineage.sources
+            properties = [
+                "name",
+                "type",
+                "model",
+            ]  # properties to identify different versions of the same source
+            if (
+                len(unique_sources) > 1
+                and not all(
+                    getattr(source, prop) == getattr(unique_sources[0], prop)
+                    for prop in properties
+                    for source in unique_sources
+                )
+                and (source is None or len(source) == 0)
+            ):
                 raise ValueError(
                     "Missing attribute source or sources. The fields `source` or `sources` is required when having multiple sources within the time window."
                 )
