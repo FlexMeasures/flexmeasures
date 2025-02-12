@@ -335,7 +335,10 @@ def create_sequential_scheduling_job(
         connection=current_app.queues["scheduling"].connection,
     )
 
-    job_status = job.get_status(refresh=True)
+    try:
+        job_status = job.get_status(refresh=True)
+    except InvalidJobOperation:
+        job_status = None
 
     jobs.append(job)
 
@@ -387,7 +390,10 @@ def create_simultaneous_scheduling_job(
         force_new_job_creation=force_new_job_creation,
     )
 
-    job_status = job.get_status(refresh=True)
+    try:
+        job_status = job.get_status(refresh=True)
+    except InvalidJobOperation:
+        job_status = None
 
     jobs.append(job)
 
