@@ -464,18 +464,7 @@
                                 <div>
                                     <select class="form-select" id="flexSelect">
                                         <option value="blank">Select an option</option>
-                                        <option value="consumption-price">Consumption Price</option>
-                                        <option value="production-price">Production Price</option>
-                                        <option value="site-power-capacity">Site Power Capacity</option>
-                                        <option value="site-production-capacity">Site Production Capacity</option>
-                                        <option value="site-consumption-capacity">Site Consumption Capacity</option>
-                                        <option value="site-consumption-breach-price">Site Consumption Breach Price</option>
-                                        <option value="site-production-breach-price">Site Production Breach Price</option>
-                                        <option value="site-peak-consumption">Site Peak Consumption</option>
-                                        <option value="site-peak-consumption-price">Site Peak Consumption Price</option>
-                                        <option value="site-peak-production">Site Peak Production</option>
-                                        <option value="site-peak-production-price">Site Peak Production Price</option>
-                                        <option value="inflexible-device-sensors">Inflexible Device Sensors</option>
+                                   
                                     </select>
                             
                                     <div id="flexInfoContainer" class="mt-3"></div> 
@@ -1161,7 +1150,6 @@
             <div class="row g-2 my-1 card-highlight p-1" id="${fieldName}-control">
                 <div class="mb-2 border-bottom border-secondary d-flex justify-content-between align-items-center pb-2">
                     <label id="${fieldName}-label" for="${fieldName}-control-input" class="form-label mb-0 fs-5 fw-semi-bold">${InputTitle}</label>
-                    <button class="btn btn-outline-primary btn-sm" onclick="">Edit</button>
                 </div>
 
                 ${isKeyValueObject || isArray ? `
@@ -1187,6 +1175,8 @@
                 flexContextFormEle.innerHTML += await renderFlexContextInputField(key);
             }
         }
+
+        renderFlexSelectOptions()
     }
 
     function udpateFlexContextFieldValue(dataType, sensorId) {
@@ -1213,6 +1203,14 @@
         renderFlexContextForm();
     }
 
+    function renderFlexSelectOptions() {
+        for (const [key, value] of Object.entries(assetFlexContext)) {
+            if (value === null){
+                flexSelect.innerHTML += `<option value="${key}">${key.split("-").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ")}</option>`;
+            }
+        }
+        
+    }
     function renderSelectInfoCards(contextKey, description, isArray=false) {
         return `
             <div>
