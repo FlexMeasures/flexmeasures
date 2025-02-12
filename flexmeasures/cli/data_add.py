@@ -1836,6 +1836,12 @@ def add_report(  # noqa: C901
         end = now
 
     click.echo(f"Report scope:\n\tstart: {start}\n\tend:   {end}")
+    if end < start:
+        click.secho(
+            "Invalid report period (end must not precede start).",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
 
     if source is None:
         click.echo(
