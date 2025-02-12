@@ -254,7 +254,7 @@ def create_scheduling_job(
     except InvalidJobOperation:
         job_status = None
 
-    # with job_status=None, we ensure that only fresh new jobs are enqueued (in the contrary they should be requeued)
+    # with job_status=None, we ensure that only fresh new jobs are enqueued (otherwise, they should be requeued instead)
     if enqueue and not job_status:
         current_app.queues["scheduling"].enqueue_job(job)
         current_app.job_cache.add(
@@ -342,7 +342,7 @@ def create_sequential_scheduling_job(
 
     jobs.append(job)
 
-    # with job_status=None, we ensure that only fresh new jobs are enqueued (in the contrary they should be requeued)
+    # with job_status=None, we ensure that only fresh new jobs are enqueued (otherwise, they should be requeued instead)
     if enqueue and not job_status:
         for job in jobs:
             current_app.queues["scheduling"].enqueue_job(job)
@@ -397,7 +397,7 @@ def create_simultaneous_scheduling_job(
 
     jobs.append(job)
 
-    # with job_status=None, we ensure that only fresh new jobs are enqueued (in the contrary they should be requeued)
+    # with job_status=None, we ensure that only fresh new jobs are enqueued (otherwise, they should be requeued instead)
     if enqueue and not job_status:
         for job in jobs:
             current_app.queues["scheduling"].enqueue_job(job)
