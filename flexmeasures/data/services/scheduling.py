@@ -103,7 +103,7 @@ def load_custom_scheduler(scheduler_specs: dict) -> type:
 
 def success_callback(job, connection, result, *args, **kwargs):
     queue = current_app.queues["scheduling"]
-    orginal_job = Job.fetch(job.meta["original_job_id"])
+    orginal_job = Job.fetch(job.meta["original_job_id"], connection=connection)
 
     # requeue deferred jobs
     for dependent_job_ids in orginal_job.dependent_ids:
