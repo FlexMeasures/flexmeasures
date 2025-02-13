@@ -1178,10 +1178,9 @@
         renderFlexSelectOptions();
     }
 
-    function udpateFlexContextFieldValue(dataType, sensorId) {
+    async function udpateFlexContextFieldValue(dataType, sensorId) {
         const powerCapacityInputValue = document.getElementById("power-capacity").value;
-        const highlightedCard = document.querySelector('.border-on-click');
-        console.log(highlightedCard);
+        let highlightedCard = document.querySelector('.border-on-click');
         if (!highlightedCard) {
             showToast("Please select a field to update", "error");
             return;
@@ -1198,8 +1197,9 @@
                 assetFlexContext[flexId] = {sensor: sensorId};
             }
         }
-
-        renderFlexContextForm();
+        highlightedCard = await renderFlexContextInputField(flexId);
+        flexContextFormEle.innerHTML = flexContextFormEle.innerHTML.replace(document.getElementById(`${flexId}-control`).outerHTML, highlightedCard);
+        await selectFlexField(document.getElementById(`${flexId}-control`) );
     }
 
     async function addFlexContextField(fieldName) {
@@ -1207,14 +1207,7 @@
         flexInputsContainer.innerHTML = "";
         await renderFlexContextForm(); // im rendring here so te card with the 'border-on-click' class is updated/exists
         const card = document.getElementById(`${fieldName}-control`);
-        // remove the border other cards
-        document.querySelectorAll(".card-highlight").forEach(el => el.classList.remove("border-on-click"));
-        card.classList.add("border-on-click");
-        if (fieldName !== "inflexible-device-sensors") {
-            flexInputsContainer.innerHTML = renderFlexInputOptions(fieldName);
-        } else {
-            flexInputsContainer.innerHTML = renderFlexInputOptions(fieldName, true);
-        }
+        selectFlexField(card);
     }
 
     function renderFlexSelectOptions() {
@@ -1254,8 +1247,30 @@
         `;
     }
 
-    function selectFlexField(){
-
+    function selectFlexField(highlightedCard){
+        console.log("card: ", highlightedCard);
+        if (highlightedCard) {
+            if (highlightedCard.classList.contains("border-on-click")) {
+                // Pass
+            } else {
+                document.querySelectorAll(".card-highlight").forEach(el => el.classList.remove("border-on-click"));
+                flexInputsContainer.innerHTML = "";
+                highlightedCard.classList.add("border-on-click");
+                const cardLabel = highlightedCard.querySelector("label");
+                if (cardLabel) {
+                    // remvoe "-label" at the end leaing the flexcontext key
+                    const flexKey = cardLabel.id.slice(0, -6);
+                    if (flexKey !== "inflexible-device-sensors") {
+                        flexInputsContainer.innerHTML = renderFlexInputOptions(flexKey);
+                    } else {
+                        flexInputsContainer.innerHTML = renderFlexInputOptions(flexKey, true);
+                    }
+                }
+            }
+        } else {
+            document.querySelectorAll(".card-highlight").forEach(el => el.classList.remove("border-on-click"));
+            flexInputsContainer.innerHTML = "";
+        }
     }
 
     // ============== Flex Context Management ============== //
