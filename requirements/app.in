@@ -21,7 +21,8 @@ isodate
 click
 click-default-group
 email_validator
-rq
+# todo: open a GH Issue and cross-reference it here
+rq<2
 # sort order
 rq-dashboard>=0.8.0.2
 # the following uses environment markers (see PEP 496)
