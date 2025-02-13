@@ -109,43 +109,41 @@ def test_create_sequential_jobs_fallback(
 
     storage_module = "flexmeasures.data.models.planning.storage"
 
-    with (
-        patch(f"{storage_module}.StorageScheduler.persist_flex_model"),
-        patch(f"{storage_module}.StorageFallbackScheduler.persist_flex_model"),
-        patch(
-            f"{storage_module}.StorageScheduler.compute",
-            side_effect=iter([InfeasibleProblemException(), [], []]),
-        ),
-    ):
-        jobs = create_sequential_scheduling_job(
-            asset=assets["Test Site"],
-            scheduler_specs=scheduler_specs,
-            enqueue=False,
-            **flex_description_sequential,
-        )
+    with patch(f"{storage_module}.StorageScheduler.persist_flex_model"):
+        with patch(f"{storage_module}.StorageFallbackScheduler.persist_flex_model"):
+            with patch(
+                f"{storage_module}.StorageScheduler.compute",
+                side_effect=iter([InfeasibleProblemException(), [], []]),
+            ):
+                jobs = create_sequential_scheduling_job(
+                    asset=assets["Test Site"],
+                    scheduler_specs=scheduler_specs,
+                    enqueue=False,
+                    **flex_description_sequential,
+                )
 
-        assert len(jobs) == 3
+                assert len(jobs) == 3
 
-        # enqueue all the tasks
-        for job in jobs:
-            queue.enqueue_job(job)
+                # enqueue all the tasks
+                for job in jobs:
+                    queue.enqueue_job(job)
 
-        # work tasks
-        work_on_rq(queue, exc_handler=handle_scheduling_exception)
+                # work tasks
+                work_on_rq(queue, exc_handler=handle_scheduling_exception)
 
-        # refresh jobs
-        for job in jobs:
-            job.refresh()
+                # refresh jobs
+                for job in jobs:
+                    job.refresh()
 
-        finished_jobs = queue.finished_job_registry.get_job_ids()
-        failed_jobs = queue.failed_job_registry.get_job_ids()
+                finished_jobs = queue.finished_job_registry.get_job_ids()
+                failed_jobs = queue.failed_job_registry.get_job_ids()
 
-        # First jobs failed
-        assert jobs[0].id in failed_jobs
+                # First jobs failed
+                assert jobs[0].id in failed_jobs
 
-        # The Fallback Job runs successfully
-        assert jobs[0].meta["fallback_job_id"] in finished_jobs
+                # The Fallback Job runs successfully
+                assert jobs[0].meta["fallback_job_id"] in finished_jobs
 
-        # Jobs 1 and 2 run successfully
-        assert jobs[1].id in finished_jobs
-        assert jobs[2].id in finished_jobs
+                # Jobs 1 and 2 run successfully
+                assert jobs[1].id in finished_jobs
+                assert jobs[2].id in finished_jobs
