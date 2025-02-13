@@ -3,6 +3,7 @@
 FlexMeasures Changelog
 **********************
 * Fix map not loading when editing an asset [see `PR #1310 <https://github.com/FlexMeasures/flexmeasures/pull/1310>`_]
+* Update cache and Ubuntu versions used for testing in GitHub Actions [see `PR #1329 <https://github.com/FlexMeasures/flexmeasures/pull/1329>`_]
 
 
 v0.24.0 | January 7, 2025
