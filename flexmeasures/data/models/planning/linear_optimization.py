@@ -347,6 +347,8 @@ def device_scheduler(  # noqa C901
 
     model.ems_power_slack_upper = Var(domain=NonNegativeReals, initialize=0)
     model.ems_power_slack_lower = Var(domain=NonNegativeReals, initialize=0)
+    model.ems_power_slack_j_upper = Var(model.j, domain=NonNegativeReals, initialize=0)
+    model.ems_power_slack_j_lower = Var(model.j, domain=NonNegativeReals, initialize=0)
 
     if is_ems_flow_soft_derivative_active:
         model.ems_power_margin_lower = Var(domain=NonNegativeReals, initialize=0)
@@ -431,7 +433,7 @@ def device_scheduler(  # noqa C901
         return -m.device_power_down[d, j] <= M * (1 - m.device_power_sign[d, j])
 
     def ems_derivative_lower_bound(m, j):
-
+        """Max production capacity breach over all timeslots j."""
         if is_ems_flow_relaxed:
             return (
                 m.ems_derivative_min[j],
@@ -440,6 +442,17 @@ def device_scheduler(  # noqa C901
             )
         else:
             return m.ems_derivative_min[j], sum(m.ems_power[:, j]), None
+
+    def ems_derivative_lower_j_bound(m, j):
+        """Production capacity breaches for each timeslot j."""
+        if is_ems_flow_relaxed:
+            return (
+                m.ems_derivative_min[j],
+                m.ems_power[:, j] + m.ems_power_slack_j_lower,
+                None,
+            )
+        else:
+            return m.ems_derivative_min[j], m.ems_power[:, j], None
 
     def ems_derivative_soft_margin_lower(m, j):
         return (
@@ -466,10 +479,11 @@ def device_scheduler(  # noqa C901
         return (
             None,
             sum(m.ems_power[:, j]),
-            m.ems_derivative_soft_max[j] + m.ems_power_margin_upper,
+            m.ems_derivative_soft_max[j] + m.ems_power_margin_upper,  # here?
         )
 
     def ems_derivative_upper_bound(m, j):
+        """Max consumption capacity breach over all timeslots j."""
         if is_ems_flow_relaxed:
             return (
                 None,
@@ -478,6 +492,17 @@ def device_scheduler(  # noqa C901
             )
         else:
             return None, sum(m.ems_power[:, j]), m.ems_derivative_max[j]
+
+    def ems_derivative_upper_j_bound(m, j):
+        """Consumption capacity breaches for each timeslot j."""
+        if is_ems_flow_relaxed:
+            return (
+                None,
+                m.ems_power[:, j] - m.ems_power_slack_j_upper,
+                m.ems_derivative_max[j],
+            )
+        else:
+            return None, m.ems_power[:, j], m.ems_derivative_max[j]
 
     def ems_flow_commitment_equalities(m, j):
         """Couple EMS flows (sum over devices) to commitments."""
@@ -521,6 +546,12 @@ def device_scheduler(  # noqa C901
     )
     model.ems_power_upper_bounds = Constraint(model.j, rule=ems_derivative_upper_bound)
     model.ems_power_lower_bounds = Constraint(model.j, rule=ems_derivative_lower_bound)
+    model.ems_power_upper_j_bounds = Constraint(
+        model.j, rule=ems_derivative_upper_j_bound
+    )
+    model.ems_power_lower_j_bounds = Constraint(
+        model.j, rule=ems_derivative_lower_j_bound
+    )
 
     if is_ems_flow_soft_derivative_active:
         model.ems_power_soft_upper_bounds = Constraint(
@@ -564,6 +595,10 @@ def device_scheduler(  # noqa C901
         if is_ems_flow_relaxed:
             costs += m.ems_power_slack_upper * ems_flow_relaxation_cost
             costs += m.ems_power_slack_lower * ems_flow_relaxation_cost
+
+            for j in m.j:
+                costs += m.ems_power_slack_j_upper[j] * ems_flow_relaxation_cost
+                costs += m.ems_power_slack_j_lower[j] * ems_flow_relaxation_cost
 
         if is_device_stock_relaxed:
             for j in m.j:
