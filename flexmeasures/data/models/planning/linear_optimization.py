@@ -448,11 +448,11 @@ def device_scheduler(  # noqa C901
         if is_ems_flow_relaxed:
             return (
                 m.ems_derivative_min[j],
-                m.ems_power[:, j] + m.ems_power_slack_j_lower,
+                sum(m.ems_power[:, j]) + m.ems_power_slack_j_lower[j],
                 None,
             )
         else:
-            return m.ems_derivative_min[j], m.ems_power[:, j], None
+            return m.ems_derivative_min[j], sum(m.ems_power[:, j]), None
 
     def ems_derivative_soft_margin_lower(m, j):
         return (
@@ -498,11 +498,11 @@ def device_scheduler(  # noqa C901
         if is_ems_flow_relaxed:
             return (
                 None,
-                m.ems_power[:, j] - m.ems_power_slack_j_upper,
+                sum(m.ems_power[:, j]) - m.ems_power_slack_j_upper[j],
                 m.ems_derivative_max[j],
             )
         else:
-            return None, m.ems_power[:, j], m.ems_derivative_max[j]
+            return None, sum(m.ems_power[:, j]), m.ems_derivative_max[j]
 
     def ems_flow_commitment_equalities(m, j):
         """Couple EMS flows (sum over devices) to commitments."""
