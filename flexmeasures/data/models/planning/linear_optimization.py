@@ -504,6 +504,22 @@ def device_scheduler(  # noqa C901
         else:
             return None, sum(m.ems_power[:, j]), m.ems_derivative_max[j]
 
+    def couple_slacks_upper(m, j):
+        """The max consumption capacity breach must be the highest of all consumption capacity breaches."""
+        return (
+            None,
+            m.ems_power_slack_j_upper[j],
+            m.ems_power_slack_upper,
+        )
+
+    def couple_slacks_lower(m, j):
+        """The max production capacity breach must be the highest of all consumption capacity breaches."""
+        return (
+            None,
+            m.ems_power_slack_j_lower[j],
+            m.ems_power_slack_lower,
+        )
+
     def ems_flow_commitment_equalities(m, j):
         """Couple EMS flows (sum over devices) to commitments."""
         return (
@@ -552,6 +568,8 @@ def device_scheduler(  # noqa C901
     model.ems_power_lower_j_bounds = Constraint(
         model.j, rule=ems_derivative_lower_j_bound
     )
+    model.ems_power_slacks_upper = Constraint(model.j, rule=couple_slacks_upper)
+    model.ems_power_slacks_lower = Constraint(model.j, rule=couple_slacks_lower)
 
     if is_ems_flow_soft_derivative_active:
         model.ems_power_soft_upper_bounds = Constraint(
