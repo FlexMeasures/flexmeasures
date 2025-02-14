@@ -59,6 +59,8 @@ jobs:
         run: pytest -v -m "not skip_github" --cov=flexmeasures --cov-branch --cov-report=lcov
       - name: Coveralls
         uses: coverallsapp/github-action@v2
+        with:
+          fail-on-error: false
         if: ${{ matrix.coverage == 'yes' }}
     env:
       PGHOST: 127.0.0.1
