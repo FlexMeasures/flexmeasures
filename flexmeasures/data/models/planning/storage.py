@@ -981,10 +981,13 @@ class StorageScheduler(MetaStorageScheduler):
         }
 
         # Resample each device schedule to the resolution of the device's power sensor
-        storage_schedule = {
-            sensor: storage_schedule[sensor].resample(sensor.event_resolution).mean()
-            for sensor in sensors
-        }
+        if self.resolution is None:
+            storage_schedule = {
+                sensor: storage_schedule[sensor]
+                .resample(sensor.event_resolution)
+                .mean()
+                for sensor in sensors
+            }
 
         # Round schedule
         if self.round_to_decimals:
