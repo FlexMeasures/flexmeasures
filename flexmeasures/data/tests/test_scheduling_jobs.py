@@ -184,6 +184,8 @@ def create_test_scheduler(name, compute_fails=False, fallback_class=None):
         name,
         (Scheduler,),
         {
+            "__author__": "Seita",
+            "__version__": "1",
             "compute": compute,
             "deserialize_config": deserialize_config,
             "fallback_scheduler_class": fallback_class,

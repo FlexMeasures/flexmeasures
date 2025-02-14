@@ -1,4 +1,5 @@
 import os
+from traceback import print_tb
 
 import click
 
@@ -24,4 +25,5 @@ def work_on_rq(redis_queue, exc_handler=None, max_jobs=None):
 
 
 def exception_reporter(job, exc_type, exc_value, traceback):
+    print_tb(traceback)
     click.echo("HANDLING RQ WORKER EXCEPTION: %s:%s\n" % (exc_type, exc_value))

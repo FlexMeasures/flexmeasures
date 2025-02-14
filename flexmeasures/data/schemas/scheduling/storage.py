@@ -135,7 +135,9 @@ class StorageFlexModelSchema(Schema):
     )
 
     storage_efficiency = VariableQuantityField("%", data_key="storage-efficiency")
-    prefer_charging_sooner = fields.Bool(data_key="prefer-charging-sooner")
+    prefer_charging_sooner = fields.Bool(
+        data_key="prefer-charging-sooner", load_default=True
+    )
 
     soc_gain = fields.List(
         VariableQuantityField("MW"),
