@@ -147,7 +147,6 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
-                fallback_attribute="market_id",
                 fill_sides=True,
             ).to_frame(name="event_value")
         else:
@@ -175,7 +174,6 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
-                fallback_attribute="market_id",
                 fill_sides=True,
             ).to_frame(name="event_value")
         else:
