@@ -1,9 +1,14 @@
+import pytest
+
 import pandas as pd
 from flexmeasures.data.services.scheduling import create_simultaneous_scheduling_job
 from flexmeasures.data.tests.utils import work_on_rq
 
 
-def test_create_simultaneous_jobs(db, app, flex_description_sequential, smart_building):
+@pytest.mark.parametrize("use_heterogeneous_resolutions", [True, False])
+def test_create_simultaneous_jobs(
+    db, app, flex_description_sequential, smart_building, use_heterogeneous_resolutions
+):
     assets, sensors = smart_building
     queue = app.queues["scheduling"]
     start = pd.Timestamp("2015-01-03").tz_localize("Europe/Amsterdam")
@@ -16,6 +21,10 @@ def test_create_simultaneous_jobs(db, app, flex_description_sequential, smart_bu
 
     flex_description_sequential["start"] = start
     flex_description_sequential["end"] = end
+    if use_heterogeneous_resolutions:
+        flex_description_sequential["flex_model"][1]["sensor"] = sensors[
+            "Test Battery 1h"
+        ]
 
     jobs = create_simultaneous_scheduling_job(
         asset=assets["Test Site"],
@@ -62,7 +71,12 @@ def test_create_simultaneous_jobs(db, app, flex_description_sequential, smart_bu
     assert ev_power.sources.unique()[0].model == "StorageScheduler"
     ev_power = ev_power.droplevel([1, 2, 3])
 
-    battery_power = sensors["Test Battery"].search_beliefs()
+    if use_heterogeneous_resolutions:
+        battery_power = sensors["Test Battery 1h"].search_beliefs()
+        assert len(battery_power) == 24
+    else:
+        battery_power = sensors["Test Battery"].search_beliefs()
+        assert len(battery_power) == 96
     assert battery_power.sources.unique()[0].model == "StorageScheduler"
     battery_power = battery_power.droplevel([1, 2, 3])
 

@@ -368,8 +368,6 @@ def create_simultaneous_scheduling_job(
 ) -> list[Job]:
     jobs = []
 
-    # scheduler_kwargs["resolution"] = sensor.event_resolution  # todo: needed?
-
     # Convert (partially) deserialized fields back to serialized form
     for i, child_flex_model in enumerate(scheduler_kwargs.get("flex_model")):
         # Convert deserialized Sensor values back to serialized sensor IDs

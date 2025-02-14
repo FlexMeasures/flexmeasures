@@ -301,8 +301,21 @@ def smart_building(app, fresh_db, smart_building_types):
         parent_asset_id=test_site.id,
         **coordinates,
     )
+    test_battery_1h = Asset(
+        name="Test Battery 1h",
+        generic_asset_type_id=battery.id,
+        parent_asset_id=test_site.id,
+        **coordinates,
+    )
 
-    assets = (test_site, test_building, test_solar, test_battery, test_ev)
+    assets = (
+        test_site,
+        test_building,
+        test_solar,
+        test_battery,
+        test_ev,
+        test_battery_1h,
+    )
 
     fresh_db.session.add_all(assets)
     fresh_db.session.flush()
@@ -314,7 +327,11 @@ def smart_building(app, fresh_db, smart_building_types):
         sensor = Sensor(
             name="power",
             unit="MW",
-            event_resolution=timedelta(minutes=15),
+            event_resolution=(
+                timedelta(hours=1)
+                if asset.name == "Test Battery 1h"
+                else timedelta(minutes=15)
+            ),
             generic_asset=asset,
             timezone="Europe/Amsterdam",
         )
