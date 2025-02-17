@@ -228,7 +228,6 @@ class MetaStorageScheduler(Scheduler):
             query_window=(start, end),
             resolution=resolution,
             beliefs_before=belief_time,
-            fallback_attribute="production_capacity_in_mw",
             max_value=ems_power_capacity_in_mw,
             resolve_overlaps="min",
         )
