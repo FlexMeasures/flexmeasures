@@ -207,7 +207,6 @@ class MetaStorageScheduler(Scheduler):
             query_window=(start, end),
             resolution=resolution,
             beliefs_before=belief_time,
-            fallback_attribute="capacity_in_mw",
             resolve_overlaps="min",
         )
         ems_consumption_capacity = get_continuous_series_sensor_or_quantity(
