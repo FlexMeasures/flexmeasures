@@ -217,7 +217,6 @@ class MetaStorageScheduler(Scheduler):
             query_window=(start, end),
             resolution=resolution,
             beliefs_before=belief_time,
-            fallback_attribute="consumption_capacity_in_mw",
             max_value=ems_power_capacity_in_mw,
             resolve_overlaps="min",
         )
@@ -228,7 +227,6 @@ class MetaStorageScheduler(Scheduler):
             query_window=(start, end),
             resolution=resolution,
             beliefs_before=belief_time,
-            fallback_attribute="production_capacity_in_mw",
             max_value=ems_power_capacity_in_mw,
             resolve_overlaps="min",
         )
@@ -291,7 +289,6 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
-                fallback_attribute="ems-peak-consumption-price",
                 fill_sides=True,
             )
 
@@ -334,7 +331,6 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
-                fallback_attribute="ems-peak-production-price",
                 fill_sides=True,
             )
 
@@ -379,7 +375,6 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
-                fallback_attribute="ems-consumption-breach-price",
                 fill_sides=True,
             )
 
@@ -428,7 +423,6 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
-                fallback_attribute="ems-production-breach-price",
                 fill_sides=True,
             )
 
