@@ -202,7 +202,7 @@ class TestingConfig(Config):
     SECRET_KEY: str = "dummy-key-for-testing"
     SECURITY_PASSWORD_SALT: str = "$2b$19$abcdefghijklmnopqrstuv"
     SQLALCHEMY_DATABASE_URI: str = (
-        "postgresql://postgres:postgres@localhost/flexmeasures_test"
+        "postgresql://flexmeasures_test:flexmeasures_test@localhost/flexmeasures_test"
     )
     # SQLALCHEMY_ECHO = True
     FLEXMEASURES_TASK_CHECK_AUTH_TOKEN: str = "test-task-check-token"
