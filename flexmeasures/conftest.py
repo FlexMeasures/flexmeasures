@@ -1046,9 +1046,11 @@ def add_assets_with_site_power_limits(
         owner=setup_accounts["Prosumer"],
         generic_asset_type=setup_generic_asset_types["battery"],
         attributes=dict(
-            capacity_in_mw=2,
             max_soc_in_mwh=5,
             min_soc_in_mwh=0,
+        ),
+        lex_context=dict(
+            capacity_in_mw=2,
         ),
     )
     battery_symmetric_power_sensor = Sensor(
@@ -1062,11 +1064,13 @@ def add_assets_with_site_power_limits(
         owner=setup_accounts["Prosumer"],
         generic_asset_type=setup_generic_asset_types["battery"],
         attributes=dict(
+            max_soc_in_mwh=5,
+            min_soc_in_mwh=0,
+        ),
+        flex_context=dict(
             capacity_in_mw=2,
             consumption_capacity_in_mw=0.9,
             production_capacity_in_mw=0.75,
-            max_soc_in_mwh=5,
-            min_soc_in_mwh=0,
         ),
     )
     battery_asymmetric_power_sensor = Sensor(
