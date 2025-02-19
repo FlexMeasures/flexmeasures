@@ -1067,11 +1067,11 @@ def add_assets_with_site_power_limits(
             max_soc_in_mwh=5,
             min_soc_in_mwh=0,
         ),
-        flex_context=dict(
-            capacity_in_mw=2,
-            consumption_capacity_in_mw=0.9,
-            production_capacity_in_mw=0.75,
-        ),
+        flex_context={
+            "capacity_in_mw": 2,
+            "site-consumption-capacity": "900 kW",
+            "production_capacity_in_mw": 0.75,
+        },
     )
     battery_asymmetric_power_sensor = Sensor(
         name="power",

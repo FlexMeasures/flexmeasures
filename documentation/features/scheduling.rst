@@ -70,7 +70,7 @@ For more details on the possible formats for field values, see :ref:`variable_qu
        Becomes a hard constraint in the optimization problem, which is especially suitable for physical limitations. [#minimum_capacity_overlap]_
    * - ``site-consumption-capacity``
      - ``"45kW"``
-     - Maximum consumption power at the grid connection point (defaults to the Asset attribute ``consumption_capacity_in_mw``).
+     - Maximum consumption power at the grid connection point.
        If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-consumption-capacity`` will be used. [#consumption]_
        If a ``site-consumption-breach-price`` is defined, the ``site-consumption-capacity`` becomes a soft constraint in the optimization problem.
        Otherwise, it becomes a hard constraint. [#minimum_capacity_overlap]_
