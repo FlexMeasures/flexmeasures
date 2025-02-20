@@ -1236,7 +1236,7 @@
             <div>
                 <div class="alert alert-info" role="alert">
                     <b> About Field ${contextKey.split("-").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ")}
-                    <div class="pt-2">
+                    <div class="pt-2 fw-normal">
                         ${description}
                     </div>
                 </div>
@@ -1281,12 +1281,10 @@
             flexInputsContainer.innerHTML = "";
         }
     }
-
     // ============== Flex Context Management END ============== //
 
 
     // ============== Page Events ============== //
-    
     formModal.addEventListener('hidden.bs.modal', function () {
         updateAssetSensorsToShow("sensorToShow");
     });
@@ -1333,6 +1331,8 @@
                 if (cardLabel) {
                     // remvoe "-label" at the end leaing the flexcontext key
                     const flexKey = cardLabel.id.slice(0, -6);
+                    // fire event for flexSelect change
+                    handleFlexSelectChange(flexKey);
                     if (flexKey !== "inflexible-device-sensors") {
                         flexInputsContainer.innerHTML = renderFlexInputOptions(flexKey);
                     } else {
@@ -1353,8 +1353,7 @@
         }
     });
 
-    flexSelect.addEventListener('change', function() {
-        const selectedOption = flexSelect.value;
+    function handleFlexSelectChange(selectedOption) {
         flexInfoContainer.innerHTML = "";
         const alertStyle = "alert alert-light";
         if (selectedOption === "consumption-price") {
@@ -1394,6 +1393,10 @@
             const description = "This value represents the sensors that are inflexible and cannot be controlled. These sensors will be used in the optimization";
             flexInfoContainer.innerHTML = renderSelectInfoCards("inflexible-device-sensors", description);
         }
+    }
+
+    flexSelect.addEventListener('change', function() {
+        handleFlexSelectChange(flexSelect.value);
     });
 
     // ============== Page Events ============== //
