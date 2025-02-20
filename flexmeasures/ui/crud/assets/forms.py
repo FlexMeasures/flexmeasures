@@ -37,7 +37,7 @@ class AssetForm(FlaskForm):
     )
     attributes = StringField("Other attributes (JSON)", default="{}")
     flex_context = StringField(
-        "flex-context",
+        "Flex context",
         default="{}",
         description=(
             "This field accepts a JSON string to define the flex-context."
