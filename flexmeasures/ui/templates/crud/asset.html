@@ -132,7 +132,7 @@
                                 </div>
 
                                 <div class="form-group">
-                                    {{ asset_form.flex_context.label(class="col-sm-3 control-label") }}
+                                    <p title="{{ asset_form.flex_context.description }}">{{ asset_form.flex_context.label(class="col-sm-3 control-label") }}</p>
                                     <div class="col-md-3">
                                         {{ asset_form.flex_context(class_="form-control") }}
                                         {% for error in asset_form.errors.flex_context %}
