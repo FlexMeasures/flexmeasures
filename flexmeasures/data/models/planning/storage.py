@@ -271,6 +271,7 @@ class MetaStorageScheduler(Scheduler):
                 resolution=resolution,
                 beliefs_before=belief_time,
                 max_value=np.inf,  # np.nan -> np.inf to ignore commitment if no quantity is given
+                fallback_attribute="site-peak-consumption",
                 fill_sides=True,
             )
             ems_peak_consumption_price = self.flex_context.get(
