@@ -387,7 +387,7 @@ def test_add_process(
     process_power_sensor = db.session.get(Sensor, process_power_sensor_id)
     schedule = process_power_sensor.search_beliefs()
     # check if the schedule is not empty more detailed testing can be found
-    # in data/models/planning/tests/test_processs.py.
+    # in data/models/planning/tests/test_process.py.
     assert (schedule == -0.4).event_value.sum() == 4
 
 
