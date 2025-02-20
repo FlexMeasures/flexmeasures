@@ -333,6 +333,7 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
+                fallback_attribute="site-peak-production-price",
                 fill_sides=True,
             )
 
