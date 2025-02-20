@@ -104,24 +104,11 @@ class MetaStorageScheduler(Scheduler):
             or self.sensor.generic_asset.get_inflexible_device_sensors()
         )
 
-        # Check for required Sensor attributes
-        power_capacity_in_mw = self.flex_model.get(
-            "power_capacity_in_mw",
-            self.sensor.get_attribute("capacity_in_mw", None),
-        )
-
-        if power_capacity_in_mw is None:
-            raise ValueError(
-                "Power capacity is not defined in the sensor attributes or the flex-model."
-            )
-
-        if isinstance(power_capacity_in_mw, float) or isinstance(
-            power_capacity_in_mw, int
-        ):
-            power_capacity_in_mw = ur.Quantity(f"{power_capacity_in_mw} MW")
+        # Fetch the device's power capacity (required Sensor attribute)
+        power_capacity = self._get_device_power_capacity()
 
         power_capacity_in_mw = get_continuous_series_sensor_or_quantity(
-            variable_quantity=power_capacity_in_mw,
+            variable_quantity=power_capacity,
             actuator=sensor,
             unit="MW",
             query_window=(start, end),
@@ -805,6 +792,23 @@ class MetaStorageScheduler(Scheduler):
                     raise ValueError(
                         "Need maximal permitted state of charge, please specify soc-max or some soc-targets."
                     )
+
+    def _get_device_power_capacity(self) -> ur.Quantity:
+        power_capacity_in_mw = self.flex_model.get(
+            "power_capacity_in_mw",
+            self.sensor.get_attribute("capacity_in_mw", None),
+        )
+
+        if power_capacity_in_mw is None:
+            raise ValueError(
+                "Power capacity is not defined in the sensor attributes or the flex-model."
+            )
+
+        if isinstance(power_capacity_in_mw, float) or isinstance(
+            power_capacity_in_mw, int
+        ):
+            power_capacity_in_mw = ur.Quantity(f"{power_capacity_in_mw} MW")
+        return power_capacity_in_mw
 
 
 class StorageFallbackScheduler(MetaStorageScheduler):
