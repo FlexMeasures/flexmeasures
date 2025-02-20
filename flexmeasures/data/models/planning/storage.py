@@ -794,6 +794,13 @@ class MetaStorageScheduler(Scheduler):
                     )
 
     def _get_device_power_capacity(self) -> ur.Quantity:
+        """The device power capacity must be known for the optimization problem to stay bounded.
+
+        We search for the power capacity in the following order:
+        1. Look for the power_capacity_in_mw field in the deserialized flex-model.
+        2. Look for the capacity_in_mw attribute of the sensor.
+        3. Look for the capacity_in_mw attribute of the asset (sensor.get_attribute does this internally).
+        """
         power_capacity_in_mw = self.flex_model.get(
             "power_capacity_in_mw",
             self.sensor.get_attribute("capacity_in_mw", None),
