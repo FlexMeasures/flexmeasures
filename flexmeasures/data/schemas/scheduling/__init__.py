@@ -221,6 +221,40 @@ class FlexContextSchema(Schema):
         return unit
 
 
+class DBFlexContextSchema(FlexContextSchema):
+
+    @validates_schema
+    def forbid_time_series_specs(self, data: dict, **kwargs):
+        """Do not allow time series specs for the flex-context fields saved in the db."""
+
+        keys_to_check = []
+        # List of keys to check for time series specs
+        # All the keys in this list are all fields of type VariableQuantity
+        for field_var, field in self.declared_fields.items():
+            if isinstance(field, VariableQuantityField):
+                keys_to_check.append(field_var)
+
+        # Check each key and raise a ValidationError if it's a list
+        for key in keys_to_check:
+            if key in data and isinstance(data[key], list):
+                raise ValidationError(
+                    f"Time series specs are not allowed in flex-context fields in the DB for '{key}'."
+                )
+
+    @validates_schema
+    def forbid_fixed_prices(self, data: dict, **kwargs):
+        """Do not allow fixed consumption price or fixed production price in the flex-context fields saved in the db."""
+        if "consumption_price" in data and isinstance(data["consumption_price"], str):
+            raise ValidationError(
+                "Fixed prices are not currently supported in flex-context fields in the DB."
+            )
+
+        if "production_price" in data and isinstance(data["production_price"], str):
+            raise ValidationError(
+                "Fixed prices are not currently supported in flex-context fields in the DB."
+            )
+
+
 class SequentialFlexModelSchema(Schema):
     """
 

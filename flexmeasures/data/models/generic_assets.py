@@ -42,26 +42,6 @@ class GenericAssetType(db.Model):
         return "<GenericAssetType %s: %r>" % (self.id, self.name)
 
 
-class GenericAssetInflexibleSensorRelationship(db.Model):
-    """Links assets to inflexible sensors."""
-
-    __tablename__ = "assets_inflexible_sensors"
-
-    generic_asset_id = db.Column(
-        db.Integer, db.ForeignKey("generic_asset.id"), primary_key=True
-    )
-    inflexible_sensor_id = db.Column(
-        db.Integer, db.ForeignKey("sensor.id"), primary_key=True
-    )
-    __table_args__ = (
-        db.UniqueConstraint(
-            "inflexible_sensor_id",
-            "generic_asset_id",
-            name="assets_inflexible_sensors_key",
-        ),
-    )
-
-
 class GenericAsset(db.Model, AuthModelMixin):
     """An asset is something that has economic value.
 
@@ -89,7 +69,9 @@ class GenericAsset(db.Model, AuthModelMixin):
     sensors_to_show = db.Column(
         MutableList.as_mutable(db.JSON), nullable=False, default=[]
     )
-
+    flex_context = db.Column(
+        MutableDict.as_mutable(db.JSON), nullable=False, default={}
+    )
     # One-to-many (or many-to-one?) relationships
     parent_asset_id = db.Column(
         db.Integer, db.ForeignKey("generic_asset.id", ondelete="CASCADE"), nullable=True
@@ -110,36 +92,11 @@ class GenericAsset(db.Model, AuthModelMixin):
         backref=db.backref("generic_assets", lazy=True),
     )
 
-    consumption_price_sensor_id = db.Column(
-        db.Integer, db.ForeignKey("sensor.id", ondelete="SET NULL"), nullable=True
-    )
-    consumption_price_sensor = db.relationship(
-        "Sensor",
-        foreign_keys=[consumption_price_sensor_id],
-        backref=db.backref("assets_with_this_consumption_price_context", lazy=True),
-    )
-
-    production_price_sensor_id = db.Column(
-        db.Integer, db.ForeignKey("sensor.id", ondelete="SET NULL"), nullable=True
-    )
-    production_price_sensor = db.relationship(
-        "Sensor",
-        foreign_keys=[production_price_sensor_id],
-        backref=db.backref("assets_with_this_production_price_context", lazy=True),
-    )
-
     # Many-to-many relationships
     annotations = db.relationship(
         "Annotation",
         secondary="annotations_assets",
         backref=db.backref("assets", lazy="dynamic"),
-    )
-    inflexible_device_sensors = db.relationship(
-        "Sensor",
-        secondary="assets_inflexible_sensors",
-        backref=db.backref(
-            "assets_considering_this_as_inflexible_sensor_in_scheduling", lazy="dynamic"
-        ),
     )
 
     def __acl__(self):
@@ -371,6 +328,8 @@ class GenericAsset(db.Model, AuthModelMixin):
     def get_attribute(self, attribute: str, default: Any = None):
         if attribute in self.attributes:
             return self.attributes[attribute]
+        if attribute in self.flex_context:
+            return self.flex_context[attribute]
         return default
 
     def has_attribute(self, attribute: str) -> bool:
@@ -385,13 +344,15 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         from flexmeasures.data.models.time_series import Sensor
 
-        # Need to load consumption_price_sensor manually as generic_asset does not get to SQLAlchemy session context.
-        if self.consumption_price_sensor_id and not self.consumption_price_sensor:
-            self.consumption_price_sensor = Sensor.query.get(
-                self.consumption_price_sensor_id
-            )
-        if self.consumption_price_sensor:
-            return self.consumption_price_sensor
+        sensor_id = self.flex_context.get("consumption-price-sensor")
+
+        if sensor_id is None:
+            consumption_price_data = self.flex_context.get("consumption-price")
+            if consumption_price_data:
+                sensor_id = consumption_price_data.get("sensor")
+        if sensor_id:
+            return Sensor.query.get(sensor_id) or None
+
         if self.parent_asset:
             return self.parent_asset.get_consumption_price_sensor()
         return None
@@ -401,13 +362,14 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         from flexmeasures.data.models.time_series import Sensor
 
-        # Need to load production_price_sensor manually as generic_asset does not get to SQLAlchemy session context.
-        if self.production_price_sensor_id and not self.production_price_sensor:
-            self.production_price_sensor = Sensor.query.get(
-                self.production_price_sensor_id
-            )
-        if self.production_price_sensor:
-            return self.production_price_sensor
+        sensor_id = self.flex_context.get("production-price-sensor")
+
+        if sensor_id is None:
+            production_price_data = self.flex_context.get("production-price")
+            if production_price_data:
+                sensor_id = production_price_data.get("sensor")
+        if sensor_id:
+            return Sensor.query.get(sensor_id) or None
         if self.parent_asset:
             return self.parent_asset.get_production_price_sensor()
         return None
@@ -421,21 +383,11 @@ class GenericAsset(db.Model, AuthModelMixin):
         from flexmeasures.data.models.time_series import Sensor
 
         # Need to load inflexible_device_sensors manually as generic_asset does not get to SQLAlchemy session context.
-        if not self.inflexible_device_sensors:
-            self.inflexible_device_sensors = (
-                db.session.query(Sensor)
-                .join(
-                    GenericAssetInflexibleSensorRelationship,
-                    GenericAssetInflexibleSensorRelationship.inflexible_sensor_id
-                    == Sensor.id,
-                )
-                .filter(
-                    GenericAssetInflexibleSensorRelationship.generic_asset_id == self.id
-                )
-                .all()
-            )
-        if self.inflexible_device_sensors:
-            return self.inflexible_device_sensors
+        if self.flex_context.get("inflexible-device-sensors"):
+            sensors = Sensor.query.filter(
+                Sensor.id.in_(self.flex_context["inflexible-device-sensors"])
+            ).all()
+            return sensors or []
         if self.parent_asset:
             return self.parent_asset.get_inflexible_device_sensors()
         return []

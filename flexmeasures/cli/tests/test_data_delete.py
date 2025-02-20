@@ -1,6 +1,6 @@
 from sqlalchemy import select, func
 
-from flexmeasures.cli.tests.utils import to_flags
+from flexmeasures.cli.tests.utils import check_command_ran_without_error, to_flags
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import Account, User
 from flexmeasures.data.services.users import find_user_by_email
@@ -31,9 +31,9 @@ def test_delete_account(
     }
     runner = app.test_cli_runner()
     result = runner.invoke(delete_account, to_flags(cli_input), input="y\n")
+    check_command_ran_without_error(result)
     assert (
-        result.exit_code == 0
-        and "Account Test Prosumer Account has been deleted" in result.output
+        "Account Test Prosumer Account has been deleted" in result.output
     ), result.exception
 
     assert (
