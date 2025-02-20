@@ -92,6 +92,7 @@ class MetaStorageScheduler(Scheduler):
             self.flex_context.get("consumption_price_sensor")
             or self.sensor.generic_asset.get_consumption_price_sensor()
         )
+
         production_price_sensor = (
             self.flex_context.get("production_price_sensor")
             or self.sensor.generic_asset.get_production_price_sensor()
@@ -146,7 +147,6 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
-                fallback_attribute="market_id",
                 fill_sides=True,
             ).to_frame(name="event_value")
         else:
@@ -174,7 +174,6 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
-                fallback_attribute="market_id",
                 fill_sides=True,
             ).to_frame(name="event_value")
         else:
@@ -292,7 +291,6 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
-                fallback_attribute="ems-peak-consumption-price",
                 fill_sides=True,
             )
 
@@ -335,7 +333,6 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
-                fallback_attribute="ems-peak-production-price",
                 fill_sides=True,
             )
 
@@ -380,7 +377,6 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
-                fallback_attribute="ems-consumption-breach-price",
                 fill_sides=True,
             )
 
