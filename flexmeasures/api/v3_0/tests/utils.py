@@ -81,7 +81,7 @@ def message_for_trigger_schedule(
         "soc-unit": "kWh",
         "roundtrip-efficiency": "98%" if not use_perfect_efficiencies else "100%",
         "storage-efficiency": "99.99%" if not use_perfect_efficiencies else 1,
-        "power-capacity": "2 MW",  # same as capacity_in_mw attribute of test battery and test charging station
+        "power-capacity": "2 MW",  # same as site-power-capacity of test battery and test charging station
     }
     if with_targets:
         if realistic_targets:
