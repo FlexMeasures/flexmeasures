@@ -67,7 +67,7 @@ For more details on the possible formats for field values, see :ref:`variable_qu
        Can be (a sensor recording) market prices, but also CO₂ intensity - whatever fits your optimization problem, as long as the unit matches the ``consumption-price`` unit. (This field replaced the ``production-price-sensor`` field. [#old_sensor_field]_)
    * - ``site-power-capacity``
      - ``"45kVA"``
-     - Maximum achievable power at the grid connection point, in either direction [#asymmetric]_ (defaults to the Asset attribute ``capacity_in_mw``).
+     - Maximum achievable power at the grid connection point, in either direction [#asymmetric]_.
        Becomes a hard constraint in the optimization problem, which is especially suitable for physical limitations. [#minimum_capacity_overlap]_
    * - ``site-consumption-capacity``
      - ``"45kW"``

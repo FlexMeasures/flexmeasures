@@ -12,6 +12,7 @@ from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.tests.utils import work_on_rq
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.tests.utils import get_test_sensor
+from flexmeasures.utils.unit_utils import ur
 
 
 @pytest.mark.parametrize(
@@ -186,7 +187,13 @@ def test_get_schedule_fallback(
     epex_da = get_test_sensor(db)
     charging_station = add_charging_station_assets[charging_station_name].sensors[0]
 
-    assert charging_station.get_attribute("capacity_in_mw") == 2
+    capacity = charging_station.get_attribute(
+        "capacity_in_mw",
+        ur.Quantity(charging_station.get_attribute("site-power-capacity"))
+        .to("MW")
+        .magnitude,
+    )
+    assert capacity == 2
     assert charging_station.get_attribute("market_id") == epex_da.id
 
     # check that no Fallback schedule has been saved before
@@ -332,7 +339,13 @@ def test_get_schedule_fallback_not_redirect(
     epex_da = get_test_sensor(db)
     charging_station = add_charging_station_assets[charging_station_name].sensors[0]
 
-    assert charging_station.get_attribute("capacity_in_mw") == 2
+    capacity = charging_station.get_attribute(
+        "capacity_in_mw",
+        ur.Quantity(charging_station.get_attribute("site-power-capacity"))
+        .to("MW")
+        .magnitude,
+    )
+    assert capacity == 2
     assert charging_station.get_attribute("market_id") == epex_da.id
 
     # create a scenario that yields an infeasible problem (unreachable target SOC at 2am)
