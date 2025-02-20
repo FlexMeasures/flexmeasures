@@ -81,7 +81,7 @@ For more details on the possible formats for field values, see :ref:`variable_qu
        The price is applied both to the largest breach in the planning window and to each breach that occurs. [#penalty_field]_
    * - ``site-production-capacity``
      - ``"0kW"``
-     - Maximum production power at the grid connection point (defaults to the Asset attribute ``production_capacity_in_mw``).
+     - Maximum production power at the grid connection point.
        If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-production-capacity`` will be used. [#production]_
        If a ``site-production-breach-price`` is defined, the ``site-production-capacity`` becomes a soft constraint in the optimization problem.
        Otherwise, it becomes a hard constraint. [#minimum_capacity_overlap]_
