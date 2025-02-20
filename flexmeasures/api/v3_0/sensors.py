@@ -20,6 +20,7 @@ from flexmeasures.api.common.responses import (
     unrecognized_event,
     unknown_schedule,
     invalid_flex_config,
+    invalid_sender,
     fallback_schedule_redirect,
 )
 from flexmeasures.api.common.utils.validators import (
@@ -37,6 +38,10 @@ from flexmeasures.data import db
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.planning.utils import (
+    flex_context_loader,
+    flex_model_loader,
+)
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField
@@ -379,6 +384,26 @@ class SensorAPI(FlaskView):
         location="json",
     )
     @permission_required_for_context("create-children", ctx_arg_name="sensor")
+    @permission_required_for_context(
+        "read",
+        ctx_arg_name="flex_model",
+        ctx_loader=flex_model_loader,
+        pass_ctx_to_loader=True,
+        error_handler=lambda context, permission, origin: invalid_sender(
+            required_permissions=[f"{permission} sensor {context.id}"],
+            field_name=origin,
+        ),
+    )
+    @permission_required_for_context(
+        "read",
+        ctx_arg_name="flex_context",
+        ctx_loader=flex_context_loader,
+        pass_ctx_to_loader=True,
+        error_handler=lambda context, permission, origin: invalid_sender(
+            required_permissions=[f"{permission} sensor {context.id}"],
+            field_name=origin,
+        ),
+    )
     def trigger_schedule(
         self,
         sensor: Sensor,

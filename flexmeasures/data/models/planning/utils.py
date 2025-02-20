@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import partial
 from packaging import version
 from datetime import date, datetime, timedelta
 
@@ -563,3 +564,82 @@ def nanmin_of_series_and_value(s: pd.Series, value: float | pd.Series) -> pd.Ser
         # [right]: datetime64[ns, UTC]
         value = value.tz_convert("UTC")
     return s.fillna(value).clip(upper=value)
+
+
+def sensor_loader(data, parent_key: str) -> list[tuple[Sensor, str]]:
+    """Load all sensors referenced by their ID in a nested dict or list, along with the fields referring to them.
+
+    :param data:        nested dict or list
+    :param parent_key:  'flex-model' or 'flex-context'
+    :returns:           list of sensor-field tuples
+    """
+    sensor_ids = find_sensor_ids(data, parent_key)
+    sensors = [
+        (db.session.get(Sensor, sensor_id), field_name)
+        for sensor_id, field_name in sensor_ids
+    ]
+    return sensors
+
+
+flex_model_loader = partial(sensor_loader, parent_key="flex-model")
+flex_context_loader = partial(sensor_loader, parent_key="flex-context")
+
+
+def find_sensor_ids(data, parent_key="") -> list[tuple[int, str]]:
+    """
+    Recursively find all sensor IDs in a nested dictionary or list along with the fields referring to them.
+
+    Args:
+        data (dict or list): The input data which can be a dictionary or a list containing nested dictionaries and lists.
+        parent_key (str): The key of the parent element in the recursion, used to track the referring fields.
+
+    Returns:
+        list: A list of tuples, each containing a sensor ID and the referring field.
+
+    Example:
+        nested_dict = {
+            "flex-model": [
+                {
+                    "sensor": 931,
+                    "soc-at-start": 12.1,
+                    "soc-unit": "kWh",
+                    "soc-targets": [
+                        {
+                            "value": 25,
+                            "datetime": "2015-06-02T16:00:00+00:00"
+                        },
+                    ],
+                    "soc-minima": {"sensor": 300},
+                    "soc-min": 10,
+                    "soc-max": 25,
+                    "charging-efficiency": "120%",
+                    "discharging-efficiency": {"sensor": 98},
+                    "storage-efficiency": 0.9999,
+                    "power-capacity": "25kW",
+                    "consumption-capacity": {"sensor": 42},
+                    "production-capacity": "30 kW"
+                },
+            ],
+        }
+
+        sensor_ids = find_sensor_ids(nested_dict)
+        print(sensor_ids)  # Output: [(931, 'sensor'), (300, 'soc-minima.sensor'), (98, 'discharging-efficiency.sensor'), (42, 'consumption-capacity.sensor')]
+    """
+    sensor_ids = []
+
+    if isinstance(data, dict):
+        for key, value in data.items():
+            new_parent_key = f"{parent_key}.{key}" if parent_key else key
+            if key[-6:] == "sensor":
+                sensor_ids.append((value, new_parent_key))
+            elif key[-7:] == "sensors":
+                for v in value:
+                    sensor_ids.append((v, new_parent_key))
+            else:
+                sensor_ids.extend(find_sensor_ids(value, new_parent_key))
+    elif isinstance(data, list):
+        for index, item in enumerate(data):
+            new_parent_key = f"{parent_key}[{index}]"
+            sensor_ids.extend(find_sensor_ids(item, new_parent_key))
+
+    return sensor_ids

@@ -7,6 +7,11 @@ FlexMeasures Changelog
 v0.25.0 | February XX, 2025
 ============================
 
+Bugfixes
+-----------
+
+* Add authorization check on sensors referred to in ``flex-model`` and ``flex-context`` fields [see `PR #1071 <https://github.com/FlexMeasures/flexmeasures/pull/1071>`_]
+
 New features
 -------------
 
