@@ -332,7 +332,7 @@ def idle_after_reaching_target(
 
 def get_quantity_from_attribute(
     entity: Asset | Sensor,
-    attribute: str,
+    attribute: str | None,
     unit: str | ur.Quantity,
 ) -> ur.Quantity:
     """Get the value (in the given unit) of a quantity stored as an entity attribute.
@@ -342,6 +342,9 @@ def get_quantity_from_attribute(
     :param unit:        The unit in which the value should be returned.
     :return:            The retrieved quantity or the provided default.
     """
+    if attribute is None:
+        return np.nan * ur.Quantity(unit)  # at least return result in the desired unit
+
     # Get the default value from the entity attribute
     value: str | float | int = entity.get_attribute(attribute, np.nan)
 
