@@ -819,7 +819,9 @@ class MetaStorageScheduler(Scheduler):
             return self._ensure_variable_quantity(power_capacity, "MW")
 
         # 6
-        site_power_capacity = self.sensor.asset.get_attribute("site-power-capacity")
+        site_power_capacity = self.sensor.generic_asset.get_attribute(
+            "site-power-capacity"
+        )
         if site_power_capacity is not None:
             current_app.logger.warning(
                 f"Missing 'power-capacity' or 'capacity_in_mw' attribute on power sensor {self.sensor.id}. Using site-power-capacity instead."
