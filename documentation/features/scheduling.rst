@@ -25,7 +25,8 @@ This is described by:
 - :ref:`Flex-models <flex_models_and_schedulers>`  ― information about the state and possible actions of the flexible device. We will discuss these per scheduled device type.
 
 This information goes beyond the usual time series recorded by an asset's sensors. It's being sent through the API when triggering schedule computation.
-Some parts of it can be persisted on the asset & sensor model as attributes (that's design work in progress).
+Some of the information can also be stored on the FlexMeasures server (persisted in the database), and will be editable through the UI (that's design work in progress).
+Specifically, flex-context fields can be persisted on the asset model, while most flex-model fields can be persisted on the asset & sensor model (that's also design work in progress, especially in relation to asset hierarchies).
 
 Let's dive into the details ― what can you tell FlexMeasures about your optimization problem?
 
