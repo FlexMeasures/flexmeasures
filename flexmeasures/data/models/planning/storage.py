@@ -425,7 +425,7 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
-                fallback_attribute="ems-production-breach-price",
+                fallback_attribute="site-production-breach-price",
                 fill_sides=True,
             )
 
