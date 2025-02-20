@@ -62,7 +62,7 @@ class ProcessScheduler(Scheduler):
         sensor = self.sensor
 
         consumption_price_sensor: Sensor = self.flex_context.get(
-            "consumption_price_sensor"
+            "consumption_price_sensor", self.flex_context.get("consumption_price")
         )
         duration: timedelta = self.flex_model.get("duration")
         power = self.flex_model.get("power")

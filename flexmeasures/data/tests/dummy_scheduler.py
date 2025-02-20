@@ -1,5 +1,6 @@
 from flexmeasures.data.models.planning import Scheduler
 from flexmeasures.data.models.planning.utils import initialize_series
+from flexmeasures.utils.unit_utils import ur
 
 
 class DummyScheduler(Scheduler):
@@ -12,8 +13,14 @@ class DummyScheduler(Scheduler):
         Just a dummy scheduler that always plans to consume at maximum capacity.
         (Schedulers return positive values for consumption, and negative values for production)
         """
+        capacity = self.sensor.get_attribute(
+            "capacity_in_mw",
+            ur.Quantity(self.sensor.get_attribute("site-power-capacity"))
+            .to("MW")
+            .magnitude,
+        )
         return initialize_series(  # simply creates a Pandas Series repeating one value
-            data=self.sensor.get_attribute("capacity_in_mw"),
+            data=capacity,
             start=self.start,
             end=self.end,
             resolution=self.resolution,

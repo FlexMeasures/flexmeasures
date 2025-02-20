@@ -123,8 +123,9 @@ def get_or_create_model(
     # Create the model and add it to the database if it didn't already exist
     if model is None:
         model = model_class(**init_kwargs)
-        click.echo(f"Created {model}")
         db.session.add(model)
+        db.session.flush()  # assign ID
+        click.echo(f"Created {repr(model)}")
     return model
 
 

@@ -11,6 +11,7 @@ from sqlalchemy import select
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.planning.utils import initialize_index
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.utils.unit_utils import ur
 
 
 @pytest.fixture(params=["appsi_highs", "cbc"])
@@ -108,9 +109,11 @@ def building(db, setup_accounts, setup_markets) -> GenericAsset:
         name="building",
         generic_asset_type=building_type,
         owner=setup_accounts["Prosumer"],
+        flex_context={
+            "site-power-capacity": "2 MVA",
+        },
         attributes=dict(
             market_id=setup_markets["epex_da"].id,
-            capacity_in_mw=2,
         ),
     )
     db.session.add(building)
@@ -277,7 +280,10 @@ def add_stock_delta(db, add_battery_assets, setup_sources) -> dict[str, Sensor]:
     """
 
     battery = add_battery_assets["Test battery"]
-    capacity = battery.get_attribute("capacity_in_mw")
+    capacity = battery.get_attribute(
+        "capacity_in_mw",
+        ur.Quantity(battery.get_attribute("site-power-capacity")).to("MW").magnitude,
+    )
     sensors = {}
     sensor_specs = [
         ("delta fails", timedelta(minutes=15), capacity * 1.2),
