@@ -267,12 +267,16 @@ def fallback_charging_policy(
     while probably a decent policy for Charge Points,
     should not be considered a robust policy for other asset types.
     """
-    capacity = sensor.get_attribute(
-        "capacity_in_mw",
-        ur.Quantity(sensor.get_attribute("site-power-capacity")).to("MW").magnitude,
+    max_charge_capacity = (
+        device_constraints[["derivative max", "derivative equals"]].max().max()
     )
-    charge_power = capacity if sensor.get_attribute("is_consumer") else 0
-    discharge_power = -capacity if sensor.get_attribute("is_producer") else 0
+    max_discharge_capacity = (
+        -device_constraints[["derivative min", "derivative equals"]].min().min()
+    )
+    charge_power = max_charge_capacity if sensor.get_attribute("is_consumer") else 0
+    discharge_power = (
+        -max_discharge_capacity if sensor.get_attribute("is_producer") else 0
+    )
 
     charge_schedule = initialize_series(charge_power, start, end, resolution)
     discharge_schedule = initialize_series(discharge_power, start, end, resolution)
