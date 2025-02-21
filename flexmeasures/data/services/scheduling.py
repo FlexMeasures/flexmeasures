@@ -276,6 +276,7 @@ def cb_done_sequential_scheduling_job(jobs_ids: list[str]):
     pass
 
 
+@job_cache("scheduling")
 def create_sequential_scheduling_job(
     asset: Asset,
     job_id: str | None = None,
@@ -284,6 +285,7 @@ def create_sequential_scheduling_job(
     force_new_job_creation: bool = False,
     scheduler_specs: dict | None = None,
     depends_on: list[Job] | None = None,
+    success_callback: Callable | None = None,
     **scheduler_kwargs,
 ) -> list[Job]:
     flex_model = scheduler_kwargs["flex_model"]
@@ -356,6 +358,7 @@ def create_sequential_scheduling_job(
     return jobs
 
 
+@job_cache("scheduling")
 def create_simultaneous_scheduling_job(
     asset: Asset,
     job_id: str | None = None,
@@ -364,6 +367,7 @@ def create_simultaneous_scheduling_job(
     force_new_job_creation: bool = False,
     scheduler_specs: dict | None = None,
     depends_on: list[Job] | None = None,
+    success_callback: Callable | None = None,
     **scheduler_kwargs,
 ) -> list[Job]:
     jobs = []
