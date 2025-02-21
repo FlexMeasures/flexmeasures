@@ -199,7 +199,7 @@ def job_cache(queue: str):
             # Get the redis connection
             connection = current_app.redis_connection
 
-            requeue = kwargs.pop("requeue", False)
+            requeue = kwargs.get("requeue", False)
 
             # checking if force is an input argument of `func`
             force_new_job_creation = kwargs.get("force_new_job_creation", False)
