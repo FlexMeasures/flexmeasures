@@ -401,8 +401,6 @@ def create_simultaneous_scheduling_job(
     success_callback: Callable | None = None,
     **scheduler_kwargs,
 ) -> list[Job]:
-    jobs = []
-
     # Convert (partially) deserialized fields back to serialized form
     for i, child_flex_model in enumerate(scheduler_kwargs.get("flex_model")):
         # Convert deserialized Sensor values back to serialized sensor IDs
@@ -429,20 +427,17 @@ def create_simultaneous_scheduling_job(
     except InvalidJobOperation:
         job_status = None
 
-    jobs.append(job)
-
     # with job_status=None, we ensure that only fresh new jobs are enqueued (otherwise, they should be requeued instead)
     if enqueue and not job_status:
-        for job in jobs:
-            current_app.queues["scheduling"].enqueue_job(job)
-            current_app.job_cache.add(
-                asset.id,
-                job.id,
-                queue="scheduling",
-                asset_or_sensor_type="asset",
-            )
+        current_app.queues["scheduling"].enqueue_job(job)
+        current_app.job_cache.add(
+            asset.id,
+            job.id,
+            queue="scheduling",
+            asset_or_sensor_type="asset",
+        )
 
-    return jobs
+    return [job]
 
 
 def make_schedule(
