@@ -221,7 +221,7 @@ class DBFlexContextSchema(FlexContextSchema):
 
         keys_to_check = []
         # List of keys to check for time series specs
-        # All the keys in this list are all fields of type VaribaleQuantity
+        # All the keys in this list are all fields of type VariableQuantity
         for field_var, field in self.declared_fields.items():
             if isinstance(field, VariableQuantityField):
                 keys_to_check.append(field_var)

@@ -104,24 +104,11 @@ class MetaStorageScheduler(Scheduler):
             or self.sensor.generic_asset.get_inflexible_device_sensors()
         )
 
-        # Check for required Sensor attributes
-        power_capacity_in_mw = self.flex_model.get(
-            "power_capacity_in_mw",
-            self.sensor.get_attribute("capacity_in_mw", None),
-        )
-
-        if power_capacity_in_mw is None:
-            raise ValueError(
-                "Power capacity is not defined in the sensor attributes or the flex-model."
-            )
-
-        if isinstance(power_capacity_in_mw, float) or isinstance(
-            power_capacity_in_mw, int
-        ):
-            power_capacity_in_mw = ur.Quantity(f"{power_capacity_in_mw} MW")
+        # Fetch the device's power capacity (required Sensor attribute)
+        power_capacity = self._get_device_power_capacity()
 
         power_capacity_in_mw = get_continuous_series_sensor_or_quantity(
-            variable_quantity=power_capacity_in_mw,
+            variable_quantity=power_capacity,
             actuator=sensor,
             unit="MW",
             query_window=(start, end),
@@ -207,7 +194,7 @@ class MetaStorageScheduler(Scheduler):
             query_window=(start, end),
             resolution=resolution,
             beliefs_before=belief_time,
-            fallback_attribute="capacity_in_mw",
+            fallback_attribute="site-power-capacity",
             resolve_overlaps="min",
         )
         ems_consumption_capacity = get_continuous_series_sensor_or_quantity(
@@ -217,7 +204,7 @@ class MetaStorageScheduler(Scheduler):
             query_window=(start, end),
             resolution=resolution,
             beliefs_before=belief_time,
-            fallback_attribute="consumption_capacity_in_mw",
+            fallback_attribute="site-consumption-capacity",
             max_value=ems_power_capacity_in_mw,
             resolve_overlaps="min",
         )
@@ -228,7 +215,7 @@ class MetaStorageScheduler(Scheduler):
             query_window=(start, end),
             resolution=resolution,
             beliefs_before=belief_time,
-            fallback_attribute="production_capacity_in_mw",
+            fallback_attribute="site-production-capacity",
             max_value=ems_power_capacity_in_mw,
             resolve_overlaps="min",
         )
@@ -271,6 +258,7 @@ class MetaStorageScheduler(Scheduler):
                 resolution=resolution,
                 beliefs_before=belief_time,
                 max_value=np.inf,  # np.nan -> np.inf to ignore commitment if no quantity is given
+                fallback_attribute="site-peak-consumption",
                 fill_sides=True,
             )
             ems_peak_consumption_price = self.flex_context.get(
@@ -291,6 +279,7 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
+                fallback_attribute="site-peak-consumption-price",
                 fill_sides=True,
             )
 
@@ -313,6 +302,7 @@ class MetaStorageScheduler(Scheduler):
                 resolution=resolution,
                 beliefs_before=belief_time,
                 max_value=np.inf,  # np.nan -> np.inf to ignore commitment if no quantity is given
+                fallback_attribute="site-peak-production",
                 fill_sides=True,
             )
             ems_peak_production_price = self.flex_context.get(
@@ -333,6 +323,7 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
+                fallback_attribute="site-peak-production-price",
                 fill_sides=True,
             )
 
@@ -377,6 +368,7 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
+                fallback_attribute="site-consumption-breach-price",
                 fill_sides=True,
             )
 
@@ -425,7 +417,7 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
-                fallback_attribute="ems-production-breach-price",
+                fallback_attribute="site-production-breach-price",
                 fill_sides=True,
             )
 
@@ -800,6 +792,60 @@ class MetaStorageScheduler(Scheduler):
                     raise ValueError(
                         "Need maximal permitted state of charge, please specify soc-max or some soc-targets."
                     )
+
+    def _get_device_power_capacity(self) -> ur.Quantity:
+        """The device power capacity must be known for the optimization problem to stay bounded.
+
+        We search for the power capacity in the following order:
+        1. Look for the power_capacity_in_mw field in the deserialized flex-model.
+        2. Look for the capacity_in_mw attribute of the sensor.
+        3. Look for the capacity_in_mw attribute of the asset (sensor.get_attribute does this internally).
+        4. Look for the power-capacity attribute of the sensor.
+        5. Look for the power-capacity attribute of the asset.
+        6. Look for the site-power-capacity attribute of the asset.
+        """
+
+        # 1, 2 and 3
+        power_capacity_in_mw = self.flex_model.get(
+            "power_capacity_in_mw",
+            self.sensor.get_attribute("capacity_in_mw"),
+        )
+        if power_capacity_in_mw is not None:
+            return self._ensure_variable_quantity(power_capacity_in_mw, "MW")
+
+        # 4 and 5
+        power_capacity = self.sensor.get_attribute("power-capacity")
+        if power_capacity is not None:
+            return self._ensure_variable_quantity(power_capacity, "MW")
+
+        # 6
+        site_power_capacity = self.sensor.generic_asset.get_attribute(
+            "site-power-capacity"
+        )
+        if site_power_capacity is not None:
+            current_app.logger.warning(
+                f"Missing 'power-capacity' or 'capacity_in_mw' attribute on power sensor {self.sensor.id}. Using site-power-capacity instead."
+            )
+            return self._ensure_variable_quantity(site_power_capacity, "MW")
+
+        raise ValueError(
+            "Power capacity is not defined in the sensor attributes or the flex-model."
+        )
+
+    def _ensure_variable_quantity(
+        self, value: str | int | float | ur.Quantity, unit: str
+    ) -> Sensor | list[dict] | ur.Quantity:
+        if isinstance(value, str):
+            q = ur.Quantity(value).to(unit)
+        elif isinstance(value, (float, int)):
+            q = ur.Quantity(f"{value} {unit}")
+        elif isinstance(value, (Sensor, list, ur.Quantity)):
+            q = value
+        else:
+            raise TypeError(
+                f"Unsupported type '{type(value)}' to describe Quantity. Value: {value}"
+            )
+        return q
 
 
 class StorageFallbackScheduler(MetaStorageScheduler):

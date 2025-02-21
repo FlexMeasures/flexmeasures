@@ -512,8 +512,10 @@ def create_assets(
             owner=setup_accounts["Prosumer"],
             latitude=10,
             longitude=100,
+            flex_context={
+                "site-power-capacity": "1 MVA",
+            },
             attributes=dict(
-                capacity_in_mw=1,
                 min_soc_in_mwh=0,
                 max_soc_in_mwh=0,
                 soc_in_mwh=0,
@@ -778,9 +780,9 @@ def create_test_battery_assets(
         name="building",
         generic_asset_type=building_type,
         owner=setup_accounts["Prosumer"],
-        attributes=dict(
-            capacity_in_mw=2,
-        ),
+        flex_context={
+            "site-power-capacity": "2 MVA",
+        },
     )
     db.session.add(test_building)
     db.session.flush()
@@ -794,8 +796,10 @@ def create_test_battery_assets(
         latitude=10,
         longitude=100,
         parent_asset_id=test_building.id,
+        flex_context={
+            "site-power-capacity": "2 MVA",
+        },
         attributes=dict(
-            capacity_in_mw=2,
             max_soc_in_mwh=5,
             min_soc_in_mwh=0,
             soc_in_mwh=2.5,
@@ -840,8 +844,10 @@ def create_test_battery_assets(
         generic_asset_type=battery_type,
         latitude=10,
         longitude=100,
+        flex_context={
+            "site-power-capacity": "2 MVA",
+        },
         attributes=dict(
-            capacity_in_mw=2,
             max_soc_in_mwh=5,
             min_soc_in_mwh=0,
             soc_in_mwh=2.5,
@@ -873,8 +879,10 @@ def create_test_battery_assets(
         generic_asset_type=battery_type,
         latitude=10,
         longitude=100,
+        flex_context={
+            "site-power-capacity": "10 MVA",
+        },
         attributes=dict(
-            capacity_in_mw=10,
             max_soc_in_mwh=20,
             min_soc_in_mwh=0,
             soc_in_mwh=2.0,
@@ -900,8 +908,10 @@ def create_test_battery_assets(
         generic_asset_type=battery_type,
         latitude=10,
         longitude=100,
+        flex_context={
+            "site-power-capacity": "10 kVA",
+        },
         attributes=dict(
-            capacity_in_mw=0.01,
             max_soc_in_mwh=0.01,
             min_soc_in_mwh=0,
             soc_in_mwh=0.005,
@@ -967,8 +977,10 @@ def create_charging_station_assets(
         generic_asset_type=oneway_evse,
         latitude=10,
         longitude=100,
+        flex_context={
+            "site-power-capacity": "2 MVA",
+        },
         attributes=dict(
-            capacity_in_mw=2,
             max_soc_in_mwh=5,
             min_soc_in_mwh=0,
             soc_in_mwh=2.5,
@@ -1000,8 +1012,10 @@ def create_charging_station_assets(
         generic_asset_type=twoway_evse,
         latitude=10,
         longitude=100,
+        flex_context={
+            "site-power-capacity": "2 MVA",
+        },
         attributes=dict(
-            capacity_in_mw=2,
             max_soc_in_mwh=5,
             min_soc_in_mwh=0,
             soc_in_mwh=2.5,
@@ -1038,13 +1052,16 @@ def add_assets_with_site_power_limits(
 ) -> dict[str, Sensor]:
     """
     Add two batteries with different site power constraints. The first defines a symmetric site-level power limit of 2 MW
-    by setting the capacity_in_mw asset attribute. The second defines a 900 kW consumption limit and 750 kW production limit.
-    In addition, the capacity_in_mw is also defined to check the fallback strategy.
+    by setting the site-power-capacity on the asset db model. The second defines a 900 kW consumption limit and 750 kW production limit.
+    In addition, the site-power-capacity is also defined to check the fallback strategy.
     """
     battery_symmetric_site_power_limit = GenericAsset(
         name="Battery (with symmetric site limits)",
         owner=setup_accounts["Prosumer"],
         generic_asset_type=setup_generic_asset_types["battery"],
+        flex_context={
+            "site-power-capacity": "2 MVA",
+        },
         attributes=dict(
             max_soc_in_mwh=5,
             min_soc_in_mwh=0,
@@ -1063,6 +1080,11 @@ def add_assets_with_site_power_limits(
         name="Battery (with asymmetric site limits)",
         owner=setup_accounts["Prosumer"],
         generic_asset_type=setup_generic_asset_types["battery"],
+        flex_context={
+            "site-power-capacity": "2 MVA",
+            "site-consumption-capacity": "900 kW",
+            "site-production-capacity": "750 kW",
+        },
         attributes=dict(
             max_soc_in_mwh=5,
             min_soc_in_mwh=0,

@@ -130,7 +130,7 @@ def upgrade():
         )
         inflexible_device_sensors = conn.execute(select_stmt)
 
-        # Get fields-to-migrate from attrubutes
+        # Get fields-to-migrate from attributes
         market_id = attributes_data.get("market_id")
         capacity_in_mw = attributes_data.get("capacity_in_mw")
         consumption_capacity_in_mw = attributes_data.get("consumption_capacity_in_mw")

@@ -37,11 +37,11 @@ class AssetForm(FlaskForm):
     )
     attributes = StringField("Other attributes (JSON)", default="{}")
     flex_context = StringField(
-        "flex-context",
+        "Flex context",
         default="{}",
         description=(
             "This field accepts a JSON string to define the flex-context."
-            "These are defaults that, if needed, users can temporarily override when calling for a schedule via the API, by setting different flex-context fields in the API request."
+            " These are defaults that, if needed, users can temporarily override when calling for a schedule via the API, by setting different flex-context fields in the API request."
         ),
     )
 
