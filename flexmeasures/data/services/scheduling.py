@@ -418,7 +418,7 @@ def create_simultaneous_scheduling_job(
         job_id=job_id,
         enqueue=False,  # we enqueue all jobs later in this method
         depends_on=depends_on,
-        on_success=success_callback,
+        success_callback=success_callback,
         force_new_job_creation=force_new_job_creation,
     )
 
