@@ -186,15 +186,15 @@ def create_scheduling_job(
     3. If an error occurs (and the worker is configured accordingly), handle_scheduling_exception comes in.
 
     Arguments:
-    :param asset_or_sensor:         asset or sensor for which the schedule is computed
-    :param job_id:                  optionally, set a job id explicitly
-    :param enqueue:                 if True, enqueues the job in case it is new
-    :param requeue:                 if True, requeues the job in case it is not new and had previously failed
-                                    (this argument is used by the @job_cache decorator)
-    :param force_new_job_creation:  if True, this attribute forces a new job to be created (skipping cache)
-    :param success_callback:        callback function that runs on success.
-                                    (this argument is used by the @job_cache decorator)
-    :returns: the job
+    :param asset_or_sensor:         Asset or sensor for which the schedule is computed.
+    :param job_id:                  Optionally, set a job id explicitly.
+    :param enqueue:                 If True, enqueues the job in case it is new.
+    :param requeue:                 If True, requeues the job in case it is not new and had previously failed
+                                    (this argument is used by the @job_cache decorator).
+    :param force_new_job_creation:  If True, this attribute forces a new job to be created (skipping cache).
+    :param success_callback:        Callback function that runs on success
+                                    (this argument is used by the @job_cache decorator).
+    :returns:                       The job.
 
     """
     # We first create a scheduler and check if deserializing works, so the flex config is checked
@@ -288,6 +288,36 @@ def create_sequential_scheduling_job(
     success_callback: Callable | None = None,
     **scheduler_kwargs,
 ) -> list[Job]:
+    """Create a chain of underlying jobs, one for each device, with one additional job to wrap up.
+
+    :param asset:                   Asset (e.g. a site) for which the schedule is computed.
+    :param job_id:                  Optionally, set a job id explicitly.
+    :param enqueue:                 If True, enqueues the job in case it is new.
+    :param requeue:                 If True, requeues the job in case it is not new and had previously failed
+                                    (this argument is used by the @job_cache decorator).
+    :param force_new_job_creation:  If True, this attribute forces a new job to be created (skipping cache).
+    :param success_callback:        Callback function that runs on success
+                                    (this argument is used by the @job_cache decorator).
+    :param scheduler_kwargs:        Dict containing the serialized flex-context and partially deserialized flex-model
+                                    (see example below).
+    :returns:                       The job.
+
+    Example of a partially deserialized flex-model for sequential scheduling:
+
+        scheduler_kwargs["flex_model"] = [
+            dict(
+                sensor=<Sensor 5: power, unit: MW res.: 0:15:00>,
+                sensor_flex_model={
+                    'consumption-capacity': '10 kW',
+                },
+            ),
+            dict(
+                sensor=<deserialized sensor object>,
+                sensor_flex_model=<still serialized flex-model>,
+            ),
+        ]
+
+    """
     flex_model = scheduler_kwargs["flex_model"]
     jobs = []
     previous_sensors = []
