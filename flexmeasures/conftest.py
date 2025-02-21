@@ -1066,9 +1066,6 @@ def add_assets_with_site_power_limits(
             max_soc_in_mwh=5,
             min_soc_in_mwh=0,
         ),
-        flex_context=dict(
-            capacity_in_mw=2,
-        ),
     )
     battery_symmetric_power_sensor = Sensor(
         name="power",
