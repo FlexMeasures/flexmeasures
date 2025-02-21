@@ -287,7 +287,7 @@ def create_sequential_scheduling_job(
     depends_on: list[Job] | None = None,
     success_callback: Callable | None = None,
     **scheduler_kwargs,
-) -> list[Job]:
+) -> Job:
     """Create a chain of underlying jobs, one for each device, with one additional job to wrap up.
 
     :param asset:                   Asset (e.g. a site) for which the schedule is computed.
@@ -300,7 +300,7 @@ def create_sequential_scheduling_job(
                                     (this argument is used by the @job_cache decorator).
     :param scheduler_kwargs:        Dict containing the serialized flex-context and partially deserialized flex-model
                                     (see example below).
-    :returns:                       The job.
+    :returns:                       The wrap-up job.
 
     Example of a partially deserialized flex-model for sequential scheduling:
 
@@ -341,7 +341,7 @@ def create_sequential_scheduling_job(
             scheduler_specs=scheduler_specs,
             requeue=requeue,
             job_id=job_id,
-            enqueue=False,  # we enqueue all jobs later in this method
+            enqueue=enqueue,
             depends_on=previous_job,
             force_new_job_creation=force_new_job_creation,
         )
@@ -373,20 +373,16 @@ def create_sequential_scheduling_job(
     except InvalidJobOperation:
         job_status = None
 
-    jobs.append(job)
-
     # with job_status=None, we ensure that only fresh new jobs are enqueued (otherwise, they should be requeued instead)
     if enqueue and not job_status:
-        for job in jobs:
-            current_app.queues["scheduling"].enqueue_job(job)
-            current_app.job_cache.add(
-                asset.id,
-                job.id,
-                queue="scheduling",
-                asset_or_sensor_type="asset",
-            )
-
-    return jobs
+        current_app.queues["scheduling"].enqueue_job(job)
+        current_app.job_cache.add(
+            asset.id,
+            job.id,
+            queue="scheduling",
+            asset_or_sensor_type="asset",
+        )
+    return job
 
 
 @job_cache("scheduling")
