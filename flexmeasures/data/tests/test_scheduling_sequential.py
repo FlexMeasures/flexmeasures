@@ -36,6 +36,8 @@ def test_create_sequential_jobs(db, app, flex_description_sequential, smart_buil
         Job.fetch(job_id, connection=queue.connection)
         for job_id in app.queues["scheduling"].deferred_job_registry.get_job_ids()
     ]
+    # Sort deferred_jobs by their created_at attribute
+    deferred_jobs = sorted(deferred_jobs, key=lambda job: job.created_at)
     assert (
         len(queued_jobs) == 1
     ), "Only the job for scheduling the first device sequentially should be queued."
@@ -140,6 +142,8 @@ def test_create_sequential_jobs_fallback(
                         "scheduling"
                     ].deferred_job_registry.get_job_ids()
                 ]
+                # Sort deferred_jobs by their created_at attribute
+                deferred_jobs = sorted(deferred_jobs, key=lambda job: job.created_at)
                 assert (
                     len(queued_jobs) == 1
                 ), "Only the job for scheduling the first device sequentially should be queued."
