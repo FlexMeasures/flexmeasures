@@ -127,6 +127,7 @@ def test_create_sequential_jobs_fallback(
                     asset=assets["Test Site"],
                     scheduler_specs=scheduler_specs,
                     enqueue=True,
+                    force_new_job_creation=True,  # otherwise the cache might kick in due to sub-jobs already created in other tests
                     **flex_description_sequential,
                 )
 
