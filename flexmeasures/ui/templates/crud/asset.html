@@ -1231,23 +1231,6 @@
         }
         
     }
-    function renderSelectInfoCards(contextKey, description, allowedUnits, isArray=false) {
-        return `
-            <div>
-                <div class="alert alert-info" role="alert">
-                    <b> About Field ${contextKey.split("-").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ")}
-                    <div class="pt-2 fw-normal">
-                        ${description}
-                    </div>
-
-                    <div class="pt-3 fw-bold"> Allowed Units: </div>
-                    <div class="fw-normal">
-                        ${allowedUnits.join(", ")}
-                    </div>
-                </div>
-            </div>
-        `;
-    }
 
     function renderFlexInputOptions(contextKey, isArray=false) {
         return `
@@ -1358,56 +1341,74 @@
         }
     });
 
+    function renderSelectInfoCards(contextKey, description, allowedUnits, isArray=false) {
+        return `
+            <div>
+                <div class="alert alert-info" role="alert">
+                    <b> About Field ${contextKey.split("-").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ")}
+                    <div class="pt-2 fw-normal">
+                        ${description}
+                    </div>
+
+                    <div class="pt-3 fw-bold"> 
+                        Allowed Units: <span class="fw-normal"> ${allowedUnits.join(", ")} </span>
+                    </div>
+                    
+                </div>
+            </div>
+        `;
+    }
+
     function handleFlexSelectChange(selectedOption) {
         flexInfoContainer.innerHTML = "";
         const alertStyle = "alert alert-light";
         if (selectedOption === "consumption-price") {
             const description = "Set the sensor that represents the consumption price of the site. This value will be used in the optimization";
-            const allowedUnits = ["sensor"];
+            const allowedUnits = ["EUR", "EUR/MWh"];
             flexInfoContainer.innerHTML = renderSelectInfoCards("consumption-price", description, allowedUnits);
         } else if (selectedOption === "production-price") {
             const description = "Set the sensor that represents the production price of the site. This value will be used in the optimization";
-            const allowedUnits = ["sensor"];
+            const allowedUnits = ["EUR", "EUR/MWh"];
             flexInfoContainer.innerHTML = renderSelectInfoCards("production-price", description, allowedUnits);
         } else if (selectedOption == "site-power-capacity"){
             const description = "This value represents the maximum power that the site can consume or produce. This value will be used in the optimization";
-            const allowedUnits = ["kW", "sensor"];
+            const allowedUnits = ["kW"];
             flexInfoContainer.innerHTML = renderSelectInfoCards("site-power-capacity", description, allowedUnits);
         } else if (selectedOption == "site-production-capacity"){
             const description = "This value represents the maximum power that the site can produce. This value will be used in the optimization";
-            const allowedUnits = ["sensor"];
+            const allowedUnits = ["kW", "kWh"];
             flexInfoContainer.innerHTML = renderSelectInfoCards("site-production-capacity", description, allowedUnits);
         } else if (selectedOption == "site-consumption-capacity"){
             const description = "This value represents the maximum power that the site can consume. This value will be used in the optimization";
-            const allowedUnits = ["sensor"];
+            const allowedUnits = ["kW", "kWh"];
             flexInfoContainer.innerHTML = renderSelectInfoCards("site-consumption-capacity", description, allowedUnits);
         } else if (selectedOption == "site-consumption-breach-price"){
             const description = "This value represents the price that will be paid if the site consumes more power than the site consumption capacity. This value will be used in the optimization";
-            const allowedUnits = ["sensor"];
+            const allowedUnits = ["EUR", "EUR/MWh"];
             flexInfoContainer.innerHTML = renderSelectInfoCards("site-consumption-breach-price", description, allowedUnits);
         } else if (selectedOption == "site-production-breach-price"){
             const description = "This value represents the price that will be paid if the site produces more power than the site production capacity. This value will be used in the optimization";
-            const allowedUnits = ["sensor"];
+            const allowedUnits = ["EUR", "EUR/MWh"];
             flexInfoContainer.innerHTML = renderSelectInfoCards("site-production-breach-price", description, allowedUnits);
         } else if (selectedOption == "site-peak-consumption"){
             const description = "This value represents the peak consumption of the site. This value will be used in the optimization";
-            const allowedUnits = ["sensor"];
+            const allowedUnits =  ["kW", "kWh"];
             flexInfoContainer.innerHTML = renderSelectInfoCards("site-peak-consumption", description, allowedUnits);
-        } else if (selectedOption == "site-peak-consumption-price"){
-            const description = "This value represents the price that will be paid if the site consumes more power than the site peak consumption. This value will be used in the optimization";
-            const allowedUnits = ["sensor"];
-            flexInfoContainer.innerHTML = renderSelectInfoCards("site-peak-consumption-price", description, allowedUnits);
         } else if (selectedOption == "site-peak-production"){
             const description = "This value represents the peak production of the site. This value will be used in the optimization";
-            const allowedUnits = ["sensor"];
+            const allowedUnits =  ["kW", "kWh"];
             flexInfoContainer.innerHTML = renderSelectInfoCards("site-peak-production", description, allowedUnits);
+        } else if (selectedOption == "site-peak-consumption-price"){
+            const description = "This value represents the price that will be paid if the site consumes more power than the site peak consumption. This value will be used in the optimization";
+            const allowedUnits = ["EUR", "EUR/MWh"];
+            flexInfoContainer.innerHTML = renderSelectInfoCards("site-peak-consumption-price", description, allowedUnits);
         } else if (selectedOption == "site-peak-production-price"){
             const description = "This value represents the price that will be paid if the site produces more power than the site peak production. This value will be used in the optimization";
-            const allowedUnits = ["sensor"];
+            const allowedUnits = ["EUR", "EUR/MWh"];
             flexInfoContainer.innerHTML = renderSelectInfoCards("site-peak-production-price", description, allowedUnits);
         } else if (selectedOption == "inflexible-device-sensors"){
             const description = "This value represents the sensors that are inflexible and cannot be controlled. These sensors will be used in the optimization";
-            const allowedUnits = ["sensor"];
+            const allowedUnits = ["sensors only"];
             flexInfoContainer.innerHTML = renderSelectInfoCards("inflexible-device-sensors", description, allowedUnits);
         }
     }
