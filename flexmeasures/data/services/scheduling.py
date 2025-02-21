@@ -364,6 +364,7 @@ def create_sequential_scheduling_job(
                 "FLEXMEASURES_PLANNING_TTL", timedelta(-1)
             ).total_seconds()
         ),  # NB job.cleanup docs says a negative number of seconds means persisting forever
+        on_success=success_callback,
         connection=current_app.queues["scheduling"].connection,
     )
 
