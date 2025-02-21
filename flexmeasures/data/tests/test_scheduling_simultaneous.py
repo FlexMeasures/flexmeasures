@@ -26,24 +26,20 @@ def test_create_simultaneous_jobs(
             "Test Battery 1h"
         ]
 
-    jobs = create_simultaneous_scheduling_job(
+    job = create_simultaneous_scheduling_job(
         asset=assets["Test Site"],
         scheduler_specs=scheduler_specs,
-        enqueue=False,
+        enqueue=True,
         **flex_description_sequential,
     )
 
-    assert (
-        len(jobs) == 1
-    ), "There should be only 1 job for scheduling the system consisting of 2 devices."
-
     # The EV is scheduled firstly.
-    assert jobs[0].kwargs["asset_or_sensor"] == {
+    assert job.kwargs["asset_or_sensor"] == {
         "id": assets["Test Site"].id,
         "class": "GenericAsset",
     }
     # It uses the inflexible-device-sensors that are defined in the flex-context, exclusively.
-    assert jobs[0].kwargs["flex_context"]["inflexible-device-sensors"] == [
+    assert job.kwargs["flex_context"]["inflexible-device-sensors"] == [
         sensors["Test Solar"].id,
         sensors["Test Building"].id,
     ]
@@ -55,16 +51,12 @@ def test_create_simultaneous_jobs(
     assert ev_power.empty
     assert battery_power.empty
 
-    # enqueue all the tasks
-    for job in jobs:
-        queue.enqueue_job(job)
-
     # work tasks
     work_on_rq(queue)
 
     # check that the jobs complete successfully
-    jobs[0].perform()
-    assert jobs[0].get_status() == "finished"
+    job.perform()
+    assert job.get_status() == "finished"
 
     # check results
     ev_power = sensors["Test EV"].search_beliefs()

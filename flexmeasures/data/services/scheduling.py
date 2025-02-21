@@ -400,7 +400,7 @@ def create_simultaneous_scheduling_job(
     depends_on: list[Job] | None = None,
     success_callback: Callable | None = None,
     **scheduler_kwargs,
-) -> list[Job]:
+) -> Job:
     # Convert (partially) deserialized fields back to serialized form
     for i, child_flex_model in enumerate(scheduler_kwargs.get("flex_model")):
         # Convert deserialized Sensor values back to serialized sensor IDs
@@ -437,7 +437,7 @@ def create_simultaneous_scheduling_job(
             asset_or_sensor_type="asset",
         )
 
-    return [job]
+    return job
 
 
 def make_schedule(
