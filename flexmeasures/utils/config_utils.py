@@ -57,9 +57,7 @@ def configure_logging():
 
 def check_app_env(env: str | None):
     if env not in (
-        "documentation",
         "development",
-        "testing",
         "staging",
         "production",
     ):
@@ -69,13 +67,37 @@ def check_app_env(env: str | None):
         sys.exit(2)
 
 
-def read_config(app: Flask, custom_path_to_config: str | None):
+def use_documentation_config(app: Flask, path_to_config: str | None = None):
+    """Use the default documentation config"""
+    app.config["ENV"] = "documentation"
+    app.config["FLEXMEASURES_ENV"] = "documentation"
+    app.config.from_object(
+        "flexmeasures.utils.config_defaults.%sConfig" % camelize("documentation")
+    )
+    read_custom_config(app, path_to_config)
+
+
+def use_testing_config(app: Flask):
+    """Use default the testing config"""
+    app.config["ENV"] = "testing"
+    app.config["FLEXMEASURES_ENV"] = "testing"
+    app.testing = True
+    app.config.from_object(
+        "flexmeasures.utils.config_defaults.%sConfig" % camelize("testing")
+    )
+    custom_test_db_uri = os.getenv("SQLALCHEMY_TEST_DATABASE_URI", None)
+    if custom_test_db_uri:
+        app.config["SQLALCHEMY_DATABASE_URI"] = custom_test_db_uri
+
+
+def read_config(
+    app: Flask,
+    custom_path_to_config: str | None,
+    env: str = DefaultConfig.FLEXMEASURES_ENV_DEFAULT,
+):
     """Read configuration from various expected sources, complain if not setup correctly."""
 
-    flexmeasures_env = DefaultConfig.FLEXMEASURES_ENV_DEFAULT
-    if app.testing:
-        flexmeasures_env = "testing"
-    elif os.getenv("FLEXMEASURES_ENV", None):
+    if os.getenv("FLEXMEASURES_ENV", None):
         flexmeasures_env = os.getenv("FLEXMEASURES_ENV", None)
     elif os.getenv("FLASK_ENV", None):
         flexmeasures_env = os.getenv("FLASK_ENV", None)
@@ -83,6 +105,8 @@ def read_config(app: Flask, custom_path_to_config: str | None):
             "'FLASK_ENV' is deprecated and replaced by FLEXMEASURES_ENV"
             " Change FLASK_ENV to FLEXMEASURES_ENV in the environment variables",
         )
+    else:
+        flexmeasures_env = env
 
     check_app_env(flexmeasures_env)
 
@@ -93,39 +117,30 @@ def read_config(app: Flask, custom_path_to_config: str | None):
 
     # Now, potentially overwrite those from config file or environment variables
 
-    # These two locations are possible (besides the custom path)
-    path_to_config_home = str(Path.home().joinpath(".flexmeasures.cfg"))
-    path_to_config_instance = os.path.join(app.instance_path, "flexmeasures.cfg")
-
     # Custom config: do not use any when testing (that should run completely on defaults)
-    if not app.testing:
-        used_path_to_config = read_custom_config(
-            app, custom_path_to_config, path_to_config_home, path_to_config_instance
-        )
-        read_env_vars(app)
-    else:  # one exception: the ability to set where the test database is
-        custom_test_db_uri = os.getenv("SQLALCHEMY_TEST_DATABASE_URI", None)
-        if custom_test_db_uri:
-            app.config["SQLALCHEMY_DATABASE_URI"] = custom_test_db_uri
+
+    used_path_to_config = read_custom_config(app, custom_path_to_config)
+    read_env_vars(app)
 
     # Check for missing values.
     # Documentation runs fine without them.
-    if not app.testing and flexmeasures_env != "documentation":
-        if not are_required_settings_complete(app):
-            if not os.path.exists(used_path_to_config):
-                print(
-                    f"You can provide these settings ― as environment variables or in your config file (e.g. {path_to_config_home} or {path_to_config_instance})."
-                )
-            else:
-                print(
-                    f"Please provide these settings ― as environment variables or in your config file ({used_path_to_config})."
-                )
-            sys.exit(2)
-        missing_fields, config_warnings = get_config_warnings(app)
-        if len(config_warnings) > 0:
-            for warning in config_warnings:
-                print(f"Warning: {warning}")
-            print(f"You might consider setting {', '.join(missing_fields)}.")
+    path_to_config_home = str(Path.home().joinpath(".flexmeasures.cfg"))
+    path_to_config_instance = os.path.join(app.instance_path, "flexmeasures.cfg")
+    if not are_required_settings_complete(app):
+        if not os.path.exists(used_path_to_config):
+            print(
+                f"You can provide these settings ― as environment variables or in your config file (e.g. {path_to_config_home} or {path_to_config_instance})."
+            )
+        else:
+            print(
+                f"Please provide these settings ― as environment variables or in your config file ({used_path_to_config})."
+            )
+        sys.exit(2)
+    missing_fields, config_warnings = get_config_warnings(app)
+    if len(config_warnings) > 0:
+        for warning in config_warnings:
+            print(f"Warning: {warning}")
+        print(f"You might consider setting {', '.join(missing_fields)}.")
 
     # Set the desired logging level on the root logger (controlling extension logging level)
     # and this app's logger.
@@ -137,7 +152,8 @@ def read_config(app: Flask, custom_path_to_config: str | None):
 
 
 def read_custom_config(
-    app: Flask, suggested_path_to_config, path_to_config_home, path_to_config_instance
+    app: Flask,
+    suggested_path_to_config,
 ) -> str:
     """
     Read in a custom config file and env vars.
@@ -147,6 +163,9 @@ def read_custom_config(
 
     Return the path to the config file.
     """
+    # These two locations are possible (besides the custom path)
+    path_to_config_home = str(Path.home().joinpath(".flexmeasures.cfg"))
+    path_to_config_instance = os.path.join(app.instance_path, "flexmeasures.cfg")
     if suggested_path_to_config is not None and not os.path.exists(
         suggested_path_to_config
     ):
