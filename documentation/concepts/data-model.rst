@@ -23,6 +23,22 @@ In essence, an asset is anything on which you collect data.
 Assets can also have a parent-child relationship with other assets.
 So, you could model a building that contains assets like solar panels, a heat pump and EV chargers.
 
+Here is an example of an asset with sub-assets:
+
+.. mermaid::
+
+    flowchart TD
+        A[Grid] <--> B(Campus)
+        B <--> C(Site 1)
+        B <--> D(Site 2)
+        
+        C <--> E[PV]
+        C <--> F[Battery]
+
+        D <--> G[PV]
+        D <--> H[Battery]
+        D <--> I[Charge\nPoint]
+
 
 Sensors
 ---------
