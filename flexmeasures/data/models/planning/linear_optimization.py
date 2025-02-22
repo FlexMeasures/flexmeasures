@@ -577,12 +577,16 @@ def device_scheduler(  # noqa C901
         }
         for c in m.c:
             costs += m.commitment_costs[c]
+            # if "device" in commitments[c].columns:
+            #   costs -= (m.commitment_downwards_deviation[c])**2 * m.down_price[c]/1000
+            #  costs += (m.commitment_upwards_deviation[c])**2 * m.up_price[c]/1000
         return costs
 
     model.costs = Objective(rule=cost_function, sense=minimize)
 
     # Solve
     solver_name = current_app.config.get("FLEXMEASURES_LP_SOLVER")
+    # solver_name = "ipopt"
 
     solver = SolverFactory(solver_name)
 

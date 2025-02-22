@@ -2704,3 +2704,186 @@ def test_multiple_devices_simultaneous_scheduler():
         device == i and pytest.approx(cost, 0.01) == expected_individual_costs[i][1]
         for i, (device, cost) in enumerate(individual_costs)
     ), "Individual costs mismatch: Costs for one or more devices are not calculated as expected."
+
+
+def test_multiple_devices_sequential_scheduler():
+    start = pd.Timestamp("2023-01-01T00:00:00")
+    end = pd.Timestamp("2023-01-02T00:00:00")
+    resolution = timedelta(hours=1)
+
+    soc_at_start = [0] * 2
+    soc_max = [1] * 2
+    soc_min = [0] * 2
+
+    start_datetime = ["2023-01-01 01:00:00"] * 2
+    target_datetime = ["2023-01-01 04:00:00", "2023-01-01 03:00:00"]
+    target_value = [1] * 2
+
+    market_prices = [
+        0.8598,
+        1.4613,
+        2430.3887,
+        3000.1779,
+        18.6619,
+        369.3274,
+        169.8719,
+        174.2279,
+        174.2279,
+        174.2279,
+        175.4258,
+        1.5697,
+        174.2763,
+        174.2279,
+        175.2564,
+        202.6992,
+        218.4413,
+        229.9242,
+        295.1069,
+        240.7174,
+        249.2479,
+        238.2732,
+        229.8395,
+        216.5779,
+    ]
+
+    def initialize_device_constraints(
+        num_devices,
+        soc_at_start,
+        soc_max,
+        soc_min,
+        target_datetime,
+        target_value,
+        start_datetime,
+    ):
+        device_constraints = []
+        for i in range(num_devices):
+            constraints = initialize_df(
+                StorageScheduler.COLUMNS, start, end, resolution
+            )
+
+            start_time = pd.Timestamp(start_datetime[i]) - timedelta(hours=1)
+
+            constraints["max"] = soc_max[i] - soc_at_start[i]
+            constraints["min"] = soc_min[i] - soc_at_start[i]
+            constraints["derivative max"] = 1
+            constraints["derivative min"] = 0
+            constraints["min"][target_datetime[i]] = target_value[i] - soc_at_start[i]
+            constraints.loc[
+                :start_time, ["max", "min", "derivative max", "derivative min"]
+            ] = 0
+            device_constraints.append(constraints)
+        return device_constraints
+
+    def initialize_device_commitments(num_devices):
+        commitments = []
+        for _ in range(num_devices):
+            commitment = initialize_df(
+                [
+                    "quantity",
+                    "downwards deviation price",
+                    "upwards deviation price",
+                    "group",
+                ],
+                start,
+                end,
+                resolution,
+            )
+            commitment["quantity"] = 0
+            commitment["downwards deviation price"] = market_prices
+            commitment["upwards deviation price"] = market_prices
+            commitment["group"] = list(range(len(commitment)))
+            commitments.append(commitment)
+        return commitments
+
+    def initialize_ems_constraints():
+        ems_constraints = initialize_df(
+            StorageScheduler.COLUMNS, start, end, resolution
+        )
+        ems_constraints["derivative max"] = 1
+        ems_constraints["derivative min"] = 0
+        return ems_constraints
+
+    def run_sequential_scheduler():
+        num_devices = len(soc_at_start)
+
+        device_constraints = initialize_device_constraints(
+            num_devices,
+            soc_at_start,
+            soc_max,
+            soc_min,
+            target_datetime,
+            target_value,
+            start_datetime,
+        )
+        commitments = initialize_device_commitments(num_devices)
+
+        ems_constraints = initialize_ems_constraints()
+
+        all_schedules = []
+        total_costs = []
+        combined_schedule = [0] * len(market_prices)
+        unmet_targets = []
+
+        for i in range(num_devices):
+            initial_stock = soc_at_start[i]
+
+            _, _, results, model = device_scheduler(
+                [device_constraints[i]],
+                ems_constraints,
+                commitments=[commitments[i]],
+                initial_stock=initial_stock,
+            )
+
+            schedule = initialize_series(
+                data=[model.ems_power[0, j].value for j in model.j],
+                start=start,
+                end=end,
+                resolution=resolution,
+            )
+            all_schedules.append(schedule)
+
+            for j in range(len(schedule)):
+                combined_schedule[j] += schedule[j]
+
+            ems_constraints["derivative max"] -= schedule
+            ems_constraints["derivative min"] -= schedule
+
+            total_cost = sum(
+                schedule[j] * market_prices[j] for j in range(len(market_prices))
+            )
+            total_costs.append(total_cost)
+
+            final_soc = initial_stock + sum(schedule)
+            if final_soc < target_value[i]:
+                unmet_targets.append((i, final_soc))
+
+        return (
+            all_schedules,
+            total_costs,
+            sum(total_costs),
+            combined_schedule,
+            unmet_targets,
+        )
+
+    schedules, costs, total_cost_all_devices, combined_schedule, unmet_targets = (
+        run_sequential_scheduler()
+    )
+
+    expected_schedules = [
+        [0, 1] + [0] * 22,
+        [0, 0, 1] + [0] * 21,
+    ]
+    expected_costs = [(0, 1.46), (1, 2430.39)]
+
+    assert all(
+        np.isclose(schedules[i], expected_schedules[i]).all()
+        for i in range(len(schedules))
+    ), "Schedules do not match expected values."
+
+    assert all(
+        pytest.approx(costs[i], 0.01) == expected_costs[i][1] for i in range(len(costs))
+    ), "Costs do not match expected values."
+
+    assert total_cost_all_devices == sum(
+        expected_cost[1] for expected_cost in expected_costs
+    ), "Total cost mismatch."
