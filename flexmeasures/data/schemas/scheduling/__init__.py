@@ -7,6 +7,7 @@ from marshmallow import (
     validates_schema,
     ValidationError,
     pre_load,
+    post_dump,
 )
 
 from flexmeasures import Sensor
@@ -293,6 +294,12 @@ class SequentialFlexModelSchema(Schema):
             else:
                 rest[k] = v
         return {"sensor-flex-model": extra, **rest}
+
+    @post_dump
+    def wrap_with_envelope(self, data, **kwargs):
+        """Any field in the 'sensor-flex-model' field becomes a main field."""
+        sensor_flex_model = data.pop("sensor-flex-model", {})
+        return dict(**data, **sensor_flex_model)
 
 
 class AssetTriggerSchema(Schema):

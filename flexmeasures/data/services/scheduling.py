@@ -31,6 +31,7 @@ from flexmeasures.data.models.planning.process import ProcessScheduler
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.generic_assets import GenericAsset as Asset
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.schemas.scheduling import SequentialFlexModelSchema
 from flexmeasures.data.utils import get_data_source, save_to_db
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.data.services.utils import (
@@ -398,16 +399,9 @@ def create_simultaneous_scheduling_job(
     **scheduler_kwargs,
 ) -> Job:
     # Convert (partially) deserialized fields back to serialized form
-    for i, child_flex_model in enumerate(scheduler_kwargs.get("flex_model")):
-        # Convert deserialized Sensor values back to serialized sensor IDs
-        scheduler_kwargs["flex_model"][i]["sensor"] = child_flex_model["sensor"].id
-        # Convert deserialized field name back to serialized form
-        sensor_flex_model = scheduler_kwargs["flex_model"][i].pop(
-            "sensor_flex_model", {}
-        )
-        scheduler_kwargs["flex_model"][i] = dict(
-            **scheduler_kwargs["flex_model"][i], **sensor_flex_model
-        )
+    scheduler_kwargs["flex_model"] = SequentialFlexModelSchema(many=True).dump(
+        scheduler_kwargs["flex_model"]
+    )
 
     job = create_scheduling_job(
         asset_or_sensor=asset,
