@@ -298,8 +298,8 @@ def create_sequential_scheduling_job(
     :param force_new_job_creation:  If True, this attribute forces a new job to be created (skipping cache).
     :param success_callback:        Callback function that runs on success
                                     (this argument is used by the @job_cache decorator).
-    :param scheduler_kwargs:        Dict containing the serialized flex-context and partially deserialized flex-model
-                                    (see example below).
+    :param scheduler_kwargs:        Dict containing start and end (both deserialized) the flex-context (serialized),
+                                    and the flex-model (partially deserialized, see example below).
     :returns:                       The wrap-up job.
 
     Example of a partially deserialized flex-model for sequential scheduling:
