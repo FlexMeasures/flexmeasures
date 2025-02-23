@@ -402,9 +402,12 @@ def create_simultaneous_scheduling_job(
         # Convert deserialized Sensor values back to serialized sensor IDs
         scheduler_kwargs["flex_model"][i]["sensor"] = child_flex_model["sensor"].id
         # Convert deserialized field name back to serialized form
-        scheduler_kwargs["flex_model"][i]["sensor-flex-model"] = scheduler_kwargs[
-            "flex_model"
-        ][i].pop("sensor_flex_model", {})
+        sensor_flex_model = scheduler_kwargs["flex_model"][i].pop(
+            "sensor_flex_model", {}
+        )
+        scheduler_kwargs["flex_model"][i] = dict(
+            **scheduler_kwargs["flex_model"][i], **sensor_flex_model
+        )
 
     job = create_scheduling_job(
         asset_or_sensor=asset,
