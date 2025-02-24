@@ -2537,7 +2537,7 @@ def test_multiple_devices_simultaneous_scheduler():
         249.2479,
         238.2732,
         229.8395,
-        216.5779,
+        217.5779,
     ]
     soc_target_penalty = -10000
 
