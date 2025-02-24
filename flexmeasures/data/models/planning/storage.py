@@ -558,6 +558,7 @@ class MetaStorageScheduler(Scheduler):
                     query_window=(start, end),
                     resolution=resolution,
                     beliefs_before=belief_time,
+                    fallback_attribute="soc-usage" if is_usage else "soc-gain",
                 )
 
                 # example: 4 MW sustained over 15 minutes gives 1 MWh
