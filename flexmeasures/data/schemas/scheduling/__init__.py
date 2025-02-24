@@ -256,7 +256,7 @@ class DBFlexContextSchema(FlexContextSchema):
             )
 
 
-class SequentialFlexModelSchema(Schema):
+class MultiSensorFlexModelSchema(Schema):
     """
 
     This schema is agnostic to the underlying type of flex-model, which is governed by the chosen Scheduler instead.
@@ -326,7 +326,7 @@ class AssetTriggerSchema(Schema):
     belief_time = AwareDateTimeField(format="iso", data_key="prior")
     duration = PlanningDurationField(load_default=PlanningDurationField.load_default)
     flex_model = fields.List(
-        fields.Nested(SequentialFlexModelSchema()),
+        fields.Nested(MultiSensorFlexModelSchema()),
         data_key="flex-model",
     )
     flex_context = fields.Dict(required=False, data_key="flex-context")

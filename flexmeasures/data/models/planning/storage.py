@@ -27,7 +27,7 @@ from flexmeasures.data.models.planning.exceptions import InfeasibleProblemExcept
 from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
 from flexmeasures.data.schemas.scheduling import (
     FlexContextSchema,
-    SequentialFlexModelSchema,
+    MultiSensorFlexModelSchema,
 )
 from flexmeasures.utils.time_utils import get_max_planning_horizon
 from flexmeasures.utils.coding_utils import deprecated
@@ -757,7 +757,9 @@ class MetaStorageScheduler(Scheduler):
             # Extend schedule period in case a target exceeds its end
             self.possibly_extend_end(soc_targets=self.flex_model.get("soc_targets"))
         elif isinstance(self.flex_model, list):
-            self.flex_model = SequentialFlexModelSchema(many=True).load(self.flex_model)
+            self.flex_model = MultiSensorFlexModelSchema(many=True).load(
+                self.flex_model
+            )
             for d, sensor_flex_model in enumerate(self.flex_model):
                 self.flex_model[d] = StorageFlexModelSchema(
                     start=self.start, sensor=sensor_flex_model["sensor"]
