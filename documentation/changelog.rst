@@ -27,6 +27,14 @@ Bugfixes
 
 
 
+v0.24.1 | February 24, 2025
+============================
+
+Bugfixes
+-----------
+* Add missing support for fallback attribute for the ``soc-usage`` and ``soc-gain`` fields of the ``flex-model`` [see `PR #1340 <https://github.com/FlexMeasures/flexmeasures/pull/1340>`_]
+
+
 v0.24.0 | January 7, 2025
 ============================
 
