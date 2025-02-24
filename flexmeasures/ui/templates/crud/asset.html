@@ -1159,7 +1159,7 @@
 
                 ${isKeyValueObject || isArray ? `
                 <div>
-                    ${sensorsContent.length > 0 ? sensorsContent.join("") : `<div class="alert alert-warning" role="alert"> No sensors added to this graph. Add sensors by selecting them from the right</div>`}
+                    ${sensorsContent.length > 0 ? sensorsContent.join("") : `<div class="alert alert-warning" role="alert"> No sensors added to this field. Add sensors by selecting them from the right.</div>`}
                 </div>
                 ` : ""}
 
@@ -1345,7 +1345,7 @@
         return `
             <div>
                 <div class="alert alert-info" role="alert">
-                    <b> About Field ${contextKey.split("-").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ")}
+                    <b> About ${contextKey.split("-").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ")}
                     <div class="pt-2 fw-normal">
                         ${description}
                     </div>
