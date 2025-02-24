@@ -303,7 +303,7 @@ def create_sequential_scheduling_job(
                                     and the flex-model (partially deserialized, see example below).
     :returns:                       The wrap-up job.
 
-    Example of a partially deserialized flex-model for sequential scheduling:
+    Example of a partially deserialized flex-model per sensor:
 
         scheduler_kwargs["flex_model"] = [
             dict(
@@ -398,6 +398,36 @@ def create_simultaneous_scheduling_job(
     success_callback: Callable | None = None,
     **scheduler_kwargs,
 ) -> Job:
+    """Create a single job to schedule all devices at once.
+
+    :param asset:                   Asset (e.g. a site) for which the schedule is computed.
+    :param job_id:                  Optionally, set a job id explicitly.
+    :param enqueue:                 If True, enqueues the job in case it is new.
+    :param requeue:                 If True, requeues the job in case it is not new and had previously failed
+                                    (this argument is used by the @job_cache decorator).
+    :param force_new_job_creation:  If True, this attribute forces a new job to be created (skipping cache).
+    :param success_callback:        Callback function that runs on success
+                                    (this argument is used by the @job_cache decorator).
+    :param scheduler_kwargs:        Dict containing start and end (both deserialized) the flex-context (serialized),
+                                    and the flex-model (partially deserialized, see example below).
+    :returns:                       The wrap-up job.
+
+    Example of a partially deserialized flex-model per sensor:
+
+        scheduler_kwargs["flex_model"] = [
+            dict(
+                sensor=<Sensor 5: power, unit: MW res.: 0:15:00>,
+                sensor_flex_model={
+                    'consumption-capacity': '10 kW',
+                },
+            ),
+            dict(
+                sensor=<deserialized sensor object>,
+                sensor_flex_model=<still serialized flex-model>,
+            ),
+        ]
+
+    """
     # Convert (partially) deserialized fields back to serialized form
     scheduler_kwargs["flex_model"] = SequentialFlexModelSchema(many=True).dump(
         scheduler_kwargs["flex_model"]
