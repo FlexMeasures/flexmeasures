@@ -238,8 +238,8 @@ def run_test_charge_discharge_sign(
     ) = scheduler._prepare(skip_validation=True)
 
     _, _, results, model = device_scheduler(
-        device_constraints,
-        ems_constraints,
+        device_constraints=device_constraints,
+        ems_constraints=ems_constraints,
         commitments=commitments,
         initial_stock=soc_at_start * (timedelta(hours=1) / resolution),
     )
@@ -1097,8 +1097,8 @@ def test_numerical_errors(app_with_each_solver, setup_planning_test_data, db):
     ) = scheduler._prepare(skip_validation=True)
 
     _, _, results, model = device_scheduler(
-        device_constraints,
-        ems_constraints,
+        device_constraints=device_constraints,
+        ems_constraints=ems_constraints,
         commitments=commitments,
         initial_stock=soc_at_start * (timedelta(hours=1) / resolution),
     )
@@ -2312,8 +2312,8 @@ def test_unavoidable_capacity_breach():
 
     def run_scheduler(device_constraints):
         _, _, results, model = device_scheduler(
-            device_constraints,
-            ems_constraints,
+            device_constraints=device_constraints,
+            ems_constraints=ems_constraints,
             commitments=commitments,
             initial_stock=soc_at_start,
         )
@@ -2444,8 +2444,8 @@ def test_multiple_commitments_per_group():
 
     def run_scheduler():
         _, _, results, model = device_scheduler(
-            device_constraints,
-            ems_constraints,
+            device_constraints=device_constraints,
+            ems_constraints=ems_constraints,
             commitments=commitments,
             initial_stock=soc_at_start,
         )
@@ -2566,7 +2566,7 @@ def test_multiple_devices_simultaneous_scheduler():
         229.8395,
         216.5779,
     ]
-    soc_target_penalty = -10000
+    soc_target_penalty = 10000
 
     def initialize_combined_constraints(
         num_devices: int, max_derivative: float = 1, min_derivative: float = 0
@@ -2628,7 +2628,7 @@ def test_multiple_devices_simultaneous_scheduler():
                 resolution,
             )
             stock_commitment["quantity"] = target_value[i] - soc_at_start[i]
-            stock_commitment["downwards deviation price"] = soc_target_penalty
+            stock_commitment["downwards deviation price"] = -soc_target_penalty
             stock_commitment["upwards deviation price"] = soc_target_penalty
             stock_commitment["group"] = list(range(len(stock_commitment)))
             commitments.append(stock_commitment)
@@ -2645,8 +2645,8 @@ def test_multiple_devices_simultaneous_scheduler():
     # Test case 1: No unmet demand
     initial_stocks = soc_at_start
     _, _, results, model = device_scheduler(
-        device_constraints,
-        ems_constraints,
+        device_constraints=device_constraints,
+        ems_constraints=ems_constraints,
         commitments=commitments,
         initial_stock=initial_stocks,
     )
@@ -2693,8 +2693,8 @@ def test_multiple_devices_simultaneous_scheduler():
         num_devices, max_derivative=0.4, min_derivative=0
     )
     _, _, results, model = device_scheduler(
-        device_constraints,
-        ems_constraints,
+        device_constraints=device_constraints,
+        ems_constraints=ems_constraints,
         commitments=commitments,
         initial_stock=initial_stocks,
     )
@@ -2834,13 +2834,13 @@ def test_multiple_devices_sequential_scheduler():
         num_devices = len(soc_at_start)
 
         device_constraints = initialize_device_constraints(
-            num_devices,
-            soc_at_start,
-            soc_max,
-            soc_min,
-            target_datetime,
-            target_value,
-            start_datetime,
+            num_devices=num_devices,
+            soc_at_start=soc_at_start,
+            soc_max=soc_max,
+            soc_min=soc_min,
+            target_datetime=target_datetime,
+            target_value=target_value,
+            start_datetime=start_datetime,
         )
         commitments = initialize_device_commitments(num_devices)
 
@@ -2855,8 +2855,8 @@ def test_multiple_devices_sequential_scheduler():
             initial_stock = soc_at_start[i]
 
             _, _, results, model = device_scheduler(
-                [device_constraints[i]],
-                ems_constraints,
+                device_constraints=[device_constraints[i]],
+                ems_constraints=ems_constraints,
                 commitments=[commitments[i]],
                 initial_stock=initial_stock,
             )
