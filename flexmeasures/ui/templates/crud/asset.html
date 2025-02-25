@@ -1109,13 +1109,6 @@
                                 <b>Asset:</b> ${Asset.name},
                                 <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
                             </div>
-                            <i class="fa fa-times"
-                                onclick="removeFlexContextSensorValue('${fieldName}', ${sensorData.id})"
-                                data-bs-toggle="tooltip"
-                                data-bs-placement="top"
-                                title="Remove Sensor"
-                                style="cursor: pointer;"
-                            ></i>
                         </div>
 
                     </div>`;
@@ -1154,7 +1147,13 @@
             <div class="row g-2 my-1 card-highlight p-1" id="${fieldName}-control">
                 <div class="mb-2 border-bottom border-secondary d-flex justify-content-between align-items-center pb-2">
                     <label id="${fieldName}-label" for="${fieldName}-control-input" class="form-label mb-0 fs-5 fw-semi-bold">${InputTitle}</label>
-                    <button class="btn btn-secondary btn-sm ms-2" id="unSetFlexField" onclick="removeFlexContextField('${fieldName}')">UnSet</button>
+                    <i class="fa fa-times"
+                        onclick="removeFlexContextField('${fieldName}')"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="top"
+                        title="Remove Sensor"
+                        style="cursor: pointer;"
+                    ></i>
                 </div>
 
                 ${isKeyValueObject || isArray ? `
