@@ -11,6 +11,8 @@ import click
 from flask import current_app as app
 from flask.cli import with_appcontext
 from rq import Queue, Worker
+from rq.job import Job
+from rq.registry import FailedJobRegistry
 from sqlalchemy.orm import configure_mappers
 from tabulate import tabulate
 
@@ -116,6 +118,63 @@ def show_queues():
             headers=["Queue", "Started", "Queued", "Deferred", "Scheduled", "Failed"],
         )
     )
+
+
+@fm_jobs.command("save-last-failed")
+@with_appcontext
+@click.option(
+    "--n",
+    type=int,
+    default=10,
+    help="The number of last jobs to save.",
+)
+@click.option(
+    "--queue",
+    "queue_name",
+    type=str,
+    default="scheduling",
+    help="The queue to look in.",
+)
+@click.option(
+    "--file",
+    type=click.Path(),
+    default="failed_jobs.txt",
+    help="The file to save the failed jobs.",
+)
+def save_last_failed(n: int, queue_name: str, file: str):
+    """
+    Save the last n failed jobs (10 by default) to a file.
+    """
+    available_queues = app.queues
+    if queue_name not in available_queues.keys():
+        click.secho(
+            f"Unknown queue '{queue_name}'. Available queues: {available_queues.keys()}",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+    else:
+        queue = available_queues[queue_name]
+
+    registry = FailedJobRegistry(queue=queue)
+    job_ids = registry.get_job_ids()[-n:]
+    failed_jobs = []
+
+    for job_id in job_ids:
+        try:
+            job = Job.fetch(job_id, connection=queue.connection)
+            failed_jobs.append(
+                f"Job ID: {job.id}, Error: {job.exc_info}, Kwargs: {job.kwargs}"
+            )
+        except Exception as e:
+            failed_jobs.append(f"Job ID: {job_id} failed to fetch with error: {str(e)}")
+
+    if failed_jobs:
+        # Save the failed jobs to the file
+        with open(file, "w") as f:
+            f.write("\n".join(failed_jobs))
+        click.secho(f"Saved {len(failed_jobs)} failed jobs to {file}.", fg="green")
+    else:
+        click.secho("No failed jobs found.", fg="yellow")
 
 
 @fm_jobs.command("clear-queue")
