@@ -4,6 +4,7 @@ CLI commands for controlling jobs
 
 from __future__ import annotations
 
+import csv
 import random
 import string
 
@@ -138,8 +139,8 @@ def show_queues():
 @click.option(
     "--file",
     type=click.Path(),
-    default="failed_jobs.txt",
-    help="The file to save the failed jobs.",
+    default="failed_jobs.csv",
+    help="The CSV file to save the failed jobs.",
 )
 def save_last_failed(n: int, queue_name: str, file: str):
     """
@@ -163,15 +164,42 @@ def save_last_failed(n: int, queue_name: str, file: str):
         try:
             job = Job.fetch(job_id, connection=queue.connection)
             failed_jobs.append(
-                f"Job ID: {job.id}, Error: {job.exc_info}, Kwargs: {job.kwargs}"
+                {
+                    "Job ID": job.id,
+                    "Error": job.exc_info,
+                    "Kwargs": job.kwargs,
+                    "Function Name": (
+                        job.func_name if hasattr(job, "func_name") else "N/A"
+                    ),  # Function name
+                    "Started At": (
+                        job.started_at if hasattr(job, "started_at") else "N/A"
+                    ),  # Start time
+                    "Ended At": (
+                        job.ended_at if hasattr(job, "ended_at") else "N/A"
+                    ),  # End time
+                }
             )
         except Exception as e:
-            failed_jobs.append(f"Job ID: {job_id} failed to fetch with error: {str(e)}")
+            click.secho(
+                f"Job {job_id} failed to fetch with error: {str(e)}", fg="yellow"
+            )
 
     if failed_jobs:
-        # Save the failed jobs to the file
-        with open(file, "w") as f:
-            f.write("\n".join(failed_jobs))
+        # Save the failed jobs to a CSV file
+        with open(file, "w", newline="") as f:
+            writer = csv.DictWriter(
+                f,
+                fieldnames=[
+                    "Job ID",
+                    "Error",
+                    "Kwargs",
+                    "Function Name",
+                    "Started At",
+                    "Ended At",
+                ],
+            )
+            writer.writeheader()  # Write column headers
+            writer.writerows(failed_jobs)  # Write job data
         click.secho(f"Saved {len(failed_jobs)} failed jobs to {file}.", fg="green")
     else:
         click.secho("No failed jobs found.", fg="yellow")
