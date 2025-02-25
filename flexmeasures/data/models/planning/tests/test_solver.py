@@ -2671,6 +2671,7 @@ def test_multiple_devices_simultaneous_scheduler():
         [0] * 4 + [1] + [0] * 19,
         [0, 1] + [0] * 22,
     ]
+    total_expected_demand = np.array(expected_schedules).sum()
     expected_individual_costs = [(0, 18.66), (1, 1.46)]
 
     # Assertions
@@ -2719,6 +2720,10 @@ def test_multiple_devices_simultaneous_scheduler():
         [0, 0.4, 0, 0, 0.4] + [0] * 19,
         [0, 0, 0.4, 0.4] + [0] * 20,
     ]
+    total_expected_demand_unmet = (
+        total_expected_demand - np.array(expected_schedules).sum()
+    )
+    assert total_expected_demand_unmet > 0
     expected_individual_costs = [(0, 8.05), (1, 2172.23)]
 
     # Assertions
