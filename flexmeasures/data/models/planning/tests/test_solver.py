@@ -1749,7 +1749,7 @@ def test_battery_stock_delta_sensor(
         (["0.5 MW", "0.5 MW"], None, 1),  # 1 MW stock gain
         (["100 kW"], None, 0.1),  # 100 MW stock gain
         (None, ["100 kW"], -0.1),  # 100 kW stock usage
-        (None, None, None),  # no gain/usage defined -> no gain or usage happens
+        (None, None, 0),  # no gain/usage defined -> the fallback usage is set to 0
     ],
 )
 def test_battery_stock_delta_quantity(
