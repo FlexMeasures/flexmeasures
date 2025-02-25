@@ -2631,6 +2631,9 @@ def test_multiple_devices_simultaneous_scheduler():
             stock_commitment["downwards deviation price"] = -soc_target_penalty
             stock_commitment["upwards deviation price"] = soc_target_penalty
             stock_commitment["group"] = list(range(len(stock_commitment)))
+            # todo: amend test for https://github.com/FlexMeasures/flexmeasures/pull/1300
+            # stock_commitment["device"] = 0
+            # stock_commitment["class"] = StockCommitment
             commitments.append(stock_commitment)
 
         return commitments
