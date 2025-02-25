@@ -2569,7 +2569,7 @@ def test_multiple_devices_simultaneous_scheduler():
     soc_target_penalty = -10000
 
     def initialize_combined_constraints(
-        num_devices, max_derivative=1, min_derivative=0
+        num_devices: int, max_derivative: float = 1, min_derivative: float = 0
     ):
         device_constraints = []
         for i in range(num_devices):
@@ -2595,7 +2595,7 @@ def test_multiple_devices_simultaneous_scheduler():
 
         return device_constraints
 
-    def initialize_combined_commitments(num_devices):
+    def initialize_combined_commitments(num_devices: int):
         commitments = []
         for _ in range(num_devices):
             energy_commitment = initialize_df(
@@ -2774,13 +2774,13 @@ def test_multiple_devices_sequential_scheduler():
     ]
 
     def initialize_device_constraints(
-        num_devices,
-        soc_at_start,
-        soc_max,
-        soc_min,
-        target_datetime,
-        target_value,
-        start_datetime,
+        num_devices: int,
+        soc_at_start: list[float],
+        soc_max: list[float],
+        soc_min: list[float],
+        target_datetime: list[str],
+        target_value: list[float],
+        start_datetime: list[str],
     ):
         device_constraints = []
         for i in range(num_devices):
@@ -2801,7 +2801,7 @@ def test_multiple_devices_sequential_scheduler():
             device_constraints.append(constraints)
         return device_constraints
 
-    def initialize_device_commitments(num_devices):
+    def initialize_device_commitments(num_devices: int):
         commitments = []
         for _ in range(num_devices):
             commitment = initialize_df(
