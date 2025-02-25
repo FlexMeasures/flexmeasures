@@ -185,7 +185,7 @@ For more details on the possible formats for field values, see :ref:`variable_qu
      - ``[{"datetime": "2024-02-05T08:00:00+01:00", value: "3.2 kWh"}]``
      - Exact set point(s) that the scheduler needs to realize (defaults to NaN values).
    * - ``soc-gain``
-     - ``.1kWh`` 
+     - ``".1kWh"``
      - SoC gain per time step, e.g. from a secondary energy source (defaults to zero).
    * - ``soc-usage``
      - ``{"sensor": 23}``
@@ -206,13 +206,13 @@ For more details on the possible formats for field values, see :ref:`variable_qu
      - ``True``
      - Tie-breaking policy to apply if conditions are stable (defaults to True, which also signals a preference to discharge later). Boolean option only.
    * - ``power-capacity``
-     - ``50kW``
+     - ``"50kW"``
      - Device-level power constraint. How much power can be applied to this asset (defaults to the Sensor attribute ``capacity_in_mw``). [#minimum_overlap]_
    * - ``consumption-capacity``
      - ``{"sensor": 56}``
      - Device-level power constraint on consumption. How much power can be drawn by this asset. [#minimum_overlap]_
    * - ``production-capacity``
-     - ``0kW`` (only consumption)
+     - ``"0kW"`` (only consumption)
      - Device-level power constraint on production. How much power can be supplied by this asset. [#minimum_overlap]_
 
 .. [#quantity_field] Can only be set as a fixed quantity.
@@ -267,19 +267,19 @@ Some examples from practice (usually industry) could be:
      - Example value
      - Description 
    * - ``power``
-     - ``15kW`` 
+     - ``"15kW"``
      - Nominal power of the load.
    * - ``duration``
-     - ``PT4H``
+     - ``"PT4H"``
      - Time that the load needs to lasts.
    * - ``optimization_direction``
-     - ``MAX``
-     - Objective of the scheduler, to maximize (``MAX``) or minimize (``MIN``).
+     - ``"MAX"``
+     - Objective of the scheduler, to maximize (``"MAX"``) or minimize (``"MIN"``).
    * - ``time_restrictions``
      - ``[{"start": "2015-01-02T08:00:00+01:00", "duration": "PT2H"}]`` 
      - Time periods in which the load cannot be scheduled to run.
    * - ``process_type``
-     - ``INFLEXIBLE``, ``SHIFTABLE`` or ``BREAKABLE``
+     - ``"INFLEXIBLE"``, ``"SHIFTABLE"`` or ``"BREAKABLE"``
      - Is the load inflexible and should it run as soon as possible? Or can the process's start time be shifted? Or can it even be broken up into smaller segments?
 
 You can review the current flex-model for processes in the code, at ``flexmeasures.data.schemas.scheduling.process.ProcessSchedulerFlexModelSchema``.
