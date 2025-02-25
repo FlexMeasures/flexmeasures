@@ -106,7 +106,6 @@ class AssetCrudUI(FlaskView):
 
             asset_form = NewAssetForm()
             asset_form.with_options()
-            asset_form.with_sensors(None, None)
             return render_flexmeasures_template(
                 "crud/asset_new.html",
                 asset_form=asset_form,
@@ -122,7 +121,6 @@ class AssetCrudUI(FlaskView):
 
         asset_form = AssetForm()
         asset_form.with_options()
-        asset_form.with_sensors(asset, asset.account_id)
 
         asset_form.process(data=process_internal_api_response(asset_dict))
 
@@ -185,9 +183,6 @@ class AssetCrudUI(FlaskView):
             account, account_error = asset_form.set_account()
             asset_type, asset_type_error = asset_form.set_asset_type()
 
-            account_id = account.id if account else None
-            asset_form.with_sensors(None, account_id)
-
             form_valid = asset_form.validate_on_submit()
 
             # Fill up the form with useful errors for the user
@@ -238,7 +233,6 @@ class AssetCrudUI(FlaskView):
             asset = db.session.get(GenericAsset, id)
             asset_form = AssetForm()
             asset_form.with_options()
-            asset_form.with_sensors(asset, asset.account_id)
             if not asset_form.validate_on_submit():
                 # Display the form data, but set some extra data which the page wants to show.
                 asset_info = asset_form.to_json()

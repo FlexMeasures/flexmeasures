@@ -10,7 +10,7 @@ So far we haven't taken into account any other devices that consume or produce e
 
 What if other devices will be using some of that capacity? Our schedules need to reflect that, so we stay within given limits.
 
-.. note:: The capacity is given by ``capacity_in_mw``, an attribute we placed on the battery asset earlier (see :ref:`tut_toy_schedule`). We will tell FlexMeasures to take the solar production into account (using ``--inflexible-device-sensor``) for this capacity limit.
+.. note:: The capacity is given by ``site-power-capacity``, an attribute we placed on the battery asset earlier (see :ref:`tut_toy_schedule`). We will tell FlexMeasures to take the solar production into account (using ``--inflexible-device-sensor``) for this capacity limit.
 
 We'll now add solar production forecast data and then ask for a new schedule, to see the effect of solar on the available headroom for the battery.
 
@@ -75,7 +75,7 @@ The one-hour CSV data is automatically resampled to the 15-minute resolution of 
 Trigger an updated schedule
 ----------------------------
 
-Now, we'll reschedule the battery while taking into account the solar production. This will have an effect on the available headroom for the battery, given the ``capacity_in_mw`` limit discussed earlier.
+Now, we'll reschedule the battery while taking into account the solar production. This will have an effect on the available headroom for the battery, given the ``site-power-capacity`` limit discussed earlier.
 
 .. code-block:: bash
 
@@ -99,7 +99,7 @@ The `asset page for the battery <http://localhost:5000/assets/3>`_ now shows the
 
 Though this schedule is quite similar, we can see that it has changed from `the one we computed earlier <https://raw.githubusercontent.com/FlexMeasures/screenshots/main/tut/toy-schedule/asset-view-without-solar.png>`_ (when we did not take solar into account).
 
-First, during the sunny hours of the day, when solar power is being send to the grid, the battery's output (at around 9am and 11am) is now lower, as the battery shares ``capacity_in_mw`` with the solar production. In the evening (around 7pm), when solar power is basically not present anymore, battery discharging to the grid is still at its previous levels.
+First, during the sunny hours of the day, when solar power is being send to the grid, the battery's output (at around 9am and 11am) is now lower, as the battery shares the ``site-power-capacity`` with the solar production. In the evening (around 7pm), when solar power is basically not present anymore, battery discharging to the grid is still at its previous levels.
 
 Second, charging of the battery is also changed a bit (around 10am), as less can be discharged later.
 
