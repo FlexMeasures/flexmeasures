@@ -8,10 +8,7 @@ from rq.job import Job
 from unittest.mock import patch
 
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
-from flexmeasures.data.models.generic_assets import (
-    GenericAsset,
-    GenericAssetInflexibleSensorRelationship,
-)
+from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.planning.utils import get_prices, get_power_values
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.tests.utils import work_on_rq
@@ -253,17 +250,17 @@ def test_price_sensor_priority(
         f"{other_sensors[sensor_type]}-price-sensor",
     )
 
-    sensor_attribute = f"{sensor_type}_price_sensor_id"
+    sensor_attribute = f"{sensor_type}-price-sensor"
     # preparation: ensure the asset actually has the price sensor set as attribute
     if asset_sensor:
         price_sensor_id = add_market_prices_fresh_db[asset_sensor].id
         battery_asset = add_battery_assets_fresh_db[asset_name]
-        setattr(battery_asset, sensor_attribute, price_sensor_id)
+        battery_asset.flex_context[sensor_attribute] = price_sensor_id
         fresh_db.session.add(battery_asset)
     if parent_sensor:
         price_sensor_id = add_market_prices_fresh_db[parent_sensor].id
         building_asset = add_battery_assets_fresh_db["Test building"]
-        setattr(building_asset, sensor_attribute, price_sensor_id)
+        building_asset.flex_context[sensor_attribute] = price_sensor_id
         fresh_db.session.add(building_asset)
 
     # Adding unused sensor to context (e.g. consumption price sensor if we test production sensor)
@@ -346,7 +343,7 @@ def test_inflexible_device_sensors_priority(
     if context_sensor_num:
         other_asset = add_battery_assets_fresh_db["Test small battery"]
         context_sensors = setup_inflexible_device_sensors(
-            fresh_db, other_asset, "other asset senssors", context_sensor_num
+            fresh_db, other_asset, "other asset sensors", context_sensor_num
         )
         message["flex-context"]["inflexible-device-sensors"] = [
             sensor.id for sensor in context_sensors
@@ -558,8 +555,8 @@ def setup_inflexible_device_sensors(fresh_db, asset, sensor_name, sensor_num):
 
 
 def link_sensors(fresh_db, asset, sensors):
-    for sensor in sensors:
-        asset_inflexible_sensor_relationship = GenericAssetInflexibleSensorRelationship(
-            generic_asset_id=asset.id, inflexible_sensor_id=sensor.id
-        )
-        fresh_db.session.add(asset_inflexible_sensor_relationship)
+    asset.flex_context.setdefault("inflexible-device-sensors", list())
+    asset.flex_context["inflexible-device-sensors"].extend(
+        [sensor.id for sensor in sensors]
+    )
+    fresh_db.session.add(asset)

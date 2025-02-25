@@ -25,7 +25,8 @@ This is described by:
 - :ref:`Flex-models <flex_models_and_schedulers>`  ― information about the state and possible actions of the flexible device. We will discuss these per scheduled device type.
 
 This information goes beyond the usual time series recorded by an asset's sensors. It's being sent through the API when triggering schedule computation.
-Some parts of it can be persisted on the asset & sensor model as attributes (that's design work in progress).
+Some of the information can also be stored on the FlexMeasures server (persisted in the database), and will be editable through the UI (that's design work in progress).
+Specifically, flex-context fields can be persisted on the asset model, while most flex-model fields can be persisted on the asset & sensor model (that's also design work in progress, especially in relation to asset hierarchies).
 
 Let's dive into the details ― what can you tell FlexMeasures about your optimization problem?
 
@@ -66,11 +67,11 @@ For more details on the possible formats for field values, see :ref:`variable_qu
        Can be (a sensor recording) market prices, but also CO₂ intensity - whatever fits your optimization problem, as long as the unit matches the ``consumption-price`` unit. (This field replaced the ``production-price-sensor`` field. [#old_sensor_field]_)
    * - ``site-power-capacity``
      - ``"45kVA"``
-     - Maximum achievable power at the grid connection point, in either direction [#asymmetric]_ (defaults to the Asset attribute ``capacity_in_mw``).
+     - Maximum achievable power at the grid connection point, in either direction [#asymmetric]_.
        Becomes a hard constraint in the optimization problem, which is especially suitable for physical limitations. [#minimum_capacity_overlap]_
    * - ``site-consumption-capacity``
      - ``"45kW"``
-     - Maximum consumption power at the grid connection point (defaults to the Asset attribute ``consumption_capacity_in_mw``).
+     - Maximum consumption power at the grid connection point.
        If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-consumption-capacity`` will be used. [#consumption]_
        If a ``site-consumption-breach-price`` is defined, the ``site-consumption-capacity`` becomes a soft constraint in the optimization problem.
        Otherwise, it becomes a hard constraint. [#minimum_capacity_overlap]_
@@ -81,7 +82,7 @@ For more details on the possible formats for field values, see :ref:`variable_qu
        The price is applied both to the largest breach in the planning window and to each breach that occurs. [#penalty_field]_
    * - ``site-production-capacity``
      - ``"0kW"``
-     - Maximum production power at the grid connection point (defaults to the Asset attribute ``production_capacity_in_mw``).
+     - Maximum production power at the grid connection point.
        If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-production-capacity`` will be used. [#production]_
        If a ``site-production-breach-price`` is defined, the ``site-production-capacity`` becomes a soft constraint in the optimization problem.
        Otherwise, it becomes a hard constraint. [#minimum_capacity_overlap]_

@@ -200,8 +200,12 @@ def run_test_charge_discharge_sign(
     storage_efficiency = 1
     # Choose the SoC constraints and starting value such that the battery can fully charge or discharge in a single time step
     soc_min = 0
-    soc_max = battery.get_attribute("capacity_in_mw")
-    soc_at_start = battery.get_attribute("capacity_in_mw")
+    capacity = battery.get_attribute(
+        "capacity_in_mw",
+        ur.Quantity(battery.get_attribute("site-power-capacity")).to("MW").magnitude,
+    )
+    soc_max = capacity
+    soc_at_start = capacity
 
     scheduler: Scheduler = StorageScheduler(
         battery,
@@ -217,8 +221,8 @@ def run_test_charge_discharge_sign(
             "prefer-charging-sooner": True,
         },
         flex_context={
-            "consumption-price-sensor": consumption_price_sensor_id,
-            "production-price-sensor": production_price_sensor_id,
+            "consumption-price": {"sensor": consumption_price_sensor_id},
+            "production-price": {"sensor": production_price_sensor_id},
         },
     )
 
@@ -329,9 +333,13 @@ def test_battery_solver_day_3(add_battery_assets, add_inflexible_device_forecast
     assert all(schedule_3[8:] <= 0)
 
     # discharge the whole battery in 1 time period
+    capacity = battery.get_attribute(
+        "capacity_in_mw",
+        ur.Quantity(battery.get_attribute("site-power-capacity")).to("MW").magnitude,
+    )
     assert np.isclose(
         schedule_3.min(),
-        -battery.get_attribute("capacity_in_mw") * np.sqrt(roundtrip_efficiency),
+        -capacity * np.sqrt(roundtrip_efficiency),
     )
 
     # Case 4: Consumption Price > Production Price, roundtrip_efficiency < 1
@@ -343,7 +351,7 @@ def test_battery_solver_day_3(add_battery_assets, add_inflexible_device_forecast
     assert all(schedule_4[8:] <= 0)
 
     # discharge the whole battery in 1 time period, with no conversion losses
-    assert np.isclose(schedule_4.min(), -battery.get_attribute("capacity_in_mw"))
+    assert np.isclose(schedule_4.min(), -capacity)
 
 
 @pytest.mark.parametrize(
@@ -367,7 +375,13 @@ def test_charging_station_solver_day_2(
 
     epex_da = get_test_sensor(db)
     charging_station = setup_planning_test_data[charging_station_name].sensors[0]
-    assert charging_station.get_attribute("capacity_in_mw") == 2
+    capacity = charging_station.get_attribute(
+        "capacity_in_mw",
+        ur.Quantity(charging_station.get_attribute("site-power-capacity"))
+        .to("MW")
+        .magnitude,
+    )
+    assert capacity == 2
     assert charging_station.get_attribute("market_id") == epex_da.id
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 2))
@@ -405,14 +419,8 @@ def test_charging_station_solver_day_2(
     )
 
     # Check if constraints were met
-    assert (
-        min(consumption_schedule.values)
-        >= charging_station.get_attribute("capacity_in_mw") * -1
-    )
-    assert (
-        max(consumption_schedule.values)
-        <= charging_station.get_attribute("capacity_in_mw") + TOLERANCE
-    )
+    assert min(consumption_schedule.values) >= capacity * -1
+    assert max(consumption_schedule.values) <= capacity + TOLERANCE
     print(consumption_schedule.head(12))
     print(soc_schedule.head(12))
     assert abs(soc_schedule.loc[target_soc_datetime] - target_soc) < TOLERANCE
@@ -446,7 +454,13 @@ def test_fallback_to_unsolvable_problem(
 
     epex_da = get_test_sensor(db)
     charging_station = setup_planning_test_data[charging_station_name].sensors[0]
-    assert charging_station.get_attribute("capacity_in_mw") == 2
+    capacity = charging_station.get_attribute(
+        "capacity_in_mw",
+        ur.Quantity(charging_station.get_attribute("site-power-capacity"))
+        .to("MW")
+        .magnitude,
+    )
+    assert capacity == 2
     assert charging_station.get_attribute("market_id") == epex_da.id
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 2))
@@ -494,13 +508,8 @@ def test_fallback_to_unsolvable_problem(
     )
 
     # Check if constraints were met
-    assert (
-        min(consumption_schedule.values)
-        >= charging_station.get_attribute("capacity_in_mw") * -1
-    )
-    assert max(consumption_schedule.values) <= charging_station.get_attribute(
-        "capacity_in_mw"
-    )
+    assert min(consumption_schedule.values) >= capacity * -1
+    assert max(consumption_schedule.values) <= capacity
     print(consumption_schedule.head(12))
     print(soc_schedule.head(12))
     assert (
@@ -574,8 +583,8 @@ def test_building_solver_day_2(
         },
         flex_context={
             "inflexible_device_sensors": inflexible_devices.values(),
-            "production_price_sensor": production_price_sensor,
-            "consumption_price_sensor": consumption_price_sensor,
+            "production_price": production_price_sensor,
+            "consumption_price": consumption_price_sensor,
         },
     )
     scheduler.config_deserialized = (
@@ -605,15 +614,22 @@ def test_building_solver_day_2(
     ).tail(
         -4 * 24
     )  # remove first 96 quarter-hours (the schedule is about the 2nd day)
-    capacity["max"] = building.get_attribute("capacity_in_mw")
-    capacity["min"] = -building.get_attribute("capacity_in_mw")
+    building_capacity = building.get_attribute(
+        "capacity_in_mw",
+        ur.Quantity(building.get_attribute("site-power-capacity")).to("MW").magnitude,
+    )
+    battery_capacity = battery.get_attribute(
+        "capacity_in_mw"
+    )  # actually a Sensor attribute
+    capacity["max"] = building_capacity
+    capacity["min"] = -building_capacity
     capacity["production headroom"] = capacity["max"] - capacity["inflexible"]
     capacity["consumption headroom"] = capacity["inflexible"] - capacity["min"]
     capacity["battery production headroom"] = capacity["production headroom"].clip(
-        upper=battery.get_attribute("capacity_in_mw")
+        upper=battery_capacity
     )
     capacity["battery consumption headroom"] = capacity["consumption headroom"].clip(
-        upper=battery.get_attribute("capacity_in_mw")
+        upper=battery_capacity
     )
     capacity["schedule"] = (
         schedule.values
@@ -1030,7 +1046,13 @@ def test_numerical_errors(app_with_each_solver, setup_planning_test_data, db):
     charging_station = setup_planning_test_data[
         "Test charging station (bidirectional)"
     ].sensors[0]
-    assert charging_station.get_attribute("capacity_in_mw") == 2
+    capacity = charging_station.get_attribute(
+        "capacity_in_mw",
+        ur.Quantity(charging_station.get_attribute("site-power-capacity"))
+        .to("MW")
+        .magnitude,
+    )
+    assert capacity == 2
     assert charging_station.get_attribute("market_id") == epex_da.id
 
     tz = pytz.timezone("Europe/Amsterdam")
@@ -1210,8 +1232,8 @@ def test_capacity(
     }
 
     flex_context = {
-        "production-price-sensor": add_market_prices["epex_da_production"].id,
-        "consumption-price-sensor": add_market_prices["epex_da"].id,
+        "production-price": {"sensor": add_market_prices["epex_da_production"].id},
+        "consumption-price": {"sensor": add_market_prices["epex_da"].id},
     }
 
     def set_if_not_none(dictionary, key, value):
@@ -1676,7 +1698,12 @@ def test_battery_stock_delta_sensor(
     end = tz.localize(datetime(2015, 1, 2))
     resolution = timedelta(minutes=15)
     stock_delta_sensor_obj = add_stock_delta[stock_delta_sensor]
-    capacity = stock_delta_sensor_obj.get_attribute("capacity_in_mw")
+    capacity = stock_delta_sensor_obj.get_attribute(
+        "capacity_in_mw",
+        ur.Quantity(stock_delta_sensor_obj.get_attribute("site-power-capacity"))
+        .to("MW")
+        .magnitude,
+    )
 
     scheduler: Scheduler = StorageScheduler(
         battery,
@@ -2001,8 +2028,8 @@ def test_soc_maxima_minima_targets(db, add_battery_assets, soc_sensors):
             flex_model=flex_model,
             flex_context={
                 "site-power-capacity": "100 MW",
-                "production-price-sensor": epex_da.id,
-                "consumption-price-sensor": epex_da.id,
+                "production-price": {"sensor": epex_da.id},
+                "consumption-price": {"sensor": epex_da.id},
             },
         )
         return scheduler.compute()
