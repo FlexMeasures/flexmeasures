@@ -20,6 +20,7 @@ Infrastructure / Support
 * Extra reporter tests [see `PR #1317 <https://github.com/FlexMeasures/flexmeasures/pull/1317>`_]
 * Catch invalid time windows passed to ``flexmeasures add report`` [see `PR #1324 <https://github.com/FlexMeasures/flexmeasures/pull/1324>`_]
 * Update cache and Ubuntu versions used for testing in GitHub Actions [see `PR #1329 <https://github.com/FlexMeasures/flexmeasures/pull/1329>`_]
+* Test utility function for device scheduling in a multi-asset setting (sequential and simultaneous) [see `PR #1341 <https://github.com/FlexMeasures/flexmeasures/pull/1341>`_]
 
 Bugfixes
 -----------
