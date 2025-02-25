@@ -185,10 +185,10 @@ For more details on the possible formats for field values, see :ref:`variable_qu
      - ``[{"datetime": "2024-02-05T08:00:00+01:00", value: "3.2 kWh"}]``
      - Exact set point(s) that the scheduler needs to realize (defaults to NaN values).
    * - ``soc-gain``
-     - ``".1kWh"``
+     - ``[".1kWh"]``
      - SoC gain per time step, e.g. from a secondary energy source (defaults to zero).
    * - ``soc-usage``
-     - ``{"sensor": 23}``
+     - ``[{"sensor": 23}]``
      - SoC reduction per time step, e.g. from a load or heat sink (defaults to zero).
    * - ``roundtrip-efficiency``
      - ``"90%"``
