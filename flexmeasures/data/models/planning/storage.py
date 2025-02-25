@@ -544,12 +544,16 @@ class MetaStorageScheduler(Scheduler):
                 )
             )
 
-        soc_gain = self.flex_model.get("soc_gain", [])
-        soc_usage = self.flex_model.get("soc_usage", [])
+        soc_gain = self.flex_model.get("soc_gain")
+        soc_usage = self.flex_model.get("soc_usage")
 
         all_stock_delta = []
 
         for is_usage, soc_delta in zip([False, True], [soc_gain, soc_usage]):
+            if soc_delta is None:
+                # Try to get fallback
+                soc_delta = [None]
+
             for component in soc_delta:
                 stock_delta_series = get_continuous_series_sensor_or_quantity(
                     variable_quantity=component,
