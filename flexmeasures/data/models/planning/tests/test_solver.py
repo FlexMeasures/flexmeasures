@@ -25,6 +25,7 @@ from flexmeasures.data.models.planning.tests.utils import (
     get_sensors_from_db,
 )
 from flexmeasures.data.models.planning.utils import initialize_series, initialize_df
+from flexmeasures.data.models.planning import StockCommitment
 from flexmeasures.data.schemas.sensors import TimedEventSchema
 from flexmeasures.utils.calculations import (
     apply_stock_changes_and_losses,
@@ -2633,9 +2634,8 @@ def test_multiple_devices_simultaneous_scheduler():
             stock_commitment["downwards deviation price"] = -soc_target_penalty
             stock_commitment["upwards deviation price"] = soc_target_penalty
             stock_commitment["group"] = list(range(len(stock_commitment)))
-            # todo: amend test for https://github.com/FlexMeasures/flexmeasures/pull/1300
-            # stock_commitment["device"] = 0
-            # stock_commitment["class"] = StockCommitment
+            stock_commitment["device"] = 0
+            stock_commitment["class"] = StockCommitment
             commitments.append(stock_commitment)
 
         return commitments
