@@ -466,25 +466,9 @@
 
                                 <hr class="border border-dark" />
 
-                                <!-- Flex InputTypes -->
-                                <div id="flexInputsContainer" class="mt-3"></div>
+                                <div id="flexOptionsContainer" class="mt-3"></div>
 
-                                <!-- Filtered or Searched Sensors -->
-                                <div id="power-capacity-input" class="flex-input-group mb-4" style="display:none;">
-                                    <label for="power-capacity" class="form-label">Power Capacity</label>
-                                    <input type="text" id="power-capacity" class="form-control"
-                                        placeholder="e.g. 15000 kW">
-                                    <button class="btn btn-secondary btn-sm me-2 mt-2"
-                                        onclick="udpateFlexContextFieldValue('power', 0)">Set Value</button>
-                                </div>
-
-                                <div id="select-sensor-input" class="flex-input-group mb-4" style="display:none;">
-                                    <label for="sensor" class="form-label">Look up Sensor: </label>
-                                    <input type="text" id="flexContextSensorSearch" class="form-control"
-                                        placeholder="Search sensors..." oninput="searchSensors()" />
-
-                                    <div id="sensorsSearchResults" class="row mt-3" style="display: none;"></div>
-                                </div>
+                                <div id="sensorsSearchResults" class="row mt-3" style="display: none;"></div>
                             </div>
 
                         </div>
@@ -514,7 +498,7 @@
     const flexContexFormModal = document.getElementById('flexContextModal');
     const flexSelect = document.getElementById('flexSelect');
     const flexInfoContainer = document.getElementById('flexInfoContainer');
-    const flexInputsContainer = document.getElementById('flexInputsContainer');
+    const flexOptionsContainer = document.getElementById('flexOptionsContainer');
 
 
     let assetFlexContext = {
@@ -545,22 +529,6 @@
             assetFlexContext[key] = null;
         }
     }
-    $(document).ready(function () {
-        // Use event delegation to handle dynamically added elements
-        $(document).on('change', '[id^="input-type-"]', function () {
-            let selectedOption = $(this).val();
-            $('.flex-input-group').hide();
-
-            if (selectedOption === 'power-capacity') {
-                $('#power-capacity-input').show();
-            } else if (selectedOption === 'select-sensor') {
-                $('#select-sensor-input').show();
-            }
-        });
-
-        // Trigger the change event initially to show the default option's input
-        $('#input-type-site-power-capacity').trigger('change');
-    });
 
     const formModal = document.getElementById('sensorsToShowModal');
     const apiSensorsListElement = document.getElementById("apiSensorsList");
@@ -1099,7 +1067,7 @@
                     const Account = await getAccount(Asset.account_id);
 
                     return `
-                    <div class="p-1 mb-3 border-bottom border-secondary">
+                    <div class="p-1 mb-3">
                         <div class="d-flex justify-content-between">
                             <div>
                                 <b>ID:</b> <a href="${apiBasePath}/sensors/${sensorData.id}">${sensorData.id}</a>,
@@ -1121,7 +1089,7 @@
                     const Account = await getAccount(Asset.account_id);
 
                     return `
-                    <div class="p-1 mb-3 border-bottom border-secondary">
+                    <div class="p-1 mb-3">
                         <div class="d-flex justify-content-between">
                             <div>
                                 <b>ID:</b> <a href="${apiBasePath}/sensors/${sensorData.id}">${sensorData.id}</a>,
@@ -1144,8 +1112,8 @@
         }
 
         return `
-            <div class="row g-2 my-1 card-highlight p-1" id="${fieldName}-control">
-                <div class="mb-2 border-bottom border-secondary d-flex justify-content-between align-items-center pb-2">
+            <div class="row g-2 my-1 card-highlight p-1 ${isString ? "bg-fixed-val" : "bg-dynamic-val"}" id="${fieldName}-control">
+                <div class="mb-2 d-flex justify-content-between align-items-center pb-2">
                     <label id="${fieldName}-label" for="${fieldName}-control-input" class="form-label mb-0 fs-5 fw-semi-bold">${InputTitle}</label>
                     <i class="fa fa-times"
                         onclick="removeFlexContextField('${fieldName}')"
@@ -1163,8 +1131,8 @@
                 ` : ""}
 
                 ${isString ? `
-                <div class="shadow-sm border border-secondary p-2">
-                    <span class="fw-light fs-5">${newFieldValue ? newFieldValue : "<i>Not Set</i>"}</span>
+                <div class="shadow-sm pb-2 px-2">
+                    <span class="fw-light fs-4">${newFieldValue ? newFieldValue : "<i>Not Set</i>"}</span>
                 </div>
                 ` : ""}
             </div>
@@ -1214,7 +1182,7 @@
             return;
         }
         assetFlexContext[fieldName] = "";
-        flexInputsContainer.innerHTML = "";
+        flexOptionsContainer.innerHTML = "";
         await renderFlexContextForm(); // im rendring here so te card with the 'border-on-click' class is updated/exists
         const card = document.getElementById(`${fieldName}-control`);
         selectFlexField(card);
@@ -1232,13 +1200,33 @@
 
     function renderFlexInputOptions(contextKey, isArray = false) {
         return `
-            <div class="mb-3">
-                <label for="input-type-${contextKey}" class="form-label">Choose how to specify the currently-selected field:</label>
-                <select id="input-type-${contextKey}" class="form-select">
-                    <option value="select-type">Select Type</option>
-                    ${isArray ? "" : `<option value="power-capacity">As a Fixed Value</option>`}
-                    <option value="select-sensor">As dynamic value (a Sensor)</option>
-                </select>
+            <ul class="nav nav-pills mb-3" id="pills-tab" role="tablist">
+                <li class="nav-item " role="presentation">
+                    <button class="nav-link active fixed-val" id="pills-homfixed" data-bs-toggle="pill" data-bs-target="#pills-fixed" type="button" role="tab" aria-controls="pills-fixed" aria-selected="true">Fixed Value</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link dynamic-val" id="pills-dynamic-tab" data-bs-toggle="pill" data-bs-target="#pills-dynamic" type="button" role="tab" aria-controls="pills-dynamic" aria-selected="false">Dynamic Value(a Sensor)</button>
+                </li>
+            </ul>
+            
+            <div class="tab-content" id="pills-tabContent">
+                <div class="tab-pane fade show active bg-fixed-val rounded" id="pills-fixed" role="tabpanel" aria-labelledby="pills-fixed-tab">
+                    <div id="power-capacity-input" class="flex-input-group mb-4 p-2">
+                        <label for="power-capacity" class="form-label">Power Capacity</label>
+                        <input type="text" id="power-capacity" class="form-control"
+                            placeholder="e.g. 15000 kW">
+                        <button class="btn btn-secondary btn-sm me-2 mt-2"
+                            onclick="udpateFlexContextFieldValue('power', 0)">Set Value</button>
+                    </div>
+                </div>
+
+                <div class="tab-pane fade bg-dynamic-val rounded" id="pills-dynamic" role="tabpanel" aria-labelledby="pills-dynamic-tab">
+                    <div id="select-sensor-input" class="flex-input-group mb-4 p-2">
+                        <label for="sensor" class="form-label">Look up Sensor: </label>
+                        <input type="text" id="flexContextSensorSearch" class="form-control"
+                            placeholder="Search sensors..." oninput="searchSensors()" />
+                    </div>
+                </div>
             </div>
         `;
     }
@@ -1249,22 +1237,22 @@
                 // Pass
             } else {
                 document.querySelectorAll(".card-highlight").forEach(el => el.classList.remove("border-on-click"));
-                flexInputsContainer.innerHTML = "";
+                flexOptionsContainer.innerHTML = "";
                 highlightedCard.classList.add("border-on-click");
                 const cardLabel = highlightedCard.querySelector("label");
                 if (cardLabel) {
                     // remvoe "-label" at the end leaing the flexcontext key
                     const flexKey = cardLabel.id.slice(0, -6);
                     if (flexKey !== "inflexible-device-sensors") {
-                        flexInputsContainer.innerHTML = renderFlexInputOptions(flexKey);
+                        flexOptionsContainer.innerHTML = renderFlexInputOptions(flexKey);
                     } else {
-                        flexInputsContainer.innerHTML = renderFlexInputOptions(flexKey, true);
+                        flexOptionsContainer.innerHTML = renderFlexInputOptions(flexKey, true);
                     }
                 }
             }
         } else {
             document.querySelectorAll(".card-highlight").forEach(el => el.classList.remove("border-on-click"));
-            flexInputsContainer.innerHTML = "";
+            flexOptionsContainer.innerHTML = "";
         }
     }
     // ============== Flex Context Management END ============== //
@@ -1312,7 +1300,7 @@
                 // Pass
             } else {
                 document.querySelectorAll(".card-highlight").forEach(el => el.classList.remove("border-on-click"));
-                flexInputsContainer.innerHTML = "";
+                flexOptionsContainer.innerHTML = "";
                 card.classList.add("border-on-click");
                 const cardLabel = card.querySelector("label");
                 if (cardLabel) {
@@ -1321,9 +1309,9 @@
                     // fire event for flexSelect change
                     handleFlexSelectChange(flexKey);
                     if (flexKey !== "inflexible-device-sensors") {
-                        flexInputsContainer.innerHTML = renderFlexInputOptions(flexKey);
+                        flexOptionsContainer.innerHTML = renderFlexInputOptions(flexKey);
                     } else {
-                        flexInputsContainer.innerHTML = renderFlexInputOptions(flexKey, true);
+                        flexOptionsContainer.innerHTML = renderFlexInputOptions(flexKey, true);
                     }
                 }
                 renderGraphCards();

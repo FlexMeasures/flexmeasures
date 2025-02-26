@@ -1,4 +1,4 @@
-/*
+my/*
   Styling for the FlexMeasures Platform
 */
 /* 
@@ -1918,7 +1918,7 @@ body.touched [title]:hover:after {
 .table-responsive{
     padding: 20px;
 }
-
+dynafixedmic
 .border-on-click {
     border: 2px solid var(--primary-color);
     border-radius: 4px;
@@ -1930,4 +1930,34 @@ body.touched [title]:hover:after {
 
 .dropdown-toggle.fa-info::after {
     content: none;
+}
+
+button.nav-link.fixed-val.active {
+    background-color: #479f76 !important;
+    color: var(--white);
+}
+
+button.fixed-val.nav-link {
+    background-color: var(--white) !important;
+    color: #479f76;
+}
+
+button.nav-link.dynamic-val.active {
+    background-color: #198754 !important;
+    color: var(--white);
+}
+
+button.dynamic-val.nav-link {
+    background-color: var(--white) !important;
+    color: #198754;
+}
+
+.bg-fixed-val{
+    background-color: #479f76;
+    color: var(--white);
+}
+
+.bg-dynamic-val{
+    background-color: #198754;
+    color: var(--white);
 }
