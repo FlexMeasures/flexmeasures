@@ -1932,6 +1932,7 @@ dynafixedmic
     content: none;
 }
 
+/* FlexContext Modal Dialogue - Start */
 button.nav-link.fixed-val.active {
     background-color: #479f76 !important;
     color: var(--white);
@@ -1961,3 +1962,4 @@ button.dynamic-val.nav-link {
     background-color: #198754;
     color: var(--white);
 }
+/* FlexContext Modal Dialogue - End*/
