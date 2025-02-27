@@ -23,8 +23,6 @@ Infrastructure / Support
 
 Bugfixes
 -----------
-* Fix map not loading when editing an asset [see `PR #1310 <https://github.com/FlexMeasures/flexmeasures/pull/1310>`_]
-
 
 
 v0.24.1 | February 24, 2025
@@ -32,6 +30,7 @@ v0.24.1 | February 24, 2025
 
 Bugfixes
 -----------
+* Fix map not loading when editing an asset [see `PR #1310 <https://github.com/FlexMeasures/flexmeasures/pull/1310>`_]
 * Add missing support for fallback attribute for the ``soc-usage`` and ``soc-gain`` fields of the ``flex-model`` [see `PR #1340 <https://github.com/FlexMeasures/flexmeasures/pull/1340>`_]
 
 
