@@ -1679,12 +1679,7 @@ def test_battery_stock_delta_sensor(
         stock_delta_sensor_obj = add_stock_delta[stock_delta_sensor]
     else:
         stock_delta_sensor_obj = add_stock_delta["delta"]
-    capacity = stock_delta_sensor_obj.get_attribute(
-        "capacity_in_mw",
-        ur.Quantity(stock_delta_sensor_obj.get_attribute("site-power-capacity"))
-        .to("MW")
-        .magnitude,
-    )
+    capacity = stock_delta_sensor_obj.get_attribute("capacity_in_mw")
     flex_model = {
         "soc-max": 2,
         "soc-min": 0,
