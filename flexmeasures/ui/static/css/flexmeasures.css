@@ -1933,45 +1933,33 @@ body.touched [title]:hover:after {
 }
 
 /* FlexContext Modal Dialogue - Start */
-button.nav-link.fixed-val.active {
-    background-color: #479f76 !important;
-    color: var(--white);
+.bg-fixed-val.nav-link.active {
+    background-color: #E0F2E0 !important;
     border-bottom: 0 !important;
 }
 
-button.fixed-val.nav-link {
+.bg-dynamic-val.nav-link.active {
+    background-color: #C2E8C2 !important;
+    border-bottom: 0 !important;
+}
+
+.bg-fixed-val.nav-link {
     background-color: var(--white) !important;
     color: #000;
 }
 
-button.nav-link.dynamic-val.active {
-    background-color: #198754 !important;
-    color: var(--white);
-    border-bottom: 0 !important;
-}
-
-button.dynamic-val.nav-link {
+.bg-dynamic-val.nav-link {
     background-color: var(--white) !important;
     color: #000;
 }
 
 .bg-fixed-val{
-    background-color: #f4f4f2;
+    background-color: #E0F2E0 !important;
     color: #000;
 }
 
 .bg-dynamic-val{
-    background-color: #f4f7f5;
+    background-color: #C2E8C2 !important;
     color: #000;
-}
-
-div.tab-pane.fade.bg-fixed-val{
-    background-color: #479f76;
-    color: var(--white);
-}
-
-div.tab-pane.fade.bg-dynamic-val{
-    background-color: #198754;
-    color: var(--white);
 }
 /* FlexContext Modal Dialogue - End*/

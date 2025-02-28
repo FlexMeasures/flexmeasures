@@ -1070,7 +1070,7 @@
                     <div class="p-1 mb-3">
                         <div class="d-flex justify-content-between">
                             <div>
-                                <b>ID:</b> <a href="${apiBasePath}/sensors/${sensorData.id}">${sensorData.id}</a>,
+                                <b>Sensor:</b> <a href="${apiBasePath}/sensors/${sensorData.id}">${sensorData.id}</a>,
                                 <b>Unit:</b> ${sensorData.unit},
                                 <b>Name:</b> ${sensorData.name},
                                 <div style="padding-top: 1px;"></div>
@@ -1092,7 +1092,7 @@
                     <div class="p-1 mb-3">
                         <div class="d-flex justify-content-between">
                             <div>
-                                <b>ID:</b> <a href="${apiBasePath}/sensors/${sensorData.id}">${sensorData.id}</a>,
+                                <b>Sensor:</b> <a href="${apiBasePath}/sensors/${sensorData.id}">${sensorData.id}</a>,
                                 <b>Unit:</b> ${sensorData.unit},
                                 <b>Name:</b> ${sensorData.name},
                                 <div style="padding-top: 1px;"></div>
@@ -1159,16 +1159,16 @@
             return;
         }
         // check if value is valid
-        if(dataType === "power" && powerCapacityInputValue === "") {
+        if(dataType === "fixedValue" && powerCapacityInputValue === "") {
             showToast("Please enter a value", "error");
             return;
         }
         // get card id and remove '-control' at the end
         const cardId = highlightedCard.id;
         const flexId = cardId.slice(0, -8);
-        if (dataType === "power") {
+        if (dataType === "fixedValue") {
             assetFlexContext[flexId] = powerCapacityInputValue;
-        } else if (dataType === "sensor") {
+        } else if (dataType === "sensor" && sensorId) {
             if (flexId === "inflexible-device-sensors") {
                 assetFlexContext[flexId].push(sensorId);
             } else {
@@ -1208,22 +1208,23 @@
                 <div class="card-header">
                     <ul class="nav nav-tabs card-header-tabs" id="pills-tab" role="tablist">
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link active fixed-val" id="pills-homfixed" data-bs-toggle="pill" data-bs-target="#pills-fixed" type="button" role="tab" aria-controls="pills-fixed" aria-selected="true">
+                            <button class="nav-link active bg-fixed-val" id="pills-homfixed" data-bs-toggle="pill" data-bs-target="#pills-fixed" type="button" role="tab" aria-controls="pills-fixed" aria-selected="true">
                                 Fixed Value
                                 <i class="fa fa-info-circle ps-2"
                                     data-bs-toggle="tooltip"
                                     data-bs-placement="bottom"
-                                    title="Some Info about this field"
+                                    title="'Enter a fixed value with a unit, e.g. "75kW" or "105 EUR". It will be used in all schedules for this asset and his sensors."
                                 ></i>
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link dynamic-val" id="pills-dynamic-tab" data-bs-toggle="pill" data-bs-target="#pills-dynamic" type="button" role="tab" aria-controls="pills-dynamic" aria-selected="false">
+                            <button class="nav-link bg-dynamic-val" id="pills-dynamic-tab" data-bs-toggle="pill" data-bs-target="#pills-dynamic" type="button" role="tab" aria-controls="pills-dynamic" aria-selected="false">
                                 Dynamic Value(a Sensor)
                                 <i class="fa fa-info-circle ps-2"
                                     data-bs-toggle="tooltip"
                                     data-bs-placement="bottom"
-                                    title="Some Info about this field"
+                                    title="You can a sensor which provides the values in a dynamic fashion. In the search form below, 
+                                    you can choose the right one. Be sure the data will be available consistently, though, so scheduling will work."
                                 ></i>
                             </button>
                             </button>
@@ -1238,7 +1239,7 @@
                                 <input type="text" id="power-capacity" class="form-control"
                                     placeholder="e.g. 15000 kW">
                                 <button class="btn btn-secondary btn-sm me-2 mt-2"
-                                    onclick="udpateFlexContextFieldValue('power', 0)">Set Value</button>
+                                    onclick="udpateFlexContextFieldValue('fixedValue', ${null})">Set Value</button>
                             </div>
                         </div>
 
