@@ -4,7 +4,7 @@ CLI commands for controlling jobs
 
 from __future__ import annotations
 
-import csv
+import os
 import random
 import string
 
@@ -16,6 +16,7 @@ from rq.job import Job
 from rq.registry import FailedJobRegistry
 from sqlalchemy.orm import configure_mappers
 from tabulate import tabulate
+import pandas as pd
 
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
@@ -163,20 +164,19 @@ def save_last_failed(n: int, queue_name: str, file: str):
     for job_id in job_ids:
         try:
             job = Job.fetch(job_id, connection=queue.connection)
+            kwargs = job.kwargs or {}
+            asset_info = kwargs.get("asset_or_sensor", {})
+
             failed_jobs.append(
                 {
                     "Job ID": job.id,
+                    "ID": asset_info.get("id", "N/A"),
+                    "Class": asset_info.get("class", "N/A"),
                     "Error": job.exc_info,
-                    "Kwargs": job.kwargs,
-                    "Function Name": (
-                        job.func_name if hasattr(job, "func_name") else "N/A"
-                    ),  # Function name
-                    "Started At": (
-                        job.started_at if hasattr(job, "started_at") else "N/A"
-                    ),  # Start time
-                    "Ended At": (
-                        job.ended_at if hasattr(job, "ended_at") else "N/A"
-                    ),  # End time
+                    "All kwargs": kwargs,
+                    "Function name": getattr(job, "func_name", "N/A"),
+                    "Started at": getattr(job, "started_at", "N/A"),
+                    "Ended at": getattr(job, "ended_at", "N/A"),
                 }
             )
         except Exception as e:
@@ -185,21 +185,20 @@ def save_last_failed(n: int, queue_name: str, file: str):
             )
 
     if failed_jobs:
+        if os.path.exists(file):
+            if not click.confirm(f"{file} already exists. Overwrite?", default=False):
+                new_file = click.prompt(
+                    "Enter a new filename (must end with .csv)", type=str
+                )
+                while not new_file.lower().endswith(".csv"):
+                    click.secho("Invalid filename. It must end with .csv.", fg="red")
+                    new_file = click.prompt(
+                        "Enter a new filename (must end with .csv)", type=str
+                    )
+                file = new_file
+
         # Save the failed jobs to a CSV file
-        with open(file, "w", newline="") as f:
-            writer = csv.DictWriter(
-                f,
-                fieldnames=[
-                    "Job ID",
-                    "Error",
-                    "Kwargs",
-                    "Function Name",
-                    "Started At",
-                    "Ended At",
-                ],
-            )
-            writer.writeheader()  # Write column headers
-            writer.writerows(failed_jobs)  # Write job data
+        pd.DataFrame(failed_jobs).to_csv(file, index=False)
         click.secho(f"Saved {len(failed_jobs)} failed jobs to {file}.", fg="green")
     else:
         click.secho("No failed jobs found.", fg="yellow")
