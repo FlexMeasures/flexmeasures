@@ -1918,7 +1918,7 @@ body.touched [title]:hover:after {
 .table-responsive{
     padding: 20px;
 }
-dynafixedmic
+
 .border-on-click {
     border: 2px solid var(--primary-color);
     border-radius: 4px;
@@ -1936,29 +1936,41 @@ dynafixedmic
 button.nav-link.fixed-val.active {
     background-color: #479f76 !important;
     color: var(--white);
+    border-bottom: 0 !important;
 }
 
 button.fixed-val.nav-link {
     background-color: var(--white) !important;
-    color: #479f76;
+    color: #000;
 }
 
 button.nav-link.dynamic-val.active {
     background-color: #198754 !important;
     color: var(--white);
+    border-bottom: 0 !important;
 }
 
 button.dynamic-val.nav-link {
     background-color: var(--white) !important;
-    color: #198754;
+    color: #000;
 }
 
 .bg-fixed-val{
+    background-color: #f4f4f2;
+    color: #000;
+}
+
+.bg-dynamic-val{
+    background-color: #f4f7f5;
+    color: #000;
+}
+
+div.tab-pane.fade.bg-fixed-val{
     background-color: #479f76;
     color: var(--white);
 }
 
-.bg-dynamic-val{
+div.tab-pane.fade.bg-dynamic-val{
     background-color: #198754;
     color: var(--white);
 }

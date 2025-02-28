@@ -1205,34 +1205,52 @@
 
     function renderFlexInputOptions(contextKey, isArray = false) {
         return `
-            <ul class="nav nav-pills mb-3" id="pills-tab" role="tablist">
-                <li class="nav-item " role="presentation">
-                    <button class="nav-link active fixed-val" id="pills-homfixed" data-bs-toggle="pill" data-bs-target="#pills-fixed" type="button" role="tab" aria-controls="pills-fixed" aria-selected="true">Fixed Value</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link dynamic-val" id="pills-dynamic-tab" data-bs-toggle="pill" data-bs-target="#pills-dynamic" type="button" role="tab" aria-controls="pills-dynamic" aria-selected="false">Dynamic Value(a Sensor)</button>
-                </li>
-            </ul>
-            
-            <div class="tab-content" id="pills-tabContent">
-                <div class="tab-pane fade show active bg-fixed-val rounded" id="pills-fixed" role="tabpanel" aria-labelledby="pills-fixed-tab">
-                    <div id="power-capacity-input" class="flex-input-group mb-4 p-2">
-                        <label for="power-capacity" class="form-label">Power Capacity</label>
-                        <input type="text" id="power-capacity" class="form-control"
-                            placeholder="e.g. 15000 kW">
-                        <button class="btn btn-secondary btn-sm me-2 mt-2"
-                            onclick="udpateFlexContextFieldValue('power', 0)">Set Value</button>
-                    </div>
-                </div>
+                <div class="card-header">
+                    <ul class="nav nav-tabs card-header-tabs" id="pills-tab" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active fixed-val" id="pills-homfixed" data-bs-toggle="pill" data-bs-target="#pills-fixed" type="button" role="tab" aria-controls="pills-fixed" aria-selected="true">
+                                Fixed Value
+                                <i class="fa fa-info-circle ps-2"
+                                    data-bs-toggle="tooltip"
+                                    data-bs-placement="bottom"
+                                    title="Some Info about this field"
+                                ></i>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link dynamic-val" id="pills-dynamic-tab" data-bs-toggle="pill" data-bs-target="#pills-dynamic" type="button" role="tab" aria-controls="pills-dynamic" aria-selected="false">
+                                Dynamic Value(a Sensor)
+                                <i class="fa fa-info-circle ps-2"
+                                    data-bs-toggle="tooltip"
+                                    data-bs-placement="bottom"
+                                    title="Some Info about this field"
+                                ></i>
+                            </button>
+                            </button>
+                        </li>
+                    </ul>
 
-                <div class="tab-pane fade bg-dynamic-val rounded" id="pills-dynamic" role="tabpanel" aria-labelledby="pills-dynamic-tab">
-                    <div id="select-sensor-input" class="flex-input-group mb-4 p-2">
-                        <label for="sensor" class="form-label">Look up Sensor: </label>
-                        <input type="text" id="flexContextSensorSearch" class="form-control"
-                            placeholder="Search sensors..." oninput="searchSensors()" />
+                    
+                    <div class="tab-content" id="pills-tabContent">
+                        <div class="tab-pane fade show active bg-fixed-val rounded-bottom" id="pills-fixed" role="tabpanel" aria-labelledby="pills-fixed-tab">
+                            <div id="power-capacity-input" class="flex-input-group mb-4 p-2">
+                                <label for="power-capacity" class="form-label">Power Capacity</label>
+                                <input type="text" id="power-capacity" class="form-control"
+                                    placeholder="e.g. 15000 kW">
+                                <button class="btn btn-secondary btn-sm me-2 mt-2"
+                                    onclick="udpateFlexContextFieldValue('power', 0)">Set Value</button>
+                            </div>
+                        </div>
+
+                        <div class="tab-pane fade bg-dynamic-val rounded-bottom" id="pills-dynamic" role="tabpanel" aria-labelledby="pills-dynamic-tab">
+                            <div id="select-sensor-input" class="flex-input-group mb-4 p-2">
+                                <label for="sensor" class="form-label">Look up Sensor: </label>
+                                <input type="text" id="flexContextSensorSearch" class="form-control"
+                                    placeholder="Search sensors..." oninput="searchSensors()" />
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </div>
         `;
     }
 
