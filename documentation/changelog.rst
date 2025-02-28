@@ -11,6 +11,7 @@ v0.25.0 | February XX, 2025
 
 New features
 -------------
+* Add CLI command ``flexmeasures jobs save-last-failed`` for saving the last failed jobs [see `PR #1342 <https://www.github.com/FlexMeasures/flexmeasures/pull/1342>`_]
 
 Infrastructure / Support
 ----------------------
