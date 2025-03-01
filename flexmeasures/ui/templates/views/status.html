@@ -44,7 +44,9 @@
                             <td>
                                 {{ sensor.source }}
                             </td>
+                            <td>
                                 {{ sensor.relation }}
+                            </td>
                             <td>
                                 <span title="{{ sensor['staleness_since'] }}">{{ sensor["staleness_since"] | naturalized_datetime }}</span>
                             </td>

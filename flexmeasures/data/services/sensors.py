@@ -82,7 +82,7 @@ def _get_sensor_bdfs_by_source(
         if not bdf.empty:
             bdfs_by_source[source_type] = bdf
     return None if not bdfs_by_source else bdfs_by_source
-            
+
 
 def _get_sensor_bdf(sensor: Sensor, staleness_search: dict) -> BeliefsDataFrame | None:
     """
@@ -128,9 +128,10 @@ def get_staleness_start_times(
             if bdf_filtered.empty:
                 is_data_ok = False
                 bdf_filtered = bdf
+            bdf = bdf_filtered
         start_times[source] = (
             is_data_ok,
-            getattr(bdf_filtered, time_column)[-1] if not bdf_filtered.empty else None,
+            getattr(bdf, time_column)[-1] if not bdf.empty else None,
         )
 
     return start_times
@@ -188,13 +189,11 @@ def get_status_specs(sensor: Sensor) -> dict:
     # Default to status specs for economical sensors with daily updates
     if sensor.knowledge_horizon_fnc == "x_days_ago_at_y_oclock":
         status_specs["max_staleness"] = "P1D"
-        status_specs["staleness_search"] = {} 
+        status_specs["staleness_search"] = {}
     else:
         # Default to status specs indicating staleness after knowledge time + 2 sensor resolutions
-        status_specs = {
-            "staleness_search": {},
-            "max_staleness": duration_isoformat(sensor.event_resolution * 2),
-        }
+        status_specs["staleness_search"] = {}
+        status_specs["max_staleness"] = duration_isoformat(sensor.event_resolution * 2)
     return status_specs
 
 
@@ -334,18 +333,6 @@ def build_sensor_status_data(
                 )
                 sensor_ids.add(sensor.id)
                 sensors.append(sensor_status)
-            sensor_status = get_status(
-                sensor=sensor,
-                now=now,
-            )
-            sensor_status["name"] = sensor.name
-            sensor_status["id"] = sensor.id
-            sensor_status["asset_name"] = sensor.generic_asset.name
-            sensor_status["relation"] = _get_sensor_asset_relation(
-                asset, sensor, inflexible_device_sensors
-            )
-            sensor_ids.add(sensor.id)
-            sensors.append(sensor_status)
     return sensors
 
 
