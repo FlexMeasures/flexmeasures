@@ -123,36 +123,54 @@ def setup_dummy_data(db, app, generic_report):
 
     db.session.add(dummy_asset)
 
-    sensor1 = Sensor("sensor 1", generic_asset=dummy_asset, event_resolution="1h")
+    sensor1 = Sensor(
+        "sensor 1",
+        generic_asset=dummy_asset,
+        event_resolution=timedelta(hours=1),
+        unit="kW",
+    )
     db.session.add(sensor1)
-    sensor2 = Sensor("sensor 2", generic_asset=dummy_asset, event_resolution="1h")
+    sensor2 = Sensor(
+        "sensor 2", generic_asset=dummy_asset, event_resolution=timedelta(hours=1)
+    )
     db.session.add(sensor2)
     sensor3 = Sensor(
         "sensor 3",
         generic_asset=dummy_asset,
-        event_resolution="1h",
+        event_resolution=timedelta(hours=1),
         timezone="Europe/Amsterdam",
     )
     db.session.add(sensor3)
+    sensor4 = Sensor(
+        "sensor 4",
+        generic_asset=dummy_asset,
+        event_resolution=timedelta(minutes=15),
+        timezone="Europe/Amsterdam",
+        unit="kW",
+    )
+    db.session.add(sensor4)
 
     report_sensor = Sensor(
-        "report sensor", generic_asset=generic_report, event_resolution="1h"
+        "report sensor",
+        generic_asset=generic_report,
+        event_resolution=timedelta(hours=1),
     )
     db.session.add(report_sensor)
     daily_report_sensor = Sensor(
         "daily report sensor",
         generic_asset=generic_report,
-        event_resolution="1D",
+        event_resolution=timedelta(days=1),
         timezone="Europe/Amsterdam",
     )
 
     db.session.add(daily_report_sensor)
 
     """
-        Create 2 DataSources
+        Create 3 DataSources
     """
-    source1 = DataSource("source1")
-    source2 = DataSource("source2")
+    source1 = DataSource("source1", type="A")
+    source2 = DataSource("source2", type="B")
+    source2v02 = DataSource("source2", type="B", version="0.2")
 
     """
         Create TimedBeliefs
@@ -161,7 +179,6 @@ def setup_dummy_data(db, app, generic_report):
     for sensor in [sensor1, sensor2]:
         for si, source in enumerate([source1, source2]):
             for t in range(10):
-                print(si)
                 beliefs.append(
                     TimedBelief(
                         event_start=datetime(2023, 4, 10, tzinfo=utc)
@@ -234,8 +251,7 @@ def setup_dummy_data(db, app, generic_report):
                 source=source2,
             )
         )
-
-    # add a belief belonging to Source 2 in the second half of the day ()
+    # add a belief belonging to Source 1 in the second half of the day
     beliefs.append(
         TimedBelief(
             event_start=datetime(2023, 4, 24, tzinfo=utc) + timedelta(hours=12),
@@ -245,8 +261,30 @@ def setup_dummy_data(db, app, generic_report):
             source=source1,
         )
     )
+    # add a belief belonging to version 0.2 of Source 2 around the end of the day, recorded 25 instead of 24 hours in advance
+    beliefs.append(
+        TimedBelief(
+            event_start=datetime(2023, 4, 24, tzinfo=utc) + timedelta(hours=23),
+            belief_horizon=timedelta(hours=25),
+            event_value=3,
+            sensor=sensor3,
+            source=source2v02,
+        )
+    )
+
+    # add data for sensor 4
+    for t in range(24 * 3):
+        beliefs.append(
+            TimedBelief(
+                event_start=datetime(2023, 1, 1, tzinfo=utc) + timedelta(hours=t),
+                belief_horizon=timedelta(hours=24),
+                event_value=1,
+                sensor=sensor4,
+                source=source1,
+            )
+        )
 
     db.session.add_all(beliefs)
     db.session.commit()
 
-    yield sensor1, sensor2, sensor3, report_sensor, daily_report_sensor
+    yield sensor1, sensor2, sensor3, sensor4, report_sensor, daily_report_sensor

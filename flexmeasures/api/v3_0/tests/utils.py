@@ -9,12 +9,13 @@ def make_sensor_data_request_for_gas_sensor(
     duration: str = "PT1H",
     unit: str = "m³",
     include_a_null: bool = False,
+    sensor_name: str = "some gas sensor",
 ) -> dict:
     """Creates request to post sensor data for a gas sensor.
     This particular gas sensor measures units of m³/h with a 10-minute resolution.
     """
     sensor = db.session.execute(
-        select(Sensor).filter_by(name="some gas sensor")
+        select(Sensor).filter_by(name=sensor_name)
     ).scalar_one_or_none()
     values = num_values * [-11.28]
     if include_a_null:
@@ -62,24 +63,25 @@ def message_for_trigger_schedule(
     realistic_targets: bool = True,
     too_far_into_the_future_targets: bool = False,
     use_time_window: bool = False,
+    use_perfect_efficiencies: bool = False,
 ) -> dict:
     message = {
         "start": "2015-01-01T00:00:00+01:00",
         "duration": "PT24H",  # Will be extended in case of targets that would otherwise lie beyond the schedule's end
     }
     if unknown_prices:
-        message[
-            "start"
-        ] = "2040-01-01T00:00:00+01:00"  # We have no beliefs in our test database about 2040 prices
+        message["start"] = (
+            "2040-01-01T00:00:00+01:00"  # We have no beliefs in our test database about 2040 prices
+        )
 
     message["flex-model"] = {
         "soc-at-start": 12.1,  # in kWh, according to soc-unit
         "soc-min": 0,  # in kWh, according to soc-unit
         "soc-max": 40,  # in kWh, according to soc-unit
         "soc-unit": "kWh",
-        "roundtrip-efficiency": "98%",
-        "storage-efficiency": "99.99%",
-        "power-capacity": "2 MW",  # same as capacity_in_mw attribute of test battery and test charging station
+        "roundtrip-efficiency": "98%" if not use_perfect_efficiencies else "100%",
+        "storage-efficiency": "99.99%" if not use_perfect_efficiencies else 1,
+        "power-capacity": "2 MW",  # same as site-power-capacity of test battery and test charging station
     }
     if with_targets:
         if realistic_targets:

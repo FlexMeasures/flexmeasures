@@ -7,10 +7,9 @@ Assets & sensor data
 Asset page
 ------------
 
-The asset page allows to see data from the asset's sensors, and also to edit attributes of the asset, like its location.
-Other attributes are stored as a JSON string, which can be edited here as well.
-This is meant for meta information that may be used to customize views or functionality, e.g. by plugins.
-This includes the possibility to specify which sensors the asset page should show. For instance, here we include a price sensor from a public asset, by setting ``{"sensor_to_show": [3, 2]}`` (sensor 3 on top, followed by sensor 2 below).
+The asset page allows to plot data from the asset's sensors, show sensors and child assets and also to edit attributes of the asset, like its location.
+
+For instance, in the picture below we include a price sensor from a public asset, then plot the asset's only sensor below that.
 
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_asset.png
@@ -20,9 +19,46 @@ This includes the possibility to specify which sensors the asset page should sho
 |
 |
 
-.. note:: It is possible to overlay data for multiple sensors, by setting the `sensors_to_show` attribute to a nested list. For example, ``{"sensor_to_show": [3, [2, 4]]}`` would show the data for sensor 4 laid over the data for sensor 2.
-.. note:: While it is possible to show an arbitrary number of sensors this way, we recommend showing only the most crucial ones for faster loading, less page scrolling, and generally, a quick grasp of what the asset is up to.
-.. note:: Asset attributes can be edited through the CLI as well, with the CLI command ``flexmeasures edit attribute``.
+
+The asset page as data dashboard
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The data charts are maybe the most interesting feature - they form your own data dashboard. When the most interesting sensors are shown, the replay button on the right creates a very meaningful dynamic insight!
+
+
+Sensors to show on Graph
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Use the "Add Graph" button to create graphs. For each graph, you can select one or more sensors, from all available sensors associated with the asset, including public sensors, and add them to your plot.  
+
+You can overlay data from multiple sensors on a single graph. To do this, click on an existing plot and add more sensors from the available options on the right. 
+
+Finally, it is possible to set custom titles for any sensor graph by clicking on the "edit" button right next to the default or current title.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot-asset-editgraph.png
+    :align: center
+..    :scale: 40%
+
+Internally, the asset has a `sensors_to_show`` field, which controls which sensor data appears in the plot. This can also be set by a script. Accepted formats are simple lists of sensor IDs (e.g. `[2, [5,6]]` or a more expressive format (e.g. `[{"title": "Power", "sensor": 2}, {"title": "Costs", "sensors": [5,6] }`). 
+
+
+Status page
+^^^^^^^^^^^^
+
+For each asset, you can also visit a status page to see if your data connectivity and recent jobs are okay. This is how data connectivity status looks like on the building asset from our tutorial:
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/screenshot_building_status.png
+    :align: center
+..    :scale: 40%
+
+|
+|
+
+This is how the audit log looks for the history of actions taken on an asset:
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot-auditlog.PNG
+    :align: center
+..    :scale: 40%
 
 
 Sensor page

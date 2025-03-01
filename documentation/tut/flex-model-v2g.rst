@@ -33,9 +33,8 @@ Constraining the cycling to occur within a static 25-85% SoC range can be modell
 
     {
         "flex-model": {
-            "soc-min": 15,
-            "soc-max": 51,
-            "soc-unit": "kWh"
+            "soc-min": "15 kWh",
+            "soc-max": "51 kWh"
         }
     }
 
@@ -50,16 +49,15 @@ To enable a temporary target SoC of more than 85% (for car reservations, see the
 
     {
         "flex-model": {
-            "soc-min": 15,
-            "soc-max": 60,
+            "soc-min": "15 kWh",
+            "soc-max": "60 kWh",
             "soc-maxima": [
                 {
-                    "value": 51,
+                    "value": "51 kWh",
                     "start": "2024-02-04T10:35:00+01:00",
                     "end": "2024-02-05T04:25:00+01:00"
                 }
-            ],
-            "soc-unit": "kWh"
+            ]
         }
     }
 
@@ -80,7 +78,7 @@ Given a reservation for 8 AM on February 5th, constraint 2 can be modelled throu
         "flex-model": {
             "soc-minima": [
                 {
-                    "value": 57,
+                    "value": "57 kWh",
                     "datetime": "2024-02-05T08:00:00+01:00"
                 }
             ]
@@ -88,7 +86,7 @@ Given a reservation for 8 AM on February 5th, constraint 2 can be modelled throu
     }
 
 This constraint also signals that if the car is not plugged out of the Charge Point at 8 AM, the scheduler is in principle allowed to start discharging immediately afterwards.
-To make sure the car remains at 95% SoC for some time, additional soc-minima constraints should be set accordingly, taking into account the scheduling resolution (here, 5 minutes). For example, to keep it charged (nearly) fully until 8.15 AM:
+To make sure the car remains at or above 95% SoC for some time, additional soc-minima constraints should be set accordingly, taking into account the scheduling resolution (here, 5 minutes). For example, to keep it charged (nearly) fully until 8.15 AM:
 
 .. code-block:: json
 
@@ -96,7 +94,7 @@ To make sure the car remains at 95% SoC for some time, additional soc-minima con
         "flex-model": {
             "soc-minima": [
                 {
-                    "value": 57,
+                    "value": "57 kWh",
                     "start": "2024-02-05T08:00:00+01:00",
                     "end": "2024-02-05T08:15:00+01:00"
                 }
@@ -104,20 +102,44 @@ To make sure the car remains at 95% SoC for some time, additional soc-minima con
         }
     }
 
+The car may still charge and discharge within those 15 minutes, but it won't go below 95%.
+Alternatively, to keep the car from discharging altogether during that time, limit the ``production-capacity`` (likewise, use the ``consumption-capacity`` to prevent any charging):
+
+.. code-block:: json
+
+    {
+        "flex-model": {
+            "soc-minima": [
+                {
+                    "value": "57 kWh",
+                    "datetime": "2024-02-05T08:00:00+01:00"
+                }
+            ],
+            "production-capacity": [
+                {
+                    "value": "0 kW",
+                    "start": "2024-02-05T08:00:00+01:00",
+                    "end": "2024-02-05T08:15:00+01:00"
+                }
+            ]
+        }
+    }
+
+.. note:: In case the ``soc-minima`` field defines partially overlapping time periods, FlexMeasures automatically resolves this by selecting the maximum. Likewise, the minimum is selected for partially overlapping time periods in the ``soc-maxima``, ``power-capacity``, ``production-capacity`` and ``consumption-capacity`` flex-model fields, and also in the ``site-power-capacity``, ``site-production-capacity`` and ``site-consumption-capacity`` flex-context fields.
 
 .. _earning_by_cycling:
 
 Earning by cycling
 ==================
 
-To provide an incentive for cycling the battery in response to market prices, the ``consumption-price-sensor`` and ``production-price-sensor`` fields of the flex context may be used, which define the sensor IDs under which the price data is stored that is relevant to the given site:
+To provide an incentive for cycling the battery in response to market prices, the ``consumption-price`` and ``production-price`` fields of the flex context may be used, which define the sensor IDs under which the price data is stored that is relevant to the given site:
 
 .. code-block:: json
 
     {
         "flex-context": {
-            "consumption-price-sensor": 41,
-            "production-price-sensor": 42
+            "consumption-price": {"sensor": 41},
+            "production-price": {"sensor": 42}
         }
     }
 

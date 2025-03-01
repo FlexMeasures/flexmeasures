@@ -8,6 +8,7 @@ from flask import current_app
 
 class RequiredInput(Schema):
     name = fields.Str(required=True)
+    unit = fields.Str(required=False)
 
 
 class Input(Schema):
@@ -28,17 +29,21 @@ class Input(Schema):
     event_ends_before = AwareDateTimeField()
 
     belief_time = AwareDateTimeField()
+    beliefs_after = AwareDateTimeField()
 
     horizons_at_least = DurationField()
     horizons_at_most = DurationField()
 
+    user_source_ids = fields.List(DataSourceIdField())
     source_types = fields.List(fields.Str())
     exclude_source_types = fields.List(fields.Str())
     most_recent_beliefs_only = fields.Boolean()
     most_recent_events_only = fields.Boolean()
 
+    use_latest_version_per_event = fields.Boolean()
     one_deterministic_belief_per_event = fields.Boolean()
     one_deterministic_belief_per_event_per_source = fields.Boolean()
+    most_recent_only = fields.Boolean()
     resolution = DurationField()
     sum_multiple = fields.Boolean()
 
@@ -68,3 +73,4 @@ class Output(Schema):
 class RequiredOutput(Schema):
     name = fields.Str(required=True)
     column = fields.Str(required=False)
+    unit = fields.Str(required=False)

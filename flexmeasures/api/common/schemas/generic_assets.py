@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from flask import abort
 from marshmallow import fields
 from sqlalchemy import select

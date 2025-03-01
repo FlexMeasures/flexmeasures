@@ -8,7 +8,7 @@
 
     <div class="container-fluid">
         <div class="row">
-            <div class="col-sm-3 top-bottom">
+            <div class="col-md-3 top-bottom">
                 <h3>About</h3>
                 <div class="justify">
                     Upload data here.
@@ -45,9 +45,9 @@
                     </div>
                 </div>
             </div>
-            <div class="col-sm-9">
+            <div class="col-md-9">
                 <div class="row eq-height">
-                    <div class="col-sm-8 top-bottom">
+                    <div class="col-md-8 top-bottom">
                         <div class="container bs-docs-container">
                             <div class="row">
                                 <h1>Meter data</h1>
@@ -63,46 +63,44 @@
                                     </thead>
                                     <tbody id ="clients-table"> </tbody>
                                 </table>
-                                <a class="btn btn-default" href="#" role="button" data-toggle="modal" data-target="#editClientModal" id="button-add-client">
+                                <a class="btn btn-default" href="#" role="button" data-bs-toggle="modal" data-bs-target="#editClientModal" id="button-add-client">
                                     <span class="fa fa-plus" aria-hidden="true"></span> Add
                                 </a>
                                 <div class="modal fade" id="editClientModal" tabindex="-1" role="dialog" aria-labelledby="editClientModalLabel">
                                     <div class="modal-dialog" role="document">
                                         <div class="modal-content">
                                             <div class="modal-header">
-                                                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                                    <span aria-hidden="true">&times;</span>
-                                                </button>
                                                 <h4 class="modal-title" id="editClientModalLabel">
                                                     <span id="add-client-header">Add a client</span>
                                                     <span id="edit-client-header">Edit <span id="edit-client-name-header"> </span></span>
                                                 </h4>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                                             </div>
                                             <div class="modal-body">
                                                 <form id="edit-client-form" enctype="multipart/form-data" class="form-horizontal">
                                                     <input type="hidden" name="id" id="edit-client-id"/>
                                                     <div class="form-group row">
-                                                        <label for="edit-client-name" class="col-sm-3 control-label">Name</label>
-                                                        <div class="col-sm-9">
+                                                        <label for="edit-client-name" class="col-md-3 control-label">Name</label>
+                                                        <div class="col-md-9">
                                                             <input type="text" class="form-control" name="name" id="edit-client-name" required/>
                                                         </div>
                                                     </div>
                                                     <div class="form-group row">
-                                                        <label for="edit-description" class="col-sm-3 control-label">Description</label>
-                                                        <div class="col-sm-9">
+                                                        <label for="edit-description" class="col-md-3 control-label">Description</label>
+                                                        <div class="col-md-9">
                                                             <input type="text" class="form-control" name="description" id="edit-description"/>
                                                         </div>
                                                     </div>
                                                     <div class="form-group row">
-                                                        <label for="edit-market" class="col-sm-3 control-label">Market</label>
-                                                        <div class="col-sm-9">
+                                                        <label for="edit-market" class="col-md-3 control-label">Market</label>
+                                                        <div class="col-md-9">
                                                             <select class="form-control" name="market" id="edit-market">
                                                             </select>
                                                         </div>
                                                     </div>
                                                     <div class="form-group row">
-                                                        <label for="edit-demo" class="col-sm-3 control-label">Demo client</label>										
-                                                        <div class="col-sm-9">
+                                                        <label for="edit-demo" class="col-md-3 control-label">Demo client</label>										
+                                                        <div class="col-md-9">
                                                             <label class="control-label">
                                                                 <input type="checkbox" id = "edit-demo"/>
                                                                 <input type="hidden" name="demo" id="edit-demo-hidden"/>
@@ -112,8 +110,8 @@
                                                 </form>
                                             </div>
                                             <div class="modal-footer">
-                                                <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
-                                                <button type="button" class="btn btn-primary" id="edit-client-form-save" data-dismiss="modal">Save</button>
+                                                <button type="button" class="btn btn-default" data-bs-dismiss="modal">Cancel</button>
+                                                <button type="button" class="btn btn-primary" id="edit-client-form-save" data-bs-dismiss="modal">Save</button>
                                             </div>
                                         </div>
                                     </div>
@@ -128,8 +126,8 @@
                                                 <form id="remove-client-form">
                                                     <input type="hidden" name="id" id="remove-client-id"/>
                                                 </form>
-                                                <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
-                                                <button type="button" class="btn btn-danger" id="button-remove-client" data-dismiss="modal">Remove</button>
+                                                <button type="button" class="btn btn-default" data-bs-dismiss="modal">Cancel</button>
+                                                <button type="button" class="btn btn-danger" id="button-remove-client" data-bs-dismiss="modal">Remove</button>
                                             </div>
                                         </div>
                                     </div>
@@ -138,12 +136,10 @@
                                     <div class="modal-dialog modal-lg" id="edit-client-data-set-modal-dialog" role="document">
                                         <div class="modal-content">
                                             <div class="modal-header">
-                                                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                                    <span aria-hidden="true">&times;</span>
-                                                </button>
                                                 <h4 class="modal-title" id="editClientDataSetModalLabel">
                                                     <span id="edit-client-data-set-name-header"> </span> for <span id="edit-client-data-set-owner-header"> </span>
                                                 </h4>
+                                                <button type="button" class="btn-close" data-dismiss="modal" aria-label="Close"></button>
                                             </div>
                                             <div class="modal-body">
                                                 <div id="client-data-set-plot" class="data-set-plot edit-data-set-hideable"> </div>
@@ -152,16 +148,16 @@
                                                     <input type="hidden" name="type" id="edit-client-data-set-data-type"/>
                                                     <input type="hidden" name="owner" id="edit-client-data-set-owner-id"/>
                                                     <div class="form-group row edit-data-set-hideable">
-                                                        <label class="col-sm-3 control-label">Timeframe</label>
-                                                        <div class="col-sm-9">
+                                                        <label class="col-md-3 control-label">Timeframe</label>
+                                                        <div class="col-md-9">
                                                             <p class="form-control-static mb-0">
                                                                 <span id="edit-clientdata-set-date-from"> </span>&nbsp;&mdash;&nbsp;<span id="edit-client-data-set-date-to"> </span>
                                                             </p>
                                                         </div>
                                                     </div>
                                                     <div class="form-group row">
-                                                        <label for="edit-client-data-set-delta" class="col-sm-3 control-label">Resolution</label>
-                                                        <div class="col-sm-9">
+                                                        <label for="edit-client-data-set-delta" class="col-md-3 control-label">Resolution</label>
+                                                        <div class="col-md-9">
                                                             <div class="input-group" id="edit-client-data-set-delta-editable">
                                                                 <input type="text" class="form-control" name="resolution" id="edit-client-data-set-delta" placeholder="automatic" />
                                                                 <div class="input-group-addon">minutes</div>
@@ -170,14 +166,14 @@
                                                         </div>
                                                     </div>
                                                     <div class="form-group row" id="edit-client-data-set-file-row">
-                                                        <label for="edit-data-set-file" class="col-sm-3 control-label">Data set</label>
-                                                        <div class="col-sm-9">
+                                                        <label for="edit-data-set-file" class="col-md-3 control-label">Data set</label>
+                                                        <div class="col-md-9">
                                                             <input type="file" name="file" id="edit-client-data-set-file" class="control-label"/>
                                                         </div>
                                                     </div>
                                                     <div class="form-group row edit-data-set-hideable">
-                                                        <label for="edit-data-set-remove-old" class="col-sm-3 control-label">Replace old data</label>
-                                                        <div class="col-sm-9">
+                                                        <label for="edit-data-set-remove-old" class="col-md-3 control-label">Replace old data</label>
+                                                        <div class="col-md-9">
                                                             <label class="control-label">
                                                                 <input type="checkbox" id = "edit-client-data-set-remove-old"/>
                                                                 <input type="hidden" name="remove" id="edit-client-data-set-remove-old-hidden"/>
@@ -187,8 +183,8 @@
                                                 </form>
                                             </div>
                                             <div class="modal-footer">
-                                                <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
-                                                <button type="button" class="btn btn-primary" id="edit-client-data-set-form-save" data-dismiss="modal">Save</button>
+                                                <button type="button" class="btn btn-default" data-bs-dismiss="modal">Cancel</button>
+                                                <button type="button" class="btn btn-primary" id="edit-client-data-set-form-save" data-bs-dismiss="modal">Save</button>
                                             </div>
                                         </div>
                                     </div>
@@ -209,41 +205,39 @@
                                             </thead>
                                             <tbody id ="markets-table"> </tbody>
                                     </table>
-                                    <a class="btn btn-default" href="#" role="button" data-toggle="modal" data-target="#editMarketModal" id="button-add-market">
+                                    <a class="btn btn-default" href="#" role="button" data-bs-toggle="modal" data-bs-target="#editMarketModal" id="button-add-market">
                                             <span class="fa fa-plus" aria-hidden="true"></span> Add
                                     </a>
                                     <div class="modal fade" id="editMarketModal" tabindex="-1" role="dialog" aria-labelledby="editMarketModalLabel">
                                             <div class="modal-dialog" role="document">
                                                     <div class="modal-content">
                                                             <div class="modal-header">
-                                                                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                                                            <span aria-hidden="true">&times;</span>
-                                                                    </button>
                                                                     <h4 class="modal-title" id="editMarketModalLabel">
                                                                             <span id="add-market-header">Add a market</span>
                                                                             <span id="edit-market-header">Edit market &ldquo;<span id="edit-market-name-header"> </span>&rdquo;</span>
                                                                     </h4>
+                                                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                                                             </div>
                                                             <div class="modal-body">
                                                                     <form id="edit-market-form" enctype="multipart/form-data" class="form-horizontal">
                                                                             <input type="hidden" name="id" id="edit-market-id"/>
                                                                             <div class="form-group row">
-                                                                                    <label for="edit-market-name" class="col-sm-3 control-label">Name</label>
-                                                                                    <div class="col-sm-9">
+                                                                                    <label for="edit-market-name" class="col-md-3 control-label">Name</label>
+                                                                                    <div class="col-md-9">
                                                                                             <input type="text" class="form-control" name="name" id="edit-market-name" required/>
                                                                                     </div>
                                                                             </div>
                                                                             <div class="form-group row">
-                                                                                    <label for="edit-description" class="col-sm-3 control-label">Description</label>
-                                                                                    <div class="col-sm-9">
+                                                                                    <label for="edit-description" class="col-md-3 control-label">Description</label>
+                                                                                    <div class="col-md-9">
                                                                                             <input type="text" class="form-control" name="description" id="edit-market-description"/>
                                                                                     </div>
                                                                             </div>
                                                                     </form>
                                                             </div>
                                                             <div class="modal-footer">
-                                                                    <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
-                                                                    <button type="button" class="btn btn-primary" id="edit-market-form-save" data-dismiss="modal">Save</button>
+                                                                    <button type="button" class="btn btn-default" data-bs-dismiss="modal">Cancel</button>
+                                                                    <button type="button" class="btn btn-primary" id="edit-market-form-save" data-bs-dismiss="modal">Save</button>
                                                             </div>
                                                     </div>
                                             </div>
@@ -258,8 +252,8 @@
                                                                     <form id="remove-market-form">
                                                                             <input type="hidden" name="id" id="remove-market-id"/>
                                                                     </form>
-                                                                    <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
-                                                                    <button type="button" class="btn btn-danger" id="button-remove-market" data-dismiss="modal">Remove</button>
+                                                                    <button type="button" class="btn btn-default" data-bs-dismiss="modal">Cancel</button>
+                                                                    <button type="button" class="btn btn-danger" id="button-remove-market" data-bs-dismiss="modal">Remove</button>
                                                             </div>
                                                     </div>
                                             </div>
@@ -268,12 +262,10 @@
                                             <div class="modal-dialog modal-lg" id="edit-market-data-set-modal-dialog" role="document">
                                                     <div class="modal-content">
                                                             <div class="modal-header">
-                                                                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                                                            <span aria-hidden="true">&times;</span>
-                                                                    </button>
                                                                     <h4 class="modal-title" id="editMarketDataSetModalLabel">
                                                                             <span id="edit-market-data-set-name-header"> </span> for <span id="edit-market-data-set-owner-header"> </span>
                                                                     </h4>
+                                                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                                                             </div>
                                                             <div class="modal-body">
                                                                     <div id="market-data-set-plot" class="data-set-plot edit-data-set-hideable"> </div>
@@ -282,16 +274,16 @@
                                                                             <input type="hidden" name="type" id="edit-market-data-set-data-type"/>
                                                                             <input type="hidden" name="owner" id="edit-market-data-set-owner-id"/>
                                                                             <div class="form-group row edit-data-set-hideable">
-                                                                                    <label class="col-sm-3 control-label">Timeframe</label>
-                                                                                    <div class="col-sm-9">
+                                                                                    <label class="col-md-3 control-label">Timeframe</label>
+                                                                                    <div class="col-md-9">
                                                                                             <p class="form-control-static mb-0">
                                                                                                     <span id="edit-market-data-set-date-from"> </span>&nbsp;&mdash;&nbsp;<span id="edit-market-data-set-date-to"> </span>
                                                                                             </p>
                                                                                     </div>
                                                                             </div>
                                                                             <div class="form-group row">
-                                                                                    <label for="edit-data-set-delta" class="col-sm-3 control-label">Resolution</label>
-                                                                                    <div class="col-sm-9">
+                                                                                    <label for="edit-data-set-delta" class="col-md-3 control-label">Resolution</label>
+                                                                                    <div class="col-md-9">
                                                                                             <div class="input-group" id="edit-market-data-set-delta-editable">
                                                                                                     <input type="text" class="form-control" name="resolution" id="edit-market-data-set-delta" placeholder="automatic" />
                                                                                                     <div class="input-group-addon">minutes</div>
@@ -300,14 +292,14 @@
                                                                                     </div>
                                                                             </div>
                                                                             <div class="form-group row" id="edit-market-data-set-file-row">
-                                                                                    <label for="edit-market-data-set-file" class="col-sm-3 control-label">Data set</label>
-                                                                                    <div class="col-sm-9">
+                                                                                    <label for="edit-market-data-set-file" class="col-md-3 control-label">Data set</label>
+                                                                                    <div class="col-md-9">
                                                                                             <input type="file" name="file" id="edit-market-data-set-file" class="control-label"/>
                                                                                     </div>
                                                                             </div>
                                                                             <div class="form-group row edit-data-set-hideable">
-                                                                                    <label for="edit-data-set-remove-old" class="col-sm-3 control-label">Remove old data</label>
-                                                                                    <div class="col-sm-9">
+                                                                                    <label for="edit-data-set-remove-old" class="col-md-3 control-label">Remove old data</label>
+                                                                                    <div class="col-md-9">
                                                                                             <label class="control-label">
                                                                                                     <input type="checkbox" value="" name="removeOld" id = "edit-market-data-set-remove-old" />
                                                                                             </label>
@@ -316,8 +308,8 @@
                                                                     </form>
                                                             </div>
                                                             <div class="modal-footer">
-                                                                    <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
-                                                                    <button type="button" class="btn btn-primary" id="edit-market-data-set-form-save" data-dismiss="modal">Save</button>
+                                                                    <button type="button" class="btn btn-default" data-bs-dismiss="modal">Cancel</button>
+                                                                    <button type="button" class="btn btn-primary" id="edit-market-data-set-form-save" data-bs-dismiss="modal">Save</button>
                                                             </div>
                                                     </div>
                                             </div>

@@ -6,9 +6,12 @@ import pytest
 from timely_beliefs.sensors.func_store.knowledge_horizons import at_date
 import pandas as pd
 
+from sqlalchemy import select
+
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.planning.utils import initialize_index
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.utils.unit_utils import ur
 
 
 @pytest.fixture(params=["appsi_highs", "cbc"])
@@ -95,15 +98,22 @@ def building(db, setup_accounts, setup_markets) -> GenericAsset:
     """
     Set up a building.
     """
-    building_type = GenericAssetType(name="building")
+    building_type = db.session.execute(
+        select(GenericAssetType).filter_by(name="building")
+    ).scalar_one_or_none()
+    if not building_type:
+        # create_test_battery_assets might have created it already
+        building_type = GenericAssetType(name="battery")
     db.session.add(building_type)
     building = GenericAsset(
         name="building",
         generic_asset_type=building_type,
         owner=setup_accounts["Prosumer"],
+        flex_context={
+            "site-power-capacity": "2 MVA",
+        },
         attributes=dict(
             market_id=setup_markets["epex_da"].id,
-            capacity_in_mw=2,
         ),
     )
     db.session.add(building)
@@ -174,7 +184,7 @@ def add_inflexible_device_forecasts(
     time_slots = initialize_index(
         start=pd.Timestamp("2015-01-01").tz_localize("Europe/Amsterdam"),
         end=pd.Timestamp("2015-01-03").tz_localize("Europe/Amsterdam"),
-        resolution="15T",
+        resolution="15min",
     )
 
     # PV (8 hours at zero capacity, 8 hours at 90% capacity, and again 8 hours at zero capacity)
@@ -270,7 +280,10 @@ def add_stock_delta(db, add_battery_assets, setup_sources) -> dict[str, Sensor]:
     """
 
     battery = add_battery_assets["Test battery"]
-    capacity = battery.get_attribute("capacity_in_mw")
+    capacity = battery.get_attribute(
+        "capacity_in_mw",
+        ur.Quantity(battery.get_attribute("site-power-capacity")).to("MW").magnitude,
+    )
     sensors = {}
     sensor_specs = [
         ("delta fails", timedelta(minutes=15), capacity * 1.2),

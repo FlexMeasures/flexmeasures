@@ -13,7 +13,7 @@
         </div>
     </div>
     <div class="row on-top-md">
-        <div class="col-sm-2">
+        <div class="col-md-2">
             <div class="header-action-button rq-style">
                 <div class="">
                     <form action="{{rq_url_prefix}}{{ current_instance }}/view/queues" method="get">
@@ -32,7 +32,7 @@
                 </div>
             </div>
         </div>
-        <div class="rq-style col-sm-8">
+        <div class="rq-style col-md-8">
 
             <div class="card">
 
@@ -45,7 +45,7 @@
                     <div class="modal-content">
                         <div class="modal-header">
                             <h3>Do you really want to <span id="confirmation-modal-action"></span>?</h3>
-                            <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-hidden="true"></button>
                         </div>
                         <div class="modal-footer">
                             <button type="button" id="confirmation-modal-no" class="btn">No</button>
@@ -55,7 +55,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-sm-2"></div>
+        <div class="col-md-2"></div>
     </div>
 </div>
 
@@ -73,6 +73,7 @@
 <script type="text/javascript">
     {% include "rq_dashboard/inline_js.html" %}
     {% block content_scripts %}{% endblock %}
+    {% include "rq_dashboard/update_links.js" %}
 </script>
 
 {% endblock scripts %}

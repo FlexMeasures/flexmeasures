@@ -20,15 +20,19 @@ def logout(client):
 
 
 def mock_asset_response(
-    asset_id: int = 1,
+    asset_id: int = 2,
     account_id: int = 1,
     as_list: bool = True,
     multiple: bool = False,
 ) -> dict | list[dict]:
+    """
+    Mock response from asset API.
+    Does not mock output of paginated assets endpoint!
+    """
     asset = dict(
         id=asset_id,
         name="TestAsset",
-        generic_asset_type_id=1,
+        generic_asset_type={"id": 1, "name": "battery"},
         account_id=int(account_id),
         latitude=70.4,
         longitude=30.9,
@@ -38,6 +42,7 @@ def mock_asset_response(
         if multiple:
             asset2 = copy.deepcopy(asset)
             asset2["name"] = "TestAsset2"
+            asset2["id"] += 1
             asset_list.append(asset2)
         return asset_list
     return asset
@@ -59,6 +64,7 @@ def mock_user_response(
         password="secret",
         flexmeasures_roles=[1],
         last_login_at="2021-05-14T20:00:00+02:00",
+        account_id=1,
     )
     if as_list:
         user_list = [user]

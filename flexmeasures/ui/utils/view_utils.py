@@ -1,10 +1,13 @@
 """Utilities for views"""
+
 from __future__ import annotations
 
+from functools import wraps
 import json
 import os
 import subprocess
 
+from sqlalchemy import select
 from flask import render_template, request, session, current_app
 from flask_security.core import current_user
 
@@ -15,9 +18,29 @@ from flexmeasures.ui.utils.breadcrumb_utils import get_breadcrumb_info
 from flexmeasures.utils import time_utils
 from flexmeasures.ui import flexmeasures_ui
 from flexmeasures.data.models.user import User, Account
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.ui.utils.chart_defaults import chart_options
+from flexmeasures.ui.utils.color_defaults import get_color_settings
 
 
+def fall_back_to_flask_template(render_function):
+    """In case the render_function is raising an error, fall back to using flask.render_template."""
+
+    @wraps(render_function)
+    def wrapper(template_name, *args, **kwargs):
+        try:
+            return render_function(template_name, *args, **kwargs)
+        except Exception as e:
+            current_app.logger.warning(
+                f"""Rendering via Flask's render_template("{template_name}"). """
+                f"""Failed to render via {render_function.__name__}("{template_name}") due to {e}."""
+            )
+            return render_template(template_name, **kwargs)
+
+    return wrapper
+
+
+@fall_back_to_flask_template
 def render_flexmeasures_template(html_filename: str, **variables):
     """Render template and add all expected template variables, plus the ones given as **variables."""
     variables["FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY"] = current_app.config.get(
@@ -29,19 +52,19 @@ def render_flexmeasures_template(html_filename: str, **variables):
     ):
         variables["documentation_exists"] = True
 
-    variables["event_starts_after"] = session.get("event_starts_after")
-    variables["event_ends_before"] = session.get("event_ends_before")
+    # use event_starts_after and event_ends_before from session if not given
+    variables["event_starts_after"] = variables.get(
+        "event_starts_after"
+    ) or session.get("event_starts_after")
+    variables["event_ends_before"] = variables.get("event_ends_before") or session.get(
+        "event_ends_before"
+    )
+
     variables["chart_type"] = session.get("chart_type", "bar_chart")
 
     variables["page"] = html_filename.split("/")[-1].replace(".html", "")
 
     variables["resolution"] = session.get("resolution", "")
-    variables["resolution_human"] = time_utils.freq_label_to_human_readable_label(
-        session.get("resolution", "")
-    )
-    variables["horizon_human"] = time_utils.freq_label_to_human_readable_label(
-        session.get("forecast_horizon", "")
-    )
 
     variables["flexmeasures_version"] = flexmeasures_version
 
@@ -62,9 +85,9 @@ def render_flexmeasures_template(html_filename: str, **variables):
     variables["user_has_admin_reader_rights"] = user_has_admin_access(
         current_user, "read"
     )
-    variables[
-        "user_is_anonymous"
-    ] = current_user.is_authenticated and current_user.has_role("anonymous")
+    variables["user_is_anonymous"] = (
+        current_user.is_authenticated and current_user.has_role("anonymous")
+    )
     variables["user_email"] = current_user.is_authenticated and current_user.email or ""
     variables["user_name"] = (
         current_user.is_authenticated and current_user.username or ""
@@ -80,11 +103,25 @@ def render_flexmeasures_template(html_filename: str, **variables):
         options["downloadFileName"] = f"asset-{asset.id}-{asset.name}"
     variables["chart_options"] = json.dumps(options)
 
-    variables["menu_logo"] = current_app.config.get("FLEXMEASURES_MENU_LOGO_PATH")
+    account: Account | None = (
+        current_user.account if current_user.is_authenticated else None
+    )
+
+    # check if user/consultant has logo_url set
+    if account:
+        variables["menu_logo"] = (
+            account.logo_url
+            or (account.consultancy_account and account.consultancy_account.logo_url)
+            or current_app.config.get("FLEXMEASURES_MENU_LOGO_PATH")
+        )
+    else:
+        variables["menu_logo"] = current_app.config.get("FLEXMEASURES_MENU_LOGO_PATH")
+
     variables["extra_css"] = current_app.config.get("FLEXMEASURES_EXTRA_CSS_PATH")
 
     if "asset" in variables:
         variables["breadcrumb_info"] = get_breadcrumb_info(asset)
+    variables.update(get_color_settings(account))  # add color settings to variables
 
     return render_template(html_filename, **variables)
 
@@ -156,6 +193,23 @@ def get_git_description() -> tuple[str, int, str]:
     return version, commits_since, sha
 
 
+ICON_MAPPING = {
+    # site structure
+    "evse": "icon-charging_station",
+    "charge point": "icon-charging_station",
+    "project": "icon-calculator",
+    "tariff": "icon-time",
+    "renewables": "icon-wind",
+    "site": "icon-empty-marker",
+    "scenario": "icon-binoculars",
+    # weather
+    "irradiance": "wi wi-horizon-alt",
+    "temperature": "wi wi-thermometer",
+    "wind direction": "wi wi-wind-direction",
+    "wind speed": "wi wi-strong-wind",
+}
+
+
 def asset_icon_name(asset_type_name: str) -> str:
     """Icon name for this asset type.
 
@@ -167,27 +221,9 @@ def asset_icon_name(asset_type_name: str) -> str:
     becomes (for a battery):
         <i class="icon-battery"></i>
     """
-    icon_mapping = {
-        # site structure
-        "evse": "icon-charging_station",
-        "charge point": "icon-charging_station",
-        "project": "icon-calculator",
-        "tariff": "icon-time",
-        "renewables": "icon-wind",
-        "site": "icon-empty-marker",
-        "scenario": "icon-binoculars",
-        # weather
-        "irradiance": "wi wi-horizon-alt",
-        "temperature": "wi wi-thermometer",
-        "wind direction": "wi wi-wind-direction",
-        "wind speed": "wi wi-strong-wind",
-    }
-
-    for asset_group_name, icon_name in icon_mapping.items():
-        if asset_group_name in asset_type_name.lower():
-            return icon_name
-
-    return f"icon-{asset_type_name}"
+    if asset_type_name:
+        asset_type_name = asset_type_name.lower()
+    return ICON_MAPPING.get(asset_type_name, f"icon-{asset_type_name}")
 
 
 def username(user_id) -> str:
@@ -206,3 +242,12 @@ def accountname(account_id) -> str:
         return ""
     else:
         return account.name
+
+
+def available_units() -> list[str]:
+    """
+    Return a list of all available units from sensors currently in the database.
+    """
+
+    units = db.session.execute(select(Sensor.unit).distinct()).all()
+    return [unit[0] for unit in units]

@@ -1,7 +1,7 @@
 .. _plugin_customization:
 
 
-Plugin Customizations
+Plugin Customization
 =======================
 
 
@@ -208,8 +208,9 @@ Then, overwrite the ``/favicon.ico`` route which FlexMeasures uses to get the fa
 .. code-block:: python
 
     from flask import send_from_directory
+    from flexmeasures.ui import flexmeasures_ui
 
-    @our_client_bp.route("/favicon.ico")
+    @flexmeasures_ui.route("/favicon.ico")
     def favicon():
         return send_from_directory(
             our_client_bp.static_folder,
@@ -218,6 +219,31 @@ Then, overwrite the ``/favicon.ico`` route which FlexMeasures uses to get the fa
         )
 
 Here we assume your favicon is a PNG file. You can also use a classic `.ico` file, then your mime type probably works best as ``image/x-icon``.
+
+
+Customizing the breadcrumbs
+---------------------------------
+
+On asset and sensor pages, we show breadcrumbs on top (e.g. Account -> Asset -> ChildAsset -> Sensor).
+Say you want to adapt this, so that some asset has a unique breadcrumb path.
+
+Add an attribute to an asset or sensor named "breadcrumb_ancestry", e.g.:
+
+.. code-block:: python
+
+    my_asset.attributes["breadcrumb_ancestry"] = 
+        [
+            {"url": my_url, "name": "Top-level", "type": "Asset"},
+            {"url": another_url, "name": "2nd-level", "type": "Asset"}
+        ]
+
+Then the page will show these two breadcrumbs.
+
+.. note:: For child assets without their own custom attribute, their breadcrumbs will also have these breadcrumbs on the left, but they will add their own breadcrumbs as usual.
+
+
+In the same way, you can customize the siblings that are shown as drop-down for the current (right-most) breadcrumb.
+For this, the attribute is named "breadcrumb_siblings" and follows the same syntax. One use case might be to set it to empty (``[]``).
 
 
 Validating arguments in your CLI commands with marshmallow

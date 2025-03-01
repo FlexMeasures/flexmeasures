@@ -33,7 +33,12 @@ from flexmeasures.data.services.time_series import simplify_index
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
 from flexmeasures.cli.utils import MsgStyle, validate_unique
 from flexmeasures.utils.coding_utils import delete_key_recursive
-from flexmeasures.cli.utils import DeprecatedOptionsCommand, DeprecatedOption
+from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
+from flexmeasures.cli.utils import (
+    DeprecatedOptionsCommand,
+    DeprecatedOption,
+    get_sensor_aliases,
+)
 
 
 @click.group("show")
@@ -381,6 +386,13 @@ def list_data_sources(source: DataSource | None = None, show_attributes: bool = 
     " now (current time), id (id of the sensor or asset), entity_type (either 'asset' or 'sensor')"
     " Example: 'result_file_$entity_type_$id_$now.csv' -> 'result_file_asset_1_2023-08-24T14:47:08' ",
 )
+@click.option(
+    "--resolution",
+    "resolution",
+    type=DurationField(),
+    required=False,
+    help="Resolution of the data in ISO 8601 format. If not set, defaults to the minimum resolution of the sensor data. Note: Nominal durations like 'P1D' are converted to absolute timedeltas.",
+)
 def chart(
     sensors: list[Sensor] | None = None,
     assets: list[GenericAsset] | None = None,
@@ -390,11 +402,12 @@ def chart(
     height: int | None = None,
     width: int | None = None,
     filename_template: str | None = None,
+    resolution: timedelta | None = None,
 ):
     """
     Export sensor or asset charts in PNG or SVG formats. For example:
 
-        flexmeasures show chart --start 2023-08-15T00:00:00+02:00 --end 2023-08-16T00:00:00+02:00 --asset 1 --sensor 3
+        flexmeasures show chart --start 2023-08-15T00:00:00+02:00 --end 2023-08-16T00:00:00+02:00 --asset 1 --sensor 3 --resolution P1D
     """
 
     datetime_format = "%Y-%m-%dT%H:%M:%S"
@@ -448,6 +461,7 @@ def chart(
             event_ends_before=end,
             beliefs_before=belief_time,
             include_data=True,
+            resolution=resolution,
         )
 
         # remove formatType as it relies on a custom JavaScript function
@@ -551,6 +565,15 @@ def chart(
     help="Include sensor IDs in the plot's legend labels and the file's column headers. "
     "NB non-unique sensor names will always show an ID.",
 )
+@click.option(
+    "--reduced-paths/--full-paths",
+    "reduce_paths",
+    default=True,
+    type=bool,
+    help="Whether to include the full path to the asset that the sensor belongs to"
+    "which shows any parent assets and their account, "
+    "or a reduced version of the path, which shows as much detail as is needed to distinguish the sensors.",
+)
 def plot_beliefs(
     sensors: list[Sensor],
     start: datetime,
@@ -562,6 +585,7 @@ def plot_beliefs(
     filepath: str | None,
     source_types: list[str] = None,
     include_ids: bool = False,
+    reduce_paths: bool = True,
 ):
     """
     Show a simple plot of belief data directly in the terminal, and optionally, save the data to a CSV file.
@@ -608,21 +632,24 @@ def plot_beliefs(
             **MsgStyle.WARN,
         )
 
-    # Decide whether to include sensor IDs (always include them in case of non-unique sensor names)
+    # Decide whether to include sensor IDs
     if include_ids:
         df.columns = [f"{s.name} (ID {s.id})" for s in sensors]
     else:
+        # In case of non-unique sensor names, show more of the sensor's ancestry
         duplicates = find_duplicates(sensors, "name")
         if duplicates:
-            df.columns = [
-                f"{s.name} (ID {s.id})" if s.name in duplicates else s for s in sensors
-            ]
-            click.secho(
-                f"The following sensor names are duplicated: {duplicates}. To distinguish them, their plot labels will include their IDs. To include IDs for all sensors, use the --include-ids flag.",
-                **MsgStyle.WARN,
+            message = "The following sensor name"
+            message += "s are " if len(duplicates) > 1 else " is "
+            message += (
+                f"duplicated: {join_words_into_a_list(duplicates)}. "
+                f"To distinguish the sensors, their plot labels will include more parent assets and their account, as needed. "
+                f"To show the full path for each sensor, use the --full-path flag. "
+                f"Or to uniquely label them by their ID instead, use the --include-ids flag."
             )
-        else:
-            df.columns = [s.name for s in sensors]
+            click.secho(message, **MsgStyle.WARN)
+        sensor_aliases = get_sensor_aliases(sensors, reduce_paths=reduce_paths)
+        df.columns = [sensor_aliases.get(s.id, s.name) for s in sensors]
 
     # Convert to the requested or default timezone
     if timezone is not None:
@@ -633,23 +660,23 @@ def plot_beliefs(
     if len(sensors) == 1:
         title = f"Beliefs for Sensor '{sensors[0].name}' (ID {sensors[0].id}).\n"
     else:
-        title = f"Beliefs for Sensor(s) [{', '.join([s.name for s in sensors])}], (ID(s): [{', '.join([str(s.id) for s in sensors])}]).\n"
+        title = f"Beliefs for Sensors {join_words_into_a_list([s.name + ' (ID ' + str(s.id) + ')' for s in sensors])}.\n"
     title += f"Data spans {naturaldelta(duration)} and starts at {start}."
     if belief_time_before:
         title += f"\nOnly beliefs made before: {belief_time_before}."
     if source:
         title += f"\nSource: {source.description}"
-    title += f"\nThe time resolution (x-axis) is {naturaldelta(resolution)}."
 
     uniplot.plot(
-        [df[col] for col in df.columns],
+        ys=[df[col] for col in df.columns],
+        xs=[df.index for _ in df.columns],
         title=title,
         color=True,
         lines=True,
         y_unit=shared_unit,
-        legend_labels=df.columns
-        if shared_unit
-        else [f"{col} in {s.unit}" for col in df.columns],
+        legend_labels=(
+            df.columns if shared_unit else [f"{col} in {s.unit}" for col in df.columns]
+        ),
     )
     if filepath is not None:
         df.columns = pd.MultiIndex.from_arrays(
