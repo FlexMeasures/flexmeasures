@@ -172,20 +172,6 @@ def is_power_unit(unit: str) -> bool:
     return ur.Quantity(unit).dimensionality == ur.Quantity("W").dimensionality
 
 
-def is_temperature_unit(unit: str) -> bool:
-    """For example:
-    >>> is_temperature_unit("°C")
-    True
-    >>> is_temperature_unit("K")
-    True
-    >>> is_temperature_unit("kW")
-    False
-    """
-    if not is_valid_unit(unit):
-        return False
-    return ur.Quantity(unit).dimensionality == ur.Quantity("K").dimensionality
-
-
 def is_energy_unit(unit: str) -> bool:
     """For example:
     >>> is_energy_unit("kW")
@@ -240,6 +226,37 @@ def is_energy_price_unit(unit: str) -> bool:
     ):
         return True
     return False
+
+
+def get_unit_dimension(unit: str) -> str:
+    """For example:
+    >>> get_unit_dimension("kW")
+    'power'
+    >>> get_unit_dimension("kWh")
+    'energy'
+    >>> get_unit_dimension("EUR/MWh")
+    'energy price'
+    >>> get_unit_dimension("%")
+    'percentage'
+    >>> get_unit_dimension("°C")
+    'temperature'
+    >>> get_unit_dimension("m")
+    'length'
+    >>> get_unit_dimension("h")
+    'time'
+    """
+    if is_power_unit(unit):
+        return "power"
+    if is_energy_unit(unit):
+        return "energy"
+    if is_energy_price_unit(unit):
+        return "energy price"
+    if unit == "%":
+        return "percentage"
+    dimensions = ur.Quantity(unit).dimensionality
+    if len(dimensions) == 1:
+        return list(dimensions.keys())[0][1:-1]
+    return "value"
 
 
 def _convert_time_units(
