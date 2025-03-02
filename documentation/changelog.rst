@@ -11,6 +11,7 @@ v0.25.0 | February XX, 2025
 
 New features
 -------------
+* Better y-axis titles for charts that show multiple sensors with a shared unit [see `PR #1346 <https://github.com/FlexMeasures/flexmeasures/pull/1346>`_]
 
 Infrastructure / Support
 ----------------------
