@@ -1251,9 +1251,11 @@
                     <div class="tab-content" id="pills-tabContent">
                         <div class="tab-pane fade show active bg-fixed-val rounded-bottom" id="pills-fixed" role="tabpanel" aria-labelledby="pills-fixed-tab">
                             <div id="power-capacity-input" class="flex-input-group mb-4 p-2">
-                                <label for="power-capacity" class="form-label">Power Capacity</label>
+                                <label for="power-capacity" class="form-label">Value</label>
                                 <input type="text" id="power-capacity" class="form-control"
-                                    placeholder="e.g. 15000 kW">
+                                    placeholder="e.g. 15000 kW"
+                                    onkeydown="if(event.key === 'Enter') { udpateFlexContextFieldValue('fixedValue', ${null}) }"
+                                    >
                                 <button class="btn btn-secondary btn-sm me-2 mt-2"
                                     onclick="udpateFlexContextFieldValue('fixedValue', ${null})">Set Value</button>
                             </div>
