@@ -172,6 +172,20 @@ def is_power_unit(unit: str) -> bool:
     return ur.Quantity(unit).dimensionality == ur.Quantity("W").dimensionality
 
 
+def is_temperature_unit(unit: str) -> bool:
+    """For example:
+    >>> is_temperature_unit("°C")
+    True
+    >>> is_temperature_unit("K")
+    True
+    >>> is_temperature_unit("kW")
+    False
+    """
+    if not is_valid_unit(unit):
+        return False
+    return ur.Quantity(unit).dimensionality == ur.Quantity("K").dimensionality
+
+
 def is_energy_unit(unit: str) -> bool:
     """For example:
     >>> is_energy_unit("kW")

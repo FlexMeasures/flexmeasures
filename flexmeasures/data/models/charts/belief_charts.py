@@ -11,6 +11,7 @@ from flexmeasures.utils.unit_utils import (
     is_power_unit,
     is_energy_unit,
     is_energy_price_unit,
+    is_temperature_unit,
 )
 
 
@@ -666,6 +667,8 @@ def determine_shared_sensor_type(sensors: list["Sensor"]) -> str:  # noqa F821
         return "energy"
     elif is_energy_price_unit(shared_unit):
         return "energy price"
+    elif is_temperature_unit(shared_unit):
+        return "temperature"
     return "value"
 
 
