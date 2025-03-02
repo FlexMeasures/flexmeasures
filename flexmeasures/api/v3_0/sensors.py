@@ -710,7 +710,7 @@ class SensorAPI(FlaskView):
         if sensor.get_attribute("consumption_is_positive", True):
             sign = -1
 
-        # For consumption schedules, positive values denote consumption. For the db, consumption is negative
+        # For consumption schedules, positive values denote consumption. For the db, consumption is negative unless specified explicitly
         consumption_schedule = sign * simplify_index(power_values)["event_value"]
         if consumption_schedule.empty:
             return unknown_schedule(
