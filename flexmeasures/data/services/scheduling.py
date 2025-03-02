@@ -624,8 +624,8 @@ def make_schedule(
 
         sign = 1
 
-        if result["sensor"].measures_power and result["sensor"].get_attribute(
-            "consumption_is_positive", True
+        if result["sensor"].measures_power and not result["sensor"].get_attribute(
+            "consumption_is_positive", False
         ):
             sign = -1
 
