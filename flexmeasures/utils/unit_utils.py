@@ -251,6 +251,8 @@ def get_unit_dimension(unit: str) -> str:
     'energy'
     >>> get_unit_dimension("EUR/MWh")
     'energy price'
+    >>> get_unit_dimension("EUR/kW")  # e.g. a capacity price or a peak price
+    'price'
     >>> get_unit_dimension("%")
     'percentage'
     >>> get_unit_dimension("°C")
