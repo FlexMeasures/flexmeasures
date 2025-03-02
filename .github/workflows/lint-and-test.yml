@@ -55,6 +55,8 @@ jobs:
       - name: Install FlexMeasures & latest dependencies for tests
         run: make install-for-test pinned=no
         if: github.event_name == 'pull_request'
+      - name: Run all doctests in the utils subpackage
+        run: pytest flexmeasures/utils --doctest-modules
       - name: Run all tests except those marked to be skipped by GitHub AND record coverage
         run: pytest -v -m "not skip_github" --cov=flexmeasures --cov-branch --cov-report=lcov
       - name: Coveralls
