@@ -207,6 +207,26 @@ def is_currency_unit(unit: str | pint.Quantity | pint.Unit) -> bool:
     return Currency(code=unit) in list_all_currencies()
 
 
+def is_price_unit(unit: str) -> bool:
+    """For example:
+    >>> is_price_unit("EUR/MWh")
+    True
+    >>> is_price_unit("KRW/MWh")
+    True
+    >>> is_price_unit("KRW/MW")
+    True
+    >>> is_price_unit("beans/MW")
+    False
+    """
+    if (
+        unit[:3] in [str(c) for c in list_all_currencies()]
+        and len(unit) > 3
+        and unit[3] == "/"
+    ):
+        return True
+    return False
+
+
 def is_energy_price_unit(unit: str) -> bool:
     """For example:
     >>> is_energy_price_unit("EUR/MWh")
@@ -218,14 +238,42 @@ def is_energy_price_unit(unit: str) -> bool:
     >>> is_energy_price_unit("beans/MW")
     False
     """
-    if (
-        unit[:3] in [str(c) for c in list_all_currencies()]
-        and len(unit) > 3
-        and unit[3] == "/"
-        and is_energy_unit(unit[4:])
-    ):
+    if is_price_unit(unit) and is_energy_unit(unit[4:]):
         return True
     return False
+
+
+def get_unit_dimension(unit: str) -> str:
+    """For example:
+    >>> get_unit_dimension("kW")
+    'power'
+    >>> get_unit_dimension("kWh")
+    'energy'
+    >>> get_unit_dimension("EUR/MWh")
+    'energy price'
+    >>> get_unit_dimension("%")
+    'percentage'
+    >>> get_unit_dimension("°C")
+    'temperature'
+    >>> get_unit_dimension("m")
+    'length'
+    >>> get_unit_dimension("h")
+    'time'
+    """
+    if is_power_unit(unit):
+        return "power"
+    if is_energy_unit(unit):
+        return "energy"
+    if is_energy_price_unit(unit):
+        return "energy price"
+    if is_price_unit(unit):
+        return "price"
+    if unit == "%":
+        return "percentage"
+    dimensions = ur.Quantity(unit).dimensionality
+    if len(dimensions) == 1:
+        return list(dimensions.keys())[0][1:-1]
+    return "value"
 
 
 def _convert_time_units(
