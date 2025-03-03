@@ -79,10 +79,10 @@ def get_or_create_model(
 
     For example:
     >>> weather_station_type = get_or_create_model(
-    >>>     GenericAssetType,
-    >>>     name="weather station",
-    >>>     description="A weather station with various sensors.",
-    >>> )
+    ...     GenericAssetType,
+    ...     name="weather station",
+    ...     description="A weather station with various sensors.",
+    ... )
     """
 
     # unpack custom initialization parameters that map to multiple database columns
