@@ -1152,21 +1152,22 @@
     }
 
     async function udpateFlexContextFieldValue(dataType, sensorId) {
-        const powerCapacityInputValue = document.getElementById("fixed-value").value;
         let highlightedCard = document.querySelector('.border-on-click');
         if (!highlightedCard) {
             showToast("Please select a field to update", "error");
             return;
         }
-        // check if value is valid
-        if(dataType === "fixedValue" && powerCapacityInputValue === "") {
-            showToast("Please enter a value", "error");
-            return;
-        }
+    
         // get card id and remove '-control' at the end
         const cardId = highlightedCard.id;
         const flexId = cardId.slice(0, -8);
         if (dataType === "fixedValue") {
+            const powerCapacityInputValue = document.getElementById("fixed-value").value;
+            // check if value is valid
+            if(powerCapacityInputValue === "") {
+                showToast("Please enter a value", "error");
+                return;
+            }
             assetFlexContext[flexId] = powerCapacityInputValue;
         } else if (dataType === "sensor" && sensorId) {
             if (flexId === "inflexible-device-sensors") {
@@ -1175,6 +1176,8 @@
                 assetFlexContext[flexId] = { sensor: sensorId };
             }
         }
+        console.log("assetFlexContext after: ", assetFlexContext)
+
         highlightedCard = await renderFlexContextInputField(flexId);
         flexContextFormEle.innerHTML = flexContextFormEle.innerHTML.replace(document.getElementById(`${flexId}-control`).outerHTML, highlightedCard);
         await selectFlexField(document.getElementById(`${flexId}-control`));
