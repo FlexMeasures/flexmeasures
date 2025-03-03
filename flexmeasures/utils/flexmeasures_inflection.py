@@ -29,10 +29,9 @@ def humanize(word):
 
 
 def parameterize(word):
-    """Parameterize the word, so it can be used as a python or javascript variable name.
+    """Parameterize the word, so it can be used as a Python or JavaScript variable name.
     For example:
-    >>> word = "Acme® EV-Charger™"
-    >>> parameterize(word)
+    >>> parameterize("Acme® EV-Charger™")
     'acme_ev_chargertm'
     """
     return inflection.parameterize(word).replace("-", "_")
