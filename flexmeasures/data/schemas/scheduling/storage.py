@@ -29,7 +29,7 @@ class EfficiencyField(QuantityField):
         >>> ef.deserialize(0.9)
         <Quantity(90.0, 'percent')>
         >>> ef.deserialize("90%")
-        <Quantity(90.0, 'percent')>
+        <Quantity(90, 'percent')>
         >>> ef.deserialize("0%")
         Traceback (most recent call last):
         ...

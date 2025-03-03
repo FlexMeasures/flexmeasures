@@ -116,8 +116,10 @@ def determine_unit_conversion_multiplier(
 
 def determine_flow_unit(stock_unit: str, time_unit: str = "h"):
     """For example:
-    >>> determine_flow_unit("m³")  # m³/h
-    >>> determine_flow_unit("kWh")  # kW
+    >>> determine_flow_unit("m³")
+    'm³/h'
+    >>> determine_flow_unit("kWh")
+    'kW'
     """
     flow = to_preferred(ur.Quantity(stock_unit) / ur.Quantity(time_unit))
     return "{:~P}".format(flow.units)
@@ -127,8 +129,10 @@ def determine_stock_unit(flow_unit: str, time_unit: str = "h"):
     """Determine the shortest unit of stock, given a unit of flow.
 
     For example:
-    >>> determine_stock_unit("m³/h")  # m³
-    >>> determine_stock_unit("kW")  # kWh
+    >>> determine_stock_unit("m³/h")
+    'm³'
+    >>> determine_stock_unit("kW")
+    'kWh'
     """
     stock = to_preferred(ur.Quantity(flow_unit) * ur.Quantity(time_unit))
     return "{:~P}".format(stock.units)
@@ -138,10 +142,14 @@ def units_are_convertible(
     from_unit: str, to_unit: str, duration_known: bool = True
 ) -> bool:
     """For example, a sensor with W units allows data to be posted with units:
-    >>> units_are_convertible("kW", "W")  # True (units just have different prefixes)
-    >>> units_are_convertible("J/s", "W")  # True (units can be converted using some multiplier)
-    >>> units_are_convertible("Wh", "W")  # True (units that represent a stock delta can, knowing the duration, be converted to a flow)
-    >>> units_are_convertible("°C", "W")  # False
+    >>> units_are_convertible("kW", "W")  # units just have different prefixes
+    True
+    >>> units_are_convertible("J/s", "W")  # units can be converted using some multiplier
+    True
+    >>> units_are_convertible("Wh", "W")  # units that represent a stock delta can, knowing the duration, be converted to a flow
+    True
+    >>> units_are_convertible("°C", "W")
+    False
     """
     if not is_valid_unit(from_unit) or not is_valid_unit(to_unit):
         return False
@@ -190,13 +198,13 @@ def is_energy_unit(unit: str) -> bool:
 
 def is_currency_unit(unit: str | pint.Quantity | pint.Unit) -> bool:
     """For Example:
-    >>> is_energy_price_unit("EUR")
+    >>> is_currency_unit("EUR")
     True
-    >>> is_energy_price_unit("KRW")
+    >>> is_currency_unit("KRW")
     True
-    >>> is_energy_price_unit("potatoe")
+    >>> is_currency_unit("potatoe")
     False
-    >>> is_energy_price_unit("MW")
+    >>> is_currency_unit("MW")
     False
     """
     if isinstance(unit, pint.Quantity):
@@ -251,6 +259,8 @@ def get_unit_dimension(unit: str) -> str:
     'energy'
     >>> get_unit_dimension("EUR/MWh")
     'energy price'
+    >>> get_unit_dimension("EUR/kW")  # e.g. a capacity price or a peak price
+    'price'
     >>> get_unit_dimension("%")
     'percentage'
     >>> get_unit_dimension("°C")
