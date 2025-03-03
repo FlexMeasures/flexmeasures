@@ -893,7 +893,7 @@
     function renderSensorSearchResults(sensors) {
         senSearchResEle.innerHTML = "";
         if (sensors.length === 0) {
-            apiSensorsList.innerHTML = "<h3>No sensors found</h3>";
+            senSearchResEle.innerHTML = "<h4>No sensors found</h4>";
             return;
         }
 
@@ -1266,8 +1266,16 @@
 
                     
                     <div class="tab-content" id="pills-tabContent">
-                        ${!isArray ? `
-                         <div class="tab-pane fade show active bg-fixed-val rounded-bottom" id="pills-fixed" role="tabpanel" aria-labelledby="pills-fixed-tab">
+                        ${isArray ? `
+                        <div class="tab-pane fade show active bg-dynamic-val rounded-bottom" id="pills-dynamic" role="tabpanel" aria-labelledby="pills-dynamic-tab">
+                            <div id="select-sensor-input" class="flex-input-group mb-4 p-2">
+                                <label for="sensor" class="form-label">Look up Sensor: </label>
+                                <input type="text" id="flexContextSensorSearch" class="form-control"
+                                    placeholder="Search sensors..." oninput="searchSensors()" />
+                            </div>
+                        </div>
+                        ` : `
+                        <div class="tab-pane fade show active bg-fixed-val rounded-bottom" id="pills-fixed" role="tabpanel" aria-labelledby="pills-fixed-tab">
                             <div class="flex-input-group mb-4 p-2">
                                 <label for="fixed-value" class="form-label">Value for <b>${getFlexContextFieldTitle(contextKey)} </b> </label>
                                 <input type="text" id="fixed-value" class="form-control"
@@ -1279,8 +1287,8 @@
                                     onclick="udpateFlexContextFieldValue('fixedValue', ${null})">Set Value</button>
                             </div>
                         </div>
-                        ` : `
-                        <div class="tab-pane fade show active bg-dynamic-val rounded-bottom" id="pills-dynamic" role="tabpanel" aria-labelledby="pills-dynamic-tab">
+
+                        <div class="tab-pane fade bg-dynamic-val rounded-bottom" id="pills-dynamic" role="tabpanel" aria-labelledby="pills-dynamic-tab">
                             <div id="select-sensor-input" class="flex-input-group mb-4 p-2">
                                 <label for="sensor" class="form-label">Look up Sensor: </label>
                                 <input type="text" id="flexContextSensorSearch" class="form-control"
