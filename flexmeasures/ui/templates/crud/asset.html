@@ -1229,7 +1229,7 @@
                                 <i class="fa fa-info-circle ps-2"
                                     data-bs-toggle="tooltip"
                                     data-bs-placement="bottom"
-                                    title="'Enter a fixed value with a unit, e.g. "75kW" or "105 EUR". It will be used in all schedules for this asset and his sensors."
+                                    title="Enter a fixed value with a unit, e.g. "75kW" or "105 EUR". It will be used in all schedules for this asset and his sensors."
                                 ></i>
                             </button>
                         </li>
@@ -1239,7 +1239,7 @@
                                 <i class="fa fa-info-circle ps-2"
                                     data-bs-toggle="tooltip"
                                     data-bs-placement="bottom"
-                                    title="You can a sensor which provides the values in a dynamic fashion. In the search form below, 
+                                    title="You can add a sensor which provides the values in a dynamic fashion. In the search form below, 
                                     you can choose the right one. Be sure the data will be available consistently, though, so scheduling will work."
                                 ></i>
                             </button>
@@ -1253,6 +1253,7 @@
                             <div id="power-capacity-input" class="flex-input-group mb-4 p-2">
                                 <label for="power-capacity" class="form-label">Value</label>
                                 <input type="text" id="power-capacity" class="form-control"
+                                    value="${typeof(assetFlexContext[contextKey]) == 'string' ? assetFlexContext[contextKey] : ""}"
                                     placeholder="e.g. 15000 kW"
                                     onkeydown="if(event.key === 'Enter') { udpateFlexContextFieldValue('fixedValue', ${null}) }"
                                     >
@@ -1380,7 +1381,7 @@
                     </div>
 
                     <div class="pt-3 fw-bold"> 
-                        Allowed Units: <span class="fw-normal"> ${allowedUnits.join(", ")} </span>
+                        Example Units: <span class="fw-normal"> ${allowedUnits.join(", ")} </span>
                     </div>
                     
                 </div>
