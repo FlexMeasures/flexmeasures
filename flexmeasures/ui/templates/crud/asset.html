@@ -1152,7 +1152,7 @@
     }
 
     async function udpateFlexContextFieldValue(dataType, sensorId) {
-        const powerCapacityInputValue = document.getElementById("power-capacity").value;
+        const powerCapacityInputValue = document.getElementById("fixed-value").value;
         let highlightedCard = document.querySelector('.border-on-click');
         if (!highlightedCard) {
             showToast("Please select a field to update", "error");
@@ -1249,10 +1249,11 @@
 
                     
                     <div class="tab-content" id="pills-tabContent">
-                        <div class="tab-pane fade show active bg-fixed-val rounded-bottom" id="pills-fixed" role="tabpanel" aria-labelledby="pills-fixed-tab">
-                            <div id="power-capacity-input" class="flex-input-group mb-4 p-2">
-                                <label for="power-capacity" class="form-label">Value</label>
-                                <input type="text" id="power-capacity" class="form-control"
+                        ${!isArray ? `
+                         <div class="tab-pane fade show active bg-fixed-val rounded-bottom" id="pills-fixed" role="tabpanel" aria-labelledby="pills-fixed-tab">
+                            <div class="flex-input-group mb-4 p-2">
+                                <label for="fixed-value" class="form-label">Value</label>
+                                <input type="text" id="fixed-value" class="form-control"
                                     value="${typeof(assetFlexContext[contextKey]) == 'string' ? assetFlexContext[contextKey] : ""}"
                                     placeholder="e.g. 15000 kW"
                                     onkeydown="if(event.key === 'Enter') { udpateFlexContextFieldValue('fixedValue', ${null}) }"
@@ -1261,7 +1262,7 @@
                                     onclick="udpateFlexContextFieldValue('fixedValue', ${null})">Set Value</button>
                             </div>
                         </div>
-
+                        ` : `
                         <div class="tab-pane fade bg-dynamic-val rounded-bottom" id="pills-dynamic" role="tabpanel" aria-labelledby="pills-dynamic-tab">
                             <div id="select-sensor-input" class="flex-input-group mb-4 p-2">
                                 <label for="sensor" class="form-label">Look up Sensor: </label>
@@ -1269,6 +1270,7 @@
                                     placeholder="Search sensors..." oninput="searchSensors()" />
                             </div>
                         </div>
+                        `}
                     </div>
                 </div>
         `;
