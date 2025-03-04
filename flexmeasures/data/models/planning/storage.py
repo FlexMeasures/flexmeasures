@@ -490,6 +490,7 @@ class MetaStorageScheduler(Scheduler):
                 )
             )
 
+        # Create the device constraints for all the flexible devices
         for d in range(num_flexible_devices):
             sensor_d = sensors[d]
 
