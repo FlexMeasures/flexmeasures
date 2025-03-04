@@ -118,16 +118,16 @@ def test_create_sequential_jobs(db, app, flex_description_sequential, smart_buil
 
     # Calculate costs
     resolution = sensors["Test EV"].event_resolution.total_seconds() / 3600
-    ev_costs = (ev_power * prices * resolution).sum().item()
-    battery_costs = (battery_power * prices * resolution).sum().item()
+    ev_costs = (-ev_power * prices * resolution).sum().item()
+    battery_costs = (-battery_power * prices * resolution).sum().item()
     total_cost = ev_costs + battery_costs
 
     # Assert costs
-    assert ev_costs == -2.2375, f"EV cost should be -2.2375 €, got {ev_costs} €"
+    assert ev_costs == 2.2375, f"EV cost should be 2.2375 €, got {ev_costs} €"
     assert (
-        battery_costs == 4.415
-    ), f"Battery cost should be 4.415 €, got {battery_costs} €"
-    assert total_cost == 2.1775, f"Total cost should be 2.1775 €, got {total_cost} €"
+        battery_costs == -4.415
+    ), f"Battery cost should be -4.415 €, got {battery_costs} €"
+    assert total_cost == -2.1775, f"Total cost should be -2.1775 €, got {total_cost} €"
 
 
 def test_create_sequential_jobs_fallback(

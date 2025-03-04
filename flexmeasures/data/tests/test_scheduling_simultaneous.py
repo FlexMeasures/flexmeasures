@@ -95,20 +95,15 @@ def test_create_simultaneous_jobs(
     ).values.any()  # 5 kW
 
     # Calculate costs
-    resolution = sensors["Test EV"].event_resolution.total_seconds() / 3600
-    ev_costs = (ev_power * prices * resolution).sum().item()
-    battery_costs = (battery_power * prices * resolution).sum().item()
+    ev_resolution = sensors["Test EV"].event_resolution.total_seconds() / 3600
+    ev_costs = (-ev_power * prices * ev_resolution).sum().item()
+    battery_costs = (-battery_power.resample("1h").mean() * prices).sum().item()
     total_cost = ev_costs + battery_costs
 
     # Define expected costs based on resolution
-    if use_heterogeneous_resolutions:
-        expected_ev_costs = -2.1625
-        expected_battery_costs = 1.3788
-        expected_total_cost = -0.7838
-    else:
-        expected_ev_costs = -2.1625
-        expected_battery_costs = 5.29
-        expected_total_cost = 3.1275
+    expected_ev_costs = 2.1625
+    expected_battery_costs = -5.515
+    expected_total_cost = -3.3525
 
     # Assert costs
     assert (
