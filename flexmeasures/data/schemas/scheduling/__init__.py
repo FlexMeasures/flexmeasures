@@ -1,19 +1,28 @@
 from __future__ import annotations
 
-from marshmallow import Schema, fields, validate, validates_schema, ValidationError
+from marshmallow import (
+    Schema,
+    fields,
+    validate,
+    validates_schema,
+    ValidationError,
+    pre_load,
+    post_dump,
+)
 
 from flexmeasures import Sensor
+from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.sensors import (
     VariableQuantityField,
     SensorIdField,
 )
+from flexmeasures.data.schemas.utils import FMValidationError
+from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
 from flexmeasures.utils.unit_utils import ur, units_are_convertible
 
 
 class FlexContextSchema(Schema):
-    """
-    This schema lists fields that can be used to describe sensors in the optimised portfolio
-    """
+    """This schema defines fields that provide context to the portfolio to be optimized."""
 
     # Energy commitments
     ems_power_capacity_in_mw = VariableQuantityField(
@@ -245,3 +254,97 @@ class DBFlexContextSchema(FlexContextSchema):
             raise ValidationError(
                 "Fixed prices are not currently supported in flex-context fields in the DB."
             )
+
+
+class MultiSensorFlexModelSchema(Schema):
+    """
+
+    This schema is agnostic to the underlying type of flex-model, which is governed by the chosen Scheduler instead.
+    Therefore, the underlying type of flex-model is not deserialized.
+
+    So:
+
+        {
+            "sensor": 1,
+            "soc-at-start": "10 kWh"
+        }
+
+    becomes:
+
+        {
+            "sensor": <Sensor 1>,
+            "sensor_flex_model": {
+                "soc-at-start": "10 kWh"
+            }
+        }
+    """
+
+    sensor = SensorIdField(required=True)
+    # it's up to the Scheduler to deserialize the underlying flex-model
+    sensor_flex_model = fields.Dict(data_key="sensor-flex-model")
+
+    @pre_load
+    def unwrap_envelope(self, data, **kwargs):
+        """Any field other than 'sensor' becomes part of the sensor's flex-model."""
+        extra = {}
+        rest = {}
+        for k, v in data.items():
+            if k not in self.fields:
+                extra[k] = v
+            else:
+                rest[k] = v
+        return {"sensor-flex-model": extra, **rest}
+
+    @post_dump
+    def wrap_with_envelope(self, data, **kwargs):
+        """Any field in the 'sensor-flex-model' field becomes a main field."""
+        sensor_flex_model = data.pop("sensor-flex-model", {})
+        return dict(**data, **sensor_flex_model)
+
+
+class AssetTriggerSchema(Schema):
+    """
+    {
+        "start": "2025-01-21T15:00+01",
+        "flex-model": [
+            {
+                "sensor": 1,
+                "soc-at-start": "10 kWh"
+            },
+            {
+                "sensor": 2,
+                "soc-at-start": "20 kWh"
+            },
+        ]
+    }
+    """
+
+    asset = GenericAssetIdField(data_key="id")
+    start_of_schedule = AwareDateTimeField(
+        data_key="start", format="iso", required=True
+    )
+    belief_time = AwareDateTimeField(format="iso", data_key="prior")
+    duration = PlanningDurationField(load_default=PlanningDurationField.load_default)
+    flex_model = fields.List(
+        fields.Nested(MultiSensorFlexModelSchema()),
+        data_key="flex-model",
+    )
+    flex_context = fields.Dict(required=False, data_key="flex-context")
+
+    @validates_schema
+    def check_flex_model_sensors(self, data, **kwargs):
+        """Verify that the flex-model's sensors live under the asset for which a schedule is triggered."""
+        asset = data["asset"]
+        sensors = []
+        for sensor_flex_model in data["flex_model"]:
+            sensor = sensor_flex_model["sensor"]
+            if sensor in sensors:
+                raise FMValidationError(
+                    f"Sensor {sensor_flex_model['sensor'].id} should not occur more than once in the flex-model"
+                )
+            if sensor.generic_asset not in [asset] + asset.offspring:
+                raise FMValidationError(
+                    f"Sensor {sensor_flex_model['sensor'].id} does not belong to asset {asset.id} (or to one of its offspring)"
+                )
+            sensors.append(sensor)
+        return data
