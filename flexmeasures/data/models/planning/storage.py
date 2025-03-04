@@ -114,8 +114,8 @@ class MetaStorageScheduler(Scheduler):
         prefer_charging_sooner = [
             flex_model_d.get("prefer_charging_sooner") for flex_model_d in flex_model
         ]
-        soc_gain = [flex_model_d.get("soc_gain", []) for flex_model_d in flex_model]
-        soc_usage = [flex_model_d.get("soc_usage", []) for flex_model_d in flex_model]
+        soc_gain = [flex_model_d.get("soc_gain") for flex_model_d in flex_model]
+        soc_usage = [flex_model_d.get("soc_usage") for flex_model_d in flex_model]
         consumption_capacity = [
             flex_model_d.get("consumption_capacity") for flex_model_d in flex_model
         ]
@@ -592,6 +592,10 @@ class MetaStorageScheduler(Scheduler):
             all_stock_delta = []
 
             for is_usage, soc_delta in zip([False, True], [soc_gain[d], soc_usage[d]]):
+                if soc_delta is None:
+                    # Try to get fallback
+                    soc_delta = [None]
+
                 for component in soc_delta:
                     stock_delta_series = get_continuous_series_sensor_or_quantity(
                         variable_quantity=component,
@@ -600,6 +604,7 @@ class MetaStorageScheduler(Scheduler):
                         query_window=(start, end),
                         resolution=resolution,
                         beliefs_before=belief_time,
+                        fallback_attribute="soc-usage" if is_usage else "soc-gain",
                     )
 
                     # example: 4 MW sustained over 15 minutes gives 1 MWh
