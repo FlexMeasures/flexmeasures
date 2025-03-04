@@ -81,7 +81,6 @@ class MetaStorageScheduler(Scheduler):
         end = self.end
         resolution = self.resolution
         belief_time = self.belief_time
-        sensor = self.sensor
 
         # List the asset and sensor(s) being scheduled
         if self.asset is not None:
@@ -153,7 +152,7 @@ class MetaStorageScheduler(Scheduler):
         if consumption_price is not None:
             up_deviation_prices = get_continuous_series_sensor_or_quantity(
                 variable_quantity=consumption_price,
-                actuator=sensor,
+                actuator=asset,
                 unit=(
                     consumption_price.unit
                     if isinstance(consumption_price, Sensor)
@@ -174,13 +173,13 @@ class MetaStorageScheduler(Scheduler):
                 resolution,
                 beliefs_before=belief_time,
                 price_sensor=consumption_price_sensor,
-                sensor=sensor,
+                asset=asset,
                 allow_trimmed_query_window=False,
             )
         if production_price is not None:
             down_deviation_prices = get_continuous_series_sensor_or_quantity(
                 variable_quantity=production_price,
-                actuator=sensor,
+                actuator=asset,
                 unit=(
                     production_price.unit
                     if isinstance(production_price, Sensor)
@@ -201,7 +200,7 @@ class MetaStorageScheduler(Scheduler):
                 resolution,
                 beliefs_before=belief_time,
                 price_sensor=production_price_sensor,
-                sensor=sensor,
+                asset=asset,
                 allow_trimmed_query_window=False,
             )
 
@@ -285,7 +284,7 @@ class MetaStorageScheduler(Scheduler):
         if self.flex_context.get("ems_peak_consumption_price", None) is not None:
             ems_peak_consumption = get_continuous_series_sensor_or_quantity(
                 variable_quantity=self.flex_context.get("ems_peak_consumption_in_mw"),
-                actuator=sensor,
+                actuator=asset,
                 unit="MW",
                 query_window=(start, end),
                 resolution=resolution,
@@ -299,7 +298,7 @@ class MetaStorageScheduler(Scheduler):
             )
             ems_peak_consumption_price = get_continuous_series_sensor_or_quantity(
                 variable_quantity=ems_peak_consumption_price,
-                actuator=sensor,
+                actuator=asset,
                 unit=(
                     ems_peak_consumption_price.unit
                     if isinstance(ems_peak_consumption_price, Sensor)
@@ -329,7 +328,7 @@ class MetaStorageScheduler(Scheduler):
         if self.flex_context.get("ems_peak_production_price", None) is not None:
             ems_peak_production = get_continuous_series_sensor_or_quantity(
                 variable_quantity=self.flex_context.get("ems_peak_production_in_mw"),
-                actuator=sensor,
+                actuator=asset,
                 unit="MW",
                 query_window=(start, end),
                 resolution=resolution,
@@ -343,7 +342,7 @@ class MetaStorageScheduler(Scheduler):
             )
             ems_peak_production_price = get_continuous_series_sensor_or_quantity(
                 variable_quantity=ems_peak_production_price,
-                actuator=sensor,
+                actuator=asset,
                 unit=(
                     ems_peak_production_price.unit
                     if isinstance(ems_peak_production_price, Sensor)
@@ -388,7 +387,7 @@ class MetaStorageScheduler(Scheduler):
             # Convert to Series
             ems_consumption_breach_price = get_continuous_series_sensor_or_quantity(
                 variable_quantity=ems_consumption_breach_price,
-                actuator=sensor,
+                actuator=asset,
                 unit=(
                     ems_consumption_breach_price.unit
                     if isinstance(ems_consumption_breach_price, Sensor)
@@ -437,7 +436,7 @@ class MetaStorageScheduler(Scheduler):
             # Convert to Series
             ems_production_breach_price = get_continuous_series_sensor_or_quantity(
                 variable_quantity=ems_production_breach_price,
-                actuator=sensor,
+                actuator=asset,
                 unit=(
                     ems_production_breach_price.unit
                     if isinstance(ems_production_breach_price, Sensor)

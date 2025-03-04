@@ -10,6 +10,7 @@ import numpy as np
 import timely_beliefs as tb
 
 from flexmeasures.data import db
+from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.planning.exceptions import (
     UnknownMarketException,
@@ -89,9 +90,9 @@ def add_tiny_price_slope(
     return prices
 
 
-def get_market(sensor: Sensor) -> Sensor:
+def get_market(asset: GenericAsset) -> Sensor:
     """Get market sensor from the sensor's attributes."""
-    price_sensor = db.session.get(Sensor, sensor.get_attribute("market_id"))
+    price_sensor = db.session.get(Sensor, asset.get_attribute("market_id"))
 
     if price_sensor is None:
         raise UnknownMarketException
@@ -103,7 +104,7 @@ def get_prices(
     resolution: timedelta,
     beliefs_before: datetime | None,
     price_sensor: Sensor | None = None,
-    sensor: Sensor | None = None,
+    asset: GenericAsset | None = None,
     allow_trimmed_query_window: bool = True,
 ) -> tuple[pd.DataFrame, tuple[datetime, datetime]]:
     """Check for known prices or price forecasts.
@@ -116,11 +117,11 @@ def get_prices(
 
     # Look for the applicable price sensor
     if price_sensor is None:
-        if sensor is None:
+        if asset is None:
             raise UnknownMarketException(
-                "Missing price sensor cannot be derived from a missing sensor"
+                "Missing price sensor cannot be derived from a missing asset"
             )
-        price_sensor = get_market(sensor)
+        price_sensor = get_market(asset)
 
     price_bdf: tb.BeliefsDataFrame = TimedBelief.search(
         price_sensor,
