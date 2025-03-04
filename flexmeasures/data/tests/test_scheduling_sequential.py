@@ -5,6 +5,7 @@ import pandas as pd
 from flexmeasures.data.services.scheduling import create_sequential_scheduling_job
 from flexmeasures.data.tests.utils import work_on_rq
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
+from flexmeasures.data.models.time_series import Sensor
 
 
 def test_create_sequential_jobs(db, app, flex_description_sequential, smart_building):
@@ -83,11 +84,40 @@ def test_create_sequential_jobs(db, app, flex_description_sequential, smart_buil
     assert battery_power.sources.unique()[0].model == "StorageScheduler"
     battery_power = battery_power.droplevel([1, 2, 3])
 
-    start_charging = start + pd.Timedelta(hours=10)
-    end_charging = start + pd.Timedelta(hours=15) - sensors["Test EV"].event_resolution
+    start_charging = start + pd.Timedelta(hours=8)
+    end_charging = start + pd.Timedelta(hours=10) - sensors["Test EV"].event_resolution
 
-    assert all(ev_power.loc[start_charging:end_charging] == -0.01)  # 10 kW
-    assert all(battery_power.loc[start_charging:end_charging] == 0.01)  # 10 kW
+    assert (ev_power.loc[start_charging:end_charging] == -0.005).values.all()  # 5 kW
+    assert (
+        battery_power.loc[start_charging:end_charging] == 0.005
+    ).values.all()  # 5 kW
+
+    # Get price data
+    price_sensor_id = flex_description_sequential["flex_context"][
+        "consumption-price-sensor"
+    ]
+    price_sensor = db.session.get(Sensor, price_sensor_id)
+    prices = price_sensor.search_beliefs(
+        event_starts_after=start - pd.Timedelta(hours=1), event_ends_before=end
+    )
+    prices = prices.droplevel([1, 2, 3])
+    prices.index = prices.index.tz_convert("Europe/Amsterdam")
+
+    # Resample prices to match power resolution
+    prices = prices.resample("15min").ffill()
+
+    # Calculate costs
+    resolution = sensors["Test EV"].event_resolution.total_seconds() / 3600
+    ev_costs = (ev_power * prices * resolution).sum().item()
+    battery_costs = (battery_power * prices * resolution).sum().item()
+    total_cost = ev_costs + battery_costs
+
+    # Assert costs
+    assert ev_costs == -2.2375, f"EV cost should be -2.2375 €, got {ev_costs} €"
+    assert (
+        battery_costs == 4.415
+    ), f"Battery cost should be 4.415 €, got {battery_costs} €"
+    assert total_cost == 2.1775, f"Total cost should be 2.1775 €, got {total_cost} €"
 
 
 def test_create_sequential_jobs_fallback(

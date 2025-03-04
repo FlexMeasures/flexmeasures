@@ -340,9 +340,9 @@ def flex_description_sequential(
         {
             "sensor": sensors["Test EV"],
             "sensor_flex_model": {
-                "consumption-capacity": "10kW",
+                "consumption-capacity": "5kW",
                 "production-capacity": "0kW",
-                "power-capacity": "10kW",
+                "power-capacity": "5kW",
                 "soc-at-start": 0.00,  # 0 kWh
                 "soc-unit": "MWh",
                 "soc-min": 0.0,
@@ -350,10 +350,18 @@ def flex_description_sequential(
                 "soc-targets": [
                     {
                         "start": "2015-01-03T00:00:00+01:00",
-                        "end": "2015-01-03T10:00:00+01:00",
+                        "end": "2015-01-03T05:00:00+01:00",
                         "value": 0.0,
                     },
-                    {"datetime": "2015-01-03T23:45:00+01:00", "value": 0.05},
+                    {
+                        "datetime": "2015-01-03T07:45:00+01:00",
+                        "value": 0.0125,
+                    },  # 12.5 kWh
+                    {"datetime": "2015-01-03T17:45:00+01:00", "value": 0.025},  # 25 kWh
+                    {
+                        "datetime": "2015-01-03T23:45:00+01:00",
+                        "value": 0.0375,
+                    },  # 37.5 kWh
                 ],
             },
         },
@@ -361,12 +369,18 @@ def flex_description_sequential(
             "sensor": sensors["Test Battery"],
             "sensor_flex_model": {
                 "consumption-capacity": "0kW",
-                "production-capacity": "10kW",
-                "power-capacity": "10kW",
-                "soc-at-start": 0.1,  # Battery is initially full (100 kWh)
+                "production-capacity": "5kW",
+                "power-capacity": "5kW",
+                "soc-at-start": 0.1,  # 100 kWh
                 "soc-unit": "MWh",
                 "soc-min": 0.0,
                 "soc-max": 0.1,  # 100 kWh
+                "soc-targets": [
+                    {
+                        "datetime": "2015-01-03T03:00:00+01:00",
+                        "value": 0.094,
+                    }  # 6 kWh discharge
+                ],
             },
         },
     ]
@@ -377,7 +391,7 @@ def flex_description_sequential(
             sensors["Test Solar"].id,
             sensors["Test Building"].id,
         ],
-        "site-production-capacity": "0kW",
-        "site-consumption-capacity": "100kW",
+        "site-production-capacity": "2kW",
+        "site-consumption-capacity": "5kW",
     }
     return dict(flex_model=flex_model, flex_context=flex_context)
