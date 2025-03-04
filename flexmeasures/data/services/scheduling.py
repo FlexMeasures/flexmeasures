@@ -270,11 +270,10 @@ def create_scheduling_job(
 
 def cb_done_sequential_scheduling_job(jobs_ids: list[str]):
     """
-    TODO: add logic
+    TODO: maybe check if any of the subjobs used a fallback scheduler or accrued a relaxation penalty.
     """
-
+    current_app.logger.info("Sequential scheduling job finished its chain of subjobs.")
     # jobs = [Job.fetch(job_id) for job_id in jobs_ids]
-    pass
 
 
 @job_cache("scheduling")
