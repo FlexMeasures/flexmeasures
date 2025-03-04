@@ -798,6 +798,7 @@ def create_test_battery_assets(
         parent_asset_id=test_building.id,
         flex_context={
             "site-power-capacity": "2 MVA",
+            "soc-usage": "0 kW",
         },
         attributes=dict(
             max_soc_in_mwh=5,

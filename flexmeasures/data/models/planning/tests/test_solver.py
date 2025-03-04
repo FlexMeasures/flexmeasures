@@ -230,7 +230,7 @@ def run_test_charge_discharge_sign(
     )
 
     (
-        sensor,
+        sensors,
         start,
         end,
         resolution,
@@ -244,7 +244,10 @@ def run_test_charge_discharge_sign(
         device_constraints=device_constraints,
         ems_constraints=ems_constraints,
         commitments=commitments,
-        initial_stock=soc_at_start * (timedelta(hours=1) / resolution),
+        initial_stock=[
+            soc_at_start_d * (timedelta(hours=1) / resolution)
+            for soc_at_start_d in soc_at_start
+        ],
     )
 
     device_power_sign = pd.Series(model.device_power_sign.extract_values())[0]
@@ -272,7 +275,7 @@ def run_test_charge_discharge_sign(
 
     # Check if constraints were met
     soc_schedule = check_constraints(
-        battery, schedule, soc_at_start, roundtrip_efficiency, storage_efficiency
+        battery, schedule, soc_at_start[0], roundtrip_efficiency, storage_efficiency
     )
 
     return schedule.tz_convert(tz), soc_schedule.tz_convert(tz)
@@ -1089,7 +1092,7 @@ def test_numerical_errors(app_with_each_solver, setup_planning_test_data, db):
     )
 
     (
-        sensor,
+        sensors,
         start,
         end,
         resolution,
@@ -1103,7 +1106,10 @@ def test_numerical_errors(app_with_each_solver, setup_planning_test_data, db):
         device_constraints=device_constraints,
         ems_constraints=ems_constraints,
         commitments=commitments,
-        initial_stock=soc_at_start * (timedelta(hours=1) / resolution),
+        initial_stock=[
+            soc_at_start_d * (timedelta(hours=1) / resolution)
+            for soc_at_start_d in soc_at_start
+        ],
     )
 
     assert device_constraints[0]["equals"].max() > device_constraints[0]["max"].max()
@@ -1267,7 +1273,7 @@ def test_capacity(
     )
 
     (
-        sensor,
+        sensors,
         start,
         end,
         resolution,
@@ -1674,7 +1680,7 @@ def test_dis_charging_efficiency_as_sensor(
 
 @pytest.mark.parametrize(
     "stock_delta_sensor",
-    ["delta fails", "delta", "delta hourly", "delta 5min"],
+    ["delta fails", "delta", "delta hourly", "delta 5min", None],
 )
 def test_battery_stock_delta_sensor(
     add_battery_assets, add_stock_delta, stock_delta_sensor, db
@@ -1700,34 +1706,47 @@ def test_battery_stock_delta_sensor(
     start = tz.localize(datetime(2015, 1, 1))
     end = tz.localize(datetime(2015, 1, 2))
     resolution = timedelta(minutes=15)
-    stock_delta_sensor_obj = add_stock_delta[stock_delta_sensor]
+    if stock_delta_sensor is not None:
+        stock_delta_sensor_obj = add_stock_delta[stock_delta_sensor]
+    else:
+        stock_delta_sensor_obj = add_stock_delta["delta"]
     capacity = stock_delta_sensor_obj.get_attribute(
         "capacity_in_mw",
         ur.Quantity(stock_delta_sensor_obj.get_attribute("site-power-capacity"))
         .to("MW")
         .magnitude,
     )
+    flex_model = {
+        "soc-max": 2,
+        "soc-min": 0,
+        "roundtrip-efficiency": 1,
+        "storage-efficiency": 1,
+        "production-capacity": "0kW",
+        "soc-at-start": 0,
+    }
+    if stock_delta_sensor is not None:
+        flex_model = {
+            **flex_model,
+            **{"soc-usage": [{"sensor": stock_delta_sensor_obj.id}]},
+        }
 
     scheduler: Scheduler = StorageScheduler(
         battery,
         start,
         end,
         resolution,
-        flex_model={
-            "soc-max": 2,
-            "soc-min": 0,
-            "soc-usage": [{"sensor": stock_delta_sensor_obj.id}],
-            "roundtrip-efficiency": 1,
-            "storage-efficiency": 1,
-            "production-capacity": "0kW",
-            "soc-at-start": 0,
-        },
+        flex_model=flex_model,
     )
 
-    if "fails" in stock_delta_sensor:
+    if stock_delta_sensor == "delta fails":
         with pytest.raises(InfeasibleProblemException):
-            schedule = scheduler.compute()
+            scheduler.compute()
+    elif stock_delta_sensor is None:
+        # No usage -> the battery does not charge
+        schedule = scheduler.compute()
+        assert all(schedule == 0)
     else:
+        # Some usage -> the battery needs to charge
         schedule = scheduler.compute()
         assert all(schedule == capacity)
 
@@ -1739,7 +1758,7 @@ def test_battery_stock_delta_sensor(
         (["0.5 MW", "0.5 MW"], None, 1),  # 1 MW stock gain
         (["100 kW"], None, 0.1),  # 100 MW stock gain
         (None, ["100 kW"], -0.1),  # 100 kW stock usage
-        (None, None, None),  # no gain/usage defined -> no gain or usage happens
+        (None, None, 0),  # no gain/usage defined -> the fallback usage is set to 0
     ],
 )
 def test_battery_stock_delta_quantity(
