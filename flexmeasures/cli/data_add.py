@@ -1836,6 +1836,12 @@ def add_report(  # noqa: C901
         end = now
 
     click.echo(f"Report scope:\n\tstart: {start}\n\tend:   {end}")
+    if end < start:
+        click.secho(
+            "Invalid report period (end must not precede start).",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
 
     if source is None:
         click.echo(
@@ -2054,6 +2060,7 @@ def add_toy_account(kind: str, name: str):
         sensor_name: str,
         unit: str = "MW",
         parent_asset_id: int | None = None,
+        flex_context: dict | None = None,
         **asset_attributes,
     ):
         asset_kwargs = dict()
@@ -2067,6 +2074,7 @@ def add_toy_account(kind: str, name: str):
             owner=db.session.get(Account, account_id),
             latitude=location[0],
             longitude=location[1],
+            flex_context=flex_context,
             **asset_kwargs,
         )
         if len(asset_attributes) > 0:
@@ -2103,7 +2111,9 @@ def add_toy_account(kind: str, name: str):
             "battery",
             "discharging",
             parent_asset_id=building_asset.id,
-            capacity_in_mw=0.5,
+            flex_context={
+                "site-power-capacity": "500 kVA",
+            },
             min_soc_in_mwh=0.05,
             max_soc_in_mwh=0.45,
         )

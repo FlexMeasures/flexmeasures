@@ -31,6 +31,7 @@ from flexmeasures.data.models.planning.process import ProcessScheduler
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.generic_assets import GenericAsset as Asset
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.schemas.scheduling import MultiSensorFlexModelSchema
 from flexmeasures.data.utils import get_data_source, save_to_db
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.data.services.utils import (
@@ -103,7 +104,7 @@ def load_custom_scheduler(scheduler_specs: dict) -> type:
 
 def success_callback(job, connection, result, *args, **kwargs):
     queue = current_app.queues["scheduling"]
-    orginal_job = Job.fetch(job.meta["original_job_id"])
+    orginal_job = Job.fetch(job.meta["original_job_id"], connection=connection)
 
     # requeue deferred jobs
     for dependent_job_ids in orginal_job.dependent_ids:
@@ -186,15 +187,15 @@ def create_scheduling_job(
     3. If an error occurs (and the worker is configured accordingly), handle_scheduling_exception comes in.
 
     Arguments:
-    :param asset_or_sensor:         asset or sensor for which the schedule is computed
-    :param job_id:                  optionally, set a job id explicitly
-    :param enqueue:                 if True, enqueues the job in case it is new
-    :param requeue:                 if True, requeues the job in case it is not new and had previously failed
-                                    (this argument is used by the @job_cache decorator)
-    :param force_new_job_creation:  if True, this attribute forces a new job to be created (skipping cache)
-    :param success_callback:        callback function that runs on success.
-                                    (this argument is used by the @job_cache decorator)
-    :returns: the job
+    :param asset_or_sensor:         Asset or sensor for which the schedule is computed.
+    :param job_id:                  Optionally, set a job id explicitly.
+    :param enqueue:                 If True, enqueues the job in case it is new.
+    :param requeue:                 If True, requeues the job in case it is not new and had previously failed
+                                    (this argument is used by the @job_cache decorator).
+    :param force_new_job_creation:  If True, this attribute forces a new job to be created (skipping cache).
+    :param success_callback:        Callback function that runs on success
+                                    (this argument is used by the @job_cache decorator).
+    :returns:                       The job.
 
     """
     # We first create a scheduler and check if deserializing works, so the flex config is checked
@@ -254,7 +255,7 @@ def create_scheduling_job(
     except InvalidJobOperation:
         job_status = None
 
-    # with job_status=None, we ensure that only fresh new jobs are enqueued (in the contrary they should be requeued)
+    # with job_status=None, we ensure that only fresh new jobs are enqueued (otherwise, they should be requeued instead)
     if enqueue and not job_status:
         current_app.queues["scheduling"].enqueue_job(job)
         current_app.job_cache.add(
@@ -276,6 +277,7 @@ def cb_done_sequential_scheduling_job(jobs_ids: list[str]):
     pass
 
 
+@job_cache("scheduling")
 def create_sequential_scheduling_job(
     asset: Asset,
     job_id: str | None = None,
@@ -284,8 +286,39 @@ def create_sequential_scheduling_job(
     force_new_job_creation: bool = False,
     scheduler_specs: dict | None = None,
     depends_on: list[Job] | None = None,
+    success_callback: Callable | None = None,
     **scheduler_kwargs,
-) -> list[Job]:
+) -> Job:
+    """Create a chain of underlying jobs, one for each device, with one additional job to wrap up.
+
+    :param asset:                   Asset (e.g. a site) for which the schedule is computed.
+    :param job_id:                  Optionally, set a job id explicitly.
+    :param enqueue:                 If True, enqueues the job in case it is new.
+    :param requeue:                 If True, requeues the job in case it is not new and had previously failed
+                                    (this argument is used by the @job_cache decorator).
+    :param force_new_job_creation:  If True, this attribute forces a new job to be created (skipping cache).
+    :param success_callback:        Callback function that runs on success
+                                    (this argument is used by the @job_cache decorator).
+    :param scheduler_kwargs:        Dict containing start and end (both deserialized) the flex-context (serialized),
+                                    and the flex-model (partially deserialized, see example below).
+    :returns:                       The wrap-up job.
+
+    Example of a partially deserialized flex-model per sensor:
+
+        scheduler_kwargs["flex_model"] = [
+            dict(
+                sensor=<Sensor 5: power, unit: MW res.: 0:15:00>,
+                sensor_flex_model={
+                    'consumption-capacity': '10 kW',
+                },
+            ),
+            dict(
+                sensor=<deserialized sensor object>,
+                sensor_flex_model=<still serialized flex-model>,
+            ),
+        ]
+
+    """
     flex_model = scheduler_kwargs["flex_model"]
     jobs = []
     previous_sensors = []
@@ -309,7 +342,7 @@ def create_sequential_scheduling_job(
             scheduler_specs=scheduler_specs,
             requeue=requeue,
             job_id=job_id,
-            enqueue=False,  # we enqueue all jobs later in this method
+            enqueue=enqueue,
             depends_on=previous_job,
             force_new_job_creation=force_new_job_creation,
         )
@@ -332,27 +365,28 @@ def create_sequential_scheduling_job(
                 "FLEXMEASURES_PLANNING_TTL", timedelta(-1)
             ).total_seconds()
         ),  # NB job.cleanup docs says a negative number of seconds means persisting forever
+        on_success=success_callback,
         connection=current_app.queues["scheduling"].connection,
     )
 
-    job_status = job.get_status(refresh=True)
+    try:
+        job_status = job.get_status(refresh=True)
+    except InvalidJobOperation:
+        job_status = None
 
-    jobs.append(job)
-
-    # with job_status=None, we ensure that only fresh new jobs are enqueued (in the contrary they should be requeued)
+    # with job_status=None, we ensure that only fresh new jobs are enqueued (otherwise, they should be requeued instead)
     if enqueue and not job_status:
-        for job in jobs:
-            current_app.queues["scheduling"].enqueue_job(job)
-            current_app.job_cache.add(
-                asset.id,
-                job.id,
-                queue="scheduling",
-                asset_or_sensor_type="asset",
-            )
-
-    return jobs
+        current_app.queues["scheduling"].enqueue_job(job)
+        current_app.job_cache.add(
+            asset.id,
+            job.id,
+            queue="scheduling",
+            asset_or_sensor_type="asset",
+        )
+    return job
 
 
+@job_cache("scheduling")
 def create_simultaneous_scheduling_job(
     asset: Asset,
     job_id: str | None = None,
@@ -361,20 +395,43 @@ def create_simultaneous_scheduling_job(
     force_new_job_creation: bool = False,
     scheduler_specs: dict | None = None,
     depends_on: list[Job] | None = None,
+    success_callback: Callable | None = None,
     **scheduler_kwargs,
-) -> list[Job]:
-    jobs = []
+) -> Job:
+    """Create a single job to schedule all devices at once.
 
-    # scheduler_kwargs["resolution"] = sensor.event_resolution  # todo: needed?
+    :param asset:                   Asset (e.g. a site) for which the schedule is computed.
+    :param job_id:                  Optionally, set a job id explicitly.
+    :param enqueue:                 If True, enqueues the job in case it is new.
+    :param requeue:                 If True, requeues the job in case it is not new and had previously failed
+                                    (this argument is used by the @job_cache decorator).
+    :param force_new_job_creation:  If True, this attribute forces a new job to be created (skipping cache).
+    :param success_callback:        Callback function that runs on success
+                                    (this argument is used by the @job_cache decorator).
+    :param scheduler_kwargs:        Dict containing start and end (both deserialized) the flex-context (serialized),
+                                    and the flex-model (partially deserialized, see example below).
+    :returns:                       The wrap-up job.
 
+    Example of a partially deserialized flex-model per sensor:
+
+        scheduler_kwargs["flex_model"] = [
+            dict(
+                sensor=<Sensor 5: power, unit: MW res.: 0:15:00>,
+                sensor_flex_model={
+                    'consumption-capacity': '10 kW',
+                },
+            ),
+            dict(
+                sensor=<deserialized sensor object>,
+                sensor_flex_model=<still serialized flex-model>,
+            ),
+        ]
+
+    """
     # Convert (partially) deserialized fields back to serialized form
-    for i, child_flex_model in enumerate(scheduler_kwargs.get("flex_model")):
-        # Convert deserialized Sensor values back to serialized sensor IDs
-        scheduler_kwargs["flex_model"][i]["sensor"] = child_flex_model["sensor"].id
-        # Convert deserialized field name back to serialized form
-        scheduler_kwargs["flex_model"][i]["sensor-flex-model"] = scheduler_kwargs[
-            "flex_model"
-        ][i].pop("sensor_flex_model", {})
+    scheduler_kwargs["flex_model"] = MultiSensorFlexModelSchema(many=True).dump(
+        scheduler_kwargs["flex_model"]
+    )
 
     job = create_scheduling_job(
         asset_or_sensor=asset,
@@ -384,25 +441,26 @@ def create_simultaneous_scheduling_job(
         job_id=job_id,
         enqueue=False,  # we enqueue all jobs later in this method
         depends_on=depends_on,
+        success_callback=success_callback,
         force_new_job_creation=force_new_job_creation,
     )
 
-    job_status = job.get_status(refresh=True)
+    try:
+        job_status = job.get_status(refresh=True)
+    except InvalidJobOperation:
+        job_status = None
 
-    jobs.append(job)
-
-    # with job_status=None, we ensure that only fresh new jobs are enqueued (in the contrary they should be requeued)
+    # with job_status=None, we ensure that only fresh new jobs are enqueued (otherwise, they should be requeued instead)
     if enqueue and not job_status:
-        for job in jobs:
-            current_app.queues["scheduling"].enqueue_job(job)
-            current_app.job_cache.add(
-                asset.id,
-                job.id,
-                queue="scheduling",
-                asset_or_sensor_type="asset",
-            )
+        current_app.queues["scheduling"].enqueue_job(job)
+        current_app.job_cache.add(
+            asset.id,
+            job.id,
+            queue="scheduling",
+            asset_or_sensor_type="asset",
+        )
 
-    return jobs
+    return job
 
 
 def make_schedule(

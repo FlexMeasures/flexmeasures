@@ -7,13 +7,20 @@ FlexMeasures Changelog
 v0.25.0 | February XX, 2025
 ============================
 
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+
 New features
 -------------
 
 Infrastructure / Support
 ----------------------
+* Support multi-asset scheduling in the ``StorageScheduler`` and job queueing - functionality for (plugin) developers (incl. prep work for future API endpoint for multi-asset scheduling) [see `PR #1313 <https://github.com/FlexMeasures/flexmeasures/pull/1313>`_]
+* Migrate data for the ``flex_context`` of an asset to a dedicated column in the database table for assets [see `PR #1293 <https://github.com/FlexMeasures/flexmeasures/pull/1293>`_]
 * Enhance reporting infrastructure by ensuring that all ``Sensor.search_beliefs`` filters can be used as report parameters [see `PR #1318 <https://github.com/FlexMeasures/flexmeasures/pull/1318>`_]
 * Improve searching for multi-sourced data by returning data from only the latest version of a data generator (e.g. forecaster or scheduler) by default, when using ``Sensor.search_beliefs`` [see `PR #1306 <https://github.com/FlexMeasures/flexmeasures/pull/1306>`_]
+* Extra reporter tests [see `PR #1317 <https://github.com/FlexMeasures/flexmeasures/pull/1317>`_]
+* Catch invalid time windows passed to ``flexmeasures add report`` [see `PR #1324 <https://github.com/FlexMeasures/flexmeasures/pull/1324>`_]
+* Update cache and Ubuntu versions used for testing in GitHub Actions [see `PR #1329 <https://github.com/FlexMeasures/flexmeasures/pull/1329>`_]
 
 Bugfixes
 -----------

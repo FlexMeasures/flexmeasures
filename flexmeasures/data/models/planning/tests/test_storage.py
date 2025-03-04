@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta
 
-import pytest
 import pytz
 
 import numpy as np
@@ -15,9 +14,6 @@ from flexmeasures.data.models.planning.tests.utils import (
 )
 
 
-@pytest.mark.xfail(
-    reason="unexpected difference in energy costs, needs investigating.."
-)
 def test_battery_solver_multi_commitment(add_battery_assets, db):
     _, battery = get_sensors_from_db(
         db, add_battery_assets, battery_name="Test battery"

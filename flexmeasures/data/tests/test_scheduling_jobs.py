@@ -17,6 +17,7 @@ from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
     load_custom_scheduler,
 )
+from flexmeasures.utils.unit_utils import ur
 
 
 def test_scheduling_a_battery(db, app, add_battery_assets, setup_test_data):
@@ -152,25 +153,30 @@ def test_assigning_custom_scheduler(db, app, add_battery_assets, is_path: bool):
     ).all()
     assert len(power_values) == 96
     # test for negative value as we schedule consumption
-    assert all(
-        [
-            v.event_value == -1 * battery.get_attribute("capacity_in_mw")
-            for v in power_values
-        ]
+    capacity = battery.get_attribute(
+        "capacity_in_mw",
+        ur.Quantity(battery.get_attribute("site-power-capacity")).to("MW").magnitude,
     )
+    assert all([v.event_value == -1 * capacity for v in power_values])
 
 
 def create_test_scheduler(name, compute_fails=False, fallback_class=None):
     def compute(self):
         """
-        This is a schedule that fails
+        This function can be set to fail by using compute_fails=True
         """
 
         if compute_fails:
             raise InfeasibleProblemException()
 
+        capacity = self.sensor.get_attribute(
+            "capacity_in_mw",
+            ur.Quantity(self.sensor.get_attribute("site-power-capacity"))
+            .to("MW")
+            .magnitude,
+        )
         return initialize_series(  # simply creates a Pandas Series repeating one value
-            data=self.sensor.get_attribute("capacity_in_mw"),
+            data=capacity,
             start=self.start,
             end=self.end,
             resolution=self.resolution,
@@ -184,6 +190,8 @@ def create_test_scheduler(name, compute_fails=False, fallback_class=None):
         name,
         (Scheduler,),
         {
+            "__author__": "Seita",
+            "__version__": "1",
             "compute": compute,
             "deserialize_config": deserialize_config,
             "fallback_scheduler_class": fallback_class,

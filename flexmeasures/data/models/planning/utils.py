@@ -92,6 +92,7 @@ def add_tiny_price_slope(
 def get_market(sensor: Sensor) -> Sensor:
     """Get market sensor from the sensor's attributes."""
     price_sensor = db.session.get(Sensor, sensor.get_attribute("market_id"))
+
     if price_sensor is None:
         raise UnknownMarketException
     return price_sensor
@@ -266,15 +267,15 @@ def fallback_charging_policy(
     while probably a decent policy for Charge Points,
     should not be considered a robust policy for other asset types.
     """
-    charge_power = (
-        sensor.get_attribute("capacity_in_mw")
-        if sensor.get_attribute("is_consumer")
-        else 0
+    max_charge_capacity = (
+        device_constraints[["derivative max", "derivative equals"]].max().max()
     )
+    max_discharge_capacity = (
+        -device_constraints[["derivative min", "derivative equals"]].min().min()
+    )
+    charge_power = max_charge_capacity if sensor.get_attribute("is_consumer") else 0
     discharge_power = (
-        -sensor.get_attribute("capacity_in_mw")
-        if sensor.get_attribute("is_producer")
-        else 0
+        -max_discharge_capacity if sensor.get_attribute("is_producer") else 0
     )
 
     charge_schedule = initialize_series(charge_power, start, end, resolution)

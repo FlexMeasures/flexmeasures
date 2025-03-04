@@ -32,6 +32,7 @@ from flexmeasures.auth.policy import check_access
 from werkzeug.exceptions import Forbidden, Unauthorized
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.schemas.scheduling import DBFlexContextSchema
 from flexmeasures.utils.time_utils import naturalized_datetime_str
 
 asset_schema = AssetSchema()
@@ -392,13 +393,11 @@ class AssetAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        inflexible_sensor_ids = asset_data.pop("inflexible_device_sensor_ids", [])
         asset = GenericAsset(**asset_data)
         db.session.add(asset)
         # assign asset id
         db.session.flush()
 
-        asset.set_inflexible_sensors(inflexible_sensor_ids)
         db.session.commit()
 
         AssetAuditLog.add_record(asset, f"Created asset '{asset.name}': {asset.id}")
@@ -491,9 +490,6 @@ class AssetAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        inflexible_sensor_ids = asset_data.pop("inflexible_device_sensor_ids", [])
-        db_asset.set_inflexible_sensors(inflexible_sensor_ids)
-
         audit_log_data = list()
         for k, v in asset_data.items():
             if getattr(db_asset, k) == v:
@@ -506,6 +502,9 @@ class AssetAPI(FlaskView):
                             f"Updated Attr: {attr_key}, From: {current_attributes.get(attr_key)}, To: {attr_value}"
                         )
                 continue
+            if k == "flex_context":
+                # Validate the flex context schema
+                DBFlexContextSchema().load(v)
             audit_log_data.append(
                 f"Updated Field: {k}, From: {getattr(db_asset, k)}, To: {v}"
             )
