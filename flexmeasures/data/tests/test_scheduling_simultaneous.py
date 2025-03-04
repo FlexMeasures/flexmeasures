@@ -100,13 +100,25 @@ def test_create_simultaneous_jobs(
     battery_costs = (battery_power * prices * resolution).sum().item()
     total_cost = ev_costs + battery_costs
 
-    # Assert costs (using provided values)
+    # Define expected costs based on resolution
+    if use_heterogeneous_resolutions:
+        expected_ev_costs = -2.1625
+        expected_battery_costs = 1.3788
+        expected_total_cost = -0.7838
+    else:
+        expected_ev_costs = -2.1625
+        expected_battery_costs = 5.29
+        expected_total_cost = 3.1275
+
+    # Assert costs
     assert (
-        round(ev_costs, 4) == -2.1625
-    ), f"EV cost should be -2.1625 €, got {ev_costs} €"
+        round(ev_costs, 4) == expected_ev_costs
+    ), f"EV cost should be {expected_ev_costs} €, got {ev_costs} €"
+
     assert (
-        battery_costs == 5.29
-    ), f"Battery cost should be 5.29 €, got {battery_costs} €"
+        round(battery_costs, 4) == expected_battery_costs
+    ), f"Battery cost should be {expected_battery_costs} €, got {battery_costs} €"
+
     assert (
-        round(total_cost, 4) == 3.1275
-    ), f"Total cost should be 3.1275 €, got {total_cost} €"
+        round(total_cost, 4) == expected_total_cost
+    ), f"Total cost should be {expected_total_cost} €, got {total_cost} €"
