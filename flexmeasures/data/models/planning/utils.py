@@ -268,10 +268,10 @@ def fallback_charging_policy(
     should not be considered a robust policy for other asset types.
     """
     max_charge_capacity = (
-        device_constraints[["derivative max", "derivative equals"]].max().max()
+        device_constraints[["derivative max", "derivative equals"]].min().min()
     )
     max_discharge_capacity = (
-        -device_constraints[["derivative min", "derivative equals"]].min().min()
+        -device_constraints[["derivative min", "derivative equals"]].max().max()
     )
     charge_power = max_charge_capacity if sensor.get_attribute("is_consumer") else 0
     discharge_power = (
