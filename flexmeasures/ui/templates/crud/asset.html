@@ -1176,7 +1176,6 @@
                 assetFlexContext[flexId] = { sensor: sensorId };
             }
         }
-        console.log("assetFlexContext after: ", assetFlexContext)
 
         highlightedCard = await renderFlexContextInputField(flexId);
         flexContextFormEle.innerHTML = flexContextFormEle.innerHTML.replace(document.getElementById(`${flexId}-control`).outerHTML, highlightedCard);
@@ -1233,35 +1232,18 @@
                         ${isArray ? `
                             <li class="nav-item" role="presentation">
                                 <button class="nav-link active bg-dynamic-val" id="pills-dynamic-tab" data-bs-toggle="pill" data-bs-target="#pills-dynamic" type="button" role="tab" aria-controls="pills-dynamic" aria-selected="false">
-                                    Dynamic Value(a Sensor)
-                                    <i class="fa fa-info-circle ps-2"
-                                        data-bs-toggle="tooltip"
-                                        data-bs-placement="bottom"
-                                        title="You can add a sensor which provides the values in a dynamic fashion. In the search form below, you can choose the right one. Be sure the data will be available consistently, though, so scheduling will work."
-                                    ></i>
-                                </button>
+                                    Dynamic value (a sensor)
                                 </button>
                             </li>
                         ` : `
                             <li class="nav-item" role="presentation">
                                 <button class="nav-link active bg-fixed-val" id="pills-homfixed" data-bs-toggle="pill" data-bs-target="#pills-fixed" type="button" role="tab" aria-controls="pills-fixed" aria-selected="true">
-                                    Fixed Value
-                                    <i class="fa fa-info-circle ps-2"
-                                        data-bs-toggle="tooltip"
-                                        data-bs-placement="bottom"
-                                        title="Enter a fixed value with a unit, e.g. '75kW' or '105 EUR'. It will be used in all schedules for this asset and his sensors."
-                                    ></i>
+                                    Fixed value
                                 </button>
                             </li>
                             <li class="nav-item" role="presentation">
                                 <button class="nav-link bg-dynamic-val" id="pills-dynamic-tab" data-bs-toggle="pill" data-bs-target="#pills-dynamic" type="button" role="tab" aria-controls="pills-dynamic" aria-selected="false">
-                                    Dynamic Value(a Sensor)
-                                    <i class="fa fa-info-circle ps-2"
-                                        data-bs-toggle="tooltip"
-                                        data-bs-placement="bottom"
-                                        title="You can add a sensor which provides the values in a dynamic fashion. In the search form below, you can choose the right one. Be sure the data will be available consistently, though, so scheduling will work."
-                                    ></i>
-                                </button>
+                                    Dynamic value (a sensor)
                                 </button>
                             </li>
                         `}
@@ -1272,7 +1254,13 @@
                         ${isArray ? `
                         <div class="tab-pane fade show active bg-dynamic-val rounded-bottom" id="pills-dynamic" role="tabpanel" aria-labelledby="pills-dynamic-tab">
                             <div id="select-sensor-input" class="flex-input-group mb-4 p-2">
-                                <label for="sensor" class="form-label">Look up Sensor: </label>
+                                <label for="sensor" class="form-label">Look up Sensor:
+                                    <i class="fa fa-info-circle ps-2"
+                                        data-bs-toggle="tooltip"
+                                        data-bs-placement="bottom"
+                                        title="Search for sensor(s) to add here. Make sure that the sensor data will be available consistently, though, so scheduling will work."
+                                    ></i>
+                                </label>
                                 <input type="text" id="flexContextSensorSearch" class="form-control"
                                     placeholder="Search sensors..." oninput="searchSensors()" />
                             </div>
@@ -1280,7 +1268,13 @@
                         ` : `
                         <div class="tab-pane fade show active bg-fixed-val rounded-bottom" id="pills-fixed" role="tabpanel" aria-labelledby="pills-fixed-tab">
                             <div class="flex-input-group mb-4 p-2">
-                                <label for="fixed-value" class="form-label">Value for <b>${getFlexContextFieldTitle(contextKey)} </b> </label>
+                                <label for="fixed-value" class="form-label">Value for <b>${getFlexContextFieldTitle(contextKey)} </b>
+                                    <i class="fa fa-info-circle ps-2"
+                                        data-bs-toggle="tooltip"
+                                        data-bs-placement="bottom"
+                                        title="Enter a fixed value with a unit, e.g. '75kW' or '105 EUR'. It will be used in all schedules for this asset and his sensors."
+                                    ></i>
+                                </label>
                                 <input type="text" id="fixed-value" class="form-control"
                                     value="${typeof(assetFlexContext[contextKey]) == 'string' ? assetFlexContext[contextKey] : ""}"
                                     placeholder="e.g. 15000 kW"
@@ -1293,7 +1287,13 @@
 
                         <div class="tab-pane fade bg-dynamic-val rounded-bottom" id="pills-dynamic" role="tabpanel" aria-labelledby="pills-dynamic-tab">
                             <div id="select-sensor-input" class="flex-input-group mb-4 p-2">
-                                <label for="sensor" class="form-label">Look up Sensor: </label>
+                                <label for="sensor" class="form-label">Look up Sensor for <b>${getFlexContextFieldTitle(contextKey)} </b>
+                                    <i class="fa fa-info-circle ps-2"
+                                        data-bs-toggle="tooltip"
+                                        data-bs-placement="bottom"
+                                        title="You can add a sensor which provides the values in a dynamic fashion. In the search form below, you can choose the right one. Make sure that the sensor data will be available consistently, though, so scheduling will work."
+                                    ></i>
+                                </label>
                                 <input type="text" id="flexContextSensorSearch" class="form-control"
                                     placeholder="Search sensors..." oninput="searchSensors()" />
                             </div>
@@ -1596,7 +1596,7 @@
                         });
                     },
                     error: function (request, status, error) {
-                        console.log("Error: ", error);
+                        showToast(error, "error");
                     },
                 });
             },
