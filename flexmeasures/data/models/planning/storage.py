@@ -95,7 +95,7 @@ class MetaStorageScheduler(Scheduler):
         if not isinstance(flex_model, list):
             flex_model = [flex_model]
         # total number of flexible devices D described in the flex-model
-        num_devices = len(flex_model)
+        num_flexible_devices = len(flex_model)
 
         soc_at_start = [flex_model_d.get("soc_at_start") for flex_model_d in flex_model]
         soc_targets = [flex_model_d.get("soc_targets") for flex_model_d in flex_model]
@@ -478,17 +478,19 @@ class MetaStorageScheduler(Scheduler):
         # Set up device constraints: scheduled flexible devices for this EMS (from index 0 to D-1), plus the forecasted inflexible devices (at indices D to n).
         device_constraints = [
             initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
-            for i in range(num_devices + len(inflexible_device_sensors))
+            for i in range(num_flexible_devices + len(inflexible_device_sensors))
         ]
         for i, inflexible_sensor in enumerate(inflexible_device_sensors):
-            device_constraints[i + num_devices]["derivative equals"] = get_power_values(
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                sensor=inflexible_sensor,
+            device_constraints[i + num_flexible_devices]["derivative equals"] = (
+                get_power_values(
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    sensor=inflexible_sensor,
+                )
             )
 
-        for d in range(num_devices):
+        for d in range(num_flexible_devices):
             sensor_d = sensors[d]
 
             # fetch SOC constraints from sensors
