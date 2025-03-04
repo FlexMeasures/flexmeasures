@@ -82,18 +82,24 @@ class MetaStorageScheduler(Scheduler):
         resolution = self.resolution
         belief_time = self.belief_time
         sensor = self.sensor
-        if sensor is None:
+
+        # List the asset and sensor(s) being scheduled
+        if self.asset is not None:
             sensors = [flex_model_d["sensor"] for flex_model_d in self.flex_model]
             resolution = determine_minimum_resampling_resolution(
                 [s.event_resolution for s in sensors]
             )
             asset = self.asset
         else:
-            sensors = [sensor]
-            asset = sensor.generic_asset
+            # For backwards compatibility with the single asset scheduler
+            sensors = [self.sensor]
+            asset = self.sensor.generic_asset
+
+        # For backwards compatibility with the single asset scheduler
         flex_model = self.flex_model
         if not isinstance(flex_model, list):
             flex_model = [flex_model]
+
         # total number of flexible devices D described in the flex-model
         num_flexible_devices = len(flex_model)
 
@@ -703,7 +709,10 @@ class MetaStorageScheduler(Scheduler):
         )
 
     def persist_flex_model(self):
-        """Store new soc info as GenericAsset attributes"""
+        """Store new soc info as GenericAsset attributes
+
+        This method should become obsolete when all SoC information is recorded on a sensor, instead.
+        """
         if self.sensor is not None:
             self.sensor.generic_asset.set_attribute(
                 "soc_datetime", self.start.isoformat()
