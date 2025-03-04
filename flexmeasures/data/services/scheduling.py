@@ -318,6 +318,10 @@ def create_sequential_scheduling_job(
         ]
 
     """
+    if enqueue is False:
+        raise NotImplementedError(
+            "See why: https://github.com/FlexMeasures/flexmeasures/pull/1313/files#r1971479492"
+        )
     flex_model = scheduler_kwargs["flex_model"]
     jobs = []
     previous_sensors = []
