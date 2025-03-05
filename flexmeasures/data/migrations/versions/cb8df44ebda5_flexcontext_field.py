@@ -355,17 +355,17 @@ def downgrade():
         )
 
         if capacity_in_mw is not None:
-            if not isinstance(capacity_in_mw, str):
+            if not isinstance(capacity_in_mw, dict):
                 capacity_in_mw = float(capacity_in_mw.replace(" kW", "")) / 1000
 
         if consumption_capacity_in_mw is not None:
-            if not isinstance(consumption_capacity_in_mw, str):
+            if not isinstance(consumption_capacity_in_mw, dict):
                 consumption_capacity_in_mw = (
                     float(consumption_capacity_in_mw.replace(" kW", "")) / 1000
                 )
 
         if production_capacity_in_mw is not None:
-            if not isinstance(production_capacity_in_mw, str):
+            if not isinstance(production_capacity_in_mw, dict):
                 production_capacity_in_mw = (
                     float(production_capacity_in_mw.replace(" kW", "")) / 1000
                 )
