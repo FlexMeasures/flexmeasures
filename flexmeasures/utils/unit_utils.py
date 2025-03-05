@@ -261,6 +261,8 @@ def get_unit_dimension(unit: str) -> str:
     'energy price'
     >>> get_unit_dimension("EUR/kW")  # e.g. a capacity price or a peak price
     'price'
+    >>> get_unit_dimension("AUD")
+    'currency'
     >>> get_unit_dimension("%")
     'percentage'
     >>> get_unit_dimension("°C")
@@ -278,6 +280,8 @@ def get_unit_dimension(unit: str) -> str:
         return "energy price"
     if is_price_unit(unit):
         return "price"
+    if is_currency_unit(unit):
+        return "currency"
     if unit == "%":
         return "percentage"
     dimensions = ur.Quantity(unit).dimensionality
