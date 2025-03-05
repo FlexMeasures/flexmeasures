@@ -6,6 +6,7 @@
 
 {% block divs %}
 
+                  <i class="bi bi-info-circle" title="This table shows the connectivity status for all sensors under this asset. A red traffic light indicates that the last time a record was made was too long ago, and it could be a source for errors down the line if that sensor data is necessary for forecasts and schedules to be made. How long ago is considered too long (stale) depends on the sensor, usually its resolution times two." style="margin-left: 10px;"></i>
 
 <div class="container-fluid">
     <div>
@@ -19,7 +20,8 @@
         <div class="col-sm-2"></div>
         <div class="col-sm-8">
             <div class="sensors-asset card">
-                <h3>Data connectivity for sensors of {{ asset.name }}</h3>
+                <h4>Data connectivity for sensors of {{ asset.name }}
+                </h4>
                 <table class="table table-striped paginate nav-on-click">
                     <thead>
                         <tr>
@@ -27,7 +29,7 @@
                             <th>Asset name</th>
                             <th>Data source</th>
                             <th>Relation to asset</th>
-                            <th class="no-sort" title="This is the knowledge time of the most recent event recorded">Time of last value</th>
+                            <th class="no-sort" title="This is the knowledge time of the most recent event recorded">Time of most recent record</th>
                             <th class="text-right no-sort">Status</th>
                             <th class="d-none">URL</th>
                         </tr>
@@ -66,7 +68,8 @@
                         {% endfor %}
                     </tbody>
                 </table>
-                <h3>Latest jobs of {{ asset.name }}</h3>
+                <h4>Latest jobs of {{ asset.name }}</h4>
+                <i class="bi bi-info-circle" title="This table shows forecasting or scheduling jobs for this asset. A red traffic light indicstes something went wrong and should be reported to admins. Note that jobs do not live forever, so only rather recent jobs (usually younger than a day) are shown at all." style="margin-left: 10px;"></i>
                 <table id="scheduling_forecasting_jobs" class="table table-striped paginate nav-on-click">
                     <thead>
                         <tr>
