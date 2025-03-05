@@ -16,6 +16,14 @@ branch_labels = None
 depends_on = None
 
 
+def get_price_info(price_data):
+    if isinstance(price_data, str):
+        return price_data, None
+    elif isinstance(price_data, dict):
+        return None, price_data.get("sensor") if price_data else None
+    return None, None
+
+
 def build_flex_context(
     attributes_data,
     consumption_price_sensor_id,
@@ -68,7 +76,7 @@ def build_flex_context(
     }
     for key, value in capacity_data.items():
         if value is not None:
-            flex_context[key] = f"{int(value * 1000)} KW"
+            flex_context[key] = f"{int(value * 1000)} kW"
 
     price_data = {
         "site-peak-consumption-price": ems_peak_consumption_price,
@@ -85,7 +93,9 @@ def build_flex_context(
 
 def upgrade():
     with op.batch_alter_table("generic_asset", schema=None) as batch_op:
-        batch_op.add_column(sa.Column("flex_context", sa.JSON(), nullable=True))
+        batch_op.add_column(
+            sa.Column("flex_context", sa.JSON(), nullable=True, default={})
+        )
 
     generic_asset_table = sa.Table(
         "generic_asset",
@@ -295,18 +305,19 @@ def downgrade():
 
     for row in results:
         asset_id, flex_context, attributes_data = row
-        consumption_price_sensor_id = (
-            flex_context.get("consumption-price")["sensor"]
-            if flex_context.get("consumption-price")
-            else None
+
+        consumption_price_as_str, consumption_price_sensor_id = get_price_info(
+            flex_context.get("consumption-price")
         )
-        production_price_sensor_id = (
-            flex_context.get("production-price")["sensor"]
-            if flex_context.get("production-price")
-            else None
+        production_price_as_str, production_price_sensor_id = get_price_info(
+            flex_context.get("production-price")
         )
 
-        market_id = consumption_price_sensor_id
+        if consumption_price_sensor_id is not None:
+            market_id = consumption_price_sensor_id
+        else:
+            market_id = None
+
         capacity_in_mw = (
             flex_context.get("site-power-capacity")
             if flex_context.get("site-power-capacity")
@@ -344,17 +355,26 @@ def downgrade():
         )
 
         if capacity_in_mw is not None:
-            capacity_in_mw = float(capacity_in_mw.replace(" KW", "")) / 1000
+            if not isinstance(capacity_in_mw, str):
+                capacity_in_mw = float(capacity_in_mw.replace(" kW", "")) / 1000
 
         if consumption_capacity_in_mw is not None:
-            consumption_capacity_in_mw = (
-                float(consumption_capacity_in_mw.replace(" KW", "")) / 1000
-            )
+            if not isinstance(consumption_capacity_in_mw, str):
+                consumption_capacity_in_mw = (
+                    float(consumption_capacity_in_mw.replace(" kW", "")) / 1000
+                )
 
         if production_capacity_in_mw is not None:
-            production_capacity_in_mw = (
-                float(production_capacity_in_mw.replace(" KW", "")) / 1000
-            )
+            if not isinstance(production_capacity_in_mw, str):
+                production_capacity_in_mw = (
+                    float(production_capacity_in_mw.replace(" kW", "")) / 1000
+                )
+
+        if consumption_price_as_str is not None:
+            attributes_data["consumption_price"] = consumption_price_as_str
+
+        if production_price_as_str is not None:
+            attributes_data["production_price"] = production_price_as_str
 
         attributes_data["market_id"] = market_id
         attributes_data["capacity_in_mw"] = capacity_in_mw
