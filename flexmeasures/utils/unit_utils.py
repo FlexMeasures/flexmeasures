@@ -251,6 +251,22 @@ def is_energy_price_unit(unit: str) -> bool:
     return False
 
 
+def is_speed_unit(unit: str) -> bool:
+    """For example:
+    >>> is_speed_unit("m/s")
+    True
+    >>> is_speed_unit("km/h")
+    True
+    >>> is_speed_unit("W")
+    False
+    >>> is_speed_unit("m/s²")
+    False
+    """
+    if not is_valid_unit(unit):
+        return False
+    return ur.Quantity(unit).dimensionality == ur.Quantity("m/s").dimensionality
+
+
 def get_unit_dimension(unit: str) -> str:
     """For example:
     >>> get_unit_dimension("kW")
@@ -271,6 +287,8 @@ def get_unit_dimension(unit: str) -> str:
     'length'
     >>> get_unit_dimension("h")
     'time'
+    >>> get_unit_dimension("m/s")
+    'speed'
     """
     if is_power_unit(unit):
         return "power"
@@ -282,6 +300,8 @@ def get_unit_dimension(unit: str) -> str:
         return "price"
     if is_currency_unit(unit):
         return "currency"
+    if is_speed_unit(unit):
+        return "speed"
     if unit == "%":
         return "percentage"
     dimensions = ur.Quantity(unit).dimensionality
