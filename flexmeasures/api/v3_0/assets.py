@@ -503,8 +503,12 @@ class AssetAPI(FlaskView):
                         )
                 continue
             if k == "flex_context":
-                # Validate the flex context schema
-                DBFlexContextSchema().load(v)
+                try:
+                    # Validate the flex context schema
+                    DBFlexContextSchema().load(v)
+                except Exception as e:
+                    return {"error": str(e)}, 422
+
             audit_log_data.append(
                 f"Updated Field: {k}, From: {getattr(db_asset, k)}, To: {v}"
             )
