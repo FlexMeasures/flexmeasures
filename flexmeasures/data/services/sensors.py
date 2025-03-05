@@ -104,6 +104,7 @@ def get_staleness_start_times(
     sensor: Sensor, staleness_search: dict, now: datetime
 ) -> dict[str, timedelta] | None:
     """Get staleness start times for a given sensor by source.
+    Also add whether there eas any relevant data (for forecasters and schedulers this is future data).
     For scheduler and forecaster sources staleness start is latest event start time.
 
     For other sources staleness start is the knowledge time of the sensor's most recent event.
@@ -120,17 +121,17 @@ def get_staleness_start_times(
     for source, bdf in staleness_bdfs.items():
         time_column = "knowledge_times"
         source = str(source)
-        is_data_ok = True
+        has_relevant_data = True
         if source in ("scheduler", "forecaster"):
             # filter to get only future events
             bdf_filtered = bdf[bdf.event_starts > now]
             time_column = "event_starts"
             if bdf_filtered.empty:
-                is_data_ok = False
+                has_relevant_data = False
                 bdf_filtered = bdf
             bdf = bdf_filtered
         start_times[source] = (
-            is_data_ok,
+            has_relevant_data,
             getattr(bdf, time_column)[-1] if not bdf.empty else None,
         )
 
@@ -165,9 +166,9 @@ def get_stalenesses(
         return None
 
     stalenesses = dict()
-    for source, (is_data_ok, start_time) in staleness_start_times.items():
+    for source, (has_relevant_data, start_time) in staleness_start_times.items():
         stalenesses[str(source)] = (
-            is_data_ok,
+            has_relevant_data,
             None if start_time is None else now - start_time,
         )
 
@@ -219,13 +220,17 @@ def get_statuses(
     )
 
     statuses = list()
-    for source, (is_data_ok, staleness) in (
+    for source, (has_relevant_data, staleness) in (
         stalenesses or {None: (True, None)}
     ).items():
-        if staleness is None or not is_data_ok:
-            staleness_since = now - staleness if not is_data_ok else None
+        if staleness is None or not has_relevant_data:
+            staleness_since = now - staleness if not has_relevant_data else None
             stale = True
-            reason = "no data recorded" if staleness is None else "Found no future data"
+            reason = (
+                "no data recorded"
+                if staleness is None
+                else "Found no future data which this source should have"
+            )
             staleness = None
         else:
             max_source_staleness = (
