@@ -8,14 +8,14 @@
     <div class="col-md-2 on-top-md">
       <div class="header-action-button mt-3">
         <div class="user-action-button">
-          <form action="/logout" method="get">
-            <button class="btn btn-sm btn-responsive btn-info" type="submit">Log Out</button>
-          </form>
+          <button class="btn btn-sm btn-responsive btn-info" type="submit">
+            <a href="/logout">Log Out</a>
+          </button>
         </div>
         <div class="user-action-button">
-          <form action="/users/reset_password_for/{{ logged_in_user.id }}" method="get">
-            <button class="btn btn-sm btn-info" type="submit" title="Reset the password and send instructions how to choose a new one.">Reset Password</button>
-          </form>
+          <button class="btn btn-sm btn-info" type="submit">
+            <a href="/users/reset_password_for/{{ logged_in_user.id }}" title="Reset the password and send instructions how to choose a new one.">Reset password</a>
+          </button>
         </div>
       </div>
     </div>
