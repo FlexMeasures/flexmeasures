@@ -29,10 +29,10 @@ def humanize(word):
 
 
 def parameterize(word):
-    """Parameterize the word, so it can be used as a python or javascript variable name.
+    """Parameterize the word, so it can be used as a Python or JavaScript variable name.
     For example:
-    >>> word = "Acme® EV-Charger™"
-    "acme_ev_chargertm"
+    >>> parameterize("Acme® EV-Charger™")
+    'acme_ev_chargertm'
     """
     return inflection.parameterize(word).replace("-", "_")
 
@@ -51,9 +51,9 @@ def titleize(word):
     because it has less unintended side effects. For example:
      >>> word = "two PV panels"
      >>> titleize(word)
-     "Two Pv Panels"
+     'Two Pv Panels'
      >>> capitalize(word)
-     "Two PV panels"
+     'Two PV panels'
     """
     word = inflection.titleize(word)
     for ac in ACRONYMS:
