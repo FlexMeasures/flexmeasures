@@ -2594,14 +2594,14 @@ def test_multiple_devices_simultaneous_scheduler():
         num_devices: int, max_derivative: float = 1, min_derivative: float = 0
     ):
         device_constraints = []
-        for i in range(num_devices):
+        for d in range(num_devices):
             constraints = initialize_df(
                 StorageScheduler.COLUMNS, start, end, resolution
             )
-            start_time = pd.Timestamp(start_datetime[i]) - timedelta(hours=1)
-            target_time = pd.Timestamp(target_datetime[i])
-            constraints["max"] = soc_max[i] - soc_at_start[i]
-            constraints["min"] = soc_min[i] - soc_at_start[i]
+            start_time = pd.Timestamp(start_datetime[d]) - timedelta(hours=1)
+            target_time = pd.Timestamp(target_datetime[d])
+            constraints["max"] = soc_max[d] - soc_at_start[d]
+            constraints["min"] = soc_min[d] - soc_at_start[d]
             constraints["derivative max"] = max_derivative
             constraints["derivative min"] = min_derivative
             constraints.loc[
@@ -2637,7 +2637,7 @@ def test_multiple_devices_simultaneous_scheduler():
             energy_commitment["group"] = list(range(len(energy_commitment)))
             commitments.append(energy_commitment)
 
-        for i in range(num_devices):
+        for d in range(num_devices):
             stock_commitment = initialize_df(
                 [
                     "quantity",
@@ -2649,11 +2649,11 @@ def test_multiple_devices_simultaneous_scheduler():
                 end,
                 resolution,
             )
-            stock_commitment["quantity"] = target_value[i] - soc_at_start[i]
+            stock_commitment["quantity"] = target_value[d] - soc_at_start[d]
             stock_commitment["downwards deviation price"] = -soc_target_penalty
             stock_commitment["upwards deviation price"] = soc_target_penalty
             stock_commitment["group"] = list(range(len(stock_commitment)))
-            stock_commitment["device"] = 0
+            stock_commitment["device"] = d
             stock_commitment["class"] = StockCommitment
             commitments.append(stock_commitment)
 
@@ -2677,17 +2677,17 @@ def test_multiple_devices_simultaneous_scheduler():
 
     schedules = [
         initialize_series(
-            data=[model.ems_power[i, j].value for j in model.j],
+            data=[model.ems_power[d, j].value for j in model.j],
             start=start,
             end=end,
             resolution=resolution,
         )
-        for i in range(num_devices)
+        for d in range(num_devices)
     ]
 
     individual_costs = [
-        (i, sum(schedule[j] * market_prices[j] for j in range(len(market_prices))))
-        for i, schedule in enumerate(schedules)
+        (d, sum(schedule[j] * market_prices[j] for j in range(len(market_prices))))
+        for d, schedule in enumerate(schedules)
     ]
 
     # Expected results with no unmet demand
@@ -2700,13 +2700,13 @@ def test_multiple_devices_simultaneous_scheduler():
 
     # Assertions
     assert all(
-        np.isclose(schedule, expected_schedules[i]).all()
-        for i, schedule in enumerate(schedules)
+        np.isclose(schedule, expected_schedules[d]).all()
+        for d, schedule in enumerate(schedules)
     ), "Schedules mismatch: Device schedules do not match the expected schedules."
 
     assert all(
-        device == i and pytest.approx(cost, 0.01) == expected_individual_costs[i][1]
-        for i, (device, cost) in enumerate(individual_costs)
+        device == d and pytest.approx(cost, 0.01) == expected_individual_costs[d][1]
+        for d, (device, cost) in enumerate(individual_costs)
     ), "Individual costs mismatch: Costs for one or more devices are not calculated as expected."
 
     # Test case 2: With lower EMS capacity and unmet demand
@@ -2726,17 +2726,17 @@ def test_multiple_devices_simultaneous_scheduler():
 
     schedules = [
         initialize_series(
-            data=[model.ems_power[i, j].value for j in model.j],
+            data=[model.ems_power[d, j].value for j in model.j],
             start=start,
             end=end,
             resolution=resolution,
         )
-        for i in range(num_devices)
+        for d in range(num_devices)
     ]
 
     individual_costs = [
-        (i, sum(schedule[j] * market_prices[j] for j in range(len(market_prices))))
-        for i, schedule in enumerate(schedules)
+        (d, sum(schedule[j] * market_prices[j] for j in range(len(market_prices))))
+        for d, schedule in enumerate(schedules)
     ]
 
     # Expected results with unmet demand
@@ -2752,13 +2752,13 @@ def test_multiple_devices_simultaneous_scheduler():
 
     # Assertions
     assert all(
-        np.isclose(schedule, expected_schedules[i]).all()
-        for i, schedule in enumerate(schedules)
+        np.isclose(schedule, expected_schedules[d]).all()
+        for d, schedule in enumerate(schedules)
     ), "Schedules mismatch: Device schedules do not match the expected schedules."
 
     assert all(
-        device == i and pytest.approx(cost, 0.01) == expected_individual_costs[i][1]
-        for i, (device, cost) in enumerate(individual_costs)
+        device == d and pytest.approx(cost, 0.01) == expected_individual_costs[d][1]
+        for d, (device, cost) in enumerate(individual_costs)
     ), "Individual costs mismatch: Costs for one or more devices are not calculated as expected."
 
 
@@ -2813,18 +2813,18 @@ def test_multiple_devices_sequential_scheduler():
         start_datetime: list[str],
     ):
         device_constraints = []
-        for i in range(num_devices):
+        for d in range(num_devices):
             constraints = initialize_df(
                 StorageScheduler.COLUMNS, start, end, resolution
             )
 
-            start_time = pd.Timestamp(start_datetime[i]) - timedelta(hours=1)
+            start_time = pd.Timestamp(start_datetime[d]) - timedelta(hours=1)
 
-            constraints["max"] = soc_max[i] - soc_at_start[i]
-            constraints["min"] = soc_min[i] - soc_at_start[i]
+            constraints["max"] = soc_max[d] - soc_at_start[d]
+            constraints["min"] = soc_min[d] - soc_at_start[d]
             constraints["derivative max"] = 1
             constraints["derivative min"] = 0
-            constraints["min"][target_datetime[i]] = target_value[i] - soc_at_start[i]
+            constraints["min"][target_datetime[d]] = target_value[d] - soc_at_start[d]
             constraints.loc[
                 :start_time, ["max", "min", "derivative max", "derivative min"]
             ] = 0
@@ -2853,7 +2853,7 @@ def test_multiple_devices_sequential_scheduler():
         commitments.append(commitment)
 
         # Model penalties for demand unmet per device
-        for i in range(num_devices):
+        for d in range(num_devices):
             stock_commitment = initialize_df(
                 [
                     "quantity",
@@ -2865,11 +2865,11 @@ def test_multiple_devices_sequential_scheduler():
                 end,
                 resolution,
             )
-            stock_commitment["quantity"] = target_value[i] - soc_at_start[i]
+            stock_commitment["quantity"] = target_value[d] - soc_at_start[d]
             stock_commitment["downwards deviation price"] = -soc_target_penalty
             stock_commitment["upwards deviation price"] = soc_target_penalty
             stock_commitment["group"] = list(range(len(stock_commitment)))
-            stock_commitment["device"] = i
+            stock_commitment["device"] = d
             stock_commitment["class"] = StockCommitment
             commitments.append(stock_commitment)
 
@@ -2904,13 +2904,13 @@ def test_multiple_devices_sequential_scheduler():
         combined_schedule = [0] * len(market_prices)
         unmet_targets = []
 
-        for i in range(num_devices):
-            initial_stock = soc_at_start[i]
+        for d in range(num_devices):
+            initial_stock = soc_at_start[d]
 
             _, _, results, model = device_scheduler(
-                device_constraints=[device_constraints[i]],
+                device_constraints=[device_constraints[d]],
                 ems_constraints=ems_constraints,
-                commitments=[commitments[i]],
+                commitments=[commitments[d]],
                 initial_stock=initial_stock,
             )
 
@@ -2934,8 +2934,8 @@ def test_multiple_devices_sequential_scheduler():
             total_costs.append(total_cost)
 
             final_soc = initial_stock + sum(schedule)
-            if final_soc < target_value[i]:
-                unmet_targets.append((i, final_soc))
+            if final_soc < target_value[d]:
+                unmet_targets.append((d, final_soc))
 
         return (
             all_schedules,
@@ -2956,12 +2956,12 @@ def test_multiple_devices_sequential_scheduler():
     expected_costs = [(0, 1.46), (1, 2430.39)]
 
     assert all(
-        np.isclose(schedules[i], expected_schedules[i]).all()
-        for i in range(len(schedules))
+        np.isclose(schedules[d], expected_schedules[d]).all()
+        for d in range(len(schedules))
     ), "Schedules do not match expected values."
 
     assert all(
-        pytest.approx(costs[i], 0.01) == expected_costs[i][1] for i in range(len(costs))
+        pytest.approx(costs[d], 0.01) == expected_costs[d][1] for d in range(len(costs))
     ), "Costs do not match expected values."
 
     assert total_cost_all_devices == sum(
