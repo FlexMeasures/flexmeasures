@@ -248,7 +248,10 @@ def device_scheduler(  # noqa C901
         return price
 
     def commitment_quantity_select(m, c):
-        return commitments[c]["quantity"].iloc[0]
+        quantity = commitments[c]["quantity"].iloc[0]
+        if np.isnan(quantity):
+            return 0
+        return quantity
 
     def device_max_select(m, d, j):
         min_v = device_constraints[d]["min"].iloc[j]
@@ -341,7 +344,9 @@ def device_scheduler(  # noqa C901
 
     model.up_price = Param(model.c, initialize=price_up_select)
     model.down_price = Param(model.c, initialize=price_down_select)
-    model.commitment_quantity = Param(model.c, initialize=commitment_quantity_select)
+    model.commitment_quantity = Param(
+        model.c, domain=Reals, initialize=commitment_quantity_select
+    )
     model.device_max = Param(model.d, model.j, initialize=device_max_select)
     model.device_min = Param(model.d, model.j, initialize=device_min_select)
     model.device_derivative_max = Param(
