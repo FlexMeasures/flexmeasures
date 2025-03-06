@@ -2762,15 +2762,15 @@ def test_multiple_devices_sequential_scheduler():
     soc_min = [0] * 2
 
     start_datetime = ["2023-01-01 01:00:00"] * 2
-    target_datetime = ["2023-01-01 04:00:00", "2023-01-01 03:00:00"]
+    target_datetime = ["2023-01-01 05:00:00", "2023-01-01 03:00:00"]
     target_value = [1] * 2
 
     market_prices = [
         0.8598,
-        1.4613,
+        1.4613,  # cheap from 01:00 to 02:00
         2430.3887,
         3000.1779,
-        18.6619,
+        18.6619,  # cheap from 04:00 to 0:500
         369.3274,
         169.8719,
         174.2279,
@@ -2925,7 +2925,7 @@ def test_multiple_devices_sequential_scheduler():
 
     expected_schedules = [
         [0, 1] + [0] * 22,
-        [0, 0, 1] + [0] * 21,
+        [0, 0, 0, 0, 1] + [0] * 19,
     ]
     expected_costs = [(0, 1.46), (1, 2430.39)]
 
