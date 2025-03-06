@@ -2882,6 +2882,7 @@ def test_multiple_devices_sequential_scheduler():
         for d in range(num_devices):
             initial_stock = soc_at_start[d]
 
+            # Compute the schedule for device d
             _, _, results, model = device_scheduler(
                 device_constraints=[device_constraints[d]],
                 ems_constraints=ems_constraints,
