@@ -24,7 +24,12 @@ from flexmeasures.data.models.planning.tests.utils import (
     check_constraints,
     get_sensors_from_db,
 )
-from flexmeasures.data.models.planning.utils import initialize_series, initialize_df
+from flexmeasures.data.models.planning.utils import (
+    initialize_device_commitment,
+    initialize_df,
+    initialize_energy_commitment,
+    initialize_series,
+)
 from flexmeasures.data.models.planning import StockCommitment
 from flexmeasures.data.schemas.sensors import TimedEventSchema
 from flexmeasures.utils.calculations import (
@@ -2834,43 +2839,26 @@ def test_multiple_devices_sequential_scheduler():
     def initialize_device_commitments(num_devices: int):
         commitments = []
 
-        # Model energy contract for the site
-        commitment = initialize_df(
-            [
-                "quantity",
-                "downwards deviation price",
-                "upwards deviation price",
-                "group",
-            ],
-            start,
-            end,
-            resolution,
+        commitment = initialize_energy_commitment(
+            start=start,
+            end=end,
+            resolution=resolution,
+            market_prices=market_prices,
         )
-        commitment["quantity"] = 0
-        commitment["downwards deviation price"] = market_prices
-        commitment["upwards deviation price"] = market_prices
-        commitment["group"] = list(range(len(commitment)))
         commitments.append(commitment)
 
         # Model penalties for demand unmet per device
         for d in range(num_devices):
-            stock_commitment = initialize_df(
-                [
-                    "quantity",
-                    "downwards deviation price",
-                    "upwards deviation price",
-                    "group",
-                ],
-                start,
-                end,
-                resolution,
+            stock_commitment = initialize_device_commitment(
+                start=start,
+                end=end,
+                resolution=resolution,
+                device=d,
+                target_datetime=target_datetime[d],
+                target_value=target_value[d],
+                soc_at_start=soc_at_start[d],
+                soc_target_penalty=soc_target_penalty,
             )
-            stock_commitment["quantity"] = target_value[d] - soc_at_start[d]
-            stock_commitment["downwards deviation price"] = -soc_target_penalty
-            stock_commitment["upwards deviation price"] = soc_target_penalty
-            stock_commitment["group"] = list(range(len(stock_commitment)))
-            stock_commitment["device"] = d
-            stock_commitment["class"] = StockCommitment
             commitments.append(stock_commitment)
 
         return commitments
