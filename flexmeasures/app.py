@@ -52,6 +52,10 @@ def create(  # noqa C901
     load_dotenv()
     app = Flask("flexmeasures")
 
+    from flexmeasures.ws import sock
+
+    sock.init_app(app)
+
     if env is not None:  # overwrite
         app.config["FLEXMEASURES_ENV"] = env
     if app.config.get("FLEXMEASURES_ENV") == "testing":
