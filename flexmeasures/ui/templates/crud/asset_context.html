@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% set active_page = "assets" %}
+
+{% block title %} {{ asset.name }} - Scenario {% endblock %}
+
+{% block divs %}
+
+{% block breadcrumbs %} {{ super() }} {% endblock %}
+
+{% from "macros.html" import add_delete_asset_js %}
+{{ add_delete_asset_js() }}
+
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-sm-2"></div>
+            <div class="col-sm-8 card">
+                <div class="row">
+                    <div class="col-sm-10">
+                        <h1>Asset: <a href="{{url_for('AssetCrudUI:get', id=asset.id)}}"><i>{{ asset.name }}</i></a></h1>
+                    </div>
+                    <div class="col-sm-2">
+                        {% if can_delete %}
+                        <button type="button" class="btn delete-button" onClick="delete_asset(event, {{ asset.id }}, '{{ asset.name }}')">Delete Scenario</button>
+                        {% endif %}
+                    </div>
+                    <div class="col-sm-12">
+                        {% from "macros.html" import show_tree %}
+                        {{ show_tree(assets) }}
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-2"></div>
+        </div>
+    </div>
+
+{% endblock %}

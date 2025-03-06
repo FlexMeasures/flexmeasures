@@ -9,6 +9,7 @@ from sqlalchemy.sql.expression import or_
 
 from flexmeasures.auth.policy import check_access
 from flexmeasures.data import db
+from flexmeasures import Asset
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.time_series import Sensor
@@ -194,3 +195,51 @@ def get_assets_by_account(account_id: int | str | None) -> list[GenericAsset]:
         process_internal_api_response(ad, make_obj=True)
         for ad in get_assets_response.json()
     ]
+
+
+def get_list_assets_chart(asset: Asset, is_head=True) -> list[dict]:
+    """
+    Compiles a flattened list of descendant assets.
+    The assets are serialized as dictionaries and contain the name, parent, id, etc..
+
+    This function is called in a recursion fashion to explore the asset tree in a Bread First way.
+
+    It is used to serialize the asset-parent structure for the display in Vega.
+
+    Args:
+    - asset (Asset): Starting asset to compile descendants from.
+    - is_head (bool, optional): Indicates if the provided `asset` is the origin. Defaults to True.
+
+    Returns:
+    - list[dict]: Flattened list of dictionaries representing assets with keys:
+        - "name" (str): Asset name.
+        - "int" (int): Asset ID.
+        - "asset_type" (str): Generic asset type name.
+        - "link" (str): URL link associated with the asset.
+        - "data" (list[dict]): Additional data about asset attributes (currently empty).
+        - "tooltip" (str, optional): Data to show on the tooltip.
+    """
+
+    assets = list()
+    asset_def = {
+        "name": asset.name,
+        "id": asset.id,
+        "asset_type": asset.generic_asset_type.name,
+        "link": url_for("AssetCrudUI:get", id=asset.id),
+        "tooltip": {
+            "name": asset.name,
+            "ID": asset.id,
+            "Asset Type": asset.generic_asset_type.name,
+        },
+    }
+
+    # only add the `parent` field when is_head = False
+    if asset.parent_asset is not None and not is_head:
+        asset_def["parent"] = asset.parent_asset.id
+
+    assets.append(asset_def)
+
+    for child in asset.child_assets:
+        assets += get_list_assets_chart(child, is_head=False)
+
+    return assets

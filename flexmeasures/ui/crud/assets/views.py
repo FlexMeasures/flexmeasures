@@ -23,6 +23,7 @@ from flexmeasures.ui.crud.assets.utils import (
     user_can_create_assets,
     user_can_delete,
     user_can_update,
+    get_list_assets_chart,
 )
 from flexmeasures.data.services.sensors import (
     build_sensor_status_data,
@@ -90,6 +91,21 @@ class AssetCrudUI(FlaskView):
             assets=assets,
             msg=msg,
             user_can_create_assets=user_can_create_assets(),
+        )
+
+    @login_required
+    def context(self, id: str):
+        """/assets/context/<id>"""
+        asset = db.session.query(GenericAsset).filter_by(id=id).first()
+        if asset is None:
+            assets = []
+        else:
+            assets = get_list_assets_chart(asset)
+
+        return render_flexmeasures_template(
+            "crud/asset_context.html",
+            assets=assets,
+            asset=asset,
         )
 
     @use_kwargs(StartEndTimeSchema, location="query")
