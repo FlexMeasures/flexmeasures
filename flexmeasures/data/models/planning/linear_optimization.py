@@ -22,7 +22,7 @@ from pyomo.environ import UnknownSolver  # noqa F401
 from pyomo.environ import value
 from pyomo.opt import SolverFactory, SolverResults
 
-from flexmeasures.data.models.planning import Commitment
+from flexmeasures.data.models.planning import Commitment, FlowCommitment
 from flexmeasures.data.models.planning.utils import initialize_series, initialize_df
 from flexmeasures.utils.calculations import apply_stock_changes_and_losses
 
@@ -166,6 +166,12 @@ def device_scheduler(  # noqa C901
         commitment_mapping = {}
         sub_commitments = []
         for c, df in enumerate(dfs):
+            # Make sure each commitment has "device" (default NaN) and "class" (default FlowCommitment) columns
+            if "device" not in df.columns:
+                df["device"] = np.nan
+            if "class" not in df.columns:
+                df["class"] = FlowCommitment
+
             df["j"] = range(len(df.index))
             groups = list(df["group"].unique())
             for group in groups:
@@ -497,7 +503,10 @@ def device_scheduler(  # noqa C901
         - Creates an inequality for one-sided commitments.
         - Creates an equality for two-sided commitments and for groups of size 1.
         """
-        if "device" in commitments[c].columns:
+        if (
+            "device" in commitments[c].columns
+            and not pd.isnull(commitments[c]["device"]).all()
+        ):
             # Commitment c does not concern EMS
             return Constraint.Skip
         if "class" in commitments[c].columns and not all(
