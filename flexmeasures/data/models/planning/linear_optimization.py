@@ -386,10 +386,12 @@ def device_scheduler(  # noqa C901
         # bounds=[None, 1000],
     )
 
-    # Add constraints as a tuple of (lower bound, value, upper bound)
-    def device_bounds(m, d, j):
-        """Apply conversion efficiencies to conversion from flow to stock change and vice versa,
-        and apply storage efficiencies to stock levels from one datetime to the next."""
+    def _get_stock_change(m, d, j):
+        """Determine final stock change of device d until time j.
+
+        Apply conversion efficiencies to conversion from flow to stock change and vice versa,
+        and apply storage efficiencies to stock levels from one datetime to the next.
+        """
         if isinstance(initial_stock, list):
             # No initial stock defined for inflexible device
             initial_stock_d = initial_stock[d] if d < len(initial_stock) else 0
@@ -405,14 +407,20 @@ def device_scheduler(  # noqa C901
             for k in range(0, j + 1)
         ]
         efficiencies = [m.device_efficiency[d, k] for k in range(0, j + 1)]
+        final_stock_change = [
+            stock - initial_stock_d
+            for stock in apply_stock_changes_and_losses(
+                initial_stock_d, stock_changes, efficiencies
+            )
+        ][-1]
+        return final_stock_change
+
+    # Add constraints as a tuple of (lower bound, value, upper bound)
+    def device_bounds(m, d, j):
+        """Constraints on the device's stock."""
         return (
             m.device_min[d, j],
-            [
-                stock - initial_stock_d
-                for stock in apply_stock_changes_and_losses(
-                    initial_stock_d, stock_changes, efficiencies
-                )
-            ][-1],
+            _get_stock_change(m, d, j),
             m.device_max[d, j],
         )
 
@@ -462,20 +470,6 @@ def device_scheduler(  # noqa C901
             raise NotImplementedError(
                 "FlowCommitment on a device level has not been implemented. Please file a GitHub ticket explaining your use case."
             )
-        if isinstance(initial_stock, list):
-            initial_stock_d = initial_stock[d]
-        else:
-            initial_stock_d = initial_stock
-
-        stock_changes = [
-            (
-                m.device_power_down[d, k] / m.device_derivative_down_efficiency[d, k]
-                + m.device_power_up[d, k] * m.device_derivative_up_efficiency[d, k]
-                + m.stock_delta[d, k]
-            )
-            for k in range(0, j + 1)
-        ]
-        efficiencies = [m.device_efficiency[d, k] for k in range(0, j + 1)]
         return (
             (
                 0
@@ -487,12 +481,7 @@ def device_scheduler(  # noqa C901
             m.commitment_quantity[c]
             + m.commitment_downwards_deviation[c]
             + m.commitment_upwards_deviation[c]
-            - [
-                stock - initial_stock_d
-                for stock in apply_stock_changes_and_losses(
-                    initial_stock_d, stock_changes, efficiencies
-                )
-            ][-1],
+            - _get_stock_change(m, d, j),
             (
                 0
                 if len(commitments[c]) == 1
