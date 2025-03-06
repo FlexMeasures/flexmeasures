@@ -558,7 +558,7 @@ class MetaStorageScheduler(Scheduler):
                     downwards_deviation_price=-soc_minima_breach_price,
                     _type="any",
                     index=index,
-                    device=0,
+                    device=d,
                 )
                 commitments.append(commitment)
 
@@ -606,7 +606,7 @@ class MetaStorageScheduler(Scheduler):
                     upwards_deviation_price=soc_maxima_breach_price,
                     _type="any",
                     index=index,
-                    device=0,
+                    device=d,
                 )
                 commitments.append(commitment)
 
