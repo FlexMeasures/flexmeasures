@@ -1115,6 +1115,7 @@ def test_numerical_errors(app_with_each_solver, setup_planning_test_data, db):
             for soc_at_start_d in soc_at_start
         ],
     )
+    assert results.solver.termination_condition == "optimal"
 
     assert device_constraints[0]["equals"].max() > device_constraints[0]["max"].max()
     assert device_constraints[0]["equals"].min() < device_constraints[0]["min"].min()
@@ -2343,7 +2344,7 @@ def test_unavoidable_capacity_breach():
             commitments=commitments,
             initial_stock=soc_at_start,
         )
-        print(results.solver.termination_condition)
+        assert results.solver.termination_condition == "optimal"
 
         schedule = initialize_series(
             data=[model.ems_power[0, j].value for j in model.j],
@@ -2475,7 +2476,7 @@ def test_multiple_commitments_per_group():
             commitments=commitments,
             initial_stock=soc_at_start,
         )
-        print(results.solver.termination_condition)
+        assert results.solver.termination_condition == "optimal"
 
         schedule = initialize_series(
             data=[model.ems_power[0, j].value for j in model.j],
@@ -2664,6 +2665,7 @@ def test_multiple_devices_simultaneous_scheduler():
         commitments=commitments,
         initial_stock=initial_stocks,
     )
+    assert results.solver.termination_condition == "optimal"
 
     schedules = [
         initialize_series(
@@ -2713,6 +2715,7 @@ def test_multiple_devices_simultaneous_scheduler():
         commitments=commitments,
         initial_stock=initial_stocks,
     )
+    assert results.solver.termination_condition == "optimal"
 
     schedules = [
         initialize_series(
@@ -2889,6 +2892,7 @@ def test_multiple_devices_sequential_scheduler():
                 commitments=[commitments[d]],
                 initial_stock=initial_stock,
             )
+            assert results.solver.termination_condition == "optimal"
 
             schedule = initialize_series(
                 data=[model.ems_power[0, j].value for j in model.j],
