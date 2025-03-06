@@ -2801,6 +2801,7 @@ def test_multiple_devices_sequential_scheduler():
         229.8395,
         216.5779,
     ]
+    soc_target_penalty = 10000
 
     def initialize_device_constraints(
         num_devices: int,
@@ -2832,8 +2833,28 @@ def test_multiple_devices_sequential_scheduler():
 
     def initialize_device_commitments(num_devices: int):
         commitments = []
-        for _ in range(num_devices):
-            commitment = initialize_df(
+
+        # Model energy contract for the site
+        commitment = initialize_df(
+            [
+                "quantity",
+                "downwards deviation price",
+                "upwards deviation price",
+                "group",
+            ],
+            start,
+            end,
+            resolution,
+        )
+        commitment["quantity"] = 0
+        commitment["downwards deviation price"] = market_prices
+        commitment["upwards deviation price"] = market_prices
+        commitment["group"] = list(range(len(commitment)))
+        commitments.append(commitment)
+
+        # Model penalties for demand unmet per device
+        for i in range(num_devices):
+            stock_commitment = initialize_df(
                 [
                     "quantity",
                     "downwards deviation price",
@@ -2844,11 +2865,14 @@ def test_multiple_devices_sequential_scheduler():
                 end,
                 resolution,
             )
-            commitment["quantity"] = 0
-            commitment["downwards deviation price"] = market_prices
-            commitment["upwards deviation price"] = market_prices
-            commitment["group"] = list(range(len(commitment)))
-            commitments.append(commitment)
+            stock_commitment["quantity"] = target_value[i] - soc_at_start[i]
+            stock_commitment["downwards deviation price"] = -soc_target_penalty
+            stock_commitment["upwards deviation price"] = soc_target_penalty
+            stock_commitment["group"] = list(range(len(stock_commitment)))
+            stock_commitment["device"] = i
+            stock_commitment["class"] = StockCommitment
+            commitments.append(stock_commitment)
+
         return commitments
 
     def initialize_ems_constraints():
