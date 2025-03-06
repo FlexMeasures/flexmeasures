@@ -69,6 +69,16 @@ def build_flex_context(
         "inflexible-device-sensors": [s[0] for s in inflexible_device_sensors],
     }
 
+    if flex_context["consumption-price"]["sensor"] is None and market_id is None:
+        if attributes_data.get("consumption_price") is not None:
+            flex_context["consumption-price"] = attributes_data.get("consumption_price")
+            attributes_data.pop("consumption_price", None)
+
+    if flex_context["production-price"]["sensor"] is None:
+        if attributes_data.get("production_price") is not None:
+            flex_context["production-price"] = attributes_data.get("production_price")
+            attributes_data.pop("production_price", None)
+
     capacity_data = {
         "site-power-capacity": capacity_in_mw,
         "site-consumption-capacity": consumption_capacity_in_mw,
@@ -355,17 +365,17 @@ def downgrade():
         )
 
         if capacity_in_mw is not None:
-            if not isinstance(capacity_in_mw, dict):
+            if isinstance(capacity_in_mw, str):
                 capacity_in_mw = float(capacity_in_mw.replace(" kW", "")) / 1000
 
         if consumption_capacity_in_mw is not None:
-            if not isinstance(consumption_capacity_in_mw, dict):
+            if isinstance(consumption_capacity_in_mw, str):
                 consumption_capacity_in_mw = (
                     float(consumption_capacity_in_mw.replace(" kW", "")) / 1000
                 )
 
         if production_capacity_in_mw is not None:
-            if not isinstance(production_capacity_in_mw, dict):
+            if isinstance(production_capacity_in_mw, str):
                 production_capacity_in_mw = (
                     float(production_capacity_in_mw.replace(" kW", "")) / 1000
                 )
