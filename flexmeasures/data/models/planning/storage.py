@@ -553,7 +553,7 @@ class MetaStorageScheduler(Scheduler):
                 # Set up commitments DataFrame
                 commitment = StockCommitment(
                     name="soc minima",
-                    quantity=soc_minima,
+                    quantity=soc_minima[d],
                     # negative price because breaching in the downwards (shortage) direction is penalized
                     downwards_deviation_price=-soc_minima_breach_price,
                     _type="any",
@@ -563,7 +563,7 @@ class MetaStorageScheduler(Scheduler):
                 commitments.append(commitment)
 
                 # soc-minima will become a soft constraint (modelled as stock commitments), so remove hard constraint
-                soc_minima = None
+                soc_minima[d] = None
 
             if isinstance(soc_maxima[d], Sensor):
                 soc_maxima[d] = get_continuous_series_sensor_or_quantity(
@@ -601,7 +601,7 @@ class MetaStorageScheduler(Scheduler):
                 # Set up commitments DataFrame
                 commitment = StockCommitment(
                     name="soc maxima",
-                    quantity=soc_maxima,
+                    quantity=soc_maxima[d],
                     # positive price because breaching in the upwards (surplus) direction is penalized
                     upwards_deviation_price=soc_maxima_breach_price,
                     _type="any",
@@ -611,7 +611,7 @@ class MetaStorageScheduler(Scheduler):
                 commitments.append(commitment)
 
                 # soc-maxima will become a soft constraint (modelled as stock commitments), so remove hard constraint
-                soc_maxima = None
+                soc_maxima[d] = None
 
             device_constraints[d] = add_storage_constraints(
                 start,
