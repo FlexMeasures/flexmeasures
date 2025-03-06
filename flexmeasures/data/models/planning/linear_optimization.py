@@ -212,9 +212,9 @@ def device_scheduler(  # noqa C901
         if "stock delta" not in device_constraints[d].columns:
             device_constraints[d]["stock delta"] = 0
         else:
-            device_constraints[d]["stock delta"] = device_constraints[d][
-                "stock delta"
-            ].fillna(0)
+            device_constraints[d]["stock delta"] = (
+                device_constraints[d]["stock delta"].astype(float).fillna(0)
+            )
 
     # Add indices for devices (d), datetimes (j) and commitments (c)
     model.d = RangeSet(0, len(device_constraints) - 1, doc="Set of devices")
