@@ -606,7 +606,7 @@ def initialize_device_commitment(
     soc_at_start: float,
     soc_target_penalty: float,
 ) -> pd.DataFrame:
-    """Model energy contract for the site."""
+    """Model penalties for demand unmet per device."""
     stock_commitment = initialize_df(
         columns=[
             "quantity",
