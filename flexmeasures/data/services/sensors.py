@@ -65,10 +65,10 @@ def get_sensors(
     return db.session.scalars(sensor_query).all()
 
 
-def _get_sensor_bdfs_by_source(
+def _get_sensor_bdfs_by_source_type(
     sensor: Sensor, staleness_search: dict
 ) -> dict[str, BeliefsDataFrame] | None:
-    """Get bdf split by source type for a given sensor with given search parameters.
+    """Get latest event, split by source type for a given sensor with given search parameters.
     For now we use 'user', 'forecaster', 'scheduler' and 'reporter' source types
     """
     bdfs_by_source = dict()
@@ -84,45 +84,29 @@ def _get_sensor_bdfs_by_source(
     return None if not bdfs_by_source else bdfs_by_source
 
 
-def _get_sensor_bdf(sensor: Sensor, staleness_search: dict) -> BeliefsDataFrame | None:
-    """
-    Retrieve the BeliefsDataFrame for a given sensor using the specified search parameters. The 'most_recent_only'
-    parameter is set to True, which ensures that only the most recent belief from the most recent event is returned.
-    """
-    bdf = TimedBelief.search(
-        sensors=sensor,
-        most_recent_beliefs_only=False,
-        most_recent_only=True,
-        **staleness_search,
-    )
-    if bdf.empty:
-        return None
-    return bdf
-
-
 def get_staleness_start_times(
     sensor: Sensor, staleness_search: dict, now: datetime
 ) -> dict[str, timedelta] | None:
     """Get staleness start times for a given sensor by source.
-    Also add whether there eas any relevant data (for forecasters and schedulers this is future data).
+    Also add whether there has any relevant data (for forecasters and schedulers this is future data).
     For scheduler and forecaster sources staleness start is latest event start time.
 
     For other sources staleness start is the knowledge time of the sensor's most recent event.
     This knowledge time represents when you could have known about the event
     (specifically, when you could have formed an ex-post belief about it).
     """
-    staleness_bdfs = _get_sensor_bdfs_by_source(
+    staleness_bdfs = _get_sensor_bdfs_by_source_type(
         sensor=sensor, staleness_search=staleness_search
     )
     if staleness_bdfs is None:
         return None
 
     start_times = dict()
-    for source, bdf in staleness_bdfs.items():
+    for source_type, bdf in staleness_bdfs.items():
         time_column = "knowledge_times"
-        source = str(source)
+        source_type = str(source_type)
         has_relevant_data = True
-        if source in ("scheduler", "forecaster"):
+        if source_type in ("scheduler", "forecaster"):
             # filter to get only future events
             bdf_filtered = bdf[bdf.event_starts > now]
             time_column = "event_starts"
@@ -130,7 +114,7 @@ def get_staleness_start_times(
                 has_relevant_data = False
                 bdf_filtered = bdf
             bdf = bdf_filtered
-        start_times[source] = (
+        start_times[source_type] = (
             has_relevant_data,
             getattr(bdf, time_column)[-1] if not bdf.empty else None,
         )
@@ -166,8 +150,8 @@ def get_stalenesses(
         return None
 
     stalenesses = dict()
-    for source, (has_relevant_data, start_time) in staleness_start_times.items():
-        stalenesses[str(source)] = (
+    for source_type, (has_relevant_data, start_time) in staleness_start_times.items():
+        stalenesses[str(source_type)] = (
             has_relevant_data,
             None if start_time is None else now - start_time,
         )
@@ -220,7 +204,7 @@ def get_statuses(
     )
 
     statuses = list()
-    for source, (has_relevant_data, staleness) in (
+    for source_type, (has_relevant_data, staleness) in (
         stalenesses or {None: (True, None)}
     ).items():
         if staleness is None or not has_relevant_data:
@@ -255,7 +239,7 @@ def get_statuses(
                 stale=stale,
                 staleness_since=staleness_since,
                 reason=reason,
-                source=source,
+                source_type=source_type,
             )
         )
 
