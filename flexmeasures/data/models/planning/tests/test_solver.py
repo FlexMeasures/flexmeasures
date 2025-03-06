@@ -2826,33 +2826,6 @@ def test_multiple_devices_sequential_scheduler():
             device_constraints.append(constraints)
         return device_constraints
 
-    def initialize_device_commitments(num_devices: int):
-        commitments = []
-
-        commitment = initialize_energy_commitment(
-            start=start,
-            end=end,
-            resolution=resolution,
-            market_prices=market_prices,
-        )
-        commitments.append(commitment)
-
-        # Model penalties for demand unmet per device
-        for d in range(num_devices):
-            stock_commitment = initialize_device_commitment(
-                start=start,
-                end=end,
-                resolution=resolution,
-                device=d,
-                target_datetime=target_datetime[d],
-                target_value=target_value[d],
-                soc_at_start=soc_at_start[d],
-                soc_target_penalty=soc_target_penalty,
-            )
-            commitments.append(stock_commitment)
-
-        return commitments
-
     def initialize_ems_constraints():
         ems_constraints = initialize_df(
             StorageScheduler.COLUMNS, start, end, resolution
@@ -2873,7 +2846,14 @@ def test_multiple_devices_sequential_scheduler():
             target_value=target_value,
             start_datetime=start_datetime,
         )
-        commitments = initialize_device_commitments(num_devices)
+
+        # Model energy contract for the site
+        energy_commitment = initialize_energy_commitment(
+            start=start,
+            end=end,
+            resolution=resolution,
+            market_prices=market_prices,
+        )
 
         ems_constraints = initialize_ems_constraints()
 
@@ -2885,11 +2865,23 @@ def test_multiple_devices_sequential_scheduler():
         for d in range(num_devices):
             initial_stock = soc_at_start[d]
 
+            # Model penalties for demand unmet per device
+            device_commitment = initialize_device_commitment(
+                start=start,
+                end=end,
+                resolution=resolution,
+                device=d,
+                target_datetime=target_datetime[d],
+                target_value=target_value[d],
+                soc_at_start=soc_at_start[d],
+                soc_target_penalty=soc_target_penalty,
+            )
+
             # Compute the schedule for device d
             _, _, results, model = device_scheduler(
                 device_constraints=[device_constraints[d]],
                 ems_constraints=ems_constraints,
-                commitments=[commitments[d]],
+                commitments=[energy_commitment, device_commitment],
                 initial_stock=initial_stock,
             )
             assert results.solver.termination_condition == "optimal"
