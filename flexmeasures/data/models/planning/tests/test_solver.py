@@ -2925,6 +2925,7 @@ def test_multiple_devices_sequential_scheduler():
             for j in range(len(schedule)):
                 combined_schedule[j] += schedule[j]
 
+            # Determine new headroom
             ems_constraints["derivative max"] -= schedule
             ems_constraints["derivative min"] -= schedule
 
