@@ -2814,7 +2814,9 @@ def test_multiple_devices_sequential_scheduler():
             constraints["min"] = soc_min[d] - soc_at_start[d]
             constraints["derivative max"] = 1
             constraints["derivative min"] = 0
-            constraints["min"][target_datetime[d]] = target_value[d] - soc_at_start[d]
+            constraints.loc[target_datetime[d], "min"] = (
+                target_value[d] - soc_at_start[d]
+            )
             constraints.loc[
                 :start_time, ["max", "min", "derivative max", "derivative min"]
             ] = 0
