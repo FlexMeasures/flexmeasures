@@ -2564,10 +2564,10 @@ def test_multiple_devices_simultaneous_scheduler():
 
     market_prices = [
         0.8598,
-        1.4613,
+        1.4613,  # cheap from 01:00 to 02:00
         2430.3887,
         3000.1779,
-        18.6619,
+        18.6619,  # cheap from 04:00 to 0:500
         369.3274,
         169.8719,
         174.2279,
