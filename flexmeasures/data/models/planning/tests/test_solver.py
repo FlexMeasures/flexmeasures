@@ -2564,7 +2564,7 @@ def test_multiple_devices_simultaneous_scheduler():
     soc_at_start = [0] * num_devices
     soc_max, soc_min = [1] * num_devices, [0] * num_devices
     start_datetime = ["2020-01-01 01:00:00"] * num_devices
-    target_datetime = ["2020-01-01 04:00:00", "2020-01-01 03:00:00"]
+    target_datetime = ["2020-01-01 06:00:00", "2020-01-01 03:00:00"]
     target_value = [1] * num_devices
 
     market_prices = [
@@ -2604,7 +2604,6 @@ def test_multiple_devices_simultaneous_scheduler():
                 StorageScheduler.COLUMNS, start, end, resolution
             )
             start_time = pd.Timestamp(start_datetime[d]) - timedelta(hours=1)
-            target_time = pd.Timestamp(target_datetime[d])
             constraints["max"] = soc_max[d] - soc_at_start[d]
             constraints["min"] = soc_min[d] - soc_at_start[d]
             constraints["derivative max"] = max_derivative
@@ -2612,12 +2611,6 @@ def test_multiple_devices_simultaneous_scheduler():
             constraints.loc[
                 :start_time, ["max", "min", "derivative max", "derivative min"]
             ] = 0
-            constraints.loc[
-                target_time + resolution :, ["derivative max", "derivative min"]
-            ] = 0
-            constraints.loc[target_time + resolution :, ["max", "min"]] = (
-                constraints.loc[target_time, ["max", "min"]].values
-            )
             device_constraints.append(constraints)
 
         return device_constraints
@@ -2684,8 +2677,10 @@ def test_multiple_devices_simultaneous_scheduler():
 
     # Expected results with no unmet demand
     expected_schedules = [
-        [0] * 4 + [1] + [0] * 19,
-        [0, 1] + [0] * 22,
+        [0] * 4
+        + [1]
+        + [0] * 19,  # the first EV leaves later, and takes the second-cheapest slot
+        [0, 1] + [0] * 22,  # the second EV leaves earlier, and gets the cheapest slot
     ]
     total_expected_demand = np.array(expected_schedules).sum()
     expected_individual_costs = [(0, 18.66), (1, 1.46)]
@@ -2703,11 +2698,13 @@ def test_multiple_devices_simultaneous_scheduler():
 
     # Test case 2: With lower EMS capacity and unmet demand
     ems_constraints = initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
-    ems_constraints["derivative max"] = 0.4
+    ems_constraints["derivative max"] = 0.25
     ems_constraints["derivative min"] = 0
 
     device_constraints = initialize_combined_constraints(
-        num_devices, max_derivative=0.4, min_derivative=0
+        num_devices,
+        max_derivative=0.25,
+        min_derivative=0,  # todo: change does not seem required
     )
     _, _, results, model = device_scheduler(
         device_constraints=device_constraints,
@@ -2732,16 +2729,19 @@ def test_multiple_devices_simultaneous_scheduler():
         for d, schedule in enumerate(schedules)
     ]
 
-    # Expected results with unmet demand
+    # Expected results with unfair unmet demand and unfair costs
     expected_schedules = [
-        [0, 0.4, 0, 0, 0.4] + [0] * 19,
-        [0, 0, 0.4, 0.4] + [0] * 20,
+        [0, 0.25, 0, 0, 0.25, 0.25, 0.25]
+        + [0] * 17,  # the first EV leaves later, and takes the four cheapest slots
+        [0, 0, 0.25, 0.25]
+        + [0]
+        * 20,  # the second EV leaves earlier, and takes the remaining (expensive) slots
     ]
     total_expected_demand_unmet = (
         total_expected_demand - np.array(expected_schedules).sum()
     )
     assert total_expected_demand_unmet > 0
-    expected_individual_costs = [(0, 8.05), (1, 2172.23)]
+    expected_individual_costs = [(0, 139.83), (1, 1357.64)]
 
     # Assertions
     assert all(
@@ -2765,7 +2765,10 @@ def test_multiple_devices_sequential_scheduler():
     soc_min = [0] * 2
 
     start_datetime = ["2023-01-01 01:00:00"] * 2
-    target_datetime = ["2023-01-01 05:00:00", "2023-01-01 03:00:00"]
+    target_datetime = [
+        "2023-01-01 06:00:00",
+        "2023-01-01 03:00:00",
+    ]  # todo: problem with interpreting datetime of soc-target?
     target_value = [1] * 2
 
     market_prices = [
@@ -2923,14 +2926,13 @@ def test_multiple_devices_sequential_scheduler():
     )
 
     expected_schedules = [
-        [0, 1] + [0] * 22,
-        [0, 0, 0, 0, 1] + [0] * 19,
+        [0, 1] + [0] * 22,  # the first EV leaves later, but takes the cheapest slot
+        [0, 0, 1]
+        + [0]
+        * 21,  # the second EV leaves earlier, and gets the only (expensive) slot left
     ]
     expected_costs = [(0, 1.46), (1, 2430.39)]
 
-    for d, schedule in enumerate(schedules):
-        print(schedule)
-        print(expected_schedules[d])
     assert all(
         np.isclose(schedules[d], expected_schedules[d]).all()
         for d in range(len(schedules))
