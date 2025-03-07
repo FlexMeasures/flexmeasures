@@ -87,7 +87,7 @@ def build_flex_context(
     for key, value in capacity_data.items():
         if value is not None:
             if isinstance(value, (int, float)):
-                flex_context[key] = f"{int(value * 1000)} kW"
+                flex_context[key] = f"{int(value * 1000)}kW"
             else:
                 flex_context[key] = value
 
@@ -369,7 +369,7 @@ def downgrade():
 
         if capacity_in_mw is not None:
             if isinstance(capacity_in_mw, str) and "kW" in capacity_in_mw:
-                capacity_in_mw = float(capacity_in_mw.replace(" kW", "")) / 1000
+                capacity_in_mw = float(capacity_in_mw.replace("kW", "")) / 1000
 
         if consumption_capacity_in_mw is not None:
             if (
@@ -377,7 +377,7 @@ def downgrade():
                 and "kW" in consumption_capacity_in_mw
             ):
                 consumption_capacity_in_mw = (
-                    float(consumption_capacity_in_mw.replace(" kW", "")) / 1000
+                    float(consumption_capacity_in_mw.replace("kW", "")) / 1000
                 )
 
         if production_capacity_in_mw is not None:
@@ -386,7 +386,7 @@ def downgrade():
                 and "kW" in production_capacity_in_mw
             ):
                 production_capacity_in_mw = (
-                    float(production_capacity_in_mw.replace(" kW", "")) / 1000
+                    float(production_capacity_in_mw.replace("kW", "")) / 1000
                 )
 
         if consumption_price_as_str is not None:
