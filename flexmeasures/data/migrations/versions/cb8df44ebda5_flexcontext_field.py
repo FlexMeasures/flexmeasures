@@ -86,7 +86,10 @@ def build_flex_context(
     }
     for key, value in capacity_data.items():
         if value is not None:
-            flex_context[key] = f"{int(value * 1000)} kW"
+            if isinstance(value, (int, float)):
+                flex_context[key] = f"{int(value * 1000)} kW"
+            else:
+                flex_context[key] = value
 
     price_data = {
         "site-peak-consumption-price": ems_peak_consumption_price,
@@ -104,7 +107,7 @@ def build_flex_context(
 def upgrade():
     with op.batch_alter_table("generic_asset", schema=None) as batch_op:
         batch_op.add_column(
-            sa.Column("flex_context", sa.JSON(), nullable=True, default={})
+            sa.Column("flex_context", sa.JSON(), nullable=False, server_default="{}")
         )
 
     generic_asset_table = sa.Table(
@@ -365,17 +368,23 @@ def downgrade():
         )
 
         if capacity_in_mw is not None:
-            if isinstance(capacity_in_mw, str):
+            if isinstance(capacity_in_mw, str) and "kW" in capacity_in_mw:
                 capacity_in_mw = float(capacity_in_mw.replace(" kW", "")) / 1000
 
         if consumption_capacity_in_mw is not None:
-            if isinstance(consumption_capacity_in_mw, str):
+            if (
+                isinstance(consumption_capacity_in_mw, str)
+                and "kW" in consumption_capacity_in_mw
+            ):
                 consumption_capacity_in_mw = (
                     float(consumption_capacity_in_mw.replace(" kW", "")) / 1000
                 )
 
         if production_capacity_in_mw is not None:
-            if isinstance(production_capacity_in_mw, str):
+            if (
+                isinstance(production_capacity_in_mw, str)
+                and "kW" in production_capacity_in_mw
+            ):
                 production_capacity_in_mw = (
                     float(production_capacity_in_mw.replace(" kW", "")) / 1000
                 )
