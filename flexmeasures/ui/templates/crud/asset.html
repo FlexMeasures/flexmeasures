@@ -1225,11 +1225,11 @@
 
     }
 
-    function renderFlexInputOptions(contextKey, isArray = false) {
+    function renderFlexInputOptions(contextKey, sensorsOnly = false) {
         return `
                 <div class="card-header">
                     <ul class="nav nav-tabs card-header-tabs" id="pills-tab" role="tablist">
-                        ${isArray ? `
+                        ${sensorsOnly ? `
                             <li class="nav-item" role="presentation">
                                 <button class="nav-link active bg-dynamic-val" id="pills-dynamic-tab" data-bs-toggle="pill" data-bs-target="#pills-dynamic" type="button" role="tab" aria-controls="pills-dynamic" aria-selected="false">
                                     Dynamic value (a sensor)
@@ -1251,7 +1251,7 @@
 
                     
                     <div class="tab-content" id="pills-tabContent">
-                        ${isArray ? `
+                        ${sensorsOnly ? `
                         <div class="tab-pane fade show active bg-dynamic-val rounded-bottom" id="pills-dynamic" role="tabpanel" aria-labelledby="pills-dynamic-tab">
                             <div id="select-sensor-input" class="flex-input-group mb-4 p-2">
                                 <label for="sensor" class="form-label">Look up Sensor:
@@ -1316,10 +1316,11 @@
                 if (cardLabel) {
                     // remvoe "-label" at the end leaing the flexcontext key
                     const flexKey = cardLabel.id.slice(0, -6);
-                    if (flexKey !== "inflexible-device-sensors") {
-                        flexOptionsContainer.innerHTML = renderFlexInputOptions(flexKey);
-                    } else {
+                    handleFlexSelectChange(flexKey);
+                    if (flexKey === "inflexible-device-sensors" || flexKey === "consumption-price" || flexKey === "production-price") {
                         flexOptionsContainer.innerHTML = renderFlexInputOptions(flexKey, true);
+                    } else {
+                        flexOptionsContainer.innerHTML = renderFlexInputOptions(flexKey);
                     }
                 }
             }
@@ -1372,21 +1373,7 @@
                 }
                 // Pass
             } else {
-                document.querySelectorAll(".card-highlight").forEach(el => el.classList.remove("border-on-click"));
-                flexOptionsContainer.innerHTML = "";
-                card.classList.add("border-on-click");
-                const cardLabel = card.querySelector("label");
-                if (cardLabel) {
-                    // remvoe "-label" at the end leaing the flexcontext key
-                    const flexKey = cardLabel.id.slice(0, -6);
-                    // fire event for flexSelect change
-                    handleFlexSelectChange(flexKey);
-                    if (flexKey !== "inflexible-device-sensors") {
-                        flexOptionsContainer.innerHTML = renderFlexInputOptions(flexKey);
-                    } else {
-                        flexOptionsContainer.innerHTML = renderFlexInputOptions(flexKey, true);
-                    }
-                }
+                selectFlexField(card) 
                 renderGraphCards();
             }
         } else if (
