@@ -198,7 +198,9 @@ def save_last_failed(n: int, queue_name: str, file: str):
                 file = new_file
 
         # Save the failed jobs to a CSV file
-        pd.DataFrame(failed_jobs).to_csv(file, index=False)
+        pd.DataFrame(failed_jobs).sort_values("Started at", ascending=False).to_csv(
+            file, index=False
+        )
         click.secho(f"Saved {len(failed_jobs)} failed jobs to {file}.", fg="green")
     else:
         click.secho("No failed jobs found.", fg="yellow")
