@@ -256,7 +256,7 @@ def device_scheduler(  # noqa C901
     def commitment_quantity_select(m, c):
         quantity = commitments[c]["quantity"].iloc[0]
         if np.isnan(quantity):
-            return 0
+            return -infinity
         return quantity
 
     def device_max_select(m, d, j):
@@ -467,8 +467,10 @@ def device_scheduler(  # noqa C901
     def device_stock_commitment_equalities(m, c, j, d):
         """Couple device stocks to each commitment."""
         if (
-            "device" not in commitments[c].columns
+            "device"
+            not in commitments[c].columns  # "device" not in commitments[28].columns
             or (commitments[c]["device"] != d).all()
+            or m.commitment_quantity[c] == -infinity
         ):
             # Commitment c does not concern device d
             return Constraint.Skip
@@ -506,7 +508,7 @@ def device_scheduler(  # noqa C901
         if (
             "device" in commitments[c].columns
             and not pd.isnull(commitments[c]["device"]).all()
-        ):
+        ) or m.commitment_quantity[c] == -infinity:
             # Commitment c does not concern EMS
             return Constraint.Skip
         if "class" in commitments[c].columns and not all(
