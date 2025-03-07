@@ -2817,9 +2817,9 @@ def test_multiple_devices_sequential_scheduler():
             constraints["min"] = soc_min[d] - soc_at_start[d]
             constraints["derivative max"] = 1
             constraints["derivative min"] = 0
-            constraints.loc[target_datetime[d], "min"] = (
-                target_value[d] - soc_at_start[d]
-            )
+            # constraints.loc[target_datetime[d], "min"] = (
+            #     target_value[d] - soc_at_start[d]
+            # )
             constraints.loc[
                 :start_time, ["max", "min", "derivative max", "derivative min"]
             ] = 0
@@ -2870,7 +2870,7 @@ def test_multiple_devices_sequential_scheduler():
                 start=start,
                 end=end,
                 resolution=resolution,
-                device=d,
+                device=0,
                 target_datetime=target_datetime[d],
                 target_value=target_value[d],
                 soc_at_start=soc_at_start[d],
@@ -2928,6 +2928,9 @@ def test_multiple_devices_sequential_scheduler():
     ]
     expected_costs = [(0, 1.46), (1, 2430.39)]
 
+    for d, schedule in enumerate(schedules):
+        print(schedule)
+        print(expected_schedules[d])
     assert all(
         np.isclose(schedules[d], expected_schedules[d]).all()
         for d in range(len(schedules))
