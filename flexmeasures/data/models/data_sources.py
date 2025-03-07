@@ -325,9 +325,9 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         For example:
 
             >>> DataSource("Seita", type="forecaster", model="naive", version="1.2").description
-            <<< "Seita's naive forecaster v1.2"
+            "Seita's naive forecaster v1.2"
             >>> DataSource("Seita", type="scheduler", model="StorageScheduler", version="2").description
-            <<< "Seita's StorageScheduler model v2"
+            "Seita's StorageScheduler model v2"
 
         """
         descr = self.name

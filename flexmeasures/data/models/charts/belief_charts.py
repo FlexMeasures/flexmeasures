@@ -7,11 +7,7 @@ from flexmeasures.utils.flexmeasures_inflection import (
     capitalize,
 )
 from flexmeasures.utils.coding_utils import flatten_unique
-from flexmeasures.utils.unit_utils import (
-    is_power_unit,
-    is_energy_unit,
-    is_energy_price_unit,
-)
+from flexmeasures.utils.unit_utils import get_unit_dimension
 
 
 def create_bar_chart_or_histogram_specs(
@@ -660,13 +656,7 @@ def determine_shared_sensor_type(sensors: list["Sensor"]) -> str:  # noqa F821
 
     # Check the units for common cases
     shared_unit = determine_shared_unit(sensors)
-    if is_power_unit(shared_unit):
-        return "power"
-    elif is_energy_unit(shared_unit):
-        return "energy"
-    elif is_energy_price_unit(shared_unit):
-        return "energy price"
-    return "value"
+    return get_unit_dimension(shared_unit)
 
 
 def create_line_layer(

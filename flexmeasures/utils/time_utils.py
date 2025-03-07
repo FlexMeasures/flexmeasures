@@ -339,7 +339,7 @@ def to_http_time(dt: pd.Timestamp | datetime) -> str:
     """Formats datetime using the Internet Message Format fixdate.
 
     >>> to_http_time(pd.Timestamp("2022-12-13 14:06:23Z"))
-    Tue, 13 Dec 2022 14:06:23 GMT
+    'Tue, 13 Dec 2022 14:06:23 GMT'
 
     References
     ----------
@@ -425,7 +425,6 @@ def to_utc_timestamp(value):
     >>> to_utc_timestamp("Sun, 28 Apr 2024 08:55:58 GMT")
     1714294558.0
     >>> to_utc_timestamp(None)
-    None
     """
     if value is None:
         return None
