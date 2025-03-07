@@ -551,9 +551,20 @@ class MetaStorageScheduler(Scheduler):
                     fill_sides=True,
                 )
                 # Set up commitments DataFrame
+                # soc_minima_d is a temp variable because add_storage_constraints can't deal with Series yet
+                soc_minima_d = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_minima[d],
+                    actuator=sensor_d,
+                    unit="MWh",
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    as_instantaneous_events=True,
+                    resolve_overlaps="max",
+                )
                 commitment = StockCommitment(
                     name="soc minima",
-                    quantity=soc_minima[d],
+                    quantity=soc_minima_d,
                     # negative price because breaching in the downwards (shortage) direction is penalized
                     downwards_deviation_price=-soc_minima_breach_price,
                     _type="any",
@@ -599,9 +610,20 @@ class MetaStorageScheduler(Scheduler):
                     fill_sides=True,
                 )
                 # Set up commitments DataFrame
+                # soc_maxima_d is a temp variable because add_storage_constraints can't deal with Series yet
+                soc_maxima_d = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_maxima[d],
+                    actuator=sensor_d,
+                    unit="MWh",
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    as_instantaneous_events=True,
+                    resolve_overlaps="min",
+                )
                 commitment = StockCommitment(
                     name="soc maxima",
-                    quantity=soc_maxima[d],
+                    quantity=soc_maxima_d,
                     # positive price because breaching in the upwards (surplus) direction is penalized
                     upwards_deviation_price=soc_maxima_breach_price,
                     _type="any",
