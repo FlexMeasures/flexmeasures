@@ -9,6 +9,8 @@ Create Date: 2024-12-16 18:39:34.168732
 from alembic import op
 import sqlalchemy as sa
 
+from flexmeasures.utils.unit_utils import is_power_unit, ur
+
 # revision identifiers, used by Alembic.
 revision = "cb8df44ebda5"
 down_revision = "2ba59c7c954e"
@@ -368,25 +370,29 @@ def downgrade():
         )
 
         if capacity_in_mw is not None:
-            if isinstance(capacity_in_mw, str) and "kW" in capacity_in_mw:
-                capacity_in_mw = float(capacity_in_mw.replace("kW", "")) / 1000
+            if isinstance(capacity_in_mw, str) and is_power_unit(capacity_in_mw):
+                capacity_in_mw = (
+                    ur.Quantity(capacity_in_mw).to(ur.Quantity("MW")).magnitude
+                )
 
         if consumption_capacity_in_mw is not None:
-            if (
-                isinstance(consumption_capacity_in_mw, str)
-                and "kW" in consumption_capacity_in_mw
+            if isinstance(consumption_capacity_in_mw, str) and is_power_unit(
+                consumption_capacity_in_mw
             ):
                 consumption_capacity_in_mw = (
-                    float(consumption_capacity_in_mw.replace("kW", "")) / 1000
+                    ur.Quantity(consumption_capacity_in_mw)
+                    .to(ur.Quantity("MW"))
+                    .magnitude
                 )
 
         if production_capacity_in_mw is not None:
-            if (
-                isinstance(production_capacity_in_mw, str)
-                and "kW" in production_capacity_in_mw
+            if isinstance(production_capacity_in_mw, str) and is_power_unit(
+                production_capacity_in_mw
             ):
                 production_capacity_in_mw = (
-                    float(production_capacity_in_mw.replace("kW", "")) / 1000
+                    ur.Quantity(production_capacity_in_mw)
+                    .to(ur.Quantity("MW"))
+                    .magnitude
                 )
 
         if consumption_price_as_str is not None:
