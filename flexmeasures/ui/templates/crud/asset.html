@@ -1314,7 +1314,7 @@
                 highlightedCard.classList.add("border-on-click");
                 const cardLabel = highlightedCard.querySelector("label");
                 if (cardLabel) {
-                    // remvoe "-label" at the end leaing the flexcontext key
+                    // remove "-label" at the end leaing the flexcontext key
                     const flexKey = cardLabel.id.slice(0, -6);
                     handleFlexSelectChange(flexKey);
                     if (flexKey === "inflexible-device-sensors" || flexKey === "consumption-price" || flexKey === "production-price") {
