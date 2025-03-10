@@ -18,7 +18,7 @@ New features
 Infrastructure / Support
 ----------------------
 * Support multi-asset scheduling in the ``StorageScheduler`` and job queueing - functionality for (plugin) developers (incl. prep work for future API endpoint for multi-asset scheduling) [see `PR #1313 <https://github.com/FlexMeasures/flexmeasures/pull/1313>`_]
-* Migrate data for the ``flex_context`` of an asset to a dedicated column in the database table for assets [see `PR #1293 <https://github.com/FlexMeasures/flexmeasures/pull/1293>`_]
+* Migrate data for the ``flex_context`` of an asset to a dedicated column in the database table for assets [see `PR #1293 <https://github.com/FlexMeasures/flexmeasures/pull/1293>`_ and `PR #1354 <https://github.com/FlexMeasures/flexmeasures/pull/1354>`_]
 * Enhance reporting infrastructure by ensuring that all ``Sensor.search_beliefs`` filters can be used as report parameters [see `PR #1318 <https://github.com/FlexMeasures/flexmeasures/pull/1318>`_]
 * Improve searching for multi-sourced data by returning data from only the latest version of a data generator (e.g. forecaster or scheduler) by default, when using ``Sensor.search_beliefs`` [see `PR #1306 <https://github.com/FlexMeasures/flexmeasures/pull/1306>`_]
 * Extra reporter tests [see `PR #1317 <https://github.com/FlexMeasures/flexmeasures/pull/1317>`_]
