@@ -1149,6 +1149,8 @@
         }
 
         renderFlexSelectOptions();
+        selectFlexField();
+        renderSelectInfoCards();
     }
 
     async function udpateFlexContextFieldValue(dataType, sensorId) {
@@ -1171,7 +1173,11 @@
             assetFlexContext[flexId] = powerCapacityInputValue;
         } else if (dataType === "sensor" && sensorId) {
             if (flexId === "inflexible-device-sensors") {
-                assetFlexContext[flexId].push(sensorId);
+                if (assetFlexContext[flexId]) {
+                    assetFlexContext[flexId].push(sensorId);
+                } else {
+                    assetFlexContext[flexId] = [sensorId];
+                }
             } else {
                 assetFlexContext[flexId] = { sensor: sensorId };
             }
@@ -1254,7 +1260,7 @@
                         ${sensorsOnly ? `
                         <div class="tab-pane fade show active bg-dynamic-val rounded-bottom" id="pills-dynamic" role="tabpanel" aria-labelledby="pills-dynamic-tab">
                             <div id="select-sensor-input" class="flex-input-group mb-4 p-2">
-                                <label for="sensor" class="form-label">Look up Sensor:
+                                <label for="sensor" class="form-label">Look up Sensor for <b>${getFlexContextFieldTitle(contextKey)} </b>
                                     <i class="fa fa-info-circle ps-2"
                                         data-bs-toggle="tooltip"
                                         data-bs-placement="bottom"
@@ -1389,21 +1395,25 @@
     });
 
     function renderSelectInfoCards(contextKey, description, allowedUnits, isArray = false) {
-        return `
-            <div>
-                <div class="alert alert-info" role="alert">
-                    <b> About ${getFlexContextFieldTitle(contextKey)}
-                    <div class="pt-2 fw-normal">
-                        ${description}
-                    </div>
+        if (contextKey) {
+            return `
+                <div>
+                    <div class="alert alert-info" role="alert">
+                        <b> About ${getFlexContextFieldTitle(contextKey)}
+                        <div class="pt-2 fw-normal">
+                            ${description}
+                        </div>
 
-                    <div class="pt-3 fw-bold"> 
-                        Example Units: <span class="fw-normal"> ${allowedUnits.join(", ")} </span>
+                        <div class="pt-3 fw-bold"> 
+                            Example Units: <span class="fw-normal"> ${allowedUnits.join(", ")} </span>
+                        </div>
+                        
                     </div>
-                    
                 </div>
-            </div>
-        `;
+            `;
+        } else {
+            flexInfoContainer.innerHTML = "";
+        }
     }
 
     function handleFlexSelectChange(selectedOption) {
