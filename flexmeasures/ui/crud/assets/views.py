@@ -100,7 +100,9 @@ class AssetCrudUI(FlaskView):
         if asset is None:
             assets = []
         else:
-            assets = get_list_assets_chart(asset)
+            assets = get_list_assets_chart(asset, base_asset=asset)
+
+        [print(f"{asset}\n") for asset in assets]
 
         return render_flexmeasures_template(
             "crud/asset_context.html",

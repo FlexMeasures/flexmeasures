@@ -1,0 +1,288 @@
+{% macro add_delete_asset_js() %}
+<script type="text/javascript">
+
+function delete_asset(event, id, name, user_is_pm = false, user_is_admin = true, is_scenario = false) {
+  event.stopPropagation();
+
+  let warning_message = `Are you sure you want to delete asset with name="${name}" and ID=${id}?`;
+
+  // Function to show Swal confirmation prompt
+  function showConfirmationDialog() {
+    Swal.fire({
+      title: "Warning",
+      text: warning_message,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#DD6B55",
+      confirmButtonText: "Yes, delete it!"
+    }).then((result) => {
+      let delete_spinner = $(`#delete-simulation-${id}`);
+      if (result.isConfirmed) {
+        delete_spinner.removeClass("d-none");
+        fetch(`/api/v3_0/assets/${id}`, {
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+          },
+          method: "delete",
+        }).then(function(response) {
+          // Show warning message if Baseline scenario is deleted
+          if (name.toLowerCase().includes("baseline")) {
+            Swal.fire({
+              title: "Deleted!",
+              text: "Please rename one of your scenarios to Baseline otherwise KPI tabs and saving assets might not work anymore.",
+              icon: "warning",
+              showCancelButton: false,
+              confirmButtonColor: "#DD6B55",
+              confirmButtonText: "OK"
+            }).then(() => {
+              location.reload();  // Reload after user clicks OK
+            });
+          } else {
+            Swal.fire({
+              title: "Deleted!",
+              icon: "success",
+              showCancelButton: false,
+              confirmButtonColor: "#2563EB",
+              confirmButtonText: "OK"
+            }).then(() => {
+              location.reload();
+            });
+          }
+        }).catch(function(err) {
+          Swal.fire(`Couldn't delete the asset with name="${name}" and ID=${id}`, "", "error");
+        }).finally(() => {
+          delete_spinner.addClass("d-none");
+        });
+      }
+    });
+  }
+
+  if (is_scenario) {
+    // Fetch scenario status if it's a scenario
+    fetch(`/flexmeasures-smartbuildings/api/get_scenario_status/${id}`, {
+      headers: {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      },
+      method: "GET",
+    }).then(function(response) {
+      if (response.ok) {
+        response.json().then(function(scenario_status_data) {
+
+          const status_before_running = scenario_status_data["status_before_running"];
+          const scenario_status = scenario_status_data["status"];
+
+          if (user_is_pm === true && user_is_admin === false && status_before_running === false) {
+            Swal.fire({
+              title: `You cannot delete this scenario. It has already progressed to status "${scenario_status}".`,
+              icon: "error",
+              showCancelButton: false,
+              confirmButtonColor: "#DD6B55",
+              confirmButtonText: "OK"
+            });
+            return; // Exit early if user cannot delete the scenario
+          }
+
+          // Update warning message based on the scenario status
+          if (status_before_running === false) {
+            warning_message = `Are you sure you want to delete scenario "${name}" with status "${scenario_status}"?`;
+          } else {
+            warning_message = `Are you sure you want to delete scenario "${name}"?`;
+          }
+
+          // Show confirmation dialog
+          showConfirmationDialog();
+        });
+      } else {
+        console.error("Error fetching scenario status:", response.status);
+      }
+    }).catch(function(err) {
+      console.error("Error fetching scenario status:", err);
+    });
+  } else {
+    // Show confirmation dialog directly if it's not a scenario
+    showConfirmationDialog();
+  }
+}
+
+
+</script>
+{% endmacro %}
+
+
+{% macro show_tree(assets) %}
+  <div class="container">
+    <div id="view"></div>
+    </div>
+
+
+<script type="text/javascript">
+  window.onload = function(){
+
+  let assets = {{ assets | safe }};
+
+  {# Vega Spec adapted from https://stackoverflow.com/a/76300309 #}
+
+    let currentAsset = "Baseline";
+
+treeSpecs = {
+  "$schema": "https://vega.github.io/schema/vega/v5.json",
+  "width": 1000,
+  "height": 650,
+  "padding": 0,
+  "autosize": {"type": "fit", "resize": true},
+  "signals": [
+    {"name": "nodeWidth", "value": 190},
+    {"name": "nodeHeight", "value": 40},
+    {"name": "verticalNodeGap", "value": 10},
+    {"name": "horizontalNodeGap", "value": 60},
+    {"name": "currentAsset", "value": currentAsset},
+    {
+      "name": "scaledNodeHeight",
+      "update": "abs(nodeHeight/ max(span(ydom),height))*height"
+    },
+    {"name": "scaledNodeWidth", "update": "(nodeWidth/ span(xdom))*width"},
+    {"name": "xrange", "update": "[0, width]"},
+    {"name": "yrange", "update": "[0, height]"},
+    {"name": "scaledFont13", "update": "(20/ span(xdom))*width"},
+    {"name": "scaledLimit", "update": "(20/ span(xdom))*width"},
+    {
+      "name": "xdom",
+      "update": "slice(xext)",
+    },
+    {
+      "name": "ydom",
+      "update": "slice(yext)",
+    },
+  ],
+  "data": [
+    {
+      "name": "tree",
+      "values": assets,
+      "transform": [
+        {"type": "stratify", "key": "id", "parentKey": "parent"},
+        {
+          "type": "tree",
+          "method": "tidy",
+          "size": [{"signal": "nodeHeight *0.1"},
+                   {"signal": "width"}
+          ],
+          "separation": {"signal": "true"},
+          "nodeSize" : [
+            {"signal": "nodeHeight+verticalNodeGap"},
+            {"signal": "nodeWidth+horizontalNodeGap"}
+
+        ],
+          "as": ["y", "x", "depth", "children"],
+        },
+        {"type": "extent", "field": "x", "signal": "xext"},
+        {"type": "extent", "field": "y", "signal": "yext"}
+      ]
+    },
+    {
+      "name": "links",
+      "source": "tree",
+      "transform": [
+        {"type": "treelinks", "signal": "upstream"},
+        {
+          "type": "linkpath",
+          "orient": "horizontal",
+          "shape": {"signal": "'diagonal'"},
+          "sourceY": {"expr": "scale('yscale', datum.source.y)"},
+          "sourceX": {"expr": "scale('xscale', datum.source.x)"},
+          "targetY": {"expr": "scale('yscale', datum.target.y)"},
+          "targetX": {"expr": "scale('xscale', datum.target.x)"}
+        }
+      ]
+    }
+  ],
+  "scales": [
+    {
+      "name": "xscale",
+      "zero": false,
+      "domain": {"signal": "xdom"},
+      "range": {"signal": "xrange"}
+    },
+    {
+      "name": "yscale",
+      "zero": false,
+      "domain": {"signal": "ydom"},
+      "range": {"signal": "yrange"}
+    }
+  ],
+  "marks": [
+    {
+      "type": "path",
+      "from": {"data": "links"},
+      "encode": {
+        "update": {"path": {"field": "path"}, "stroke": {"value": "#aaa"}}
+      }
+    },
+    {
+      "name": "node",
+      "description": "The Parent Node",
+      "type": "group",
+      "clip": false,
+      "from": {"data": "tree"},
+      "encode": {
+        "update": {
+          "x": {"field": "x", "scale": "xscale"},
+          "width": {
+            "signal": "datum.name === currentAsset ? scaledNodeWidth * 1.1 : scaledNodeWidth"
+          },
+          "yc": {"field": "y", "scale": "yscale"},
+          "height": {
+            "signal": "datum.name === currentAsset ? scaledNodeHeight * 1.1 : scaledNodeHeight"
+          },
+          "fill": {
+            "signal": "datum.name === currentAsset ? 'gold' : 'lightblue'"
+          },
+          "stroke": {
+            "signal": "datum.name === currentAsset ? 'darkorange' : 'black'"
+          },
+          "strokeWidth": {
+            "signal": "datum.name === currentAsset ? 4 : 1"
+          },
+          "cornerRadius": {"value": 5},
+          "href": {"signal": "datum.link"},
+          "tooltip": {"signal": "datum.tooltip"}
+        }
+      },
+      "marks": [
+        {
+          "type": "text",
+          "interactive": false,
+          "name": "name",
+          "encode": {
+            "update": {
+              "x": {"signal": "(5/ span(xdom))*width"},
+              "y": {"signal": "(3/ span(xdom))*width"},
+              "fontWeight": {"value": "bold"},
+              "baseline": {"value": "top"},
+              "text": {"signal": "parent.name"},
+              "fontSize": {
+                "signal": "datum.name === currentAsset ? scaledFont13 * 1.5 : scaledFont13"
+              },
+              "fill": {
+                "signal": "datum.name === currentAsset ? 'black' : 'darkblue'"
+              },
+              "limit": {"signal": "scaledNodeWidth-scaledLimit"},
+              "font": {"value": "Calibri"},
+              "href": {"signal": "parent.link"},
+              "tooltip": {"signal": "parent.tooltip"}
+            }
+          }
+        },
+      ]
+    }
+  ]
+}
+
+    vegaEmbed(
+      "#view",
+       treeSpecs
+    );
+}
+  </script>
+{% endmacro %}
