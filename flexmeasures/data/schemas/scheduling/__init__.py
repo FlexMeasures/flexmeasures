@@ -18,7 +18,13 @@ from flexmeasures.data.schemas.sensors import (
 )
 from flexmeasures.data.schemas.utils import FMValidationError
 from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
-from flexmeasures.utils.unit_utils import ur, units_are_convertible
+from flexmeasures.utils.unit_utils import (
+    ur,
+    units_are_convertible,
+    is_energy_price_unit,
+    is_power_unit,
+    is_energy_unit,
+)
 
 
 class FlexContextSchema(Schema):
@@ -152,10 +158,57 @@ class FlexContextSchema(Schema):
                     f"""Please switch to using `production-price: {{"sensor": {data[field_map["production-price-sensor"]].id}}}`."""
                 )
 
+        # make sure that the prices fields are valid price units
+
         # All prices must share the same unit
         data = self._try_to_convert_price_units(data)
 
         return data
+
+    @validates_schema
+    def validate_fields_unit(self, data: dict, **kwargs):
+        """Check that each field value has a valid unit."""
+
+        self._validate_price_fields(data)
+        self._validate_power_fields(data)
+        self._validate_inflexible_device_sensors(data)
+
+    def _validate_price_fields(self, data: dict):
+        """Validate price fields."""
+        self._validate_fields(data, "price", is_energy_price_unit)
+
+    def _validate_power_fields(self, data: dict):
+        """Validate power fields."""
+        self._validate_fields(data, "power", is_power_unit)
+
+    def _validate_fields(self, data: dict, field_type: str, unit_validator):
+        """Validate fields based on type and unit validator."""
+        fields = [field for field in data if field_type in field]
+        for field in fields:
+            if field in data:
+                if isinstance(data[field], str):
+                    if not unit_validator(data[field]):
+                        raise ValidationError(
+                            f"{field_type.capitalize()} field '{field}' must be a {field_type} unit."
+                        )
+                elif isinstance(data[field], Sensor):
+                    if not unit_validator(data[field].unit):
+                        raise ValidationError(
+                            f"{field_type.capitalize()} field '{field}' must be a {field_type} unit."
+                        )
+                else:
+                    raise ValidationError(
+                        f"{field_type.capitalize()} field '{field}' must be a fixed value or sensor."
+                    )
+
+    def _validate_inflexible_device_sensors(self, data: dict):
+        """Validate inflexible device sensors."""
+        if "inflexible_device_sensors" in data:
+            for sensor in data["inflexible_device_sensors"]:
+                if not is_power_unit(sensor.unit) and not is_energy_unit(sensor.unit):
+                    raise ValidationError(
+                        f"Inflexible device sensor '{sensor.id}' must have a power or energy unit."
+                    )
 
     def _try_to_convert_price_units(self, data):
         """Convert price units to the same unit and scale if they can (incl. same currency)."""
@@ -223,7 +276,6 @@ class FlexContextSchema(Schema):
 
 
 class DBFlexContextSchema(FlexContextSchema):
-
     @validates_schema
     def forbid_time_series_specs(self, data: dict, **kwargs):
         """Do not allow time series specs for the flex-context fields saved in the db."""
