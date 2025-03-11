@@ -28,7 +28,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
-
+* Fix a couple of issues with the new ``flex_context`` form modal [see `PR #1365 <https://github.com/FlexMeasures/flexmeasures/pull/1365>`_]
 
 v0.24.1 | February 27, 2025
 ============================
