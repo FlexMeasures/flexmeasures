@@ -1132,8 +1132,8 @@ class StorageScheduler(MetaStorageScheduler):
         ) = self._prepare(skip_validation=skip_validation)
 
         ems_schedule, expected_costs, scheduler_results, model = device_scheduler(
-            device_constraints,
-            ems_constraints,
+            device_constraints=device_constraints,
+            ems_constraints=ems_constraints,
             commitments=commitments,
             initial_stock=[
                 (
