@@ -510,13 +510,14 @@ def get_continuous_series_sensor_or_quantity(
     resolution: timedelta,
     beliefs_before: datetime | None = None,
     fallback_attribute: str | None = None,
+    min_value: float | int = np.nan,
     max_value: float | int | pd.Series = np.nan,
     as_instantaneous_events: bool = False,
     resolve_overlaps: str = "first",
     fill_sides: bool = False,
 ) -> pd.Series:
     """Creates a time series from a sensor, time series specification, or quantity within a specified window,
-    falling back to a given `fallback_attribute` and making sure no values exceed `max_value`.
+    falling back to a given `fallback_attribute` and making sure values stay within the domain [min_value, max_value].
 
     :param variable_quantity:       A sensor recording the data, a time series specification or a fixed quantity.
     :param actuator:                The actuator from which relevant defaults are retrieved.
@@ -525,6 +526,7 @@ def get_continuous_series_sensor_or_quantity(
     :param resolution:              The resolution or time interval for the data.
     :param beliefs_before:          Timestamp for prior beliefs or knowledge.
     :param fallback_attribute:      Attribute serving as a fallback default in case no quantity or sensor is given.
+    :param min_value:               Minimum value.
     :param max_value:               Maximum value (also replacing NaN values).
     :param as_instantaneous_events: optionally, convert to instantaneous events, in which case the passed resolution is
                                     interpreted as the desired frequency of the data.
@@ -556,6 +558,9 @@ def get_continuous_series_sensor_or_quantity(
 
     # Apply upper limit
     time_series = nanmin_of_series_and_value(time_series, max_value)
+
+    # Apply lower limit
+    time_series = time_series.clip(lower=min_value)
 
     return time_series
 
