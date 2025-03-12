@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pint
 from marshmallow import (
     Schema,
     fields,
@@ -245,14 +246,18 @@ class DBFlexContextSchema(FlexContextSchema):
     @validates_schema
     def forbid_fixed_prices(self, data: dict, **kwargs):
         """Do not allow fixed consumption price or fixed production price in the flex-context fields saved in the db."""
-        if "consumption_price" in data and isinstance(data["consumption_price"], str):
+        if "consumption_price" in data and isinstance(
+            data["consumption_price"], pint.Quantity
+        ):
             raise ValidationError(
-                "Fixed prices are not currently supported in flex-context fields in the DB."
+                "Fixed prices are not currently supported for consumption_price in flex-context fields in the DB."
             )
 
-        if "production_price" in data and isinstance(data["production_price"], str):
+        if "production_price" in data and isinstance(
+            data["production_price"], pint.Quantity
+        ):
             raise ValidationError(
-                "Fixed prices are not currently supported in flex-context fields in the DB."
+                "Fixed prices are not currently supported for production_price in flex-context fields in the DB."
             )
 
 
