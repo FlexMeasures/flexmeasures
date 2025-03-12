@@ -5,7 +5,7 @@ import pytest
 from marshmallow.validate import ValidationError
 import pandas as pd
 
-from flexmeasures.data.schemas.scheduling import FlexContextSchema
+from flexmeasures.data.schemas.scheduling import FlexContextSchema, DBFlexContextSchema
 from flexmeasures.data.schemas.scheduling.process import (
     ProcessSchedulerFlexModelSchema,
     ProcessType,
@@ -271,6 +271,132 @@ def test_flex_context_schema(db, app, setup_site_capacity_sensor, flex_context, 
 
     if fails:
         with pytest.raises(ValidationError) as e_info:
+            schema.load(flex_context)
+        print(e_info.value.messages)
+        for field_name, expected_message in fails.items():
+            assert field_name in e_info.value.messages
+            # Check all messages for the given field for the expected message
+            assert any(
+                [
+                    expected_message in message
+                    for message in e_info.value.messages[field_name]
+                ]
+            )
+    else:
+        schema.load(flex_context)
+
+
+# test DBFlexContextSchema
+@pytest.mark.parametrize(
+    ["flex_context", "fails"],
+    [
+        (
+            {"consumption-price": "13000 kW"},
+            {
+                "consumption_price": "Fixed prices are not currently supported for consumption_price in flex-context fields in the DB.",
+            },
+        ),
+        (
+            {"production-price": {"sensor": "site-power-capacity"}},
+            {"production_price": "Price field 'production_price' must be a price unit"},
+        ),
+        (
+            {"site-power-capacity": "5 kWh"},
+            {"site-power-capacity": "Cannot convert value `5 kWh` to 'MW'"},
+        ),
+        (
+            {"site-consumption-capacity": "6 kWh"},
+            {
+                "site-consumption-capacity": "Cannot convert value `6 kWh` to 'MW'"
+            },  # For some reason i can use the original key name with hyphens
+        ),
+        (
+            {"site-consumption-capacity": "6000 kW"},
+            False,
+        ),
+        (
+            {"site-production-capacity": "6 kWh"},
+            {
+                "site-production-capacity": "Cannot convert value `6 kWh` to 'MW'"
+            },  # For some reason i can use the original key name with hyphens
+        ),
+        (
+            {"site-production-capacity": "7000 kW"},
+            False,
+        ),
+        (
+            {"site-consumption-breach-price": "6 kWh"},
+            {
+                "ems_consumption_breach_price": "Price field 'ems_consumption_breach_price' must be a price unit."
+            },
+        ),
+        (
+            {"site-consumption-breach-price": "450 EUR/MWh"},
+            False,
+        ),
+        (
+            {"site-production-breach-price": "550 KRW/MW"},
+            {
+                "ems_production_breach_price": "Price field 'ems_production_breach_price' must be a price unit."
+            },
+        ),
+        (
+            {"site-production-breach-price": "3500 NGN/MWh"},
+            False,
+        ),
+        (
+            {"site-peak-consumption": "60 EUR/MWh"},
+            {"site-peak-consumption": "Cannot convert value `60 EUR/MWh` to 'MW'"},
+        ),
+        (
+            {"site-peak-consumption": "3500 kW"},
+            False,
+        ),
+        (
+            {"site-peak-consumption-price": "6 orange/Mw"},
+            {
+                "site-peak-consumption-price": "Cannot convert value '6 orange/Mw' to a valid quantity. 'orange' is not defined in the unit registry"
+            },
+        ),
+        (
+            {"site-peak-consumption-price": "100 EUR/MWh"},
+            False,
+        ),
+        (
+            {"site-peak-production": "75kWh"},
+            {"site-peak-production": "Cannot convert value `75kWh` to 'MW'"},
+        ),
+        (
+            {"site-peak-production": "17000 kW"},
+            False,
+        ),
+        (
+            {"site-peak-production-price": "4500 NGN/MW"},
+            {
+                "ems_peak_production_price": "Price field 'ems_peak_production_price' must be a price unit."
+            },
+        ),
+        (
+            {"site-peak-consumption-price": "700 JPY/MWh"},
+            False,
+        ),
+    ],
+)
+def test_db_flex_context_schema(
+    db, app, setup_site_capacity_sensor, flex_context, fails
+):
+    schema = DBFlexContextSchema()
+
+    # Replace sensor name with sensor ID
+    for field_name, field_value in flex_context.items():
+        if isinstance(field_value, dict):
+            flex_context[field_name]["sensor"] = setup_site_capacity_sensor[
+                field_value["sensor"]
+            ].id
+
+    if fails:
+        with pytest.raises(ValidationError) as e_info:
+            print("flex_context", flex_context)
             schema.load(flex_context)
         print(e_info.value.messages)
         for field_name, expected_message in fails.items():
