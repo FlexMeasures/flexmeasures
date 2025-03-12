@@ -507,17 +507,18 @@ class MetaStorageScheduler(Scheduler):
                     resolve_overlaps="min",
                 )
 
-            device_constraints[d] = add_storage_constraints(
-                start,
-                end,
-                resolution,
-                soc_at_start[d],
-                soc_targets[d],
-                soc_maxima[d],
-                soc_minima[d],
-                soc_max[d],
-                soc_min[d],
-            )
+            if soc_at_start[d] is not None:
+                device_constraints[d] = add_storage_constraints(
+                    start,
+                    end,
+                    resolution,
+                    soc_at_start[d],
+                    soc_targets[d],
+                    soc_maxima[d],
+                    soc_minima[d],
+                    soc_max[d],
+                    soc_min[d],
+                )
 
             power_capacity_in_mw[d] = get_continuous_series_sensor_or_quantity(
                 variable_quantity=power_capacity_in_mw[d],
@@ -1017,7 +1018,11 @@ class StorageScheduler(MetaStorageScheduler):
             ems_constraints,
             commitments=commitments,
             initial_stock=[
-                soc_at_start_d * (timedelta(hours=1) / resolution)
+                (
+                    soc_at_start_d * (timedelta(hours=1) / resolution)
+                    if soc_at_start_d is not None
+                    else 0
+                )
                 for soc_at_start_d in soc_at_start
             ],
         )
