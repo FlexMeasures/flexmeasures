@@ -111,7 +111,7 @@ function delete_asset(event, id, name, user_is_pm = false, user_is_admin = true,
 {% endmacro %}
 
 
-{% macro show_tree(assets) %}
+{% macro show_tree(assets, current_asset_name) %}
   <div class="container">
     <div id="view"></div>
     </div>
@@ -121,10 +121,10 @@ function delete_asset(event, id, name, user_is_pm = false, user_is_admin = true,
   window.onload = function(){
 
   let assets = {{ assets | safe }};
+  let currentAssetName = '{{ current_asset_name | safe}}';
 
   {# Vega Spec adapted from https://stackoverflow.com/a/76300309 #}
 
-    let currentAsset = "Baseline";
 
 treeSpecs = {
   "$schema": "https://vega.github.io/schema/vega/v5.json",
@@ -137,7 +137,7 @@ treeSpecs = {
     {"name": "nodeHeight", "value": 40},
     {"name": "verticalNodeGap", "value": 10},
     {"name": "horizontalNodeGap", "value": 60},
-    {"name": "currentAsset", "value": currentAsset},
+    {"name": "currentAssetName", "value": currentAssetName},
     {
       "name": "scaledNodeHeight",
       "update": "abs(nodeHeight/ max(span(ydom),height))*height"
@@ -229,20 +229,20 @@ treeSpecs = {
         "update": {
           "x": {"field": "x", "scale": "xscale"},
           "width": {
-            "signal": "datum.name === currentAsset ? scaledNodeWidth * 1.1 : scaledNodeWidth"
+            "signal": "datum.name === currentAssetName ? scaledNodeWidth * 1.1 : scaledNodeWidth"
           },
           "yc": {"field": "y", "scale": "yscale"},
           "height": {
-            "signal": "datum.name === currentAsset ? scaledNodeHeight * 1.1 : scaledNodeHeight"
+            "signal": "datum.name === currentAssetName ? scaledNodeHeight * 1.1 : scaledNodeHeight"
           },
           "fill": {
-            "signal": "datum.name === currentAsset ? 'gold' : 'lightblue'"
+            "signal": "datum.name === currentAssetName ? 'gold' : 'lightblue'"
           },
           "stroke": {
-            "signal": "datum.name === currentAsset ? 'darkorange' : 'black'"
+            "signal": "datum.name === currentAssetName ? 'darkorange' : 'black'"
           },
           "strokeWidth": {
-            "signal": "datum.name === currentAsset ? 4 : 1"
+            "signal": "datum.name === currentAssetName ? 4 : 1"
           },
           "cornerRadius": {"value": 5},
           "href": {"signal": "datum.link"},
@@ -262,10 +262,10 @@ treeSpecs = {
               "baseline": {"value": "top"},
               "text": {"signal": "parent.name"},
               "fontSize": {
-                "signal": "datum.name === currentAsset ? scaledFont13 * 1.5 : scaledFont13"
+                "signal": "datum.name === currentAssetName ? scaledFont13 * 1.5 : scaledFont13"
               },
               "fill": {
-                "signal": "datum.name === currentAsset ? 'black' : 'darkblue'"
+                "signal": "datum.name === currentAssetName ? 'black' : 'darkblue'"
               },
               "limit": {"signal": "scaledNodeWidth-scaledLimit"},
               "font": {"value": "Calibri"},
@@ -281,7 +281,8 @@ treeSpecs = {
 
     vegaEmbed(
       "#view",
-       treeSpecs
+      treeSpecs,
+      {renderer: "svg"}
     );
 }
   </script>
