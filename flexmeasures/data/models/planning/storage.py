@@ -526,6 +526,7 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
+                min_value=0,  # capacities are positive by definition
                 resolve_overlaps="min",
             )
 
@@ -543,6 +544,7 @@ class MetaStorageScheduler(Scheduler):
                     beliefs_before=belief_time,
                     fallback_attribute="production_capacity",
                     max_value=power_capacity_in_mw[d],
+                    min_value=0,  # capacities are positive by definition
                     resolve_overlaps="min",
                 )
             if sensor_d.get_attribute("is_strictly_non_negative"):
@@ -557,6 +559,7 @@ class MetaStorageScheduler(Scheduler):
                         resolution=resolution,
                         beliefs_before=belief_time,
                         fallback_attribute="consumption_capacity",
+                        min_value=0,  # capacities are positive by definition
                         max_value=power_capacity_in_mw[d],
                         resolve_overlaps="min",
                     )
