@@ -1,120 +1,27 @@
-{% macro add_delete_asset_js() %}
-<script type="text/javascript">
-
-function delete_asset(event, id, name, user_is_pm = false, user_is_admin = true, is_scenario = false) {
-  event.stopPropagation();
-
-  let warning_message = `Are you sure you want to delete asset with name="${name}" and ID=${id}?`;
-
-  // Function to show Swal confirmation prompt
-  function showConfirmationDialog() {
-    Swal.fire({
-      title: "Warning",
-      text: warning_message,
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#DD6B55",
-      confirmButtonText: "Yes, delete it!"
-    }).then((result) => {
-      let delete_spinner = $(`#delete-simulation-${id}`);
-      if (result.isConfirmed) {
-        delete_spinner.removeClass("d-none");
-        fetch(`/api/v3_0/assets/${id}`, {
-          headers: {
-            "Accept": "application/json",
-            "Content-Type": "application/json"
-          },
-          method: "delete",
-        }).then(function(response) {
-          // Show warning message if Baseline scenario is deleted
-          if (name.toLowerCase().includes("baseline")) {
-            Swal.fire({
-              title: "Deleted!",
-              text: "Please rename one of your scenarios to Baseline otherwise KPI tabs and saving assets might not work anymore.",
-              icon: "warning",
-              showCancelButton: false,
-              confirmButtonColor: "#DD6B55",
-              confirmButtonText: "OK"
-            }).then(() => {
-              location.reload();  // Reload after user clicks OK
-            });
-          } else {
-            Swal.fire({
-              title: "Deleted!",
-              icon: "success",
-              showCancelButton: false,
-              confirmButtonColor: "#2563EB",
-              confirmButtonText: "OK"
-            }).then(() => {
-              location.reload();
-            });
-          }
-        }).catch(function(err) {
-          Swal.fire(`Couldn't delete the asset with name="${name}" and ID=${id}`, "", "error");
-        }).finally(() => {
-          delete_spinner.addClass("d-none");
-        });
-      }
-    });
-  }
-
-  if (is_scenario) {
-    // Fetch scenario status if it's a scenario
-    fetch(`/flexmeasures-smartbuildings/api/get_scenario_status/${id}`, {
-      headers: {
-        "Accept": "application/json",
-        "Content-Type": "application/json"
-      },
-      method: "GET",
-    }).then(function(response) {
-      if (response.ok) {
-        response.json().then(function(scenario_status_data) {
-
-          const status_before_running = scenario_status_data["status_before_running"];
-          const scenario_status = scenario_status_data["status"];
-
-          if (user_is_pm === true && user_is_admin === false && status_before_running === false) {
-            Swal.fire({
-              title: `You cannot delete this scenario. It has already progressed to status "${scenario_status}".`,
-              icon: "error",
-              showCancelButton: false,
-              confirmButtonColor: "#DD6B55",
-              confirmButtonText: "OK"
-            });
-            return; // Exit early if user cannot delete the scenario
-          }
-
-          // Update warning message based on the scenario status
-          if (status_before_running === false) {
-            warning_message = `Are you sure you want to delete scenario "${name}" with status "${scenario_status}"?`;
-          } else {
-            warning_message = `Are you sure you want to delete scenario "${name}"?`;
-          }
-
-          // Show confirmation dialog
-          showConfirmationDialog();
-        });
-      } else {
-        console.error("Error fetching scenario status:", response.status);
-      }
-    }).catch(function(err) {
-      console.error("Error fetching scenario status:", err);
-    });
-  } else {
-    // Show confirmation dialog directly if it's not a scenario
-    showConfirmationDialog();
-  }
-}
-
-
-</script>
-{% endmacro %}
-
-
 {% macro show_tree(assets, current_asset_name) %}
   <div class="container">
     <div id="view"></div>
+    <!-- Bootstrap Modal -->
+    <div class="modal fade" id="nodeModal" tabindex="-1" aria-labelledby="modalTitle" aria-hidden="true">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="modalTitle">Node Details</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <table id="modalTable" class="table table-bordered">
+              <thead id="modalTableHead"></thead>
+              <tbody id="modalTableBody"></tbody>
+            </table>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          </div>
+        </div>
+      </div>
     </div>
+  </div>
 
 
 <script type="text/javascript">
@@ -154,6 +61,16 @@ treeSpecs = {
     {
       "name": "ydom",
       "update": "slice(yext)",
+    },
+    {
+      "name": "node_click",
+      "value": null,
+      "on": [
+        {
+          "events": "click",
+          "update": "datum"
+        }
+      ]
     },
   ],
   "data": [
@@ -245,7 +162,12 @@ treeSpecs = {
             "signal": "datum.name === currentAssetName ? 4 : 1"
           },
           "cornerRadius": {"value": 5},
-          "href": {"signal": "datum.link"},
+          "on": [
+            {
+              "events": "click",
+              "update": "datum"
+            }
+          ],
           "tooltip": {"signal": "datum.tooltip"}
         }
       },
@@ -269,7 +191,12 @@ treeSpecs = {
               },
               "limit": {"signal": "scaledNodeWidth-scaledLimit"},
               "font": {"value": "Calibri"},
-              "href": {"signal": "parent.link"},
+              "on": [
+                {
+                  "events": "click",
+                  "update": "datum"
+                }
+              ],
               "tooltip": {"signal": "parent.tooltip"}
             }
           }
@@ -278,12 +205,62 @@ treeSpecs = {
     }
   ]
 }
+vegaEmbed("#view", treeSpecs, { renderer: "svg" }).then(function(result) {
+  result.view.addSignalListener("node_click", function(name, value) {
+    if (value) {
+      openModal(value);
+    }
+  });
+});
 
-    vegaEmbed(
-      "#view",
-      treeSpecs,
-      {renderer: "svg"}
-    );
+function openModal(data) {
+  document.getElementById("modalTitle").innerText = "Sensors for " + data.name;
+  let tableHead = document.getElementById("modalTableHead");
+  let tableBody = document.getElementById("modalTableBody");
+
+  // Clear previous content
+  tableHead.innerHTML = "";
+  tableBody.innerHTML = "";
+
+  if (data.sensors && data.sensors.length > 0) {
+    let keys = Object.keys(data.sensors[0]); // e.g., ['name', 'unit']
+    
+    // Create table header row
+    let headerRow = document.createElement("tr");
+    keys.forEach(key => {
+      let headerText = key.charAt(0).toUpperCase() + key.slice(1);
+      let th = document.createElement("th"); // Use <th> for header cells
+      th.innerText = headerText;
+      th.setAttribute("aria-label", headerText); // set aria-label so floatThead can pick it up
+      headerRow.appendChild(th);
+    });
+    tableHead.appendChild(headerRow);
+
+    // Force destroy the floatThead instance
+    setTimeout(function(){
+      if ($.fn.floatThead) {
+        $('#modalTable').floatThead('destroy');
+      }
+    }, 200);
+
+    // Populate table with sensor data
+    data.sensors.forEach(sensor => {
+      let row = document.createElement("tr");
+      keys.forEach(key => {
+        let td = document.createElement("td");
+        td.innerText = sensor[key] !== undefined ? sensor[key] : "N/A"; // Handle undefined values
+        row.appendChild(td);
+      });
+      tableBody.appendChild(row);
+    });
+  } else {
+    tableBody.innerHTML = "<tr><td colspan='100%'>No sensor data available</td></tr>";
+  }
+
+  // Show Bootstrap modal
+  let modal = new bootstrap.Modal(document.getElementById('nodeModal'));
+  modal.show();
+}
 }
   </script>
 {% endmacro %}
