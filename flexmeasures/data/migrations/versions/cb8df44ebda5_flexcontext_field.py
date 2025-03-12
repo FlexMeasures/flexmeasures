@@ -320,6 +320,8 @@ def downgrade():
 
     for row in results:
         asset_id, flex_context, attributes_data = row
+        if flex_context is None:
+            flex_context = {}
 
         consumption_price_as_str, consumption_price_sensor_id = get_price_info(
             flex_context.get("consumption-price")

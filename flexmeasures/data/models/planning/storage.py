@@ -11,7 +11,12 @@ from flask import current_app
 
 
 from flexmeasures import Sensor
-from flexmeasures.data.models.planning import Commitment, Scheduler, SchedulerOutputType
+from flexmeasures.data.models.planning import (
+    FlowCommitment,
+    Scheduler,
+    SchedulerOutputType,
+    StockCommitment,
+)
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.planning.utils import (
     get_prices,
@@ -271,7 +276,7 @@ class MetaStorageScheduler(Scheduler):
         )
 
         # Set up commitments DataFrame
-        commitment = Commitment(
+        commitment = FlowCommitment(
             name="energy",
             quantity=commitment_quantities,
             upwards_deviation_price=commitment_upwards_deviation_price,
@@ -316,7 +321,7 @@ class MetaStorageScheduler(Scheduler):
             )
 
             # Set up commitments DataFrame
-            commitment = Commitment(
+            commitment = FlowCommitment(
                 name="consumption peak",
                 quantity=ems_peak_consumption,
                 # positive price because breaching in the upwards (consumption) direction is penalized
@@ -360,7 +365,7 @@ class MetaStorageScheduler(Scheduler):
             )
 
             # Set up commitments DataFrame
-            commitment = Commitment(
+            commitment = FlowCommitment(
                 name="production peak",
                 quantity=-ems_peak_production,  # production is negative quantity
                 # negative price because peaking in the downwards (production) direction is penalized
@@ -405,7 +410,7 @@ class MetaStorageScheduler(Scheduler):
             )
 
             # Set up commitments DataFrame to penalize any breach
-            commitment = Commitment(
+            commitment = FlowCommitment(
                 name="any consumption breach",
                 quantity=ems_consumption_capacity,
                 # positive price because breaching in the upwards (consumption) direction is penalized
@@ -416,7 +421,7 @@ class MetaStorageScheduler(Scheduler):
             commitments.append(commitment)
 
             # Set up commitments DataFrame to penalize each breach
-            commitment = Commitment(
+            commitment = FlowCommitment(
                 name="all consumption breaches",
                 quantity=ems_consumption_capacity,
                 # positive price because breaching in the upwards (consumption) direction is penalized
@@ -454,7 +459,7 @@ class MetaStorageScheduler(Scheduler):
             )
 
             # Set up commitments DataFrame to penalize any breach
-            commitment = Commitment(
+            commitment = FlowCommitment(
                 name="any production breach",
                 quantity=ems_production_capacity,
                 # positive price because breaching in the upwards (consumption) direction is penalized
@@ -465,7 +470,7 @@ class MetaStorageScheduler(Scheduler):
             commitments.append(commitment)
 
             # Set up commitments DataFrame to penalize each breach
-            commitment = Commitment(
+            commitment = FlowCommitment(
                 name="all production breaches",
                 quantity=ems_production_capacity,
                 # positive price because breaching in the upwards (consumption) direction is penalized
@@ -511,6 +516,7 @@ class MetaStorageScheduler(Scheduler):
                     as_instantaneous_events=True,
                     resolve_overlaps="first",
                 )
+                # todo: check flex-model for soc_minima_breach_price and soc_maxima_breach_price fields; if these are defined, create a StockCommitment using both prices (if only 1 price is given, still create the commitment, but only penalize one direction)
             if isinstance(soc_minima[d], Sensor):
                 soc_minima[d] = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_minima[d],
@@ -522,6 +528,54 @@ class MetaStorageScheduler(Scheduler):
                     as_instantaneous_events=True,
                     resolve_overlaps="max",
                 )
+            if self.flex_context.get("soc_minima_breach_price", None) is not None:
+                soc_minima_breach_price = self.flex_context.get(
+                    "soc_minima_breach_price"
+                )
+                soc_minima_breach_price = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_minima_breach_price,
+                    actuator=asset,
+                    unit=(
+                        soc_minima_breach_price.unit
+                        if isinstance(soc_minima_breach_price, Sensor)
+                        else (
+                            soc_minima_breach_price[0]["value"].units
+                            if isinstance(soc_minima_breach_price, list)
+                            else str(soc_minima_breach_price.units)
+                        )
+                    ),
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    fallback_attribute="soc-minima-breach-price",
+                    fill_sides=True,
+                )
+                # Set up commitments DataFrame
+                # soc_minima_d is a temp variable because add_storage_constraints can't deal with Series yet
+                soc_minima_d = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_minima[d],
+                    actuator=sensor_d,
+                    unit="MWh",
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    as_instantaneous_events=True,
+                    resolve_overlaps="max",
+                )
+                commitment = StockCommitment(
+                    name="soc minima",
+                    quantity=soc_minima_d,
+                    # negative price because breaching in the downwards (shortage) direction is penalized
+                    downwards_deviation_price=-soc_minima_breach_price,
+                    _type="any",
+                    index=index,
+                    device=d,
+                )
+                commitments.append(commitment)
+
+                # soc-minima will become a soft constraint (modelled as stock commitments), so remove hard constraint
+                soc_minima[d] = None
+
             if isinstance(soc_maxima[d], Sensor):
                 soc_maxima[d] = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_maxima[d],
@@ -533,18 +587,66 @@ class MetaStorageScheduler(Scheduler):
                     as_instantaneous_events=True,
                     resolve_overlaps="min",
                 )
+            if self.flex_context.get("soc_maxima_breach_price", None) is not None:
+                soc_maxima_breach_price = self.flex_context.get(
+                    "soc_maxima_breach_price"
+                )
+                soc_maxima_breach_price = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_maxima_breach_price,
+                    actuator=asset,
+                    unit=(
+                        soc_maxima_breach_price.unit
+                        if isinstance(soc_maxima_breach_price, Sensor)
+                        else (
+                            soc_maxima_breach_price[0]["value"].units
+                            if isinstance(soc_maxima_breach_price, list)
+                            else str(soc_maxima_breach_price.units)
+                        )
+                    ),
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    fallback_attribute="soc-maxima-breach-price",
+                    fill_sides=True,
+                )
+                # Set up commitments DataFrame
+                # soc_maxima_d is a temp variable because add_storage_constraints can't deal with Series yet
+                soc_maxima_d = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_maxima[d],
+                    actuator=sensor_d,
+                    unit="MWh",
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    as_instantaneous_events=True,
+                    resolve_overlaps="min",
+                )
+                commitment = StockCommitment(
+                    name="soc maxima",
+                    quantity=soc_maxima_d,
+                    # positive price because breaching in the upwards (surplus) direction is penalized
+                    upwards_deviation_price=soc_maxima_breach_price,
+                    _type="any",
+                    index=index,
+                    device=d,
+                )
+                commitments.append(commitment)
 
-            device_constraints[d] = add_storage_constraints(
-                start,
-                end,
-                resolution,
-                soc_at_start[d],
-                soc_targets[d],
-                soc_maxima[d],
-                soc_minima[d],
-                soc_max[d],
-                soc_min[d],
-            )
+                # soc-maxima will become a soft constraint (modelled as stock commitments), so remove hard constraint
+                soc_maxima[d] = None
+
+            if soc_at_start[d] is not None:
+                device_constraints[d] = add_storage_constraints(
+                    start,
+                    end,
+                    resolution,
+                    soc_at_start[d],
+                    soc_targets[d],
+                    soc_maxima[d],
+                    soc_minima[d],
+                    soc_max[d],
+                    soc_min[d],
+                )
 
             power_capacity_in_mw[d] = get_continuous_series_sensor_or_quantity(
                 variable_quantity=power_capacity_in_mw[d],
@@ -553,6 +655,7 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
+                min_value=0,  # capacities are positive by definition
                 resolve_overlaps="min",
             )
 
@@ -570,6 +673,7 @@ class MetaStorageScheduler(Scheduler):
                     beliefs_before=belief_time,
                     fallback_attribute="production_capacity",
                     max_value=power_capacity_in_mw[d],
+                    min_value=0,  # capacities are positive by definition
                     resolve_overlaps="min",
                 )
             if sensor_d.get_attribute("is_strictly_non_negative"):
@@ -584,6 +688,7 @@ class MetaStorageScheduler(Scheduler):
                         resolution=resolution,
                         beliefs_before=belief_time,
                         fallback_attribute="consumption_capacity",
+                        min_value=0,  # capacities are positive by definition
                         max_value=power_capacity_in_mw[d],
                         resolve_overlaps="min",
                     )
@@ -773,6 +878,7 @@ class MetaStorageScheduler(Scheduler):
             # Extend schedule period in case a target exceeds its end
             self.possibly_extend_end(soc_targets=self.flex_model.get("soc_targets"))
         elif isinstance(self.flex_model, list):
+            # todo: ensure_soc_min_max in case the device is a storage (see line 847)
             self.flex_model = MultiSensorFlexModelSchema(many=True).load(
                 self.flex_model
             )
@@ -1029,11 +1135,15 @@ class StorageScheduler(MetaStorageScheduler):
         ) = self._prepare(skip_validation=skip_validation)
 
         ems_schedule, expected_costs, scheduler_results, model = device_scheduler(
-            device_constraints,
-            ems_constraints,
+            device_constraints=device_constraints,
+            ems_constraints=ems_constraints,
             commitments=commitments,
             initial_stock=[
-                soc_at_start_d * (timedelta(hours=1) / resolution)
+                (
+                    soc_at_start_d * (timedelta(hours=1) / resolution)
+                    if soc_at_start_d is not None
+                    else 0
+                )
                 for soc_at_start_d in soc_at_start
             ],
         )
@@ -1207,7 +1317,7 @@ def add_storage_constraints(
 
     :param start:                       Start of the schedule.
     :param end:                         End of the schedule.
-    :param resolution:                  Timedelta used to resample the forecasts to the resolution of the schedule.
+    :param resolution:                  Timedelta used to resample the constraints to the resolution of the schedule.
     :param soc_at_start:                State of charge at the start time.
     :param soc_targets:                 Exact targets for the state of charge at each time.
     :param soc_maxima:                  Maximum state of charge at each time.

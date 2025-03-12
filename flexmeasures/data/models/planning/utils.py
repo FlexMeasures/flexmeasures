@@ -17,6 +17,7 @@ from flexmeasures.data.models.planning.exceptions import (
     UnknownPricesException,
 )
 from flexmeasures import Asset
+from flexmeasures.data.models.planning import StockCommitment
 from flexmeasures.data.queries.utils import simplify_index
 
 from flexmeasures.utils.flexmeasures_inflection import capitalize, pluralize
@@ -334,7 +335,7 @@ def idle_after_reaching_target(
 
 def get_quantity_from_attribute(
     entity: Asset | Sensor,
-    attribute: str,
+    attribute: str | None,
     unit: str | ur.Quantity,
 ) -> ur.Quantity:
     """Get the value (in the given unit) of a quantity stored as an entity attribute.
@@ -344,6 +345,9 @@ def get_quantity_from_attribute(
     :param unit:        The unit in which the value should be returned.
     :return:            The retrieved quantity or the provided default.
     """
+    if attribute is None:
+        return np.nan * ur.Quantity(unit)  # at least return result in the desired unit
+
     # Get the default value from the entity attribute
     value: str | float | int = entity.get_attribute(attribute, np.nan)
 
@@ -506,13 +510,14 @@ def get_continuous_series_sensor_or_quantity(
     resolution: timedelta,
     beliefs_before: datetime | None = None,
     fallback_attribute: str | None = None,
+    min_value: float | int = np.nan,
     max_value: float | int | pd.Series = np.nan,
     as_instantaneous_events: bool = False,
     resolve_overlaps: str = "first",
     fill_sides: bool = False,
 ) -> pd.Series:
     """Creates a time series from a sensor, time series specification, or quantity within a specified window,
-    falling back to a given `fallback_attribute` and making sure no values exceed `max_value`.
+    falling back to a given `fallback_attribute` and making sure values stay within the domain [min_value, max_value].
 
     :param variable_quantity:       A sensor recording the data, a time series specification or a fixed quantity.
     :param actuator:                The actuator from which relevant defaults are retrieved.
@@ -521,6 +526,7 @@ def get_continuous_series_sensor_or_quantity(
     :param resolution:              The resolution or time interval for the data.
     :param beliefs_before:          Timestamp for prior beliefs or knowledge.
     :param fallback_attribute:      Attribute serving as a fallback default in case no quantity or sensor is given.
+    :param min_value:               Minimum value.
     :param max_value:               Maximum value (also replacing NaN values).
     :param as_instantaneous_events: optionally, convert to instantaneous events, in which case the passed resolution is
                                     interpreted as the desired frequency of the data.
@@ -553,6 +559,9 @@ def get_continuous_series_sensor_or_quantity(
     # Apply upper limit
     time_series = nanmin_of_series_and_value(time_series, max_value)
 
+    # Apply lower limit
+    time_series = time_series.clip(lower=min_value)
+
     return time_series
 
 
@@ -565,3 +574,59 @@ def nanmin_of_series_and_value(s: pd.Series, value: float | pd.Series) -> pd.Ser
         # [right]: datetime64[ns, UTC]
         value = value.tz_convert("UTC")
     return s.fillna(value).clip(upper=value)
+
+
+def initialize_energy_commitment(
+    start: pd.Timestamp,
+    end: pd.Timestamp,
+    resolution: timedelta,
+    market_prices: list[float],
+) -> pd.DataFrame:
+    """Model energy contract for the site."""
+    commitment = initialize_df(
+        columns=[
+            "quantity",
+            "downwards deviation price",
+            "upwards deviation price",
+            "group",
+        ],
+        start=start,
+        end=end,
+        resolution=resolution,
+    )
+    commitment["quantity"] = 0
+    commitment["downwards deviation price"] = market_prices
+    commitment["upwards deviation price"] = market_prices
+    commitment["group"] = list(range(len(commitment)))
+    return commitment
+
+
+def initialize_device_commitment(
+    start: pd.Timestamp,
+    end: pd.Timestamp,
+    resolution: timedelta,
+    device: int,
+    target_datetime: str,
+    target_value: float,
+    soc_at_start: float,
+    soc_target_penalty: float,
+) -> pd.DataFrame:
+    """Model penalties for demand unmet per device."""
+    stock_commitment = initialize_df(
+        columns=[
+            "quantity",
+            "downwards deviation price",
+            "upwards deviation price",
+            "group",
+        ],
+        start=start,
+        end=end,
+        resolution=resolution,
+    )
+    stock_commitment.loc[target_datetime, "quantity"] = target_value - soc_at_start
+    stock_commitment["downwards deviation price"] = -soc_target_penalty
+    stock_commitment["upwards deviation price"] = soc_target_penalty
+    stock_commitment["group"] = list(range(len(stock_commitment)))
+    stock_commitment["device"] = device
+    stock_commitment["class"] = StockCommitment
+    return stock_commitment

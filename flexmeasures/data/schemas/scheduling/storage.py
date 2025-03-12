@@ -55,7 +55,7 @@ class StorageFlexModelSchema(Schema):
     """
 
     soc_at_start = QuantityField(
-        required=True,
+        required=False,
         to_unit="MWh",
         default_src_unit="dimensionless",  # placeholder, overridden in __init__
         return_magnitude=True,

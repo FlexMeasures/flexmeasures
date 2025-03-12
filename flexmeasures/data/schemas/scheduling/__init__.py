@@ -25,6 +25,22 @@ from flexmeasures.utils.unit_utils import ur, units_are_convertible
 class FlexContextSchema(Schema):
     """This schema defines fields that provide context to the portfolio to be optimized."""
 
+    # Device commitments
+    soc_minima_breach_price = VariableQuantityField(
+        "/MWh",
+        data_key="soc-minima-breach-price",
+        required=False,
+        value_validator=validate.Range(min=0),
+        default=None,
+    )
+    soc_maxima_breach_price = VariableQuantityField(
+        "/MWh",
+        data_key="soc-maxima-breach-price",
+        required=False,
+        value_validator=validate.Range(min=0),
+        default=None,
+    )
+
     # Energy commitments
     ems_power_capacity_in_mw = VariableQuantityField(
         "MW",
@@ -138,6 +154,8 @@ class FlexContextSchema(Schema):
         if any(
             field_map[field] in data
             for field in (
+                "soc-minima-breach-price",
+                "soc-maxima-breach-price",
                 "site-consumption-breach-price",
                 "site-production-breach-price",
                 "site-peak-consumption-price",
