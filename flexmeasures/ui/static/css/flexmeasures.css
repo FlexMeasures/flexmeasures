@@ -1963,3 +1963,12 @@ body.touched [title]:hover:after {
     color: #000;
 }
 /* FlexContext Modal Dialogue - End*/
+
+
+/* Custom CSS for SVG */
+.mark-image image {
+  transform: translate(1px, 10px) !important;
+  width: 34px !important;
+  height: 20px !important;
+  vertical-align: middle;
+}

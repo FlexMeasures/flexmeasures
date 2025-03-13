@@ -208,9 +208,6 @@ def serialize_asset(asset: Asset, is_head=False) -> dict:
             "ID": asset.id,
             "Asset Type": asset.generic_asset_type.name,
         },
-        "sensors": [
-            {"name": sensor.name, "unit": sensor.unit} for sensor in asset.sensors
-        ],
     }
 
     if asset.parent_asset and not is_head:

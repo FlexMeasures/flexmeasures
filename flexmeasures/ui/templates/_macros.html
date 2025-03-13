@@ -1,26 +1,6 @@
 {% macro show_tree(assets, current_asset_name) %}
   <div class="container">
     <div id="view"></div>
-    <!-- Bootstrap Modal -->
-    <div class="modal fade" id="nodeModal" tabindex="-1" aria-labelledby="modalTitle" aria-hidden="true">
-      <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="modalTitle">Node Details</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <div class="modal-body">
-            <table id="modalTable" class="table table-bordered">
-              <thead id="modalTableHead"></thead>
-              <tbody id="modalTableBody"></tbody>
-            </table>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
 
 
@@ -61,16 +41,6 @@ treeSpecs = {
     {
       "name": "ydom",
       "update": "slice(yext)",
-    },
-    {
-      "name": "node_click",
-      "value": null,
-      "on": [
-        {
-          "events": "click",
-          "update": "datum"
-        }
-      ]
     },
   ],
   "data": [
@@ -153,7 +123,7 @@ treeSpecs = {
             "signal": "datum.name === currentAssetName ? scaledNodeHeight * 1.1 : scaledNodeHeight"
           },
           "fill": {
-            "signal": "datum.name === currentAssetName ? 'gold' : 'lightblue'"
+            "signal": "datum.name === currentAssetName ? 'gold' : datum.name === 'Add Child Asset' ? 'green' : 'lightblue'"
           },
           "stroke": {
             "signal": "datum.name === currentAssetName ? 'darkorange' : 'black'"
@@ -162,12 +132,7 @@ treeSpecs = {
             "signal": "datum.name === currentAssetName ? 4 : 1"
           },
           "cornerRadius": {"value": 5},
-          "on": [
-            {
-              "events": "click",
-              "update": "datum"
-            }
-          ],
+          "href": {"signal": "datum.link"},
           "tooltip": {"signal": "datum.tooltip"}
         }
       },
@@ -187,16 +152,11 @@ treeSpecs = {
                 "signal": "datum.name === currentAssetName ? scaledFont13 * 1.5 : scaledFont13"
               },
               "fill": {
-                "signal": "datum.name === currentAssetName ? 'black' : 'darkblue'"
+                "signal": "parent.name === currentAssetName ? 'black' : parent.name === 'Add Child Asset' ? 'white' : 'darkblue'"
               },
               "limit": {"signal": "scaledNodeWidth-scaledLimit"},
               "font": {"value": "Calibri"},
-              "on": [
-                {
-                  "events": "click",
-                  "update": "datum"
-                }
-              ],
+              "href": {"signal": "datum.link"},
               "tooltip": {"signal": "parent.tooltip"}
             }
           }
@@ -205,62 +165,7 @@ treeSpecs = {
     }
   ]
 }
-vegaEmbed("#view", treeSpecs, { renderer: "svg" }).then(function(result) {
-  result.view.addSignalListener("node_click", function(name, value) {
-    if (value) {
-      openModal(value);
-    }
-  });
-});
-
-function openModal(data) {
-  document.getElementById("modalTitle").innerText = "Sensors for " + data.name;
-  let tableHead = document.getElementById("modalTableHead");
-  let tableBody = document.getElementById("modalTableBody");
-
-  // Clear previous content
-  tableHead.innerHTML = "";
-  tableBody.innerHTML = "";
-
-  if (data.sensors && data.sensors.length > 0) {
-    let keys = Object.keys(data.sensors[0]); // e.g., ['name', 'unit']
-    
-    // Create table header row
-    let headerRow = document.createElement("tr");
-    keys.forEach(key => {
-      let headerText = key.charAt(0).toUpperCase() + key.slice(1);
-      let th = document.createElement("th"); // Use <th> for header cells
-      th.innerText = headerText;
-      th.setAttribute("aria-label", headerText); // set aria-label so floatThead can pick it up
-      headerRow.appendChild(th);
-    });
-    tableHead.appendChild(headerRow);
-
-    // Force destroy the floatThead instance
-    setTimeout(function(){
-      if ($.fn.floatThead) {
-        $('#modalTable').floatThead('destroy');
-      }
-    }, 200);
-
-    // Populate table with sensor data
-    data.sensors.forEach(sensor => {
-      let row = document.createElement("tr");
-      keys.forEach(key => {
-        let td = document.createElement("td");
-        td.innerText = sensor[key] !== undefined ? sensor[key] : "N/A"; // Handle undefined values
-        row.appendChild(td);
-      });
-      tableBody.appendChild(row);
-    });
-  } else {
-    tableBody.innerHTML = "<tr><td colspan='100%'>No sensor data available</td></tr>";
-  }
-
-  // Show Bootstrap modal
-  let modal = new bootstrap.Modal(document.getElementById('nodeModal'));
-  modal.show();
-}
+vegaEmbed("#view", treeSpecs, { renderer: "svg" })
 }
   </script>
 {% endmacro %}

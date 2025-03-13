@@ -14,7 +14,16 @@
             <div class="col-sm-8 card">
                 <div class="row">
                     <div class="col-sm-10">
-                        <h1>Asset: <a href="{{url_for('AssetCrudUI:get', id=asset.id)}}"><i>{{ asset.name }}</i></a></h1>
+                        <div class="d-flex justify-content-between align-items-center" style="margin-bottom: 10px;">
+                            <h1>
+                                Asset: <a href="{{ url_for('AssetCrudUI:get', id=asset.id) }}">
+                                    <i>{{ asset.name }} ({{ asset.generic_asset_type.name.split('.')[-1] | title }})</i>
+                                </a>
+                            </h1>
+                            <button class="btn btn-sm btn-primary" onclick='openModal()'>
+                                Show sensors
+                            </button>
+                        </div>                        
                     </div>
                     <div class="col-sm-2">
                         {% if can_delete %}
@@ -28,7 +37,97 @@
                 </div>
             </div>
             <div class="col-sm-2"></div>
+            
+            <!-- Bootstrap Modal -->
+            <div class="modal fade" id="nodeModal" tabindex="-1" aria-labelledby="modalTitle" aria-hidden="true">
+                <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                    <h5 class="modal-title" id="modalTitle">Node Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                    <table id="modalTable" class="table table-bordered">
+                        <thead id="modalTableHead"></thead>
+                        <tbody id="modalTableBody"></tbody>
+                    </table>
+                    </div>
+                    <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+                </div>
+            </div>
+
         </div>
     </div>
+
+    <script>
+        function openModal() {
+            const sensors = {{ current_asset_sensors | safe }};
+            document.getElementById("modalTitle").innerText = "Sensors for " + '{{ asset.name }}';
+            let tableHead = document.getElementById("modalTableHead");
+            let tableBody = document.getElementById("modalTableBody");
+
+            // Clear previous content
+            tableHead.innerHTML = "";
+            tableBody.innerHTML = "";
+
+            if (sensors && sensors.length > 0) {
+                let keys = Object.keys(sensors[0]); // e.g., ['name', 'unit']
+                keys.pop("link"); // Remove the 'link' from the table
+                
+                // Create table header row
+                let headerRow = document.createElement("tr");
+                keys.forEach(key => {
+                let headerText = key.charAt(0).toUpperCase() + key.slice(1);
+                let th = document.createElement("th"); // Use <th> for header cells
+                th.innerText = headerText;
+                th.setAttribute("aria-label", headerText); // set aria-label so floatThead can pick it up
+                headerRow.appendChild(th);
+                });
+                tableHead.appendChild(headerRow);
+
+                // Force destroy the floatThead instance
+                setTimeout(function(){
+                if ($.fn.floatThead) {
+                    $('#modalTable').floatThead('destroy');
+                }
+                }, 200);
+
+                // Populate table with sensor data
+                sensors.forEach(sensor => {
+                let row = document.createElement("tr");
+                keys.forEach(key => {
+                    let td = document.createElement("td");
+                    if (key === "name") {
+                    // Create an anchor element
+                    let a = document.createElement("a");
+                    a.innerText = sensor[key] !== undefined ? sensor[key] : "N/A";
+                    // Set the href; you can modify this as needed, for example using sensor.link if available
+                    a.href = sensor.link;
+                    td.appendChild(a);
+                    } else {
+                    td.innerText = sensor[key] !== undefined ? sensor[key] : "N/A";
+                    }
+                    row.appendChild(td);
+                });
+                tableBody.appendChild(row);
+                });
+            } else {
+                tableBody.innerHTML = "<tr><td colspan='100%'>No sensor data available</td></tr>";
+            }
+
+            // Show Bootstrap modal
+            let modal = new bootstrap.Modal(document.getElementById('nodeModal'));
+            modal.show();
+        }
+    </script>
+
+    <style>
+        details {
+            display: none;
+        }
+    </style>
 
 {% endblock %}
