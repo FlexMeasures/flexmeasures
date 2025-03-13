@@ -20,18 +20,16 @@
             <div class="header-action-button">
                 {% if user_can_create_assets %}
                 <div>
-                    <form action="/assets/new" method="get">
-                        <button class="btn btn-sm btn-responsive btn-success create-button mb-3" type="submit">Create
-                            new asset</button>
-                    </form>
+                    <button class="btn btn-sm btn-responsive btn-success create-button mb-3" type="submit">
+                        <a href="/assets/new">Create new asset</a>
+                    </button>
                 </div>
                 {% endif %}
                 {% if user_can_delete_asset %}
                 <div>
-                    <form action="/assets/delete_with_data/{{ asset.id }}" method="get">
-                        <button id="delete-asset-button" class="btn btn-sm btn-responsive btn-danger"
-                            type="submit">Delete this asset</button>
-                    </form>
+                    <button id="delete-asset-button" class="btn btn-sm btn-responsive btn-danger" type="submit">
+                        <a href="/assets/delete_with_data/{{ asset.id }}">Delete this asset</a>
+                    </button>
                     <script>
                         $("#delete-asset-button").click(function () {
                             if (confirm("Are you sure you want to delete this asset and all time series data associated with it?")) {
@@ -47,16 +45,14 @@
             </div>
             <div class="header-action-button">
                 <div>
-                    <form action="/assets/{{ asset.id }}/status" method="get">
-                        <button id="asset-status-button" class="btn btn-sm btn-responsive btn-info" type="submit">Asset
-                            status</button>
-                    </form>
+                    <button id="asset-status-button" class="btn btn-sm btn-responsive btn-info" type="submit">
+                        <a href="/assets/{{ asset.id }}/status" title="Inspect status of relevant sensors and jobs.">Asset status</a>
+                    </button>
                 </div>
                 <div>
-                    <form action="/assets/auditlog/{{ asset.id }}" method="get">
-                        <button class="btn btn-sm btn-responsive btn-info" type="submit"
-                            title="View history of asset related actions.">Audit log</button>
-                    </form>
+                    <button class="btn btn-sm btn-responsive btn-info" type="submit">
+                        <a href="/assets/auditlog/{{ asset.id }}" title="View history of actions related to this asset.">Audit log</a>
+                    </button>
                 </div>
             </div>
             <div class="sidepanel-container">

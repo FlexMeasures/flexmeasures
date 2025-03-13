@@ -88,7 +88,7 @@
             callback({"data": clean_response, "recordsTotal": response["num-records"], "recordsFiltered": response["filtered-records"]});
           },
           error: function (request, status, error) {
-            console.log("Error: ", error)
+            showToast(error, "error");
           }
         });
       }
@@ -103,9 +103,9 @@
       <div class="header-action-button mt-3">
         <div>
           {% if user_can_create_assets %}
-          <form action="/assets/new" method="get">
-            <button class="btn btn-sm btn-success mb-2 create-button" type="submit">Create new asset</button>
-          </form>
+          <button class="btn btn-sm btn-success mb-2 create-button" type="submit">
+            <a href="/assets/new">Create new asset</a>
+          </button>
           {% endif %}
         </div>
       </div>
