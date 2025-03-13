@@ -23,6 +23,7 @@ from flexmeasures.ui.crud.assets.utils import (
     user_can_create_assets,
     user_can_delete,
     user_can_update,
+    get_list_assets_chart,
 )
 from flexmeasures.data.services.sensors import (
     build_sensor_status_data,
@@ -90,6 +91,44 @@ class AssetCrudUI(FlaskView):
             assets=assets,
             msg=msg,
             user_can_create_assets=user_can_create_assets(),
+        )
+
+    @login_required
+    @route("/<id>/context")
+    def context(self, id: str):
+        """/assets/<id>/context"""
+        asset = db.session.query(GenericAsset).filter_by(id=id).first()
+        if asset is None:
+            assets = []
+        else:
+            assets = get_list_assets_chart(asset, base_asset=asset)
+
+        current_asset_sensors = [
+            {
+                "name": sensor.name,
+                "unit": sensor.unit,
+                "link": url_for("SensorUI:get", id=sensor.id),
+            }
+            for sensor in asset.sensors
+        ]
+        # Add Extra node to the current asset
+        add_child_asset = {
+            "name": "Add Child Asset",
+            "id": "new",
+            "asset_type": asset.generic_asset_type.name,
+            "link": url_for("AssetCrudUI:get", id="new"),
+            "tooltip": "",
+            "sensors": [],
+            "parent": asset.id,
+        }
+
+        assets.append(add_child_asset)
+
+        return render_flexmeasures_template(
+            "crud/asset_context.html",
+            assets=assets,
+            asset=asset,
+            current_asset_sensors=current_asset_sensors,
         )
 
     @use_kwargs(StartEndTimeSchema, location="query")

@@ -9,6 +9,7 @@ from sqlalchemy.sql.expression import or_
 
 from flexmeasures.auth.policy import check_access
 from flexmeasures.data import db
+from flexmeasures import Asset
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.time_series import Sensor
@@ -194,3 +195,77 @@ def get_assets_by_account(account_id: int | str | None) -> list[GenericAsset]:
         process_internal_api_response(ad, make_obj=True)
         for ad in get_assets_response.json()
     ]
+
+
+def serialize_asset(asset: Asset, is_head=False) -> dict:
+    serialized_asset = {
+        "name": asset.name,
+        "id": asset.id,
+        "asset_type": asset.generic_asset_type.name,
+        "link": url_for("AssetCrudUI:get", id=asset.id),
+        "tooltip": {
+            "name": asset.name,
+            "ID": asset.id,
+            "Asset Type": asset.generic_asset_type.name,
+        },
+    }
+
+    if asset.parent_asset and not is_head:
+        serialized_asset["parent"] = asset.parent_asset.id
+
+    return serialized_asset
+
+
+def get_list_assets_chart(
+    asset: Asset,
+    base_asset: Asset,
+    parent_depth=0,
+    child_depth=0,
+    look_for_child=False,
+    is_head=False,
+) -> list[dict]:
+    """
+    Recursively builds a tree of assets from a given asset and its parents and children up to a certain depth.
+
+    Args:
+        asset: The asset to start the recursion from
+        base_asset: The asset that is the base of the chart
+        parent_depth: The current depth of the parents hierarchy
+        child_depth: The current depth of the children hierarchy
+        look_for_child: If True, start looking for children of the current asset
+        is_head: If True, the current asset is the head of the chart
+
+    Returns:
+        A list of dictionaries representing the assets in the tree
+    """
+    assets = list()
+    asset_def = serialize_asset(asset, is_head=is_head)
+
+    # Fetch parents if there is parent asset and parent_depth is less than 2
+    if asset.parent_asset and parent_depth < 2 and not look_for_child:
+        parent_depth += 1
+        assets += get_list_assets_chart(
+            asset=asset.parent_asset,
+            base_asset=base_asset,
+            parent_depth=parent_depth,
+            is_head=False if parent_depth < 2 else True,
+        )
+    else:
+        look_for_child = True
+        parent_depth = (
+            2  # Auto increase depth in the parents hierarchy is less than two
+        )
+
+    assets.append(asset_def)
+
+    if look_for_child and child_depth < 2:
+        child_depth += 1
+        for child in base_asset.child_assets:
+            assets += get_list_assets_chart(
+                child,
+                parent_depth=parent_depth,
+                child_depth=child_depth,
+                base_asset=child,
+            )
+
+    return assets
