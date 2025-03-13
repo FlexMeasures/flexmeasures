@@ -293,7 +293,7 @@ def test_flex_context_schema(db, app, setup_site_capacity_sensor, flex_context, 
         (
             {"consumption-price": "13000 kW"},
             {
-                "consumption_price": "Fixed prices are not currently supported for consumption_price in flex-context fields in the DB.",
+                "consumption_price": "Fixed prices are not currently supported for consumption-price in flex-context fields in the DB.",
             },
         ),
         (
@@ -306,9 +306,7 @@ def test_flex_context_schema(db, app, setup_site_capacity_sensor, flex_context, 
         ),
         (
             {"site-consumption-capacity": "6 kWh"},
-            {
-                "site-consumption-capacity": "Cannot convert value `6 kWh` to 'MW'"
-            },  # For some reason i can use the original key name with hyphens
+            {"site-consumption-capacity": "Cannot convert value `6 kWh` to 'MW'"},
         ),
         (
             {"site-consumption-capacity": "6000 kW"},
@@ -316,9 +314,7 @@ def test_flex_context_schema(db, app, setup_site_capacity_sensor, flex_context, 
         ),
         (
             {"site-production-capacity": "6 kWh"},
-            {
-                "site-production-capacity": "Cannot convert value `6 kWh` to 'MW'"
-            },  # For some reason i can use the original key name with hyphens
+            {"site-production-capacity": "Cannot convert value `6 kWh` to 'MW'"},
         ),
         (
             {"site-production-capacity": "7000 kW"},

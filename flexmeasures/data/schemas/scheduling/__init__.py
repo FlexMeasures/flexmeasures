@@ -233,7 +233,11 @@ class FlexContextSchema(Schema):
 class DBFlexContextSchema(FlexContextSchema):
     @validates_schema
     def forbid_time_series_specs(self, data: dict, **kwargs):
-        """Do not allow time series specs for the flex-context fields saved in the db."""
+        """
+        Do not allow time series specs for the flex-context fields saved in the db.
+
+        This is a temporary restriction as future iterations will allow fixed prices on these fields as well.
+        """
 
         # List of keys to check for time series specs
         keys_to_check = []
@@ -327,7 +331,7 @@ class DBFlexContextSchema(FlexContextSchema):
             data["consumption_price"], Sensor
         ):
             raise ValidationError(
-                "Fixed prices are not currently supported for consumption_price in flex-context fields in the DB.",
+                "Fixed prices are not currently supported for consumption-price in flex-context fields in the DB.",
                 field_name="consumption_price",
             )
 
@@ -335,7 +339,7 @@ class DBFlexContextSchema(FlexContextSchema):
             data["production_price"], Sensor
         ):
             raise ValidationError(
-                "Fixed prices are not currently supported for production_price in flex-context fields in the DB.",
+                "Fixed prices are not currently supported for production-price in flex-context fields in the DB.",
                 field_name="production_price",
             )
 
