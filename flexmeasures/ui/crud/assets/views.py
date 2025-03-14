@@ -31,7 +31,6 @@ from flexmeasures.data.services.sensors import (
 )
 from flexmeasures.ui.utils.view_utils import available_units
 
-
 """
 Asset crud view.
 
@@ -342,4 +341,13 @@ class AssetCrudUI(FlaskView):
         return render_flexmeasures_template(
             "crud/asset_audit_log.html",
             asset=asset,
+        )
+
+    @login_required
+    def map(self, msg="", **kwargs):
+        '''GET from /assets/map'''
+        
+        return render_flexmeasures_template(
+            "crud/context_map.html",
+            map_center=get_center_location_of_assets(user=current_user)
         )

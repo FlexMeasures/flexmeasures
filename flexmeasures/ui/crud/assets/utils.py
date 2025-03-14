@@ -19,6 +19,7 @@ from flexmeasures.utils.unit_utils import (
     is_energy_unit,
     is_power_unit,
 )
+from flexmeasures.ui.utils.view_utils import svg_asset_icon_name
 
 
 def get_allowed_price_sensor_data(account_id: Optional[int]) -> Dict[int, str]:
@@ -203,11 +204,15 @@ def serialize_asset(asset: Asset, is_head=False) -> dict:
         "id": asset.id,
         "asset_type": asset.generic_asset_type.name,
         "link": url_for("AssetCrudUI:get", id=asset.id),
+        "icon": svg_asset_icon_name(asset.generic_asset_type.name),
         "tooltip": {
             "name": asset.name,
             "ID": asset.id,
             "Asset Type": asset.generic_asset_type.name,
         },
+        "sensors": [
+           {"name": sensor.name, "unit": sensor.unit, "link": url_for("SensorUI:get", id=sensor.id)} for sensor in asset.sensors
+        ],
     }
 
     if asset.parent_asset and not is_head:

@@ -20,9 +20,14 @@
                                     <i>{{ asset.name }} ({{ asset.generic_asset_type.name.split('.')[-1] | title }})</i>
                                 </a>
                             </h1>
-                            <button class="btn btn-sm btn-primary" onclick='openModal()'>
-                                Show sensors
-                            </button>
+                            <div class="d-flex">
+                                <button class="btn btn-sm btn-primary me-2" onclick='openModal()'>
+                                    Show sensors
+                                </button>
+                                <button class="btn btn-sm btn-primary">
+                                    <a class="text-decoration-none text-reset" href="/assets/map">Map View</a>
+                                </button>
+                            </div>
                         </div>                        
                     </div>
                     <div class="col-sm-2">

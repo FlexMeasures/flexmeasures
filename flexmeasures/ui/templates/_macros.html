@@ -143,8 +143,8 @@ treeSpecs = {
           "name": "name",
           "encode": {
             "update": {
-              "x": {"signal": "(5/ span(xdom))*width"},
-              "y": {"signal": "(3/ span(xdom))*width"},
+              "x": {"signal": "(5/ span(xdom))*width + (scaledNodeWidth * 0.15)"}, 
+              "y": {"signal": "(5/ span(xdom))*width + (scaledNodeHeight * 0.15)"},
               "fontWeight": {"value": "bold"},
               "baseline": {"value": "top"},
               "text": {"signal": "parent.name"},
@@ -161,6 +161,18 @@ treeSpecs = {
             }
           }
         },
+        {
+    "type": "image",
+    "encode": {
+      "update": {
+        "x": {"signal": "-(scaledNodeWidth * 0.1)"},
+        "y": {"signal": "-(scaledNodeHeight * 0.1)"},
+        "width": {"signal": "scaledNodeWidth * 0.2"},
+        "height": {"signal": "scaledNodeHeight * 0.2"},
+        "url": {"signal": "parent.icon"}
+      }
+    }
+  },
       ]
     }
   ]
