@@ -327,17 +327,17 @@ def test_flex_context_schema(db, app, setup_site_capacity_sensor, flex_context, 
             },
         ),
         (
-            {"site-consumption-breach-price": "450 EUR/MWh"},
+            {"site-consumption-breach-price": "450 EUR/MW"},
             False,
         ),
         (
-            {"site-production-breach-price": "550 KRW/MW"},
+            {"site-production-breach-price": "550 KRW/MWh"},
             {
                 "ems_production_breach_price": "Price field 'ems_production_breach_price' must be a price unit."
             },
         ),
         (
-            {"site-production-breach-price": "3500 NGN/MWh"},
+            {"site-production-breach-price": "3500 NGN/MW"},
             False,
         ),
         (
@@ -355,7 +355,7 @@ def test_flex_context_schema(db, app, setup_site_capacity_sensor, flex_context, 
             },
         ),
         (
-            {"site-peak-consumption-price": "100 EUR/MWh"},
+            {"site-peak-consumption-price": "100 EUR/MW"},
             False,
         ),
         (
@@ -367,13 +367,13 @@ def test_flex_context_schema(db, app, setup_site_capacity_sensor, flex_context, 
             False,
         ),
         (
-            {"site-peak-production-price": "4500 NGN/MW"},
+            {"site-peak-production-price": "4500 NGN/MWh"},
             {
                 "ems_peak_production_price": "Price field 'ems_peak_production_price' must be a price unit."
             },
         ),
         (
-            {"site-peak-consumption-price": "700 JPY/MWh"},
+            {"site-peak-consumption-price": "700 JPY/MW"},
             False,
         ),
     ],

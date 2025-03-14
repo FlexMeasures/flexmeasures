@@ -21,7 +21,7 @@ from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDuration
 from flexmeasures.utils.unit_utils import (
     ur,
     units_are_convertible,
-    is_energy_price_unit,
+    is_capacity_price_unit,
     is_power_unit,
     is_energy_unit,
 )
@@ -277,7 +277,7 @@ class DBFlexContextSchema(FlexContextSchema):
 
         for field in price_fields:
             if field in data:
-                self._validate_field(data, "price", field, is_energy_price_unit)
+                self._validate_field(data, "price", field, is_capacity_price_unit)
 
     def _validate_power_fields(self, data: dict):
         """Validate power fields."""
@@ -291,7 +291,7 @@ class DBFlexContextSchema(FlexContextSchema):
 
         for field in power_fields:
             if field in data:
-                self._validate_field(data, "price", field, is_power_unit)
+                self._validate_field(data, "power", field, is_power_unit)
 
     def _validate_field(self, data: dict, field_type: str, field: str, unit_validator):
         """Validate fields based on type and unit validator."""
