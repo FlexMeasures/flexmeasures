@@ -1,4 +1,4 @@
-/*
+my/*
   Styling for the FlexMeasures Platform
 */
 /* 
@@ -1931,3 +1931,35 @@ body.touched [title]:hover:after {
 .dropdown-toggle.fa-info::after {
     content: none;
 }
+
+/* FlexContext Modal Dialogue - Start */
+.bg-fixed-val.nav-link.active {
+    background-color: #E0F2E0 !important;
+    border-bottom: 0 !important;
+}
+
+.bg-dynamic-val.nav-link.active {
+    background-color: #C2E8C2 !important;
+    border-bottom: 0 !important;
+}
+
+.bg-fixed-val.nav-link {
+    background-color: var(--white) !important;
+    color: #000;
+}
+
+.bg-dynamic-val.nav-link {
+    background-color: var(--white) !important;
+    color: #000;
+}
+
+.bg-fixed-val{
+    background-color: #E0F2E0 !important;
+    color: #000;
+}
+
+.bg-dynamic-val{
+    background-color: #C2E8C2 !important;
+    color: #000;
+}
+/* FlexContext Modal Dialogue - End*/
