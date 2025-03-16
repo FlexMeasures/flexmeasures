@@ -184,7 +184,7 @@ class FlexContextSchema(Schema):
         for field in self.declared_fields:
             if field[-5:] == "price" and field in data:
                 price_field = self.declared_fields[field]
-                price_unit = price_field._get_unit(price_field.data_key, data[field])
+                price_unit = price_field._get_unit(data[field])
                 currency_unit = price_unit.split("/")[0]
 
                 if previous_currency_unit is None:

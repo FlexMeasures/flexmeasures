@@ -375,9 +375,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
 
         return super().convert(_value, param, ctx, **kwargs)
 
-    def _get_unit(
-        self, field_name: str, variable_quantity: ur.Quantity | list[dict | Sensor]
-    ) -> str:
+    def _get_unit(self, variable_quantity: ur.Quantity | list[dict | Sensor]) -> str:
         """Gets the unit from the variable quantity."""
         if isinstance(variable_quantity, ur.Quantity):
             unit = str(variable_quantity.units)
@@ -389,13 +387,13 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
             ):
                 raise ValidationError(
                     "Segments of a time series must share the same unit.",
-                    field_name=field_name,
+                    field_name=self.data_key,
                 )
         elif isinstance(variable_quantity, Sensor):
             unit = variable_quantity.unit
         else:
             raise NotImplementedError(
-                f"Unexpected type '{type(variable_quantity)}' for variable_quantity describing '{field_name}': {variable_quantity}."
+                f"Unexpected type '{type(variable_quantity)}' for variable_quantity describing '{self.data_key}': {variable_quantity}."
             )
         return unit
 
