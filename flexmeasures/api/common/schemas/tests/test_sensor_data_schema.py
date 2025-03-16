@@ -171,30 +171,29 @@ def test_value_field_invalid(deserialization_input, error_msg):
 )
 def test_get_status_single_source(
     add_market_prices,
-    capacity_sensors,
     now,
     expected_staleness,
     expected_stale,
 ):
     sensor = add_market_prices["epex_da"]
-    deserialized_staleness_search = dict()
-    serialized_staleness_search = {}
+    staleness_search = dict()
 
     now = pd.Timestamp(now)
     stalenesses = get_stalenesses(
-        sensor=sensor, staleness_search=deserialized_staleness_search, now=now
+        sensor=sensor, staleness_search=staleness_search, now=now
     )
     if stalenesses is not None:
         stalenesses.pop("forecaster", None)
 
-    source_type = "reporter"
+    source_type_of_interest = "reporter"
+
     if expected_staleness is None:
         assert stalenesses is None
     else:
-        assert stalenesses == {source_type: (mock.ANY, expected_staleness)}
+        assert stalenesses[source_type_of_interest] == (mock.ANY, expected_staleness)
 
     status_specs = {
-        "staleness_search": serialized_staleness_search,
+        "staleness_search": staleness_search,
         "max_staleness": "PT1H",
         "max_future_staleness": "-PT12H",
     }
@@ -205,18 +204,23 @@ def test_get_status_single_source(
         status_specs=status_specs,
         now=now,
     )
-    sensor_statuses = [
-        status for status in sensor_statuses if status["source"] != "forecaster"
-    ]
-    assert len(sensor_statuses) == 1
 
+    if not expected_staleness:
+        return  # the following
+
+    sensor_statuses = [
+        status
+        for status in sensor_statuses
+        if status["source_type"] == source_type_of_interest
+    ]
     sensor_status = sensor_statuses[0]
+
     assert sensor_status["staleness"] == expected_staleness
     assert sensor_status["stale"] == expected_stale
     if stalenesses is None:
-        assert sensor_status["source"] is None
+        assert sensor_status["source_type"] is None
     else:
-        assert sensor_status["source"] == source_type
+        assert sensor_status["source_type"] == source_type_of_interest
 
 
 # both sources have the same data
@@ -268,7 +272,7 @@ def test_get_status_single_source(
             "2016-01-03T12:00+01",
             None,
             True,
-            "Found no future data",
+            "Found no future data which this source should have",
             timedelta(days=2),
             True,
             "most recent data is 2 days old, but should not be more than 1 day old",
@@ -292,40 +296,50 @@ def test_get_status_multi_source(
         sensor=sensor,
         now=now,
     )
-    assert len(sensor_statuses) == 2
     for sensor_status in sensor_statuses:
-        if sensor_status["source"] == "reporter":
+        if sensor_status["source_type"] == "reporter":
             assert sensor_status["staleness"] == expected_reporter_staleness
             assert sensor_status["stale"] == expected_reporter_stale
             assert sensor_status["reason"] == expect_reporter_reason
-        else:
+        if sensor_status["source_type"] == "forecaster":
             assert sensor_status["staleness"] == expected_forecaster_staleness
             assert sensor_status["stale"] == expected_forecaster_stale
             assert sensor_status["reason"] == expect_forecaster_reason
 
 
 @pytest.mark.parametrize(
-    "now, expected_staleness, expected_stale, expected_stale_reason",
+    "source_type, now, expected_staleness, expected_stale, expected_stale_reason",
     [
         # sensor resolution is 15 min
         (
-            # Last event start at 2016-01-02T07:45+01, with knowledge time 2016-01-02T08:00+01, 29 minutes ago
-            "2016-01-02T08:29+01",
+            "demo script",
+            # Last event start (in the past) at 2015-01-02T07:45+01, with knowledge time 2015-01-02T08:00+01, 29 minutes ago
+            "2015-01-02T08:29+01",
             timedelta(minutes=29),
             False,
             "not more than 30 minutes old",
         ),
         (
-            # Last event start at 2016-01-02T07:45+01, with knowledge time 2016-01-02T08:00+01, 31 minutes ago
-            "2016-01-02T08:31+01",
+            "demo script",
+            # Last event start (in the past) at 2015-01-02T07:45+01, with knowledge time 2015-01-02T08:00+01, 31 minutes ago
+            "2015-01-02T08:31+01",
             timedelta(minutes=31),
             True,
             "more than 30 minutes old",
+        ),
+        (
+            "scheduler",
+            # Last event start (in the future) at 2016-01-02T07:45+01, in 24 hours 45 minutes
+            "2016-01-01T07:00+01",
+            timedelta(minutes=24 * 60 + 45),
+            False,
+            "not less than 12 hours in the future",
         ),
     ],
 )
 def test_get_status_no_status_specs(
     capacity_sensors,
+    source_type,
     now,
     expected_staleness,
     expected_stale,
@@ -333,20 +347,28 @@ def test_get_status_no_status_specs(
 ):
     sensor = capacity_sensors["production"]
     now = pd.Timestamp(now)
-    sensor_status = get_status(
+    sensor_statuses = get_statuses(
         sensor=sensor,
         status_specs=None,
         now=now,
     )
 
-    assert sensor_status["staleness"] == expected_staleness
-    assert sensor_status["stale"] == expected_stale
-    assert sensor_status["reason"] == expected_stale_reason
+    assert source_type in [ss["source_type"] for ss in sensor_statuses]
+    for sensor_status in sensor_statuses:
+        if sensor_status["source_type"] == source_type:
+            assert sensor_status["staleness"] == expected_staleness
+            assert sensor_status["stale"] == expected_stale
+            assert expected_stale_reason in sensor_status["reason"]
 
 
 def test_build_asset_status_data(
-    db, mock_get_status, add_weather_sensors, add_battery_assets
+    db, mock_get_statuses, add_weather_sensors, add_battery_assets
 ):
+    """
+    Test the function to build status data structure, using a weather station asset.
+    We include the sensor of a different asset (a battery) via the flex context.
+    One sensor the asset already includes is also set in the context, so we can test if the relationship tagging works.
+    """
     asset = add_weather_sensors["asset"]
     battery_asset = add_battery_assets["Test battery"]
     wind_sensor, temperature_sensor = (
@@ -363,36 +385,30 @@ def test_build_asset_status_data(
     db.session.add(production_price_sensor)
     db.session.flush()
 
-    asset.flex_context["consumption-price-sensor"] = wind_sensor.id
     asset.flex_context["production-price-sensor"] = production_price_sensor.id
     asset.flex_context["inflexible-device-sensors"] = [temperature_sensor.id]
     db.session.add(asset)
 
     wind_speed_res, temperature_res = {"staleness": True}, {"staleness": False}
     production_price_res = {"staleness": True}
-    mock_get_status.side_effect = (
-        wind_speed_res,
-        temperature_res,
-        production_price_res,
+    mock_get_statuses.side_effect = (
+        [wind_speed_res],
+        [temperature_res],
+        [production_price_res],
     )
 
     status_data = build_sensor_status_data(asset=asset)
+
     assert status_data == [
         {
             **wind_speed_res,
             "name": "wind speed",
             "id": wind_sensor.id,
             "asset_name": asset.name,
-            "relation": "included device;consumption price",
+            "relation": "included device",
         },
         {
-            **wind_speed_res[0],
-            "name": "wind speed",
-            "id": None,
-            "asset_name": asset.name,
-        },
-        {
-            **temperature_res[0],
+            **temperature_res,
             "name": "temperature",
             "id": temperature_sensor.id,
             "asset_name": asset.name,

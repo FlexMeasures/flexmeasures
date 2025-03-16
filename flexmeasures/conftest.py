@@ -11,7 +11,6 @@ import numpy as np
 from flask import request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_security import roles_accepted
-from pytest_mock import MockerFixture
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
 
 from werkzeug.exceptions import (
@@ -367,7 +366,7 @@ def create_sources(db) -> dict[str, DataSource]:
     db.session.add(seita_source)
     entsoe_source = DataSource(name="ENTSO-E", type="demo script")
     db.session.add(entsoe_source)
-    dummy_schedule_source = DataSource(name="DummySchedule", type="demo script")
+    dummy_schedule_source = DataSource(name="DummySchedule", type="scheduler")
     db.session.add(dummy_schedule_source)
     forecaster_source = DataSource(name="forecaster name", type="forecaster")
     db.session.add(forecaster_source)
@@ -1485,10 +1484,3 @@ def add_beliefs(
         for dt, val in zip(time_slots, values)
     ]
     db.session.add_all(beliefs)
-
-
-@pytest.fixture
-def mock_get_statuses(mocker: MockerFixture):
-    return mocker.patch(
-        "flexmeasures.data.services.sensors.get_statuses", autospec=True
-    )

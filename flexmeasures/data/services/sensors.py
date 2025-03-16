@@ -69,10 +69,10 @@ def _get_sensor_bdfs_by_source_type(
     sensor: Sensor, staleness_search: dict
 ) -> dict[str, BeliefsDataFrame] | None:
     """Get latest event, split by source type for a given sensor with given search parameters.
-    For now we use 'user', 'forecaster', 'scheduler' and 'reporter' source types
+    For now we use 'demo script', 'user', 'forecaster', 'scheduler' and 'reporter' source types
     """
     bdfs_by_source = dict()
-    for source_type in ("user", "forecaster", "scheduler", "reporter"):
+    for source_type in ("demo script", "user", "forecaster", "scheduler", "reporter"):
         bdf = TimedBelief.search(
             sensors=sensor,
             most_recent_events_only=True,

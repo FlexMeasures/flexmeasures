@@ -20,11 +20,11 @@
         <div class="col-sm-8">
             <div class="card">
                 <h4>Data connectivity for sensors of {{ asset.name }}
-                  <span class="fa fa-info-circle" title="This table shows the connectivity status for all sensors under or relevant to this asset. Per sensor, we report the differen tdata source types. Click the table to see the actual data.
+                  <span class="fa fa-info-circle" title="This table shows the connectivity status for all sensors under or relevant to this asset. Click the table to see the actual data. Per sensor, we report the different data source types. We only explicitly support source types 'demo script', 'user', 'forecaster', 'scheduler' and 'reporter'.
 
 A red traffic light indicates that the last time a record was made was too long ago (it is 'stale'). Hover the light to learn more about why it is displayed red. It could be a source for errors down the line if that sensor data is necessary for forecasts and schedules to be made.
 
-How long ago is considered too long (stale) depends on the sensor, usually its resolution times two. If the source type means we expect future data ('forecaster', 'scheduler'), data should extend 12 hours into the future." style="margin-left: 10px;"></span>
+How long ago is considered too long (stale) depends on the sensor, usually we use the sensor's resolution times two. If the source type means we expect future data ('forecaster', 'scheduler'), data should extend 12 hours into the future." style="margin-left: 10px;"></span>
                 </h4>
                 <table id="sensor_statuses" class="table table-striped paginate nav-on-click">
                     <thead>
