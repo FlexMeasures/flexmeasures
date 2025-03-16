@@ -394,6 +394,7 @@ def build_asset_jobs_data(
             metadata = json.dumps({**job.meta, "job_id": job.id}, default=str, indent=4)
             jobs_data.append(
                 {
+                    "job_id": job.id,
                     "metadata": metadata,
                     "queue": queue,
                     "asset_or_sensor_type": asset_or_sensor_type,
