@@ -1397,9 +1397,9 @@ def validate_storage_constraints(
     ##########################################
 
     _constraints["factor_w_wh(t)"] = resolution / timedelta(hours=1)
-    _constraints["min(t-1)"] = prepend_serie(_constraints["min(t)"], soc_min)
-    _constraints["equals(t-1)"] = prepend_serie(_constraints["equals(t)"], soc_at_start)
-    _constraints["max(t-1)"] = prepend_serie(_constraints["max(t)"], soc_max)
+    _constraints["min(t-1)"] = prepend_series(_constraints["min(t)"], soc_min)
+    _constraints["equals(t-1)"] = prepend_series(_constraints["equals(t)"], soc_at_start)
+    _constraints["max(t-1)"] = prepend_series(_constraints["max(t)"], soc_max)
 
     # 1) equals(t) - equals(t-1) <= derivative_max(t)
     constraint_violations += validate_constraint(
@@ -1570,19 +1570,19 @@ def get_unit(variable_quantity: Sensor | list[dict] | ur.Quantity) -> str:
     return str(variable_quantity.units)
 
 
-def prepend_serie(serie: pd.Series, value) -> pd.Series:
-    """Prepend a value to a time series series
+def prepend_series(series: pd.Series, value) -> pd.Series:
+    """Prepend a value to a time series
 
-    :param serie: serie containing the timed values
+    :param series: series containing the timed values
     :param value: value to place in the first position
     """
     # extend max
-    serie = serie.copy()
-    # insert `value` at time `serie.index[0] - resolution` which creates a new entry at the end of the series
-    serie[serie.index[0] - serie.index.freq] = value
+    series = series.copy()
+    # insert `value` at time `series.index[0] - resolution` which creates a new entry at the end of the series
+    series[series.index[0] - series.index.freq] = value
     # sort index to keep the time ordering
-    serie = serie.sort_index()
-    return serie.shift(1)
+    series = series.sort_index()
+    return series.shift(1)
 
 
 #####################
