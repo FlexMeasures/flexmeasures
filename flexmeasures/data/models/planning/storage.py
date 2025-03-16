@@ -158,7 +158,9 @@ class MetaStorageScheduler(Scheduler):
             up_deviation_prices = get_continuous_series_sensor_or_quantity(
                 variable_quantity=consumption_price,
                 actuator=asset,
-                unit=get_unit(consumption_price),
+                unit=FlexContextSchema()
+                .declared_fields["consumption_price"]
+                ._get_unit(consumption_price),
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
@@ -177,7 +179,9 @@ class MetaStorageScheduler(Scheduler):
             down_deviation_prices = get_continuous_series_sensor_or_quantity(
                 variable_quantity=production_price,
                 actuator=asset,
-                unit=get_unit(production_price),
+                unit=FlexContextSchema()
+                .declared_fields["production_price"]
+                ._get_unit(production_price),
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
@@ -288,7 +292,9 @@ class MetaStorageScheduler(Scheduler):
             ems_peak_consumption_price = get_continuous_series_sensor_or_quantity(
                 variable_quantity=ems_peak_consumption_price,
                 actuator=asset,
-                unit=get_unit(ems_peak_consumption_price),
+                unit=FlexContextSchema()
+                .declared_fields["ems_peak_consumption_price"]
+                ._get_unit(ems_peak_consumption_price),
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
@@ -324,7 +330,9 @@ class MetaStorageScheduler(Scheduler):
             ems_peak_production_price = get_continuous_series_sensor_or_quantity(
                 variable_quantity=ems_peak_production_price,
                 actuator=asset,
-                unit=get_unit(ems_peak_production_price),
+                unit=FlexContextSchema()
+                .declared_fields["ems_peak_production_price"]
+                ._get_unit(ems_peak_production_price),
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
@@ -361,7 +369,9 @@ class MetaStorageScheduler(Scheduler):
             ems_consumption_breach_price = get_continuous_series_sensor_or_quantity(
                 variable_quantity=ems_consumption_breach_price,
                 actuator=asset,
-                unit=get_unit(ems_consumption_breach_price),
+                unit=FlexContextSchema()
+                .declared_fields["ems_consumption_breach_price"]
+                ._get_unit(ems_consumption_breach_price),
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
@@ -402,7 +412,9 @@ class MetaStorageScheduler(Scheduler):
             ems_production_breach_price = get_continuous_series_sensor_or_quantity(
                 variable_quantity=ems_production_breach_price,
                 actuator=asset,
-                unit=get_unit(ems_production_breach_price),
+                unit=FlexContextSchema()
+                .declared_fields["ems_production_breach_price"]
+                ._get_unit(ems_production_breach_price),
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
@@ -485,7 +497,9 @@ class MetaStorageScheduler(Scheduler):
                 soc_minima_breach_price = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_minima_breach_price,
                     actuator=asset,
-                    unit=get_unit(soc_minima_breach_price),
+                    unit=FlexContextSchema()
+                    .declared_fields["soc_minima_breach_price"]
+                    ._get_unit(soc_minima_breach_price),
                     query_window=(start, end),
                     resolution=resolution,
                     beliefs_before=belief_time,
@@ -534,7 +548,9 @@ class MetaStorageScheduler(Scheduler):
                 soc_maxima_breach_price = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_maxima_breach_price,
                     actuator=asset,
-                    unit=get_unit(soc_maxima_breach_price),
+                    unit=FlexContextSchema()
+                    .declared_fields["soc_maxima_breach_price"]
+                    ._get_unit(soc_maxima_breach_price),
                     query_window=(start, end),
                     resolution=resolution,
                     beliefs_before=belief_time,
@@ -1398,7 +1414,9 @@ def validate_storage_constraints(
 
     _constraints["factor_w_wh(t)"] = resolution / timedelta(hours=1)
     _constraints["min(t-1)"] = prepend_series(_constraints["min(t)"], soc_min)
-    _constraints["equals(t-1)"] = prepend_series(_constraints["equals(t)"], soc_at_start)
+    _constraints["equals(t-1)"] = prepend_series(
+        _constraints["equals(t)"], soc_at_start
+    )
     _constraints["max(t-1)"] = prepend_series(_constraints["max(t)"], soc_max)
 
     # 1) equals(t) - equals(t-1) <= derivative_max(t)
@@ -1559,15 +1577,6 @@ def validate_constraint(
         )
 
     return constraint_violations
-
-
-def get_unit(variable_quantity: Sensor | list[dict] | ur.Quantity) -> str:
-    """Obtain the unit from a variable quantity."""
-    if isinstance(variable_quantity, Sensor):
-        return variable_quantity.unit
-    if isinstance(variable_quantity, list):
-        return variable_quantity[0]["value"].units
-    return str(variable_quantity.units)
 
 
 def prepend_series(series: pd.Series, value) -> pd.Series:
