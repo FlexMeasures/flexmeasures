@@ -467,8 +467,7 @@ def device_scheduler(  # noqa C901
     def device_stock_commitment_equalities(m, c, j, d):
         """Couple device stocks to each commitment."""
         if (
-            "device"
-            not in commitments[c].columns  # "device" not in commitments[28].columns
+            "device" not in commitments[c].columns
             or (commitments[c]["device"] != d).all()
             or m.commitment_quantity[c] == -infinity
         ):
