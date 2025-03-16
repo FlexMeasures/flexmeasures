@@ -158,15 +158,7 @@ class MetaStorageScheduler(Scheduler):
             up_deviation_prices = get_continuous_series_sensor_or_quantity(
                 variable_quantity=consumption_price,
                 actuator=asset,
-                unit=(
-                    consumption_price.unit
-                    if isinstance(consumption_price, Sensor)
-                    else (
-                        consumption_price[0]["value"].units
-                        if isinstance(consumption_price, list)
-                        else str(consumption_price.units)
-                    )
-                ),
+                unit=get_unit(consumption_price),
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
@@ -185,15 +177,7 @@ class MetaStorageScheduler(Scheduler):
             down_deviation_prices = get_continuous_series_sensor_or_quantity(
                 variable_quantity=production_price,
                 actuator=asset,
-                unit=(
-                    production_price.unit
-                    if isinstance(production_price, Sensor)
-                    else (
-                        production_price[0]["value"].units
-                        if isinstance(production_price, list)
-                        else str(production_price.units)
-                    )
-                ),
+                unit=get_unit(production_price),
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
@@ -304,15 +288,7 @@ class MetaStorageScheduler(Scheduler):
             ems_peak_consumption_price = get_continuous_series_sensor_or_quantity(
                 variable_quantity=ems_peak_consumption_price,
                 actuator=asset,
-                unit=(
-                    ems_peak_consumption_price.unit
-                    if isinstance(ems_peak_consumption_price, Sensor)
-                    else (
-                        ems_peak_consumption_price[0]["value"].units
-                        if isinstance(ems_peak_consumption_price, list)
-                        else str(ems_peak_consumption_price.units)
-                    )
-                ),
+                unit=get_unit(ems_peak_consumption_price),
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
@@ -348,15 +324,7 @@ class MetaStorageScheduler(Scheduler):
             ems_peak_production_price = get_continuous_series_sensor_or_quantity(
                 variable_quantity=ems_peak_production_price,
                 actuator=asset,
-                unit=(
-                    ems_peak_production_price.unit
-                    if isinstance(ems_peak_production_price, Sensor)
-                    else (
-                        ems_peak_production_price[0]["value"].units
-                        if isinstance(ems_peak_production_price, list)
-                        else str(ems_peak_production_price.units)
-                    )
-                ),
+                unit=get_unit(ems_peak_production_price),
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
@@ -393,15 +361,7 @@ class MetaStorageScheduler(Scheduler):
             ems_consumption_breach_price = get_continuous_series_sensor_or_quantity(
                 variable_quantity=ems_consumption_breach_price,
                 actuator=asset,
-                unit=(
-                    ems_consumption_breach_price.unit
-                    if isinstance(ems_consumption_breach_price, Sensor)
-                    else (
-                        ems_consumption_breach_price[0]["value"].units
-                        if isinstance(ems_consumption_breach_price, list)
-                        else str(ems_consumption_breach_price.units)
-                    )
-                ),
+                unit=get_unit(ems_consumption_breach_price),
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
@@ -442,15 +402,7 @@ class MetaStorageScheduler(Scheduler):
             ems_production_breach_price = get_continuous_series_sensor_or_quantity(
                 variable_quantity=ems_production_breach_price,
                 actuator=asset,
-                unit=(
-                    ems_production_breach_price.unit
-                    if isinstance(ems_production_breach_price, Sensor)
-                    else (
-                        ems_production_breach_price[0]["value"].units
-                        if isinstance(ems_production_breach_price, list)
-                        else str(ems_production_breach_price.units)
-                    )
-                ),
+                unit=get_unit(ems_production_breach_price),
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
@@ -533,15 +485,7 @@ class MetaStorageScheduler(Scheduler):
                 soc_minima_breach_price = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_minima_breach_price,
                     actuator=asset,
-                    unit=(
-                        soc_minima_breach_price.unit
-                        if isinstance(soc_minima_breach_price, Sensor)
-                        else (
-                            soc_minima_breach_price[0]["value"].units
-                            if isinstance(soc_minima_breach_price, list)
-                            else str(soc_minima_breach_price.units)
-                        )
-                    ),
+                    unit=get_unit(soc_minima_breach_price),
                     query_window=(start, end),
                     resolution=resolution,
                     beliefs_before=belief_time,
@@ -590,15 +534,7 @@ class MetaStorageScheduler(Scheduler):
                 soc_maxima_breach_price = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_maxima_breach_price,
                     actuator=asset,
-                    unit=(
-                        soc_maxima_breach_price.unit
-                        if isinstance(soc_maxima_breach_price, Sensor)
-                        else (
-                            soc_maxima_breach_price[0]["value"].units
-                            if isinstance(soc_maxima_breach_price, list)
-                            else str(soc_maxima_breach_price.units)
-                        )
-                    ),
+                    unit=get_unit(soc_maxima_breach_price),
                     query_window=(start, end),
                     resolution=resolution,
                     beliefs_before=belief_time,
@@ -1623,6 +1559,15 @@ def validate_constraint(
         )
 
     return constraint_violations
+
+
+def get_unit(variable_quantity: Sensor | list[dict] | ur.Quantity) -> str:
+    """Obtain the unit from a variable quantity."""
+    if isinstance(variable_quantity, Sensor):
+        return variable_quantity.unit
+    if isinstance(variable_quantity, list):
+        return variable_quantity[0]["value"].units
+    return str(variable_quantity.units)
 
 
 def prepend_serie(serie: pd.Series, value) -> pd.Series:
