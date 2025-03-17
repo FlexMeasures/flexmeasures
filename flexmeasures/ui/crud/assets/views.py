@@ -5,6 +5,8 @@ from flask_classful import FlaskView, route
 from flask_security import login_required, current_user
 from webargs.flaskparser import use_kwargs
 
+from flexmeasures.ui.utils.view_utils import svg_asset_icon_name
+
 from flexmeasures.data import db
 from flexmeasures.auth.error_handling import unauthorized_handler
 from flexmeasures.data.schemas import StartEndTimeSchema
@@ -12,9 +14,9 @@ from flexmeasures.data.services.job_cache import NoRedisConfigured
 from flexmeasures.data.models.generic_assets import (
     GenericAsset,
     get_center_location_of_assets,
-    GenericAssetType
+    GenericAssetType,
 )
-from flexmeasures.ui.utils.view_utils import ICON_MAPPING,available_units
+from flexmeasures.ui.utils.view_utils import ICON_MAPPING, available_units
 from flexmeasures.data.models.user import Account
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.crud.api_wrapper import InternalApi
@@ -123,6 +125,7 @@ class AssetCrudUI(FlaskView):
             "id": "new",
             "asset_type": asset.generic_asset_type.name,
             "link": url_for("AssetCrudUI:get", id="new"),
+            "icon": svg_asset_icon_name("add_asset"),
             "tooltip": "",
             "sensors": [],
             "parent": asset.id,
@@ -352,9 +355,11 @@ class AssetCrudUI(FlaskView):
 
     @login_required
     def map(self, msg="", **kwargs):
-        '''GET from /assets/map'''
-        
-        aggregate_type_groups = current_app.config.get("FLEXMEASURES_ASSET_TYPE_GROUPS", {})
+        """GET from /assets/map"""
+
+        aggregate_type_groups = current_app.config.get(
+            "FLEXMEASURES_ASSET_TYPE_GROUPS", {}
+        )
         group_by_accounts = request.args.get("group_by_accounts", "0") != "0"
         if user_has_admin_access(current_user, "read") and group_by_accounts:
             print("group_by_accounts", group_by_accounts)
@@ -385,5 +390,4 @@ class AssetCrudUI(FlaskView):
             known_asset_types=known_asset_types,
             asset_groups=map_asset_groups,
             aggregate_type_groups=aggregate_type_groups,
-    
         )
