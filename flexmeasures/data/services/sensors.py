@@ -250,24 +250,18 @@ def _get_sensor_asset_relation(
     asset: Asset,
     sensor: Sensor,
     inflexible_device_sensors: list[Sensor],
+    context_sensors: dict[str, Sensor],
 ) -> str:
     """Get the relation of a sensor to an asset."""
     relations = list()
-    consumption_price_sensor = asset.get_consumption_price_sensor()
-    production_price_sensor = asset.get_production_price_sensor()
     if sensor.generic_asset_id == asset.id:
-        relations.append("included device")
-    if (
-        consumption_price_sensor is not None
-        and consumption_price_sensor.id == sensor.id
-    ):
-        relations.append("consumption price")
-    if production_price_sensor is not None and production_price_sensor.id == sensor.id:
-        relations.append("production price")
+        relations.append("sensor belongs to this asset")
     inflexible_device_sensors_ids = {sensor.id for sensor in inflexible_device_sensors}
     if sensor.id in inflexible_device_sensors_ids:
-        relations.append("inflexible device")
-
+        relations.append("flex context (inflexible device)")
+    for field, ctxt_sensor in context_sensors.items():
+        if sensor.id == ctxt_sensor.id:
+            relations.append(f"flex context ({field})")
     return ";".join(relations)
 
 
@@ -279,6 +273,7 @@ def build_sensor_status_data(
     Returns a list of dictionaries, each containing the following keys:
     - id: sensor id
     - name: sensor name
+    - resolution: sensor resolution
     - asset_name: asset name
     - staleness: staleness of the sensor (for how long the sensor data is stale)
     - stale: whether the sensor is stale
@@ -292,9 +287,13 @@ def build_sensor_status_data(
 
     sensors = []
     sensor_ids = set()
-    production_price_sensor = asset.get_production_price_sensor()
-    consumption_price_sensor = asset.get_consumption_price_sensor()
     inflexible_device_sensors = asset.get_inflexible_device_sensors()
+    context_sensors = {
+        field: Sensor.query.get(asset.flex_context[field]["sensor"])
+        for field in asset.flex_context
+        if isinstance(asset.flex_context[field], dict)
+        and field != "inflexible-device-sensors"
+    }
     for asset, is_child_asset in (
         (asset, False),
         *[(child_asset, True) for child_asset in asset.child_assets],
@@ -302,9 +301,8 @@ def build_sensor_status_data(
         sensors_list = list(asset.sensors)
         if not is_child_asset:
             sensors_list += [
-                *asset.get_inflexible_device_sensors(),
-                production_price_sensor,
-                consumption_price_sensor,
+                *inflexible_device_sensors,
+                *context_sensors.values(),
             ]
         for sensor in sensors_list:
             if sensor is None or sensor.id in sensor_ids:
@@ -314,11 +312,12 @@ def build_sensor_status_data(
                 now=now,
             )
             for sensor_status in sensor_statuses:
-                sensor_status["name"] = sensor.name
                 sensor_status["id"] = sensor.id
+                sensor_status["name"] = sensor.name
+                sensor_status["resolution"] = sensor.event_resolution
                 sensor_status["asset_name"] = sensor.generic_asset.name
                 sensor_status["relation"] = _get_sensor_asset_relation(
-                    asset, sensor, inflexible_device_sensors
+                    asset, sensor, inflexible_device_sensors, context_sensors
                 )
                 sensor_ids.add(sensor.id)
                 sensors.append(sensor_status)

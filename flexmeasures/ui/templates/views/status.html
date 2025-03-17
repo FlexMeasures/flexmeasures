@@ -31,7 +31,7 @@ How long ago is considered too long (stale) depends on the sensor, usually we us
                         <tr>
                             <th>Sensor</th>
                             <th>Data source type</th>
-                            <th class="no-sort" title="This is the knowledge time of the most recent event recorded">Time of most recent record</th>
+                            <th class="no-sort" title="This is the knowledge time of the most recent event recorded (potentially in the future, for forecasts and schedules)">Time of latest record</th>
                             <th class="text-right no-sort">Status</th>
                             <th class="d-none">URL</th>
                         </tr>
@@ -43,7 +43,7 @@ How long ago is considered too long (stale) depends on the sensor, usually we us
                                 {% if loop.first or sensor.name != loop.previtem.name %}
                                   {{ sensor.name }} (<a href="/sensors/{{ sensor.id }}">{{ sensor.id }}</a>)
                                   {%- set asset_info = [ sensor.name, "(Asset: '", sensor.asset_name, "')" ]-%}
-                                  <span class="fa fa-info" title="Asset: '{{sensor.asset_name}}', reason for listing here: {{sensor.relation}}" style="margin-left: 10px;"></span>               
+                                  <span class="fa fa-info" title="Resolution: {{sensor.resolution | naturalized_timedelta }}, Asset: '{{sensor.asset_name}}', reason for listing here: {{sensor.relation}}" style="margin-left: 10px;"></span>               
                                 {% endif %}
                             </td>
                             <td>
@@ -162,7 +162,7 @@ Note that jobs do not live forever, so only rather recent jobs (usually younger 
 });
 </script>
 
-<!-- sort scheduling and forecasting jobs by hidden 'Created at Timestamp' column, hode control elements -->
+<!-- sort scheduling and forecasting jobs by hidden 'Created at Timestamp' column, hide control elements -->
 <script>
     $(document).ready(function() {
         $('#scheduling_forecasting_jobs').DataTable({

@@ -366,8 +366,10 @@ def test_build_asset_status_data(
 ):
     """
     Test the function to build status data structure, using a weather station asset.
-    We include the sensor of a different asset (a battery) via the flex context.
-    One sensor the asset already includes is also set in the context, so we can test if the relationship tagging works.
+    We include the sensor of a different asset (a battery) via the flex context
+    (as production price, does not make too much sense actually).
+    One sensor which the asset already includes is also set in the context as inflexible device,
+    so we can test if the relationship tagging works for that as well.
     """
     asset = add_weather_sensors["asset"]
     battery_asset = add_battery_assets["Test battery"]
@@ -385,7 +387,7 @@ def test_build_asset_status_data(
     db.session.add(production_price_sensor)
     db.session.flush()
 
-    asset.flex_context["production-price-sensor"] = production_price_sensor.id
+    asset.flex_context["production-price"] = {"sensor": production_price_sensor.id}
     asset.flex_context["inflexible-device-sensors"] = [temperature_sensor.id]
     db.session.add(asset)
 
@@ -405,21 +407,21 @@ def test_build_asset_status_data(
             "name": "wind speed",
             "id": wind_sensor.id,
             "asset_name": asset.name,
-            "relation": "included device",
+            "relation": "sensor belongs to this asset",
         },
         {
             **temperature_res,
             "name": "temperature",
             "id": temperature_sensor.id,
             "asset_name": asset.name,
-            "relation": "included device;inflexible device",
+            "relation": "sensor belongs to this asset;flex context (inflexible device)",
         },
         {
             **production_price_res,
             "name": "production price",
             "id": production_price_sensor.id,
             "asset_name": battery_asset.name,
-            "relation": "production price",
+            "relation": "flex context (production-price)",
         },
     ]
 
