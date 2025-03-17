@@ -477,10 +477,25 @@ def device_scheduler(  # noqa C901
         ):
             # Commitment c does not concern device d
             return Constraint.Skip
-        if not commitments[c]["class"].apply(lambda cl: cl == StockCommitment).all():
-            raise NotImplementedError(
-                "FlowCommitment on a device level has not been implemented. Please file a GitHub ticket explaining your use case."
+
+        # Determine center part of the lhs <= center part <= rhs constraint
+        commitment_class = commitments[c]["class"].iloc[j]
+        if commitment_class == StockCommitment:
+            center_part = (
+                m.commitment_quantity[c]
+                + m.commitment_downwards_deviation[c]
+                + m.commitment_upwards_deviation[c]
+                - m.ems_power[d, j]
             )
+        elif commitment_class == FlowCommitment:
+            center_part = (
+                m.commitment_quantity[c]
+                + m.commitment_downwards_deviation[c]
+                + m.commitment_upwards_deviation[c]
+                - _get_stock_change(m, d, j)
+            )
+        else:
+            raise NotImplementedError(f"Unknown commitment class '{commitment_class}'")
         return (
             (
                 0
@@ -489,10 +504,7 @@ def device_scheduler(  # noqa C901
                 else None
             ),
             # 0 if "upwards deviation price" in commitments[c].columns else None,  # todo: possible simplification
-            m.commitment_quantity[c]
-            + m.commitment_downwards_deviation[c]
-            + m.commitment_upwards_deviation[c]
-            - _get_stock_change(m, d, j),
+            center_part,
             (
                 0
                 if len(commitments[c]) == 1
