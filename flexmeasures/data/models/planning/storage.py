@@ -119,6 +119,9 @@ class MetaStorageScheduler(Scheduler):
         prefer_charging_sooner = [
             flex_model_d.get("prefer_charging_sooner") for flex_model_d in flex_model
         ]
+        prefer_curtailing_later = [
+            flex_model_d.get("prefer_curtailing_sooner") for flex_model_d in flex_model
+        ]
         soc_gain = [flex_model_d.get("soc_gain") for flex_model_d in flex_model]
         soc_usage = [flex_model_d.get("soc_usage") for flex_model_d in flex_model]
         consumption_capacity = [
@@ -201,7 +204,7 @@ class MetaStorageScheduler(Scheduler):
         end = pd.Timestamp(end).tz_convert("UTC")
 
         # Add tiny price slope to prefer charging now rather than later, and discharging later rather than now.
-        # We penalise the future with at most 1 per thousand times the price spread.
+        # We penalise future consumption and reward future production with at most 1 per thousand times the energy price spread.
         # todo: move to flow or stock commitment per device
         if any(prefer_charging_sooner):
             up_deviation_prices = add_tiny_price_slope(
@@ -448,6 +451,27 @@ class MetaStorageScheduler(Scheduler):
         else:
             # Take the contracted capacity as a hard constraint
             ems_constraints["derivative min"] = ems_production_capacity
+
+        # Flow commitments per device
+
+        # Add tiny price slope to prefer curtailing later rather than now.
+        # We penalise the future with at most 1 per thousand times the energy price spread.
+        for d, prefer_curtailing_later_d in enumerate(prefer_curtailing_later):
+            if prefer_curtailing_later_d:
+                tiny_price_slope = (
+                    add_tiny_price_slope(up_deviation_prices, "event_value")
+                    - up_deviation_prices
+                )
+                commitment = FlowCommitment(
+                    name=f"prefer curtailing device {d} later",
+                    quantity=0,
+                    # Prefer curtailing consumption later by making later consumption more expensive
+                    upwards_deviation_price=tiny_price_slope,
+                    # Prefer curtailing production later by making later production more expensive
+                    downwards_deviation_price=-tiny_price_slope,
+                    index=index,
+                )
+                commitments.append(commitment)
 
         # Set up device constraints: scheduled flexible devices for this EMS (from index 0 to D-1), plus the forecasted inflexible devices (at indices D to n).
         device_constraints = [
