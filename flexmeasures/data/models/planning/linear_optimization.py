@@ -22,7 +22,11 @@ from pyomo.environ import UnknownSolver  # noqa F401
 from pyomo.environ import value
 from pyomo.opt import SolverFactory, SolverResults
 
-from flexmeasures.data.models.planning import Commitment, FlowCommitment
+from flexmeasures.data.models.planning import (
+    Commitment,
+    FlowCommitment,
+    StockCommitment,
+)
 from flexmeasures.data.models.planning.utils import initialize_series, initialize_df
 from flexmeasures.utils.calculations import apply_stock_changes_and_losses
 
@@ -473,11 +477,7 @@ def device_scheduler(  # noqa C901
         ):
             # Commitment c does not concern device d
             return Constraint.Skip
-        if (
-            not commitments[c]["class"]
-            .apply(lambda cl: cl.__name__ == "StockCommitment")
-            .all()
-        ):
+        if not commitments[c]["class"].apply(lambda cl: cl == StockCommitment).all():
             raise NotImplementedError(
                 "FlowCommitment on a device level has not been implemented. Please file a GitHub ticket explaining your use case."
             )
@@ -517,9 +517,7 @@ def device_scheduler(  # noqa C901
         if (
             "class" in commitments[c].columns
             and not (
-                commitments[c]["class"].apply(
-                    lambda cl: cl.__name__ == "FlowCommitment"
-                )
+                commitments[c]["class"].apply(lambda cl: cl == FlowCommitment)
             ).all()
         ):
             raise NotImplementedError(
