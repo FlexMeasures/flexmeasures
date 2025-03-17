@@ -299,7 +299,7 @@ def test_flex_context_schema(db, app, setup_site_capacity_sensor, flex_context, 
         (
             {"production-price": {"sensor": "site-power-capacity"}},
             {
-                "production-price": "Capacity price field 'production-price' must be a capacity-price unit"
+                "production-price": "Capacity price field 'production-price' must have a capacity price unit"
             },
         ),
         (
@@ -325,7 +325,7 @@ def test_flex_context_schema(db, app, setup_site_capacity_sensor, flex_context, 
         (
             {"site-consumption-breach-price": "6 kWh"},
             {
-                "site-consumption-breach-price": "Capacity price field 'site-consumption-breach-price' must be a capacity-price unit."
+                "site-consumption-breach-price": "Capacity price field 'site-consumption-breach-price' must have a capacity price unit."
             },
         ),
         (
@@ -335,7 +335,7 @@ def test_flex_context_schema(db, app, setup_site_capacity_sensor, flex_context, 
         (
             {"site-production-breach-price": "550 EUR/MWh"},
             {
-                "site-production-breach-price": "Capacity price field 'site-production-breach-price' must be a capacity-price unit."
+                "site-production-breach-price": "Capacity price field 'site-production-breach-price' must have a capacity price unit."
             },
         ),
         (
@@ -371,7 +371,7 @@ def test_flex_context_schema(db, app, setup_site_capacity_sensor, flex_context, 
         (
             {"site-peak-production-price": "4500 EUR/MWh"},
             {
-                "site-peak-production-price": "Capacity price field 'site-peak-production-price' must be a capacity-price unit."
+                "site-peak-production-price": "Capacity price field 'site-peak-production-price' must have a capacity price unit."
             },
         ),
         (
