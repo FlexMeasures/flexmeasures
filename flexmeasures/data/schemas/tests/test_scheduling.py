@@ -298,7 +298,9 @@ def test_flex_context_schema(db, app, setup_site_capacity_sensor, flex_context, 
         ),
         (
             {"production-price": {"sensor": "site-power-capacity"}},
-            {"production-price": "Price field 'production-price' must be a price unit"},
+            {
+                "production-price": "Capacity price field 'production-price' must be a capacity-price unit"
+            },
         ),
         (
             {"site-power-capacity": "5 kWh"},
@@ -323,7 +325,7 @@ def test_flex_context_schema(db, app, setup_site_capacity_sensor, flex_context, 
         (
             {"site-consumption-breach-price": "6 kWh"},
             {
-                "site-consumption-breach-price": "Price field 'site-consumption-breach-price' must be a price unit."
+                "site-consumption-breach-price": "Capacity price field 'site-consumption-breach-price' must be a capacity-price unit."
             },
         ),
         (
@@ -331,13 +333,13 @@ def test_flex_context_schema(db, app, setup_site_capacity_sensor, flex_context, 
             False,
         ),
         (
-            {"site-production-breach-price": "550 KRW/MWh"},
+            {"site-production-breach-price": "550 EUR/MWh"},
             {
-                "site-production-breach-price": "Price field 'site-production-breach-price' must be a price unit."
+                "site-production-breach-price": "Capacity price field 'site-production-breach-price' must be a capacity-price unit."
             },
         ),
         (
-            {"site-production-breach-price": "3500 NGN/MW"},
+            {"site-production-breach-price": "3500 EUR/MW"},
             False,
         ),
         (
@@ -367,13 +369,13 @@ def test_flex_context_schema(db, app, setup_site_capacity_sensor, flex_context, 
             False,
         ),
         (
-            {"site-peak-production-price": "4500 NGN/MWh"},
+            {"site-peak-production-price": "4500 EUR/MWh"},
             {
-                "site-peak-production-price": "Price field 'site-peak-production-price' must be a price unit."
+                "site-peak-production-price": "Capacity price field 'site-peak-production-price' must be a capacity-price unit."
             },
         ),
         (
-            {"site-peak-consumption-price": "700 JPY/MW"},
+            {"site-peak-consumption-price": "700 EUR/MW"},
             False,
         ),
     ],
@@ -392,7 +394,6 @@ def test_db_flex_context_schema(
 
     if fails:
         with pytest.raises(ValidationError) as e_info:
-            print("flex_context", flex_context)
             schema.load(flex_context)
         print(e_info.value.messages)
         for field_name, expected_message in fails.items():

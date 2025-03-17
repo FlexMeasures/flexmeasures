@@ -292,7 +292,9 @@ class DBFlexContextSchema(FlexContextSchema):
 
         for field in price_fields:
             if field in data:
-                self._validate_field(data, "price", field, is_capacity_price_unit)
+                self._validate_field(
+                    data, "capacity-price", field, is_capacity_price_unit
+                )
 
     def _validate_power_fields(self, data: dict):
         """Validate power fields."""
@@ -310,17 +312,19 @@ class DBFlexContextSchema(FlexContextSchema):
 
     def _validate_field(self, data: dict, field_type: str, field: str, unit_validator):
         """Validate fields based on type and unit validator."""
+        unit_type = field_type
+        field_type = "capacity price" if field_type == "capacity-price" else field_type
 
         if isinstance(data[field], ur.Quantity):
             if not unit_validator(str(data[field].units)):
                 raise ValidationError(
-                    f"{field_type.capitalize()} field '{self.mapped_schema_keys[field]}' must be a {field_type} unit.",
+                    f"{field_type.capitalize()} field '{self.mapped_schema_keys[field]}' must be a {unit_type} unit.",
                     field_name=self.mapped_schema_keys[field],
                 )
         elif isinstance(data[field], Sensor):
             if not unit_validator(data[field].unit):
                 raise ValidationError(
-                    f"{field_type.capitalize()} field '{self.mapped_schema_keys[field]}' must be a {field_type} unit.",
+                    f"{field_type.capitalize()} field '{self.mapped_schema_keys[field]}' must be a {unit_type} unit.",
                     field_name=self.mapped_schema_keys[field],
                 )
         else:
