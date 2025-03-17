@@ -232,18 +232,8 @@ class FlexContextSchema(Schema):
 
 class DBFlexContextSchema(FlexContextSchema):
     mapped_schema_keys = {
-        "consumption_price": "consumption-price",
-        "production_price": "production-price",
-        "ems_power_capacity_in_mw": "site-power-capacity",
-        "ems_production_capacity_in_mw": "site-production-capacity",
-        "ems_consumption_capacity_in_mw": "site-consumption-capacity",
-        "ems_consumption_breach_price": "site-consumption-breach-price",
-        "ems_production_breach_price": "site-production-breach-price",
-        "ems_peak_consumption_in_mw": "site-peak-consumption",
-        "ems_peak_consumption_price": "site-peak-consumption-price",
-        "ems_peak_production_in_mw": "site-peak-production",
-        "ems_peak_production_price": "site-peak-production-price",
-        "inflexible_device_sensors": "inflexible-device-sensors",
+        field: FlexContextSchema().declared_fields[field].data_key
+        for field in FlexContextSchema().declared_fields
     }
 
     @validates_schema
