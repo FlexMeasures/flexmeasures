@@ -318,7 +318,7 @@ class DBFlexContextSchema(FlexContextSchema):
         else:
             if field != "consumption_price" and field != "production_price":
                 raise ValidationError(
-                    f"{field_type.capitalize()} field '{self.mapped_schema_keys[field]}' must havbee a fixed value or sensor.",
+                    f"{field_type.capitalize()} field '{self.mapped_schema_keys[field]}' must have a fixed value or sensor.",
                     field_name=self.mapped_schema_keys[field],
                 )
 

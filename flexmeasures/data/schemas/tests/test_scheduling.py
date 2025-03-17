@@ -303,6 +303,12 @@ def test_flex_context_schema(db, app, setup_site_capacity_sensor, flex_context, 
             },
         ),
         (
+            {"site-power-capacity": 100},
+            {
+                "site-power-capacity": f"Unsupported value type. `{type(100)}` was provided but only dict, list and str are supported."
+            },
+        ),
+        (
             {"site-power-capacity": "5 kWh"},
             {"site-power-capacity": "Cannot convert value `5 kWh` to 'MW'"},
         ),
