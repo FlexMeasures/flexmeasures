@@ -231,6 +231,21 @@ class FlexContextSchema(Schema):
 
 
 class DBFlexContextSchema(FlexContextSchema):
+    mapped_schema_keys = {
+        "consumption_price": "consumption-price",
+        "production_price": "production-price",
+        "ems_power_capacity_in_mw": "site-power-capacity",
+        "ems_production_capacity_in_mw": "site-production-capacity",
+        "ems_consumption_capacity_in_mw": "site-consumption-capacity",
+        "ems_consumption_breach_price": "site-consumption-breach-price",
+        "ems_production_breach_price": "site-production-breach-price",
+        "ems_peak_consumption_in_mw": "site-peak-consumption",
+        "ems_peak_consumption_price": "site-peak-consumption-price",
+        "ems_peak_production_in_mw": "site-peak-production",
+        "ems_peak_production_price": "site-peak-production-price",
+        "inflexible_device_sensors": "inflexible-device-sensors",
+    }
+
     @validates_schema
     def forbid_time_series_specs(self, data: dict, **kwargs):
         """
@@ -299,20 +314,20 @@ class DBFlexContextSchema(FlexContextSchema):
         if isinstance(data[field], ur.Quantity):
             if not unit_validator(str(data[field].units)):
                 raise ValidationError(
-                    f"{field_type.capitalize()} field '{field}' must be a {field_type} unit.",
-                    field_name=field,
+                    f"{field_type.capitalize()} field '{self.mapped_schema_keys[field]}' must be a {field_type} unit.",
+                    field_name=self.mapped_schema_keys[field],
                 )
         elif isinstance(data[field], Sensor):
             if not unit_validator(data[field].unit):
                 raise ValidationError(
-                    f"{field_type.capitalize()} field '{field}' must be a {field_type} unit.",
-                    field_name=field,
+                    f"{field_type.capitalize()} field '{self.mapped_schema_keys[field]}' must be a {field_type} unit.",
+                    field_name=self.mapped_schema_keys[field],
                 )
         else:
             if field != "consumption_price" and field != "production_price":
                 raise ValidationError(
-                    f"{field_type.capitalize()} field '{field}' must be a fixed value or sensor.",
-                    field_name=field,
+                    f"{field_type.capitalize()} field '{self.mapped_schema_keys[field]}' must be a fixed value or sensor.",
+                    field_name=self.mapped_schema_keys[field],
                 )
 
     def _validate_inflexible_device_sensors(self, data: dict):
@@ -322,7 +337,7 @@ class DBFlexContextSchema(FlexContextSchema):
                 if not is_power_unit(sensor.unit) and not is_energy_unit(sensor.unit):
                     raise ValidationError(
                         f"Inflexible device sensor '{sensor.id}' must have a power or energy unit.",
-                        field_name="inflexible_device_sensors",
+                        field_name="inflexible-device-sensors",
                     )
 
     def _forbid_fixed_prices(self, data: dict, **kwargs):
@@ -332,7 +347,7 @@ class DBFlexContextSchema(FlexContextSchema):
         ):
             raise ValidationError(
                 "Fixed prices are not currently supported for consumption-price in flex-context fields in the DB.",
-                field_name="consumption_price",
+                field_name="consumption-price",
             )
 
         if "production_price" in data and not isinstance(
@@ -340,7 +355,7 @@ class DBFlexContextSchema(FlexContextSchema):
         ):
             raise ValidationError(
                 "Fixed prices are not currently supported for production-price in flex-context fields in the DB.",
-                field_name="production_price",
+                field_name="production-price",
             )
 
 

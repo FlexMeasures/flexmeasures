@@ -293,12 +293,12 @@ def test_flex_context_schema(db, app, setup_site_capacity_sensor, flex_context, 
         (
             {"consumption-price": "13000 kW"},
             {
-                "consumption_price": "Fixed prices are not currently supported for consumption-price in flex-context fields in the DB.",
+                "consumption-price": "Fixed prices are not currently supported for consumption-price in flex-context fields in the DB.",
             },
         ),
         (
             {"production-price": {"sensor": "site-power-capacity"}},
-            {"production_price": "Price field 'production_price' must be a price unit"},
+            {"production-price": "Price field 'production-price' must be a price unit"},
         ),
         (
             {"site-power-capacity": "5 kWh"},
@@ -323,7 +323,7 @@ def test_flex_context_schema(db, app, setup_site_capacity_sensor, flex_context, 
         (
             {"site-consumption-breach-price": "6 kWh"},
             {
-                "ems_consumption_breach_price": "Price field 'ems_consumption_breach_price' must be a price unit."
+                "site-consumption-breach-price": "Price field 'site-consumption-breach-price' must be a price unit."
             },
         ),
         (
@@ -333,7 +333,7 @@ def test_flex_context_schema(db, app, setup_site_capacity_sensor, flex_context, 
         (
             {"site-production-breach-price": "550 KRW/MWh"},
             {
-                "ems_production_breach_price": "Price field 'ems_production_breach_price' must be a price unit."
+                "site-production-breach-price": "Price field 'site-production-breach-price' must be a price unit."
             },
         ),
         (
@@ -369,7 +369,7 @@ def test_flex_context_schema(db, app, setup_site_capacity_sensor, flex_context, 
         (
             {"site-peak-production-price": "4500 NGN/MWh"},
             {
-                "ems_peak_production_price": "Price field 'ems_peak_production_price' must be a price unit."
+                "site-peak-production-price": "Price field 'site-peak-production-price' must be a price unit."
             },
         ),
         (
