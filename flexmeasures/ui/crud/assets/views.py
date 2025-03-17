@@ -12,8 +12,9 @@ from flexmeasures.data.services.job_cache import NoRedisConfigured
 from flexmeasures.data.models.generic_assets import (
     GenericAsset,
     get_center_location_of_assets,
+    GenericAssetType
 )
-from flexmeasures.ui.utils.view_utils import ICON_MAPPING
+from flexmeasures.ui.utils.view_utils import ICON_MAPPING,available_units
 from flexmeasures.data.models.user import Account
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.crud.api_wrapper import InternalApi
@@ -29,7 +30,13 @@ from flexmeasures.data.services.sensors import (
     build_sensor_status_data,
     build_asset_jobs_data,
 )
-from flexmeasures.ui.utils.view_utils import available_units
+
+from flexmeasures.auth.policy import user_has_admin_access
+from flexmeasures.data.queries.generic_assets import get_asset_group_queries
+from flexmeasures.data.services.asset_grouping import (
+    AssetGroup,
+)
+from sqlalchemy import select
 
 """
 Asset crud view.
@@ -347,7 +354,36 @@ class AssetCrudUI(FlaskView):
     def map(self, msg="", **kwargs):
         '''GET from /assets/map'''
         
+        aggregate_type_groups = current_app.config.get("FLEXMEASURES_ASSET_TYPE_GROUPS", {})
+        group_by_accounts = request.args.get("group_by_accounts", "0") != "0"
+        if user_has_admin_access(current_user, "read") and group_by_accounts:
+            print("group_by_accounts", group_by_accounts)
+            asset_groups = get_asset_group_queries(
+                group_by_type=False, group_by_account=True
+            )
+        # print("aggregate_type_groups", aggregate_type_groups)
+        else:
+            print("in else ")
+            asset_groups = get_asset_group_queries(
+                group_by_type=True, custom_aggregate_type_groups=aggregate_type_groups
+            )
+
+        map_asset_groups = {}
+        for asset_group_name, asset_group_query in asset_groups.items():
+            asset_group = AssetGroup(asset_group_name, asset_query=asset_group_query)
+            if any([a.location for a in asset_group.assets]):
+                map_asset_groups[asset_group_name] = asset_group
+
+        known_asset_types = [
+            gat.name for gat in db.session.scalars(select(GenericAssetType)).all()
+        ]
+
         return render_flexmeasures_template(
             "crud/context_map.html",
-            map_center=get_center_location_of_assets(user=current_user)
+            mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
+            map_center=get_center_location_of_assets(user=current_user),
+            known_asset_types=known_asset_types,
+            asset_groups=map_asset_groups,
+            aggregate_type_groups=aggregate_type_groups,
+    
         )

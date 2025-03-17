@@ -217,6 +217,8 @@ SVG_ICON_MAPPING = {
     "site": "https://api.iconify.design/mdi/map-marker-outline.svg",
     "scenario": "https://api.iconify.design/mdi/binoculars.svg",
     "pv": "https://api.iconify.design/wi/day-sunny.svg",
+    "chargepoint": "https://api.iconify.design/material-symbols/ev-station-outline.svg",
+
 }
 
 def asset_icon_name(asset_type_name: str) -> str:
