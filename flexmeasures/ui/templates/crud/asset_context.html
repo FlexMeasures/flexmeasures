@@ -21,7 +21,7 @@
                                 </a>
                             </h1>
                             <div class="d-flex">
-                                <button class="btn btn-sm btn-primary me-2" onclick='openModal()'>
+                                <button class="btn btn-sm btn-primary me-2" onclick='openSensorsModal()'>
                                     Show sensors
                                 </button>
                                 <button class="btn btn-sm btn-primary">
@@ -44,7 +44,7 @@
             <div class="col-sm-2"></div>
             
             <!-- Bootstrap Modal -->
-            <div class="modal fade" id="nodeModal" tabindex="-1" aria-labelledby="modalTitle" aria-hidden="true">
+            <div class="modal fade" id="sensorsModal" tabindex="-1" aria-labelledby="modalTitle" aria-hidden="true">
                 <div class="modal-dialog modal-lg">
                 <div class="modal-content">
                     <div class="modal-header">
@@ -68,7 +68,7 @@
     </div>
 
     <script>
-        function openModal() {
+        function openSensorsModal() {
             const sensors = {{ current_asset_sensors | safe }};
             document.getElementById("modalTitle").innerText = "Sensors for " + '{{ asset.name }}';
             let tableHead = document.getElementById("modalTableHead");
@@ -124,7 +124,7 @@
             }
 
             // Show Bootstrap modal
-            let modal = new bootstrap.Modal(document.getElementById('nodeModal'));
+            let modal = new bootstrap.Modal(document.getElementById('sensorsModal'));
             modal.show();
         }
     </script>
