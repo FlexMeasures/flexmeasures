@@ -45,7 +45,13 @@ Internally, the asset has a `sensors_to_show`` field, which controls which senso
 Editing Asset FlexContext 
 =========================
 
-The Asset's ``FlexContext`` allows you to define certain fields and their values. Initially, no fields are set.
+|
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot-asset-editflexcontext.png
+    :align: center
+..    :scale: 40%
+|
+
+Per asset, you can set fields in :ref:the flex-context <flex_context>, which will influence how scheduling works on this asset. The flex context dialogue allows you to define either fixed values or sensors (for dynamic values / time series). Initially, no fields are set.
 
 Overview
 --------
@@ -63,16 +69,13 @@ Adding a Field
 Setting a Field Value
 ----------------------
 
-1.  **Select Field:** Click on the field in the left panel.
+1.  **Select Field(if it is not selected yet):** Click on the field in the left panel.
 2.  **Set Value:** In the right panel, use the provided form to set the field's value.
 
     * Some fields may only accept a sensor value.
     * Other fields may accept either a sensor or a fixed value.
 
 |
-.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot-asset-editflexcontext.png
-    :align: center
-..    :scale: 40%
 
 
 Status page

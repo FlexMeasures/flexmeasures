@@ -39,6 +39,8 @@ The flex-context
 The ``flex-context`` is independent of the type of flexible device that is optimized.
 With the flexibility context, we aim to describe the system in which the flexible assets operate, such as its physical and contractual limitations.
 
+These fields can be sent via the API (within the flex-context field), or be set permanently on the asset's data model (on the asset page in the UI). Some fields can point to sensors, so they will always represent the dynamics of the asset's environment (as long as that sensor has current data).
+
 The full list of flex-context fields follows below.
 For more details on the possible formats for field values, see :ref:`variable_quantities`.
 
