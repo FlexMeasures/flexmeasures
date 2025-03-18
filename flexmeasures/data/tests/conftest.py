@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 from flask_sqlalchemy import SQLAlchemy
 from statsmodels.api import OLS
+from flexmeasures import AssetType, Asset, Sensor
 import timely_beliefs as tb
 from sqlalchemy import select
 from flexmeasures.data.models.reporting import Reporter
@@ -15,7 +16,7 @@ from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.schemas.reporting import ReporterParametersSchema
 from flexmeasures.data.models.annotations import Annotation
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.models.time_series import TimedBelief, Sensor
+from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.forecasting import model_map
 from flexmeasures.data.models.forecasting.model_spec_factory import (
@@ -226,3 +227,188 @@ def test_reporter(app, db, add_nearby_weather_sensors):
     db.session.commit()
 
     return ds
+
+
+@pytest.fixture
+def smart_building_types(app, fresh_db, setup_generic_asset_types_fresh_db):
+    site = AssetType(name="site")
+    building = AssetType(name="building")
+    ev = AssetType(name="ev")
+
+    fresh_db.session.add_all([site, building, ev])
+    fresh_db.session.flush()
+
+    return (
+        site,
+        setup_generic_asset_types_fresh_db["solar"],
+        building,
+        setup_generic_asset_types_fresh_db["battery"],
+        ev,
+    )
+
+
+@pytest.fixture
+def smart_building(app, fresh_db, smart_building_types):
+    """
+    Topology of the sytstem:
+
+                             +----------+
+                             |          |
+            +----------------+   Site   +---------------+
+            |                |          |               |
+            |                +--+----+--+               |
+            |                   |    |                  |
+            |                   |    |                  |
+            |              +-----    ----+              |
+            |              |             |              |
+       +----+----+  +------+-----+   +---+---+   +------+------+
+       |         |  |            |   |       |   |             |
+       |  Solar  |  |  Building  |   |  EV   |   |   Battery   |
+       |         |  |            |   |       |   |             |
+       +---------+  +------------+   +-------+   +-------------+
+
+    Diagram created with: https://textik.com/#924f8a2112551f92
+
+    """
+    site, solar, building, battery, ev = smart_building_types
+    coordinates = {"latitude": 0, "longitude": 0}
+
+    test_site = Asset(name="Test Site", generic_asset_type_id=site.id, **coordinates)
+    fresh_db.session.add(test_site)
+    fresh_db.session.flush()
+
+    test_building = Asset(
+        name="Test Building",
+        generic_asset_type_id=building.id,
+        parent_asset_id=test_site.id,
+        **coordinates,
+    )
+    test_solar = Asset(
+        name="Test Solar",
+        generic_asset_type_id=solar.id,
+        parent_asset_id=test_site.id,
+        **coordinates,
+    )
+    test_battery = Asset(
+        name="Test Battery",
+        generic_asset_type_id=battery.id,
+        parent_asset_id=test_site.id,
+        **coordinates,
+    )
+    test_ev = Asset(
+        name="Test EV",
+        generic_asset_type_id=ev.id,
+        parent_asset_id=test_site.id,
+        **coordinates,
+    )
+    test_battery_1h = Asset(
+        name="Test Battery 1h",
+        generic_asset_type_id=battery.id,
+        parent_asset_id=test_site.id,
+        **coordinates,
+    )
+
+    assets = (
+        test_site,
+        test_building,
+        test_solar,
+        test_battery,
+        test_ev,
+        test_battery_1h,
+    )
+
+    fresh_db.session.add_all(assets)
+    fresh_db.session.flush()
+
+    sensors = []
+
+    # Add power sensor
+    for asset in assets:
+        sensor = Sensor(
+            name="power",
+            unit="MW",
+            event_resolution=(
+                timedelta(hours=1)
+                if asset.name == "Test Battery 1h"
+                else timedelta(minutes=15)
+            ),
+            generic_asset=asset,
+            timezone="Europe/Amsterdam",
+        )
+        sensors.append(sensor)
+
+    fresh_db.session.add_all(sensors)
+    fresh_db.session.flush()
+    asset_names = [asset.name for asset in assets]
+    return dict(zip(asset_names, assets)), dict(zip(asset_names, sensors))
+
+
+@pytest.fixture
+def flex_description_sequential(
+    smart_building, setup_markets_fresh_db, add_market_prices_fresh_db
+):
+    """Set up a flex-context and a partially deserialized flex-model.
+
+    Specifically, the main flex model is deserialized, while the sensors' individual flex models are still serialized.
+    """
+    assets, sensors = smart_building
+
+    flex_model = [
+        {
+            "sensor": sensors["Test EV"],
+            "sensor_flex_model": {
+                "consumption-capacity": "5kW",
+                "production-capacity": "0kW",
+                "power-capacity": "5kW",
+                "soc-at-start": 0.00,  # 0 kWh
+                "soc-unit": "MWh",
+                "soc-min": 0.0,
+                "soc-max": 0.05,  # 50 kWh
+                "soc-targets": [
+                    {
+                        "start": "2015-01-03T00:00:00+01:00",
+                        "end": "2015-01-03T05:00:00+01:00",
+                        "value": 0.0,
+                    },
+                    {
+                        "datetime": "2015-01-03T07:45:00+01:00",
+                        "value": 0.0125,
+                    },  # 12.5 kWh
+                    {"datetime": "2015-01-03T17:45:00+01:00", "value": 0.025},  # 25 kWh
+                    {
+                        "datetime": "2015-01-03T23:45:00+01:00",
+                        "value": 0.0375,
+                    },  # 37.5 kWh
+                ],
+            },
+        },
+        {
+            "sensor": sensors["Test Battery"],
+            "sensor_flex_model": {
+                "consumption-capacity": "0kW",
+                "production-capacity": "5kW",
+                "power-capacity": "5kW",
+                "soc-at-start": 0.1,  # 100 kWh
+                "soc-unit": "MWh",
+                "soc-min": 0.0,
+                "soc-max": 0.1,  # 100 kWh
+                "soc-targets": [
+                    {
+                        "datetime": "2015-01-03T03:00:00+01:00",
+                        "value": 0.094,
+                    }  # 6 kWh discharge
+                ],
+            },
+        },
+    ]
+    flex_context = {
+        "consumption-price-sensor": setup_markets_fresh_db["epex_da"].id,
+        "production-price-sensor": setup_markets_fresh_db["epex_da"].id,
+        "inflexible-device-sensors": [
+            sensors["Test Solar"].id,
+            sensors["Test Building"].id,
+        ],
+        "site-production-capacity": "2kW",
+        "site-consumption-capacity": "5kW",
+    }
+    return dict(flex_model=flex_model, flex_context=flex_context)

@@ -42,18 +42,56 @@ Finally, it is possible to set custom titles for any sensor graph by clicking on
 Internally, the asset has a `sensors_to_show`` field, which controls which sensor data appears in the plot. This can also be set by a script. Accepted formats are simple lists of sensor IDs (e.g. `[2, [5,6]]` or a more expressive format (e.g. `[{"title": "Power", "sensor": 2}, {"title": "Costs", "sensors": [5,6] }`). 
 
 
+Editing Asset FlexContext 
+=========================
+
+|
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot-asset-editflexcontext.png
+    :align: center
+..    :scale: 40%
+|
+
+Per asset, you can set fields in :ref:the flex-context <flex_context>, which will influence how scheduling works on this asset. The flex context dialogue allows you to define either fixed values or sensors (for dynamic values / time series). Initially, no fields are set.
+
+Overview
+--------
+
+* **Left Panel:** Displays a list of currently configured fields.
+* **Right Panel:** Shows details of the selected field and provides a form to modify its value.
+
+Adding a Field
+--------------
+
+1.  **Select Field:** Choose the desired field from the dropdown menu in the top right corner of the modal.
+2.  **Add Field:** Click the "Add Field" button next to the dropdown.
+3.  The field will be added to the list in the left panel.
+
+Setting a Field Value
+----------------------
+
+1.  **Select Field(if it is not selected yet):** Click on the field in the left panel.
+2.  **Set Value:** In the right panel, use the provided form to set the field's value.
+
+    * Some fields may only accept a sensor value.
+    * Other fields may accept either a sensor or a fixed value.
+
+|
+
+
 Status page
 ^^^^^^^^^^^^
 
-For each asset, you can also visit a status page to see if your data connectivity and recent jobs are okay. This is how data connectivity status looks like on the building asset from our tutorial:
+For each asset, you can also visit a status page to see if your data connectivity and recent jobs are okay. At the moment, all sensors on the asset and from its flex context are tracked. Below is a fictious example, where the toy battery (from our tutorial) has schedules discharging data, but also some added by a user, and wind production data is part of the battery's flex context. There have been three succesful scheduling jobs.
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/screenshot_building_status.png
     :align: center
 ..    :scale: 40%
 
-|
-|
 
+Audit log 
+^^^^^^^^^
+
+The audit log lets you see who made what changes to the asset over time. 
 This is how the audit log looks for the history of actions taken on an asset:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot-auditlog.PNG

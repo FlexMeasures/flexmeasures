@@ -1,4 +1,4 @@
-/*
+my/*
   Styling for the FlexMeasures Platform
 */
 /* 
@@ -96,7 +96,7 @@ button.btn:hover {
     background: var(--nav-hover-background-color);
 }
 
-form button[type="submit"] {
+button[type="submit"] {
     background: var(--primary-color) !important;
     outline: none !important;
     border: none;
@@ -110,6 +110,13 @@ form button[type="submit"] {
     -moz-transition: .4s;
     -ms-transition: .4s;
     -o-transition: .4s;
+}
+button[type="submit"] a {
+    color: var(--nav-default-color);
+    text-decoration: none;
+}
+button.btn:hover a {
+    color: var(--nav-hover-color);
 }
 
 #spinner {
@@ -1931,3 +1938,35 @@ body.touched [title]:hover:after {
 .dropdown-toggle.fa-info::after {
     content: none;
 }
+
+/* FlexContext Modal Dialogue - Start */
+.bg-fixed-val.nav-link.active {
+    background-color: #E0F2E0 !important;
+    border-bottom: 0 !important;
+}
+
+.bg-dynamic-val.nav-link.active {
+    background-color: #C2E8C2 !important;
+    border-bottom: 0 !important;
+}
+
+.bg-fixed-val.nav-link {
+    background-color: var(--white) !important;
+    color: #000;
+}
+
+.bg-dynamic-val.nav-link {
+    background-color: var(--white) !important;
+    color: #000;
+}
+
+.bg-fixed-val{
+    background-color: #E0F2E0 !important;
+    color: #000;
+}
+
+.bg-dynamic-val{
+    background-color: #C2E8C2 !important;
+    color: #000;
+}
+/* FlexContext Modal Dialogue - End*/

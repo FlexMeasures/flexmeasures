@@ -1,19 +1,36 @@
 from __future__ import annotations
 
-from marshmallow import Schema, fields, validate, validates_schema, ValidationError
+from marshmallow import (
+    Schema,
+    fields,
+    validate,
+    validates_schema,
+    ValidationError,
+    pre_load,
+    post_dump,
+)
 
 from flexmeasures import Sensor
+from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.sensors import (
     VariableQuantityField,
     SensorIdField,
 )
-from flexmeasures.utils.unit_utils import ur, units_are_convertible
+from flexmeasures.data.schemas.utils import FMValidationError
+from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
+from flexmeasures.utils.flexmeasures_inflection import p
+from flexmeasures.utils.unit_utils import (
+    ur,
+    units_are_convertible,
+    is_capacity_price_unit,
+    is_energy_price_unit,
+    is_power_unit,
+    is_energy_unit,
+)
 
 
 class FlexContextSchema(Schema):
-    """
-    This schema lists fields that can be used to describe sensors in the optimised portfolio
-    """
+    """This schema defines fields that provide context to the portfolio to be optimized."""
 
     # Energy commitments
     ems_power_capacity_in_mw = VariableQuantityField(
@@ -143,6 +160,8 @@ class FlexContextSchema(Schema):
                     f"""Please switch to using `production-price: {{"sensor": {data[field_map["production-price-sensor"]].id}}}`."""
                 )
 
+        # make sure that the prices fields are valid price units
+
         # All prices must share the same unit
         data = self._try_to_convert_price_units(data)
 
@@ -214,34 +233,214 @@ class FlexContextSchema(Schema):
 
 
 class DBFlexContextSchema(FlexContextSchema):
+    mapped_schema_keys = {
+        field: FlexContextSchema().declared_fields[field].data_key
+        for field in FlexContextSchema().declared_fields
+    }
 
     @validates_schema
     def forbid_time_series_specs(self, data: dict, **kwargs):
         """Do not allow time series specs for the flex-context fields saved in the db."""
 
-        keys_to_check = []
         # List of keys to check for time series specs
+        keys_to_check = []
         # All the keys in this list are all fields of type VariableQuantity
         for field_var, field in self.declared_fields.items():
             if isinstance(field, VariableQuantityField):
-                keys_to_check.append(field_var)
+                keys_to_check.append((field_var, field))
 
         # Check each key and raise a ValidationError if it's a list
-        for key in keys_to_check:
-            if key in data and isinstance(data[key], list):
+        for field_var, field in keys_to_check:
+            if field_var in data and isinstance(data[field_var], list):
                 raise ValidationError(
-                    f"Time series specs are not allowed in flex-context fields in the DB for '{key}'."
+                    "A time series specification (listing segments) is not supported when storing flex-context fields. Use a fixed quantity or a sensor reference instead.",
+                    field_name=field.data_key,
                 )
 
     @validates_schema
-    def forbid_fixed_prices(self, data: dict, **kwargs):
-        """Do not allow fixed consumption price or fixed production price in the flex-context fields saved in the db."""
-        if "consumption_price" in data and isinstance(data["consumption_price"], str):
+    def validate_fields_unit(self, data: dict, **kwargs):
+        """Check that each field value has a valid unit."""
+
+        self._validate_price_fields(data)
+        self._validate_power_fields(data)
+        self._validate_inflexible_device_sensors(data)
+
+    def _validate_price_fields(self, data: dict):
+        """Validate price fields."""
+        energy_price_fields = [
+            "consumption_price",
+            "production_price",
+        ]
+        capacity_price_fields = [
+            "ems_consumption_breach_price",
+            "ems_production_breach_price",
+            "ems_peak_consumption_price",
+            "ems_peak_production_price",
+        ]
+
+        # Check that consumption and production prices are Sensors
+        self._forbid_fixed_prices(data)
+
+        for field in energy_price_fields:
+            if field in data:
+                self._validate_field(data, "energy price", field, is_energy_price_unit)
+        for field in capacity_price_fields:
+            if field in data:
+                self._validate_field(
+                    data, "capacity price", field, is_capacity_price_unit
+                )
+
+    def _validate_power_fields(self, data: dict):
+        """Validate power fields."""
+        power_fields = [
+            "ems_power_capacity_in_mw",
+            "ems_production_capacity_in_mw",
+            "ems_consumption_capacity_in_mw",
+            "ems_peak_consumption_in_mw",
+            "ems_peak_production_in_mw",
+        ]
+
+        for field in power_fields:
+            if field in data:
+                self._validate_field(data, "power", field, is_power_unit)
+
+    def _validate_field(self, data: dict, field_type: str, field: str, unit_validator):
+        """Validate fields based on type and unit validator."""
+
+        if isinstance(data[field], ur.Quantity):
+            if not unit_validator(str(data[field].units)):
+                raise ValidationError(
+                    f"{field_type.capitalize()} field '{self.mapped_schema_keys[field]}' must have {p.a(field_type)} unit.",
+                    field_name=self.mapped_schema_keys[field],
+                )
+        elif isinstance(data[field], Sensor):
+            if not unit_validator(data[field].unit):
+                raise ValidationError(
+                    f"{field_type.capitalize()} field '{self.mapped_schema_keys[field]}' must have {p.a(field_type)} unit.",
+                    field_name=self.mapped_schema_keys[field],
+                )
+
+    def _validate_inflexible_device_sensors(self, data: dict):
+        """Validate inflexible device sensors."""
+        if "inflexible_device_sensors" in data:
+            for sensor in data["inflexible_device_sensors"]:
+                if not is_power_unit(sensor.unit) and not is_energy_unit(sensor.unit):
+                    raise ValidationError(
+                        f"Inflexible device sensor '{sensor.id}' must have a power or energy unit.",
+                        field_name="inflexible-device-sensors",
+                    )
+
+    def _forbid_fixed_prices(self, data: dict, **kwargs):
+        """Do not allow fixed consumption price or fixed production price in the flex-context fields saved in the db.
+
+        This is a temporary restriction as future iterations will allow fixed prices on these fields as well.
+        """
+        if "consumption_price" in data and isinstance(
+            data["consumption_price"], ur.Quantity
+        ):
             raise ValidationError(
-                "Fixed prices are not currently supported in flex-context fields in the DB."
+                "Fixed prices are not currently supported for consumption-price in flex-context fields in the DB.",
+                field_name="consumption-price",
             )
 
-        if "production_price" in data and isinstance(data["production_price"], str):
+        if "production_price" in data and isinstance(
+            data["production_price"], ur.Quantity
+        ):
             raise ValidationError(
-                "Fixed prices are not currently supported in flex-context fields in the DB."
+                "Fixed prices are not currently supported for production-price in flex-context fields in the DB.",
+                field_name="production-price",
             )
+
+
+class MultiSensorFlexModelSchema(Schema):
+    """
+
+    This schema is agnostic to the underlying type of flex-model, which is governed by the chosen Scheduler instead.
+    Therefore, the underlying type of flex-model is not deserialized.
+
+    So:
+
+        {
+            "sensor": 1,
+            "soc-at-start": "10 kWh"
+        }
+
+    becomes:
+
+        {
+            "sensor": <Sensor 1>,
+            "sensor_flex_model": {
+                "soc-at-start": "10 kWh"
+            }
+        }
+    """
+
+    sensor = SensorIdField(required=True)
+    # it's up to the Scheduler to deserialize the underlying flex-model
+    sensor_flex_model = fields.Dict(data_key="sensor-flex-model")
+
+    @pre_load
+    def unwrap_envelope(self, data, **kwargs):
+        """Any field other than 'sensor' becomes part of the sensor's flex-model."""
+        extra = {}
+        rest = {}
+        for k, v in data.items():
+            if k not in self.fields:
+                extra[k] = v
+            else:
+                rest[k] = v
+        return {"sensor-flex-model": extra, **rest}
+
+    @post_dump
+    def wrap_with_envelope(self, data, **kwargs):
+        """Any field in the 'sensor-flex-model' field becomes a main field."""
+        sensor_flex_model = data.pop("sensor-flex-model", {})
+        return dict(**data, **sensor_flex_model)
+
+
+class AssetTriggerSchema(Schema):
+    """
+    {
+        "start": "2025-01-21T15:00+01",
+        "flex-model": [
+            {
+                "sensor": 1,
+                "soc-at-start": "10 kWh"
+            },
+            {
+                "sensor": 2,
+                "soc-at-start": "20 kWh"
+            },
+        ]
+    }
+    """
+
+    asset = GenericAssetIdField(data_key="id")
+    start_of_schedule = AwareDateTimeField(
+        data_key="start", format="iso", required=True
+    )
+    belief_time = AwareDateTimeField(format="iso", data_key="prior")
+    duration = PlanningDurationField(load_default=PlanningDurationField.load_default)
+    flex_model = fields.List(
+        fields.Nested(MultiSensorFlexModelSchema()),
+        data_key="flex-model",
+    )
+    flex_context = fields.Dict(required=False, data_key="flex-context")
+
+    @validates_schema
+    def check_flex_model_sensors(self, data, **kwargs):
+        """Verify that the flex-model's sensors live under the asset for which a schedule is triggered."""
+        asset = data["asset"]
+        sensors = []
+        for sensor_flex_model in data["flex_model"]:
+            sensor = sensor_flex_model["sensor"]
+            if sensor in sensors:
+                raise FMValidationError(
+                    f"Sensor {sensor_flex_model['sensor'].id} should not occur more than once in the flex-model"
+                )
+            if sensor.generic_asset not in [asset] + asset.offspring:
+                raise FMValidationError(
+                    f"Sensor {sensor_flex_model['sensor'].id} does not belong to asset {asset.id} (or to one of its offspring)"
+                )
+            sensors.append(sensor)
+        return data
