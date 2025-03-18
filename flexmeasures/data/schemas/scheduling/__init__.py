@@ -253,7 +253,7 @@ class DBFlexContextSchema(FlexContextSchema):
         for field_var, field in keys_to_check:
             if field_var in data and isinstance(data[field_var], list):
                 raise ValidationError(
-                    f"Time series specs are not allowed in flex-context fields in the DB for '{field.data_key}'.",
+                    "A time series specification (listing segments) is not supported when storing flex-context fields. Use a fixed quantity or a sensor reference instead.",
                     field_name=field.data_key,
                 )
 

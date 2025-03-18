@@ -339,7 +339,7 @@ def test_flex_context_schema(db, app, setup_site_capacity_sensor, flex_context, 
                 ]
             },
             {
-                "site-power-capacity": "Time series specs are not allowed in flex-context fields in the DB for 'site-power-capacity'"
+                "site-power-capacity": "A time series specification (listing segments) is not supported when storing flex-context fields. Use a fixed quantity or a sensor reference instead."
             },
         ),
         (
