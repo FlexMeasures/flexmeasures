@@ -312,12 +312,6 @@ class DBFlexContextSchema(FlexContextSchema):
                     f"{field_type.capitalize()} field '{self.mapped_schema_keys[field]}' must have a {field_type} unit.",
                     field_name=self.mapped_schema_keys[field],
                 )
-        else:
-            if field != "consumption_price" and field != "production_price":
-                raise ValidationError(
-                    f"{field_type.capitalize()} field '{self.mapped_schema_keys[field]}' must have a fixed value or sensor.",
-                    field_name=self.mapped_schema_keys[field],
-                )
 
     def _validate_inflexible_device_sensors(self, data: dict):
         """Validate inflexible device sensors."""
