@@ -1441,11 +1441,11 @@
             flexInfoContainer.innerHTML = renderSelectInfoCards("site-consumption-capacity", description, allowedUnits);
         } else if (selectedOption == "site-consumption-breach-price") {
             const description = "This value represents the price that will be paid if the site consumes more power than the site consumption capacity. This value will be used in the optimization";
-            const allowedUnits = ["EUR/MWh", "JPY/MWh", "USD/MWh, and other currencies."];
+            const allowedUnits = ["EUR/MWh", "JPY/kWh", "USD/MWh, and other currencies."];
             flexInfoContainer.innerHTML = renderSelectInfoCards("site-consumption-breach-price", description, allowedUnits);
         } else if (selectedOption == "site-production-breach-price") {
             const description = "This value represents the price that will be paid if the site produces more power than the site production capacity. This value will be used in the optimization";
-            const allowedUnits = ["EUR/MWh", "JPY/MWh", "USD/MWh, and other currencies."];
+            const allowedUnits = ["EUR/MWh", "JPY/kWh", "USD/MWh, and other currencies."];
             flexInfoContainer.innerHTML = renderSelectInfoCards("site-production-breach-price", description, allowedUnits);
         } else if (selectedOption == "site-peak-consumption") {
             const description = "This value represents the peak consumption of the site. This value will be used in the optimization";
@@ -1457,11 +1457,11 @@
             flexInfoContainer.innerHTML = renderSelectInfoCards("site-peak-production", description, allowedUnits);
         } else if (selectedOption == "site-peak-consumption-price") {
             const description = "This value represents the price that will be paid if the site consumes more power than the site peak consumption. This value will be used in the optimization";
-            const allowedUnits = ["EUR/MWh", "JPY/MWh", "USD/MWh, and other currencies."];
+            const allowedUnits = ["EUR/MWh", "JPY/kWh", "USD/MWh, and other currencies."];
             flexInfoContainer.innerHTML = renderSelectInfoCards("site-peak-consumption-price", description, allowedUnits);
         } else if (selectedOption == "site-peak-production-price") {
             const description = "This value represents the price that will be paid if the site produces more power than the site peak production. This value will be used in the optimization";
-            const allowedUnits = ["EUR/MWh", "JPY/MWh", "USD/MWh, and other currencies."];
+            const allowedUnits = ["EUR/MWh", "JPY/kWh", "USD/MWh, and other currencies."];
             flexInfoContainer.innerHTML = renderSelectInfoCards("site-peak-production-price", description, allowedUnits);
         } else if (selectedOption == "inflexible-device-sensors") {
             const description = "This value represents the sensors that are inflexible and cannot be controlled. These sensors will be used in the optimization";
