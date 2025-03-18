@@ -24,12 +24,12 @@
                                 <button class="btn btn-sm btn-primary me-2" onclick='openSensorsModal()'>
                                     Show sensors
                                 </button>
-                                <button class="btn btn-sm btn-primary">
-                                    <a class="text-decoration-none text-reset" href="/assets/map?asset_type={{ asset.generic_asset_type.name }}">View Map</a>
+                                <button class="btn btn-sm btn-primary" id="viewMapButton">
+                                    View Map
                                 </button>
                             </div>
                         </div>                        
-                    </div>
+                    </div>           
                     <div class="col-sm-2">
                         {% if can_delete %}
                         <button type="button" class="btn delete-button" onClick="delete_asset(event, {{ asset.id }}, '{{ asset.name }}')">Delete Scenario</button>
@@ -43,7 +43,7 @@
             </div>
             <div class="col-sm-2"></div>
             
-            <!-- Bootstrap Modal -->
+            <!-- Bootstrap Modal for Sensors -->
             <div class="modal fade" id="sensorsModal" tabindex="-1" aria-labelledby="modalTitle" aria-hidden="true">
                 <div class="modal-dialog modal-lg">
                 <div class="modal-content">
@@ -61,6 +61,28 @@
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                     </div>
                 </div>
+                </div>
+            </div>
+
+            <!-- Bootstrap Modal for Map -->
+            <div class="modal fade" id="mapModal" tabindex="-1" aria-labelledby="mapModalTitle" aria-hidden="true">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="mapModalTitle">{{asset.name}} Map View</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="row mx-1">
+                                <div class="alert alert-info d-none" id="tzwarn"></div>
+                                <div class="alert alert-info d-none" id="dstwarn"></div>
+                            </div>
+                            <div id="modalMap" style="height: 400px;"></div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -127,6 +149,27 @@
             let modal = new bootstrap.Modal(document.getElementById('sensorsModal'));
             modal.show();
         }
+
+        document.getElementById('viewMapButton').addEventListener('click', function() {
+            let modal = new bootstrap.Modal(document.getElementById('mapModal'));
+            modal.show();
+
+            // Initialize the map inside the modal
+            setTimeout(function() {
+                var modalMap = L.map('modalMap', { center: [{{ asset.latitude | replace("None", 10) }}, {{ asset.longitude | replace("None", 10) }}], zoom: 10 });
+                addTileLayer(modalMap, '{{ mapboxAccessToken }}');
+
+                var asset_icon = new L.DivIcon({
+                    className: 'map-icon',
+                    html: '<i class="icon-empty-marker center-icon supersize"></i><i class="overlay center-icon {{ asset.generic_asset_type.name | default("info") | asset_icon }}"></i>',
+                    iconSize: [100, 100], // size of the icon
+                    iconAnchor: [50, 50], // point of the icon which will correspond to marker's location
+                    popupAnchor: [0, -50] // point from which the popup should open relative to the iconAnchor
+                });
+
+                var marker = L.marker([{{ asset.latitude | replace("None", 10) }}, {{ asset.longitude | replace("None", 10) }}], { icon: asset_icon }).addTo(modalMap);
+            }, 500); // Delay to ensure modal is fully shown before initializing the map
+        });
     </script>
 
     <style>
@@ -135,4 +178,40 @@
         }
     </style>
 
+<!-- Initialise the map -->
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet-src.min.js"></script>
+<script src="{{ url_for('flexmeasures_ui.static', filename='js/map-init.js') }}"></script>
+
+<script type="text/javascript">
+
+    // create map
+    var assetMap = L
+        .map('mapid', { center: [{{ asset.latitude | replace("None", 10) }}, {{ asset.longitude | replace("None", 10) }}], zoom: 10})
+        .on('popupopen', function () {
+            $(function () {
+                $('[data-toggle="tooltip"]').tooltip();
+            });
+        });
+    addTileLayer(assetMap, '{{ mapboxAccessToken }}');
+
+    // create marker
+    var asset_icon = new L.DivIcon({
+        className: 'map-icon',
+        html: '<i class="icon-empty-marker center-icon supersize"></i><i class="overlay center-icon {{ asset.generic_asset_type.name | default("info") | asset_icon }}"></i>',
+        iconSize: [100, 100], // size of the icon
+        iconAnchor: [50, 50], // point of the icon which will correspond to marker's location
+        popupAnchor: [0, -50] // point from which the popup should open relative to the iconAnchor
+    });
+    var marker = L
+        .marker(
+            [{{ asset.latitude | replace("None", 10) }}, {{ asset.longitude | replace("None", 10) }}],
+    { icon: asset_icon }
+        ).addTo(assetMap);
+
+    assetMap.on('click', function (e) {
+        $("#latitude").val(e.latlng.lat.toFixed(4));
+        $("#longitude").val(e.latlng.lng.toFixed(4));
+        marker.setLatLng(e.latlng);
+    });
+</script>
 {% endblock %}
