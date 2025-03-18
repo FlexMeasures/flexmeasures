@@ -157,7 +157,9 @@ def upgrade():
 
         # Get fields-to-migrate from attributes
         market_id = attributes_data.get("market_id")
-        capacity_in_mw = attributes_data.get("capacity_in_mw")
+        capacity_in_mw = attributes_data.get("capacity_in_mw") or attributes_data.get(
+            "site_power_capacity"
+        )
         consumption_capacity_in_mw = attributes_data.get("consumption_capacity_in_mw")
         production_capacity_in_mw = attributes_data.get("production_capacity_in_mw")
         ems_peak_consumption_price = attributes_data.get(
@@ -333,7 +335,7 @@ def downgrade():
         else:
             market_id = None
 
-        capacity_in_mw = (
+        site_power_capacity = (
             flex_context.get("site-power-capacity")
             if flex_context.get("site-power-capacity")
             else None
@@ -369,10 +371,12 @@ def downgrade():
             else None
         )
 
-        if capacity_in_mw is not None:
-            if isinstance(capacity_in_mw, str) and is_power_unit(capacity_in_mw):
-                capacity_in_mw = (
-                    ur.Quantity(capacity_in_mw).to(ur.Quantity("MW")).magnitude
+        if site_power_capacity is not None:
+            if isinstance(site_power_capacity, str) and is_power_unit(
+                site_power_capacity
+            ):
+                site_power_capacity = (
+                    ur.Quantity(site_power_capacity).to(ur.Quantity("MW")).magnitude
                 )
 
         if consumption_capacity_in_mw is not None:
@@ -402,7 +406,7 @@ def downgrade():
             attributes_data["production_price"] = production_price_as_str
 
         attributes_data["market_id"] = market_id
-        attributes_data["capacity_in_mw"] = capacity_in_mw
+        attributes_data["site_power_capacity"] = site_power_capacity
         attributes_data["consumption_capacity_in_mw"] = consumption_capacity_in_mw
         attributes_data["production_capacity_in_mw"] = production_capacity_in_mw
         attributes_data["ems_peak_consumption_price"] = ems_peak_consumption_price
