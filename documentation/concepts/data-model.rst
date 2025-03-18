@@ -23,7 +23,7 @@ In essence, an asset is anything on which you collect data.
 Assets can also have a parent-child relationship with other assets.
 So, you could model a building that contains assets like solar panels, a heat pump and EV chargers.
 
-We model asset types explicitly. None are required for running FlexMeasures. Some asset types have support in the UI (for icons, like a sun for `solar`), and in the toy tutorial and test. You can add your own types, which is useful for plugin logic (an example is the `weather station` type for a plugin that reads in weather forecasts).
+We model asset types explicitly. None are required for running FlexMeasures. Some asset types have support in the UI (for icons, like a sun for ``"solar"``), and in the toy tutorial and test. Some are used to select the scheduler (e.g. using ``"battery"`` or ``"one-way_evse"`` leads to using the storage scheduler). You can add your own types, which is useful for plugin logic (an example is the ``"weather station"`` type for a plugin that reads in weather forecasts).
 
 
 Sensors
