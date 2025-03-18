@@ -217,7 +217,9 @@ SVG_ICON_MAPPING = {
     "site": "https://api.iconify.design/mdi/map-marker-outline.svg",
     "scenario": "https://api.iconify.design/mdi/binoculars.svg",
     "pv": "https://api.iconify.design/wi/day-sunny.svg",
+    "solar": "https://api.iconify.design/wi/day-sunny.svg",
     "chargepoint": "https://api.iconify.design/material-symbols/ev-station-outline.svg",
+    "ev": "https://api.iconify.design/material-symbols/ev-station-outline.svg",
     "add_asset": "https://api.iconify.design/material-symbols/add-rounded.svg?color=white",  # Plus Icon for Add Asset
 }
 

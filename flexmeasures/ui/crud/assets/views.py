@@ -116,7 +116,7 @@ class AssetCrudUI(FlaskView):
             "name": "Add Child Asset",
             "id": "new",
             "asset_type": asset.generic_asset_type.name,
-            "link": url_for("AssetCrudUI:get", id="new"),
+            "link": url_for("AssetCrudUI:post", id="new", parent_asset_id=asset.id),
             "icon": svg_asset_icon_name("add_asset"),
             "tooltip": "",
             "sensors": [],
@@ -140,18 +140,28 @@ class AssetCrudUI(FlaskView):
          - start_time: minimum time of the events to be shown
          - end_time: maximum time of the events to be shown
         """
+        parent_asset_id = request.args.get("parent_asset_id", "")
         if id == "new":
             if not user_can_create_assets():
                 return unauthorized_handler(None, [])
 
             asset_form = NewAssetForm()
             asset_form.with_options()
+            if parent_asset_id:
+                parent_asset = db.session.get(GenericAsset, parent_asset_id)
+                if parent_asset:
+                    asset_form.account_id.data = str(
+                        parent_asset.account_id
+                    )  # Pre-set account
+                    parent_asset_name = parent_asset.name
             return render_flexmeasures_template(
                 "crud/asset_new.html",
                 asset_form=asset_form,
                 msg="",
                 map_center=get_center_location_of_assets(user=current_user),
                 mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
+                parent_asset_name=parent_asset_name,
+                parent_asset_id=parent_asset_id,
             )
 
         get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_one", id=id))
