@@ -297,9 +297,29 @@ def test_flex_context_schema(db, app, setup_site_capacity_sensor, flex_context, 
             },
         ),
         (
-            {"production-price": {"sensor": "site-power-capacity"}},
             {
-                "production-price": "Capacity price field 'production-price' must have a capacity price unit"
+                "production-price": {
+                    "sensor": "placeholder for site-power-capacity sensor"
+                }
+            },
+            {
+                "production-price": "Energy price field 'production-price' must have an energy price unit."
+            },
+        ),
+        (
+            {"production-price": {"sensor": "placeholder for price sensor"}},
+            False,
+        ),
+        (
+            {"consumption-price": "100 EUR/MWh"},
+            {
+                "consumption-price": "Fixed prices are not currently supported for consumption-price in flex-context fields in the DB.",
+            },
+        ),
+        (
+            {"production-price": "100 EUR/MW"},
+            {
+                "production-price": "Fixed prices are not currently supported for production-price in flex-context fields in the DB."
             },
         ),
         (
@@ -401,16 +421,20 @@ def test_flex_context_schema(db, app, setup_site_capacity_sensor, flex_context, 
     ],
 )
 def test_db_flex_context_schema(
-    db, app, setup_site_capacity_sensor, flex_context, fails
+    db, app, setup_dummy_sensors, setup_site_capacity_sensor, flex_context, fails
 ):
     schema = DBFlexContextSchema()
+
+    price_sensor = setup_dummy_sensors[1]
+    capacity_sensor = setup_site_capacity_sensor["site-power-capacity"]
 
     # Replace sensor name with sensor ID
     for field_name, field_value in flex_context.items():
         if isinstance(field_value, dict):
-            flex_context[field_name]["sensor"] = setup_site_capacity_sensor[
-                field_value["sensor"]
-            ].id
+            if field_value["sensor"] == "placeholder for site-power-capacity sensor":
+                flex_context[field_name]["sensor"] = capacity_sensor.id
+            elif field_value["sensor"] == "placeholder for price sensor":
+                flex_context[field_name]["sensor"] = price_sensor.id
 
     if fails:
         with pytest.raises(ValidationError) as e_info:

@@ -18,10 +18,12 @@ from flexmeasures.data.schemas.sensors import (
 )
 from flexmeasures.data.schemas.utils import FMValidationError
 from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
+from flexmeasures.utils.flexmeasures_inflection import p
 from flexmeasures.utils.unit_utils import (
     ur,
     units_are_convertible,
     is_capacity_price_unit,
+    is_energy_price_unit,
     is_power_unit,
     is_energy_unit,
 )
@@ -265,9 +267,11 @@ class DBFlexContextSchema(FlexContextSchema):
 
     def _validate_price_fields(self, data: dict):
         """Validate price fields."""
-        price_fields = [
+        energy_price_fields = [
             "consumption_price",
             "production_price",
+        ]
+        capacity_price_fields = [
             "ems_consumption_breach_price",
             "ems_production_breach_price",
             "ems_peak_consumption_price",
@@ -277,7 +281,10 @@ class DBFlexContextSchema(FlexContextSchema):
         # Check that consumption and production prices are Sensors
         self._forbid_fixed_prices(data)
 
-        for field in price_fields:
+        for field in energy_price_fields:
+            if field in data:
+                self._validate_field(data, "energy price", field, is_energy_price_unit)
+        for field in capacity_price_fields:
             if field in data:
                 self._validate_field(
                     data, "capacity price", field, is_capacity_price_unit
@@ -303,13 +310,13 @@ class DBFlexContextSchema(FlexContextSchema):
         if isinstance(data[field], ur.Quantity):
             if not unit_validator(str(data[field].units)):
                 raise ValidationError(
-                    f"{field_type.capitalize()} field '{self.mapped_schema_keys[field]}' must have a {field_type} unit.",
+                    f"{field_type.capitalize()} field '{self.mapped_schema_keys[field]}' must have {p.a(field_type)} unit.",
                     field_name=self.mapped_schema_keys[field],
                 )
         elif isinstance(data[field], Sensor):
             if not unit_validator(data[field].unit):
                 raise ValidationError(
-                    f"{field_type.capitalize()} field '{self.mapped_schema_keys[field]}' must have a {field_type} unit.",
+                    f"{field_type.capitalize()} field '{self.mapped_schema_keys[field]}' must have {p.a(field_type)} unit.",
                     field_name=self.mapped_schema_keys[field],
                 )
 
