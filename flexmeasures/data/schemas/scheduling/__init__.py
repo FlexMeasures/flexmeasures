@@ -238,11 +238,7 @@ class DBFlexContextSchema(FlexContextSchema):
 
     @validates_schema
     def forbid_time_series_specs(self, data: dict, **kwargs):
-        """
-        Do not allow time series specs for the flex-context fields saved in the db.
-
-        This is a temporary restriction as future iterations will allow fixed prices on these fields as well.
-        """
+        """Do not allow time series specs for the flex-context fields saved in the db."""
 
         # List of keys to check for time series specs
         keys_to_check = []
@@ -333,7 +329,10 @@ class DBFlexContextSchema(FlexContextSchema):
                     )
 
     def _forbid_fixed_prices(self, data: dict, **kwargs):
-        """Do not allow fixed consumption price or fixed production price in the flex-context fields saved in the db."""
+        """Do not allow fixed consumption price or fixed production price in the flex-context fields saved in the db.
+
+        This is a temporary restriction as future iterations will allow fixed prices on these fields as well.
+        """
         if "consumption_price" in data and not isinstance(
             data["consumption_price"], Sensor
         ):
