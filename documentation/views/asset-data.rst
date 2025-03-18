@@ -45,15 +45,17 @@ Internally, the asset has a `sensors_to_show`` field, which controls which senso
 Status page
 ^^^^^^^^^^^^
 
-For each asset, you can also visit a status page to see if your data connectivity and recent jobs are okay. This is how data connectivity status looks like on the building asset from our tutorial:
+For each asset, you can also visit a status page to see if your data connectivity and recent jobs are okay. At the moment, all sensors on the asset and from its flex context are tracked. Below is a fictious example, where the toy battery (from our tutorial) has schedules discharging data, but also some added by a user, and wind production data is part of the battery's flex context. There have been three succesful scheduling jobs.
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/screenshot_building_status.png
     :align: center
 ..    :scale: 40%
 
-|
-|
 
+Audit log 
+^^^^^^^^^
+
+The audit log lets you see who made what changes to the asset over time. 
 This is how the audit log looks for the history of actions taken on an asset:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot-auditlog.PNG
