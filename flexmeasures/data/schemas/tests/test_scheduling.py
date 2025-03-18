@@ -309,6 +309,20 @@ def test_flex_context_schema(db, app, setup_site_capacity_sensor, flex_context, 
             },
         ),
         (
+            {
+                "site-power-capacity": [
+                    {
+                        "value": "100 kW",
+                        "start": "2025-03-18T00:00+01:00",
+                        "duration": "P2D",
+                    }
+                ]
+            },
+            {
+                "site-power-capacity": "Power field 'site-power-capacity' must have a fixed value or sensor."
+            },
+        ),
+        (
             {"site-power-capacity": "5 kWh"},
             {"site-power-capacity": "Cannot convert value `5 kWh` to 'MW'"},
         ),
