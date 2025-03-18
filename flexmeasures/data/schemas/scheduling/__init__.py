@@ -328,16 +328,16 @@ class DBFlexContextSchema(FlexContextSchema):
 
         This is a temporary restriction as future iterations will allow fixed prices on these fields as well.
         """
-        if "consumption_price" in data and not isinstance(
-            data["consumption_price"], Sensor
+        if "consumption_price" in data and isinstance(
+            data["consumption_price"], ur.Quantity
         ):
             raise ValidationError(
                 "Fixed prices are not currently supported for consumption-price in flex-context fields in the DB.",
                 field_name="consumption-price",
             )
 
-        if "production_price" in data and not isinstance(
-            data["production_price"], Sensor
+        if "production_price" in data and isinstance(
+            data["production_price"], ur.Quantity
         ):
             raise ValidationError(
                 "Fixed prices are not currently supported for production-price in flex-context fields in the DB.",
