@@ -42,6 +42,42 @@ Finally, it is possible to set custom titles for any sensor graph by clicking on
 Internally, the asset has a `sensors_to_show`` field, which controls which sensor data appears in the plot. This can also be set by a script. Accepted formats are simple lists of sensor IDs (e.g. `[2, [5,6]]` or a more expressive format (e.g. `[{"title": "Power", "sensor": 2}, {"title": "Costs", "sensors": [5,6] }`). 
 
 
+Editing Asset FlexContext 
+=========================
+
+|
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot-asset-editflexcontext.png
+    :align: center
+..    :scale: 40%
+|
+
+Per asset, you can set fields in :ref:the flex-context <flex_context>, which will influence how scheduling works on this asset. The flex context dialogue allows you to define either fixed values or sensors (for dynamic values / time series). Initially, no fields are set.
+
+Overview
+--------
+
+* **Left Panel:** Displays a list of currently configured fields.
+* **Right Panel:** Shows details of the selected field and provides a form to modify its value.
+
+Adding a Field
+--------------
+
+1.  **Select Field:** Choose the desired field from the dropdown menu in the top right corner of the modal.
+2.  **Add Field:** Click the "Add Field" button next to the dropdown.
+3.  The field will be added to the list in the left panel.
+
+Setting a Field Value
+----------------------
+
+1.  **Select Field(if it is not selected yet):** Click on the field in the left panel.
+2.  **Set Value:** In the right panel, use the provided form to set the field's value.
+
+    * Some fields may only accept a sensor value.
+    * Other fields may accept either a sensor or a fixed value.
+
+|
+
+
 Status page
 ^^^^^^^^^^^^
 
