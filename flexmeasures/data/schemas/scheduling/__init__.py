@@ -245,13 +245,14 @@ class DBFlexContextSchema(FlexContextSchema):
         # All the keys in this list are all fields of type VariableQuantity
         for field_var, field in self.declared_fields.items():
             if isinstance(field, VariableQuantityField):
-                keys_to_check.append(field_var)
+                keys_to_check.append((field_var, field))
 
         # Check each key and raise a ValidationError if it's a list
-        for key in keys_to_check:
-            if key in data and isinstance(data[key], list):
+        for field_var, field in keys_to_check:
+            if field_var in data and isinstance(data[field_var], list):
                 raise ValidationError(
-                    f"Time series specs are not allowed in flex-context fields in the DB for '{key}'."
+                    f"Time series specs are not allowed in flex-context fields in the DB for '{field.data_key}'.",
+                    field_name=field.data_key,
                 )
 
     @validates_schema
