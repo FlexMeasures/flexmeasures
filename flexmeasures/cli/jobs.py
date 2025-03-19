@@ -270,6 +270,38 @@ def clear_queue(queue: str, deferred: bool, scheduled: bool, failed: bool):
             wrap_up_message(count_after)
 
 
+@fm_jobs.command("delete-queue")
+@with_appcontext
+@click.option(
+    "--queue",
+    default=None,
+    required=True,
+    help="State which queue to delete.",
+)
+def delete_queue(queue: str):
+    """
+    Delete a job queue.
+    """
+    if not app.redis_connection.sismember("rq:queues", f"rq:queue:{queue}"):
+        click.secho(
+            f"Queue '{queue}' does not exist.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+    success = app.redis_connection.srem("rq:queues", f"rq:queue:{queue}")
+    if success:
+        click.secho(
+            f"Queue '{queue}' removed.",
+            **MsgStyle.SUCCESS,
+        )
+    else:
+        click.secho(
+            f"Failed to remove queue '{queue}'.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+
+
 def wrap_up_message(count_after: int):
     if count_after > 0:
         click.secho(

@@ -15,7 +15,7 @@ New features
 * Improve asset status page - distinguish better by data source type [see `PR #1022 <https://github.com/FlexMeasures/flexmeasures/pull/1022/>`_]
 * Better y-axis titles for charts that show multiple sensors with a shared unit [see `PR #1346 <https://github.com/FlexMeasures/flexmeasures/pull/1346>`_]
 * Add CLI command ``flexmeasures jobs save-last-failed`` for saving the last failed jobs [see `PR #1342 <https://www.github.com/FlexMeasures/flexmeasures/pull/1342>`_ and `PR #1359 <https://github.com/FlexMeasures/flexmeasures/pull/1359>`_]
-
+* Add CLI command ``flexmeasures jobs delete-queue`` for deleting an obsolete queue [see `PR #1351 <https://www.github.com/FlexMeasures/flexmeasures/pull/1351>`_]
 
 Infrastructure / Support
 ----------------------
