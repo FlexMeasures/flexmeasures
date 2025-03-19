@@ -335,41 +335,13 @@ def downgrade():
         else:
             market_id = None
 
-        site_power_capacity = (
-            flex_context.get("site-power-capacity")
-            if flex_context.get("site-power-capacity")
-            else None
-        )
-        consumption_capacity_in_mw = (
-            flex_context.get("site-consumption-capacity")
-            if flex_context.get("site-consumption-capacity")
-            else None
-        )
-        production_capacity_in_mw = (
-            flex_context.get("site-production-capacity")
-            if flex_context.get("site-production-capacity")
-            else None
-        )
-        ems_peak_consumption_price = (
-            flex_context.get("site-peak-consumption-price")
-            if flex_context.get("site-peak-consumption-price")
-            else None
-        )
-        ems_peak_production_price = (
-            flex_context.get("site-peak-production-price")
-            if flex_context.get("site-peak-production-price")
-            else None
-        )
-        ems_consumption_breach_price = (
-            flex_context.get("site-consumption-breach-price")
-            if flex_context.get("site-consumption-breach-price")
-            else None
-        )
-        ems_production_breach_price = (
-            flex_context.get("site-production-breach-price")
-            if flex_context.get("site-production-breach-price")
-            else None
-        )
+        site_power_capacity = flex_context.get("site-power-capacity")
+        consumption_capacity_in_mw = flex_context.get("site-consumption-capacity")
+        production_capacity_in_mw = flex_context.get("site-production-capacity")
+        ems_peak_consumption_price = flex_context.get("site-peak-consumption-price")
+        ems_peak_production_price = flex_context.get("site-peak-production-price")
+        ems_consumption_breach_price = flex_context.get("site-consumption-breach-price")
+        ems_production_breach_price = flex_context.get("site-production-breach-price")
 
         if site_power_capacity is not None:
             if isinstance(site_power_capacity, str) and is_power_unit(
@@ -378,6 +350,10 @@ def downgrade():
                 site_power_capacity = (
                     ur.Quantity(site_power_capacity).to(ur.Quantity("MW")).magnitude
                 )
+
+                attributes_data["capacity_in_mw"] = site_power_capacity
+            else:
+                attributes_data["site_power_capacity"] = site_power_capacity
 
         if consumption_capacity_in_mw is not None:
             if isinstance(consumption_capacity_in_mw, str) and is_power_unit(
@@ -406,7 +382,6 @@ def downgrade():
             attributes_data["production_price"] = production_price_as_str
 
         attributes_data["market_id"] = market_id
-        attributes_data["site_power_capacity"] = site_power_capacity
         attributes_data["consumption_capacity_in_mw"] = consumption_capacity_in_mw
         attributes_data["production_capacity_in_mw"] = production_capacity_in_mw
         attributes_data["ems_peak_consumption_price"] = ems_peak_consumption_price
