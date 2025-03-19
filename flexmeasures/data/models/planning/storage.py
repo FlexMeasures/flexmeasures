@@ -518,21 +518,18 @@ class MetaStorageScheduler(Scheduler):
                 )
             if self.flex_context.get("soc_minima_breach_price") is not None:
                 soc_minima_breach_price = self.flex_context["soc_minima_breach_price"]
-                soc_minima_breach_price = (
-                    get_continuous_series_sensor_or_quantity(
-                        variable_quantity=soc_minima_breach_price,
-                        actuator=asset,
-                        unit=FlexContextSchema()
-                        .declared_fields["soc_minima_breach_price"]
-                        ._get_unit(soc_minima_breach_price),
-                        query_window=(start, end),
-                        resolution=resolution,
-                        beliefs_before=belief_time,
-                        fallback_attribute="soc-minima-breach-price",
-                        fill_sides=True,
-                    )
-                    + "*h",
-                )  # e.g. from EUR/(kWh*h) to EUR/kWh
+                soc_minima_breach_price = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_minima_breach_price,
+                    actuator=asset,
+                    unit=FlexContextSchema()
+                    .declared_fields["soc_minima_breach_price"]
+                    ._get_unit(soc_minima_breach_price),
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    fallback_attribute="soc-minima-breach-price",
+                    fill_sides=True,
+                )
                 # Set up commitments DataFrame
                 # soc_minima_d is a temp variable because add_storage_constraints can't deal with Series yet
                 soc_minima_d = get_continuous_series_sensor_or_quantity(
@@ -572,21 +569,18 @@ class MetaStorageScheduler(Scheduler):
                 )
             if self.flex_context.get("soc_maxima_breach_price") is not None:
                 soc_maxima_breach_price = self.flex_context["soc_maxima_breach_price"]
-                soc_maxima_breach_price = (
-                    get_continuous_series_sensor_or_quantity(
-                        variable_quantity=soc_maxima_breach_price,
-                        actuator=asset,
-                        unit=FlexContextSchema()
-                        .declared_fields["soc_maxima_breach_price"]
-                        ._get_unit(soc_maxima_breach_price),
-                        query_window=(start, end),
-                        resolution=resolution,
-                        beliefs_before=belief_time,
-                        fallback_attribute="soc-maxima-breach-price",
-                        fill_sides=True,
-                    )
-                    + "*h",
-                )  # e.g. from EUR/(kWh*h) to EUR/kWh
+                soc_maxima_breach_price = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_maxima_breach_price,
+                    actuator=asset,
+                    unit=FlexContextSchema()
+                    .declared_fields["soc_maxima_breach_price"]
+                    ._get_unit(soc_maxima_breach_price),
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    fallback_attribute="soc-maxima-breach-price",
+                    fill_sides=True,
+                )
                 # Set up commitments DataFrame
                 # soc_maxima_d is a temp variable because add_storage_constraints can't deal with Series yet
                 soc_maxima_d = get_continuous_series_sensor_or_quantity(
