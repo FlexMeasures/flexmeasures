@@ -277,7 +277,7 @@ class MetaStorageScheduler(Scheduler):
         commitments.append(commitment)
 
         # Set up peak commitments
-        if self.flex_context.get("ems_peak_consumption_price", None) is not None:
+        if self.flex_context.get("ems_peak_consumption_price") is not None:
             ems_peak_consumption = get_continuous_series_sensor_or_quantity(
                 variable_quantity=self.flex_context.get("ems_peak_consumption_in_mw"),
                 actuator=asset,
@@ -315,7 +315,7 @@ class MetaStorageScheduler(Scheduler):
                 index=index,
             )
             commitments.append(commitment)
-        if self.flex_context.get("ems_peak_production_price", None) is not None:
+        if self.flex_context.get("ems_peak_production_price") is not None:
             ems_peak_production = get_continuous_series_sensor_or_quantity(
                 variable_quantity=self.flex_context.get("ems_peak_production_in_mw"),
                 actuator=asset,
@@ -516,7 +516,7 @@ class MetaStorageScheduler(Scheduler):
                     as_instantaneous_events=True,
                     resolve_overlaps="max",
                 )
-            if self.flex_context.get("soc_minima_breach_price", None) is not None:
+            if self.flex_context.get("soc_minima_breach_price") is not None:
                 soc_minima_breach_price = self.flex_context["soc_minima_breach_price"]
                 soc_minima_breach_price = (
                     get_continuous_series_sensor_or_quantity(
@@ -570,7 +570,7 @@ class MetaStorageScheduler(Scheduler):
                     as_instantaneous_events=True,
                     resolve_overlaps="min",
                 )
-            if self.flex_context.get("soc_maxima_breach_price", None) is not None:
+            if self.flex_context.get("soc_maxima_breach_price") is not None:
                 soc_maxima_breach_price = self.flex_context["soc_maxima_breach_price"]
                 soc_maxima_breach_price = (
                     get_continuous_series_sensor_or_quantity(
@@ -925,8 +925,8 @@ class MetaStorageScheduler(Scheduler):
     def get_min_max_soc_on_sensor(
         self, adjust_unit: bool = False, deserialized_names: bool = True
     ) -> tuple[float | None, float | None]:
-        soc_min_sensor = self.sensor.get_attribute("min_soc_in_mwh", None)
-        soc_max_sensor = self.sensor.get_attribute("max_soc_in_mwh", None)
+        soc_min_sensor: float | None = self.sensor.get_attribute("min_soc_in_mwh")
+        soc_max_sensor: float | None = self.sensor.get_attribute("max_soc_in_mwh")
         soc_unit_label = "soc_unit" if deserialized_names else "soc-unit"
         if adjust_unit:
             if soc_min_sensor and self.flex_model.get(soc_unit_label) == "kWh":
