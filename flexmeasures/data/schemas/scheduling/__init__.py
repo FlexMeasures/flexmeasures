@@ -71,6 +71,7 @@ class FlexContextSchema(Schema):
         return_magnitude=False,
     )
 
+    # Capacity breach commitments
     ems_production_capacity_in_mw = VariableQuantityField(
         "MW",
         required=False,
