@@ -547,7 +547,6 @@ class MetaStorageScheduler(Scheduler):
                     quantity=soc_minima_d,
                     # negative price because breaching in the downwards (shortage) direction is penalized
                     downwards_deviation_price=-soc_minima_breach_price,
-                    _type="any",
                     index=index,
                     device=d,
                 )
@@ -598,7 +597,6 @@ class MetaStorageScheduler(Scheduler):
                     quantity=soc_maxima_d,
                     # positive price because breaching in the upwards (surplus) direction is penalized
                     upwards_deviation_price=soc_maxima_breach_price,
-                    _type="any",
                     index=index,
                     device=d,
                 )
