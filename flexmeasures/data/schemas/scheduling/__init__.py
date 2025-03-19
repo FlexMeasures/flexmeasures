@@ -47,6 +47,10 @@ class FlexContextSchema(Schema):
         value_validator=validate.Range(min=0),
         default=None,
     )
+    # Dev field
+    relax_soc_constraints = fields.Bool(
+        data_key="relax-soc-constraints", load_default=False
+    )
 
     # Energy commitments
     ems_power_capacity_in_mw = VariableQuantityField(
@@ -135,6 +139,19 @@ class FlexContextSchema(Schema):
     inflexible_device_sensors = fields.List(
         SensorIdField(), data_key="inflexible-device-sensors"
     )
+
+    @validates_schema
+    def process_relax_soc_constraints(self, data: dict, **kwargs):
+        """Fill in default soc breach prices when asked to relax SoC constraints.
+
+        todo: this assumes EUR currency is used for all prices
+        """
+        if data["relax_soc_constraints"]:
+            if data.get("soc_minima_breach_price") is None:
+                data["soc_minima_breach_price"] = ur.Quantity("1000 EUR/kWh")
+            if data.get("soc_maxima_breach_price") is None:
+                data["soc_maxima_breach_price"] = ur.Quantity("1000 EUR/kWh")
+        return data
 
     @validates_schema
     def check_prices(self, data: dict, **kwargs):
