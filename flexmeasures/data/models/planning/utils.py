@@ -503,7 +503,7 @@ def process_time_series_segments(
 
 
 def get_continuous_series_sensor_or_quantity(
-    variable_quantity: Sensor | list[dict] | ur.Quantity | None,
+    variable_quantity: Sensor | list[dict] | ur.Quantity | pd.Series | None,
     actuator: Sensor | Asset,
     unit: ur.Quantity | str,
     query_window: tuple[datetime, datetime],
@@ -538,6 +538,8 @@ def get_continuous_series_sensor_or_quantity(
                                     - The last available value serves as a naive forecast.
     :returns:                       time series data with missing values handled based on the chosen method.
     """
+    if isinstance(variable_quantity, pd.Series):
+        return variable_quantity
     if variable_quantity is None:
         variable_quantity = get_quantity_from_attribute(
             entity=actuator,
