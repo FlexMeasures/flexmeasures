@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import pint
 from marshmallow import (
     Schema,
     fields,
@@ -19,7 +18,15 @@ from flexmeasures.data.schemas.sensors import (
 )
 from flexmeasures.data.schemas.utils import FMValidationError
 from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
-from flexmeasures.utils.unit_utils import ur, units_are_convertible
+from flexmeasures.utils.flexmeasures_inflection import p
+from flexmeasures.utils.unit_utils import (
+    ur,
+    units_are_convertible,
+    is_capacity_price_unit,
+    is_energy_price_unit,
+    is_power_unit,
+    is_energy_unit,
+)
 
 
 class FlexContextSchema(Schema):
@@ -153,6 +160,8 @@ class FlexContextSchema(Schema):
                     f"""Please switch to using `production-price: {{"sensor": {data[field_map["production-price-sensor"]].id}}}`."""
                 )
 
+        # make sure that the prices fields are valid price units
+
         # All prices must share the same unit
         data = self._try_to_convert_price_units(data)
 
@@ -224,40 +233,122 @@ class FlexContextSchema(Schema):
 
 
 class DBFlexContextSchema(FlexContextSchema):
+    mapped_schema_keys = {
+        field: FlexContextSchema().declared_fields[field].data_key
+        for field in FlexContextSchema().declared_fields
+    }
 
     @validates_schema
     def forbid_time_series_specs(self, data: dict, **kwargs):
         """Do not allow time series specs for the flex-context fields saved in the db."""
 
-        keys_to_check = []
         # List of keys to check for time series specs
+        keys_to_check = []
         # All the keys in this list are all fields of type VariableQuantity
         for field_var, field in self.declared_fields.items():
             if isinstance(field, VariableQuantityField):
-                keys_to_check.append(field_var)
+                keys_to_check.append((field_var, field))
 
         # Check each key and raise a ValidationError if it's a list
-        for key in keys_to_check:
-            if key in data and isinstance(data[key], list):
+        for field_var, field in keys_to_check:
+            if field_var in data and isinstance(data[field_var], list):
                 raise ValidationError(
-                    f"Time series specs are not allowed in flex-context fields in the DB for '{key}'."
+                    "A time series specification (listing segments) is not supported when storing flex-context fields. Use a fixed quantity or a sensor reference instead.",
+                    field_name=field.data_key,
                 )
 
     @validates_schema
-    def forbid_fixed_prices(self, data: dict, **kwargs):
-        """Do not allow fixed consumption price or fixed production price in the flex-context fields saved in the db."""
+    def validate_fields_unit(self, data: dict, **kwargs):
+        """Check that each field value has a valid unit."""
+
+        self._validate_price_fields(data)
+        self._validate_power_fields(data)
+        self._validate_inflexible_device_sensors(data)
+
+    def _validate_price_fields(self, data: dict):
+        """Validate price fields."""
+        energy_price_fields = [
+            "consumption_price",
+            "production_price",
+        ]
+        capacity_price_fields = [
+            "ems_consumption_breach_price",
+            "ems_production_breach_price",
+            "ems_peak_consumption_price",
+            "ems_peak_production_price",
+        ]
+
+        # Check that consumption and production prices are Sensors
+        self._forbid_fixed_prices(data)
+
+        for field in energy_price_fields:
+            if field in data:
+                self._validate_field(data, "energy price", field, is_energy_price_unit)
+        for field in capacity_price_fields:
+            if field in data:
+                self._validate_field(
+                    data, "capacity price", field, is_capacity_price_unit
+                )
+
+    def _validate_power_fields(self, data: dict):
+        """Validate power fields."""
+        power_fields = [
+            "ems_power_capacity_in_mw",
+            "ems_production_capacity_in_mw",
+            "ems_consumption_capacity_in_mw",
+            "ems_peak_consumption_in_mw",
+            "ems_peak_production_in_mw",
+        ]
+
+        for field in power_fields:
+            if field in data:
+                self._validate_field(data, "power", field, is_power_unit)
+
+    def _validate_field(self, data: dict, field_type: str, field: str, unit_validator):
+        """Validate fields based on type and unit validator."""
+
+        if isinstance(data[field], ur.Quantity):
+            if not unit_validator(str(data[field].units)):
+                raise ValidationError(
+                    f"{field_type.capitalize()} field '{self.mapped_schema_keys[field]}' must have {p.a(field_type)} unit.",
+                    field_name=self.mapped_schema_keys[field],
+                )
+        elif isinstance(data[field], Sensor):
+            if not unit_validator(data[field].unit):
+                raise ValidationError(
+                    f"{field_type.capitalize()} field '{self.mapped_schema_keys[field]}' must have {p.a(field_type)} unit.",
+                    field_name=self.mapped_schema_keys[field],
+                )
+
+    def _validate_inflexible_device_sensors(self, data: dict):
+        """Validate inflexible device sensors."""
+        if "inflexible_device_sensors" in data:
+            for sensor in data["inflexible_device_sensors"]:
+                if not is_power_unit(sensor.unit) and not is_energy_unit(sensor.unit):
+                    raise ValidationError(
+                        f"Inflexible device sensor '{sensor.id}' must have a power or energy unit.",
+                        field_name="inflexible-device-sensors",
+                    )
+
+    def _forbid_fixed_prices(self, data: dict, **kwargs):
+        """Do not allow fixed consumption price or fixed production price in the flex-context fields saved in the db.
+
+        This is a temporary restriction as future iterations will allow fixed prices on these fields as well.
+        """
         if "consumption_price" in data and isinstance(
-            data["consumption_price"], pint.Quantity
+            data["consumption_price"], ur.Quantity
         ):
             raise ValidationError(
-                "Fixed prices are not currently supported for consumption_price in flex-context fields in the DB."
+                "Fixed prices are not currently supported for consumption-price in flex-context fields in the DB.",
+                field_name="consumption-price",
             )
 
         if "production_price" in data and isinstance(
-            data["production_price"], pint.Quantity
+            data["production_price"], ur.Quantity
         ):
             raise ValidationError(
-                "Fixed prices are not currently supported for production_price in flex-context fields in the DB."
+                "Fixed prices are not currently supported for production-price in flex-context fields in the DB.",
+                field_name="production-price",
             )
 
 
