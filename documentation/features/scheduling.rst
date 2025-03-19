@@ -24,9 +24,8 @@ This is described by:
 - :ref:`The flex-context <flex_context>` ― information about the system as a whole, in order to assess the value of activating flexibility.
 - :ref:`Flex-models <flex_models_and_schedulers>`  ― information about the state and possible actions of the flexible device. We will discuss these per scheduled device type.
 
-This information goes beyond the usual time series recorded by an asset's sensors. It's being sent through the API when triggering schedule computation.
-Some of the information can also be stored on the FlexMeasures server (persisted in the database), and will be editable through the UI (that's design work in progress).
-Specifically, flex-context fields can be persisted on the asset model, while most flex-model fields can be persisted on the asset & sensor model (that's also design work in progress, especially in relation to asset hierarchies).
+This information goes beyond the usual time series recorded by an asset's sensors. It can be sent to FlexMeasures through the API when triggering schedule computation.
+Also, this information can be persisted on the FlexMeasures data model (in the db), and is editable through the UI (actually, that is design work in progress, currently possible with the flex context).
 
 Let's dive into the details ― what can you tell FlexMeasures about your optimization problem?
 
@@ -36,11 +35,15 @@ Let's dive into the details ― what can you tell FlexMeasures about your optimi
 The flex-context
 -----------------
 
-The ``flex-context`` is independent of the type of flexible device that is optimized.
+The ``flex-context`` is independent of the type of flexible device that is optimized, or which scheduler is used.
 With the flexibility context, we aim to describe the system in which the flexible assets operate, such as its physical and contractual limitations.
 
+Fields can have fixed values, but some fields can also point to sensors, so they will always represent the dynamics of the asset's environment (as long as that sensor has current data).
 The full list of flex-context fields follows below.
 For more details on the possible formats for field values, see :ref:`variable_quantities`.
+
+Where should you set these fields? Within requests to the API or the data model. If they are not sent in via the API (the endpoint triggering schedule computation), the scheduler will look them up on the `flex-context` field of the asset. For consumption price, production price and inflexible devices, the scheduler will also search if parent assets have set them (it should probably do the same for other flex context fields ― work in progress). Finally, some of these values will default to attributes, for legacy reasons.
+
 
 
 .. list-table::
@@ -140,6 +143,9 @@ FlexMeasures comes with a storage scheduler and a process scheduler, which work 
 The storage scheduler is suitable for batteries and :abbr:`EV (electric vehicle)` chargers, and is automatically selected when scheduling an asset with one of the following asset types: ``"battery"``, ``"one-way_evse"`` and ``"two-way_evse"``.
 
 The process scheduler is suitable for shiftable, breakable and inflexible loads, and is automatically selected for asset types ``"process"`` and ``"load"``.
+
+
+We describe the respective flex models below. At the moment, they have to be sent through the API (the endpoint to trigger schedule computation, or using the FlexMeasures client) or the CLI (the command to add schedules). We will soon work on the possibility to store (a subset of) these fields on the data model and edit them in the UI.
 
 
 Storage

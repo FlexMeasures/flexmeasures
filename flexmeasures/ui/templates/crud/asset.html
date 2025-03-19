@@ -20,18 +20,16 @@
             <div class="header-action-button">
                 {% if user_can_create_assets %}
                 <div>
-                    <form action="/assets/new" method="get">
-                        <button class="btn btn-sm btn-responsive btn-success create-button mb-3" type="submit">Create
-                            new asset</button>
-                    </form>
+                    <button class="btn btn-sm btn-responsive btn-success create-button mb-3" type="submit">
+                        <a href="/assets/new">Create new asset</a>
+                    </button>
                 </div>
                 {% endif %}
                 {% if user_can_delete_asset %}
                 <div>
-                    <form action="/assets/delete_with_data/{{ asset.id }}" method="get">
-                        <button id="delete-asset-button" class="btn btn-sm btn-responsive btn-danger"
-                            type="submit">Delete this asset</button>
-                    </form>
+                    <button id="delete-asset-button" class="btn btn-sm btn-responsive btn-danger" type="submit">
+                        <a href="/assets/delete_with_data/{{ asset.id }}">Delete this asset</a>
+                    </button>
                     <script>
                         $("#delete-asset-button").click(function () {
                             if (confirm("Are you sure you want to delete this asset and all time series data associated with it?")) {
@@ -47,16 +45,14 @@
             </div>
             <div class="header-action-button">
                 <div>
-                    <form action="/assets/{{ asset.id }}/status" method="get">
-                        <button id="asset-status-button" class="btn btn-sm btn-responsive btn-info" type="submit">Asset
-                            status</button>
-                    </form>
+                    <button id="asset-status-button" class="btn btn-sm btn-responsive btn-info" type="submit">
+                        <a href="/assets/{{ asset.id }}/status" title="Inspect status of relevant sensors and jobs.">Asset status</a>
+                    </button>
                 </div>
                 <div>
-                    <form action="/assets/auditlog/{{ asset.id }}" method="get">
-                        <button class="btn btn-sm btn-responsive btn-info" type="submit"
-                            title="View history of asset related actions.">Audit log</button>
-                    </form>
+                    <button class="btn btn-sm btn-responsive btn-info" type="submit">
+                        <a href="/assets/auditlog/{{ asset.id }}" title="View history of actions related to this asset.">Audit log</a>
+                    </button>
                 </div>
             </div>
             <div class="sidepanel-container">
@@ -417,8 +413,15 @@
                         <div class="dropdown-menu p-3" style="width: 400px;">
                             <div>
                                 <strong>Help</strong>
-                                <p class="mb-2">
-                                    Here you can edit the asset's flex context.
+                                <p class="mb-2 pt-2">
+                                    Here, you can edit the flexibility context for this asset. This describes information about the managed system as a 
+                                    whole, in order to assess the value of activating flexibility. You can read more in the documentation under "Scheduling".
+                                    <br>
+                                    These fields can also be sent via the API to FlexMeasures, but setting them here permanently might be more convenient. 
+                                    Some fields can point to sensors, so they will always represent the dynamics of the asset's environment (as long as that sensor has current data).
+                                    <br>
+                                    To add a field, choose it from the dropdown menu in the top right corner, then click the "Add Field" button'. 
+                                    Set a value in the right panel, using the provided form to set the field's value.
                                 </p>
                             </div>
                         </div>
@@ -1149,6 +1152,8 @@
         }
 
         renderFlexSelectOptions();
+        selectFlexField();
+        renderSelectInfoCards();
     }
 
     async function udpateFlexContextFieldValue(dataType, sensorId) {
@@ -1171,7 +1176,11 @@
             assetFlexContext[flexId] = powerCapacityInputValue;
         } else if (dataType === "sensor" && sensorId) {
             if (flexId === "inflexible-device-sensors") {
-                assetFlexContext[flexId].push(sensorId);
+                if (assetFlexContext[flexId]) {
+                    assetFlexContext[flexId].push(sensorId);
+                } else {
+                    assetFlexContext[flexId] = [sensorId];
+                }
             } else {
                 assetFlexContext[flexId] = { sensor: sensorId };
             }
@@ -1254,7 +1263,7 @@
                         ${sensorsOnly ? `
                         <div class="tab-pane fade show active bg-dynamic-val rounded-bottom" id="pills-dynamic" role="tabpanel" aria-labelledby="pills-dynamic-tab">
                             <div id="select-sensor-input" class="flex-input-group mb-4 p-2">
-                                <label for="sensor" class="form-label">Look up Sensor:
+                                <label for="sensor" class="form-label">Look up Sensor for <b>${getFlexContextFieldTitle(contextKey)} </b>
                                     <i class="fa fa-info-circle ps-2"
                                         data-bs-toggle="tooltip"
                                         data-bs-placement="bottom"
@@ -1389,21 +1398,25 @@
     });
 
     function renderSelectInfoCards(contextKey, description, allowedUnits, isArray = false) {
-        return `
-            <div>
-                <div class="alert alert-info" role="alert">
-                    <b> About ${getFlexContextFieldTitle(contextKey)}
-                    <div class="pt-2 fw-normal">
-                        ${description}
-                    </div>
+        if (contextKey) {
+            return `
+                <div>
+                    <div class="alert alert-info" role="alert">
+                        <b> About ${getFlexContextFieldTitle(contextKey)}
+                        <div class="pt-2 fw-normal">
+                            ${description}
+                        </div>
 
-                    <div class="pt-3 fw-bold"> 
-                        Example Units: <span class="fw-normal"> ${allowedUnits.join(", ")} </span>
+                        <div class="pt-3 fw-bold"> 
+                            Example Units: <span class="fw-normal"> ${allowedUnits.join(", ")} </span>
+                        </div>
+                        
                     </div>
-                    
                 </div>
-            </div>
-        `;
+            `;
+        } else {
+            flexInfoContainer.innerHTML = "";
+        }
     }
 
     function handleFlexSelectChange(selectedOption) {
@@ -1411,51 +1424,51 @@
         const alertStyle = "alert alert-light";
         if (selectedOption === "consumption-price") {
             const description = "Set the sensor that represents the consumption price of the site. This value will be used in the optimization";
-            const allowedUnits = ["EUR", "EUR/MWh"];
+            const allowedUnits = ["EUR/MWh", "JPY/kWh", "USD/MWh, and other currencies."];
             flexInfoContainer.innerHTML = renderSelectInfoCards("consumption-price", description, allowedUnits);
         } else if (selectedOption === "production-price") {
             const description = "Set the sensor that represents the production price of the site. This value will be used in the optimization";
-            const allowedUnits = ["EUR", "EUR/MWh"];
+            const allowedUnits = ["EUR/MWh", "JPY/kWh", "USD/MWh, and other currencies."];
             flexInfoContainer.innerHTML = renderSelectInfoCards("production-price", description, allowedUnits);
         } else if (selectedOption == "site-power-capacity") {
             const description = "This value represents the maximum power that the site can consume or produce. This value will be used in the optimization";
-            const allowedUnits = ["kW"];
+            const allowedUnits = ["kW", "kVA", "MVA"];
             flexInfoContainer.innerHTML = renderSelectInfoCards("site-power-capacity", description, allowedUnits);
         } else if (selectedOption == "site-production-capacity") {
             const description = "This value represents the maximum power that the site can produce. This value will be used in the optimization";
-            const allowedUnits = ["kW", "kWh"];
+            const allowedUnits = ["kW"];
             flexInfoContainer.innerHTML = renderSelectInfoCards("site-production-capacity", description, allowedUnits);
         } else if (selectedOption == "site-consumption-capacity") {
             const description = "This value represents the maximum power that the site can consume. This value will be used in the optimization";
-            const allowedUnits = ["kW", "kWh"];
+            const allowedUnits = ["kW"];
             flexInfoContainer.innerHTML = renderSelectInfoCards("site-consumption-capacity", description, allowedUnits);
         } else if (selectedOption == "site-consumption-breach-price") {
             const description = "This value represents the price that will be paid if the site consumes more power than the site consumption capacity. This value will be used in the optimization";
-            const allowedUnits = ["EUR", "EUR/MWh"];
+            const allowedUnits = ["EUR/MW", "JPY/kW", "USD/MW, and other currencies."];
             flexInfoContainer.innerHTML = renderSelectInfoCards("site-consumption-breach-price", description, allowedUnits);
         } else if (selectedOption == "site-production-breach-price") {
             const description = "This value represents the price that will be paid if the site produces more power than the site production capacity. This value will be used in the optimization";
-            const allowedUnits = ["EUR", "EUR/MWh"];
+            const allowedUnits = ["EUR/MW", "JPY/kW", "USD/MW, and other currencies."];
             flexInfoContainer.innerHTML = renderSelectInfoCards("site-production-breach-price", description, allowedUnits);
         } else if (selectedOption == "site-peak-consumption") {
             const description = "This value represents the peak consumption of the site. This value will be used in the optimization";
-            const allowedUnits = ["kW", "kWh"];
+            const allowedUnits = ["kW"];
             flexInfoContainer.innerHTML = renderSelectInfoCards("site-peak-consumption", description, allowedUnits);
         } else if (selectedOption == "site-peak-production") {
             const description = "This value represents the peak production of the site. This value will be used in the optimization";
-            const allowedUnits = ["kW", "kWh"];
+            const allowedUnits = ["kW"];
             flexInfoContainer.innerHTML = renderSelectInfoCards("site-peak-production", description, allowedUnits);
         } else if (selectedOption == "site-peak-consumption-price") {
             const description = "This value represents the price that will be paid if the site consumes more power than the site peak consumption. This value will be used in the optimization";
-            const allowedUnits = ["EUR", "EUR/MWh"];
+            const allowedUnits = ["EUR/MW", "JPY/kW", "USD/MW, and other currencies."];
             flexInfoContainer.innerHTML = renderSelectInfoCards("site-peak-consumption-price", description, allowedUnits);
         } else if (selectedOption == "site-peak-production-price") {
             const description = "This value represents the price that will be paid if the site produces more power than the site peak production. This value will be used in the optimization";
-            const allowedUnits = ["EUR", "EUR/MWh"];
+            const allowedUnits = ["EUR/MW", "JPY/kW", "USD/MW, and other currencies."];
             flexInfoContainer.innerHTML = renderSelectInfoCards("site-peak-production-price", description, allowedUnits);
         } else if (selectedOption == "inflexible-device-sensors") {
             const description = "This value represents the sensors that are inflexible and cannot be controlled. These sensors will be used in the optimization";
-            const allowedUnits = ["sensors only"];
+            const allowedUnits = ["kW"];
             flexInfoContainer.innerHTML = renderSelectInfoCards("inflexible-device-sensors", description, allowedUnits);
         }
     }
