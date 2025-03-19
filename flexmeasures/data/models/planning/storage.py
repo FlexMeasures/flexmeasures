@@ -506,7 +506,7 @@ class MetaStorageScheduler(Scheduler):
                 )
                 # todo: check flex-model for soc_minima_breach_price and soc_maxima_breach_price fields; if these are defined, create a StockCommitment using both prices (if only 1 price is given, still create the commitment, but only penalize one direction)
             if isinstance(soc_minima[d], Sensor):
-                soc_minima_d = get_continuous_series_sensor_or_quantity(
+                soc_minima[d] = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_minima[d],
                     actuator=sensor_d,
                     unit="MWh",
@@ -531,8 +531,8 @@ class MetaStorageScheduler(Scheduler):
                     fill_sides=True,
                 )
                 # Set up commitments DataFrame
-                # soc_minima_d_temp is a temp variable because add_storage_constraints can't deal with Series yet
-                soc_minima_d_temp = get_continuous_series_sensor_or_quantity(
+                # soc_minima_d is a temp variable because add_storage_constraints can't deal with Series yet
+                soc_minima_d = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_minima[d],
                     actuator=sensor_d,
                     unit="MWh",
@@ -544,7 +544,7 @@ class MetaStorageScheduler(Scheduler):
                 )
                 commitment = StockCommitment(
                     name="soc minima",
-                    quantity=soc_minima_d_temp,
+                    quantity=soc_minima_d,
                     # negative price because breaching in the downwards (shortage) direction is penalized
                     downwards_deviation_price=-soc_minima_breach_price,
                     _type="any",
@@ -554,10 +554,10 @@ class MetaStorageScheduler(Scheduler):
                 commitments.append(commitment)
 
                 # soc-minima will become a soft constraint (modelled as stock commitments), so remove hard constraint
-                soc_minima_d = None
+                soc_minima[d] = None
 
             if isinstance(soc_maxima[d], Sensor):
-                soc_maxima_d = get_continuous_series_sensor_or_quantity(
+                soc_maxima[d] = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_maxima[d],
                     actuator=sensor_d,
                     unit="MWh",
@@ -582,8 +582,8 @@ class MetaStorageScheduler(Scheduler):
                     fill_sides=True,
                 )
                 # Set up commitments DataFrame
-                # soc_maxima_d_temp is a temp variable because add_storage_constraints can't deal with Series yet
-                soc_maxima_d_temp = get_continuous_series_sensor_or_quantity(
+                # soc_maxima_d is a temp variable because add_storage_constraints can't deal with Series yet
+                soc_maxima_d = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_maxima[d],
                     actuator=sensor_d,
                     unit="MWh",
@@ -595,7 +595,7 @@ class MetaStorageScheduler(Scheduler):
                 )
                 commitment = StockCommitment(
                     name="soc maxima",
-                    quantity=soc_maxima_d_temp,
+                    quantity=soc_maxima_d,
                     # positive price because breaching in the upwards (surplus) direction is penalized
                     upwards_deviation_price=soc_maxima_breach_price,
                     _type="any",
@@ -605,7 +605,7 @@ class MetaStorageScheduler(Scheduler):
                 commitments.append(commitment)
 
                 # soc-maxima will become a soft constraint (modelled as stock commitments), so remove hard constraint
-                soc_maxima_d = None
+                soc_maxima[d] = None
 
             if soc_at_start[d] is not None:
                 device_constraints[d] = add_storage_constraints(
@@ -614,8 +614,8 @@ class MetaStorageScheduler(Scheduler):
                     resolution,
                     soc_at_start[d],
                     soc_targets[d],
-                    soc_maxima_d,
-                    soc_minima_d,
+                    soc_maxima[d],
+                    soc_minima[d],
                     soc_max[d],
                     soc_min[d],
                 )
