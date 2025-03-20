@@ -9,7 +9,7 @@ Create Date: 2024-12-16 18:39:34.168732
 from alembic import op
 import sqlalchemy as sa
 
-from flexmeasures.utils.unit_utils import is_power_unit, ur
+from flexmeasures.utils.unit_utils import is_power_unit, is_capacity_price_unit, ur
 
 # revision identifiers, used by Alembic.
 revision = "cb8df44ebda5"
@@ -44,13 +44,20 @@ def build_flex_context(
     keys_to_remove = [
         "market_id",
         "capacity_in_mw",
-        "site_power_capacity",
         "consumption_capacity_in_mw",
         "production_capacity_in_mw",
         "ems_peak_consumption_price",
         "ems_peak_production_price",
         "ems_consumption_breach_price",
         "ems_production_breach_price",
+        # Alt keys when values are stored as a fixed value
+        "site-power-capacity",
+        "site-consumption-capacity",
+        "site-production-capacity",
+        "site-peak-consumption-price",
+        "site-peak-production-price",
+        "site-consumption-breach-price",
+        "site-production-breach-price",
         # Adding the below since these field could have been saved as either the hyphen or underscore format
         "ems-peak-consumption-price",
         "ems-peak-production-price",
@@ -107,6 +114,19 @@ def build_flex_context(
     return flex_context
 
 
+def process_field(value, attributes_data, original_key, new_key, validator):
+    if value is not None:
+        if isinstance(value, str) and validator(value):
+            try:
+                attributes_data[original_key] = (
+                    ur.Quantity(value).to(ur.Quantity("MW")).magnitude
+                )
+            except ValueError:
+                attributes_data[new_key] = value
+        else:
+            attributes_data[new_key] = value
+
+
 def upgrade():
     with op.batch_alter_table("generic_asset", schema=None) as batch_op:
         batch_op.add_column(
@@ -159,22 +179,26 @@ def upgrade():
         # Get fields-to-migrate from attributes
         market_id = attributes_data.get("market_id")
         capacity_in_mw = attributes_data.get("capacity_in_mw") or attributes_data.get(
-            "site_power_capacity"
+            "site-power-capacity"
         )
-        consumption_capacity_in_mw = attributes_data.get("consumption_capacity_in_mw")
-        production_capacity_in_mw = attributes_data.get("production_capacity_in_mw")
+        consumption_capacity_in_mw = attributes_data.get(
+            "consumption_capacity_in_mw"
+        ) or attributes_data.get("site-consumption-capacity")
+        production_capacity_in_mw = attributes_data.get(
+            "production_capacity_in_mw"
+        ) or attributes_data.get("site-production-capacity")
         ems_peak_consumption_price = attributes_data.get(
-            "ems_peak_consumption_price"
-        ) or attributes_data.get("ems-peak-consumption-price")
+            "ems-peak-consumption-price"
+        ) or attributes_data.get("site-peak-consumption-price")
         ems_peak_production_price = attributes_data.get(
-            "ems_peak_production_price"
-        ) or attributes_data.get("ems-peak-production-price")
+            "ems-peak-production-price"
+        ) or attributes_data.get("site-peak-production-price")
         ems_consumption_breach_price = attributes_data.get(
-            "ems_consumption_breach_price"
-        ) or attributes_data.get("ems-consumption-breach-price")
+            "ems-consumption-breach-price"
+        ) or attributes_data.get("site-consumption-breach-price")
         ems_production_breach_price = attributes_data.get(
-            "ems_production_breach_price"
-        ) or attributes_data.get("ems-production-breach-price")
+            "ems-production-breach-price"
+        ) or attributes_data.get("site-production-breach-price")
 
         # Build flex context - code off-loaded to external function as it is too long
         flex_context = build_flex_context(
@@ -344,44 +368,8 @@ def downgrade():
         ems_consumption_breach_price = flex_context.get("site-consumption-breach-price")
         ems_production_breach_price = flex_context.get("site-production-breach-price")
 
-        if site_power_capacity is not None:
-            if isinstance(site_power_capacity, str) and is_power_unit(
-                site_power_capacity
-            ):
-                site_power_capacity = (
-                    ur.Quantity(site_power_capacity).to(ur.Quantity("MW")).magnitude
-                )
-
-                attributes_data["capacity_in_mw"] = site_power_capacity
-            else:
-                attributes_data["site_power_capacity"] = site_power_capacity
-
-        if consumption_capacity_in_mw is not None:
-            if isinstance(consumption_capacity_in_mw, str) and is_power_unit(
-                consumption_capacity_in_mw
-            ):
-                consumption_capacity_in_mw = (
-                    ur.Quantity(consumption_capacity_in_mw)
-                    .to(ur.Quantity("MW"))
-                    .magnitude
-                )
-                attributes_data["consumption_capacity_in_mw"] = (
-                    consumption_capacity_in_mw
-                )
-            else:
-                attributes_data["site_consumption_capacity"] = (
-                    consumption_capacity_in_mw
-                )
-
-        if production_capacity_in_mw is not None:
-            if isinstance(production_capacity_in_mw, str) and is_power_unit(
-                production_capacity_in_mw
-            ):
-                production_capacity_in_mw = (
-                    ur.Quantity(production_capacity_in_mw)
-                    .to(ur.Quantity("MW"))
-                    .magnitude
-                )
+        if market_id is not None:
+            attributes_data["market_id"] = market_id
 
         if consumption_price_as_str is not None:
             attributes_data["consumption_price"] = consumption_price_as_str
@@ -389,12 +377,61 @@ def downgrade():
         if production_price_as_str is not None:
             attributes_data["production_price"] = production_price_as_str
 
-        attributes_data["market_id"] = market_id
-        attributes_data["production_capacity_in_mw"] = production_capacity_in_mw
-        attributes_data["ems_peak_consumption_price"] = ems_peak_consumption_price
-        attributes_data["ems_peak_production_price"] = ems_peak_production_price
-        attributes_data["ems_consumption_breach_price"] = ems_consumption_breach_price
-        attributes_data["ems_production_breach_price"] = ems_production_breach_price
+        process_field(
+            site_power_capacity,
+            attributes_data,
+            "capacity_in_mw",
+            "site-power-capacity",
+            is_power_unit,
+        )
+
+        process_field(
+            consumption_capacity_in_mw,
+            attributes_data,
+            "consumption_capacity_in_mw",
+            "site-consumption-capacity",
+            is_power_unit,
+        )
+
+        process_field(
+            production_capacity_in_mw,
+            attributes_data,
+            "production_capacity_in_mw",
+            "site-production-capacity",
+            is_power_unit,
+        )
+
+        process_field(
+            ems_peak_consumption_price,
+            attributes_data,
+            "ems-peak-consumption-price",
+            "site-peak-consumption-price",
+            is_capacity_price_unit,
+        )
+
+        process_field(
+            ems_peak_production_price,
+            attributes_data,
+            "ems-peak-production-price",
+            "site-peak-production-price",
+            is_capacity_price_unit,
+        )
+
+        process_field(
+            ems_consumption_breach_price,
+            attributes_data,
+            "ems-consumption-breach-price",
+            "site-consumption-breach-price",
+            is_capacity_price_unit,
+        )
+
+        process_field(
+            ems_production_breach_price,
+            attributes_data,
+            "ems-production-breach-price",
+            "site-production-breach-price",
+            is_capacity_price_unit,
+        )
 
         update_stmt = (
             generic_asset_table.update()
