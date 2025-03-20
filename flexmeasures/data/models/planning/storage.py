@@ -544,7 +544,7 @@ class MetaStorageScheduler(Scheduler):
                 )
                 commitment = StockCommitment(
                     name="soc minima",
-                    quantity=soc_minima_d,
+                    quantity=soc_minima_d - soc_at_start[d],
                     # negative price because breaching in the downwards (shortage) direction is penalized
                     downwards_deviation_price=-soc_minima_breach_price,
                     index=index,
@@ -594,7 +594,7 @@ class MetaStorageScheduler(Scheduler):
                 )
                 commitment = StockCommitment(
                     name="soc maxima",
-                    quantity=soc_maxima_d,
+                    quantity=soc_maxima_d - soc_at_start[d],
                     # positive price because breaching in the upwards (surplus) direction is penalized
                     upwards_deviation_price=soc_maxima_breach_price,
                     index=index,
