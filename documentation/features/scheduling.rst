@@ -148,7 +148,9 @@ The storage scheduler is suitable for batteries and :abbr:`EV (electric vehicle)
 The process scheduler is suitable for shiftable, breakable and inflexible loads, and is automatically selected for asset types ``"process"`` and ``"load"``.
 
 
-We describe the respective flex models below. At the moment, they have to be sent through the API (the endpoint to trigger schedule computation, or using the FlexMeasures client) or the CLI (the command to add schedules). We will soon work on the possibility to store (a subset of) these fields on the data model and edit them in the UI.
+We describe the respective flex models below.
+At the moment, they have to be sent through the API (the endpoint to trigger schedule computation, or using the FlexMeasures client) or through the CLI (the command to add schedules).
+We will soon work on the possibility to store (a subset of) these fields on the data model and edit them in the UI.
 
 
 Storage
