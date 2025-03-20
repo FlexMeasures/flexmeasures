@@ -303,6 +303,7 @@ class Commitment:
         """Contains all info apart from the name."""
         return pd.concat(
             [
+                self.device,
                 self.quantity,
                 self.upwards_deviation_price,
                 self.downwards_deviation_price,
