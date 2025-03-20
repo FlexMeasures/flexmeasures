@@ -452,6 +452,12 @@
 
                                 <!-- Settings -->
                                 <div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" value="" id="flexCheckBox">
+                                        <label class="form-check-label" for="flexCheckBox">
+                                          Include Public Assets
+                                        </label>
+                                      </div>
                                     <div class="row">
                                         <div class="col-10">
                                             <select class="form-select" id="flexSelect">
@@ -502,7 +508,8 @@
     const flexSelect = document.getElementById('flexSelect');
     const flexInfoContainer = document.getElementById('flexInfoContainer');
     const flexOptionsContainer = document.getElementById('flexOptionsContainer');
-
+    const flexCheckBox = document.getElementById('flexCheckBox')
+ 
 
     let assetFlexContext = {
         "consumption-price": null,
@@ -544,7 +551,7 @@
     let savedGraphIndex; // keeps track of the graph that is currently selected
     let selectedGraphTitle; // keeps track of the graph title that is currently selected
     const apiBasePath = window.location.origin;
-    const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ asset.id }}&include_public_assets=true`;
+    const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ asset.id }}`;
 
     // Fetch Account Details
     async function getAccount(accountId) {
@@ -780,6 +787,10 @@
 
         if (searchValue) {
             params.append('filter', searchValue);
+        }
+
+        if (flexCheckBox.checked) {
+            params.append('include_public_assets', true);
         }
 
         const apiUrl = `${sensorsApiUrl}&${params.toString()} `;
