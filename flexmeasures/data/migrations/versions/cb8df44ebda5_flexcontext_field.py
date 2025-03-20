@@ -44,6 +44,7 @@ def build_flex_context(
     keys_to_remove = [
         "market_id",
         "capacity_in_mw",
+        "site_power_capacity",
         "consumption_capacity_in_mw",
         "production_capacity_in_mw",
         "ems_peak_consumption_price",
@@ -364,6 +365,13 @@ def downgrade():
                     .to(ur.Quantity("MW"))
                     .magnitude
                 )
+                attributes_data["consumption_capacity_in_mw"] = (
+                    consumption_capacity_in_mw
+                )
+            else:
+                attributes_data["site_consumption_capacity"] = (
+                    consumption_capacity_in_mw
+                )
 
         if production_capacity_in_mw is not None:
             if isinstance(production_capacity_in_mw, str) and is_power_unit(
@@ -382,7 +390,6 @@ def downgrade():
             attributes_data["production_price"] = production_price_as_str
 
         attributes_data["market_id"] = market_id
-        attributes_data["consumption_capacity_in_mw"] = consumption_capacity_in_mw
         attributes_data["production_capacity_in_mw"] = production_capacity_in_mw
         attributes_data["ems_peak_consumption_price"] = ems_peak_consumption_price
         attributes_data["ems_peak_production_price"] = ems_peak_production_price
