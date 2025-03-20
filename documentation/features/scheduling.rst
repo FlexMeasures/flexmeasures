@@ -42,7 +42,11 @@ Fields can have fixed values, but some fields can also point to sensors, so they
 The full list of flex-context fields follows below.
 For more details on the possible formats for field values, see :ref:`variable_quantities`.
 
-Where should you set these fields? Within requests to the API or the data model. If they are not sent in via the API (the endpoint triggering schedule computation), the scheduler will look them up on the `flex-context` field of the asset. For consumption price, production price and inflexible devices, the scheduler will also search if parent assets have set them (it should probably do the same for other flex context fields ― work in progress). Finally, some of these values will default to attributes, for legacy reasons.
+Where should you set these fields?
+Within requests to the API or the data model.
+If they are not sent in via the API (the endpoint triggering schedule computation), the scheduler will look them up on the `flex-context` field of the asset.
+For consumption price, production price and inflexible devices, the scheduler will also search if parent assets have set them (it should probably do the same for other flex context fields ― work in progress).
+Finally, some of these values will default to attributes, for legacy reasons.
 
 
 
