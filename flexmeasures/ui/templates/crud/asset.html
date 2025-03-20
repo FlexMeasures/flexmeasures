@@ -369,7 +369,7 @@
 
                                 <div class="col-4">
                                     <select id="unitsSelect" class="form-select" onchange="filterSensors()">
-                                        <option selected>Units</option>
+                                        <option value="null" selected>Units</option>
                                         {% for unit in available_units %}
                                         <option>{{ unit }}</option>
                                         {% endfor %}
@@ -509,7 +509,9 @@
     const flexInfoContainer = document.getElementById('flexInfoContainer');
     const flexOptionsContainer = document.getElementById('flexOptionsContainer');
     const flexCheckBox = document.getElementById('flexCheckBox')
- 
+    let availableUnitsRawJSON = "{{ available_units | safe }}";
+    availableUnitsRawJSON = availableUnitsRawJSON.replace(/'/g, '"');
+    const availableUnits = JSON.parse(availableUnitsRawJSON);
 
     let assetFlexContext = {
         "consumption-price": null,
@@ -745,7 +747,7 @@
             params.append('filter', searchValue);
         }
 
-        if (filterValue !== "Units") {
+        if (filterValue !== "null") {
             params.append('unit', filterValue);
         }
 
@@ -782,6 +784,7 @@
         const searchValue = document.getElementById("flexContextSensorSearch").value.toLowerCase();
         spinnerElement.style.display = 'flex';
         senSearchResEle.style.display = 'none';
+        const flexUnitsSelectValue = document.getElementById("flexUnitsSelect").value;
 
         const params = new URLSearchParams();
 
@@ -793,7 +796,11 @@
             params.append('include_public_assets', true);
         }
 
-        const apiUrl = `${sensorsApiUrl}&${params.toString()} `;
+        if(flexUnitsSelectValue != "null"){
+            params.append('unit', flexUnitsSelectValue);
+        }
+
+        const apiUrl = `${sensorsApiUrl}&${params.toString()}`;
 
         try {
             const response = await fetch(apiUrl);
@@ -1281,8 +1288,25 @@
                                         title="Search for sensor(s) to add here. Make sure that the sensor data will be available consistently, though, so scheduling will work."
                                     ></i>
                                 </label>
-                                <input type="text" id="flexContextSensorSearch" class="form-control"
-                                    placeholder="Search sensors..." oninput="searchSensors()" />
+                                
+                                <div class="row">
+                                    <div class="col-8  pe-1">
+                                        <input
+                                        type="text"
+                                        id="flexContextSensorSearch"
+                                        class="form-control"
+                                        placeholder="Search sensors..."
+                                        oninput="searchSensors()"
+                                        />
+                                    </div>
+                                    <div class="col-4 ps-0">
+                                        <select id="flexUnitsSelect" class="form-select" onchange="filterSensors()">
+                                            <option value="${null}" selected>Units</option>
+                                            ${availableUnits.map( unit => '<option value="' + unit + '">' + unit + '</option>').join('')}
+                                        </select>
+                                    </div>
+                                </div>
+
                             </div>
                         </div>
                         ` : `
@@ -1314,8 +1338,23 @@
                                         title="You can add a sensor which provides the values in a dynamic fashion. In the search form below, you can choose the right one. Make sure that the sensor data will be available consistently, though, so scheduling will work."
                                     ></i>
                                 </label>
-                                <input type="text" id="flexContextSensorSearch" class="form-control"
-                                    placeholder="Search sensors..." oninput="searchSensors()" />
+                                <div class="row">
+                                    <div class="col-8  pe-1">
+                                        <input
+                                        type="text"
+                                        id="flexContextSensorSearch"
+                                        class="form-control"
+                                        placeholder="Search sensors..."
+                                        oninput="searchSensors()"
+                                        />
+                                    </div>
+                                    <div class="col-4 ps-0">
+                                        <select id="flexUnitsSelect" class="form-select" onchange="filterSensors()">
+                                            <option value="${null}" selected>Units</option>
+                                            ${availableUnits.map( unit => '<option value="' + unit + '">' + unit + '</option>').join('')}
+                                        </select>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         `}
