@@ -141,6 +141,7 @@ class AssetCrudUI(FlaskView):
          - end_time: maximum time of the events to be shown
         """
         parent_asset_id = request.args.get("parent_asset_id", "")
+        account = None
         if id == "new":
             if not user_can_create_assets():
                 return unauthorized_handler(None, [])
@@ -154,6 +155,7 @@ class AssetCrudUI(FlaskView):
                         parent_asset.account_id
                     )  # Pre-set account
                     parent_asset_name = parent_asset.name
+                    account = parent_asset.account_id
             return render_flexmeasures_template(
                 "crud/asset_new.html",
                 asset_form=asset_form,
@@ -162,6 +164,7 @@ class AssetCrudUI(FlaskView):
                 mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
                 parent_asset_name=parent_asset_name,
                 parent_asset_id=parent_asset_id,
+                account=account,
             )
 
         get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_one", id=id))
