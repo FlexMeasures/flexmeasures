@@ -67,17 +67,17 @@ def build_flex_context(
     for key in keys_to_remove:
         attributes_data.pop(key, None)
 
-    flex_context = {
-        "consumption-price": {
-            "sensor": (
-                consumption_price_sensor_id
-                if consumption_price_sensor_id
-                else market_id
-            )
-        },
-        "production-price": {"sensor": production_price_sensor_id},
-        "inflexible-device-sensors": [s[0] for s in inflexible_device_sensors],
+    flex_context = attributes_data.pop("flex-context", {})
+
+    flex_context["consumption-price"] = {
+        "sensor": (
+            consumption_price_sensor_id if consumption_price_sensor_id else market_id
+        )
     }
+    flex_context["production-price"] = {"sensor": production_price_sensor_id}
+    flex_context["inflexible-device-sensors"] = [
+        s[0] for s in inflexible_device_sensors
+    ]
 
     if flex_context["consumption-price"]["sensor"] is None and market_id is None:
         if attributes_data.get("consumption_price") is not None:
@@ -349,10 +349,10 @@ def downgrade():
         asset_id, flex_context, attributes_data = row
 
         consumption_price_as_str, consumption_price_sensor_id = get_price_info(
-            flex_context.get("consumption-price")
+            flex_context.pop("consumption-price", None)
         )
         production_price_as_str, production_price_sensor_id = get_price_info(
-            flex_context.get("production-price")
+            flex_context.pop("production-price", None)
         )
 
         if consumption_price_sensor_id is not None:
@@ -360,13 +360,19 @@ def downgrade():
         else:
             market_id = None
 
-        site_power_capacity = flex_context.get("site-power-capacity")
-        consumption_capacity_in_mw = flex_context.get("site-consumption-capacity")
-        production_capacity_in_mw = flex_context.get("site-production-capacity")
-        ems_peak_consumption_price = flex_context.get("site-peak-consumption-price")
-        ems_peak_production_price = flex_context.get("site-peak-production-price")
-        ems_consumption_breach_price = flex_context.get("site-consumption-breach-price")
-        ems_production_breach_price = flex_context.get("site-production-breach-price")
+        site_power_capacity = flex_context.pop("site-power-capacity", None)
+        consumption_capacity_in_mw = flex_context.pop("site-consumption-capacity", None)
+        production_capacity_in_mw = flex_context.pop("site-production-capacity", None)
+        ems_peak_consumption_price = flex_context.pop(
+            "site-peak-consumption-price", None
+        )
+        ems_peak_production_price = flex_context.pop("site-peak-production-price", None)
+        ems_consumption_breach_price = flex_context.pop(
+            "site-consumption-breach-price", None
+        )
+        ems_production_breach_price = flex_context.pop(
+            "site-production-breach-price", None
+        )
 
         if market_id is not None:
             attributes_data["market_id"] = market_id
@@ -433,6 +439,12 @@ def downgrade():
             is_capacity_price_unit,
         )
 
+        inflexible_device_sensors = flex_context.pop("inflexible-device-sensors", [])
+
+        # Retain data in any new flex-context fields that are not support after downgrading
+        if flex_context:
+            attributes_data["flex-context"] = flex_context
+
         update_stmt = (
             generic_asset_table.update()
             .where(generic_asset_table.c.id == asset_id)
@@ -444,7 +456,7 @@ def downgrade():
         )
         conn.execute(update_stmt)
 
-        for sensor_id in flex_context.get("inflexible-device-sensors", []):
+        for sensor_id in inflexible_device_sensors:
             insert_stmt = inflexible_sensors_table.insert().values(
                 generic_asset_id=asset_id, inflexible_sensor_id=sensor_id
             )
