@@ -6,6 +6,8 @@ from flask_security import login_required, current_user
 from webargs.flaskparser import use_kwargs
 from werkzeug.exceptions import NotFound
 
+from flexmeasures.ui.utils.view_utils import svg_asset_icon_name
+
 from flexmeasures.data import db
 from flexmeasures.auth.error_handling import unauthorized_handler
 from flexmeasures.auth.policy import check_access
@@ -15,7 +17,7 @@ from flexmeasures.data.models.generic_assets import (
     GenericAsset,
     get_center_location_of_assets,
 )
-from flexmeasures.ui.utils.view_utils import ICON_MAPPING
+from flexmeasures.ui.utils.view_utils import ICON_MAPPING, available_units
 from flexmeasures.data.models.user import Account
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.crud.api_wrapper import InternalApi
@@ -25,13 +27,12 @@ from flexmeasures.ui.crud.assets.utils import (
     user_can_create_assets,
     user_can_delete,
     user_can_update,
+    get_list_assets_chart,
 )
 from flexmeasures.data.services.sensors import (
     build_sensor_status_data,
     build_asset_jobs_data,
 )
-from flexmeasures.ui.utils.view_utils import available_units
-
 
 """
 Asset crud view.
@@ -94,6 +95,45 @@ class AssetCrudUI(FlaskView):
             user_can_create_assets=user_can_create_assets(),
         )
 
+    @login_required
+    @route("/<id>/context")
+    def context(self, id: str):
+        """/assets/<id>/context"""
+        asset = db.session.query(GenericAsset).filter_by(id=id).first()
+        if asset is None:
+            assets = []
+        else:
+            assets = get_list_assets_chart(asset, base_asset=asset)
+
+        current_asset_sensors = [
+            {
+                "name": sensor.name,
+                "unit": sensor.unit,
+                "link": url_for("SensorUI:get", id=sensor.id),
+            }
+            for sensor in asset.sensors
+        ]
+        # Add Extra node to the current asset
+        add_child_asset = {
+            "name": "Add Child Asset",
+            "id": "new",
+            "asset_type": asset.generic_asset_type.name,
+            "link": url_for("AssetCrudUI:post", id="new", parent_asset_id=asset.id),
+            "icon": svg_asset_icon_name("add_asset"),
+            "tooltip": "",
+            "sensors": [],
+            "parent": asset.id,
+        }
+
+        assets.append(add_child_asset)
+
+        return render_flexmeasures_template(
+            "crud/asset_context.html",
+            assets=assets,
+            asset=asset,
+            current_asset_sensors=current_asset_sensors,
+        )
+
     @use_kwargs(StartEndTimeSchema, location="query")
     @login_required
     def get(self, id: str, **kwargs):
@@ -102,18 +142,31 @@ class AssetCrudUI(FlaskView):
          - start_time: minimum time of the events to be shown
          - end_time: maximum time of the events to be shown
         """
+        parent_asset_id = request.args.get("parent_asset_id", "")
+        account = None
         if id == "new":
             if not user_can_create_assets():
                 return unauthorized_handler(None, [])
 
             asset_form = NewAssetForm()
             asset_form.with_options()
+            if parent_asset_id:
+                parent_asset = db.session.get(GenericAsset, parent_asset_id)
+                if parent_asset:
+                    asset_form.account_id.data = str(
+                        parent_asset.account_id
+                    )  # Pre-set account
+                    parent_asset_name = parent_asset.name
+                    account = parent_asset.account_id
             return render_flexmeasures_template(
                 "crud/asset_new.html",
                 asset_form=asset_form,
                 msg="",
                 map_center=get_center_location_of_assets(user=current_user),
                 mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
+                parent_asset_name=parent_asset_name,
+                parent_asset_id=parent_asset_id,
+                account=account,
             )
 
         get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_one", id=id))

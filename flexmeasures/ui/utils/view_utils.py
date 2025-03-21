@@ -209,6 +209,20 @@ ICON_MAPPING = {
     "wind speed": "wi wi-strong-wind",
 }
 
+SVG_ICON_MAPPING = {
+    # site structure
+    "building": "https://api.iconify.design/mdi/home-city.svg",
+    "battery": "https://api.iconify.design/mdi/battery.svg",
+    "simulation": "https://api.iconify.design/mdi/home-city.svg",
+    "site": "https://api.iconify.design/mdi/map-marker-outline.svg",
+    "scenario": "https://api.iconify.design/mdi/binoculars.svg",
+    "pv": "https://api.iconify.design/wi/day-sunny.svg",
+    "solar": "https://api.iconify.design/wi/day-sunny.svg",
+    "chargepoint": "https://api.iconify.design/material-symbols/ev-station-outline.svg",
+    "ev": "https://api.iconify.design/material-symbols/ev-station-outline.svg",
+    "add_asset": "https://api.iconify.design/material-symbols/add-rounded.svg?color=white",  # Plus Icon for Add Asset
+}
+
 
 def asset_icon_name(asset_type_name: str) -> str:
     """Icon name for this asset type.
@@ -224,6 +238,15 @@ def asset_icon_name(asset_type_name: str) -> str:
     if asset_type_name:
         asset_type_name = asset_type_name.lower()
     return ICON_MAPPING.get(asset_type_name, f"icon-{asset_type_name}")
+
+
+def svg_asset_icon_name(asset_type_name: str) -> str:
+
+    if asset_type_name:
+        asset_type_name = asset_type_name.split(".")[-1].lower()
+    return SVG_ICON_MAPPING.get(
+        asset_type_name, "https://api.iconify.design/fa-solid/question-circle.svg"
+    )
 
 
 def username(user_id) -> str:
