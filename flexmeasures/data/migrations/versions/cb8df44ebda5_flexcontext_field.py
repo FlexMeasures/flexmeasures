@@ -7,6 +7,7 @@ Create Date: 2024-12-16 18:39:34.168732
 """
 
 from alembic import op
+import json
 import sqlalchemy as sa
 
 from flexmeasures.utils.unit_utils import is_power_unit, is_capacity_price_unit, ur
@@ -67,7 +68,11 @@ def build_flex_context(
     for key in keys_to_remove:
         attributes_data.pop(key, None)
 
-    flex_context = attributes_data.pop("flex-context", {})
+    flex_context = attributes_data.pop("flex-context", None)
+    if flex_context is None:
+        flex_context = {}
+    else:
+        flex_context = json.loads(flex_context)
 
     flex_context["consumption-price"] = {
         "sensor": (
@@ -445,7 +450,7 @@ def downgrade():
 
         # Retain data in any new flex-context fields that are not support after downgrading
         if flex_context:
-            attributes_data["flex-context"] = flex_context
+            attributes_data["flex-context"] = json.dumps(flex_context)
 
         update_stmt = (
             generic_asset_table.update()
