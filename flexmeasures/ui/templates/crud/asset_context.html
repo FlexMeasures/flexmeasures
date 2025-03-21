@@ -25,10 +25,35 @@
                                 <button class="btn btn-sm btn-primary me-2" onclick='openSensorsModal()'>
                                     Show sensors
                                 </button>
-                                <button class="btn btn-sm btn-primary" id="viewMapButton">
+                                <button class="btn btn-sm btn-primary me-2" id="viewMapButton">
                                     View Map
                                 </button>
+                                <button class="btn btn-sm btn-primary me-2" id="testButton">
+                                    <a href="{{ url_for('AssetCrudUI:assetgraph', id=asset.id) }}">
+                                        View Graph
+                                    </a>
+                                    
+                                </button>
+                                <button class="btn btn-sm btn-primary me-2" id="testButton">
+                                    <a href="/assets/{{ asset.id }}/status">
+                                        Asset Status
+                                    </a>
+                                    
+                                </button>
+                                <button class="btn btn-sm btn-primary me-2" id="testButton">
+                                    <a href="/assets/auditlog/{{ asset.id }}">
+                                        Audit Log
+                                    </a>
+                                    
+                                </button>
+                                <button class="btn btn-sm btn-primary me-2" id="testButton">
+                                    <a href="{{ url_for('AssetCrudUI:assetproperties', id=asset.id) }}">
+                                        Properties
+                                    </a>
+                                    
+                                </button>
                             </div>
+                            
                         </div>                        
                     </div>           
                     <div class="col-sm-2">

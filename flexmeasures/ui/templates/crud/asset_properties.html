@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+
+{% set active_page = "assets" %}
+
+{% block title %} {{asset.name}} {% endblock %}
+
+
+
+{% block divs %}
+
+{% block breadcrumbs %} {{ super() }} {% endblock %}
+
+<div class="container-fluid">
+    <div class="row mx-1">
+        <div class="alert alert-info d-none" id="tzwarn"></div>
+        <div class="alert alert-info d-none" id="dstwarn"></div>
+    </div>
+    <div class="row">
+        <div class="col-md-2 on-top-md">
+            <div class="header-action-button">
+                {% if user_can_create_assets %}
+                <div>
+                    <form action="/assets/new" method="get">
+                        <button class="btn btn-sm btn-responsive btn-success create-button mb-3" type="submit">Create
+                            new asset</button>
+                    </form>
+                </div>
+                {% endif %}
+                {% if user_can_delete_asset %}
+                <div>
+                    <form action="/assets/delete_with_data/{{ asset.id }}" method="get">
+                        <button id="delete-asset-button" class="btn btn-sm btn-responsive btn-danger"
+                            type="submit">Delete this asset</button>
+                    </form>
+                    <script>
+                        $("#delete-asset-button").click(function () {
+                            if (confirm("Are you sure you want to delete this asset and all time series data associated with it?")) {
+                                return true;
+                            }
+                            else {
+                                return false;
+                            }
+                        });
+                    </script>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="sidepanel-container d-none d-md-block">
+                <div class="left-sidepanel-label">Select dates</div>
+                <div class="sidepanel left-sidepanel">
+                    <div id="datepicker"></div>
+                </div>
+            </div>
+            {% if user_can_update_asset %}
+            <div class="sidepanel-container">
+                <div class="left-sidepanel-label">Edit asset</div>
+                <div class="sidepanel left-sidepanel">
+                    <form class="form-horizontal" method="POST" action="/assets/{{ asset.id }}">
+                        {{ asset_form.csrf_token }}
+                        {{ asset_form.hidden_tag() }}
+                        <fieldset>
+                            <div class="asset-form">
+
+                                <h3>Edit {{ asset.name }}</h3>
+                                <small>Owned by account: {{ asset.account_id | accountname }} (ID: {{ asset.account_id
+                                    }})</small>
+
+                                <div class="form-group">
+                                    {{ asset_form.name.label(class="col-sm-3 control-label") }}
+                                    <div class="col-md-3">
+                                        {{ asset_form.name(class_="form-control") }}
+                                        {% for error in asset_form.errors.name %}
+                                        <span style="color: red;">[{{error}}]</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    {{ asset_form.latitude.label(class="col-sm-6 control-label") }}
+                                    <div class="col-md-6">
+                                        {{ asset_form.latitude(class_="form-control") }}
+                                        {% for error in asset_form.errors.latitude %}
+                                        <span style="color: red;">[{{error}}]</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    {{ asset_form.longitude.label(class="col-sm-6 control-label") }}
+                                    <div class="col-md-6">
+                                        {{ asset_form.longitude(class_="form-control") }}
+                                        {% for error in asset_form.errors.longitude %}
+                                        <span style="color: red;">[{{error}}]</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="assset-type" class="col-sm-6 control-label">Asset Type</label>
+                                    <div class="col-md-6">
+                                        <input class="form-control" id="asset-type-id" name="asset-type" type="text"
+                                            value="{{ asset.generic_asset_type.name }}" disabled></input>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="asset-id" class="col-sm-6 control-label">Asset id</label>
+                                    <div class="col-md-6">
+                                        <input class="form-control" id="asset-id" name="asset-id" type="text"
+                                            value="{{ asset.id }}" disabled></input>
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    {{ asset_form.attributes.label(class="col-sm-3 control-label") }}
+                                    <div class="col-md-3">
+                                        {{ asset_form.attributes(class_="form-control") }}
+                                        {% for error in asset_form.errors.attributes %}
+                                        <span style="color: red;">[{{error}}]</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="flex_context" class="col-sm-6 control-label">Flex Context: </label>
+
+                                    <button class="btn btn-primary" type="button" data-bs-toggle="modal"
+                                        data-bs-target="#flexContextModal">
+                                        Edit
+                                    </button>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="sensors_to_show" class="col-sm-6 control-label">Sensor Graphs: </label>
+
+                                    <button class="btn btn-primary" type="button" data-bs-toggle="modal"
+                                        data-bs-target="#sensorsToShowModal">
+                                        Edit Graphs
+                                    </button>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="control-label">Location</label>
+                                    <small>(Click map to edit latitude and longitude in form)</small>
+                                    <div id="mapid"></div>
+                                    <button class="btn btn-sm btn-responsive btn-success create-button" type="submit"
+                                        value="Save"
+                                        style="margin-top: 20px; float: right; border: 1px solid var(--light-gray);">
+                                        Save
+                                    </button>
+                                </div>
+                            </div>
+                        </fieldset>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+   
+        </div>
+
+
+    </div>
+
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jstimezonedetect/1.0.7/jstz.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/litepicker/dist/litepicker.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/ranges.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/keyboardnav.js"></script>
+
+{% block leftsidepanel %} {{ super() }} {% endblock %}
+
+
+<!-- Initialise the map -->
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet-src.min.js"></script>
+<script src="{{ url_for('flexmeasures_ui.static', filename='js/map-init.js') }}"></script>
+
+
+{% block paginate_tables_script %} {{ super() }} {% endblock %}
+{% endblock %}
