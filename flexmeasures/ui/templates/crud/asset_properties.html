@@ -16,6 +16,7 @@
         <div class="alert alert-info d-none" id="dstwarn"></div>
     </div>
     <div class="row">
+
         <div class="col-md-2 on-top-md">
             <div class="header-action-button">
                 {% if user_can_create_assets %}
@@ -52,7 +53,7 @@
                     <div id="datepicker"></div>
                 </div>
             </div>
-            {% if user_can_update_asset %}
+               {% if user_can_update_asset %}
             <div class="sidepanel-container">
                 <div class="left-sidepanel-label">Edit asset</div>
                 <div class="sidepanel left-sidepanel">
@@ -154,7 +155,73 @@
             {% endif %}
    
         </div>
+   <div class="col-md-8">
+     
 
+            <div class="sensors-asset card">
+                <h3>All sensors for {{ asset.name }}</h3>
+                <div class="table-responsive">
+                    <table class="table table-striped paginate nav-on-click" title="View data" id="sensorsTable">
+                    </table>
+                </div>
+            </div>
+
+            <div class="sensors-asset card">
+                <h3>All child assets for {{ asset.name }}</h3>
+                <div class="table-responsive">
+                    <table class="table table-striped paginate nav-on-click w-100 mx-auto" title="View this asset">
+                        <thead>
+                            <tr>
+                                <th><i class="left-icon">Name</i></th>
+                                <th>Location</th>
+                                <th>Asset ID</th>
+                                <th>Account</th>
+                                <th>Sensors</th>
+                                <th class="d-none">URL</th>
+                                <th class="no-sort"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for child in asset.child_assets %}
+                            <tr>
+                                <td>
+                                    <i class="{{ child.generic_asset_type.name | asset_icon }} left-icon">{{ child.name
+                                        }}</i>
+                                </td>
+                                <td>
+                                    {% if child.latitude and child.longitude %}
+                                    LAT: {{ "{:,.4f}".format( child.latitude ) }} LONG:
+                                    {{ "{:,.4f}".format( child.longitude ) }}
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {{ child.id }}
+                                </td>
+                                <td>
+                                    {% if child.owner %}
+                                    {{ child.owner.name }}
+                                    {% else %}
+                                    PUBLIC
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {{ child.sensors | length }}
+                                </td>
+                                <td class="d-none">
+                                    /assets/{{ child.id }}
+                                </td>
+                                <td>
+                                    <a href="/assets/{{ child.id }}/status">
+                                        <button type="button" class="btn">Status</button>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
 
     </div>
 
@@ -173,6 +240,104 @@
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet-src.min.js"></script>
 <script src="{{ url_for('flexmeasures_ui.static', filename='js/map-init.js') }}"></script>
 
+<script>
+    function Sensor(
+        id,
+        name,
+        unit,
+        resolution,
+        entity_address,
+        active
+    ) {
+        this.id = id;
+        this.name = name;
+        this.unit = unit;
+        this.resolution = resolution
+        this.entity_address = entity_address;
+        this.url = `/sensors/${id}`;
+    }
+
+    $(document).ready(function () {
+        let unit = "";
+        // Initialize the DataTable
+        const table = $("#sensorsTable").dataTable({
+            order: [[0, "asc"]],
+            pageLength: 5,
+            lengthMenu: [5, 10, 25, 50, 75, 100],
+            serverSide: true,
+            // make the table row vertically aligned with header
+            columns: [
+                { data: "id", title: "ID", orderable: true },
+                { data: "name", title: "Name", orderable: true },
+                { data: "unit", title: "Unit", orderable: false },
+                { data: "resolution", title: "Resolution", orderable: true },
+                { data: "entity_address", title: "Entity address", orderable: false },
+                { data: "url", title: "URL", className: "d-none" },
+            ],
+
+            ajax: function (data, callback, settings) {
+                const basePath = window.location.origin;
+                let filter = data["search"]["value"];
+                let orderColumnIndex = data["order"][0]["column"]
+                let orderDirection = data["order"][0]["dir"];
+                let orderColumnName = data["columns"][orderColumnIndex]["data"];
+
+                let url = `${basePath}/api/v3_0/assets/{{asset.id}}/sensors?page=${data["start"] / data["length"] + 1
+                    }&per_page=${data["length"]}`;
+
+                if (orderColumnName) {
+                    url = `${url}&sort_by=${orderColumnName}&sort_dir=${orderDirection}`;
+                }
+
+                if (filter.length > 0) {
+                    url = `${url}&filter=${filter}`;
+                }
+
+                if (unit !== "") {
+                    url = `${url}&unit=${unit}`;
+                }
+
+
+
+                $.ajax({
+                    type: "get",
+                    url: url,
+                    success: function (response, text) {
+                        let clean_response = [];
+                        response["data"].forEach((element) =>
+                            clean_response.push(
+                                new Sensor(
+                                    element["id"],
+                                    element["name"],
+                                    element["unit"],
+                                    element["event_resolution"],
+                                    element["entity_address"],
+                                    element["active"]
+                                )
+                            )
+                        );
+
+                        callback({
+                            data: clean_response,
+                            recordsTotal: response["num-records"],
+                            recordsFiltered: response["filtered-records"],
+                        });
+                    },
+                    error: function (request, status, error) {
+                        showToast(error, "error");
+                    },
+                });
+            },
+        });
+
+
+        // Event listener for the select box
+        $("#unitFilterOptions").change(function () {
+            unit = this.value;
+            table.api().ajax.reload();
+        });
+    });
+</script>
 
 {% block paginate_tables_script %} {{ super() }} {% endblock %}
 {% endblock %}
