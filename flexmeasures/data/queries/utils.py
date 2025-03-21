@@ -15,7 +15,6 @@ from sqlalchemy import select, Select
 
 from flexmeasures.data.config import db
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
-from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.utils import flexmeasures_inflection
 from flexmeasures.auth.policy import user_has_admin_access
@@ -222,7 +221,7 @@ def simplify_index(
     bdf: tb.BeliefsDataFrame,
     index_levels_to_columns: list[str] | None = None,
     keep_duplicate_value: str | None = None,
-    keep_duplicate_column: GenericAsset | GenericAssetType | Sensor | None = None,
+    keep_duplicate_column: GenericAsset | GenericAssetType | None = None,
 ) -> pd.DataFrame:
     """Drops indices other than event_start.
     Optionally, salvage index levels as new columns.
