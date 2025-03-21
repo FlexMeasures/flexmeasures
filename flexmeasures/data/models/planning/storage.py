@@ -541,7 +541,11 @@ class MetaStorageScheduler(Scheduler):
                     beliefs_before=belief_time,
                     as_instantaneous_events=True,
                     resolve_overlaps="max",
-                )
+                ).shift(-1)
+                # shift soc minima by one resolution (they define a state at a certain time,
+                # while the commitment defines what the total stock should be at the end of a time slot,
+                # where the time slot is indexed by its starting time)
+
                 commitment = StockCommitment(
                     name="soc minima",
                     quantity=soc_minima_d - soc_at_start[d],
@@ -591,7 +595,10 @@ class MetaStorageScheduler(Scheduler):
                     beliefs_before=belief_time,
                     as_instantaneous_events=True,
                     resolve_overlaps="min",
-                )
+                ).shift(-1)
+                # shift soc maxima by one resolution (they define a state at a certain time,
+                # while the commitment defines what the total stock should be at the end of a time slot,
+                # where the time slot is indexed by its starting time)
                 commitment = StockCommitment(
                     name="soc maxima",
                     quantity=soc_maxima_d - soc_at_start[d],
