@@ -42,7 +42,10 @@ Fields can have fixed values, but some fields can also point to sensors, so they
 The full list of flex-context fields follows below.
 For more details on the possible formats for field values, see :ref:`variable_quantities`.
 
-Where should you set these fields? Within requests to the API or the data model. If they are not sent in via the API (the endpoint triggering schedule computation), the scheduler will look them up on the `flex-context` field of the asset. For consumption price, production price and inflexible devices, the scheduler will also search if parent assets have set them (it should probably do the same for other flex context fields ― work in progress). Finally, some of these values will default to attributes, for legacy reasons.
+Where should you set these fields?
+Within requests to the API or by editing the relevant asset in the UI.
+If they are not sent in via the API (the endpoint triggering schedule computation), the scheduler will look them up on the `flex-context` field of the asset.
+For consumption price, production price and inflexible devices, the scheduler will also search if parent assets have set them (it should probably do the same for other flex context fields ― work in progress).
 
 
 
@@ -108,6 +111,12 @@ Where should you set these fields? Within requests to the API or the data model.
    * - ``site-peak-production-price``
      - ``"260 EUR/MWh"``
      - Production peaks above the ``site-peak-production`` are penalized against this per-kW price. [#penalty_field]_
+   * - ``soc-minima-breach-price``
+     - ``"6 EUR/kWh"``
+     - Penalty for not meeting ``soc-minima`` defined in the flex-model. [#penalty_field]_ [#soc_breach_prices]_
+   * - ``soc-maxima-breach-price``
+     - ``"6 EUR/kWh"``
+     - Penalty for not meeting ``soc-maxima`` defined in the flex-model. [#penalty_field]_ [#soc_breach_prices]_
 
 .. [#old_sensor_field] The old field only accepted an integer (sensor ID).
 
@@ -120,6 +129,8 @@ Where should you set these fields? Within requests to the API or the data model.
 .. [#penalty_field] Prices must share the same currency. Negative prices are not allowed (penalties only).
 
 .. [#production] Example: with a connection capacity (``site-power-capacity``) of 1 MVA (apparent power) and a production capacity (``site-production-capacity``) of 400 kW (active power), the scheduler will make sure that the grid inflow doesn't exceed 400 kW.
+
+.. [#soc_breach_prices] The SoC breach prices (e.g. 6 EUR/kWh) to use for the schedule are applied over each time step equal to the sensor resolution. For example, a SoC breach price of 6 EUR/kWh per hour, for scheduling a 5-minute resolution sensor, should be passed as a SoC breach price of :math:`6*5/60 = 0.50` EUR/kWh.
 
 .. note:: If no (symmetric, consumption and production) site capacity is defined (also not as defaults), the scheduler will not enforce any bound on the site power.
           The flexible device can still have its own power limit defined in its flex-model.
@@ -137,7 +148,9 @@ The storage scheduler is suitable for batteries and :abbr:`EV (electric vehicle)
 The process scheduler is suitable for shiftable, breakable and inflexible loads, and is automatically selected for asset types ``"process"`` and ``"load"``.
 
 
-We describe the respective flex models below. At the moment, they have to be sent through the API (the endpoint to trigger schedule computation, or using the FlexMeasures client) or the CLI (the command to add schedules). We will soon work on the possibility to store (a subset of) these fields on the data model and edit them in the UI.
+We describe the respective flex models below.
+At the moment, they have to be sent through the API (the endpoint to trigger schedule computation, or using the FlexMeasures client) or through the CLI (the command to add schedules).
+We will soon work on the possibility to store (a subset of) these fields on the data model and edit them in the UI.
 
 
 Storage
@@ -210,7 +223,10 @@ For more details on the possible formats for field values, see :ref:`variable_qu
      - This can encode losses over time, so each time step the energy is held longer leads to higher losses (defaults to 100%). Also read [#storage_efficiency]_ about applying this value per time step across longer time spans.
    * - ``prefer-charging-sooner``
      - ``True``
-     - Tie-breaking policy to apply if conditions are stable (defaults to True, which also signals a preference to discharge later). Boolean option only.
+     - Tie-breaking policy to apply if conditions are stable, which signals a preference to charge sooner rather than later (defaults to True). It also signals a preference to discharge later. Boolean option only.
+   * - ``prefer-curtailing-later``
+     - ``True``
+     - Tie-breaking policy to apply if conditions are stable, which signals a preference to curtail both consumption and production later, whichever is applicable (defaults to True). Boolean option only.
    * - ``power-capacity``
      - ``"50kW"``
      - Device-level power constraint. How much power can be applied to this asset (defaults to the Sensor attribute ``capacity_in_mw``). [#minimum_overlap]_
