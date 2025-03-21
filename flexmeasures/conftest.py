@@ -827,20 +827,20 @@ def create_test_battery_assets(
         parent_asset_id=test_building.id,
         flex_context={
             "site-power-capacity": "2 MVA",
-            "soc-usage": "0 kW",
             "consumption-price": {"sensor": setup_markets["epex_da"].id},
         },
-        attributes=dict(
-            max_soc_in_mwh=5,
-            min_soc_in_mwh=0,
-            soc_in_mwh=2.5,
-            soc_datetime="2015-01-01T00:00+01",
-            soc_udi_event_id=203,
-            is_consumer=True,
-            is_producer=True,
-            can_curtail=True,
-            can_shift=True,
-        ),
+        attributes={
+            "max_soc_in_mwh": 5,
+            "min_soc_in_mwh": 0,
+            "soc_in_mwh": 2.5,
+            "soc_datetime": "2015-01-01T00:00+01",
+            "soc_udi_event_id": 203,
+            "soc-usage": "0 kW",
+            "is_consumer": True,
+            "is_producer": True,
+            "can_curtail": True,
+            "can_shift": True,
+        },
     )
     test_battery_sensor = Sensor(
         name="power",
