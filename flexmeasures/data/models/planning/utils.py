@@ -429,7 +429,7 @@ def get_series_from_quantity_or_sensor(
             index=index,
             variable_quantity=variable_quantity,
             unit=unit,
-            resolution=resolution,
+            resolution=resolution if not as_instantaneous_events else timedelta(0),
             resolve_overlaps=resolve_overlaps,
             fill_sides=fill_sides,
         )
