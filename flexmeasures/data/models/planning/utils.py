@@ -516,7 +516,7 @@ def get_continuous_series_sensor_or_quantity(
     query_window: tuple[datetime, datetime],
     resolution: timedelta,
     beliefs_before: datetime | None = None,
-    fallback_attribute: str | None = None,
+    fallback_attribute: str | list[str] | None = None,
     max_value: float | int | pd.Series = np.nan,
     as_instantaneous_events: bool = False,
     resolve_overlaps: str = "first",
@@ -532,6 +532,7 @@ def get_continuous_series_sensor_or_quantity(
     :param resolution:              The resolution or time interval for the data.
     :param beliefs_before:          Timestamp for prior beliefs or knowledge.
     :param fallback_attribute:      Attribute serving as a fallback default in case no quantity or sensor is given.
+                                    In case of passing a list, the first available fallback is used in the order given.
     :param max_value:               Maximum value (also replacing NaN values).
     :param as_instantaneous_events: optionally, convert to instantaneous events, in which case the passed resolution is
                                     interpreted as the desired frequency of the data.
@@ -544,11 +545,16 @@ def get_continuous_series_sensor_or_quantity(
     :returns:                       time series data with missing values handled based on the chosen method.
     """
     if variable_quantity is None:
-        variable_quantity = get_quantity_from_attribute(
-            entity=actuator,
-            attribute=fallback_attribute,
-            unit=unit,
-        )
+        if not isinstance(fallback_attribute, list):
+            fallback_attribute = [fallback_attribute]
+        for attribute in fallback_attribute:
+            variable_quantity = get_quantity_from_attribute(
+                entity=actuator,
+                attribute=attribute,
+                unit=unit,
+            )
+            if not pd.isnull(variable_quantity):
+                break
 
     time_series = get_series_from_quantity_or_sensor(
         variable_quantity=variable_quantity,
