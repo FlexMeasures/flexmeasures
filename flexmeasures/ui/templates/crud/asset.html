@@ -20,10 +20,13 @@
             <div class="header-action-button">
                 {% if user_can_create_assets %}
                 <div>
-                    <form action="/assets/new" method="get">
-                        <button class="btn btn-sm btn-responsive btn-success create-button mb-3" type="submit">Create
-                            new asset</button>
-                    </form>
+                
+                        <button class="btn btn-sm btn-responsive btn-success mb-3" type="button" style="
+                          margin-top: 6px;">
+                          <a class="text-decoration-none text-white create-button" href="/assets/new?parent_asset_id={{asset.id}}">  Create new asset</a>
+                        
+                        </button>
+              
                 </div>
                 {% endif %}
                 {% if user_can_delete_asset %}
