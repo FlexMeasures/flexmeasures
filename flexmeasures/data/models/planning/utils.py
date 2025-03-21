@@ -91,12 +91,23 @@ def add_tiny_price_slope(
 
 
 def get_market(asset: GenericAsset) -> Sensor:
-    """Get market sensor from the sensor's attributes."""
-    price_sensor = db.session.get(Sensor, asset.get_attribute("market_id"))
+    """Get market sensor from the asset's flex-context.
 
-    if price_sensor is None:
-        raise UnknownMarketException
-    return price_sensor
+    Falls back to the deprecated market_id attribute, while logging a warning.
+    """
+    consumption_price = asset.get_attribute("consumption-price")
+    if consumption_price is None and asset.get_attribute("market_id") is not None:
+        current_app.logger.warning(
+            f"Asset {asset.id} still uses the deprecated 'market_id' attribute. Move it to the 'consumption-price' field of the asset's flex_context."
+        )
+        price_sensor = db.session.get(Sensor, asset.get_attribute("market_id"))
+        if price_sensor is not None:
+            return price_sensor
+    elif isinstance(consumption_price, dict) and "sensor" in consumption_price:
+        price_sensor = db.session.get(Sensor, consumption_price["sensor"])
+        if price_sensor is not None:
+            return price_sensor
+    raise UnknownMarketException
 
 
 def get_prices(
