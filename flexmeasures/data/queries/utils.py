@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Type
 from datetime import datetime, timedelta
-
+import logging
 from flask_security import current_user
 from werkzeug.exceptions import Forbidden
 import pandas as pd
@@ -13,7 +13,8 @@ from sqlalchemy.sql.expression import null
 from sqlalchemy import select, Select
 
 from flexmeasures.data.config import db
-from flexmeasures.data.models.generic_assets import GenericAsset
+
+from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.utils import flexmeasures_inflection
 from flexmeasures.auth.policy import user_has_admin_access
@@ -217,7 +218,10 @@ def get_belief_timing_criteria(
 
 
 def simplify_index(
-    bdf: tb.BeliefsDataFrame, index_levels_to_columns: list[str] | None = None
+    bdf: tb.BeliefsDataFrame,
+    index_levels_to_columns: list[str] | None = None,
+    keep_duplicate_value: str | None = None,
+    keep_duplicate_column: GenericAsset | GenericAssetType | None = None,
 ) -> pd.DataFrame:
     """Drops indices other than event_start.
     Optionally, salvage index levels as new columns.
@@ -241,6 +245,13 @@ def simplify_index(
                 else:
                     raise KeyError(f"Level {col} not found")
     bdf.index = bdf.index.get_level_values("event_start")
+    if bdf.index.duplicated().any():
+        if keep_duplicate_column is not None and keep_duplicate_column in bdf.columns:
+            bdf = bdf[bdf[keep_duplicate_column] == keep_duplicate_value]
+            logging.debug("bdf without duplicates %s \n ", bdf)
+        else:
+            raise ValueError("Duplicates found in index after processing.")
+
     return bdf
 
 
