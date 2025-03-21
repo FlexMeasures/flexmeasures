@@ -452,12 +452,6 @@
 
                                 <!-- Settings -->
                                 <div>
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" value="" id="flexCheckBox">
-                                        <label class="form-check-label" for="flexCheckBox">
-                                          Include Public Assets
-                                        </label>
-                                      </div>
                                     <div class="row">
                                         <div class="col-10">
                                             <select class="form-select" id="flexSelect">
@@ -508,7 +502,6 @@
     const flexSelect = document.getElementById('flexSelect');
     const flexInfoContainer = document.getElementById('flexInfoContainer');
     const flexOptionsContainer = document.getElementById('flexOptionsContainer');
-    const flexCheckBox = document.getElementById('flexCheckBox')
     let availableUnitsRawJSON = "{{ available_units | safe }}";
     availableUnitsRawJSON = availableUnitsRawJSON.replace(/'/g, '"');
     const availableUnits = JSON.parse(availableUnitsRawJSON);
@@ -785,6 +778,7 @@
         spinnerElement.style.display = 'flex';
         senSearchResEle.style.display = 'none';
         const flexUnitsSelectValue = document.getElementById("flexUnitsSelect").value;
+        const flexCheckBox = document.getElementById('flexCheckBox');
 
         const params = new URLSearchParams();
 
@@ -1288,6 +1282,13 @@
                                         title="Search for sensor(s) to add here. Make sure that the sensor data will be available consistently, though, so scheduling will work."
                                     ></i>
                                 </label>
+
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="" id="flexCheckBox"/>
+                                    <label class="form-check-label" for="flexCheckBox">
+                                        Include Public Assets
+                                    </label>
+                                </div>
                                 
                                 <div class="row">
                                     <div class="col-8  pe-1">
@@ -1338,6 +1339,14 @@
                                         title="You can add a sensor which provides the values in a dynamic fashion. In the search form below, you can choose the right one. Make sure that the sensor data will be available consistently, though, so scheduling will work."
                                     ></i>
                                 </label>
+
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="" id="flexCheckBox"/>
+                                    <label class="form-check-label" for="flexCheckBox">
+                                        Include Public Assets
+                                    </label>
+                                </div>
+
                                 <div class="row">
                                     <div class="col-8  pe-1">
                                         <input
@@ -1574,7 +1583,7 @@
         this.id = id;
         this.name = name;
         this.unit = unit;
-        this.resolution = resolution
+        this.resolution = resolution;
         this.entity_address = entity_address;
         this.url = `/sensors/${id}`;
     }
