@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
 from flexmeasures.data.models.generic_assets import GenericAsset
-from flexmeasures.data.models.planning.utils import get_prices, get_power_values
+from flexmeasures.data.models.planning.utils import get_power_values
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.tests.utils import work_on_rq
 from flexmeasures.data.services.scheduling import (
@@ -251,7 +251,7 @@ def test_price_sensor_priority(
     )
 
     sensor_attribute = f"{sensor_type}-price-sensor"
-    # preparation: ensure the asset actually has the price sensor set as attribute
+    # preparation: ensure the asset actually has the price sensor set in its flex_context
     if asset_sensor:
         price_sensor_id = add_market_prices_fresh_db[asset_sensor].id
         battery_asset = add_battery_assets_fresh_db[asset_name]
@@ -289,16 +289,18 @@ def test_price_sensor_priority(
         print("Server responded with:\n%s" % trigger_schedule_response.json)
         assert trigger_schedule_response.status_code == 200
 
-    with patch(
-        "flexmeasures.data.models.planning.storage.get_prices", wraps=get_prices
-    ) as mock_storage_get_prices:
+    # Patch TimedBelief.search method
+    with patch.object(
+        TimedBelief, "search", side_effect=TimedBelief.search
+    ) as patched_search_beliefs:
         work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
 
         expect_price_sensor_id = add_market_prices_fresh_db[expect_sensor].id
-        # get_prices is called twice: 1st call has consumption price sensor, 2nd call has production price sensor
+        # TimedBelief.search is called twice for a price sensor: 1st call has consumption price sensor, 2nd call has production price sensor
         call_num = 0 if sensor_type == "consumption" else 1
-        call_args = mock_storage_get_prices.call_args_list[call_num]
-        assert call_args[1]["price_sensor"].id == expect_price_sensor_id
+        call_args = patched_search_beliefs.call_args_list[call_num]
+        searched_sensors = call_args[0]
+        assert searched_sensors[0].id == expect_price_sensor_id
 
 
 @pytest.mark.parametrize(
