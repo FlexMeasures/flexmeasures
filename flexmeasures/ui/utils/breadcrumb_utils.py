@@ -23,6 +23,14 @@ def get_ancestry(entity: Sensor | Asset | Account | None) -> list[dict]:
     if entity is not None and not isinstance(entity, Account):
         custom_ancestry = entity.get_attribute("breadcrumb_ancestry")
     if custom_ancestry is not None and isinstance(custom_ancestry, list):
+        # Append current Asset to the custom ancestry breadcrumb
+        if entity is not None and isinstance(entity, Asset):
+            current_entity_info = {
+                "url": url_for("AssetCrudUI:get", id=entity.id),
+                "name": entity.name,
+                "type": "Asset",
+            }
+            custom_ancestry.append(current_entity_info)
         return custom_ancestry
 
     # Public account
