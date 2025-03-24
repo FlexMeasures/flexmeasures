@@ -14,8 +14,8 @@ from flexmeasures import Sensor
 from flexmeasures.data.models.planning import Commitment, Scheduler, SchedulerOutputType
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.planning.utils import (
-    get_prices,
     add_tiny_price_slope,
+    ensure_prices_are_not_empty,
     initialize_index,
     initialize_series,
     initialize_df,
@@ -138,8 +138,15 @@ class MetaStorageScheduler(Scheduler):
             self.flex_context.get("production_price_sensor")
             or asset.get_production_price_sensor()
         )
-        consumption_price = self.flex_context.get("consumption_price")
-        production_price = self.flex_context.get("production_price")
+        consumption_price = self.flex_context.get(
+            "consumption_price", consumption_price_sensor
+        )
+        production_price = self.flex_context.get(
+            "production_price", production_price_sensor
+        )
+        # fallback to using the consumption price, for backwards compatibility
+        if production_price is None:
+            production_price = consumption_price
         inflexible_device_sensors = (
             self.flex_context.get("inflexible_device_sensors")
             or asset.get_inflexible_device_sensors()
@@ -148,61 +155,48 @@ class MetaStorageScheduler(Scheduler):
         # Fetch the device's power capacity (required Sensor attribute)
         power_capacity_in_mw = self._get_device_power_capacity(flex_model, sensors)
 
-        # Check for known prices or price forecasts, trimming planning window accordingly
-        if consumption_price is not None:
-            up_deviation_prices = get_continuous_series_sensor_or_quantity(
-                variable_quantity=consumption_price,
-                actuator=asset,
-                unit=(
-                    consumption_price.unit
-                    if isinstance(consumption_price, Sensor)
-                    else (
-                        consumption_price[0]["value"].units
-                        if isinstance(consumption_price, list)
-                        else str(consumption_price.units)
-                    )
-                ),
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                fill_sides=True,
-            ).to_frame(name="event_value")
-        else:
-            up_deviation_prices, (start, end) = get_prices(
-                (start, end),
-                resolution,
-                beliefs_before=belief_time,
-                price_sensor=consumption_price_sensor,
-                asset=asset,
-                allow_trimmed_query_window=False,
-            )
-        if production_price is not None:
-            down_deviation_prices = get_continuous_series_sensor_or_quantity(
-                variable_quantity=production_price,
-                actuator=asset,
-                unit=(
-                    production_price.unit
-                    if isinstance(production_price, Sensor)
-                    else (
-                        production_price[0]["value"].units
-                        if isinstance(production_price, list)
-                        else str(production_price.units)
-                    )
-                ),
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                fill_sides=True,
-            ).to_frame(name="event_value")
-        else:
-            down_deviation_prices, (start, end) = get_prices(
-                (start, end),
-                resolution,
-                beliefs_before=belief_time,
-                price_sensor=production_price_sensor,
-                asset=asset,
-                allow_trimmed_query_window=False,
-            )
+        # Check for known prices or price forecasts
+        up_deviation_prices = get_continuous_series_sensor_or_quantity(
+            variable_quantity=consumption_price,
+            actuator=asset,
+            unit=(
+                consumption_price.unit
+                if isinstance(consumption_price, Sensor)
+                else (
+                    consumption_price[0]["value"].units
+                    if isinstance(consumption_price, list)
+                    else str(consumption_price.units)
+                )
+            ),
+            query_window=(start, end),
+            resolution=resolution,
+            beliefs_before=belief_time,
+            fallback_attribute="consumption-price",
+            fill_sides=True,
+        ).to_frame(name="event_value")
+        ensure_prices_are_not_empty(up_deviation_prices, consumption_price)
+        down_deviation_prices = get_continuous_series_sensor_or_quantity(
+            variable_quantity=production_price,
+            actuator=asset,
+            unit=(
+                production_price.unit
+                if isinstance(production_price, Sensor)
+                else (
+                    production_price[0]["value"].units
+                    if isinstance(production_price, list)
+                    else str(production_price.units)
+                )
+            ),
+            query_window=(start, end),
+            resolution=resolution,
+            beliefs_before=belief_time,
+            fallback_attribute=[
+                "production-price",
+                "consumption-price",
+            ],  # fallback to using the consumption-price for backwards compatibility
+            fill_sides=True,
+        ).to_frame(name="event_value")
+        ensure_prices_are_not_empty(down_deviation_prices, production_price)
 
         start = pd.Timestamp(start).tz_convert("UTC")
         end = pd.Timestamp(end).tz_convert("UTC")
