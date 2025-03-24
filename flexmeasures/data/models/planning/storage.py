@@ -130,14 +130,8 @@ class MetaStorageScheduler(Scheduler):
         ]
 
         # Get info from flex-context
-        consumption_price_sensor = (
-            self.flex_context.get("consumption_price_sensor")
-            or asset.get_consumption_price_sensor()
-        )
-        production_price_sensor = (
-            self.flex_context.get("production_price_sensor")
-            or asset.get_production_price_sensor()
-        )
+        consumption_price_sensor = self.flex_context.get("consumption_price_sensor")
+        production_price_sensor = self.flex_context.get("production_price_sensor")
         consumption_price = self.flex_context.get(
             "consumption_price", consumption_price_sensor
         )
@@ -147,10 +141,7 @@ class MetaStorageScheduler(Scheduler):
         # fallback to using the consumption price, for backwards compatibility
         if production_price is None:
             production_price = consumption_price
-        inflexible_device_sensors = (
-            self.flex_context.get("inflexible_device_sensors")
-            or asset.get_inflexible_device_sensors()
-        )
+        inflexible_device_sensors = self.flex_context.get("inflexible_device_sensors", [])
 
         # Fetch the device's power capacity (required Sensor attribute)
         power_capacity_in_mw = self._get_device_power_capacity(flex_model, sensors)
@@ -171,7 +162,6 @@ class MetaStorageScheduler(Scheduler):
             query_window=(start, end),
             resolution=resolution,
             beliefs_before=belief_time,
-            fallback_attribute="consumption-price",
             fill_sides=True,
         ).to_frame(name="event_value")
         ensure_prices_are_not_empty(up_deviation_prices, consumption_price)
@@ -190,10 +180,6 @@ class MetaStorageScheduler(Scheduler):
             query_window=(start, end),
             resolution=resolution,
             beliefs_before=belief_time,
-            fallback_attribute=[
-                "production-price",
-                "consumption-price",
-            ],  # fallback to using the consumption-price for backwards compatibility
             fill_sides=True,
         ).to_frame(name="event_value")
         ensure_prices_are_not_empty(down_deviation_prices, production_price)
@@ -220,7 +206,6 @@ class MetaStorageScheduler(Scheduler):
             query_window=(start, end),
             resolution=resolution,
             beliefs_before=belief_time,
-            fallback_attribute="site-power-capacity",
             resolve_overlaps="min",
         )
         ems_consumption_capacity = get_continuous_series_sensor_or_quantity(
@@ -230,7 +215,6 @@ class MetaStorageScheduler(Scheduler):
             query_window=(start, end),
             resolution=resolution,
             beliefs_before=belief_time,
-            fallback_attribute="site-consumption-capacity",
             max_value=ems_power_capacity_in_mw,
             resolve_overlaps="min",
         )
@@ -241,7 +225,6 @@ class MetaStorageScheduler(Scheduler):
             query_window=(start, end),
             resolution=resolution,
             beliefs_before=belief_time,
-            fallback_attribute="site-production-capacity",
             max_value=ems_power_capacity_in_mw,
             resolve_overlaps="min",
         )
@@ -284,7 +267,6 @@ class MetaStorageScheduler(Scheduler):
                 resolution=resolution,
                 beliefs_before=belief_time,
                 max_value=np.inf,  # np.nan -> np.inf to ignore commitment if no quantity is given
-                fallback_attribute="site-peak-consumption",
                 fill_sides=True,
             )
             ems_peak_consumption_price = self.flex_context.get(
@@ -305,7 +287,6 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
-                fallback_attribute="site-peak-consumption-price",
                 fill_sides=True,
             )
 
@@ -328,7 +309,6 @@ class MetaStorageScheduler(Scheduler):
                 resolution=resolution,
                 beliefs_before=belief_time,
                 max_value=np.inf,  # np.nan -> np.inf to ignore commitment if no quantity is given
-                fallback_attribute="site-peak-production",
                 fill_sides=True,
             )
             ems_peak_production_price = self.flex_context.get(
@@ -349,7 +329,6 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
-                fallback_attribute="site-peak-production-price",
                 fill_sides=True,
             )
 
@@ -394,7 +373,6 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
-                fallback_attribute="site-consumption-breach-price",
                 fill_sides=True,
             )
 
@@ -443,7 +421,6 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
-                fallback_attribute="site-production-breach-price",
                 fill_sides=True,
             )
 
