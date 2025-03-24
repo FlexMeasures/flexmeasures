@@ -47,8 +47,8 @@ def test_trigger_and_get_schedule(
     # Include the price sensor and site-power-capacity in the flex-context explicitly, to test deserialization
     price_sensor_id = add_market_prices_fresh_db["epex_da"].id
     message["flex-context"] = {
-        "consumption-price-sensor": price_sensor_id,
-        "production-price-sensor": price_sensor_id,
+        "consumption-price": {"sensor": price_sensor_id},
+        "production-price": {"sensor": price_sensor_id},
         "site-power-capacity": "1 TW",  # should be big enough to avoid any infeasibilities
     }
 
@@ -246,31 +246,31 @@ def test_price_sensor_priority(
         for name, other_name in zip(sensor_types, reversed(sensor_types))
     }
     used_sensor, unused_sensor = (
-        f"{sensor_type}-price-sensor",
-        f"{other_sensors[sensor_type]}-price-sensor",
+        f"{sensor_type}-price",
+        f"{other_sensors[sensor_type]}-price",
     )
 
-    sensor_attribute = f"{sensor_type}-price-sensor"
+    sensor_attribute = f"{sensor_type}-price"
     # preparation: ensure the asset actually has the price sensor set in its flex_context
     if asset_sensor:
         price_sensor_id = add_market_prices_fresh_db[asset_sensor].id
         battery_asset = add_battery_assets_fresh_db[asset_name]
-        battery_asset.flex_context[sensor_attribute] = price_sensor_id
+        battery_asset.flex_context[sensor_attribute] = {"sensor": price_sensor_id}
         fresh_db.session.add(battery_asset)
     if parent_sensor:
         price_sensor_id = add_market_prices_fresh_db[parent_sensor].id
         building_asset = add_battery_assets_fresh_db["Test building"]
-        building_asset.flex_context[sensor_attribute] = price_sensor_id
+        building_asset.flex_context[sensor_attribute] = {"sensor": price_sensor_id}
         fresh_db.session.add(building_asset)
 
     # Adding unused sensor to context (e.g. consumption price sensor if we test production sensor)
     message["flex-context"] = {
-        unused_sensor: add_market_prices_fresh_db["epex_da"].id,
+        unused_sensor: {"sensor": add_market_prices_fresh_db["epex_da"].id},
         "site-power-capacity": "1 TW",  # should be big enough to avoid any infeasibilities
     }
     if context_sensor:
         price_sensor_id = add_market_prices_fresh_db[context_sensor].id
-        message["flex-context"][used_sensor] = price_sensor_id
+        message["flex-context"][used_sensor] = {"sensor": price_sensor_id}
 
     # trigger a schedule through the /sensors/<id>/schedules/trigger [POST] api endpoint
     assert len(app.queues["scheduling"]) == 0
@@ -338,8 +338,8 @@ def test_inflexible_device_sensors_priority(
 
     price_sensor_id = add_market_prices_fresh_db["epex_da"].id
     message["flex-context"] = {
-        "consumption-price-sensor": price_sensor_id,
-        "production-price-sensor": price_sensor_id,
+        "consumption-price": {"sensor": price_sensor_id},
+        "production-price": {"sensor": price_sensor_id},
         "site-power-capacity": "1 TW",  # should be big enough to avoid any infeasibilities
     }
     if context_sensor_num:
