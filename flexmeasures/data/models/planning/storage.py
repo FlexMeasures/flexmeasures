@@ -26,7 +26,6 @@ from flexmeasures.data.models.planning.utils import (
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
 from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
 from flexmeasures.data.schemas.scheduling import (
-    DBFlexContextSchema,
     FlexContextSchema,
     MultiSensorFlexModelSchema,
 )
@@ -739,10 +738,9 @@ class MetaStorageScheduler(Scheduler):
             db_flex_context = self.asset.flex_context
         else:
             db_flex_context = self.sensor.generic_asset.flex_context
-        self.flex_context = {
-            **DBFlexContextSchema().load(db_flex_context),
-            **FlexContextSchema().load(self.flex_context),
-        }
+        self.flex_context = FlexContextSchema().load(
+            {**db_flex_context, **self.flex_context}
+        )
 
         if isinstance(self.flex_model, dict):
             # Check state of charge.
