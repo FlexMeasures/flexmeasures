@@ -141,7 +141,9 @@ class MetaStorageScheduler(Scheduler):
         # fallback to using the consumption price, for backwards compatibility
         if production_price is None:
             production_price = consumption_price
-        inflexible_device_sensors = self.flex_context.get("inflexible_device_sensors", [])
+        inflexible_device_sensors = self.flex_context.get(
+            "inflexible_device_sensors", []
+        )
 
         # Fetch the device's power capacity (required Sensor attribute)
         power_capacity_in_mw = self._get_device_power_capacity(flex_model, sensors)
@@ -710,13 +712,18 @@ class MetaStorageScheduler(Scheduler):
         if self.flex_model is None:
             self.flex_model = {}
 
-        # self.flex_context overrides self.asset.flex_context
+        # self.flex_context overrides self.asset.flex_context, which overrides self.asset.parent.flex_context
         if self.asset is not None:
-            db_flex_context = self.asset.flex_context
+            asset = self.asset
         else:
-            db_flex_context = self.sensor.generic_asset.flex_context
+            asset = self.sensor.generic_asset
+        db_flex_context = asset.flex_context
+        if asset.parent_asset is not None:
+            db_parent_flex_context = asset.parent_asset.flex_context
+        else:
+            db_parent_flex_context = {}
         self.flex_context = FlexContextSchema().load(
-            {**db_flex_context, **self.flex_context}
+            {**db_parent_flex_context, **db_flex_context, **self.flex_context}
         )
 
         if isinstance(self.flex_model, dict):
