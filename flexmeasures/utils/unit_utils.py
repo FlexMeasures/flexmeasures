@@ -251,6 +251,22 @@ def is_energy_price_unit(unit: str) -> bool:
     return False
 
 
+def is_capacity_price_unit(unit: str) -> bool:
+    """For example:
+    >>> is_capacity_price_unit("EUR/MW")
+    True
+    >>> is_capacity_price_unit("KRW/MW")
+    True
+    >>> is_capacity_price_unit("KRW/MWh")
+    False
+    >>> is_capacity_price_unit("beans/MWh")
+    False
+    """
+    if is_price_unit(unit) and is_power_unit(unit[4:]):
+        return True
+    return False
+
+
 def is_speed_unit(unit: str) -> bool:
     """For example:
     >>> is_speed_unit("m/s")
