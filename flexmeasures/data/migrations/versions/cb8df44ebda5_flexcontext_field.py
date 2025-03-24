@@ -102,7 +102,7 @@ def build_flex_context(
     for key, value in capacity_data.items():
         if value is not None:
             if isinstance(value, (int, float)):
-                flex_context[key] = f"{int(value * 1000)}kW"
+                flex_context[key] = f"{int(value * 1000)} kW"
             else:
                 flex_context[key] = value
 
