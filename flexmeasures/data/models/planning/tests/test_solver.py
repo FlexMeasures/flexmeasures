@@ -414,6 +414,10 @@ def test_charging_station_solver_day_2(
             ),
             "soc_targets": soc_targets,
         },
+        flex_context={
+            "ems_power_capacity_in_mw": ur.Quantity("2 MVA"),
+            "consumption_price": epex_da,
+        },
     )
     scheduler.config_deserialized = (
         True  # soc targets are already a DataFrame, names get underscore
@@ -492,6 +496,10 @@ def test_fallback_to_unsolvable_problem(
                 "storage_efficiency", 1
             ),
             "soc_targets": soc_targets,
+        },
+        "flex_context": {
+            "ems_power_capacity_in_mw": ur.Quantity(f"{capacity} MVA"),
+            "consumption_price": epex_da,
         },
     }
     scheduler = StorageScheduler(**kwargs)
@@ -589,6 +597,7 @@ def test_building_solver_day_2(
             "storage_efficiency": battery.get_attribute("storage_efficiency", 1),
         },
         flex_context={
+            "ems_power_capacity_in_mw": ur.Quantity("2 MVA"),
             "inflexible_device_sensors": inflexible_devices.values(),
             "production_price": production_price_sensor,
             "consumption_price": consumption_price_sensor,
