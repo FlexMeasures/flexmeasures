@@ -187,7 +187,7 @@ def upgrade():
         select_stmt = sa.select(inflexible_sensors_table.c.inflexible_sensor_id).where(
             inflexible_sensors_table.c.generic_asset_id == asset_id
         )
-        inflexible_device_sensors = conn.execute(select_stmt)
+        inflexible_device_sensors = conn.execute(select_stmt).fetchall()
 
         # Get fields-to-migrate from attributes
         market_id = attributes_data.get("market_id")
