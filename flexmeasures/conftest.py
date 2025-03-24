@@ -347,7 +347,7 @@ def create_test_markets(db) -> dict[str, Sensor]:
         )
         db.session.add(price_sensor)
         price_sensors[sensor_name] = price_sensor
-    db.session.flush()  # assign an id, so the markets can be used to set a consumptino-price flex-context field on a GenericAsset
+    db.session.flush()  # assign an id, so the markets can be used to set a consumption-price flex-context field on a GenericAsset
     return price_sensors
 
 
