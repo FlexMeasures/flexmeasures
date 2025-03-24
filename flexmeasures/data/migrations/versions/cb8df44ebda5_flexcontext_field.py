@@ -19,14 +19,6 @@ branch_labels = None
 depends_on = None
 
 
-def get_price_info(price_data):
-    if isinstance(price_data, str):
-        return price_data, None
-    elif isinstance(price_data, dict):
-        return None, price_data.get("sensor") if price_data else None
-    return None, None
-
-
 def build_flex_context(
     attributes_data,
     consumption_price_sensor_id,
@@ -74,25 +66,41 @@ def build_flex_context(
     else:
         flex_context = json.loads(flex_context)
 
-    flex_context["consumption-price"] = {
-        "sensor": (
-            consumption_price_sensor_id if consumption_price_sensor_id else market_id
-        )
-    }
-    flex_context["production-price"] = {"sensor": production_price_sensor_id}
-    flex_context["inflexible-device-sensors"] = [
-        s[0] for s in inflexible_device_sensors
-    ]
+    # Fill the flex-context's consumption-price field with:
+    # - the value of the consumption_price_sensor_id column
+    # - otherwise, the market_id attribute (old fallback)
+    # - otherwise, keep the consumption-price field from the flex-context attribute
+    if (
+        consumption_price_sensor_id is not None
+        or market_id is not None
+        or "consumption-price" not in flex_context
+    ):
+        flex_context["consumption-price"] = {
+            "sensor": (
+                consumption_price_sensor_id
+                if consumption_price_sensor_id
+                else market_id
+            )
+        }
 
-    if flex_context["consumption-price"]["sensor"] is None and market_id is None:
-        if attributes_data.get("consumption_price") is not None:
-            flex_context["consumption-price"] = attributes_data.get("consumption_price")
-            attributes_data.pop("consumption_price", None)
-
-    if flex_context["production-price"]["sensor"] is None:
-        if attributes_data.get("production_price") is not None:
-            flex_context["production-price"] = attributes_data.get("production_price")
-            attributes_data.pop("production_price", None)
+    # Fill the flex-context's production-price field with:
+    # - the value of the production_price_sensor_id column
+    # - otherwise, the market_id attribute (old fallback, also for the production sensor)
+    # - otherwise, keep the production-price field from the flex-context attribute
+    if (
+        production_price_sensor_id is not None
+        or market_id is not None
+        or "production-price" not in flex_context
+    ):
+        flex_context["production-price"] = {
+            "sensor": (
+                production_price_sensor_id if production_price_sensor_id else market_id
+            )
+        }
+    if inflexible_device_sensors or "inflexible-device-sensors" not in flex_context:
+        flex_context["inflexible-device-sensors"] = [
+            s[0] for s in inflexible_device_sensors
+        ]
 
     capacity_data = {
         "site-power-capacity": capacity_in_mw,
@@ -355,17 +363,30 @@ def downgrade():
         if flex_context is None:
             flex_context = {}
 
-        consumption_price_as_str, consumption_price_sensor_id = get_price_info(
-            flex_context.pop("consumption-price", None)
-        )
-        production_price_as_str, production_price_sensor_id = get_price_info(
-            flex_context.pop("production-price", None)
-        )
-
-        if consumption_price_sensor_id is not None:
-            market_id = consumption_price_sensor_id
+        # If possible, fill in the consumption_price_sensor_id and production_price_sensor_id columns
+        # (don't bother reverting to the deprecated market_id attribute)
+        consumption_price = flex_context.pop("consumption-price", None)
+        if (
+            isinstance(consumption_price, dict)
+            and consumption_price.get("sensor") is not None
+        ):
+            consumption_price_sensor_id = consumption_price["sensor"]
         else:
-            market_id = None
+            # Unexpected type, so put it back
+            if consumption_price is not None:
+                flex_context["consumption-price"] = consumption_price
+            consumption_price_sensor_id = None
+        production_price = flex_context.pop("production-price", None)
+        if (
+            isinstance(production_price, dict)
+            and production_price.get("sensor") is not None
+        ):
+            production_price_sensor_id = production_price["sensor"]
+        else:
+            # Unexpected type, so put it back
+            if production_price is not None:
+                flex_context["production-price"] = production_price
+            production_price_sensor_id = None
 
         site_power_capacity = flex_context.pop("site-power-capacity", None)
         consumption_capacity_in_mw = flex_context.pop("site-consumption-capacity", None)
@@ -380,15 +401,6 @@ def downgrade():
         ems_production_breach_price = flex_context.pop(
             "site-production-breach-price", None
         )
-
-        if market_id is not None:
-            attributes_data["market_id"] = market_id
-
-        if consumption_price_as_str is not None:
-            attributes_data["consumption_price"] = consumption_price_as_str
-
-        if production_price_as_str is not None:
-            attributes_data["production_price"] = production_price_as_str
 
         process_field(
             site_power_capacity,
@@ -447,6 +459,12 @@ def downgrade():
         )
 
         inflexible_device_sensors = flex_context.pop("inflexible-device-sensors", [])
+        if not isinstance(inflexible_device_sensors, list) or not all(
+            isinstance(s, int) for s in inflexible_device_sensors
+        ):
+            # Unexpected type, so put it back
+            flex_context["inflexible-device-sensors"] = inflexible_device_sensors
+            inflexible_device_sensors = []
 
         # Retain data in any new flex-context fields that are not support after downgrading
         if flex_context:
