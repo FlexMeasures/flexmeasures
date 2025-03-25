@@ -1189,6 +1189,9 @@
         highlightedCard = await renderFlexContextInputField(flexId);
         flexContextFormEle.innerHTML = flexContextFormEle.innerHTML.replace(document.getElementById(`${flexId}-control`).outerHTML, highlightedCard);
         await selectFlexField(document.getElementById(`${flexId}-control`));
+
+        // Update FlexContext
+        await updateAssetSensorsToShow("flexContext")
     }
 
     async function addFlexContextField() {
