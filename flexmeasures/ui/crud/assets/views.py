@@ -347,8 +347,9 @@ class AssetCrudUI(FlaskView):
         )
 
     @login_required
+    @route("/<id>/auditlog")
     def auditlog(self, id: str):
-        """/assets/auditlog/<id>"""
+        """/assets/<id>/auditlog"""
         get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_one", id=id))
         asset_dict = get_asset_response.json()
         asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
@@ -359,8 +360,9 @@ class AssetCrudUI(FlaskView):
         )
 
     @login_required
-    def assetgraph(self, id: str):
-        """/assets/graph/<id>"""
+    @route("/<id>/graph")
+    def graph(self, id: str):
+        """/assets/<id>/graph"""
 
         get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_one", id=id))
         asset_dict = get_asset_response.json()
@@ -375,8 +377,9 @@ class AssetCrudUI(FlaskView):
         return render_flexmeasures_template("crud/asset_graph.html", asset=asset)
 
     @login_required
-    def assetproperties(self, id: str):
-        """/assets/auditlog/<id>"""
+    @route("/<id>/properties")
+    def properties(self, id: str):
+        """/assets/<id>/properties"""
         get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_one", id=id))
         asset_dict = get_asset_response.json()
 

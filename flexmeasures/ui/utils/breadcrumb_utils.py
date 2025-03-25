@@ -7,10 +7,39 @@ from flask import url_for, current_app
 
 
 def get_breadcrumb_info(entity: Sensor | Asset | Account | None) -> dict:
-    return {
+    breadcrumb = {
         "ancestors": get_ancestry(entity),
         "siblings": get_siblings(entity),
     }
+    if entity is not None and isinstance(entity, Asset):
+        # Add additional Views CTAs for Assets
+        try:
+            breadcrumb["views"] = [
+                {
+                    "url": url_for("AssetCrudUI:graph", id=entity.id),
+                    "name": "Graph",
+                    "type": "Asset",
+                },
+                {
+                    "url": url_for("AssetCrudUI:properties", id=entity.id),
+                    "name": "Properties",
+                    "type": "Asset",
+                },
+                {
+                    "url": url_for("AssetCrudUI:auditlog", id=entity.id),
+                    "name": "Audit Log",
+                    "type": "Asset",
+                },
+                {
+                    "url": url_for("AssetCrudUI:status", id=entity.id),
+                    "name": "Status",
+                    "type": "Asset",
+                },
+            ]
+        except Exception as e:
+            print("Error in updating breadcrumb variables:", e)
+
+    return breadcrumb
 
 
 def get_ancestry(entity: Sensor | Asset | Account | None) -> list[dict]:
