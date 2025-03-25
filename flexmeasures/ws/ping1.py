@@ -4,12 +4,11 @@ from flask import current_app
 from flexmeasures import Sensor
 from sqlalchemy import select, func
 
-logger = logging.Logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 @sock.route("/ping1")
 def echo1(ws):
-
     while True:
         data = ws.receive()
         logger.error("ping1>" + data)
