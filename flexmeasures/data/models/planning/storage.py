@@ -499,7 +499,8 @@ class MetaStorageScheduler(Scheduler):
                     actuator=asset,
                     unit=FlexContextSchema()
                     .declared_fields["soc_minima_breach_price"]
-                    ._get_unit(soc_minima_breach_price),
+                    ._get_unit(soc_minima_breach_price)
+                    + "*h",
                     query_window=(start, end),
                     resolution=resolution,
                     beliefs_before=belief_time,
@@ -558,7 +559,8 @@ class MetaStorageScheduler(Scheduler):
                     actuator=asset,
                     unit=FlexContextSchema()
                     .declared_fields["soc_maxima_breach_price"]
-                    ._get_unit(soc_maxima_breach_price),
+                    ._get_unit(soc_maxima_breach_price)
+                    + "*h",
                     query_window=(start, end),
                     resolution=resolution,
                     beliefs_before=belief_time,

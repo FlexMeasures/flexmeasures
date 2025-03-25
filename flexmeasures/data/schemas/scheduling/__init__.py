@@ -34,14 +34,14 @@ class FlexContextSchema(Schema):
 
     # Device commitments
     soc_minima_breach_price = VariableQuantityField(
-        "/MWh",
+        "/(MWh*h)",
         data_key="soc-minima-breach-price",
         required=False,
         value_validator=validate.Range(min=0),
         default=None,
     )
     soc_maxima_breach_price = VariableQuantityField(
-        "/MWh",
+        "/(MWh*h)",
         data_key="soc-maxima-breach-price",
         required=False,
         value_validator=validate.Range(min=0),

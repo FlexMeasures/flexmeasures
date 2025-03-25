@@ -354,7 +354,12 @@ def get_series_from_quantity_or_sensor(
         if np.isnan(variable_quantity.magnitude):
             magnitude = np.nan
         else:
-            magnitude = variable_quantity.to(unit).magnitude
+            magnitude = convert_units(
+                variable_quantity.magnitude,
+                str(variable_quantity.units),
+                unit,
+                resolution,
+            )
         time_series = pd.Series(magnitude, index=index, name="event_value")
     elif isinstance(variable_quantity, Sensor):
         bdf: tb.BeliefsDataFrame = TimedBelief.search(
@@ -370,7 +375,9 @@ def get_series_from_quantity_or_sensor(
         if as_instantaneous_events:
             bdf = bdf.resample_events(timedelta(0), boundary_policy=resolve_overlaps)
         time_series = simplify_index(bdf).reindex(index).squeeze()
-        time_series = convert_units(time_series, variable_quantity.unit, unit)
+        time_series = convert_units(
+            time_series, variable_quantity.unit, unit, resolution
+        )
     elif isinstance(variable_quantity, list):
         time_series = process_time_series_segments(
             index=index,
@@ -425,7 +432,9 @@ def process_time_series_segments(
             if np.isnan(value.magnitude):
                 value = np.nan
             else:
-                value = value.to(unit).magnitude
+                value = convert_units(
+                    value.magnitude, str(value.units), unit, resolution
+                )
         start = event["start"]
         end = event["end"]
         # Assign the value to the corresponding segment in the DataFrame
