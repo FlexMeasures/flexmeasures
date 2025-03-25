@@ -717,13 +717,9 @@ class MetaStorageScheduler(Scheduler):
             asset = self.asset
         else:
             asset = self.sensor.generic_asset
-        db_flex_context = asset.flex_context
-        if asset.parent_asset is not None:
-            db_parent_flex_context = asset.parent_asset.flex_context
-        else:
-            db_parent_flex_context = {}
+        db_flex_context = asset.get_flex_context()
         self.flex_context = FlexContextSchema().load(
-            {**db_parent_flex_context, **db_flex_context, **self.flex_context}
+            {**db_flex_context, **self.flex_context}
         )
 
         if isinstance(self.flex_model, dict):
