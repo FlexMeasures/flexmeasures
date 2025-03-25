@@ -45,7 +45,7 @@ For more details on the possible formats for field values, see :ref:`variable_qu
 Where should you set these fields?
 Within requests to the API or by editing an asset in the UI.
 If they are not sent in via the API (the endpoint triggering schedule computation), the scheduler will look them up on the `flex-context` field of the asset.
-For consumption price, production price and inflexible devices, the scheduler will also search if parent assets have set them (it should probably do the same for other flex context fields ― work in progress).
+And if the asset belongs to a larger system (a hierarchy of assets), the scheduler will also search if parent assets have them set.
 Finally, some of these values will default to attributes, for legacy reasons.
 
 
@@ -311,6 +311,11 @@ Work on other schedulers
 We believe the two schedulers (and their flex-models) we describe here are covering a lot of use cases already.
 Here are some thoughts on further innovation:
 
-- Writing your own scheduler. You can always write your own scheduler (see :ref:`plugin_customization`). You then might want to add your own flex model, as well. FlexMeasures will let the scheduler decide which flexibility model is relevant and how it should be validated.
-- We also aim to model situations with more than one flexible asset, and that have different types of flexibility (e.g. EV charging and smart heating in the same site). This is ongoing architecture design work, and therefore happens in development settings, until we are happy with the outcomes. Thoughts welcome :)
+- Writing your own scheduler.
+  You can always write your own scheduler (see :ref:`plugin_customization`).
+  You then might want to add your own flex model, as well.
+  FlexMeasures will let the scheduler decide which flexibility model is relevant and how it should be validated.
+- We also aim to model situations with more than one flexible asset, and that have different types of flexibility (e.g. EV charging and smart heating in the same site).
+  This is ongoing architecture design work, and therefore happens in development settings, until we are happy with the outcomes.
+  Thoughts welcome :)
 - Aggregating flexibility of a group of assets (e.g. a neighborhood) and optimizing its aggregated usage (e.g. for grid congestion support) is also an exciting direction for expansion.
