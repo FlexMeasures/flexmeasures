@@ -339,6 +339,22 @@ class GenericAsset(db.Model, AuthModelMixin):
         if self.has_attribute(attribute):
             self.attributes[attribute] = value
 
+    def get_flex_context(self) -> dict:
+        """Reconstitutes the asset's serialized flex-context by gathering flex-contexts upwards in the asset tree.
+
+        Flex-context fields of ancestors that are nearer have priority.
+        We return once we collect all flex-context fields or reach the top asset.
+        """
+        from flexmeasures.data.schemas.scheduling import DBFlexContextSchema
+
+        flex_context_field_names = set(DBFlexContextSchema.mapped_schema_keys.values())
+        flex_context = self.flex_context.copy()
+        parent_asset = self.parent_asset
+        while set(flex_context.keys()) != flex_context_field_names and parent_asset:
+            flex_context = {**parent_asset.flex_context, **flex_context}
+            parent_asset = parent_asset.parent_asset
+        return flex_context
+
     def get_consumption_price_sensor(self):
         """Searches for consumption_price_sensor upwards on the asset tree"""
 

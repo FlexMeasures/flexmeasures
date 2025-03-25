@@ -194,7 +194,7 @@ def test_get_schedule_fallback(
         .magnitude,
     )
     assert capacity == 2
-    assert charging_station.get_attribute("market_id") == epex_da.id
+    assert charging_station.get_attribute("consumption-price") == {"sensor": epex_da.id}
 
     # check that no Fallback schedule has been saved before
     models = [
@@ -346,7 +346,7 @@ def test_get_schedule_fallback_not_redirect(
         .magnitude,
     )
     assert capacity == 2
-    assert charging_station.get_attribute("market_id") == epex_da.id
+    assert charging_station.get_attribute("consumption-price") == {"sensor": epex_da.id}
 
     # create a scenario that yields an infeasible problem (unreachable target SOC at 2am)
     message = {
