@@ -46,7 +46,6 @@ Where should you set these fields?
 Within requests to the API or by editing an asset in the UI.
 If they are not sent in via the API (the endpoint triggering schedule computation), the scheduler will look them up on the `flex-context` field of the asset.
 And if the asset belongs to a larger system (a hierarchy of assets), the scheduler will also search if parent assets have them set.
-Finally, some of these values will default to attributes, for legacy reasons.
 
 
 
