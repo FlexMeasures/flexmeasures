@@ -712,7 +712,7 @@ class MetaStorageScheduler(Scheduler):
         if self.flex_model is None:
             self.flex_model = {}
 
-        # self.flex_context overrides self.asset.flex_context, which overrides self.asset.parent.flex_context
+        # self.flex_context overrides db_flex_context (from the asset and its ancestors)
         if self.asset is not None:
             asset = self.asset
         else:
