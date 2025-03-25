@@ -392,7 +392,7 @@ def test_charging_station_solver_day_2(
         .magnitude,
     )
     assert capacity == 2
-    assert charging_station.get_attribute("market_id") == epex_da.id
+    assert charging_station.get_attribute("consumption-price") == {"sensor": epex_da.id}
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 2))
     end = tz.localize(datetime(2015, 1, 3))
@@ -418,6 +418,10 @@ def test_charging_station_solver_day_2(
                 "storage_efficiency", 1
             ),
             "soc_targets": soc_targets,
+        },
+        flex_context={
+            "ems_power_capacity_in_mw": ur.Quantity("2 MVA"),
+            "consumption_price": epex_da,
         },
     )
     scheduler.config_deserialized = (
@@ -471,7 +475,7 @@ def test_fallback_to_unsolvable_problem(
         .magnitude,
     )
     assert capacity == 2
-    assert charging_station.get_attribute("market_id") == epex_da.id
+    assert charging_station.get_attribute("consumption-price") == {"sensor": epex_da.id}
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 2))
     end = tz.localize(datetime(2015, 1, 3))
@@ -497,6 +501,10 @@ def test_fallback_to_unsolvable_problem(
                 "storage_efficiency", 1
             ),
             "soc_targets": soc_targets,
+        },
+        "flex_context": {
+            "ems_power_capacity_in_mw": ur.Quantity(f"{capacity} MVA"),
+            "consumption_price": epex_da,
         },
     }
     scheduler = StorageScheduler(**kwargs)
@@ -561,7 +569,9 @@ def test_building_solver_day_2(
     battery = flexible_devices["battery power sensor"]
     building = battery.generic_asset
     default_consumption_price_sensor = get_test_sensor(db)
-    assert battery.get_attribute("market_id") == default_consumption_price_sensor.id
+    assert battery.get_attribute("consumption-price") == {
+        "sensor": default_consumption_price_sensor.id
+    }
     if market_scenario == "dynamic contract":
         consumption_price_sensor = default_consumption_price_sensor
         production_price_sensor = consumption_price_sensor
@@ -592,6 +602,7 @@ def test_building_solver_day_2(
             "storage_efficiency": battery.get_attribute("storage_efficiency", 1),
         },
         flex_context={
+            "ems_power_capacity_in_mw": ur.Quantity("2 MVA"),
             "inflexible_device_sensors": inflexible_devices.values(),
             "production_price": production_price_sensor,
             "consumption_price": consumption_price_sensor,
@@ -1063,7 +1074,7 @@ def test_numerical_errors(app_with_each_solver, setup_planning_test_data, db):
         .magnitude,
     )
     assert capacity == 2
-    assert charging_station.get_attribute("market_id") == epex_da.id
+    assert charging_station.get_attribute("consumption-price") == {"sensor": epex_da.id}
 
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 2))

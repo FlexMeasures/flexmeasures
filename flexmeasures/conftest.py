@@ -347,7 +347,7 @@ def create_test_markets(db) -> dict[str, Sensor]:
         )
         db.session.add(price_sensor)
         price_sensors[sensor_name] = price_sensor
-    db.session.flush()  # assign an id, so the markets can be used to set a market_id attribute on a GenericAsset or Sensor
+    db.session.flush()  # assign an id, so the markets can be used to set a consumption-price flex-context field on a GenericAsset
     return price_sensors
 
 
@@ -519,12 +519,12 @@ def create_assets(
             longitude=100,
             flex_context={
                 "site-power-capacity": "1 MVA",
+                "consumption-price": {"sensor": setup_markets["epex_da"].id},
             },
             attributes=dict(
                 min_soc_in_mwh=0,
                 max_soc_in_mwh=0,
                 soc_in_mwh=0,
-                market_id=setup_markets["epex_da"].id,
                 is_producer=True,
                 can_curtail=True,
             ),
@@ -827,20 +827,20 @@ def create_test_battery_assets(
         parent_asset_id=test_building.id,
         flex_context={
             "site-power-capacity": "2 MVA",
-            "soc-usage": "0 kW",
+            "consumption-price": {"sensor": setup_markets["epex_da"].id},
         },
-        attributes=dict(
-            max_soc_in_mwh=5,
-            min_soc_in_mwh=0,
-            soc_in_mwh=2.5,
-            soc_datetime="2015-01-01T00:00+01",
-            soc_udi_event_id=203,
-            market_id=setup_markets["epex_da"].id,
-            is_consumer=True,
-            is_producer=True,
-            can_curtail=True,
-            can_shift=True,
-        ),
+        attributes={
+            "max_soc_in_mwh": 5,
+            "min_soc_in_mwh": 0,
+            "soc_in_mwh": 2.5,
+            "soc_datetime": "2015-01-01T00:00+01",
+            "soc_udi_event_id": 203,
+            "soc-usage": "0 kW",
+            "is_consumer": True,
+            "is_producer": True,
+            "can_curtail": True,
+            "can_shift": True,
+        },
     )
     test_battery_sensor = Sensor(
         name="power",
@@ -876,6 +876,7 @@ def create_test_battery_assets(
         longitude=100,
         flex_context={
             "site-power-capacity": "2 MVA",
+            "consumption-price": {"sensor": setup_markets["epex_da"].id},
         },
         attributes=dict(
             max_soc_in_mwh=5,
@@ -883,7 +884,6 @@ def create_test_battery_assets(
             soc_in_mwh=2.5,
             soc_datetime="2040-01-01T00:00+01",
             soc_udi_event_id=203,
-            market_id=setup_markets["epex_da"].id,
             is_consumer=True,
             is_producer=True,
             can_curtail=True,
@@ -911,12 +911,12 @@ def create_test_battery_assets(
         longitude=100,
         flex_context={
             "site-power-capacity": "10 MVA",
+            "consumption-price": {"sensor": setup_markets["epex_da"].id},
         },
         attributes=dict(
             max_soc_in_mwh=20,
             min_soc_in_mwh=0,
             soc_in_mwh=2.0,
-            market_id=setup_markets["epex_da"].id,
         ),
     )
     test_battery_dynamic_capacity_power_sensor = Sensor(
@@ -940,6 +940,7 @@ def create_test_battery_assets(
         longitude=100,
         flex_context={
             "site-power-capacity": "10 kVA",
+            "consumption-price": {"sensor": setup_markets["epex_da"].id},
         },
         attributes=dict(
             max_soc_in_mwh=0.01,
@@ -947,7 +948,6 @@ def create_test_battery_assets(
             soc_in_mwh=0.005,
             soc_datetime="2040-01-01T00:00+01",
             soc_udi_event_id=203,
-            market_id=setup_markets["epex_da"].id,
             is_consumer=True,
             is_producer=True,
             can_curtail=True,
@@ -1009,6 +1009,7 @@ def create_charging_station_assets(
         longitude=100,
         flex_context={
             "site-power-capacity": "2 MVA",
+            "consumption-price": {"sensor": setup_markets["epex_da"].id},
         },
         attributes=dict(
             max_soc_in_mwh=5,
@@ -1016,7 +1017,6 @@ def create_charging_station_assets(
             soc_in_mwh=2.5,
             soc_datetime="2015-01-01T00:00+01",
             soc_udi_event_id=203,
-            market_id=setup_markets["epex_da"].id,
             is_consumer=True,
             is_producer=False,
             can_curtail=True,
@@ -1044,6 +1044,7 @@ def create_charging_station_assets(
         longitude=100,
         flex_context={
             "site-power-capacity": "2 MVA",
+            "consumption-price": {"sensor": setup_markets["epex_da"].id},
         },
         attributes=dict(
             max_soc_in_mwh=5,
@@ -1051,7 +1052,6 @@ def create_charging_station_assets(
             soc_in_mwh=2.5,
             soc_datetime="2015-01-01T00:00+01",
             soc_udi_event_id=203,
-            market_id=setup_markets["epex_da"].id,
             is_consumer=True,
             is_producer=True,
             can_curtail=True,

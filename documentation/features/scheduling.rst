@@ -45,7 +45,7 @@ For more details on the possible formats for field values, see :ref:`variable_qu
 Where should you set these fields?
 Within requests to the API or by editing the relevant asset in the UI.
 If they are not sent in via the API (the endpoint triggering schedule computation), the scheduler will look them up on the `flex-context` field of the asset.
-For consumption price, production price and inflexible devices, the scheduler will also search if parent assets have set them (it should probably do the same for other flex context fields ― work in progress).
+And if the asset belongs to a larger system (a hierarchy of assets), the scheduler will also search if parent assets have them set.
 
 
 
@@ -247,7 +247,8 @@ For more details on the possible formats for field values, see :ref:`variable_qu
 
 For more details on the possible formats for field values, see :ref:`variable_quantities`.
 
-Usually, not the whole flexibility model is needed. FlexMeasures can infer missing values in the flex model, and even get them (as default) from the sensor's attributes.
+Usually, not the whole flexibility model is needed.
+FlexMeasures can infer missing values in the flex model, and even get them (as default) from the sensor's attributes.
 
 You can add new storage schedules with the CLI command ``flexmeasures add schedule for-storage``.
 
@@ -259,15 +260,18 @@ However, here are some tips to model a buffer correctly:
    - Set ``charging-efficiency`` to the sensor describing the :abbr:`COP (coefficient of performance)` values.
    - Set ``storage-efficiency`` to a value below 100% to model (heat) loss.
 
-What happens if the flex model describes an infeasible problem for the storage scheduler? Excellent question! It is highly important for a robust operation that these situations still lead to a somewhat good outcome.
-From our practical experience, we derived a ``StorageFallbackScheduler``. It simplifies an infeasible situation by just starting to charge, discharge, or do neither,
+What happens if the flex model describes an infeasible problem for the storage scheduler? Excellent question!
+It is highly important for a robust operation that these situations still lead to a somewhat good outcome.
+From our practical experience, we derived a ``StorageFallbackScheduler``.
+It simplifies an infeasible situation by just starting to charge, discharge, or do neither,
 depending on the first target state of charge and the capabilities of the asset.
 
 Of course, we also log a failure in the scheduling job, so it's important to take note of these failures. Often, mis-configured flex models are the reason.
 
 For a hands-on tutorial on using some of the storage flex-model fields, head over to :ref:`tut_v2g` use case and `the API documentation for triggering schedules <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_.
 
-Finally, are you interested in the linear programming details behind the storage scheduler? Then head over to :ref:`storage_device_scheduler`!
+Finally, are you interested in the linear programming details behind the storage scheduler?
+Then head over to :ref:`storage_device_scheduler`!
 You can also review the current flex-model for storage in the code, at ``flexmeasures.data.schemas.scheduling.storage.StorageFlexModelSchema``.
 
 
@@ -317,6 +321,11 @@ Work on other schedulers
 We believe the two schedulers (and their flex-models) we describe here are covering a lot of use cases already.
 Here are some thoughts on further innovation:
 
-- Writing your own scheduler. You can always write your own scheduler (see :ref:`plugin_customization`). You then might want to add your own flex model, as well. FlexMeasures will let the scheduler decide which flexibility model is relevant and how it should be validated.
-- We also aim to model situations with more than one flexible asset, and that have different types of flexibility (e.g. EV charging and smart heating in the same site). This is ongoing architecture design work, and therefore happens in development settings, until we are happy with the outcomes. Thoughts welcome :)
+- Writing your own scheduler.
+  You can always write your own scheduler (see :ref:`plugin_customization`).
+  You then might want to add your own flex model, as well.
+  FlexMeasures will let the scheduler decide which flexibility model is relevant and how it should be validated.
+- We also aim to model situations with more than one flexible asset, and that have different types of flexibility (e.g. EV charging and smart heating in the same site).
+  This is ongoing architecture design work, and therefore happens in development settings, until we are happy with the outcomes.
+  Thoughts welcome :)
 - Aggregating flexibility of a group of assets (e.g. a neighborhood) and optimizing its aggregated usage (e.g. for grid congestion support) is also an exciting direction for expansion.

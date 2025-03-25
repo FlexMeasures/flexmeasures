@@ -7,23 +7,16 @@ Create Date: 2024-12-16 18:39:34.168732
 """
 
 from alembic import op
+import json
 import sqlalchemy as sa
 
-from flexmeasures.utils.unit_utils import is_power_unit, ur
+from flexmeasures.utils.unit_utils import is_power_unit, is_capacity_price_unit, ur
 
 # revision identifiers, used by Alembic.
 revision = "cb8df44ebda5"
 down_revision = "2ba59c7c954e"
 branch_labels = None
 depends_on = None
-
-
-def get_price_info(price_data):
-    if isinstance(price_data, str):
-        return price_data, None
-    elif isinstance(price_data, dict):
-        return None, price_data.get("sensor") if price_data else None
-    return None, None
 
 
 def build_flex_context(
@@ -50,6 +43,14 @@ def build_flex_context(
         "ems_peak_production_price",
         "ems_consumption_breach_price",
         "ems_production_breach_price",
+        # Alt keys when values are stored as a fixed value
+        "site-power-capacity",
+        "site-consumption-capacity",
+        "site-production-capacity",
+        "site-peak-consumption-price",
+        "site-peak-production-price",
+        "site-consumption-breach-price",
+        "site-production-breach-price",
         # Adding the below since these field could have been saved as either the hyphen or underscore format
         "ems-peak-consumption-price",
         "ems-peak-production-price",
@@ -59,27 +60,47 @@ def build_flex_context(
     for key in keys_to_remove:
         attributes_data.pop(key, None)
 
-    flex_context = {
-        "consumption-price": {
+    flex_context = attributes_data.pop("flex-context", None)
+    if flex_context is None:
+        flex_context = {}
+    else:
+        flex_context = json.loads(flex_context)
+
+    # Fill the flex-context's consumption-price field with:
+    # - the value of the consumption_price_sensor_id column
+    # - otherwise, the market_id attribute (old fallback)
+    # - otherwise, keep the consumption-price field from the flex-context attribute
+    if (
+        consumption_price_sensor_id is not None
+        or market_id is not None
+        or "consumption-price" not in flex_context
+    ):
+        flex_context["consumption-price"] = {
             "sensor": (
                 consumption_price_sensor_id
                 if consumption_price_sensor_id
                 else market_id
             )
-        },
-        "production-price": {"sensor": production_price_sensor_id},
-        "inflexible-device-sensors": [s[0] for s in inflexible_device_sensors],
-    }
+        }
 
-    if flex_context["consumption-price"]["sensor"] is None and market_id is None:
-        if attributes_data.get("consumption_price") is not None:
-            flex_context["consumption-price"] = attributes_data.get("consumption_price")
-            attributes_data.pop("consumption_price", None)
-
-    if flex_context["production-price"]["sensor"] is None:
-        if attributes_data.get("production_price") is not None:
-            flex_context["production-price"] = attributes_data.get("production_price")
-            attributes_data.pop("production_price", None)
+    # Fill the flex-context's production-price field with:
+    # - the value of the production_price_sensor_id column
+    # - otherwise, the market_id attribute (old fallback, also for the production sensor)
+    # - otherwise, keep the production-price field from the flex-context attribute
+    if (
+        production_price_sensor_id is not None
+        or market_id is not None
+        or "production-price" not in flex_context
+    ):
+        flex_context["production-price"] = {
+            "sensor": (
+                production_price_sensor_id if production_price_sensor_id else market_id
+            )
+        }
+    if inflexible_device_sensors or "inflexible-device-sensors" not in flex_context:
+        flex_context["inflexible-device-sensors"] = [
+            s[0] for s in inflexible_device_sensors
+        ]
 
     capacity_data = {
         "site-power-capacity": capacity_in_mw,
@@ -89,7 +110,7 @@ def build_flex_context(
     for key, value in capacity_data.items():
         if value is not None:
             if isinstance(value, (int, float)):
-                flex_context[key] = f"{int(value * 1000)}kW"
+                flex_context[key] = f"{int(value * 1000)} kW"
             else:
                 flex_context[key] = value
 
@@ -104,6 +125,19 @@ def build_flex_context(
             flex_context[key] = value
 
     return flex_context
+
+
+def process_field(value, attributes_data, original_key, new_key, validator):
+    if value is not None:
+        if isinstance(value, str) and validator(value):
+            try:
+                attributes_data[original_key] = (
+                    ur.Quantity(value).to(ur.Quantity("MW")).magnitude
+                )
+            except ValueError:
+                attributes_data[new_key] = value
+        else:
+            attributes_data[new_key] = value
 
 
 def upgrade():
@@ -153,25 +187,31 @@ def upgrade():
         select_stmt = sa.select(inflexible_sensors_table.c.inflexible_sensor_id).where(
             inflexible_sensors_table.c.generic_asset_id == asset_id
         )
-        inflexible_device_sensors = conn.execute(select_stmt)
+        inflexible_device_sensors = conn.execute(select_stmt).fetchall()
 
         # Get fields-to-migrate from attributes
         market_id = attributes_data.get("market_id")
-        capacity_in_mw = attributes_data.get("capacity_in_mw")
-        consumption_capacity_in_mw = attributes_data.get("consumption_capacity_in_mw")
-        production_capacity_in_mw = attributes_data.get("production_capacity_in_mw")
+        capacity_in_mw = attributes_data.get("capacity_in_mw") or attributes_data.get(
+            "site-power-capacity"
+        )
+        consumption_capacity_in_mw = attributes_data.get(
+            "consumption_capacity_in_mw"
+        ) or attributes_data.get("site-consumption-capacity")
+        production_capacity_in_mw = attributes_data.get(
+            "production_capacity_in_mw"
+        ) or attributes_data.get("site-production-capacity")
         ems_peak_consumption_price = attributes_data.get(
-            "ems_peak_consumption_price"
-        ) or attributes_data.get("ems-peak-consumption-price")
+            "ems-peak-consumption-price"
+        ) or attributes_data.get("site-peak-consumption-price")
         ems_peak_production_price = attributes_data.get(
-            "ems_peak_production_price"
-        ) or attributes_data.get("ems-peak-production-price")
+            "ems-peak-production-price"
+        ) or attributes_data.get("site-peak-production-price")
         ems_consumption_breach_price = attributes_data.get(
-            "ems_consumption_breach_price"
-        ) or attributes_data.get("ems-consumption-breach-price")
+            "ems-consumption-breach-price"
+        ) or attributes_data.get("site-consumption-breach-price")
         ems_production_breach_price = attributes_data.get(
-            "ems_production_breach_price"
-        ) or attributes_data.get("ems-production-breach-price")
+            "ems-production-breach-price"
+        ) or attributes_data.get("site-production-breach-price")
 
         # Build flex context - code off-loaded to external function as it is too long
         flex_context = build_flex_context(
@@ -323,94 +363,112 @@ def downgrade():
         if flex_context is None:
             flex_context = {}
 
-        consumption_price_as_str, consumption_price_sensor_id = get_price_info(
-            flex_context.get("consumption-price")
-        )
-        production_price_as_str, production_price_sensor_id = get_price_info(
-            flex_context.get("production-price")
-        )
-
-        if consumption_price_sensor_id is not None:
-            market_id = consumption_price_sensor_id
+        # If possible, fill in the consumption_price_sensor_id and production_price_sensor_id columns
+        # (don't bother reverting to the deprecated market_id attribute)
+        consumption_price = flex_context.pop("consumption-price", None)
+        if (
+            isinstance(consumption_price, dict)
+            and consumption_price.get("sensor") is not None
+        ):
+            consumption_price_sensor_id = consumption_price["sensor"]
         else:
-            market_id = None
+            # Unexpected type, so put it back
+            if consumption_price is not None:
+                flex_context["consumption-price"] = consumption_price
+            consumption_price_sensor_id = None
+        production_price = flex_context.pop("production-price", None)
+        if (
+            isinstance(production_price, dict)
+            and production_price.get("sensor") is not None
+        ):
+            production_price_sensor_id = production_price["sensor"]
+        else:
+            # Unexpected type, so put it back
+            if production_price is not None:
+                flex_context["production-price"] = production_price
+            production_price_sensor_id = None
 
-        capacity_in_mw = (
-            flex_context.get("site-power-capacity")
-            if flex_context.get("site-power-capacity")
-            else None
+        site_power_capacity = flex_context.pop("site-power-capacity", None)
+        consumption_capacity_in_mw = flex_context.pop("site-consumption-capacity", None)
+        production_capacity_in_mw = flex_context.pop("site-production-capacity", None)
+        ems_peak_consumption_price = flex_context.pop(
+            "site-peak-consumption-price", None
         )
-        consumption_capacity_in_mw = (
-            flex_context.get("site-consumption-capacity")
-            if flex_context.get("site-consumption-capacity")
-            else None
+        ems_peak_production_price = flex_context.pop("site-peak-production-price", None)
+        ems_consumption_breach_price = flex_context.pop(
+            "site-consumption-breach-price", None
         )
-        production_capacity_in_mw = (
-            flex_context.get("site-production-capacity")
-            if flex_context.get("site-production-capacity")
-            else None
-        )
-        ems_peak_consumption_price = (
-            flex_context.get("site-peak-consumption-price")
-            if flex_context.get("site-peak-consumption-price")
-            else None
-        )
-        ems_peak_production_price = (
-            flex_context.get("site-peak-production-price")
-            if flex_context.get("site-peak-production-price")
-            else None
-        )
-        ems_consumption_breach_price = (
-            flex_context.get("site-consumption-breach-price")
-            if flex_context.get("site-consumption-breach-price")
-            else None
-        )
-        ems_production_breach_price = (
-            flex_context.get("site-production-breach-price")
-            if flex_context.get("site-production-breach-price")
-            else None
+        ems_production_breach_price = flex_context.pop(
+            "site-production-breach-price", None
         )
 
-        if capacity_in_mw is not None:
-            if isinstance(capacity_in_mw, str) and is_power_unit(capacity_in_mw):
-                capacity_in_mw = (
-                    ur.Quantity(capacity_in_mw).to(ur.Quantity("MW")).magnitude
-                )
+        process_field(
+            site_power_capacity,
+            attributes_data,
+            "capacity_in_mw",
+            "site-power-capacity",
+            is_power_unit,
+        )
 
-        if consumption_capacity_in_mw is not None:
-            if isinstance(consumption_capacity_in_mw, str) and is_power_unit(
-                consumption_capacity_in_mw
-            ):
-                consumption_capacity_in_mw = (
-                    ur.Quantity(consumption_capacity_in_mw)
-                    .to(ur.Quantity("MW"))
-                    .magnitude
-                )
+        process_field(
+            consumption_capacity_in_mw,
+            attributes_data,
+            "consumption_capacity_in_mw",
+            "site-consumption-capacity",
+            is_power_unit,
+        )
 
-        if production_capacity_in_mw is not None:
-            if isinstance(production_capacity_in_mw, str) and is_power_unit(
-                production_capacity_in_mw
-            ):
-                production_capacity_in_mw = (
-                    ur.Quantity(production_capacity_in_mw)
-                    .to(ur.Quantity("MW"))
-                    .magnitude
-                )
+        process_field(
+            production_capacity_in_mw,
+            attributes_data,
+            "production_capacity_in_mw",
+            "site-production-capacity",
+            is_power_unit,
+        )
 
-        if consumption_price_as_str is not None:
-            attributes_data["consumption_price"] = consumption_price_as_str
+        process_field(
+            ems_peak_consumption_price,
+            attributes_data,
+            "ems-peak-consumption-price",
+            "site-peak-consumption-price",
+            is_capacity_price_unit,
+        )
 
-        if production_price_as_str is not None:
-            attributes_data["production_price"] = production_price_as_str
+        process_field(
+            ems_peak_production_price,
+            attributes_data,
+            "ems-peak-production-price",
+            "site-peak-production-price",
+            is_capacity_price_unit,
+        )
 
-        attributes_data["market_id"] = market_id
-        attributes_data["capacity_in_mw"] = capacity_in_mw
-        attributes_data["consumption_capacity_in_mw"] = consumption_capacity_in_mw
-        attributes_data["production_capacity_in_mw"] = production_capacity_in_mw
-        attributes_data["ems_peak_consumption_price"] = ems_peak_consumption_price
-        attributes_data["ems_peak_production_price"] = ems_peak_production_price
-        attributes_data["ems_consumption_breach_price"] = ems_consumption_breach_price
-        attributes_data["ems_production_breach_price"] = ems_production_breach_price
+        process_field(
+            ems_consumption_breach_price,
+            attributes_data,
+            "ems-consumption-breach-price",
+            "site-consumption-breach-price",
+            is_capacity_price_unit,
+        )
+
+        process_field(
+            ems_production_breach_price,
+            attributes_data,
+            "ems-production-breach-price",
+            "site-production-breach-price",
+            is_capacity_price_unit,
+        )
+
+        inflexible_device_sensors = flex_context.pop("inflexible-device-sensors", [])
+        if not isinstance(inflexible_device_sensors, list) or not all(
+            isinstance(s, int) for s in inflexible_device_sensors
+        ):
+            # Unexpected type, so put it back
+            flex_context["inflexible-device-sensors"] = inflexible_device_sensors
+            inflexible_device_sensors = []
+
+        # Retain data in any new flex-context fields that are not supported after downgrading
+        if flex_context:
+            attributes_data["flex-context"] = json.dumps(flex_context)
 
         update_stmt = (
             generic_asset_table.update()
@@ -423,7 +481,7 @@ def downgrade():
         )
         conn.execute(update_stmt)
 
-        for sensor_id in flex_context.get("inflexible-device-sensors", []):
+        for sensor_id in inflexible_device_sensors:
             insert_stmt = inflexible_sensors_table.insert().values(
                 generic_asset_id=asset_id, inflexible_sensor_id=sensor_id
             )

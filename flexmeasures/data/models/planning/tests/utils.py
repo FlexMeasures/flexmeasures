@@ -44,6 +44,6 @@ def get_sensors_from_db(
     battery = [
         s for s in battery_assets[battery_name].sensors if s.name == power_sensor_name
     ][0]
-    assert battery.get_attribute("market_id") == epex_da.id
+    assert battery.get_attribute("consumption-price") == {"sensor": epex_da.id}
 
     return epex_da, battery
