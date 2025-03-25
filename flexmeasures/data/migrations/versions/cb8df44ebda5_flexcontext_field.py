@@ -466,7 +466,7 @@ def downgrade():
             flex_context["inflexible-device-sensors"] = inflexible_device_sensors
             inflexible_device_sensors = []
 
-        # Retain data in any new flex-context fields that are not support after downgrading
+        # Retain data in any new flex-context fields that are not supported after downgrading
         if flex_context:
             attributes_data["flex-context"] = json.dumps(flex_context)
 
