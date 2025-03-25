@@ -112,10 +112,10 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
      - ``"260 EUR/MWh"``
      - Production peaks above the ``site-peak-production`` are penalized against this per-kW price. [#penalty_field]_
    * - ``soc-minima-breach-price``
-     - ``"6 EUR/kWh"``
+     - ``"2 EUR/kWh/min"``
      - Penalty for not meeting ``soc-minima`` defined in the flex-model. [#penalty_field]_ [#soc_breach_prices]_
    * - ``soc-maxima-breach-price``
-     - ``"6 EUR/kWh"``
+     - ``"2 EUR/kWh/min"``
      - Penalty for not meeting ``soc-maxima`` defined in the flex-model. [#penalty_field]_ [#soc_breach_prices]_
 
 .. [#old_sensor_field] The old field only accepted an integer (sensor ID).
@@ -130,7 +130,7 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
 
 .. [#production] Example: with a connection capacity (``site-power-capacity``) of 1 MVA (apparent power) and a production capacity (``site-production-capacity``) of 400 kW (active power), the scheduler will make sure that the grid inflow doesn't exceed 400 kW.
 
-.. [#soc_breach_prices] The SoC breach prices (e.g. 6 EUR/kWh) to use for the schedule are applied over each time step equal to the sensor resolution. For example, a SoC breach price of 6 EUR/kWh per hour, for scheduling a 5-minute resolution sensor, should be passed as a SoC breach price of :math:`6*5/60 = 0.50` EUR/kWh.
+.. [#soc_breach_prices] The SoC breach prices (e.g. 2 EUR/kWh/min) to use for the schedule are applied over each time step equal to the sensor resolution. For example, a SoC breach price of 2 EUR/kWh/min, for scheduling a 5-minute resolution sensor, will be applied as a SoC breach price of 10 EUR/kWh for breaches measured every 5 minutes.
 
 .. note:: If no (symmetric, consumption and production) site capacity is defined (also not as defaults), the scheduler will not enforce any bound on the site power.
           The flexible device can still have its own power limit defined in its flex-model.
