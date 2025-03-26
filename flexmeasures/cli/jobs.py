@@ -4,6 +4,7 @@ CLI commands for controlling jobs
 
 from __future__ import annotations
 
+import os
 import random
 import string
 
@@ -11,8 +12,11 @@ import click
 from flask import current_app as app
 from flask.cli import with_appcontext
 from rq import Queue, Worker
+from rq.job import Job
+from rq.registry import FailedJobRegistry
 from sqlalchemy.orm import configure_mappers
 from tabulate import tabulate
+import pandas as pd
 
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
@@ -118,6 +122,90 @@ def show_queues():
     )
 
 
+@fm_jobs.command("save-last-failed")
+@with_appcontext
+@click.option(
+    "--n",
+    type=int,
+    default=10,
+    help="The number of last jobs to save.",
+)
+@click.option(
+    "--queue",
+    "queue_name",
+    type=str,
+    default="scheduling",
+    help="The queue to look in.",
+)
+@click.option(
+    "--file",
+    type=click.Path(),
+    default="failed_jobs.csv",
+    help="The CSV file to save the failed jobs.",
+)
+def save_last_failed(n: int, queue_name: str, file: str):
+    """
+    Save the last n failed jobs (10 by default) to a file.
+    """
+    available_queues = app.queues
+    if queue_name not in available_queues.keys():
+        click.secho(
+            f"Unknown queue '{queue_name}'. Available queues: {available_queues.keys()}",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+    else:
+        queue = available_queues[queue_name]
+
+    registry = FailedJobRegistry(queue=queue)
+    job_ids = registry.get_job_ids()[-n:]
+    failed_jobs = []
+
+    for job_id in job_ids:
+        try:
+            job = Job.fetch(job_id, connection=queue.connection)
+            kwargs = job.kwargs or {}
+            asset_info = kwargs.get("asset_or_sensor", {})
+
+            failed_jobs.append(
+                {
+                    "Job ID": job.id,
+                    "ID": asset_info.get("id", "N/A"),
+                    "Class": asset_info.get("class", "N/A"),
+                    "Error": job.exc_info,
+                    "All kwargs": kwargs,
+                    "Function name": getattr(job, "func_name", "N/A"),
+                    "Started at": getattr(job, "started_at", "N/A"),
+                    "Ended at": getattr(job, "ended_at", "N/A"),
+                }
+            )
+        except Exception as e:
+            click.secho(
+                f"Job {job_id} failed to fetch with error: {str(e)}", fg="yellow"
+            )
+
+    if failed_jobs:
+        if os.path.exists(file):
+            if not click.confirm(f"{file} already exists. Overwrite?", default=False):
+                new_file = click.prompt(
+                    "Enter a new filename (must end with .csv)", type=str
+                )
+                while not new_file.lower().endswith(".csv"):
+                    click.secho("Invalid filename. It must end with .csv.", fg="red")
+                    new_file = click.prompt(
+                        "Enter a new filename (must end with .csv)", type=str
+                    )
+                file = new_file
+
+        # Save the failed jobs to a CSV file
+        pd.DataFrame(failed_jobs).sort_values("Started at", ascending=False).to_csv(
+            file, index=False
+        )
+        click.secho(f"Saved {len(failed_jobs)} failed jobs to {file}.", fg="green")
+    else:
+        click.secho("No failed jobs found.", fg="yellow")
+
+
 @fm_jobs.command("clear-queue")
 @with_appcontext
 @click.option(
@@ -180,6 +268,38 @@ def clear_queue(queue: str, deferred: bool, scheduled: bool, failed: bool):
                 **MsgStyle.SUCCESS,
             )
             wrap_up_message(count_after)
+
+
+@fm_jobs.command("delete-queue")
+@with_appcontext
+@click.option(
+    "--queue",
+    default=None,
+    required=True,
+    help="State which queue to delete.",
+)
+def delete_queue(queue: str):
+    """
+    Delete a job queue.
+    """
+    if not app.redis_connection.sismember("rq:queues", f"rq:queue:{queue}"):
+        click.secho(
+            f"Queue '{queue}' does not exist.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+    success = app.redis_connection.srem("rq:queues", f"rq:queue:{queue}")
+    if success:
+        click.secho(
+            f"Queue '{queue}' removed.",
+            **MsgStyle.SUCCESS,
+        )
+    else:
+        click.secho(
+            f"Failed to remove queue '{queue}'.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
 
 
 def wrap_up_message(count_after: int):

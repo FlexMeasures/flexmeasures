@@ -29,7 +29,7 @@ class EfficiencyField(QuantityField):
         >>> ef.deserialize(0.9)
         <Quantity(90.0, 'percent')>
         >>> ef.deserialize("90%")
-        <Quantity(90.0, 'percent')>
+        <Quantity(90, 'percent')>
         >>> ef.deserialize("0%")
         Traceback (most recent call last):
         ...
@@ -135,7 +135,9 @@ class StorageFlexModelSchema(Schema):
     )
 
     storage_efficiency = VariableQuantityField("%", data_key="storage-efficiency")
-    prefer_charging_sooner = fields.Bool(data_key="prefer-charging-sooner")
+    prefer_charging_sooner = fields.Bool(
+        data_key="prefer-charging-sooner", load_default=True
+    )
 
     soc_gain = fields.List(
         VariableQuantityField("MW"),

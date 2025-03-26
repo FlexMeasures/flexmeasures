@@ -1,7 +1,10 @@
 import os
 import pytest
 
-from flexmeasures.cli.tests.utils import get_click_commands
+from flexmeasures.cli.tests.utils import (
+    check_command_ran_without_error,
+    get_click_commands,
+)
 from flexmeasures.tests.utils import get_test_sensor
 
 
@@ -15,7 +18,7 @@ def test_list_accounts(app, fresh_db, setup_accounts_fresh_db):
     assert "All accounts on this" in result.output
     for account in setup_accounts_fresh_db.values():
         assert account.name in result.output
-    assert result.exit_code == 0
+    check_command_ran_without_error(result)
 
 
 @pytest.mark.skip_github
@@ -29,7 +32,7 @@ def test_list_roles(app, fresh_db, setup_roles_users_fresh_db):
     assert "User roles" in result.output
     for role in ("account-admin", "Supplier", "Dummy"):
         assert role in result.output
-    assert result.exit_code == 0
+    check_command_ran_without_error(result)
 
 
 @pytest.mark.skip_github
@@ -41,7 +44,7 @@ def test_list_asset_types(app, fresh_db, setup_generic_asset_types_fresh_db):
 
     for asset_type in setup_generic_asset_types_fresh_db.values():
         assert asset_type.name in result.output
-    assert result.exit_code == 0
+    check_command_ran_without_error(result)
 
 
 @pytest.mark.skip_github
@@ -53,7 +56,7 @@ def test_list_sources(app, fresh_db, setup_sources_fresh_db):
 
     for source in setup_sources_fresh_db.values():
         assert source.name in result.output
-    assert result.exit_code == 0
+    check_command_ran_without_error(result)
 
 
 @pytest.mark.skip_github
@@ -69,7 +72,7 @@ def test_show_accounts(app, fresh_db, setup_accounts_fresh_db):
 
     assert "Account Test Prosumer Account" in result.output
     assert "No users in account" in result.output
-    assert result.exit_code == 0
+    check_command_ran_without_error(result)
 
 
 @pytest.mark.skip_github
@@ -111,7 +114,7 @@ def test_plot_beliefs(app, fresh_db, setup_beliefs_fresh_db):
     assert "Beliefs for Sensor 'epex_da'" in result.output
     assert "Data spans an hour" in result.output
 
-    assert result.exit_code == 0
+    check_command_ran_without_error(result)
 
 
 def test_cli_help(app):
@@ -122,7 +125,7 @@ def test_cli_help(app):
     for cmd in get_click_commands(data_show):
         result = runner.invoke(cmd, ["--help"])
         assert "Usage" in result.output
-        assert result.exit_code == 0
+        check_command_ran_without_error(result)
 
 
 @pytest.mark.skip_github
@@ -150,7 +153,7 @@ def test_export_chart(app, fresh_db, setup_beliefs_fresh_db, _format):
             ],
         )
 
-        assert result.exit_code == 0
+        check_command_ran_without_error(result)
         assert os.path.exists(f"chart-sensor-{sensor_id}.{_format}")
         assert (
             os.path.getsize(f"chart-sensor-{sensor_id}.{_format}") > 100

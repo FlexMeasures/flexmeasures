@@ -99,7 +99,7 @@ class SensorAPI(FlaskView):
     ):
         """API endpoint to list all sensors of an account.
 
-        .. :quickref: Sensor; Download sensor list
+        .. :quickref: Sensor; Get list of sensors
 
         This endpoint returns all accessible sensors.
         By default, "accessible sensors" means all sensors in the same account as the current user (if they have read permission to the account).
@@ -130,21 +130,21 @@ class SensorAPI(FlaskView):
 
         .. sourcecode:: json
 
-        {
-            "data" : [
-                {
-                    "entity_address": "ea1.2021-01.io.flexmeasures.company:fm1.42",
-                    "event_resolution": PT15M,
-                    "generic_asset_id": 1,
-                    "name": "Gas demand",
-                    "timezone": "Europe/Amsterdam",
-                    "unit": "m\u00b3/h"
-                    "id": 2
-                }
-            ],
-            "num-records" : 1,
-            "filtered-records" : 1
-        }
+            {
+                "data" : [
+                    {
+                        "entity_address": "ea1.2021-01.io.flexmeasures.company:fm1.42",
+                        "event_resolution": PT15M,
+                        "generic_asset_id": 1,
+                        "name": "Gas demand",
+                        "timezone": "Europe/Amsterdam",
+                        "unit": "m\u00b3/h"
+                        "id": 2
+                    }
+                ],
+                "num-records" : 1,
+                "filtered-records" : 1
+            }
 
         If no pagination is requested, the response only consists of the list under the "data" key.
 

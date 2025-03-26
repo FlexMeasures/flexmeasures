@@ -4,9 +4,11 @@ from flask import url_for, current_app, request
 from flask_classful import FlaskView, route
 from flask_security import login_required, current_user
 from webargs.flaskparser import use_kwargs
+from werkzeug.exceptions import NotFound
 
 from flexmeasures.data import db
 from flexmeasures.auth.error_handling import unauthorized_handler
+from flexmeasures.auth.policy import check_access
 from flexmeasures.data.schemas import StartEndTimeSchema
 from flexmeasures.data.services.job_cache import NoRedisConfigured
 from flexmeasures.data.models.generic_assets import (
@@ -106,7 +108,6 @@ class AssetCrudUI(FlaskView):
 
             asset_form = NewAssetForm()
             asset_form.with_options()
-            asset_form.with_sensors(None, None)
             return render_flexmeasures_template(
                 "crud/asset_new.html",
                 asset_form=asset_form,
@@ -122,7 +123,6 @@ class AssetCrudUI(FlaskView):
 
         asset_form = AssetForm()
         asset_form.with_options()
-        asset_form.with_sensors(asset, asset.account_id)
 
         asset_form.process(data=process_internal_api_response(asset_dict))
 
@@ -145,10 +145,11 @@ class AssetCrudUI(FlaskView):
     def status(self, id: str):
         """GET from /assets/<id>/status to show the staleness of the asset's sensors."""
 
-        get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_one", id=id))
-        asset_dict = get_asset_response.json()
+        asset = GenericAsset.query.get(id)
+        if asset is None:
+            raise NotFound
+        check_access(asset, "read")
 
-        asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
         status_data = build_sensor_status_data(asset)
 
         # add data about forecasting and scheduling jobs
@@ -184,9 +185,6 @@ class AssetCrudUI(FlaskView):
 
             account, account_error = asset_form.set_account()
             asset_type, asset_type_error = asset_form.set_asset_type()
-
-            account_id = account.id if account else None
-            asset_form.with_sensors(None, account_id)
 
             form_valid = asset_form.validate_on_submit()
 
@@ -238,7 +236,6 @@ class AssetCrudUI(FlaskView):
             asset = db.session.get(GenericAsset, id)
             asset_form = AssetForm()
             asset_form.with_options()
-            asset_form.with_sensors(asset, asset.account_id)
             if not asset_form.validate_on_submit():
                 # Display the form data, but set some extra data which the page wants to show.
                 asset_info = asset_form.to_json()

@@ -9,12 +9,8 @@ from pandas.tseries.frequencies import to_offset
 import numpy as np
 import timely_beliefs as tb
 
-from flexmeasures.data import db
+from flexmeasures.data.models.planning.exceptions import UnknownPricesException
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.models.planning.exceptions import (
-    UnknownMarketException,
-    UnknownPricesException,
-)
 from flexmeasures import Asset
 from flexmeasures.data.queries.utils import simplify_index
 
@@ -89,62 +85,15 @@ def add_tiny_price_slope(
     return prices
 
 
-def get_market(sensor: Sensor) -> Sensor:
-    """Get market sensor from the sensor's attributes."""
-    price_sensor = db.session.get(Sensor, sensor.get_attribute("market_id"))
-    if price_sensor is None:
-        raise UnknownMarketException
-    return price_sensor
-
-
-def get_prices(
-    query_window: tuple[datetime, datetime],
-    resolution: timedelta,
-    beliefs_before: datetime | None,
-    price_sensor: Sensor | None = None,
-    sensor: Sensor | None = None,
-    allow_trimmed_query_window: bool = True,
-) -> tuple[pd.DataFrame, tuple[datetime, datetime]]:
-    """Check for known prices or price forecasts.
-
-    If so allowed, the query window is trimmed according to the available data.
-    If not allowed, prices are extended to the edges of the query window:
-    - The first available price serves as a naive backcast.
-    - The last available price serves as a naive forecast.
-    """
-
-    # Look for the applicable price sensor
-    if price_sensor is None:
-        if sensor is None:
-            raise UnknownMarketException(
-                "Missing price sensor cannot be derived from a missing sensor"
-            )
-        price_sensor = get_market(sensor)
-
-    price_bdf: tb.BeliefsDataFrame = TimedBelief.search(
-        price_sensor,
-        event_starts_after=query_window[0],
-        event_ends_before=query_window[1],
-        resolution=to_offset(resolution).freqstr,
-        beliefs_before=beliefs_before,
-        most_recent_beliefs_only=True,
-        one_deterministic_belief_per_event=True,
-    )
-    price_df = simplify_index(price_bdf)
-    nan_prices = price_df.isnull().values
-    if nan_prices.all() or price_df.empty:
-        raise UnknownPricesException(
-            f"Prices unknown for planning window. (sensor {price_sensor.id})"
-        )
-    else:
-        price_df = extend_to_edges(
-            df=price_df,
-            query_window=query_window,
-            resolution=resolution,
-            sensor=price_sensor,
-            allow_trimmed_query_window=allow_trimmed_query_window,
-        )
-    return price_df, query_window
+def ensure_prices_are_not_empty(
+    prices: pd.DataFrame,
+    price_variable_quantity: Sensor | list[dict] | ur.Quantity | None,
+):
+    if prices.isnull().values.all() or prices.empty:
+        error_message = "Prices unknown for planning window."
+        if isinstance(price_variable_quantity, Sensor):
+            error_message += f" (sensor {price_variable_quantity.id})"
+        raise UnknownPricesException(error_message)
 
 
 def extend_to_edges(
@@ -266,15 +215,15 @@ def fallback_charging_policy(
     while probably a decent policy for Charge Points,
     should not be considered a robust policy for other asset types.
     """
-    charge_power = (
-        sensor.get_attribute("capacity_in_mw")
-        if sensor.get_attribute("is_consumer")
-        else 0
+    max_charge_capacity = (
+        device_constraints[["derivative max", "derivative equals"]].min().min()
     )
+    max_discharge_capacity = (
+        -device_constraints[["derivative min", "derivative equals"]].max().max()
+    )
+    charge_power = max_charge_capacity if sensor.get_attribute("is_consumer") else 0
     discharge_power = (
-        -sensor.get_attribute("capacity_in_mw")
-        if sensor.get_attribute("is_producer")
-        else 0
+        -max_discharge_capacity if sensor.get_attribute("is_producer") else 0
     )
 
     charge_schedule = initialize_series(charge_power, start, end, resolution)
