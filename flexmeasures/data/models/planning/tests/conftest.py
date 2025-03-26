@@ -111,10 +111,8 @@ def building(db, setup_accounts, setup_markets) -> GenericAsset:
         owner=setup_accounts["Prosumer"],
         flex_context={
             "site-power-capacity": "2 MVA",
+            "consumption-price": {"sensor": setup_markets["epex_da"].id},
         },
-        attributes=dict(
-            market_id=setup_markets["epex_da"].id,
-        ),
     )
     db.session.add(building)
     return building
