@@ -308,10 +308,14 @@ class Commitment:
 
 
 class FlowCommitment(Commitment):
+    """NB index contains event start, while quantity applies to average flow between event start and end."""
+
     pass
 
 
 class StockCommitment(Commitment):
+    """NB index contains event start, while quantity applies to stock at event end."""
+
     pass
 
 
