@@ -215,20 +215,24 @@ class FlexContextSchema(Schema):
                 currency_unit = price_unit.split("/")[0]
 
                 if previous_currency_unit is None:
-                    previous_currency_unit = currency_unit
+                    previous_currency_unit = str(
+                        ur.Quantity(currency_unit).to_base_units().units
+                    )
                     previous_field_name = price_field.data_key
-                elif units_are_convertible(currency_unit, previous_currency_unit):
+                if units_are_convertible(currency_unit, previous_currency_unit):
                     # Make sure all compatible currency units are on the same scale (e.g. not kEUR mixed with EUR)
                     if currency_unit != previous_currency_unit:
-                        denominator_unit = price_unit.split("/")[1]
+                        denominator_unit = str(
+                            ur.Unit(currency_unit) / ur.Unit(price_unit)
+                        )
                         if isinstance(data[field], ur.Quantity):
                             data[field] = data[field].to(
-                                f"{previous_currency_unit}/{denominator_unit}"
+                                f"{previous_currency_unit}/({denominator_unit})"
                             )
                         elif isinstance(data[field], list):
                             for j in range(len(data[field])):
                                 data[field][j]["value"] = data[field][j]["value"].to(
-                                    f"{previous_currency_unit}/{denominator_unit}"
+                                    f"{previous_currency_unit}/({denominator_unit})"
                                 )
                         elif isinstance(data[field], Sensor):
                             raise ValidationError(
