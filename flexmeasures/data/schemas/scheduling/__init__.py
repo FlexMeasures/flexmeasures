@@ -206,7 +206,7 @@ class FlexContextSchema(Schema):
     def _try_to_convert_price_units(self, data):
         """Convert price units to the same unit and scale if they can (incl. same currency)."""
 
-        previous_currency_unit = None
+        shared_currency_unit = None
         previous_field_name = None
         for field in self.declared_fields:
             if field[-5:] == "price" and field in data:
@@ -214,25 +214,25 @@ class FlexContextSchema(Schema):
                 price_unit = price_field._get_unit(data[field])
                 currency_unit = price_unit.split("/")[0]
 
-                if previous_currency_unit is None:
-                    previous_currency_unit = str(
+                if shared_currency_unit is None:
+                    shared_currency_unit = str(
                         ur.Quantity(currency_unit).to_base_units().units
                     )
                     previous_field_name = price_field.data_key
-                if units_are_convertible(currency_unit, previous_currency_unit):
+                if units_are_convertible(currency_unit, shared_currency_unit):
                     # Make sure all compatible currency units are on the same scale (e.g. not kEUR mixed with EUR)
-                    if currency_unit != previous_currency_unit:
+                    if currency_unit != shared_currency_unit:
                         denominator_unit = str(
                             ur.Unit(currency_unit) / ur.Unit(price_unit)
                         )
                         if isinstance(data[field], ur.Quantity):
                             data[field] = data[field].to(
-                                f"{previous_currency_unit}/({denominator_unit})"
+                                f"{shared_currency_unit}/({denominator_unit})"
                             )
                         elif isinstance(data[field], list):
                             for j in range(len(data[field])):
                                 data[field][j]["value"] = data[field][j]["value"].to(
-                                    f"{previous_currency_unit}/({denominator_unit})"
+                                    f"{shared_currency_unit}/({denominator_unit})"
                                 )
                         elif isinstance(data[field], Sensor):
                             raise ValidationError(
@@ -241,7 +241,7 @@ class FlexContextSchema(Schema):
                 else:
                     field_name = price_field.data_key
                     raise ValidationError(
-                        f"Prices must share the same monetary unit. '{field_name}' uses '{currency_unit}', but '{previous_field_name}' used '{previous_currency_unit}'.",
+                        f"Prices must share the same monetary unit. '{field_name}' uses '{currency_unit}', but '{previous_field_name}' used '{shared_currency_unit}'.",
                         field_name=field_name,
                     )
         return data
