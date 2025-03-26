@@ -4,7 +4,7 @@ from flask import current_app
 from flexmeasures import Sensor
 from sqlalchemy import select
 
-logger = logging.Logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 @sock.route("/ping1")
