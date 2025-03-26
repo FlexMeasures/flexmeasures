@@ -24,9 +24,8 @@ This is described by:
 - :ref:`The flex-context <flex_context>` ― information about the system as a whole, in order to assess the value of activating flexibility.
 - :ref:`Flex-models <flex_models_and_schedulers>`  ― information about the state and possible actions of the flexible device. We will discuss these per scheduled device type.
 
-This information goes beyond the usual time series recorded by an asset's sensors. It's being sent through the API when triggering schedule computation.
-Some of the information can also be stored on the FlexMeasures server (persisted in the database), and will be editable through the UI (that's design work in progress).
-Specifically, flex-context fields can be persisted on the asset model, while most flex-model fields can be persisted on the asset & sensor model (that's also design work in progress, especially in relation to asset hierarchies).
+This information goes beyond the usual time series recorded by an asset's sensors. It can be sent to FlexMeasures through the API when triggering schedule computation.
+Also, this information can be persisted on the FlexMeasures data model (in the db), and is editable through the UI (actually, that is design work in progress, currently possible with the flex context).
 
 Let's dive into the details ― what can you tell FlexMeasures about your optimization problem?
 
@@ -36,11 +35,18 @@ Let's dive into the details ― what can you tell FlexMeasures about your optimi
 The flex-context
 -----------------
 
-The ``flex-context`` is independent of the type of flexible device that is optimized.
+The ``flex-context`` is independent of the type of flexible device that is optimized, or which scheduler is used.
 With the flexibility context, we aim to describe the system in which the flexible assets operate, such as its physical and contractual limitations.
 
+Fields can have fixed values, but some fields can also point to sensors, so they will always represent the dynamics of the asset's environment (as long as that sensor has current data).
 The full list of flex-context fields follows below.
 For more details on the possible formats for field values, see :ref:`variable_quantities`.
+
+Where should you set these fields?
+Within requests to the API or by editing an asset in the UI.
+If they are not sent in via the API (the endpoint triggering schedule computation), the scheduler will look them up on the `flex-context` field of the asset.
+And if the asset belongs to a larger system (a hierarchy of assets), the scheduler will also search if parent assets have them set.
+
 
 
 .. list-table::
@@ -134,6 +140,11 @@ The storage scheduler is suitable for batteries and :abbr:`EV (electric vehicle)
 The process scheduler is suitable for shiftable, breakable and inflexible loads, and is automatically selected for asset types ``"process"`` and ``"load"``.
 
 
+We describe the respective flex models below.
+At the moment, they have to be sent through the API (the endpoint to trigger schedule computation, or using the FlexMeasures client) or the CLI (the command to add schedules).
+We will soon work on the possibility to store (a subset of) these fields on the data model and edit them in the UI.
+
+
 Storage
 ^^^^^^^^
 
@@ -225,7 +236,8 @@ For more details on the possible formats for field values, see :ref:`variable_qu
 
 For more details on the possible formats for field values, see :ref:`variable_quantities`.
 
-Usually, not the whole flexibility model is needed. FlexMeasures can infer missing values in the flex model, and even get them (as default) from the sensor's attributes.
+Usually, not the whole flexibility model is needed.
+FlexMeasures can infer missing values in the flex model, and even get them (as default) from the sensor's attributes.
 
 You can add new storage schedules with the CLI command ``flexmeasures add schedule for-storage``.
 
@@ -237,15 +249,18 @@ However, here are some tips to model a buffer correctly:
    - Set ``charging-efficiency`` to the sensor describing the :abbr:`COP (coefficient of performance)` values.
    - Set ``storage-efficiency`` to a value below 100% to model (heat) loss.
 
-What happens if the flex model describes an infeasible problem for the storage scheduler? Excellent question! It is highly important for a robust operation that these situations still lead to a somewhat good outcome.
-From our practical experience, we derived a ``StorageFallbackScheduler``. It simplifies an infeasible situation by just starting to charge, discharge, or do neither,
+What happens if the flex model describes an infeasible problem for the storage scheduler? Excellent question!
+It is highly important for a robust operation that these situations still lead to a somewhat good outcome.
+From our practical experience, we derived a ``StorageFallbackScheduler``.
+It simplifies an infeasible situation by just starting to charge, discharge, or do neither,
 depending on the first target state of charge and the capabilities of the asset.
 
 Of course, we also log a failure in the scheduling job, so it's important to take note of these failures. Often, mis-configured flex models are the reason.
 
 For a hands-on tutorial on using some of the storage flex-model fields, head over to :ref:`tut_v2g` use case and `the API documentation for triggering schedules <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_.
 
-Finally, are you interested in the linear programming details behind the storage scheduler? Then head over to :ref:`storage_device_scheduler`!
+Finally, are you interested in the linear programming details behind the storage scheduler?
+Then head over to :ref:`storage_device_scheduler`!
 You can also review the current flex-model for storage in the code, at ``flexmeasures.data.schemas.scheduling.storage.StorageFlexModelSchema``.
 
 
@@ -295,6 +310,11 @@ Work on other schedulers
 We believe the two schedulers (and their flex-models) we describe here are covering a lot of use cases already.
 Here are some thoughts on further innovation:
 
-- Writing your own scheduler. You can always write your own scheduler (see :ref:`plugin_customization`). You then might want to add your own flex model, as well. FlexMeasures will let the scheduler decide which flexibility model is relevant and how it should be validated.
-- We also aim to model situations with more than one flexible asset, and that have different types of flexibility (e.g. EV charging and smart heating in the same site). This is ongoing architecture design work, and therefore happens in development settings, until we are happy with the outcomes. Thoughts welcome :)
+- Writing your own scheduler.
+  You can always write your own scheduler (see :ref:`plugin_customization`).
+  You then might want to add your own flex model, as well.
+  FlexMeasures will let the scheduler decide which flexibility model is relevant and how it should be validated.
+- We also aim to model situations with more than one flexible asset, and that have different types of flexibility (e.g. EV charging and smart heating in the same site).
+  This is ongoing architecture design work, and therefore happens in development settings, until we are happy with the outcomes.
+  Thoughts welcome :)
 - Aggregating flexibility of a group of assets (e.g. a neighborhood) and optimizing its aggregated usage (e.g. for grid congestion support) is also an exciting direction for expansion.

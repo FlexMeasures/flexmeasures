@@ -29,6 +29,8 @@ class Config(object):
     SQLALCHEMY_TRACK_MODIFICATIONS: bool = False
     SQLALCHEMY_ENGINE_OPTIONS: dict = {
         "pool_recycle": 299,  # https://www.pythonanywhere.com/forums/topic/2599/
+        "pool_size": 5,  # 5 is SQLAlchemy's default for the maximum number of permanent connections to keep
+        "max_overflow": 10,  # 10 is SQLAlchemy's default for temporarily exceeding the pool_size if no connections are available
         # "pool_timeout": 20,
         "pool_pre_ping": True,  # https://docs.sqlalchemy.org/en/13/core/pooling.html#disconnect-handling-pessimistic
         "connect_args": {

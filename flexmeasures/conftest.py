@@ -11,7 +11,6 @@ import numpy as np
 from flask import request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_security import roles_accepted
-from pytest_mock import MockerFixture
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
 
 from werkzeug.exceptions import (
@@ -348,7 +347,7 @@ def create_test_markets(db) -> dict[str, Sensor]:
         )
         db.session.add(price_sensor)
         price_sensors[sensor_name] = price_sensor
-    db.session.flush()  # assign an id, so the markets can be used to set a market_id attribute on a GenericAsset or Sensor
+    db.session.flush()  # assign an id, so the markets can be used to set a consumption-price flex-context field on a GenericAsset
     return price_sensors
 
 
@@ -367,12 +366,18 @@ def create_sources(db) -> dict[str, DataSource]:
     db.session.add(seita_source)
     entsoe_source = DataSource(name="ENTSO-E", type="demo script")
     db.session.add(entsoe_source)
-    dummy_schedule_source = DataSource(name="DummySchedule", type="demo script")
+    dummy_schedule_source = DataSource(name="DummySchedule", type="scheduler")
     db.session.add(dummy_schedule_source)
+    forecaster_source = DataSource(name="forecaster name", type="forecaster")
+    db.session.add(forecaster_source)
+    reporter_source = DataSource(name="reporter name", type="reporter")
+    db.session.add(reporter_source)
     return {
         "Seita": seita_source,
         "ENTSO-E": entsoe_source,
         "DummySchedule": dummy_schedule_source,
+        "forecaster": forecaster_source,
+        "reporter": reporter_source,
     }
 
 
@@ -514,12 +519,12 @@ def create_assets(
             longitude=100,
             flex_context={
                 "site-power-capacity": "1 MVA",
+                "consumption-price": {"sensor": setup_markets["epex_da"].id},
             },
             attributes=dict(
                 min_soc_in_mwh=0,
                 max_soc_in_mwh=0,
                 soc_in_mwh=0,
-                market_id=setup_markets["epex_da"].id,
                 is_producer=True,
                 can_curtail=True,
             ),
@@ -733,6 +738,30 @@ def add_market_prices_common(
     ]
     db.session.add_all(today_beliefs)
 
+    today_forecaster_beliefs = [
+        TimedBelief(
+            event_start=dt,
+            belief_horizon=timedelta(hours=0),
+            event_value=val,
+            source=setup_sources["forecaster"],
+            sensor=setup_markets["epex_da"],
+        )
+        for dt, val in zip(time_slots, values_today)
+    ]
+    db.session.add_all(today_forecaster_beliefs)
+
+    today_reporter_beliefs = [
+        TimedBelief(
+            event_start=dt,
+            belief_horizon=timedelta(hours=0),
+            event_value=val,
+            source=setup_sources["reporter"],
+            sensor=setup_markets["epex_da"],
+        )
+        for dt, val in zip(time_slots, values_today)
+    ]
+    db.session.add_all(today_reporter_beliefs)
+
     return {
         "epex_da": setup_markets["epex_da"],
         "epex_da_production": setup_markets["epex_da_production"],
@@ -798,20 +827,20 @@ def create_test_battery_assets(
         parent_asset_id=test_building.id,
         flex_context={
             "site-power-capacity": "2 MVA",
-            "soc-usage": "0 kW",
+            "consumption-price": {"sensor": setup_markets["epex_da"].id},
         },
-        attributes=dict(
-            max_soc_in_mwh=5,
-            min_soc_in_mwh=0,
-            soc_in_mwh=2.5,
-            soc_datetime="2015-01-01T00:00+01",
-            soc_udi_event_id=203,
-            market_id=setup_markets["epex_da"].id,
-            is_consumer=True,
-            is_producer=True,
-            can_curtail=True,
-            can_shift=True,
-        ),
+        attributes={
+            "max_soc_in_mwh": 5,
+            "min_soc_in_mwh": 0,
+            "soc_in_mwh": 2.5,
+            "soc_datetime": "2015-01-01T00:00+01",
+            "soc_udi_event_id": 203,
+            "soc-usage": "0 kW",
+            "is_consumer": True,
+            "is_producer": True,
+            "can_curtail": True,
+            "can_shift": True,
+        },
     )
     test_battery_sensor = Sensor(
         name="power",
@@ -847,6 +876,7 @@ def create_test_battery_assets(
         longitude=100,
         flex_context={
             "site-power-capacity": "2 MVA",
+            "consumption-price": {"sensor": setup_markets["epex_da"].id},
         },
         attributes=dict(
             max_soc_in_mwh=5,
@@ -854,7 +884,6 @@ def create_test_battery_assets(
             soc_in_mwh=2.5,
             soc_datetime="2040-01-01T00:00+01",
             soc_udi_event_id=203,
-            market_id=setup_markets["epex_da"].id,
             is_consumer=True,
             is_producer=True,
             can_curtail=True,
@@ -882,12 +911,12 @@ def create_test_battery_assets(
         longitude=100,
         flex_context={
             "site-power-capacity": "10 MVA",
+            "consumption-price": {"sensor": setup_markets["epex_da"].id},
         },
         attributes=dict(
             max_soc_in_mwh=20,
             min_soc_in_mwh=0,
             soc_in_mwh=2.0,
-            market_id=setup_markets["epex_da"].id,
         ),
     )
     test_battery_dynamic_capacity_power_sensor = Sensor(
@@ -911,6 +940,7 @@ def create_test_battery_assets(
         longitude=100,
         flex_context={
             "site-power-capacity": "10 kVA",
+            "consumption-price": {"sensor": setup_markets["epex_da"].id},
         },
         attributes=dict(
             max_soc_in_mwh=0.01,
@@ -918,7 +948,6 @@ def create_test_battery_assets(
             soc_in_mwh=0.005,
             soc_datetime="2040-01-01T00:00+01",
             soc_udi_event_id=203,
-            market_id=setup_markets["epex_da"].id,
             is_consumer=True,
             is_producer=True,
             can_curtail=True,
@@ -980,6 +1009,7 @@ def create_charging_station_assets(
         longitude=100,
         flex_context={
             "site-power-capacity": "2 MVA",
+            "consumption-price": {"sensor": setup_markets["epex_da"].id},
         },
         attributes=dict(
             max_soc_in_mwh=5,
@@ -987,7 +1017,6 @@ def create_charging_station_assets(
             soc_in_mwh=2.5,
             soc_datetime="2015-01-01T00:00+01",
             soc_udi_event_id=203,
-            market_id=setup_markets["epex_da"].id,
             is_consumer=True,
             is_producer=False,
             can_curtail=True,
@@ -1015,6 +1044,7 @@ def create_charging_station_assets(
         longitude=100,
         flex_context={
             "site-power-capacity": "2 MVA",
+            "consumption-price": {"sensor": setup_markets["epex_da"].id},
         },
         attributes=dict(
             max_soc_in_mwh=5,
@@ -1022,7 +1052,6 @@ def create_charging_station_assets(
             soc_in_mwh=2.5,
             soc_datetime="2015-01-01T00:00+01",
             soc_udi_event_id=203,
-            market_id=setup_markets["epex_da"].id,
             is_consumer=True,
             is_producer=True,
             can_curtail=True,
@@ -1455,8 +1484,3 @@ def add_beliefs(
         for dt, val in zip(time_slots, values)
     ]
     db.session.add_all(beliefs)
-
-
-@pytest.fixture
-def mock_get_status(mocker: MockerFixture):
-    return mocker.patch("flexmeasures.data.services.sensors.get_status", autospec=True)

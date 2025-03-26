@@ -27,6 +27,8 @@ def get_allowed_price_sensor_data(account_id: Optional[int]) -> Dict[int, str]:
     Return a list of sensors which the user can add
     as consumption_price_sensor_id or production_price_sensor_id.
     For each sensor we get data as sensor_id: asset_name:sensor_name.
+
+    # todo: this function seem obsolete
     """
     if not account_id:
         assets = db.session.scalars(
@@ -63,6 +65,8 @@ def get_allowed_inflexible_sensor_data(account_id: Optional[int]) -> Dict[int, s
     This list is built using sensors with energy or power units
     within the current account (or among public assets when account_id argument is not specified).
     For each sensor we get data as sensor_id: asset_name:sensor_name.
+
+    # todo: this function seem obsolete
     """
     query = None
     if not account_id:
@@ -211,7 +215,12 @@ def serialize_asset(asset: Asset, is_head=False) -> dict:
             "Asset Type": asset.generic_asset_type.name,
         },
         "sensors": [
-           {"name": sensor.name, "unit": sensor.unit, "link": url_for("SensorUI:get", id=sensor.id)} for sensor in asset.sensors
+            {
+                "name": sensor.name,
+                "unit": sensor.unit,
+                "link": url_for("SensorUI:get", id=sensor.id),
+            }
+            for sensor in asset.sensors
         ],
     }
 

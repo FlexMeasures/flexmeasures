@@ -4,11 +4,13 @@ from flask import url_for, current_app, request
 from flask_classful import FlaskView, route
 from flask_security import login_required, current_user
 from webargs.flaskparser import use_kwargs
+from werkzeug.exceptions import NotFound
 
 from flexmeasures.ui.utils.view_utils import svg_asset_icon_name
 
 from flexmeasures.data import db
 from flexmeasures.auth.error_handling import unauthorized_handler
+from flexmeasures.auth.policy import check_access
 from flexmeasures.data.schemas import StartEndTimeSchema
 from flexmeasures.data.services.job_cache import NoRedisConfigured
 from flexmeasures.data.models.generic_assets import (
@@ -141,6 +143,7 @@ class AssetCrudUI(FlaskView):
          - end_time: maximum time of the events to be shown
         """
         parent_asset_id = request.args.get("parent_asset_id", "")
+        parent_asset_name = ""
         account = None
         if id == "new":
             if not user_can_create_assets():
@@ -196,10 +199,11 @@ class AssetCrudUI(FlaskView):
     def status(self, id: str):
         """GET from /assets/<id>/status to show the staleness of the asset's sensors."""
 
-        get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_one", id=id))
-        asset_dict = get_asset_response.json()
+        asset = GenericAsset.query.get(id)
+        if asset is None:
+            raise NotFound
+        check_access(asset, "read")
 
-        asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
         status_data = build_sensor_status_data(asset)
 
         # add data about forecasting and scheduling jobs

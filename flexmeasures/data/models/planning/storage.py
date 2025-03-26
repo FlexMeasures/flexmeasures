@@ -14,8 +14,8 @@ from flexmeasures import Sensor
 from flexmeasures.data.models.planning import Commitment, Scheduler, SchedulerOutputType
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.planning.utils import (
-    get_prices,
     add_tiny_price_slope,
+    ensure_prices_are_not_empty,
     initialize_index,
     initialize_series,
     initialize_df,
@@ -130,79 +130,61 @@ class MetaStorageScheduler(Scheduler):
         ]
 
         # Get info from flex-context
-        consumption_price_sensor = (
-            self.flex_context.get("consumption_price_sensor")
-            or asset.get_consumption_price_sensor()
+        consumption_price_sensor = self.flex_context.get("consumption_price_sensor")
+        production_price_sensor = self.flex_context.get("production_price_sensor")
+        consumption_price = self.flex_context.get(
+            "consumption_price", consumption_price_sensor
         )
-        production_price_sensor = (
-            self.flex_context.get("production_price_sensor")
-            or asset.get_production_price_sensor()
+        production_price = self.flex_context.get(
+            "production_price", production_price_sensor
         )
-        consumption_price = self.flex_context.get("consumption_price")
-        production_price = self.flex_context.get("production_price")
-        inflexible_device_sensors = (
-            self.flex_context.get("inflexible_device_sensors")
-            or asset.get_inflexible_device_sensors()
+        # fallback to using the consumption price, for backwards compatibility
+        if production_price is None:
+            production_price = consumption_price
+        inflexible_device_sensors = self.flex_context.get(
+            "inflexible_device_sensors", []
         )
 
         # Fetch the device's power capacity (required Sensor attribute)
         power_capacity_in_mw = self._get_device_power_capacity(flex_model, sensors)
 
-        # Check for known prices or price forecasts, trimming planning window accordingly
-        if consumption_price is not None:
-            up_deviation_prices = get_continuous_series_sensor_or_quantity(
-                variable_quantity=consumption_price,
-                actuator=asset,
-                unit=(
-                    consumption_price.unit
-                    if isinstance(consumption_price, Sensor)
-                    else (
-                        consumption_price[0]["value"].units
-                        if isinstance(consumption_price, list)
-                        else str(consumption_price.units)
-                    )
-                ),
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                fill_sides=True,
-            ).to_frame(name="event_value")
-        else:
-            up_deviation_prices, (start, end) = get_prices(
-                (start, end),
-                resolution,
-                beliefs_before=belief_time,
-                price_sensor=consumption_price_sensor,
-                asset=asset,
-                allow_trimmed_query_window=False,
-            )
-        if production_price is not None:
-            down_deviation_prices = get_continuous_series_sensor_or_quantity(
-                variable_quantity=production_price,
-                actuator=asset,
-                unit=(
-                    production_price.unit
-                    if isinstance(production_price, Sensor)
-                    else (
-                        production_price[0]["value"].units
-                        if isinstance(production_price, list)
-                        else str(production_price.units)
-                    )
-                ),
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                fill_sides=True,
-            ).to_frame(name="event_value")
-        else:
-            down_deviation_prices, (start, end) = get_prices(
-                (start, end),
-                resolution,
-                beliefs_before=belief_time,
-                price_sensor=production_price_sensor,
-                asset=asset,
-                allow_trimmed_query_window=False,
-            )
+        # Check for known prices or price forecasts
+        up_deviation_prices = get_continuous_series_sensor_or_quantity(
+            variable_quantity=consumption_price,
+            actuator=asset,
+            unit=(
+                consumption_price.unit
+                if isinstance(consumption_price, Sensor)
+                else (
+                    consumption_price[0]["value"].units
+                    if isinstance(consumption_price, list)
+                    else str(consumption_price.units)
+                )
+            ),
+            query_window=(start, end),
+            resolution=resolution,
+            beliefs_before=belief_time,
+            fill_sides=True,
+        ).to_frame(name="event_value")
+        ensure_prices_are_not_empty(up_deviation_prices, consumption_price)
+        down_deviation_prices = get_continuous_series_sensor_or_quantity(
+            variable_quantity=production_price,
+            actuator=asset,
+            unit=(
+                production_price.unit
+                if isinstance(production_price, Sensor)
+                else (
+                    production_price[0]["value"].units
+                    if isinstance(production_price, list)
+                    else str(production_price.units)
+                )
+            ),
+            query_window=(start, end),
+            resolution=resolution,
+            beliefs_before=belief_time,
+            fill_sides=True,
+        ).to_frame(name="event_value")
+        ensure_prices_are_not_empty(down_deviation_prices, production_price)
 
         start = pd.Timestamp(start).tz_convert("UTC")
         end = pd.Timestamp(end).tz_convert("UTC")
@@ -226,7 +208,6 @@ class MetaStorageScheduler(Scheduler):
             query_window=(start, end),
             resolution=resolution,
             beliefs_before=belief_time,
-            fallback_attribute="site-power-capacity",
             resolve_overlaps="min",
         )
         ems_consumption_capacity = get_continuous_series_sensor_or_quantity(
@@ -236,7 +217,6 @@ class MetaStorageScheduler(Scheduler):
             query_window=(start, end),
             resolution=resolution,
             beliefs_before=belief_time,
-            fallback_attribute="site-consumption-capacity",
             max_value=ems_power_capacity_in_mw,
             resolve_overlaps="min",
         )
@@ -247,7 +227,6 @@ class MetaStorageScheduler(Scheduler):
             query_window=(start, end),
             resolution=resolution,
             beliefs_before=belief_time,
-            fallback_attribute="site-production-capacity",
             max_value=ems_power_capacity_in_mw,
             resolve_overlaps="min",
         )
@@ -290,7 +269,6 @@ class MetaStorageScheduler(Scheduler):
                 resolution=resolution,
                 beliefs_before=belief_time,
                 max_value=np.inf,  # np.nan -> np.inf to ignore commitment if no quantity is given
-                fallback_attribute="site-peak-consumption",
                 fill_sides=True,
             )
             ems_peak_consumption_price = self.flex_context.get(
@@ -311,7 +289,6 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
-                fallback_attribute="site-peak-consumption-price",
                 fill_sides=True,
             )
 
@@ -334,7 +311,6 @@ class MetaStorageScheduler(Scheduler):
                 resolution=resolution,
                 beliefs_before=belief_time,
                 max_value=np.inf,  # np.nan -> np.inf to ignore commitment if no quantity is given
-                fallback_attribute="site-peak-production",
                 fill_sides=True,
             )
             ems_peak_production_price = self.flex_context.get(
@@ -355,7 +331,6 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
-                fallback_attribute="site-peak-production-price",
                 fill_sides=True,
             )
 
@@ -400,7 +375,6 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
-                fallback_attribute="site-consumption-breach-price",
                 fill_sides=True,
             )
 
@@ -449,7 +423,6 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
-                fallback_attribute="site-production-breach-price",
                 fill_sides=True,
             )
 
@@ -739,7 +712,15 @@ class MetaStorageScheduler(Scheduler):
         if self.flex_model is None:
             self.flex_model = {}
 
-        self.flex_context = FlexContextSchema().load(self.flex_context)
+        # self.flex_context overrides db_flex_context (from the asset and its ancestors)
+        if self.asset is not None:
+            asset = self.asset
+        else:
+            asset = self.sensor.generic_asset
+        db_flex_context = asset.get_flex_context()
+        self.flex_context = FlexContextSchema().load(
+            {**db_flex_context, **self.flex_context}
+        )
 
         if isinstance(self.flex_model, dict):
             # Check state of charge.
