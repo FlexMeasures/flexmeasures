@@ -47,13 +47,17 @@
                         {{ asset_form.account_id.label(class="col-md-6 control-label") }}
                         <div class="col-md-6">
                             {{ asset_form.account_id(class_="form-control") }}
+                            {% if account_id %}
                             <script>
                                 document.addEventListener("DOMContentLoaded", function() {
-                                    document.querySelector("select[name='account_id']").value = "{{ account }}";
+                                    var accountSelect = document.querySelector("select[name='account_id']");
+                                    accountSelect.value = {{ account_id }};  // Set the account_id value without quotes
+                                    accountSelect.disabled = true;  // Disable the select field
                                 });
                             </script>
+                            {% endif %}
                             {% for error in asset_form.errors.account_id %}
-                            <span style="color: red;">[{{error}}]</span>
+                            <span style="color: red;">[{{ error }}]</span>
                             {% endfor %}
                         </div>
                     </div>
