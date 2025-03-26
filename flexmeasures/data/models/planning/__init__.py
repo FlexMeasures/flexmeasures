@@ -218,7 +218,7 @@ class Commitment:
         Device to which the commitment pertains. If None, the commitment pertains to the EMS.
     index:
         Pandas DatetimeIndex defining the time slots to which the commitment applies.
-        The index is shared by the group, quantity. upwards_deviation_price and downwards_deviation_price Pandas Series.
+        The index is shared by the group, quantity, upwards_deviation_price and downwards_deviation_price Pandas Series.
     _type:
         'any' or 'each'. Any deviation is penalized via 1 group, whereas each deviation is penalized via n groups.
     group:
