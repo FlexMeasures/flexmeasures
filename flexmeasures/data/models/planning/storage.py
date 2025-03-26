@@ -1154,6 +1154,7 @@ class StorageScheduler(MetaStorageScheduler):
                     "name": "storage_schedule",
                     "sensor": sensor,
                     "data": storage_schedule[sensor],
+                    "unit": sensor.unit,
                 }
                 for sensor in sensors
             ] + [
