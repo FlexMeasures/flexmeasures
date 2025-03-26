@@ -513,17 +513,18 @@ class MetaStorageScheduler(Scheduler):
                     variable_quantity=soc_minima[d],
                     actuator=sensor_d,
                     unit="MWh",
-                    query_window=(start, end),
+                    query_window=(start + resolution, end + resolution),
                     resolution=resolution,
                     beliefs_before=belief_time,
                     as_instantaneous_events=True,
                     resolve_overlaps="max",
-                ).shift(-1) * (timedelta(hours=1) / resolution) - soc_at_start[d] * (
-                    timedelta(hours=1) / resolution
                 )
                 # shift soc minima by one resolution (they define a state at a certain time,
                 # while the commitment defines what the total stock should be at the end of a time slot,
                 # where the time slot is indexed by its starting time)
+                soc_minima_d = soc_minima_d.shift(-1, freq=resolution) * (
+                    timedelta(hours=1) / resolution
+                ) - soc_at_start[d] * (timedelta(hours=1) / resolution)
 
                 commitment = StockCommitment(
                     name="soc minima",
@@ -573,17 +574,19 @@ class MetaStorageScheduler(Scheduler):
                     variable_quantity=soc_maxima[d],
                     actuator=sensor_d,
                     unit="MWh",
-                    query_window=(start, end),
+                    query_window=(start + resolution, end + resolution),
                     resolution=resolution,
                     beliefs_before=belief_time,
                     as_instantaneous_events=True,
                     resolve_overlaps="min",
-                ).shift(-1) * (timedelta(hours=1) / resolution) - soc_at_start[d] * (
-                    timedelta(hours=1) / resolution
                 )
                 # shift soc maxima by one resolution (they define a state at a certain time,
                 # while the commitment defines what the total stock should be at the end of a time slot,
                 # where the time slot is indexed by its starting time)
+                soc_maxima_d = soc_maxima_d.shift(-1, freq=resolution) * (
+                    timedelta(hours=1) / resolution
+                ) - soc_at_start[d] * (timedelta(hours=1) / resolution)
+
                 commitment = StockCommitment(
                     name="soc maxima",
                     quantity=soc_maxima_d,
