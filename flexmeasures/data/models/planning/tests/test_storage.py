@@ -86,6 +86,8 @@ def test_battery_solver_multi_commitment(add_battery_assets, db):
 
     schedule = results[0]["data"]
     costs = results[1]["data"]
+    costs_unit = results[1]["unit"]
+    assert costs_unit == "EUR"
 
     # Check if constraints were met
     check_constraints(battery, schedule, soc_at_start)
