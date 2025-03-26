@@ -1286,7 +1286,7 @@
                                 </label>
 
                                 <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" value="" id="flexCheckBox"/>
+                                    <input class="form-check-input" type="checkbox" value="" id="flexCheckBox" onchange="searchSensors()"/>
                                     <label class="form-check-label" for="flexCheckBox">
                                         Include Public Assets
                                     </label>
@@ -1303,7 +1303,7 @@
                                         />
                                     </div>
                                     <div class="col-4 ps-0">
-                                        <select id="flexUnitsSelect" class="form-select" onchange="filterSensors()">
+                                        <select id="flexUnitsSelect" class="form-select" onchange="searchSensors()">
                                             <option value="${null}" selected>Units</option>
                                             ${availableUnits.map( unit => '<option value="' + unit + '">' + unit + '</option>').join('')}
                                         </select>
@@ -1360,7 +1360,7 @@
                                         />
                                     </div>
                                     <div class="col-4 ps-0">
-                                        <select id="flexUnitsSelect" class="form-select" onchange="filterSensors()">
+                                        <select id="flexUnitsSelect" class="form-select" onchange="searchSensors()">
                                             <option value="${null}" selected>Units</option>
                                             ${availableUnits.map( unit => '<option value="' + unit + '">' + unit + '</option>').join('')}
                                         </select>
