@@ -471,7 +471,7 @@ class MetaStorageScheduler(Scheduler):
                     variable_quantity=soc_targets[d],
                     actuator=sensor_d,
                     unit="MWh",
-                    query_window=(start, end),
+                    query_window=(start + resolution, end + resolution),
                     resolution=resolution,
                     beliefs_before=belief_time,
                     as_instantaneous_events=True,
@@ -483,7 +483,7 @@ class MetaStorageScheduler(Scheduler):
                     variable_quantity=soc_minima[d],
                     actuator=sensor_d,
                     unit="MWh",
-                    query_window=(start, end),
+                    query_window=(start + resolution, end + resolution),
                     resolution=resolution,
                     beliefs_before=belief_time,
                     as_instantaneous_events=True,
@@ -501,12 +501,12 @@ class MetaStorageScheduler(Scheduler):
                     .declared_fields["soc_minima_breach_price"]
                     ._get_unit(soc_minima_breach_price)
                     + "*h",
-                    query_window=(start, end),
+                    query_window=(start + resolution, end + resolution),
                     resolution=resolution,
                     beliefs_before=belief_time,
                     fallback_attribute="soc-minima-breach-price",
                     fill_sides=True,
-                )
+                ).shift(-1, freq=resolution)
                 # Set up commitments DataFrame
                 # soc_minima_d is a temp variable because add_storage_constraints can't deal with Series yet
                 soc_minima_d = get_continuous_series_sensor_or_quantity(
@@ -544,7 +544,7 @@ class MetaStorageScheduler(Scheduler):
                     variable_quantity=soc_maxima[d],
                     actuator=sensor_d,
                     unit="MWh",
-                    query_window=(start, end),
+                    query_window=(start + resolution, end + resolution),
                     resolution=resolution,
                     beliefs_before=belief_time,
                     as_instantaneous_events=True,
@@ -562,12 +562,12 @@ class MetaStorageScheduler(Scheduler):
                     .declared_fields["soc_maxima_breach_price"]
                     ._get_unit(soc_maxima_breach_price)
                     + "*h",
-                    query_window=(start, end),
+                    query_window=(start + resolution, end + resolution),
                     resolution=resolution,
                     beliefs_before=belief_time,
                     fallback_attribute="soc-maxima-breach-price",
                     fill_sides=True,
-                )
+                ).shift(-1, freq=resolution)
                 # Set up commitments DataFrame
                 # soc_maxima_d is a temp variable because add_storage_constraints can't deal with Series yet
                 soc_maxima_d = get_continuous_series_sensor_or_quantity(

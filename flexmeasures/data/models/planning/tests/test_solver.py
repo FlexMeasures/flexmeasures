@@ -2035,7 +2035,7 @@ def test_soc_maxima_minima_targets(db, add_battery_assets, soc_sensors):
     power = add_battery_assets["Test battery with dynamic power capacity"].sensors[0]
     epex_da = get_test_sensor(db)
 
-    soc_maxima, soc_minima, soc_targets, values = soc_sensors
+    soc_maxima, soc_minima, soc_targets, expected_soc_schedule = soc_sensors
 
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 1))
@@ -2078,7 +2078,7 @@ def test_soc_maxima_minima_targets(db, add_battery_assets, soc_sensors):
     soc = check_constraints(power, schedule, soc_at_start)
 
     # soc targets are achieved
-    assert all(abs(soc[9:].values - values[:-1]) < 1e-5)
+    assert all(abs(soc[8:].values - expected_soc_schedule) < 1e-5)
 
     # remove soc-targets and use soc-maxima and soc-minima
     del flex_model["soc-targets"]
@@ -2091,7 +2091,7 @@ def test_soc_maxima_minima_targets(db, add_battery_assets, soc_sensors):
     # soc-maxima and soc-minima constraints are respected
     # this yields the same results as with the SOC targets
     # because soc-maxima = soc-minima = soc-targets
-    assert all(abs(soc[9:].values - values[:-1]) < 1e-5)
+    assert all(abs(soc[8:].values - expected_soc_schedule) < 1e-5)
 
 
 @pytest.mark.parametrize("unit", [None, "MWh", "kWh"])
