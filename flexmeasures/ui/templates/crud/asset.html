@@ -519,20 +519,8 @@
         "inflexible-device-sensors": []
     }
     let assetFlexContextRawJSON = "{{ asset.flex_context | safe }}";
-    assetFlexContextRawJSON = assetFlexContextRawJSON.replace(/'/g, '"');
-    // change None to null
-    assetFlexContextRawJSON = assetFlexContextRawJSON.replace(/None/g, 'null');
-    // update the assetFlexContext fields
-    assetFlexContextRawJSON = JSON.parse(assetFlexContextRawJSON);
-
-    for (const [key, value] of Object.entries(assetFlexContextRawJSON)) {
-        if (key in assetFlexContext) {
-            assetFlexContext[key] = assetFlexContextRawJSON[key];
-        } else {
-            assetFlexContext[key] = null;
-        }
-    }
-
+    assetFlexContextRawJSON = processAssetRawFlexContextJSON(assetFlexContextRawJSON);
+    
     const formModal = document.getElementById('sensorsToShowModal');
     const apiSensorsListElement = document.getElementById("apiSensorsList");
     const spinnerElement = document.getElementById('spinnerElement');
@@ -545,6 +533,24 @@
     let selectedGraphTitle; // keeps track of the graph title that is currently selected
     const apiBasePath = window.location.origin;
     const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ asset.id }}&include_public_assets=true`;
+
+    function processAssetRawFlexContextJSON(rawJSON){
+        let processedJSON = rawJSON.replace(/'/g, '"');
+        // change None to null
+        processedJSON = processedJSON.replace(/None/g, 'null');
+        // update the assetFlexContext fields
+        processedJSON = JSON.parse(processedJSON);
+
+        for (const [key, value] of Object.entries(processedJSON)) {
+            if (key in assetFlexContext) {
+                assetFlexContext[key] = processedJSON[key];
+            } else {
+                assetFlexContext[key] = null;
+            }
+        }
+
+        return processedJSON;
+    }
 
     // Fetch Account Details
     async function getAccount(accountId) {
@@ -957,6 +963,13 @@
             const errorData = await response.json();
             const errorMessage = errorData?.message || errorData?.error || response.statusText;
             showToast(`Failed to update the asset: ${errorMessage}`, "error");
+            // check failed fields and replace them with previous values
+            if (dataType === "flexContext") {
+                const previousFlexContext = "{{ asset.flex_context | safe }}";
+                assetFlexContext = processAssetRawFlexContextJSON(previousFlexContext);
+                // re-render form
+                renderFlexContextForm();
+            }
         } else {
             document.dispatchEvent(new Event('sensorsToShowUpdated'));
             showToast("Changes saved successfully", "success");
