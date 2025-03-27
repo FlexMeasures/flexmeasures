@@ -34,6 +34,10 @@ from flexmeasures.utils.coding_utils import deprecated
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
 from flexmeasures.utils.unit_utils import ur, convert_units
 
+from flexmeasures.utils.calculations import (
+    integrate_time_series,
+)
+
 
 class MetaStorageScheduler(Scheduler):
     """This class defines the constraints of a schedule for a storage device from the
@@ -1030,6 +1034,28 @@ class StorageScheduler(MetaStorageScheduler):
             for sensor in sensors
         }
 
+        flex_model = self.flex_model
+
+        if not isinstance(self.flex_model, list):
+            flex_model["sensor"] = sensors[0]
+            flex_model = [flex_model]
+
+        soc_schedule = {
+            flex_model_d["state_of_charge"]: integrate_time_series(
+                series=ems_schedule[d],
+                initial_stock=soc_at_start[d],
+                up_efficiency=device_constraints[d]["derivative up efficiency"].fillna(
+                    1
+                ),
+                down_efficiency=device_constraints[d][
+                    "derivative down efficiency"
+                ].fillna(1),
+                storage_efficiency=device_constraints[d]["efficiency"].fillna(1),
+            )
+            for d, flex_model_d in enumerate(flex_model)
+            if isinstance(flex_model_d.get("state_of_charge", None), Sensor)
+        }
+
         # Resample each device schedule to the resolution of the device's power sensor
         if self.resolution is None:
             storage_schedule = {
@@ -1045,26 +1071,32 @@ class StorageScheduler(MetaStorageScheduler):
                 sensor: storage_schedule[sensor].round(self.round_to_decimals)
                 for sensor in sensors
             }
-
         if self.return_multiple:
-            return [
-                {
-                    "name": "storage_schedule",
-                    "sensor": sensor,
-                    "data": storage_schedule[sensor],
-                }
-                for sensor in sensors
-            ] + [
-                {
-                    "name": "commitment_costs",
-                    "data": {
-                        c.name: costs
-                        for c, costs in zip(
-                            commitments, model.commitment_costs.values()
-                        )
+            return (
+                [
+                    {
+                        "name": "storage_schedule",
+                        "sensor": sensor,
+                        "data": storage_schedule[sensor],
+                    }
+                    for sensor in sensors
+                ]
+                + [
+                    {
+                        "name": "commitment_costs",
+                        "data": {
+                            c.name: costs
+                            for c, costs in zip(
+                                commitments, model.commitment_costs.values()
+                            )
+                        },
                     },
-                },
-            ]
+                ]
+                + [
+                    {"name": "state_of_charge", "data": soc, "sensor": sensor}
+                    for sensor, soc in soc_schedule.items()
+                ]
+            )
         else:
             return storage_schedule[sensors[0]]
 

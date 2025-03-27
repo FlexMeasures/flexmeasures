@@ -123,6 +123,13 @@ class StorageFlexModelSchema(Schema):
         required=False,
     )
 
+    state_of_charge = VariableQuantityField(
+        to_unit="MWh",
+        default_src_unit="dimensionless",
+        data_key="state-of-charge",
+        required=False,
+    )
+
     charging_efficiency = VariableQuantityField(
         "%", data_key="charging-efficiency", required=False
     )
@@ -214,6 +221,13 @@ class StorageFlexModelSchema(Schema):
         if max_target_datetime > max_server_datetime:
             current_app.logger.warning(
                 f"Target datetime exceeds {max_server_datetime}. Maximum scheduling horizon is {max_server_horizon}."
+            )
+
+    @validates("state_of_charge")
+    def validate_state_of_charge_is_sensor(self, state_of_charge: Sensor | ur.Quantity):
+        if isinstance(state_of_charge, ur.Quantity):
+            raise ValidationError(
+                "The `state-of-charge`  field can only be a Sensor. In the future, state-of-charge will absorve soc-at-start field."
             )
 
     @validates("storage_efficiency")

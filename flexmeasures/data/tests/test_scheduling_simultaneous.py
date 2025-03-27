@@ -10,7 +10,7 @@ from flexmeasures.data.models.time_series import Sensor
 def test_create_simultaneous_jobs(
     db, app, flex_description_sequential, smart_building, use_heterogeneous_resolutions
 ):
-    assets, sensors = smart_building
+    assets, sensors, _ = smart_building
     queue = app.queues["scheduling"]
     start = pd.Timestamp("2015-01-03").tz_localize("Europe/Amsterdam")
     end = pd.Timestamp("2015-01-04").tz_localize("Europe/Amsterdam")
