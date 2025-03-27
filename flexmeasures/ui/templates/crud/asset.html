@@ -766,8 +766,8 @@
             spinnerElement.classList.add('hidden-important');
             apiSensorsListElement.style.display = 'block';
         } catch (error) {
-            showToast("Failed to filter/search sesnors", "error");
-            console.error(error);
+            const errorMessage = error?.message || error?.error || response.statusText;
+            showToast(`Failed to filter/search sesnors: ${errorMessage}`, "error");
         }
     }
 
@@ -800,8 +800,8 @@
             spinnerElement.classList.add('hidden-important');
             senSearchResEle.style.display = 'block';
         } catch (error) {
-            showToast("Failed to filter/search sesnors", "error");
-            console.error(error);
+            const errorMessage = error?.message || error?.error || response.statusText;
+            showToast(`Failed to filter/search sesnors: ${errorMessage}`, "error");
         }
     }
 
@@ -926,16 +926,15 @@
         });
     }
 
-    async function updateAssetSensorsToShow(dataType) {
-
+    async function updateAsset(assetField) {
         const apiURL = apiBasePath + "/api/v3_0/assets/{{ asset.id }}";
         let requestBody;
 
-        if (dataType === "sensorToShow") {
+        if (assetField === "sensorToShow") {
             requestBody = JSON.stringify({ sensors_to_show: JSON.stringify(sensorsToShow) });
             // Only show the spinner if relevant to this specific data type
             document.getElementById('spinner').style.display = 'block';
-        } else if (dataType === "flexContext") {
+        } else if (assetField === "flexContext") {
             // remove null fields
             for (const [key, value] of Object.entries(assetFlexContext)) {
                 if (value === null) {
@@ -958,7 +957,6 @@
             const errorMessage = errorData?.message || errorData?.error || response.statusText;
             showToast(`Failed to update the asset: ${errorMessage}`, "error");
         } else {
-            document.dispatchEvent(new Event('sensorsToShowUpdated'));
             showToast("Changes saved successfully", "success");
         }
     }
@@ -1191,7 +1189,7 @@
         await selectFlexField(document.getElementById(`${flexId}-control`));
 
         // Update FlexContext
-        await updateAssetSensorsToShow("flexContext")
+        await updateAsset("flexContext")
     }
 
     async function addFlexContextField() {
@@ -1346,7 +1344,7 @@
 
     // ============== Page Events ============== //
     formModal.addEventListener('hidden.bs.modal', function () {
-        updateAssetSensorsToShow("sensorToShow");
+        updateAsset("sensorToShow");
     });
 
     formModal.addEventListener('shown.bs.modal', function () {
@@ -1361,7 +1359,7 @@
     });
 
     flexContexFormModal.addEventListener('hidden.bs.modal', function () {
-        updateAssetSensorsToShow("flexContext");
+        updateAsset("flexContext");
     });
 
     document.addEventListener("click", function (event) {
