@@ -18,7 +18,7 @@ treeSpecs = {
   "width": 1000,
   "height": 650,
   "padding": 0,
-  "autosize": {"type": "fit", "resize": true},
+  "autosize": {"type": "fit", "resize": false},
   "signals": [
     {"name": "nodeWidth", "value": 190},
     {"name": "nodeHeight", "value": 40},
@@ -32,8 +32,8 @@ treeSpecs = {
     {"name": "scaledNodeWidth", "update": "(nodeWidth/ span(xdom))*width"},
     {"name": "xrange", "update": "[0, width]"},
     {"name": "yrange", "update": "[0, height]"},
-    {"name": "scaledFont13", "update": "(20/ span(xdom))*width"},
-    {"name": "scaledLimit", "update": "(20/ span(xdom))*width"},
+    {"name": "scaledFont13", "update": "(30/ span(xdom))*width"},
+    {"name": "scaledLimit", "update": "(30/ span(xdom))*width"},
     {
       "name": "xdom",
       "update": "slice(xext)",
