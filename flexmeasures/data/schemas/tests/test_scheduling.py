@@ -257,6 +257,25 @@ def test_efficiency_pair(
             },
             {"site-peak-production-price": "Must be greater than or equal to 0."},
         ),
+        (
+            {
+                "site-consumption-breach-price": [
+                    {
+                        "value": "1 KRW/MWh",
+                        "start": "2025-03-16T00:00+01",
+                        "duration": "P1D",
+                    },
+                    {
+                        "value": "1 KRW/MW",
+                        "start": "2025-03-16T00:00+01",
+                        "duration": "P1D",
+                    },
+                ],
+            },
+            {
+                "site-consumption-breach-price": "Segments of a time series must share the same unit."
+            },
+        ),
     ],
 )
 def test_flex_context_schema(db, app, setup_site_capacity_sensor, flex_context, fails):
