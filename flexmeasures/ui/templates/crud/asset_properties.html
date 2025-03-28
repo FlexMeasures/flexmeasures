@@ -19,14 +19,6 @@
 
         <div class="col-md-2 on-top-md">
             <div class="header-action-button">
-                {% if user_can_create_assets %}
-                <div>
-                    <form action="/assets/new" method="get">
-                        <button class="btn btn-sm btn-responsive btn-success create-button mb-3" type="submit">Create
-                            new asset</button>
-                    </form>
-                </div>
-                {% endif %}
                 {% if user_can_delete_asset %}
                 <div>
                     <form action="/assets/delete_with_data/{{ asset.id }}" method="get">
