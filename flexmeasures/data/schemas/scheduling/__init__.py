@@ -212,7 +212,11 @@ class FlexContextSchema(Schema):
             if field[-5:] == "price" and field in data:
                 price_field = self.declared_fields[field]
                 price_unit = price_field._get_unit(data[field])
-                currency_unit = price_unit.split("/")[0]
+                currency_unit = str(
+                    (
+                        ur.Quantity(price_unit) / ur.Quantity(f"1{price_field.to_unit}")
+                    ).units
+                )
 
                 if shared_currency_unit is None:
                     shared_currency_unit = str(
