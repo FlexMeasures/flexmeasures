@@ -141,6 +141,22 @@ class AssetCrudUI(FlaskView):
         )
 
     @login_required
+    @route("/<id>/sensor/new")
+    def create_sensor(self, id: str):
+        """POST to /assets/<id>/sensor/new"""
+
+        asset = GenericAsset.query.get(id)
+        if asset is None:
+            raise NotFound
+        check_access(asset, "read")
+
+        return render_flexmeasures_template(
+            "crud/sensor_new.html",
+            asset=asset,
+            available_units=available_units(),
+        )
+
+    @login_required
     @route("/<id>/status")
     def status(self, id: str):
         """GET from /assets/<id>/status to show the staleness of the asset's sensors."""

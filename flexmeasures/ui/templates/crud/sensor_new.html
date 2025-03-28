@@ -1,0 +1,151 @@
+{% extends "base.html" %} {% set active_page = "assets" %} {% block title %} New
+sensor {% endblock %} {% block divs %}
+
+<div class="container-fluid">
+  <div class="row">
+    <div class="col-md-12">
+      <button class="btn btn-sm btn-responsive btn-info" type="submit">
+        <a href="/assets/{{asset.id}}">Go to parent asset</a>
+      </button>
+    </div>
+  </div>
+  <form id="sensorForm" class="form p-4" method="POST">
+    <div class="mb-3">
+      <label for="name" class="form-label">Name</label>
+      <input
+        type="text"
+        class="form-control"
+        id="name"
+        name="name"
+        placeholder="power"
+        required
+      />
+    </div>
+    <div class="mb-3">
+      <label for="eventResolution" class="form-label">Event Resolution</label>
+      <input
+        type="text"
+        class="form-control"
+        id="eventResolution"
+        name="event_resolution"
+        placeholder="PT1H"
+        required
+      />
+    </div>
+    <div class="mb-3">
+      <label for="unit" class="form-label">Unit</label>
+      <div class="row">
+        <div class="col-8 pe-0">
+          <input
+            type="text"
+            class="form-control"
+            id="unit"
+            name="unit"
+            placeholder="kW"
+            required
+          />
+        </div>
+        <div class="col-4 ps-1">
+          <select
+            id="unit"
+            class="form-select"
+            onchange="document.getElementById('unit').value = this.value"
+          >
+            <option selected>Units</option>
+            {% for unit in available_units %}
+            <option>{{ unit }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary" onclick="createSensor(event)">
+      Create
+    </button>
+  </form>
+</div>
+
+<script type="text/javascript">
+  const apiBasePath = window.location.origin;
+  const sensorForm = document.getElementById("sensorForm");
+
+  function validateEventResolution(eventResolution) {
+    // Regular expression to match duration format (PT[H|M|S])
+    const regex = /^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/;
+
+    if (!regex.test(eventResolution)) {
+      return false;
+    }
+
+    const matches = regex.exec(eventResolution);
+
+    // At least one of H, M, or S must be present.
+    if (!matches[1] && !matches[2] && !matches[3]) {
+      return false;
+    }
+
+    let hours = parseInt(matches[1]) || 0;
+    let minutes = parseInt(matches[2]) || 0;
+    let seconds = parseInt(matches[3]) || 0;
+
+    if (hours > 24) {
+      return false;
+    }
+
+    return true;
+  }
+
+  function createSensor(event) {
+    event.preventDefault();
+
+    const name = document.getElementById("name").value;
+    const eventResolution = document.getElementById("eventResolution").value;
+    const unit = document.getElementById("unit").value;
+
+    if (!name || !eventResolution || !unit) {
+      showToast("Please fill all fields.", "error");
+      return;
+    }
+
+    if (!validateEventResolution(eventResolution)) {
+      showToast(
+        "Invalid event resolution format. Please use ISO 8601 duration format (PT[H|M|S]).",
+        "error"
+      );
+      return;
+    }
+
+    const data = {
+      name: name,
+      event_resolution: eventResolution,
+      unit: unit,
+      generic_asset_id: "{{ asset.id }}",
+    };
+    console.log("data: ", JSON.stringify(data));
+
+    fetch(apiBasePath + "/api/v3_0/sensors", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    })
+      .then((response) => {
+        if (response.ok) {
+          showToast("Sensor created successfully.", "success");
+          // window.location.href = "/assets/{{asset.id}}";
+        } else {
+          response.json().then((data) => {
+            const errorData = response.json();
+            const errorMessage = errorData?.message || errorData?.error || response.statusText;
+            showToast("Error: " + errorMessage, "error");
+          });
+        }
+      })
+      .catch((error) => {
+        showToast("Error: " + error, "error");
+      });
+  }
+</script>
+
+{% endblock %}
