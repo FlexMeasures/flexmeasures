@@ -1,15 +1,14 @@
 from __future__ import annotations
 
-from flask import url_for, current_app, request
+from flask import url_for, current_app
 from flask_classful import FlaskView, route
 from flask_security import login_required, current_user
-from webargs.flaskparser import use_kwargs
 from werkzeug.exceptions import NotFound
 
+from flexmeasures.ui.utils.view_utils import svg_asset_icon_name
+
 from flexmeasures.data import db
-from flexmeasures.auth.error_handling import unauthorized_handler
 from flexmeasures.auth.policy import check_access
-from flexmeasures.data.schemas import StartEndTimeSchema
 from flexmeasures.data.services.job_cache import NoRedisConfigured
 from flexmeasures.data.models.generic_assets import (
     GenericAsset,
@@ -25,13 +24,12 @@ from flexmeasures.ui.crud.assets.utils import (
     user_can_create_assets,
     user_can_delete,
     user_can_update,
+    get_list_assets_chart,
 )
 from flexmeasures.data.services.sensors import (
     build_sensor_status_data,
     build_asset_jobs_data,
 )
-from flexmeasures.ui.utils.view_utils import available_units
-
 
 """
 Asset crud view.
@@ -94,50 +92,44 @@ class AssetCrudUI(FlaskView):
             user_can_create_assets=user_can_create_assets(),
         )
 
-    @use_kwargs(StartEndTimeSchema, location="query")
     @login_required
-    def get(self, id: str, **kwargs):
-        """GET from /assets/<id> where id can be 'new' (and thus the form for asset creation is shown)
-        The following query parameters are supported (should be used only together):
-         - start_time: minimum time of the events to be shown
-         - end_time: maximum time of the events to be shown
-        """
-        if id == "new":
-            if not user_can_create_assets():
-                return unauthorized_handler(None, [])
+    # @route("/<id>/context")
+    def get(self, id: str):
+        """/assets/<id>"""
+        asset = db.session.query(GenericAsset).filter_by(id=id).first()
+        if asset is None:
+            assets = []
+        else:
+            assets = get_list_assets_chart(asset, base_asset=asset)
 
-            asset_form = NewAssetForm()
-            asset_form.with_options()
-            return render_flexmeasures_template(
-                "crud/asset_new.html",
-                asset_form=asset_form,
-                msg="",
-                map_center=get_center_location_of_assets(user=current_user),
-                mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
-            )
+        current_asset_sensors = [
+            {
+                "name": sensor.name,
+                "unit": sensor.unit,
+                "link": url_for("SensorUI:get", id=sensor.id),
+            }
+            for sensor in asset.sensors
+        ]
+        # Add Extra node to the current asset
+        add_child_asset = {
+            "name": "Add Child Asset",
+            "id": "new",
+            "asset_type": asset.generic_asset_type.name,
+            "link": url_for("AssetCrudUI:post", id="new", parent_asset_id=asset.id),
+            "icon": svg_asset_icon_name("add_asset"),
+            "tooltip": "",
+            "sensors": [],
+            "parent": asset.id,
+        }
 
-        get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_one", id=id))
-        asset_dict = get_asset_response.json()
-
-        asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
-
-        asset_form = AssetForm()
-        asset_form.with_options()
-
-        asset_form.process(data=process_internal_api_response(asset_dict))
+        assets.append(add_child_asset)
 
         return render_flexmeasures_template(
-            "crud/asset.html",
+            "crud/asset_context.html",
+            assets=assets,
             asset=asset,
-            asset_form=asset_form,
-            msg="",
-            mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
-            user_can_create_assets=user_can_create_assets(),
-            user_can_delete_asset=user_can_delete(asset),
-            user_can_update_asset=user_can_update(asset),
-            event_starts_after=request.args.get("start_time"),
-            event_ends_before=request.args.get("end_time"),
-            available_units=available_units(),
+            current_asset_sensors=current_asset_sensors,
+            current_page="Context",
         )
 
     @login_required
@@ -168,6 +160,7 @@ class AssetCrudUI(FlaskView):
             sensors=status_data,
             jobs_data=all_jobs_data,
             redis_connection_err=redis_connection_err,
+            current_page="Status",
         )
 
     @login_required
@@ -297,8 +290,9 @@ class AssetCrudUI(FlaskView):
         )
 
     @login_required
+    @route("/<id>/auditlog")
     def auditlog(self, id: str):
-        """/assets/auditlog/<id>"""
+        """/assets/<id>/auditlog"""
         get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_one", id=id))
         asset_dict = get_asset_response.json()
         asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
@@ -306,4 +300,52 @@ class AssetCrudUI(FlaskView):
         return render_flexmeasures_template(
             "crud/asset_audit_log.html",
             asset=asset,
+            current_page="Audit Log",
+        )
+
+    @login_required
+    @route("/<id>/graph")
+    def graph(self, id: str):
+        """/assets/<id>/graph"""
+
+        get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_one", id=id))
+        asset_dict = get_asset_response.json()
+
+        asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
+
+        asset_form = AssetForm()
+        asset_form.with_options()
+
+        asset_form.process(data=process_internal_api_response(asset_dict))
+
+        return render_flexmeasures_template(
+            "crud/asset_graph.html",
+            asset=asset,
+            current_page="Graph",
+        )
+
+    @login_required
+    @route("/<id>/properties")
+    def properties(self, id: str):
+        """/assets/<id>/properties"""
+        get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_one", id=id))
+        asset_dict = get_asset_response.json()
+
+        asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
+
+        asset_form = AssetForm()
+        asset_form.with_options()
+
+        asset_form.process(data=process_internal_api_response(asset_dict))
+
+        return render_flexmeasures_template(
+            "crud/asset_properties.html",
+            asset=asset,
+            asset_form=asset_form,
+            msg="",
+            mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
+            user_can_create_assets=user_can_create_assets(),
+            user_can_delete_asset=user_can_delete(asset),
+            user_can_update_asset=user_can_update(asset),
+            current_page="Properties",
         )
