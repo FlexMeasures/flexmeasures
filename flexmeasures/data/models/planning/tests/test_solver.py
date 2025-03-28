@@ -2003,6 +2003,12 @@ def test_add_storage_constraint_from_sensor(
     }
 
     flex_model["soc-targets"] = {"sensor": soc_targets.id}
+    flex_model["soc-maxima"] = [
+        {
+            "datetime": "2015-01-01T13:45:00+01:00",
+            "value": "0.4 MWh",
+        }
+    ]
 
     scheduler: Scheduler = StorageScheduler(
         battery, start, end, resolution, flex_model=flex_model
@@ -2036,7 +2042,10 @@ def test_add_storage_constraint_from_sensor(
     soc_schedule = integrate_time_series(
         consumption_schedule, soc_at_start, decimal_precision=6
     )
-    comparison_df = pd.concat([equals, soc_schedule], axis=1).dropna()
+    # Note the equality constraints are shifted back to account for how they define the index to denote
+    # the start of the event that ends in the given equality state, whereas the index of the soc_schedule
+    # denotes the exact time of the given SoC state
+    comparison_df = pd.concat([equals.shift(1), soc_schedule], axis=1).dropna()
     assert (
         len(comparison_df)
     ) == n_constraints, f"we expect {n_constraints} device constraints"
