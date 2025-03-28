@@ -55,7 +55,7 @@ class StorageFlexModelSchema(Schema):
     """
 
     soc_at_start = QuantityField(
-        required=True,
+        required=False,
         to_unit="MWh",
         default_src_unit="dimensionless",  # placeholder, overridden in __init__
         return_magnitude=True,
@@ -87,6 +87,14 @@ class StorageFlexModelSchema(Schema):
     )
     production_capacity = VariableQuantityField(
         "MW", data_key="production-capacity", required=False
+    )
+
+    # Activation prices
+    prefer_curtailing_later = fields.Bool(
+        data_key="prefer-curtailing-later", load_default=True
+    )
+    prefer_charging_sooner = fields.Bool(
+        data_key="prefer-charging-sooner", load_default=True
     )
 
     # Timezone placeholders for the soc_maxima, soc_minima and soc_targets fields are overridden in __init__
@@ -135,9 +143,6 @@ class StorageFlexModelSchema(Schema):
     )
 
     storage_efficiency = VariableQuantityField("%", data_key="storage-efficiency")
-    prefer_charging_sooner = fields.Bool(
-        data_key="prefer-charging-sooner", load_default=True
-    )
 
     soc_gain = fields.List(
         VariableQuantityField("MW"),

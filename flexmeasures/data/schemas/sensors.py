@@ -375,6 +375,28 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
 
         return super().convert(_value, param, ctx, **kwargs)
 
+    def _get_unit(self, variable_quantity: ur.Quantity | list[dict | Sensor]) -> str:
+        """Obtain the unit from the variable quantity."""
+        if isinstance(variable_quantity, ur.Quantity):
+            unit = str(variable_quantity.units)
+        elif isinstance(variable_quantity, list):
+            unit = str(variable_quantity[0]["value"].units)
+            if not all(
+                str(variable_quantity[j]["value"].units) == unit
+                for j in range(len(variable_quantity))
+            ):
+                raise ValidationError(
+                    "Segments of a time series must share the same unit.",
+                    field_name=self.data_key,
+                )
+        elif isinstance(variable_quantity, Sensor):
+            unit = variable_quantity.unit
+        else:
+            raise NotImplementedError(
+                f"Unexpected type '{type(variable_quantity)}' for variable_quantity describing '{self.data_key}': {variable_quantity}."
+            )
+        return unit
+
 
 class RepurposeValidatorToIgnoreSensorsAndLists(validate.Validator):
     """Validator that executes another validator (the one you initialize it with) only on non-Sensor and non-list values."""
