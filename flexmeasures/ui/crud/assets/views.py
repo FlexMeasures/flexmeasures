@@ -143,8 +143,7 @@ class AssetCrudUI(FlaskView):
     @login_required
     @route("/<id>/sensor/new")
     def create_sensor(self, id: str):
-        """POST to /assets/<id>/sensor/new"""
-
+        """GET to /assets/<id>/sensor/new"""
         asset = GenericAsset.query.get(id)
         if asset is None:
             raise NotFound
