@@ -2004,8 +2004,9 @@ def test_add_storage_constraint_from_sensor(
     scheduler_info = scheduler._prepare()
     storage_constraints = scheduler_info[5][0]
 
-    expected_target_start = pd.Timedelta(expected_start) + start
-    expected_target_end = pd.Timedelta(expected_end) + start
+    # Start (date) + start (time) - resolution (due to device_constraints indexing states by the start of their preceding time slot)
+    expected_target_start = start + pd.Timedelta(expected_start) - resolution
+    expected_target_end = start + pd.Timedelta(expected_end) - resolution
     expected_soc_target_value = 0.5 * timedelta(hours=1) / resolution
 
     # convert dates from UTC to local time (Europe/Amsterdam)
