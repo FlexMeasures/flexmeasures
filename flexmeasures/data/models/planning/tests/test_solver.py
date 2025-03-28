@@ -1927,13 +1927,14 @@ def test_battery_storage_efficiency_sensor(
 
 
 @pytest.mark.parametrize(
-    "sensor_name, expected_start, expected_end",
+    "sensor_name, expected_start, expected_end, n_constraints",
     [
         # A value defined in a coarser resolution is upsampled to match the power sensor resolution.
         (
             "soc-targets (1h)",
             "14:00:00",
             "15:00:00",
+            5,
         ),
         # A value defined in a finer resolution is downsampled to match the power sensor resolution.
         # Only a single value coincides with the power sensor resolution.
@@ -1941,6 +1942,7 @@ def test_battery_storage_efficiency_sensor(
             "soc-targets (5min)",
             "14:00:00",
             "14:00:00",  # not "14:15:00"
+            1,
             marks=pytest.mark.xfail(
                 reason="timely-beliefs doesn't yet make it possible to resample to a certain frequency and event resolution simultaneously"
             ),
@@ -1950,12 +1952,14 @@ def test_battery_storage_efficiency_sensor(
             "soc-targets (15min)",
             "14:00:00",
             "14:15:00",
+            2,
         ),
         # For an instantaneous sensor, the value is set to the interval containing the instantaneous event.
         (
             "soc-targets (instantaneous)",
             "14:00:00",
             "14:00:00",
+            1,
         ),
         # This is an event at 14:05:00 with a duration of 15min.
         # This constraint should span the intervals from 14:00 to 14:15 and from 14:15 to 14:30, but we are not reindexing properly.
@@ -1963,6 +1967,7 @@ def test_battery_storage_efficiency_sensor(
             "soc-targets (15min lagged)",
             "14:00:00",
             "14:15:00",
+            1,
             marks=pytest.mark.xfail(
                 reason="we should re-index the series so that values of the original index that overlap are used."
             ),
@@ -1975,6 +1980,7 @@ def test_add_storage_constraint_from_sensor(
     sensor_name,
     expected_start,
     expected_end,
+    n_constraints,
     db,
 ):
     """
@@ -1986,13 +1992,14 @@ def test_add_storage_constraint_from_sensor(
     end = tz.localize(datetime(2015, 1, 2))
     resolution = timedelta(minutes=15)
     soc_targets = add_soc_targets[sensor_name]
+    soc_at_start = 0
 
     flex_model = {
         "soc-max": 2,
         "soc-min": 0,
         "roundtrip-efficiency": 1,
         "production-capacity": "0kW",
-        "soc-at-start": 0,
+        "soc-at-start": soc_at_start,
     }
 
     flex_model["soc-targets"] = {"sensor": soc_targets.id}
@@ -2023,6 +2030,19 @@ def test_add_storage_constraint_from_sensor(
         equals[expected_target_start + resolution : expected_target_end]
         == expected_soc_target_value
     )
+
+    # Check the resulting schedule against the constraints
+    consumption_schedule = scheduler.compute()
+    soc_schedule = integrate_time_series(
+        consumption_schedule, soc_at_start, decimal_precision=6
+    )
+    comparison_df = pd.concat([equals, soc_schedule], axis=1).dropna()
+    assert (
+        len(comparison_df)
+    ) == n_constraints, f"we expect {n_constraints} device constraints"
+    assert all(
+        comparison_df.iloc[:, 0] == comparison_df.iloc[:, 1] * 4
+    ), "the device constraint values should be 1/4th of the actual SoC values, due to the 15-minute resolution of the battery's power sensor"
 
 
 def test_soc_maxima_minima_targets(db, add_battery_assets, soc_sensors):
