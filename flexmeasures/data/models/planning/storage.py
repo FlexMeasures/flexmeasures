@@ -152,15 +152,9 @@ class MetaStorageScheduler(Scheduler):
         up_deviation_prices = get_continuous_series_sensor_or_quantity(
             variable_quantity=consumption_price,
             actuator=asset,
-            unit=(
-                consumption_price.unit
-                if isinstance(consumption_price, Sensor)
-                else (
-                    consumption_price[0]["value"].units
-                    if isinstance(consumption_price, list)
-                    else str(consumption_price.units)
-                )
-            ),
+            unit=FlexContextSchema()
+            .declared_fields["consumption_price"]
+            ._get_unit(consumption_price),
             query_window=(start, end),
             resolution=resolution,
             beliefs_before=belief_time,
@@ -170,15 +164,9 @@ class MetaStorageScheduler(Scheduler):
         down_deviation_prices = get_continuous_series_sensor_or_quantity(
             variable_quantity=production_price,
             actuator=asset,
-            unit=(
-                production_price.unit
-                if isinstance(production_price, Sensor)
-                else (
-                    production_price[0]["value"].units
-                    if isinstance(production_price, list)
-                    else str(production_price.units)
-                )
-            ),
+            unit=FlexContextSchema()
+            .declared_fields["production_price"]
+            ._get_unit(production_price),
             query_window=(start, end),
             resolution=resolution,
             beliefs_before=belief_time,
@@ -277,15 +265,9 @@ class MetaStorageScheduler(Scheduler):
             ems_peak_consumption_price = get_continuous_series_sensor_or_quantity(
                 variable_quantity=ems_peak_consumption_price,
                 actuator=asset,
-                unit=(
-                    ems_peak_consumption_price.unit
-                    if isinstance(ems_peak_consumption_price, Sensor)
-                    else (
-                        ems_peak_consumption_price[0]["value"].units
-                        if isinstance(ems_peak_consumption_price, list)
-                        else str(ems_peak_consumption_price.units)
-                    )
-                ),
+                unit=FlexContextSchema()
+                .declared_fields["ems_peak_consumption_price"]
+                ._get_unit(ems_peak_consumption_price),
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
@@ -319,15 +301,9 @@ class MetaStorageScheduler(Scheduler):
             ems_peak_production_price = get_continuous_series_sensor_or_quantity(
                 variable_quantity=ems_peak_production_price,
                 actuator=asset,
-                unit=(
-                    ems_peak_production_price.unit
-                    if isinstance(ems_peak_production_price, Sensor)
-                    else (
-                        ems_peak_production_price[0]["value"].units
-                        if isinstance(ems_peak_production_price, list)
-                        else str(ems_peak_production_price.units)
-                    )
-                ),
+                unit=FlexContextSchema()
+                .declared_fields["ems_peak_production_price"]
+                ._get_unit(ems_peak_production_price),
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
@@ -363,15 +339,9 @@ class MetaStorageScheduler(Scheduler):
             ems_consumption_breach_price = get_continuous_series_sensor_or_quantity(
                 variable_quantity=ems_consumption_breach_price,
                 actuator=asset,
-                unit=(
-                    ems_consumption_breach_price.unit
-                    if isinstance(ems_consumption_breach_price, Sensor)
-                    else (
-                        ems_consumption_breach_price[0]["value"].units
-                        if isinstance(ems_consumption_breach_price, list)
-                        else str(ems_consumption_breach_price.units)
-                    )
-                ),
+                unit=FlexContextSchema()
+                .declared_fields["ems_consumption_breach_price"]
+                ._get_unit(ems_consumption_breach_price),
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
@@ -411,15 +381,9 @@ class MetaStorageScheduler(Scheduler):
             ems_production_breach_price = get_continuous_series_sensor_or_quantity(
                 variable_quantity=ems_production_breach_price,
                 actuator=asset,
-                unit=(
-                    ems_production_breach_price.unit
-                    if isinstance(ems_production_breach_price, Sensor)
-                    else (
-                        ems_production_breach_price[0]["value"].units
-                        if isinstance(ems_production_breach_price, list)
-                        else str(ems_production_breach_price.units)
-                    )
-                ),
+                unit=FlexContextSchema()
+                .declared_fields["ems_production_breach_price"]
+                ._get_unit(ems_production_breach_price),
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
@@ -507,17 +471,18 @@ class MetaStorageScheduler(Scheduler):
                     resolve_overlaps="min",
                 )
 
-            device_constraints[d] = add_storage_constraints(
-                start,
-                end,
-                resolution,
-                soc_at_start[d],
-                soc_targets[d],
-                soc_maxima[d],
-                soc_minima[d],
-                soc_max[d],
-                soc_min[d],
-            )
+            if soc_at_start[d] is not None:
+                device_constraints[d] = add_storage_constraints(
+                    start,
+                    end,
+                    resolution,
+                    soc_at_start[d],
+                    soc_targets[d],
+                    soc_maxima[d],
+                    soc_minima[d],
+                    soc_max[d],
+                    soc_min[d],
+                )
 
             power_capacity_in_mw[d] = get_continuous_series_sensor_or_quantity(
                 variable_quantity=power_capacity_in_mw[d],
@@ -526,6 +491,7 @@ class MetaStorageScheduler(Scheduler):
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
+                min_value=0,  # capacities are positive by definition
                 resolve_overlaps="min",
             )
 
@@ -543,6 +509,7 @@ class MetaStorageScheduler(Scheduler):
                     beliefs_before=belief_time,
                     fallback_attribute="production_capacity",
                     max_value=power_capacity_in_mw[d],
+                    min_value=0,  # capacities are positive by definition
                     resolve_overlaps="min",
                 )
             if sensor_d.get_attribute("is_strictly_non_negative"):
@@ -557,6 +524,7 @@ class MetaStorageScheduler(Scheduler):
                         resolution=resolution,
                         beliefs_before=belief_time,
                         fallback_attribute="consumption_capacity",
+                        min_value=0,  # capacities are positive by definition
                         max_value=power_capacity_in_mw[d],
                         resolve_overlaps="min",
                     )
@@ -1014,7 +982,11 @@ class StorageScheduler(MetaStorageScheduler):
             ems_constraints,
             commitments=commitments,
             initial_stock=[
-                soc_at_start_d * (timedelta(hours=1) / resolution)
+                (
+                    soc_at_start_d * (timedelta(hours=1) / resolution)
+                    if soc_at_start_d is not None
+                    else 0
+                )
                 for soc_at_start_d in soc_at_start
             ],
         )
