@@ -491,21 +491,9 @@ def device_scheduler(  # noqa C901
         else:
             raise NotImplementedError("Unknown commitment class")
         return (
-            (
-                0
-                if len(commitments[c]) == 1
-                or "upwards deviation price" in commitments[c].columns
-                else None
-            ),
-            # 0 if "upwards deviation price" in commitments[c].columns else None,  # todo: possible simplification
+            0 if "upwards deviation price" in commitments[c].columns else None,
             center_part,
-            (
-                0
-                if len(commitments[c]) == 1
-                or "downwards deviation price" in commitments[c].columns
-                else None
-            ),
-            # 0 if "downwards deviation price" in commitments[c].columns else None,  # todo: possible simplification
+            0 if "downwards deviation price" in commitments[c].columns else None,
         )
 
     def ems_flow_commitment_equalities(m, c, j):
