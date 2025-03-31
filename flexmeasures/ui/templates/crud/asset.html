@@ -364,12 +364,12 @@
                             <div class="row mb-3">
                                 <div class="col-8">
                                     <input type="text" id="searchInput" class="form-control"
-                                        placeholder="Search sensors..." oninput="filterSensors()" />
+                                        placeholder="Search sensors..." oninput="searchSensorsGraphForm()" />
                                 </div>
 
                                 <div class="col-4">
-                                    <select id="unitsSelect" class="form-select" onchange="filterSensors()">
-                                        <option value="null" selected>Units</option>
+                                    <select id="unitsSelect" class="form-select" onchange="searchSensorsGraphForm()">
+                                        <option value="null" selected>Choose Unit</option>
                                         {% for unit in available_units %}
                                         <option>{{ unit }}</option>
                                         {% endfor %}
@@ -712,7 +712,8 @@
         sensorsToShow = newSensorsToShow;
     }
 
-    async function filterSensors() {
+    /* This search function is tied to the sensorsToShow Form */
+    async function searchSensorsGraphForm() {
         const searchValue = document.getElementById("searchInput").value.toLowerCase();
         const filterValue = document.getElementById("unitsSelect").value;
         const highlightedCard = document.querySelector('.border-on-click');
@@ -775,7 +776,8 @@
         }
     }
 
-    async function searchSensors() {
+    /* This search function is tied to the FlexContext Form */
+    async function searchSensorsFlexContextForm() {
         const searchValue = document.getElementById("flexContextSensorSearch").value.toLowerCase();
         spinnerElement.style.display = 'flex';
         senSearchResEle.style.display = 'none';
@@ -1286,7 +1288,7 @@
                                 </label>
 
                                 <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" value="" id="flexCheckBox" onchange="searchSensors()"/>
+                                    <input class="form-check-input" type="checkbox" value="" id="flexCheckBox" onchange="searchSensorsFlexContextForm()"/>
                                     <label class="form-check-label" for="flexCheckBox">
                                         Include Public Assets
                                     </label>
@@ -1299,11 +1301,11 @@
                                         id="flexContextSensorSearch"
                                         class="form-control"
                                         placeholder="Search sensors..."
-                                        oninput="searchSensors()"
+                                        oninput="searchSensorsFlexContextForm()"
                                         />
                                     </div>
                                     <div class="col-4 ps-0">
-                                        <select id="flexUnitsSelect" class="form-select" onchange="searchSensors()">
+                                        <select id="flexUnitsSelect" class="form-select" onchange="searchSensorsFlexContextForm()">
                                             <option value="${null}" selected>Units</option>
                                             ${availableUnits.map( unit => '<option value="' + unit + '">' + unit + '</option>').join('')}
                                         </select>
@@ -1356,11 +1358,11 @@
                                         id="flexContextSensorSearch"
                                         class="form-control"
                                         placeholder="Search sensors..."
-                                        oninput="searchSensors()"
+                                        oninput="searchSensorsFlexContextForm()"
                                         />
                                     </div>
                                     <div class="col-4 ps-0">
-                                        <select id="flexUnitsSelect" class="form-select" onchange="searchSensors()">
+                                        <select id="flexUnitsSelect" class="form-select" onchange="searchSensorsFlexContextForm()">
                                             <option value="${null}" selected>Units</option>
                                             ${availableUnits.map( unit => '<option value="' + unit + '">' + unit + '</option>').join('')}
                                         </select>
@@ -1410,7 +1412,7 @@
     formModal.addEventListener('shown.bs.modal', function () {
         // Initial renders
         renderGraphCards(); // Initial render of graph cards
-        filterSensors(); // Initial render of sensors
+        searchSensorsGraphForm(); // Initial render of sensors
     });
 
     flexContexFormModal.addEventListener('shown.bs.modal', function () {
