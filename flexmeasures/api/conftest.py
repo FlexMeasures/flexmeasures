@@ -1,12 +1,13 @@
 import pytest
 from pytest_mock import MockerFixture
+from flask import url_for
 from flask_login import login_user, logout_user
 
 from flexmeasures.api.tests.utils import UserContext
 
 
 @pytest.fixture
-def requesting_user(request):
+def requesting_user(request, client):
     """Use this fixture to log in a user for the scope of a test.
 
     Sets the user by passing it an email address (see usage examples below), or pass None to get the AnonymousUser.
@@ -33,6 +34,11 @@ def requesting_user(request):
     if email is not None:
         with UserContext(email) as user:
             login_user(user)
+            auth_token = user.get_auth_token()
+            client.get(
+                url_for("UserAPI:get", id=user.id),
+                headers={"Authorization": auth_token},
+            )
             yield user
             logout_user()
     else:
