@@ -623,13 +623,13 @@ class MetaStorageScheduler(Scheduler):
                 min_value=0,  # capacities are positive by definition
                 resolve_overlaps="min",
             )
+            device_constraints[d]["derivative max"] = power_capacity_in_mw[d]
+            device_constraints[d]["derivative min"] = -power_capacity_in_mw[d]
 
             if sensor_d.get_attribute("is_strictly_non_positive"):
                 device_constraints[d]["derivative min"] = 0
             else:
-                device_constraints[d]["derivative min"] = (
-                    -1
-                ) * get_continuous_series_sensor_or_quantity(
+                production_capacity_d = get_continuous_series_sensor_or_quantity(
                     variable_quantity=production_capacity[d],
                     actuator=sensor_d,
                     unit="MW",
@@ -641,23 +641,86 @@ class MetaStorageScheduler(Scheduler):
                     min_value=0,  # capacities are positive by definition
                     resolve_overlaps="min",
                 )
-            if sensor_d.get_attribute("is_strictly_non_negative"):
-                device_constraints[d]["derivative max"] = 0
-            else:
-                device_constraints[d]["derivative max"] = (
-                    get_continuous_series_sensor_or_quantity(
-                        variable_quantity=consumption_capacity[d],
-                        actuator=sensor_d,
-                        unit="MW",
+                if (
+                    self.flex_context.get("production_breach_price") is not None
+                    and production_capacity[d] is not None
+                ):
+                    # consumption-capacity will become a soft constraint
+                    production_breach_price = self.flex_context[
+                        "production_breach_price"
+                    ]
+                    production_breach_price = get_continuous_series_sensor_or_quantity(
+                        variable_quantity=production_breach_price,
+                        actuator=asset,
+                        unit=FlexContextSchema()
+                        .declared_fields["production_breach_price"]
+                        ._get_unit(production_breach_price),
                         query_window=(start, end),
                         resolution=resolution,
                         beliefs_before=belief_time,
-                        fallback_attribute="consumption_capacity",
-                        min_value=0,  # capacities are positive by definition
-                        max_value=power_capacity_in_mw[d],
-                        resolve_overlaps="min",
+                        fallback_attribute="production-breach-price",
+                        fill_sides=True,
                     )
+                    # Set up commitments DataFrame
+                    commitment = FlowCommitment(
+                        name=f"production breaches device {d}",
+                        quantity=-production_capacity_d,
+                        # negative price because breaching in the downwards (shortage) direction is penalized
+                        downwards_deviation_price=-production_breach_price,
+                        index=index,
+                        device=d,
+                    )
+                    commitments.append(commitment)
+                else:
+                    # consumption-capacity will become a hard constraint
+                    device_constraints[d]["derivative min"] = -production_capacity_d
+            if sensor_d.get_attribute("is_strictly_non_negative"):
+                device_constraints[d]["derivative max"] = 0
+            else:
+                consumption_capacity_d = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=consumption_capacity[d],
+                    actuator=sensor_d,
+                    unit="MW",
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    fallback_attribute="consumption_capacity",
+                    min_value=0,  # capacities are positive by definition
+                    max_value=power_capacity_in_mw[d],
+                    resolve_overlaps="min",
                 )
+                if (
+                    self.flex_context.get("consumption_breach_price") is not None
+                    and consumption_capacity[d] is not None
+                ):
+                    # consumption-capacity will become a soft constraint
+                    consumption_breach_price = self.flex_context[
+                        "consumption_breach_price"
+                    ]
+                    consumption_breach_price = get_continuous_series_sensor_or_quantity(
+                        variable_quantity=consumption_breach_price,
+                        actuator=asset,
+                        unit=FlexContextSchema()
+                        .declared_fields["consumption_breach_price"]
+                        ._get_unit(consumption_breach_price),
+                        query_window=(start, end),
+                        resolution=resolution,
+                        beliefs_before=belief_time,
+                        fallback_attribute="consumption-breach-price",
+                        fill_sides=True,
+                    )
+                    # Set up commitments DataFrame
+                    commitment = FlowCommitment(
+                        name=f"consumption breaches device {d}",
+                        quantity=consumption_capacity_d,
+                        upwards_deviation_price=consumption_breach_price,
+                        index=index,
+                        device=d,
+                    )
+                    commitments.append(commitment)
+                else:
+                    # consumption-capacity will become a hard constraint
+                    device_constraints[d]["derivative max"] = consumption_capacity_d
 
             all_stock_delta = []
 

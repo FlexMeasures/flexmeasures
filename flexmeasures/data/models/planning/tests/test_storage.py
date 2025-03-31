@@ -35,7 +35,7 @@ def test_battery_solver_multi_commitment(add_battery_assets, db):
             "soc-at-start": f"{soc_at_start} MWh",
             "soc-min": "0 MWh",
             "soc-max": "1 MWh",
-            "power-capacity": "1 MW",
+            "power-capacity": "1 MVA",
             "soc-minima": [
                 {
                     "datetime": "2015-01-02T00:00:00+01:00",
@@ -111,3 +111,136 @@ def test_battery_solver_multi_commitment(add_battery_assets, db):
     np.testing.assert_almost_equal(costs["consumption peak"], 260 / 1000 * (25 - 20))
     # No production peak
     np.testing.assert_almost_equal(costs["production peak"], 0)
+
+
+def test_battery_relaxation(add_battery_assets, db):
+    _, battery = get_sensors_from_db(
+        db, add_battery_assets, battery_name="Test battery"
+    )
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+    soc_at_start = 0.4
+    index = initialize_index(start=start, end=end, resolution=resolution)
+    consumption_prices = pd.Series(100, index=index)
+    # Introduce arbitrage opportunity
+    consumption_prices["2015-01-01T16:00:00+01:00":"2015-01-01T17:00:00+01:00"] = (
+        0  # cheap energy
+    )
+    consumption_prices["2015-01-01T17:00:00+01:00":"2015-01-01T18:00:00+01:00"] = (
+        1000  # expensive energy
+    )
+    production_prices = consumption_prices - 10
+    device_power_breach_price = 100
+
+    # Set up consumption/production capacity as a time series
+    # i.e. it takes 16 hours to go from 0.4 to 0.8 MWh
+    consumption_capacity_in_mw = 0.025
+    consumption_capacity = pd.Series(consumption_capacity_in_mw, index=index)
+    consumption_capacity["2015-01-01T12:00:00+01:00":"2015-01-01T18:00:00+01:00"] = (
+        0  # no charging
+    )
+    production_capacity_in_mw = consumption_capacity
+
+    scheduler: Scheduler = StorageScheduler(
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model={
+            "soc-at-start": f"{soc_at_start} MWh",
+            "soc-min": "0 MWh",
+            "soc-max": "1 MWh",
+            "power-capacity": f"{consumption_capacity_in_mw} MVA",
+            "consumption-capacity": [
+                {
+                    "start": i.isoformat(),
+                    "duration": "PT1H",
+                    "value": f"{consumption_capacity[i]} MW",
+                }
+                for i in consumption_capacity.index
+            ],
+            "production-capacity": [
+                {
+                    "start": i.isoformat(),
+                    "duration": "PT1H",
+                    "value": f"{production_capacity_in_mw[i]} MW",
+                }
+                for i in production_capacity_in_mw.index
+            ],
+            "soc-minima": [
+                {
+                    "start": "2015-01-01T12:00:00+01:00",
+                    "end": "2015-01-01T18:00:00+01:00",
+                    # "duration": "PT6H",  # todo: fails validation, which points to a bug
+                    "value": "0.8 MWh",
+                }
+            ],
+            "prefer-charging-sooner": False,
+        },
+        flex_context={
+            "consumption-price": [
+                {
+                    "start": i.isoformat(),
+                    "duration": "PT1H",
+                    "value": f"{consumption_prices[i]} EUR/MWh",
+                }
+                for i in consumption_prices.index
+            ],
+            "production-price": [
+                {
+                    "start": i.isoformat(),
+                    "duration": "PT1H",
+                    "value": f"{production_prices[i]} EUR/MWh",
+                }
+                for i in production_prices.index
+            ],
+            "site-power-capacity": "2 MW",  # should be big enough to avoid any infeasibilities
+            # "site-consumption-capacity": "1 kW",  # we'll need to breach this to reach the target
+            "site-consumption-breach-price": "1000 EUR/kW",
+            "site-production-breach-price": "1000 EUR/kW",
+            "site-peak-consumption": "20 kW",
+            "site-peak-production": "20 kW",
+            "site-peak-consumption-price": "260 EUR/MW",
+            # The following is a constant price, but this checks currency conversion in case a later price field is
+            # set to a time series specs (i.e. a list of dicts, where each dict represents a time slot)
+            "site-peak-production-price": [
+                {
+                    "start": i.isoformat(),
+                    "duration": "PT1H",
+                    "value": "260 EUR/MW",
+                }
+                for i in production_prices.index
+            ],
+            "soc-minima-breach-price": "100 EUR/kWh/min",  # high breach price (to mimic a hard constraint)
+            "consumption-breach-price": f"{device_power_breach_price} EUR/kW",  # lower breach price (thus prioritizing minimizing soc breaches)
+            "production-breach-price": f"{device_power_breach_price} EUR/kW",  # lower breach price (thus prioritizing minimizing soc breaches)
+        },
+        return_multiple=True,
+    )
+    results = scheduler.compute()
+
+    schedule = results[0]["data"]
+    costs = results[1]["data"]
+    costs_unit = results[1]["unit"]
+    assert costs_unit == "EUR"
+
+    # Check if constraints were met
+    check_constraints(battery, schedule, soc_at_start)
+
+    # Check for constant charging profile until 4 PM
+    np.testing.assert_allclose(
+        schedule[:"2015-01-01T15:45:00+01:00"], consumption_capacity_in_mw
+    )
+
+    # Check for standing idle from 4 PM to 6 PM
+    np.testing.assert_allclose(
+        schedule["2015-01-01T16:00:00+01:00":"2015-01-01T17:45:00+01:00"], 0
+    )
+
+    # Check costs are correct
+    np.testing.assert_almost_equal(
+        costs["consumption breaches device 0"],
+        device_power_breach_price * consumption_capacity_in_mw * 1000 * 4 * 4,
+    )  # 100 EUR/kWh/min * mean(0.15 MWh) * 1000 kW/MW * 4 hours * 4 15min/hour
