@@ -174,8 +174,8 @@ class FlexContextSchema(Schema):
         previous_field_name = None
         for field in self.declared_fields:
             if field[-5:] == "price" and field in data:
-                price_unit = self._get_variable_quantity_unit(field, data[field])
                 price_field = self.declared_fields[field]
+                price_unit = price_field._get_unit(data[field])
                 currency_unit = price_unit.split("/")[0]
 
                 if previous_currency_unit is None:
@@ -205,31 +205,6 @@ class FlexContextSchema(Schema):
                         field_name=field_name,
                     )
         return data
-
-    def _get_variable_quantity_unit(
-        self, field: str, variable_quantity: ur.Quantity | list[dict | Sensor]
-    ) -> str:
-        """Gets the unit from the variable quantity."""
-        if isinstance(variable_quantity, ur.Quantity):
-            unit = str(variable_quantity.units)
-        elif isinstance(variable_quantity, list):
-            unit = str(variable_quantity[0]["value"].units)
-            if not all(
-                str(variable_quantity[j]["value"].units) == unit
-                for j in range(len(variable_quantity))
-            ):
-                field_name = self.declared_fields[field].data_key
-                raise ValidationError(
-                    "Segments of a time series must share the same unit.",
-                    field_name=field_name,
-                )
-        elif isinstance(variable_quantity, Sensor):
-            unit = variable_quantity.unit
-        else:
-            raise NotImplementedError(
-                f"Unexpected type '{type(variable_quantity)}' for '{field}': {variable_quantity}."
-            )
-        return unit
 
 
 class DBFlexContextSchema(FlexContextSchema):
