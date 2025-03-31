@@ -224,7 +224,7 @@ For more details on the possible formats for field values, see :ref:`variable_qu
      - Device-level power constraint on consumption. How much power can be drawn by this asset. [#minimum_overlap]_
    * - ``production-capacity``
      - ``"0kW"`` (only consumption)
-     - Device-level power constraint on production. How much power can be supplied by this asset. [#minimum_overlap]_
+     - Device-level power constraint on production. How much power can be supplied by this asset. For :abbr:`PV (photovoltaic solar panels)` curtailment, set this to reference your sensor containing PV power forecasts. [#minimum_overlap]_
 
 .. [#quantity_field] Can only be set as a fixed quantity.
 
