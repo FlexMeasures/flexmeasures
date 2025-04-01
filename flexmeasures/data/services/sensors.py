@@ -484,7 +484,7 @@ def _get_sensor_stats(sensor: Sensor, ttl_hash=None) -> dict:
         stats[data_source] = {
             "First event start": first_event_start,
             "Last event end": last_event_end,
-            "Last belief time": last_belief_time,
+            "Last recorded": last_belief_time,
             "Min value": min_value,
             "Max value": max_value,
             "Mean value": mean_value,

@@ -185,8 +185,8 @@
 
                                 function getLatestBeliefName(data) {
                                     return Object.keys(data).reduce((latest, name) => {
-                                        const currentBeliefTime = new Date(data[name]["Last belief time"]);
-                                        const latestBeliefTime = latest ? new Date(data[latest]["Last belief time"]) : new Date(0);
+                                        const currentBeliefTime = new Date(data[name]["Last recorded"]);
+                                        const latestBeliefTime = latest ? new Date(data[latest]["Last recorded"]) : new Date(0);
                                         return currentBeliefTime > latestBeliefTime ? name : latest;
                                     }, null);
                                 }
