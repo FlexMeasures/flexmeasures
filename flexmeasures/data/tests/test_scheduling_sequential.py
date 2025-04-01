@@ -1,3 +1,4 @@
+from datetime import timedelta
 from unittest.mock import patch
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
 
@@ -7,6 +8,7 @@ from flexmeasures.data.services.scheduling import create_sequential_scheduling_j
 from flexmeasures.data.tests.utils import work_on_rq
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.utils.calculations import integrate_time_series
 
 
 def test_create_sequential_jobs(db, app, flex_description_sequential, smart_building):
@@ -139,7 +141,23 @@ def test_create_sequential_jobs(db, app, flex_description_sequential, smart_buil
     assert total_cost == -2.1775, f"Total cost should be -2.1775 €, got {total_cost} €"
 
     # Check that the SOC data is saved
-    assert len(soc_sensors["Test Battery"].search_beliefs()) == 97
+    soc_schedule = (
+        soc_sensors["Test Battery"]
+        .search_beliefs(resolution=timedelta(0))
+        .reset_index()
+    )
+    power_schedule = sensors["Test Battery"].search_beliefs().reset_index()
+
+    power_schedule = pd.Series(
+        power_schedule.event_value.tolist(),
+        index=pd.DatetimeIndex(power_schedule.event_start.tolist(), freq="15min"),
+    )
+    soc_schedule_from_power = integrate_time_series(
+        -power_schedule,
+        0.1,
+        decimal_precision=6,
+    )
+    assert all(soc_schedule.event_value.values == soc_schedule_from_power.values)
 
 
 def test_create_sequential_jobs_fallback(

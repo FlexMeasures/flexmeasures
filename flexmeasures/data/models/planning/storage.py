@@ -1053,9 +1053,10 @@ class StorageScheduler(MetaStorageScheduler):
                     ].fillna(1),
                     storage_efficiency=device_constraints[d]["efficiency"].fillna(1),
                 ),
-                "MWh",
-                sensors[d].unit,
+                from_unit="MWh",
+                to_unit=flex_model_d["state_of_charge"].unit,
                 event_resolution=sensors[d].event_resolution,
+                capacity=flex_model_d["soc_max"],
             )
             for d, flex_model_d in enumerate(flex_model)
             if isinstance(flex_model_d.get("state_of_charge", None), Sensor)
@@ -1078,7 +1079,7 @@ class StorageScheduler(MetaStorageScheduler):
             }
             soc_schedule = {
                 sensor: soc_schedule[sensor].round(self.round_to_decimals)
-                for sensor in sensors
+                for sensor in soc_schedule.keys()
             }
 
         if self.return_multiple:
