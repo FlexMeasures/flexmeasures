@@ -1222,7 +1222,7 @@ def create_schedule(ctx):
 @click.option(
     "--state-of-charge",
     "state_of_charge",
-    type=SensorIdField("%"),
+    type=SensorIdField(unit="%"),
     help="State of charge sensor.",
     required=False,
     default=None,
