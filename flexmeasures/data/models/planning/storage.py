@@ -1041,16 +1041,21 @@ class StorageScheduler(MetaStorageScheduler):
             flex_model = [flex_model]
 
         soc_schedule = {
-            flex_model_d["state_of_charge"]: integrate_time_series(
-                series=ems_schedule[d],
-                initial_stock=soc_at_start[d],
-                up_efficiency=device_constraints[d]["derivative up efficiency"].fillna(
-                    1
+            flex_model_d["state_of_charge"]: convert_units(
+                integrate_time_series(
+                    series=ems_schedule[d],
+                    initial_stock=soc_at_start[d],
+                    up_efficiency=device_constraints[d][
+                        "derivative up efficiency"
+                    ].fillna(1),
+                    down_efficiency=device_constraints[d][
+                        "derivative down efficiency"
+                    ].fillna(1),
+                    storage_efficiency=device_constraints[d]["efficiency"].fillna(1),
                 ),
-                down_efficiency=device_constraints[d][
-                    "derivative down efficiency"
-                ].fillna(1),
-                storage_efficiency=device_constraints[d]["efficiency"].fillna(1),
+                "MWh",
+                sensors[d].unit,
+                event_resolution=sensors[d].event_resolution,
             )
             for d, flex_model_d in enumerate(flex_model)
             if isinstance(flex_model_d.get("state_of_charge", None), Sensor)
