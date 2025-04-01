@@ -125,7 +125,6 @@ class StorageFlexModelSchema(Schema):
 
     state_of_charge = VariableQuantityField(
         to_unit="MWh",
-        default_src_unit="dimensionless",
         data_key="state-of-charge",
         required=False,
     )

@@ -54,3 +54,4 @@ coverage.lcov
 venv*
 logs/
 *.dump
+iframe_figures/
