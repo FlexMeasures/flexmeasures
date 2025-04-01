@@ -2,6 +2,7 @@
 **********************
 FlexMeasures Changelog
 **********************
+* Statistics shown in the UI default to that of the freshest source [see `PR #1399 <https://github.com/FlexMeasures/flexmeasures/pull/1399/>`_]
 
 
 v0.26.0 | May XX, 2025
