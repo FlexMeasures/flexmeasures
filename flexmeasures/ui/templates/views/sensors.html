@@ -115,6 +115,7 @@
                                     .then(data => {
                                         // Remove 'status' sourceKey
                                         delete data['status'];
+                                        data = unpackData(data);
 
                                         if (Object.keys(data).length > 0) {
                                             // Show the header and dropdown container
@@ -188,6 +189,18 @@
                                         const latestBeliefTime = latest ? new Date(data[latest]["Last belief time"]) : new Date(0);
                                         return currentBeliefTime > latestBeliefTime ? name : latest;
                                     }, null);
+                                }
+
+                                function unpackData(data) {
+                                    return Object.fromEntries(
+                                        Object.entries(data).map(([key, value]) => {
+                                            if (Array.isArray(value) && value.every(item => Array.isArray(item) && item.length === 2)) {
+                                                return [key, Object.fromEntries(value)];
+                                            }
+                                            console.error(`Invalid entry for key: ${key}`, value);
+                                            return [key, value];
+                                        })
+                                    );
                                 }
                             });
                         </script>

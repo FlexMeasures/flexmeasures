@@ -490,7 +490,7 @@ def _get_sensor_stats(sensor: Sensor, ttl_hash=None) -> dict:
             "Mean value": mean_value,
             "Sum over values": sum_values,
             "Number of values": count_values,
-        }
+        }.items()
     return stats
 
 
