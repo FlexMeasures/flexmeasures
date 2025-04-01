@@ -430,6 +430,11 @@ def _get_sensor_stats(sensor: Sensor, ttl_hash=None) -> dict:
             DataSource.name,
             sa.func.min(TimedBelief.event_start).label("min_event_start"),
             sa.func.max(TimedBelief.event_start).label("max_event_start"),
+            sa.func.max(
+                TimedBelief.event_start
+                + sensor.event_resolution
+                - TimedBelief.belief_horizon
+            ).label("max_belief_time"),
             subquery_for_filtered_aggregates.c.min_event_value,
             subquery_for_filtered_aggregates.c.max_event_value,
             subquery_for_filtered_aggregates.c.avg_event_value,
@@ -458,6 +463,7 @@ def _get_sensor_stats(sensor: Sensor, ttl_hash=None) -> dict:
             data_source,
             min_event_start,
             max_event_start,
+            max_belief_time,
             min_value,
             max_value,
             mean_value,
@@ -472,9 +478,13 @@ def _get_sensor_stats(sensor: Sensor, ttl_hash=None) -> dict:
             .tz_convert(sensor.timezone)
             .isoformat()
         )
+        last_belief_time = (
+            pd.Timestamp(max_belief_time).tz_convert(sensor.timezone).isoformat()
+        )
         stats[data_source] = {
             "First event start": first_event_start,
             "Last event end": last_event_end,
+            "Last belief time": last_belief_time,
             "Min value": min_value,
             "Max value": max_value,
             "Mean value": mean_value,
