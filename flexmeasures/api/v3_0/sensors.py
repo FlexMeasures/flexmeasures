@@ -957,6 +957,7 @@ class SensorAPI(FlaskView):
                 "some data source": {
                     "First event start": "2015-06-02T10:00:00+00:00",
                     "Last event end": "2015-10-02T10:00:00+00:00",
+                    "Last recorded": "2015-10-02T10:01:12+00:00",
                     "Min value": 0.0,
                     "Max value": 100.0,
                     "Mean value": 50.0,
