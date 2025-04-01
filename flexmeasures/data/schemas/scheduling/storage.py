@@ -226,7 +226,7 @@ class StorageFlexModelSchema(Schema):
     def validate_state_of_charge_is_sensor(self, state_of_charge: Sensor | ur.Quantity):
         if not isinstance(state_of_charge, Sensor):
             raise ValidationError(
-                "The `state-of-charge`  field can only be a Sensor. In the future, state-of-charge will absorve soc-at-start field."
+                "The `state-of-charge`  field can only be a Sensor. In the future, the state-of-charge field will replace soc-at-start field."
             )
 
     @validates("storage_efficiency")
