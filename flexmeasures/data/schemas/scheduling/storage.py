@@ -231,7 +231,7 @@ class StorageFlexModelSchema(Schema):
 
         if state_of_charge.event_resolution != timedelta(0):
             raise ValidationError(
-                "The field `state-of-charge` is points to a sensor with a non-instantaneous event resolution. Please, use an instantaneous sensor."
+                "The field `state-of-charge` points to a sensor with a non-instantaneous event resolution. Please, use an instantaneous sensor."
             )
 
     @validates("storage_efficiency")
