@@ -938,7 +938,8 @@ class SensorAPI(FlaskView):
     @route("/<id>/stats", methods=["GET"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
     @use_kwargs(
-        {"sort_keys": fields.Boolean(data_key="sort", default=True)}, location="query"
+        {"sort_keys": fields.Boolean(data_key="sort", load_default=True)},
+        location="query",
     )
     @permission_required_for_context("read", ctx_arg_name="sensor")
     @as_json
