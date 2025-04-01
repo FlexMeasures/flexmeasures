@@ -110,7 +110,7 @@
                                 // Show the spinner
                                 spinner.classList.remove('d-none');
 
-                                fetch('/api/v3_0/sensors/' + {{ sensor.id }} + '/stats')
+                                fetch('/api/v3_0/sensors/' + {{ sensor.id }} + '/stats?sort=false')
                                     .then(response => response.json())
                                     .then(data => {
                                         // Remove 'status' sourceKey

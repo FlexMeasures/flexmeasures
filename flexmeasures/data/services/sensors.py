@@ -409,7 +409,7 @@ def build_asset_jobs_data(
 
 
 @lru_cache()
-def _get_sensor_stats(sensor: Sensor, ttl_hash=None) -> dict:
+def _get_sensor_stats(sensor: Sensor, sort_keys: bool, ttl_hash=None) -> dict:
     # Subquery for filtered aggregates
     subquery_for_filtered_aggregates = (
         sa.select(
@@ -490,7 +490,9 @@ def _get_sensor_stats(sensor: Sensor, ttl_hash=None) -> dict:
             "Mean value": mean_value,
             "Sum over values": sum_values,
             "Number of values": count_values,
-        }.items()
+        }
+        if sort_keys is False:
+            stats[data_source] = stats[data_source].items()
     return stats
 
 
@@ -503,6 +505,6 @@ def _get_ttl_hash(seconds=120) -> int:
     return round(time.time() / seconds)
 
 
-def get_sensor_stats(sensor: Sensor) -> dict:
+def get_sensor_stats(sensor: Sensor, sort_keys: bool = True) -> dict:
     """Get stats for a sensor"""
-    return _get_sensor_stats(sensor, ttl_hash=_get_ttl_hash())
+    return _get_sensor_stats(sensor, sort_keys, ttl_hash=_get_ttl_hash())
