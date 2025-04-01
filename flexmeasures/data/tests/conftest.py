@@ -342,11 +342,7 @@ def smart_building(app, fresh_db, smart_building_types):
         sensor = Sensor(
             "state of charge",
             unit="MWh",
-            event_resolution=(
-                timedelta(hours=1)
-                if asset.name == "Test Battery 1h"
-                else timedelta(minutes=15)
-            ),
+            event_resolution=timedelta(hours=0),
             generic_asset=asset,
             timezone="Europe/Amsterdam",
         )
