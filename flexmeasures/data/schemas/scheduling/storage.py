@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from flask import current_app
 from marshmallow import (
@@ -226,7 +226,12 @@ class StorageFlexModelSchema(Schema):
     def validate_state_of_charge_is_sensor(self, state_of_charge: Sensor | ur.Quantity):
         if not isinstance(state_of_charge, Sensor):
             raise ValidationError(
-                "The `state-of-charge`  field can only be a Sensor. In the future, the state-of-charge field will replace soc-at-start field."
+                "The `state-of-charge` field can only be a Sensor. In the future, the state-of-charge field will replace soc-at-start field."
+            )
+
+        if state_of_charge.event_resolution != timedelta(0):
+            raise ValidationError(
+                "The field `state-of-charge` is points to a sensor with a non-instantaneous event resolution. Please, use an instantaneous sensor."
             )
 
     @validates("storage_efficiency")
