@@ -1051,8 +1051,6 @@ class StorageScheduler(MetaStorageScheduler):
                 ),
                 from_unit="MWh",
                 to_unit=flex_model_d["state_of_charge"].unit,
-                event_resolution=sensors[d].event_resolution,
-                capacity=flex_model_d["soc_max"],
             )
             for d, flex_model_d in enumerate(flex_model)
             if isinstance(flex_model_d.get("state_of_charge", None), Sensor)
