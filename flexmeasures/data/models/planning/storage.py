@@ -1045,12 +1045,8 @@ class StorageScheduler(MetaStorageScheduler):
                 integrate_time_series(
                     series=ems_schedule[d],
                     initial_stock=soc_at_start[d],
-                    up_efficiency=device_constraints[d][
-                        "derivative up efficiency"
-                    ].fillna(1),
-                    down_efficiency=device_constraints[d][
-                        "derivative down efficiency"
-                    ].fillna(1),
+                    up_efficiency=device_constraints[d]["derivative up efficiency"],
+                    down_efficiency=device_constraints[d]["derivative down efficiency"],
                     storage_efficiency=device_constraints[d]["efficiency"].fillna(1),
                 ),
                 from_unit="MWh",

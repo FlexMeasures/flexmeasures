@@ -141,13 +141,14 @@ def integrate_time_series(
         if isinstance(storage_efficiency, pd.Series)
         else pd.Series(storage_efficiency, index=series.index)
     )
+    storage_efficiency = storage_efficiency.fillna(1)
 
     # Convert from flow to stock change, applying conversion efficiencies
     stock_change = pd.Series(data=np.NaN, index=series.index)
     stock_change.loc[series > 0] = (
         series[series > 0]
         * (
-            up_efficiency[series > 0]
+            up_efficiency[series > 0].fillna(1)
             if isinstance(up_efficiency, pd.Series)
             else up_efficiency
         )
@@ -156,7 +157,7 @@ def integrate_time_series(
     stock_change.loc[series <= 0] = (
         series[series <= 0]
         / (
-            down_efficiency[series <= 0]
+            down_efficiency[series <= 0].fillna(1)
             if isinstance(down_efficiency, pd.Series)
             else down_efficiency
         )
