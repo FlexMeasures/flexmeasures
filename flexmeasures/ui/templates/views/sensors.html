@@ -141,7 +141,7 @@
                                             });
 
                                             // Update the table with the first sourceKey's data by default
-                                            const firstSourceKey = Object.keys(data)[0];
+                                            const firstSourceKey = getLatestBeliefName(data);
                                             dropdownButton.textContent = firstSourceKey;
                                             updateTable(data[firstSourceKey]);
                                         } else {
@@ -180,6 +180,14 @@
                                         row.appendChild(valueCell);
                                         tableBody.appendChild(row);
                                     });
+                                }
+
+                                function getLatestBeliefName(data) {
+                                    return Object.keys(data).reduce((latest, name) => {
+                                        const currentBeliefTime = new Date(data[name]["Last belief time"]);
+                                        const latestBeliefTime = latest ? new Date(data[latest]["Last belief time"]) : new Date(0);
+                                        return currentBeliefTime > latestBeliefTime ? name : latest;
+                                    }, null);
                                 }
                             });
                         </script>
