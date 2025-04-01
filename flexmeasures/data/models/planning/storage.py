@@ -1071,6 +1071,11 @@ class StorageScheduler(MetaStorageScheduler):
                 sensor: storage_schedule[sensor].round(self.round_to_decimals)
                 for sensor in sensors
             }
+            soc_schedule = {
+                sensor: soc_schedule[sensor].round(self.round_to_decimals)
+                for sensor in sensors
+            }
+
         if self.return_multiple:
             return (
                 [
