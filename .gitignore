@@ -51,3 +51,7 @@ poetry.lock
 
 /postgres-data
 coverage.lcov
+venv*
+logs/
+*.dump
+iframe_figures/
