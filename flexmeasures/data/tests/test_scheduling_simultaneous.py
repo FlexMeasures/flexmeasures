@@ -83,7 +83,9 @@ def test_create_simultaneous_jobs(
     prices.index = prices.index.tz_convert("Europe/Amsterdam")
 
     # Resample prices to match power resolution
-    prices = prices.resample("15min").ffill()
+    prices = prices.reindex(
+        battery_power.index,
+    ).ffill()
 
     start_charging = start + pd.Timedelta(hours=8)
     end_charging = start + pd.Timedelta(hours=10) - sensors["Test EV"].event_resolution
