@@ -4,8 +4,25 @@ FlexMeasures Changelog
 **********************
 
 
-v0.25.0 | February XX, 2025
+v0.26.0 | May XX, 2025
 ============================
+
+New features
+-------------
+
+* Support saving the storage schedule SOC using the ``flex-model`` field ``state-of-charge`` to the ``flex-model`` [see `PR #1392 <https://github.com/FlexMeasures/flexmeasures/pull/1392>`_]
+
+Infrastructure / Support
+----------------------
+
+Bugfixes
+-----------
+
+
+v0.25.0 | April 01, 2025
+============================
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v025-flex-context-fully-editable-nicer-status-page/>`_.
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
 

@@ -34,6 +34,9 @@ from flexmeasures.data.schemas.scheduling import (
     FlexContextSchema,
     MultiSensorFlexModelSchema,
 )
+from flexmeasures.utils.calculations import (
+    integrate_time_series,
+)
 from flexmeasures.utils.time_utils import get_max_planning_horizon
 from flexmeasures.utils.coding_utils import deprecated
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
@@ -1132,6 +1135,28 @@ class StorageScheduler(MetaStorageScheduler):
             for sensor in sensors
         }
 
+        flex_model = self.flex_model
+
+        if not isinstance(self.flex_model, list):
+            flex_model["sensor"] = sensors[0]
+            flex_model = [flex_model]
+
+        soc_schedule = {
+            flex_model_d["state_of_charge"]: convert_units(
+                integrate_time_series(
+                    series=ems_schedule[d],
+                    initial_stock=soc_at_start[d],
+                    up_efficiency=device_constraints[d]["derivative up efficiency"],
+                    down_efficiency=device_constraints[d]["derivative down efficiency"],
+                    storage_efficiency=device_constraints[d]["efficiency"].fillna(1),
+                ),
+                from_unit="MWh",
+                to_unit=flex_model_d["state_of_charge"].unit,
+            )
+            for d, flex_model_d in enumerate(flex_model)
+            if isinstance(flex_model_d.get("state_of_charge", None), Sensor)
+        }
+
         # Resample each device schedule to the resolution of the device's power sensor
         if self.resolution is None:
             storage_schedule = {
@@ -1146,6 +1171,10 @@ class StorageScheduler(MetaStorageScheduler):
             storage_schedule = {
                 sensor: storage_schedule[sensor].round(self.round_to_decimals)
                 for sensor in sensors
+            }
+            soc_schedule = {
+                sensor: soc_schedule[sensor].round(self.round_to_decimals)
+                for sensor in soc_schedule.keys()
             }
 
         if self.return_multiple:
@@ -1168,6 +1197,15 @@ class StorageScheduler(MetaStorageScheduler):
                     },
                     "unit": self.flex_context["shared_currency_unit"],
                 },
+            ]
+            +[
+                {
+                    "name": "state_of_charge",
+                    "data": soc,
+                    "sensor": sensor,
+                    "unit": sensor.unit,
+                }
+                for sensor, soc in soc_schedule.items()
             ]
         else:
             return storage_schedule[sensors[0]]
