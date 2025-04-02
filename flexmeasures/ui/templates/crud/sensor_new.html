@@ -22,7 +22,17 @@ sensor {% endblock %} {% block divs %}
       />
     </div>
     <div class="mb-3">
-      <label for="eventResolution" class="form-label">Event Resolution</label>
+      <label for="eventResolution" class="form-label"
+        >Event Resolution
+
+        <i class="fa fa-info-circle ps-2"
+        data-bs-toggle="tooltip"
+        data-bs-placement="bottom"
+        title="Enter an ISO 8601 duration (e.g., PT1H for one hour, PT15M for 15 minutes)."
+        style="font-size: 16px;"
+
+    ></i>
+      </label>
       <input
         type="text"
         class="form-control"
@@ -34,30 +44,15 @@ sensor {% endblock %} {% block divs %}
     </div>
     <div class="mb-3">
       <label for="unit" class="form-label">Unit</label>
-      <div class="row">
-        <div class="col-8 pe-0">
-          <input
-            type="text"
-            class="form-control"
-            id="unit"
-            name="unit"
-            placeholder="kW"
-            required
-          />
-        </div>
-        <div class="col-4 ps-1">
           <select
             id="unit"
             class="form-select"
-            onchange="document.getElementById('unit').value = this.value"
           >
             <option selected>Units</option>
             {% for unit in available_units %}
             <option>{{ unit }}</option>
             {% endfor %}
           </select>
-        </div>
-      </div>
     </div>
     <button type="submit" class="btn btn-primary" onclick="createSensor(event)">
       Create
@@ -109,7 +104,7 @@ sensor {% endblock %} {% block divs %}
 
     if (!validateEventResolution(eventResolution)) {
       showToast(
-        "Invalid event resolution format. Please use ISO 8601 duration format (PT[H|M|S]).",
+        `Invalid event resolution format "${eventResolution}". Please use ISO 8601 duration format (PT[H|M|S]).`,
         "error"
       );
       return;
@@ -121,7 +116,6 @@ sensor {% endblock %} {% block divs %}
       unit: unit,
       generic_asset_id: "{{ asset.id }}",
     };
-    console.log("data: ", JSON.stringify(data));
 
     fetch(apiBasePath + "/api/v3_0/sensors", {
       method: "POST",
@@ -133,11 +127,11 @@ sensor {% endblock %} {% block divs %}
       .then((response) => {
         if (response.ok) {
           showToast("Sensor created successfully.", "success");
-          // window.location.href = "/assets/{{asset.id}}";
         } else {
           response.json().then((data) => {
             const errorData = response.json();
-            const errorMessage = errorData?.message || errorData?.error || response.statusText;
+            const errorMessage =
+              errorData?.message || errorData?.error || response.statusText;
             showToast("Error: " + errorMessage, "error");
           });
         }
