@@ -5,6 +5,7 @@ flake8==7.1.1
 flake8-blind-except
 mypy
 pytest-runner
-setuptools_scm
+# https://github.com/pypa/setuptools-scm/issues/1111 broke builds on 3.8 and 3.9
+setuptools_scm<8.1
 watchdog
 pyinstrument
