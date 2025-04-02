@@ -209,31 +209,27 @@ class Scheduler:
 @dataclass
 class Commitment:
     """Contractual commitment specifying prices for deviating from a given position.
-    ::
-    Parameters
-    ----------
-    name:
-        Name of the commitment.
-    index:
-        Pandas DatetimeIndex defining the time slots to which the commitment applies.
-        The index is shared by the group, quantity. upwards_deviation_price and downwards_deviation_price Pandas Series.
-    _type:
-        'any' or 'each'. Any deviation is penalized via 1 group, whereas each deviation is penalized via n groups.
-    group:
-        Each time slot is assigned to a group. Deviations are determined for each group.
-        The deviation of a group is determined by the time slot with the maximum deviation within that group.
-    quantity:
-        The deviation for each group is determined with respect to this quantity.
-        Can be initialized with a constant value, but always returns a Pandas Series (see also the `index` parameter).
-    upwards_deviation_price:
-        The deviation in the upwards direction is priced against this price. Use a positive price to set a penalty.
-        Can be initialized with a constant value, but always returns a Pandas Series (see also the `index` parameter).
-    downwards_deviation_price:
-        The deviation in the downwards direction is priced against this price. Use a negative price to set a penalty.
-        Can be initialized with a constant value, but always returns a Pandas Series (see also the `index` parameter).
+
+    Attributes:
+        name:       Name of the commitment.
+        device:     Device to which the commitment pertains. If None, the commitment pertains to the EMS.
+        index:      Pandas DatetimeIndex defining the time slots to which the commitment applies.
+                    The index is shared by the group, quantity, upwards_deviation_price and downwards_deviation_price Pandas Series.
+        _type:      'any' or 'each'. Any deviation is penalized via 1 group, whereas each deviation is penalized via n groups.
+        group:      Each time slot is assigned to a group. Deviations are determined for each group.
+                    The deviation of a group is determined by the time slot with the maximum deviation within that group.
+        quantity:   The deviation for each group is determined with respect to this quantity.
+                    Can be initialized with a constant value, but always returns a Pandas Series (see also the `index` parameter).
+        upwards_deviation_price:
+                    The deviation in the upwards direction is priced against this price. Use a positive price to set a penalty.
+                    Can be initialized with a constant value, but always returns a Pandas Series (see also the `index` parameter).
+        downwards_deviation_price:
+                    The deviation in the downwards direction is priced against this price. Use a negative price to set a penalty.
+                    Can be initialized with a constant value, but always returns a Pandas Series (see also the `index` parameter).
     """
 
     name: str
+    device: pd.Series = None
     index: pd.DatetimeIndex = field(repr=False, default=None)
     _type: str = field(repr=False, default="each")
     group: pd.Series = field(init=False)
@@ -262,6 +258,8 @@ class Commitment:
                 )
 
         # Force type conversion of repr fields to pd.Series
+        if not isinstance(self.device, pd.Series):
+            self.device = pd.Series(self.device, index=self.index)
         if not isinstance(self.quantity, pd.Series):
             self.quantity = pd.Series(self.quantity, index=self.index)
         if not isinstance(self.upwards_deviation_price, pd.Series):
@@ -284,6 +282,7 @@ class Commitment:
             raise ValueError('Commitment `_type` must be "any" or "each".')
 
         # Name the Series as expected by our device scheduler
+        self.device = self.device.rename("device")
         self.quantity = self.quantity.rename("quantity")
         self.upwards_deviation_price = self.upwards_deviation_price.rename(
             "upwards deviation price"
@@ -297,13 +296,27 @@ class Commitment:
         """Contains all info apart from the name."""
         return pd.concat(
             [
+                self.device,
                 self.quantity,
                 self.upwards_deviation_price,
                 self.downwards_deviation_price,
                 self.group,
+                pd.Series(self.__class__, index=self.index, name="class"),
             ],
             axis=1,
         )
+
+
+class FlowCommitment(Commitment):
+    """NB index contains event start, while quantity applies to average flow between event start and end."""
+
+    pass
+
+
+class StockCommitment(Commitment):
+    """NB index contains event start, while quantity applies to stock at event end."""
+
+    pass
 
 
 """
