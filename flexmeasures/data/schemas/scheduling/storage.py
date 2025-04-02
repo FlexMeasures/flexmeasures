@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from flask import current_app
 from marshmallow import (
@@ -123,6 +123,12 @@ class StorageFlexModelSchema(Schema):
         required=False,
     )
 
+    state_of_charge = VariableQuantityField(
+        to_unit="MWh",
+        data_key="state-of-charge",
+        required=False,
+    )
+
     charging_efficiency = VariableQuantityField(
         "%", data_key="charging-efficiency", required=False
     )
@@ -214,6 +220,20 @@ class StorageFlexModelSchema(Schema):
         if max_target_datetime > max_server_datetime:
             current_app.logger.warning(
                 f"Target datetime exceeds {max_server_datetime}. Maximum scheduling horizon is {max_server_horizon}."
+            )
+
+    @validates("state_of_charge")
+    def validate_state_of_charge_is_sensor(
+        self, state_of_charge: Sensor | list[dict] | ur.Quantity
+    ):
+        if not isinstance(state_of_charge, Sensor):
+            raise ValidationError(
+                "The `state-of-charge` field can only be a Sensor. In the future, the state-of-charge field will replace soc-at-start field."
+            )
+
+        if state_of_charge.event_resolution != timedelta(0):
+            raise ValidationError(
+                "The field `state-of-charge` points to a sensor with a non-instantaneous event resolution. Please, use an instantaneous sensor."
             )
 
     @validates("storage_efficiency")
