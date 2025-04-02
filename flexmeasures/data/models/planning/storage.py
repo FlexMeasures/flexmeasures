@@ -1178,7 +1178,7 @@ class StorageScheduler(MetaStorageScheduler):
             }
 
         if self.return_multiple:
-            return [
+            storage_schedules = [
                 {
                     "name": "storage_schedule",
                     "sensor": sensor,
@@ -1186,7 +1186,8 @@ class StorageScheduler(MetaStorageScheduler):
                     "unit": sensor.unit,
                 }
                 for sensor in sensors
-            ] + [
+            ]
+            commitment_costs = [
                 {
                     "name": "commitment_costs",
                     "data": {
@@ -1198,7 +1199,7 @@ class StorageScheduler(MetaStorageScheduler):
                     "unit": self.flex_context["shared_currency_unit"],
                 },
             ]
-            +[
+            soc_schedules = [
                 {
                     "name": "state_of_charge",
                     "data": soc,
@@ -1207,6 +1208,7 @@ class StorageScheduler(MetaStorageScheduler):
                 }
                 for sensor, soc in soc_schedule.items()
             ]
+            return storage_schedules + commitment_costs + soc_schedules
         else:
             return storage_schedule[sensors[0]]
 
