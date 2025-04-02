@@ -1373,7 +1373,7 @@ def add_schedule_for_storage(  # noqa C901
     soc_max: ur.Quantity | None = None,
     roundtrip_efficiency: ur.Quantity | None = None,
     storage_efficiency: ur.Quantity | Sensor | None = None,
-    state_of_charge: ur.Quantity | Sensor | None = None,
+    state_of_charge: Sensor | None = None,
     as_job: bool = False,
 ):
     """Create a new schedule for a storage asset.
@@ -1453,7 +1453,7 @@ def add_schedule_for_storage(  # noqa C901
     )
 
     if state_of_charge is not None:
-        scheduling_kwargs["flex_model"]["state-of-charge"] = state_of_charge
+        scheduling_kwargs["flex_model"]["state-of-charge"] = state_of_charge.id
 
     quantity_or_sensor_vars = {
         "flex_model": {
