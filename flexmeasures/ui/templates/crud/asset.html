@@ -979,7 +979,7 @@
             const errorMessage = errorData?.message || errorData?.error || response.statusText;
             showToast(`Failed to update the asset: ${errorMessage}`, "error");
             // check failed fields and replace them with previous values
-            if (dataType === "flexContext") {
+            if (assetField === "flexContext") {
                 const previousFlexContext = "{{ asset.flex_context | safe }}";
                 assetFlexContext = processAssetRawFlexContextJSON(previousFlexContext);
                 // re-render form
