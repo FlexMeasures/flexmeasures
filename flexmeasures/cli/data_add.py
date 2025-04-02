@@ -1453,7 +1453,9 @@ def add_schedule_for_storage(  # noqa C901
     )
 
     if state_of_charge is not None:
-        scheduling_kwargs["flex_model"]["state-of-charge"] = state_of_charge.id
+        scheduling_kwargs["flex_model"]["state-of-charge"] = {
+            "sensor": state_of_charge.id
+        }
 
     quantity_or_sensor_vars = {
         "flex_model": {
