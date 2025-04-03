@@ -1424,7 +1424,9 @@ def soc_sensors(db, add_battery_assets, setup_sources) -> tuple:
         source=setup_sources["Seita"],
     )
 
-    yield soc_maxima, soc_minima, soc_targets, values
+    soc_schedule = pd.Series(data=values, index=time_slots)
+
+    yield soc_maxima, soc_minima, soc_targets, soc_schedule
 
 
 @pytest.fixture(scope="module")
