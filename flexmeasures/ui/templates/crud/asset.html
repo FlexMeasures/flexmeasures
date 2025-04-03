@@ -575,11 +575,11 @@
     }
 
     // Fetch Asset Details
-    async function getAsset(assetId) {
+    async function getAsset(assetId, ignoreCache = false) {
         const cacheKey = `asset_${assetId}`;
         const cachedData = localStorage.getItem(cacheKey);
 
-        if (cachedData) {
+        if (cachedData && !ignoreCache) {
             return JSON.parse(cachedData);
         }
 
@@ -980,8 +980,10 @@
             showToast(`Failed to update the asset: ${errorMessage}`, "error");
             // check failed fields and replace them with previous values
             if (assetField === "flexContext") {
-                const previousFlexContext = "{{ asset.flex_context | safe }}";
-                assetFlexContext = processAssetRawFlexContextJSON(previousFlexContext);
+                const asset = await getAsset("{{ asset.id }}", true);
+                // Get up-to-date flexcontext state/data
+                const previousFlexContext = await processAssetRawFlexContextJSON(asset.flex_context);
+                assetFlexContext = previousFlexContext;
                 // re-render form
                 renderFlexContextForm();
             }
@@ -1218,7 +1220,7 @@
         await selectFlexField(document.getElementById(`${flexId}-control`));
 
         // Update FlexContext
-        await updateAsset("flexContext")
+        await updateAsset("flexContext");
     }
 
     async function addFlexContextField() {
