@@ -1144,8 +1144,11 @@ class StorageScheduler(MetaStorageScheduler):
         soc_schedule = {
             flex_model_d["state_of_charge"]: convert_units(
                 integrate_time_series(
-                    series=ems_schedule[d] + device_constraints[d]["stock delta"],
+                    series=ems_schedule[d],
                     initial_stock=soc_at_start[d],
+                    stock_delta=device_constraints[d]["stock delta"]
+                    * resolution
+                    / timedelta(hours=1),
                     up_efficiency=device_constraints[d]["derivative up efficiency"],
                     down_efficiency=device_constraints[d]["derivative down efficiency"],
                     storage_efficiency=device_constraints[d]["efficiency"].fillna(1),
