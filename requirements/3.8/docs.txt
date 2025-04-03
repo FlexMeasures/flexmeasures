@@ -6,15 +6,15 @@
 #
 alabaster==0.7.13
     # via sphinx
-babel==2.16.0
+babel==2.17.0
     # via
     #   -c requirements/3.8/app.txt
     #   sphinx
-certifi==2024.8.30
+certifi==2025.1.31
     # via
     #   -c requirements/3.8/app.txt
     #   requests
-charset-normalizer==3.3.2
+charset-normalizer==3.4.1
     # via
     #   -c requirements/3.8/app.txt
     #   requests
@@ -33,7 +33,7 @@ importlib-metadata==8.5.0
     # via
     #   -c requirements/3.8/app.txt
     #   sphinx
-jinja2==3.1.4
+jinja2==3.1.6
     # via
     #   -c requirements/3.8/app.txt
     #   sphinx
@@ -41,15 +41,15 @@ markupsafe==2.1.5
     # via
     #   -c requirements/3.8/app.txt
     #   jinja2
-packaging==24.1
+packaging==24.2
     # via
     #   -c requirements/3.8/app.txt
     #   sphinx
-pygments==2.18.0
+pygments==2.19.1
     # via
     #   sphinx
     #   sphinx-tabs
-pytz==2024.2
+pytz==2025.2
     # via
     #   -c requirements/3.8/app.txt
     #   babel
@@ -57,7 +57,7 @@ requests==2.32.3
     # via
     #   -c requirements/3.8/app.txt
     #   sphinx
-six==1.16.0
+six==1.17.0
     # via
     #   -c requirements/3.8/app.txt
     #   sphinxcontrib-httpdomain
@@ -76,9 +76,9 @@ sphinx-copybutton==0.5.2
     # via -r requirements/docs.in
 sphinx-fontawesome==0.0.6
     # via -r requirements/docs.in
-sphinx-rtd-theme==2.0.0
+sphinx-rtd-theme==3.0.2
     # via -r requirements/docs.in
-sphinx-tabs==3.4.5
+sphinx-tabs==3.4.7
     # via -r requirements/docs.in
 sphinxcontrib-applehelp==1.0.4
     # via sphinx

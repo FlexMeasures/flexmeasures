@@ -14,6 +14,7 @@ New features
 
 Infrastructure / Support
 ----------------------
+* Upgraded dependencies [see `PR #1400 <https://www.github.com/FlexMeasures/flexmeasures/pull/1400>`_]
 
 Bugfixes
 -----------
