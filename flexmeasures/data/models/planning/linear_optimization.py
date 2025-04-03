@@ -479,38 +479,21 @@ def device_scheduler(  # noqa C901
             return Constraint.Skip
 
         # Determine center part of the lhs <= center part <= rhs constraint
+        center_part = (
+            m.commitment_quantity[c]
+            + m.commitment_downwards_deviation[c]
+            + m.commitment_upwards_deviation[c]
+        )
         if commitments[c]["class"].apply(lambda cl: cl == StockCommitment).all():
-            center_part = (
-                m.commitment_quantity[c]
-                + m.commitment_downwards_deviation[c]
-                + m.commitment_upwards_deviation[c]
-                - _get_stock_change(m, d, j)
-            )
+            center_part -= _get_stock_change(m, d, j)
         elif commitments[c]["class"].apply(lambda cl: cl == FlowCommitment).all():
-            center_part = (
-                m.commitment_quantity[c]
-                + m.commitment_downwards_deviation[c]
-                + m.commitment_upwards_deviation[c]
-                - m.ems_power[d, j]
-            )
+            center_part -= m.ems_power[d, j]
         else:
             raise NotImplementedError("Unknown commitment class")
         return (
-            (
-                0
-                if len(commitments[c]) == 1
-                or "upwards deviation price" in commitments[c].columns
-                else None
-            ),
-            # 0 if "upwards deviation price" in commitments[c].columns else None,  # todo: possible simplification
+            0 if "upwards deviation price" in commitments[c].columns else None,
             center_part,
-            (
-                0
-                if len(commitments[c]) == 1
-                or "downwards deviation price" in commitments[c].columns
-                else None
-            ),
-            # 0 if "downwards deviation price" in commitments[c].columns else None,  # todo: possible simplification
+            0 if "downwards deviation price" in commitments[c].columns else None,
         )
 
     def ems_flow_commitment_equalities(m, c, j):
