@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 import os
 import inspect
 
+import pandas as pd
 import pytz
 import pytest
 from rq.job import Job
@@ -16,8 +17,10 @@ from flexmeasures.data.tests.utils import work_on_rq, exception_reporter
 from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
     load_custom_scheduler,
+    handle_scheduling_exception,
 )
 from flexmeasures.utils.unit_utils import ur
+from flexmeasures.utils.calculations import integrate_time_series
 
 
 def test_scheduling_a_battery(db, app, add_battery_assets, setup_test_data):
@@ -269,3 +272,82 @@ def test_fallback_chain(
 
     assert len(app.queues["scheduling"]) == 0
     app.config["FLEXMEASURES_FALLBACK_REDIRECT"] = False
+
+
+def test_save_state_of_charge(
+    db, app, smart_building, setup_markets_fresh_db, add_market_prices_fresh_db
+):
+    """
+    Test saving state of charge of a Heat Buffer with a constant SOC net usage of 9 kW (10kW usage and 1kW gain)
+    """
+
+    assets, sensors, soc_sensors = smart_building
+
+    assert len(soc_sensors["Test Heat Buffer"].search_beliefs()) == 0
+
+    queue = app.queues["scheduling"]
+    start = pd.Timestamp("2015-01-03").tz_localize("Europe/Amsterdam")
+    end = pd.Timestamp("2015-01-04").tz_localize("Europe/Amsterdam")
+
+    scheduler_specs = {
+        "module": "flexmeasures.data.models.planning.storage",
+        "class": "StorageScheduler",
+    }
+
+    flex_model = {
+        "consumption-capacity": "10kW",
+        "production-capacity": "10kW",
+        "power-capacity": "10kW",
+        "soc-at-start": "0kWh",
+        "soc-unit": "kWh",
+        "soc-min": 0.0,
+        "soc-max": "100kWh",
+        "soc-usage": ["10kW"],
+        "soc-gain": ["1kW"],
+        "state-of-charge": {"sensor": soc_sensors["Test Heat Buffer"].id},
+    }
+
+    flex_context = {
+        "consumption-price-sensor": setup_markets_fresh_db["epex_da"].id,
+        "production-price-sensor": setup_markets_fresh_db["epex_da"].id,
+        "site-production-capacity": "1MW",
+        "site-consumption-capacity": "1MW",
+    }
+
+    create_scheduling_job(
+        asset_or_sensor=sensors["Test Heat Buffer"],
+        scheduler_specs=scheduler_specs,
+        flex_model=flex_model,
+        flex_context=flex_context,
+        enqueue=True,
+        start=start,
+        end=end,
+        resolution=timedelta(minutes=15),
+    )
+
+    # Work on jobs
+    work_on_rq(queue, handle_scheduling_exception)
+
+    # Check that the SOC data is saved
+    soc_schedule = (
+        soc_sensors["Test Heat Buffer"]
+        .search_beliefs(resolution=timedelta(0))
+        .reset_index()
+    )
+    power_schedule = sensors["Test Heat Buffer"].search_beliefs().reset_index()
+
+    power_schedule = pd.Series(
+        power_schedule.event_value.tolist(),
+        index=pd.DatetimeIndex(power_schedule.event_start.tolist(), freq="15min"),
+    )
+
+    assert (
+        power_schedule.mean() == -0.009
+    )  # charge to cover for the net usage (in average)
+
+    soc_schedule_from_power = integrate_time_series(
+        -(power_schedule + 0.009),
+        0.0,
+        decimal_precision=6,
+    )
+    assert all(soc_schedule.event_value.values == soc_schedule_from_power.values)

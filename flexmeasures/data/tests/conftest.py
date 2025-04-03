@@ -234,8 +234,9 @@ def smart_building_types(app, fresh_db, setup_generic_asset_types_fresh_db):
     site = AssetType(name="site")
     building = AssetType(name="building")
     ev = AssetType(name="ev")
+    heat_buffer = AssetType(name="heat buffer")
 
-    fresh_db.session.add_all([site, building, ev])
+    fresh_db.session.add_all([site, building, ev, heat_buffer])
     fresh_db.session.flush()
 
     return (
@@ -244,6 +245,7 @@ def smart_building_types(app, fresh_db, setup_generic_asset_types_fresh_db):
         building,
         setup_generic_asset_types_fresh_db["battery"],
         ev,
+        heat_buffer,
     )
 
 
@@ -252,25 +254,25 @@ def smart_building(app, fresh_db, smart_building_types):
     """
     Topology of the sytstem:
 
-                             +----------+
-                             |          |
-            +----------------+   Site   +---------------+
-            |                |          |               |
-            |                +--+----+--+               |
-            |                   |    |                  |
-            |                   |    |                  |
-            |              +-----    ----+              |
-            |              |             |              |
-       +----+----+  +------+-----+   +---+---+   +------+------+
-       |         |  |            |   |       |   |             |
-       |  Solar  |  |  Building  |   |  EV   |   |   Battery   |
-       |         |  |            |   |       |   |             |
-       +---------+  +------------+   +-------+   +-------------+
+                           +---------+
+                           |         |
+         +------------------  Site   +--------------+------------------+
+         |                 |         |              |                  |
+         |                 +-+----+--+              |                  |
+         |                   |    |                 |                  |
+         |                   |    |                 |                  |
+         |              +----+    +--+              |                  |
+         |              |            |              |                  |
+    +----+----+  +------+-----+   +--+---+   +------+------+    +------+------+
+    |         |  |            |   |      |   |             |    |             |
+    |  Solar  |  |  Building  |   |  EV  |   |   Battery   |    | Heat Buffer |
+    |         |  |            |   |      |   |             |    |             |
+    +---------+  +------------+   +------+   +-------------+    +-------------+
 
     Diagram created with: https://textik.com/#924f8a2112551f92
 
     """
-    site, solar, building, battery, ev = smart_building_types
+    site, solar, building, battery, ev, heat_buffer = smart_building_types
     coordinates = {"latitude": 0, "longitude": 0}
 
     test_site = Asset(name="Test Site", generic_asset_type_id=site.id, **coordinates)
@@ -308,6 +310,13 @@ def smart_building(app, fresh_db, smart_building_types):
         **coordinates,
     )
 
+    test_heat_buffer = Asset(
+        name="Test Heat Buffer",
+        generic_asset_type_id=heat_buffer.id,
+        parent_asset_id=test_site.id,
+        **coordinates,
+    )
+
     assets = (
         test_site,
         test_building,
@@ -315,6 +324,7 @@ def smart_building(app, fresh_db, smart_building_types):
         test_battery,
         test_ev,
         test_battery_1h,
+        test_heat_buffer,
     )
 
     fresh_db.session.add_all(assets)
@@ -414,7 +424,6 @@ def flex_description_sequential(
                         "value": 0.094,
                     }  # 6 kWh discharge
                 ],
-                "state-of-charge": {"sensor": soc_sensors["Test Battery"].id},
             },
         },
     ]
