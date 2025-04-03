@@ -23,20 +23,26 @@ from flexmeasures.utils.unit_utils import ur
 from flexmeasures.utils.calculations import integrate_time_series
 
 
-def test_scheduling_a_battery(db, app, add_battery_assets, setup_test_data):
+def test_scheduling_a_battery(
+    fresh_db,
+    app,
+    add_battery_assets_fresh_db,
+    setup_fresh_test_data,
+    add_market_prices_fresh_db,
+):
     """Test one clean run of one scheduling job:
     - data source was made,
     - schedule has been made
     """
 
-    battery = add_battery_assets["Test battery"].sensors[0]
+    battery = add_battery_assets_fresh_db["Test battery"].sensors[0]
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 2))
     end = tz.localize(datetime(2015, 1, 3))
     resolution = timedelta(minutes=15)
 
     assert (
-        db.session.execute(
+        fresh_db.session.execute(
             select(DataSource).filter_by(name="FlexMeasures", type="scheduler")
         ).scalar_one_or_none()
         is None
@@ -58,14 +64,14 @@ def test_scheduling_a_battery(db, app, add_battery_assets, setup_test_data):
 
     work_on_rq(app.queues["scheduling"], exc_handler=exception_reporter)
 
-    scheduler_source = db.session.execute(
+    scheduler_source = fresh_db.session.execute(
         select(DataSource).filter_by(name="Seita", type="scheduler")
     ).scalar_one_or_none()
     assert (
         scheduler_source is not None
     )  # Make sure the scheduler data source is now there
 
-    power_values = db.session.scalars(
+    power_values = fresh_db.session.scalars(
         select(TimedBelief)
         .filter(TimedBelief.sensor_id == battery.id)
         .filter(TimedBelief.source_id == scheduler_source.id)
@@ -108,14 +114,16 @@ def test_loading_custom_scheduler(is_path: bool):
 
 
 @pytest.mark.parametrize("is_path", [False, True])
-def test_assigning_custom_scheduler(db, app, add_battery_assets, is_path: bool):
+def test_assigning_custom_scheduler(
+    fresh_db, app, add_battery_assets_fresh_db, is_path: bool
+):
     """
     Test if the custom scheduler is picked up when we assign it to a Sensor,
     and that its dummy values are saved.
     """
     scheduler_specs["module"] = make_module_descr(is_path)
 
-    battery = add_battery_assets["Test battery"].sensors[0]
+    battery = add_battery_assets_fresh_db["Test battery"].sensors[0]
     battery.attributes["custom-scheduler"] = scheduler_specs
 
     tz = pytz.timezone("Europe/Amsterdam")
@@ -139,7 +147,7 @@ def test_assigning_custom_scheduler(db, app, add_battery_assets, is_path: bool):
     finished_job = Job.fetch(job.id, connection=redis_connection)
     assert finished_job.meta["data_source_info"]["model"] == scheduler_specs["class"]
 
-    scheduler_source = db.session.execute(
+    scheduler_source = fresh_db.session.execute(
         select(DataSource).filter_by(
             type="scheduler",
             **finished_job.meta["data_source_info"],
@@ -149,7 +157,7 @@ def test_assigning_custom_scheduler(db, app, add_battery_assets, is_path: bool):
         scheduler_source is not None
     )  # Make sure the scheduler data source is now there
 
-    power_values = db.session.scalars(
+    power_values = fresh_db.session.scalars(
         select(TimedBelief)
         .filter(TimedBelief.sensor_id == battery.id)
         .filter(TimedBelief.source_id == scheduler_source.id)
@@ -212,8 +220,9 @@ FailingScheduler1 = create_test_scheduler(
 
 
 def test_fallback_chain(
+    fresh_db,
     app,
-    add_battery_assets,
+    add_battery_assets_fresh_db,
 ):
     """
     Check that the chaining fallback schedules works.
@@ -222,8 +231,8 @@ def test_fallback_chain(
     """
     app.config["FLEXMEASURES_FALLBACK_REDIRECT"] = True
 
-    battery = add_battery_assets["Test battery"].sensors[0]
-    app.db.session.flush()
+    battery = add_battery_assets_fresh_db["Test battery"].sensors[0]
+    fresh_db.session.flush()
 
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 2))
@@ -275,7 +284,7 @@ def test_fallback_chain(
 
 
 def test_save_state_of_charge(
-    db, app, smart_building, setup_markets_fresh_db, add_market_prices_fresh_db
+    fresh_db, app, smart_building, setup_markets_fresh_db, add_market_prices_fresh_db
 ):
     """
     Test saving state of charge of a Heat Buffer with a constant SOC net usage of 9 kW (10kW usage and 1kW gain)

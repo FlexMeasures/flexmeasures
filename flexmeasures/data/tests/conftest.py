@@ -229,7 +229,7 @@ def test_reporter(app, db, add_nearby_weather_sensors):
     return ds
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 def smart_building_types(app, fresh_db, setup_generic_asset_types_fresh_db):
     site = AssetType(name="site")
     building = AssetType(name="building")
@@ -249,7 +249,7 @@ def smart_building_types(app, fresh_db, setup_generic_asset_types_fresh_db):
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 def smart_building(app, fresh_db, smart_building_types):
     """
     Topology of the sytstem:
@@ -369,7 +369,7 @@ def smart_building(app, fresh_db, smart_building_types):
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 def flex_description_sequential(
     smart_building, setup_markets_fresh_db, add_market_prices_fresh_db
 ):
