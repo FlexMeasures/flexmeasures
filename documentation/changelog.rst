@@ -10,7 +10,7 @@ v0.26.0 | May XX, 2025
 New features
 -------------
 
-* Support saving the storage schedule SOC using the ``flex-model`` field ``state-of-charge`` to the ``flex-model`` [see `PR #1392 <https://github.com/FlexMeasures/flexmeasures/pull/1392>`_]
+* Support saving the storage schedule SOC using the ``flex-model`` field ``state-of-charge`` to the ``flex-model`` [see `PR #1392 <https://github.com/FlexMeasures/flexmeasures/pull/1392>`_ and `PR #1406 <https://github.com/FlexMeasures/flexmeasures/pull/1406>`_]
 
 Infrastructure / Support
 ----------------------
