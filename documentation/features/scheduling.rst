@@ -43,7 +43,7 @@ The full list of flex-context fields follows below.
 For more details on the possible formats for field values, see :ref:`variable_quantities`.
 
 Where should you set these fields?
-Within requests to the API or by editing an asset in the UI.
+Within requests to the API or by editing the relevant asset in the UI.
 If they are not sent in via the API (the endpoint triggering schedule computation), the scheduler will look them up on the `flex-context` field of the asset.
 And if the asset belongs to a larger system (a hierarchy of assets), the scheduler will also search if parent assets have them set.
 
@@ -111,6 +111,12 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
    * - ``site-peak-production-price``
      - ``"260 EUR/MWh"``
      - Production peaks above the ``site-peak-production`` are penalized against this per-kW price. [#penalty_field]_
+   * - ``soc-minima-breach-price``
+     - ``"2 EUR/kWh/min"``
+     - Penalty for not meeting ``soc-minima`` defined in the flex-model. [#penalty_field]_ [#soc_breach_prices]_
+   * - ``soc-maxima-breach-price``
+     - ``"2 EUR/kWh/min"``
+     - Penalty for not meeting ``soc-maxima`` defined in the flex-model. [#penalty_field]_ [#soc_breach_prices]_
 
 .. [#old_sensor_field] The old field only accepted an integer (sensor ID).
 
@@ -123,6 +129,8 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
 .. [#penalty_field] Prices must share the same currency. Negative prices are not allowed (penalties only).
 
 .. [#production] Example: with a connection capacity (``site-power-capacity``) of 1 MVA (apparent power) and a production capacity (``site-production-capacity``) of 400 kW (active power), the scheduler will make sure that the grid inflow doesn't exceed 400 kW.
+
+.. [#soc_breach_prices] The SoC breach prices (e.g. 2 EUR/kWh/min) to use for the schedule are applied over each time step equal to the sensor resolution. For example, a SoC breach price of 2 EUR/kWh/min, for scheduling a 5-minute resolution sensor, will be applied as a SoC breach price of 10 EUR/kWh for breaches measured every 5 minutes.
 
 .. note:: If no (symmetric, consumption and production) site capacity is defined (also not as defaults), the scheduler will not enforce any bound on the site power.
           The flexible device can still have its own power limit defined in its flex-model.
@@ -141,7 +149,7 @@ The process scheduler is suitable for shiftable, breakable and inflexible loads,
 
 
 We describe the respective flex models below.
-At the moment, they have to be sent through the API (the endpoint to trigger schedule computation, or using the FlexMeasures client) or the CLI (the command to add schedules).
+At the moment, they have to be sent through the API (the endpoint to trigger schedule computation, or using the FlexMeasures client) or through the CLI (the command to add schedules).
 We will soon work on the possibility to store (a subset of) these fields on the data model and edit them in the UI.
 
 
@@ -215,7 +223,10 @@ For more details on the possible formats for field values, see :ref:`variable_qu
      - This can encode losses over time, so each time step the energy is held longer leads to higher losses (defaults to 100%). Also read [#storage_efficiency]_ about applying this value per time step across longer time spans.
    * - ``prefer-charging-sooner``
      - ``True``
-     - Tie-breaking policy to apply if conditions are stable (defaults to True, which also signals a preference to discharge later). Boolean option only.
+     - Tie-breaking policy to apply if conditions are stable, which signals a preference to charge sooner rather than later (defaults to True). It also signals a preference to discharge later. Boolean option only.
+   * - ``prefer-curtailing-later``
+     - ``True``
+     - Tie-breaking policy to apply if conditions are stable, which signals a preference to curtail both consumption and production later, whichever is applicable (defaults to True). Boolean option only.
    * - ``power-capacity``
      - ``"50kW"``
      - Device-level power constraint. How much power can be applied to this asset (defaults to the Sensor attribute ``capacity_in_mw``). [#minimum_overlap]_
@@ -224,7 +235,7 @@ For more details on the possible formats for field values, see :ref:`variable_qu
      - Device-level power constraint on consumption. How much power can be drawn by this asset. [#minimum_overlap]_
    * - ``production-capacity``
      - ``"0kW"`` (only consumption)
-     - Device-level power constraint on production. How much power can be supplied by this asset. [#minimum_overlap]_
+     - Device-level power constraint on production. How much power can be supplied by this asset. For :abbr:`PV (photovoltaic solar panels)` curtailment, set this to reference your sensor containing PV power forecasts. [#minimum_overlap]_
 
 .. [#quantity_field] Can only be set as a fixed quantity.
 
