@@ -25,13 +25,13 @@ sensor {% endblock %} {% block divs %}
       <label for="eventResolution" class="form-label"
         >Event Resolution
 
-        <i class="fa fa-info-circle ps-2"
-        data-bs-toggle="tooltip"
-        data-bs-placement="bottom"
-        title="Enter an ISO 8601 duration (e.g., PT1H for one hour, PT15M for 15 minutes)."
-        style="font-size: 16px;"
-
-    ></i>
+        <i
+          class="fa fa-info-circle ps-2"
+          data-bs-toggle="tooltip"
+          data-bs-placement="bottom"
+          title="Enter an ISO 8601 duration (e.g., PT1H for one hour, PT15M for 15 minutes)."
+          style="font-size: 16px"
+        ></i>
       </label>
       <input
         type="text"
@@ -43,16 +43,40 @@ sensor {% endblock %} {% block divs %}
       />
     </div>
     <div class="mb-3">
-      <label for="unit" class="form-label">Unit</label>
+      <label for="unit" class="form-label"
+        >Unit
+
+        <i
+          class="fa fa-info-circle ps-2"
+          data-bs-toggle="tooltip"
+          data-bs-placement="bottom"
+          title="Choose a unit from the list or type a custom unit (ensure it's recognized by 'pint' library)."
+          style="font-size: 16px"
+        ></i>
+      </label>
+      <div class="row">
+        <div class="col-4 pe-0">
           <select
-            id="unit"
             class="form-select"
+            onchange="document.getElementById('unit').value = this.value"
           >
             <option selected>Units</option>
             {% for unit in available_units %}
             <option>{{ unit }}</option>
             {% endfor %}
           </select>
+        </div>
+        <div class="col-8 ps-1">
+          <input
+            type="text"
+            class="form-control"
+            id="unit"
+            name="unit"
+            placeholder="kW"
+            required
+          />
+        </div>
+      </div>
     </div>
     <button type="submit" class="btn btn-primary" onclick="createSensor(event)">
       Create
@@ -90,7 +114,7 @@ sensor {% endblock %} {% block divs %}
     return true;
   }
 
-  function createSensor(event) {
+  async function createSensor(event) {
     event.preventDefault();
 
     const name = document.getElementById("name").value;
@@ -117,28 +141,30 @@ sensor {% endblock %} {% block divs %}
       generic_asset_id: "{{ asset.id }}",
     };
 
-    fetch(apiBasePath + "/api/v3_0/sensors", {
+    const response = await fetch(apiBasePath + "/api/v3_0/sensors", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(data),
-    })
-      .then((response) => {
-        if (response.ok) {
-          showToast("Sensor created successfully.", "success");
-        } else {
-          response.json().then((data) => {
-            const errorData = response.json();
-            const errorMessage =
-              errorData?.message || errorData?.error || response.statusText;
-            showToast("Error: " + errorMessage, "error");
-          });
-        }
-      })
-      .catch((error) => {
-        showToast("Error: " + error, "error");
-      });
+    });
+
+    if (response.ok) {
+      showToast("Sensor created successfully.", "success");
+    } else {
+      const errorData = await response.json();
+      let errorMessage = response.statusText; // Default to statusText
+
+      const messageUnitError = errorData?.message?.json?.unit?.[0];
+      if (messageUnitError) {
+        errorMessage = messageUnitError;
+      } else if (errorData?.message) {
+        errorMessage = errorData.message;
+      } else if (errorData?.error) {
+        errorMessage = errorData.error;
+      }
+      showToast("Error: " + errorMessage, "error");
+    }
   }
 </script>
 
