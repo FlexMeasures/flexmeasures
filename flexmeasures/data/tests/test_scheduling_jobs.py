@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 import os
 import inspect
 
+import numpy as np
 import pandas as pd
 import pytz
 import pytest
@@ -283,8 +284,25 @@ def test_fallback_chain(
     app.config["FLEXMEASURES_FALLBACK_REDIRECT"] = False
 
 
+@pytest.mark.parametrize(
+    "charging_eff, discharging_eff, storage_eff, expected_avg_power",
+    [
+        ("100%", "100%", "100%", 0.009),
+        ("95%", "100%", "100%", 0.009 / 0.95),
+        ("95%", "100%", "95%", 0.009 / 0.95),
+        ("125%", "100%", "95%", 0.009 / 1.25),
+    ],
+)
 def test_save_state_of_charge(
-    fresh_db, app, smart_building, setup_markets_fresh_db, add_market_prices_fresh_db
+    fresh_db,
+    app,
+    smart_building,
+    setup_markets_fresh_db,
+    add_market_prices_fresh_db,
+    charging_eff,
+    discharging_eff,
+    storage_eff,
+    expected_avg_power,
 ):
     """
     Test saving state of charge of a Heat Buffer with a constant SOC net usage of 9 kW (10kW usage and 1kW gain)
@@ -304,8 +322,6 @@ def test_save_state_of_charge(
     }
 
     flex_model = {
-        "consumption-capacity": "10kW",
-        "production-capacity": "10kW",
         "power-capacity": "10kW",
         "soc-at-start": "0kWh",
         "soc-unit": "kWh",
@@ -314,11 +330,15 @@ def test_save_state_of_charge(
         "soc-usage": ["10kW"],
         "soc-gain": ["1kW"],
         "state-of-charge": {"sensor": soc_sensors["Test Heat Buffer"].id},
+        "prefer-charging-sooner": True,
+        "storage-efficiency": storage_eff,
+        "charging-efficiency": charging_eff,
+        "discharging-efficiency": discharging_eff,
     }
 
     flex_context = {
-        "consumption-price-sensor": setup_markets_fresh_db["epex_da"].id,
-        "production-price-sensor": setup_markets_fresh_db["epex_da"].id,
+        "consumption-price": "100 EUR/MWh",
+        "production-price": "0 EUR/MWh",
         "site-production-capacity": "1MW",
         "site-consumption-capacity": "1MW",
     }
@@ -331,6 +351,7 @@ def test_save_state_of_charge(
         enqueue=True,
         start=start,
         end=end,
+        round_to_decimals=12,
         resolution=timedelta(minutes=15),
     )
 
@@ -350,13 +371,20 @@ def test_save_state_of_charge(
         index=pd.DatetimeIndex(power_schedule.event_start.tolist(), freq="15min"),
     )
 
-    assert (
-        power_schedule.mean() == -0.009
+    assert np.isclose(
+        -power_schedule.mean(), expected_avg_power
     )  # charge to cover for the net usage (in average)
 
     soc_schedule_from_power = integrate_time_series(
-        -(power_schedule + 0.009),
+        -power_schedule,
         0.0,
-        decimal_precision=6,
+        decimal_precision=16,
+        stock_delta=-0.009 * 0.25,
+        up_efficiency=ur.Quantity(charging_eff).to("dimensionless").magnitude,
+        down_efficiency=ur.Quantity(discharging_eff).to("dimensionless").magnitude,
+        storage_efficiency=ur.Quantity(storage_eff).to("dimensionless").magnitude,
     )
-    assert all(soc_schedule.event_value.values == soc_schedule_from_power.values)
+
+    assert all(
+        np.isclose(soc_schedule.event_value.values, soc_schedule_from_power.values)
+    )
