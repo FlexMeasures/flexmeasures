@@ -666,17 +666,16 @@ def create_line_layer(
     sensor_field_definition: dict,
     combine_legend: bool,
 ):
+    # Use linear interpolation if any of the sensors shown within one row is instantaneous; otherwise, use step-after
     event_resolutions = list(set([sensor.event_resolution for sensor in sensors]))
-    assert all(res == timedelta(0) for res in event_resolutions) or all(
-        res != timedelta(0) for res in event_resolutions
-    ), "Sensors shown within one row must all be instantaneous (zero event resolution) or all be non-instantatneous (non-zero event resolution)."
-    event_resolution = event_resolutions[0]
+    if any(res == timedelta(0) for res in event_resolutions):
+        interpolate = "linear"
+    else:
+        interpolate = "step-after"
     line_layer = {
         "mark": {
             "type": "line",
-            "interpolate": (
-                "step-after" if event_resolution != timedelta(0) else "linear"
-            ),
+            "interpolate": interpolate,
             "clip": True,
         },
         "encoding": {
