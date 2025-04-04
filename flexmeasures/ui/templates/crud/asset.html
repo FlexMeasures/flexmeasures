@@ -575,11 +575,11 @@
     }
 
     // Fetch Asset Details
-    async function getAsset(assetId, ignoreCache = false) {
+    async function getAsset(assetId, useCache = true) {
         const cacheKey = `asset_${assetId}`;
         const cachedData = localStorage.getItem(cacheKey);
 
-        if (cachedData && !ignoreCache) {
+        if (cachedData && useCache) {
             return JSON.parse(cachedData);
         }
 
@@ -948,23 +948,12 @@
         });
     }
 
-    async function updateAsset(assetField) {
+    async function updateSensorToShow() {
         const apiURL = apiBasePath + "/api/v3_0/assets/{{ asset.id }}";
-        let requestBody;
+        const requestBody = JSON.stringify({ sensors_to_show: JSON.stringify(sensorsToShow) });
 
-        if (assetField === "sensorToShow") {
-            requestBody = JSON.stringify({ sensors_to_show: JSON.stringify(sensorsToShow) });
-            // Only show the spinner if relevant to this specific data type
-            document.getElementById('spinner').style.display = 'block';
-        } else if (assetField === "flexContext") {
-            // remove null fields
-            for (const [key, value] of Object.entries(assetFlexContext)) {
-                if (value === null) {
-                    delete assetFlexContext[key];
-                }
-            }
-            requestBody = JSON.stringify({ flex_context: JSON.stringify(assetFlexContext) });
-        }
+        // Show spinner
+        document.getElementById('spinner').style.display = 'block';
 
         const response = await fetch(apiURL, {
             method: "PATCH",
@@ -977,20 +966,48 @@
         if (!response.ok) {
             const errorData = await response.json();
             const errorMessage = errorData?.message || errorData?.error || response.statusText;
-            showToast(`Failed to update the asset: ${errorMessage}`, "error");
-            // check failed fields and replace them with previous values
-            if (assetField === "flexContext") {
-                const asset = await getAsset("{{ asset.id }}", true);
-                // Get up-to-date flexcontext state/data
-                const previousFlexContext = await processAssetRawFlexContextJSON(asset.flex_context);
-                assetFlexContext = previousFlexContext;
-                // re-render form
-                renderFlexContextForm();
-            }
+            showToast(`Failed to update sensors to show: ${errorMessage}`, "error");
         } else {
-            showToast("Changes saved successfully", "success");
+            showToast("Sensor visibility updated successfully", "success");
         }
     }
+
+    async function updateFlexContext() {
+        const apiURL = apiBasePath + "/api/v3_0/assets/{{ asset.id }}";
+
+        // Clean null values
+        for (const [key, value] of Object.entries(assetFlexContext)) {
+            if (value === null) {
+                delete assetFlexContext[key];
+            }
+        }
+
+        const requestBody = JSON.stringify({ flex_context: JSON.stringify(assetFlexContext) });
+
+        const response = await fetch(apiURL, {
+            method: "PATCH",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: requestBody,
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            const errorMessage = errorData?.message || errorData?.error || response.statusText;
+            showToast(`Failed to update the flex context: ${errorMessage}`, "error");
+
+            // Revert to previous state
+            const asset = await getAsset("{{ asset.id }}", false);
+            const previousFlexContext = await processAssetRawFlexContextJSON(asset.flex_context);
+            assetFlexContext = previousFlexContext;
+            renderFlexContextForm();
+        } else {
+            showToast("Flex context updated successfully", "success");
+        }
+    }
+
+
 
     // Add a sensor as a new graph card
     function addSensorAsGraph(id) {
@@ -1220,7 +1237,7 @@
         await selectFlexField(document.getElementById(`${flexId}-control`));
 
         // Update FlexContext
-        await updateAsset("flexContext");
+        await updateFlexContext();
     }
 
     async function addFlexContextField() {
@@ -1422,7 +1439,7 @@
 
     // ============== Page Events ============== //
     formModal.addEventListener('hidden.bs.modal', function () {
-        updateAsset("sensorToShow");
+        updateSensorToShow();
     });
 
     formModal.addEventListener('shown.bs.modal', function () {
@@ -1437,7 +1454,7 @@
     });
 
     flexContexFormModal.addEventListener('hidden.bs.modal', function () {
-        updateAsset("flexContext");
+        updateFlexContext();
     });
 
     document.addEventListener("click", function (event) {
