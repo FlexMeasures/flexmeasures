@@ -10,6 +10,8 @@ v0.26.0 | May XX, 2025
 New features
 -------------
 
+* Support saving the storage schedule SOC using the ``flex-model`` field ``state-of-charge`` to the ``flex-model`` [see `PR #1392 <https://github.com/FlexMeasures/flexmeasures/pull/1392>`_]
+
 Infrastructure / Support
 ----------------------
 
@@ -26,6 +28,7 @@ v0.25.0 | April 01, 2025
 
 New features
 -------------
+* Allow relaxing SoC minima and maxima, by setting penalties for not meeting these constraints, using two new ``flex-context`` fields [see `PR #1300 <https://github.com/FlexMeasures/flexmeasures/pull/1300>`_]
 * Added form modal to edit an asset's ``flex_context`` [see `PR #1320 <https://github.com/FlexMeasures/flexmeasures/pull/1320>`_, `PR #1365 <https://github.com/FlexMeasures/flexmeasures/pull/1365>`_ and `PR #1364 <https://github.com/FlexMeasures/flexmeasures/pull/1364>`_]
 * Improve asset status page - distinguish better by data source type [see `PR #1022 <https://github.com/FlexMeasures/flexmeasures/pull/1022/>`_]
 * Better y-axis titles for charts that show multiple sensors with a shared unit [see `PR #1346 <https://github.com/FlexMeasures/flexmeasures/pull/1346>`_]
@@ -48,6 +51,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+
 
 v0.24.1 | February 27, 2025
 ============================
