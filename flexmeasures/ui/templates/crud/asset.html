@@ -966,18 +966,7 @@
         if (!response.ok) {
             const errorData = await response.json();
             const errorMessage = errorData?.message || errorData?.error || response.statusText;
-<<<<<<< HEAD
             showToast(`Failed to update sensors to show: ${errorMessage}`, "error");
-=======
-            showToast(`Failed to update the asset: ${errorMessage}`, "error");
-            // check failed fields and replace them with previous values
-            if (dataType === "flexContext") {
-                const previousFlexContext = "{{ asset.flex_context | safe }}";
-                assetFlexContext = processAssetRawFlexContextJSON(previousFlexContext);
-                // re-render form
-                renderFlexContextForm();
-            }
->>>>>>> 1d2d4ddc (refactor: return to data previous state if error occurs in flexcontext update)
         } else {
             showToast("Sensor graphs updated successfully", "success");
         }
