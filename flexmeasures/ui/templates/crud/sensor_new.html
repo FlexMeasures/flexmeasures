@@ -9,7 +9,15 @@ sensor {% endblock %} {% block divs %}
       </button>
     </div>
   </div>
+
   <form id="sensorForm" class="form p-4" method="POST">
+    <div
+      id="alertbox"
+      class="alert alert-success"
+      role="alert"
+      style="display: none"
+    ></div>
+
     <div class="mb-3">
       <label for="name" class="form-label">Name</label>
       <input
@@ -87,6 +95,7 @@ sensor {% endblock %} {% block divs %}
 <script type="text/javascript">
   const apiBasePath = window.location.origin;
   const sensorForm = document.getElementById("sensorForm");
+  const alertBox = document.getElementById("alertbox");
 
   function validateEventResolution(eventResolution) {
     // Regular expression to match duration format (PT[H|M|S])
@@ -150,7 +159,15 @@ sensor {% endblock %} {% block divs %}
     });
 
     if (response.ok) {
+      const responseData = await response.json();
+      const sensorId = responseData.id;
       showToast("Sensor created successfully.", "success");
+      alertBox.innerHTML = `Sensor created successfully. You can visit your new sensor <a target="_blank" href='/sensors/${sensorId}'>here</a>.`;
+      alertBox.style.display = "block";
+      // set all fields value to empty string
+      document.getElementById("name").value = "";
+      document.getElementById("eventResolution").value = "";
+      document.getElementById("unit").value = "";
     } else {
       const errorData = await response.json();
       let errorMessage = response.statusText; // Default to statusText
