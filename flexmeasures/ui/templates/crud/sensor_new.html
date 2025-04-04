@@ -17,7 +17,7 @@ sensor {% endblock %} {% block divs %}
         class="form-control"
         id="name"
         name="name"
-        placeholder="power"
+        placeholder="e.g power"
         required
       />
     </div>
@@ -38,7 +38,7 @@ sensor {% endblock %} {% block divs %}
         class="form-control"
         id="eventResolution"
         name="event_resolution"
-        placeholder="PT1H"
+        placeholder="e.g. PT1H (which is one hour) or PT15M (15 minutes)"
         required
       />
     </div>
@@ -98,7 +98,7 @@ sensor {% endblock %} {% block divs %}
     const unit = document.getElementById("unit").value;
 
     if (!name || !eventResolution || !unit) {
-      showToast("Please fill all fields.", "error");
+      showToast("Please fill in all fields.", "error");
       return;
     }
 
