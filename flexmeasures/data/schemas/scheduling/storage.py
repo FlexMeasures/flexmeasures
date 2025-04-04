@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from flask import current_app
 from marshmallow import (
@@ -55,7 +55,7 @@ class StorageFlexModelSchema(Schema):
     """
 
     soc_at_start = QuantityField(
-        required=True,
+        required=False,
         to_unit="MWh",
         default_src_unit="dimensionless",  # placeholder, overridden in __init__
         return_magnitude=True,
@@ -87,6 +87,14 @@ class StorageFlexModelSchema(Schema):
     )
     production_capacity = VariableQuantityField(
         "MW", data_key="production-capacity", required=False
+    )
+
+    # Activation prices
+    prefer_curtailing_later = fields.Bool(
+        data_key="prefer-curtailing-later", load_default=True
+    )
+    prefer_charging_sooner = fields.Bool(
+        data_key="prefer-charging-sooner", load_default=True
     )
 
     # Timezone placeholders for the soc_maxima, soc_minima and soc_targets fields are overridden in __init__
@@ -123,6 +131,12 @@ class StorageFlexModelSchema(Schema):
         required=False,
     )
 
+    state_of_charge = VariableQuantityField(
+        to_unit="MWh",
+        data_key="state-of-charge",
+        required=False,
+    )
+
     charging_efficiency = VariableQuantityField(
         "%", data_key="charging-efficiency", required=False
     )
@@ -135,9 +149,6 @@ class StorageFlexModelSchema(Schema):
     )
 
     storage_efficiency = VariableQuantityField("%", data_key="storage-efficiency")
-    prefer_charging_sooner = fields.Bool(
-        data_key="prefer-charging-sooner", load_default=True
-    )
 
     soc_gain = fields.List(
         VariableQuantityField("MW"),
@@ -214,6 +225,20 @@ class StorageFlexModelSchema(Schema):
         if max_target_datetime > max_server_datetime:
             current_app.logger.warning(
                 f"Target datetime exceeds {max_server_datetime}. Maximum scheduling horizon is {max_server_horizon}."
+            )
+
+    @validates("state_of_charge")
+    def validate_state_of_charge_is_sensor(
+        self, state_of_charge: Sensor | list[dict] | ur.Quantity
+    ):
+        if not isinstance(state_of_charge, Sensor):
+            raise ValidationError(
+                "The `state-of-charge` field can only be a Sensor. In the future, the state-of-charge field will replace soc-at-start field."
+            )
+
+        if state_of_charge.event_resolution != timedelta(0):
+            raise ValidationError(
+                "The field `state-of-charge` points to a sensor with a non-instantaneous event resolution. Please, use an instantaneous sensor."
             )
 
     @validates("storage_efficiency")

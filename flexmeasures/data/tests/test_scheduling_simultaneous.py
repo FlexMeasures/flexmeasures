@@ -10,7 +10,7 @@ from flexmeasures.data.models.time_series import Sensor
 def test_create_simultaneous_jobs(
     db, app, flex_description_sequential, smart_building, use_heterogeneous_resolutions
 ):
-    assets, sensors = smart_building
+    assets, sensors, _ = smart_building
     queue = app.queues["scheduling"]
     start = pd.Timestamp("2015-01-03").tz_localize("Europe/Amsterdam")
     end = pd.Timestamp("2015-01-04").tz_localize("Europe/Amsterdam")
@@ -101,19 +101,17 @@ def test_create_simultaneous_jobs(
     total_cost = ev_costs + battery_costs
 
     # Define expected costs based on resolution
+    expected_total_cost = -3.3525
     expected_ev_costs = 2.1625
     expected_battery_costs = -5.515
-    expected_total_cost = -3.3525
 
     # Assert costs
     assert (
+        round(total_cost, 4) == expected_total_cost
+    ), f"Total cost should be {expected_total_cost} €, got {total_cost} €"
+    assert (
         round(ev_costs, 4) == expected_ev_costs
     ), f"EV cost should be {expected_ev_costs} €, got {ev_costs} €"
-
     assert (
         round(battery_costs, 4) == expected_battery_costs
     ), f"Battery cost should be {expected_battery_costs} €, got {battery_costs} €"
-
-    assert (
-        round(total_cost, 4) == expected_total_cost
-    ), f"Total cost should be {expected_total_cost} €, got {total_cost} €"

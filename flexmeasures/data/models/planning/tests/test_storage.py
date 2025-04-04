@@ -36,7 +36,7 @@ def test_battery_solver_multi_commitment(add_battery_assets, db):
             "soc-min": "0 MWh",
             "soc-max": "1 MWh",
             "power-capacity": "1 MW",
-            "soc-targets": [
+            "soc-minima": [
                 {
                     "datetime": "2015-01-02T00:00:00+01:00",
                     "value": "1 MWh",
@@ -78,6 +78,7 @@ def test_battery_solver_multi_commitment(add_battery_assets, db):
                 }
                 for i in production_prices.index
             ],
+            "soc-minima-breach-price": "100 EUR/kWh/min",  # high breach price (to mimic a hard constraint)
         },
         return_multiple=True,
     )
@@ -85,6 +86,8 @@ def test_battery_solver_multi_commitment(add_battery_assets, db):
 
     schedule = results[0]["data"]
     costs = results[1]["data"]
+    costs_unit = results[1]["unit"]
+    assert costs_unit == "EUR"
 
     # Check if constraints were met
     check_constraints(battery, schedule, soc_at_start)

@@ -472,6 +472,7 @@ class SensorAPI(FlaskView):
                 "duration": "PT24H",
                 "flex-model": {
                     "soc-at-start": "12.1 kWh",
+                    "state-of-charge" : {"sensor" : 24},
                     "soc-targets": [
                         {
                             "value": "25 kWh",
