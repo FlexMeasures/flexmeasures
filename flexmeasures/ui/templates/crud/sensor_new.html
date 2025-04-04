@@ -60,7 +60,7 @@ sensor {% endblock %} {% block divs %}
             class="form-select"
             onchange="document.getElementById('unit').value = this.value"
           >
-            <option selected>Units</option>
+            <option selected>Choose from units already in use</option>
             {% for unit in available_units %}
             <option>{{ unit }}</option>
             {% endfor %}
