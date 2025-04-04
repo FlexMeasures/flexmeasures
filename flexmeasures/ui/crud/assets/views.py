@@ -147,7 +147,7 @@ class AssetCrudUI(FlaskView):
         asset = GenericAsset.query.get(id)
         if asset is None:
             raise NotFound
-        check_access(asset, "read")
+        check_access(asset, "create-children")
 
         return render_flexmeasures_template(
             "crud/sensor_new.html",
