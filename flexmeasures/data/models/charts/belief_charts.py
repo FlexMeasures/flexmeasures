@@ -667,8 +667,7 @@ def create_line_layer(
     combine_legend: bool,
 ):
     # Use linear interpolation if any of the sensors shown within one row is instantaneous; otherwise, use step-after
-    event_resolutions = list(set([sensor.event_resolution for sensor in sensors]))
-    if any(res == timedelta(0) for res in event_resolutions):
+    if any(sensor.event_resolution == timedelta(0) for sensor in sensors):
         interpolate = "linear"
     else:
         interpolate = "step-after"
