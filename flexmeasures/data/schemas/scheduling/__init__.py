@@ -33,6 +33,20 @@ class FlexContextSchema(Schema):
     """This schema defines fields that provide context to the portfolio to be optimized."""
 
     # Device commitments
+    consumption_breach_price = VariableQuantityField(
+        "/MW",
+        data_key="consumption-breach-price",
+        required=False,
+        value_validator=validate.Range(min=0),
+        default=None,
+    )
+    production_breach_price = VariableQuantityField(
+        "/MW",
+        data_key="production-breach-price",
+        required=False,
+        value_validator=validate.Range(min=0),
+        default=None,
+    )
     soc_minima_breach_price = VariableQuantityField(
         "/(MWh*h)",
         data_key="soc-minima-breach-price",
