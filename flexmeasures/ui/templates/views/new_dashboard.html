@@ -119,7 +119,7 @@
     }} = L
         .marker(
             [{{ asset.location[0] }}, {{ asset.location[1] }}],
-            { icon: {{ asset.generic_asset_type.name | parameterize | pluralize }}_icon, id: "{{ asset.id }}"}
+            { icon: {{ asset.generic_asset_type.name | parameterize | pluralize }}_icon, id: {{ asset.id }}, parentId: {% if asset.parent_asset_id is none %}null{% else %}{{ asset.parent_asset_id }}{% endif %} }
     )
         .bindPopup(`
                             <div class="leaflet-marker-popup">
