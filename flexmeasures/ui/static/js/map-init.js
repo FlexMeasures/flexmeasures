@@ -77,6 +77,26 @@ function removeSpiderLegs(markerCluster) {
  */
 function computeCenteredTreeLayout(markers, centerPt, spacingX = 50, spacingY = 100, treeSpacing = 100) {
     const nodeMap = new Map();
+
+    // Add virtual parent nodes if they are missing a marker (no lat/lng)
+    const allParentIds = new Set(markers.map(m => m.options.parentId).filter(id => id !== null));
+    for (const parentId of allParentIds) {
+        if (!nodeMap.has(parentId)) {
+            // Use the first child with this parent to determine location
+            const child = markers.find(m => m.options.parentId === parentId);
+            if (child) {
+                nodeMap.set(parentId, {
+                    id: parentId,
+                    parentId: null,
+                    children: [],
+                    x: 0,
+                    y: 0,
+                    virtual: true // you can tag it if needed
+                });
+            }
+        }
+    }
+
     markers.forEach(marker => {
         const { id, parentId } = marker.options;
         nodeMap.set(id, { ...marker.options, children: [], x: 0, y: 0 });
