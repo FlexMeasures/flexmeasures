@@ -161,6 +161,33 @@
     {% endfor %}
     {% endfor %}
 
+    // Monkeypatch spiderfy
+    const originalSpiderfy = L.MarkerCluster.prototype.spiderfy;
+    L.MarkerCluster.include({
+        spiderfy: function () {
+            // Send spiderfyShapePositions the markers themselves, rather than just the number of markers
+            passMarkersToSpiderfyShapePositions(this)
+            return originalSpiderfy.call(this);
+        }
+    });
+
+    // Monkeypatch _animationSpiderfy
+    const originalAnimationSpiderfy = L.MarkerCluster.prototype._animationSpiderfy;
+    L.MarkerCluster.include({
+        _animationSpiderfy: _animationTreeSpiderfy,
+    });
+
+    // Monkeypatch unspiderfy
+    const originalUnspiderfy = L.MarkerCluster.prototype.unspiderfy;
+    L.MarkerCluster.include({
+        unspiderfy: function () {
+            // Remove spider legs straight away (the default animation does not suit a tree view)
+            removeSpiderLegs(this);
+            return originalUnspiderfy.call(this);
+        }
+    });
+
+
     // create Map with tiles
     var assetMap = L
         .map('mapid', { center: [{{ map_center[0] }}, {{ map_center[1] }}], zoom: 6 })
@@ -170,7 +197,10 @@
             });
         });
     addTileLayer(assetMap, '{{ mapboxAccessToken }}');
-    var mcgLayerSupportGroup = L.markerClusterGroup.layerSupport();
+    var mcgLayerSupportGroup = L.markerClusterGroup.layerSupport({
+        spiderfyShapePositionsWithMarkers: computeCenteredTreeLayout
+    });
+
     var control = L.control.layers(null, null, { collapsed: true });
 
     // add a layer for each asset type
