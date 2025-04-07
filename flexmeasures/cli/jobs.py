@@ -25,6 +25,7 @@ from sqlalchemy.orm import configure_mappers
 from tabulate import tabulate
 import pandas as pd
 
+from flexmeasures.data.schemas import SensorIdField
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
 from flexmeasures.cli.utils import MsgStyle
@@ -162,12 +163,22 @@ def show_queues():
     help="The registry to look in.",
 )
 @click.option(
+    "--sensor",
+    "sensor_id",
+    type=SensorIdField(),
+    callback=lambda ctx, param, value: value.id if value else None,
+    required=False,
+    help="The sensor ID to filter by.",
+)
+@click.option(
     "--file",
     type=click.Path(),
     default="last_jobs.csv",
     help="The CSV file to save the found jobs.",
 )
-def save_last(n: int, queue_name: str, registry_name: str, file: str):
+def save_last(
+    n: int, queue_name: str, registry_name: str, sensor_id: int | None, file: str
+):
     """
     Save the last n jobs to a file (by default, the last 10 failed jobs).
     """
@@ -191,18 +202,19 @@ def save_last(n: int, queue_name: str, registry_name: str, file: str):
             kwargs = job.kwargs or {}
             asset_info = kwargs.get("asset_or_sensor", {})
 
-            found_jobs.append(
-                {
-                    "Job ID": job.id,
-                    "ID": asset_info.get("id", "N/A"),
-                    "Class": asset_info.get("class", "N/A"),
-                    "Error": job.exc_info,
-                    "All kwargs": kwargs,
-                    "Function name": getattr(job, "func_name", "N/A"),
-                    "Started at": getattr(job, "started_at", "N/A"),
-                    "Ended at": getattr(job, "ended_at", "N/A"),
-                }
-            )
+            if not sensor_id or asset_info.get("id") == sensor_id:
+                found_jobs.append(
+                    {
+                        "Job ID": job.id,
+                        "ID": asset_info.get("id", "N/A"),
+                        "Class": asset_info.get("class", "N/A"),
+                        "Error": job.exc_info,
+                        "All kwargs": kwargs,
+                        "Function name": getattr(job, "func_name", "N/A"),
+                        "Started at": getattr(job, "started_at", "N/A"),
+                        "Ended at": getattr(job, "ended_at", "N/A"),
+                    }
+                )
         except Exception as e:
             click.secho(
                 f"Job {job_id} failed to fetch with error: {str(e)}", fg="yellow"
@@ -225,9 +237,12 @@ def save_last(n: int, queue_name: str, registry_name: str, file: str):
         pd.DataFrame(found_jobs).sort_values("Started at", ascending=False).to_csv(
             file, index=False
         )
-        click.secho(f"Saved {len(found_jobs)} {registry_name} jobs to {file}.", fg="green")
+        click.secho(
+            f"Saved {len(found_jobs)} {registry_name} jobs to {file}.", fg="green"
+        )
     else:
-        click.secho(f"No {registry_name} jobs found.", fg="yellow")
+        filter_message = f" for sensor {sensor_id} among the last {n} jobs"
+        click.secho(f"No {registry_name} jobs found{filter_message}.", fg="yellow")
 
 
 @fm_jobs.command("clear-queue")
