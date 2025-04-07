@@ -11,6 +11,8 @@ New features
 -------------
 
 * Support saving the storage schedule SOC using the ``flex-model`` field ``state-of-charge`` to the ``flex-model`` [see `PR #1392 <https://github.com/FlexMeasures/flexmeasures/pull/1392>`_]
+* Save changes in asset flex-context form right away [see `PR #1390 <https://github.com/FlexMeasures/flexmeasures/pull/1390>`_]
+* Introduced new page to create sensor for a parent asset [see `PR #1394 <https://github.com/FlexMeasures/flexmeasures/pull/1394>`_]
 
 Infrastructure / Support
 ----------------------
