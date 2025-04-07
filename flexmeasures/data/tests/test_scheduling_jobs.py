@@ -297,8 +297,6 @@ def test_save_state_of_charge(
     fresh_db,
     app,
     smart_building,
-    setup_markets_fresh_db,
-    add_market_prices_fresh_db,
     charging_eff,
     discharging_eff,
     storage_eff,
