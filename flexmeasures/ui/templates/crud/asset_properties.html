@@ -112,24 +112,6 @@
                                 </div>
 
                                 <div class="form-group">
-                                    <label for="flex_context" class="col-sm-6 control-label">Flex Context: </label>
-
-                                    <button class="btn btn-primary" type="button" data-bs-toggle="modal"
-                                        data-bs-target="#flexContextModal">
-                                        Edit
-                                    </button>
-                                </div>
-
-                                <div class="form-group">
-                                    <label for="sensors_to_show" class="col-sm-6 control-label">Sensor Graphs: </label>
-
-                                    <button class="btn btn-primary" type="button" data-bs-toggle="modal"
-                                        data-bs-target="#sensorsToShowModal">
-                                        Edit Graphs
-                                    </button>
-                                </div>
-
-                                <div class="form-group">
                                     <label class="control-label">Location</label>
                                     <small>(Click map to edit latitude and longitude in form)</small>
                                     <div id="mapid"></div>
@@ -147,8 +129,41 @@
             {% endif %}
    
         </div>
-   <div class="col-md-8">
-     
+        <div class="col-md-8">
+
+            <div class="sensors-asset card">
+                <h3>Asset Properties - {{ asset.name }}</h3>
+                <div class="table-responsive">
+                    <table class="table table-striped paginate nav-on-click w-100 mx-auto" title="View Asset Properties">
+                        <thead>
+                            <tr>
+                                <th><i class="left-icon">ID</i></th>
+                                <th>Name</th>
+                                <th>Latitude</th>
+                                <th>Longitude</th>
+                                <th>Asset Type</th>
+                                <th>Other Attributes (JSON)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>{{ asset.id }}</td>
+                                <td>{{ asset.name }}</td>
+                                <td>{{ asset.latitude }}</td>
+                                <td>{{ asset.longitude }}</td>
+                                <td>{{ asset.generic_asset_type.name }}</td>
+                                <td>
+                                    {% if asset.attributes %}
+                                    {{ asset.attributes | tojson }}
+                                    {% else %}
+                                    None
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
 
             <div class="sensors-asset card">
                 <h3>All sensors for {{ asset.name }}</h3>
@@ -214,10 +229,7 @@
                 </div>
             </div>
         </div>
-
     </div>
-
-
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jstimezonedetect/1.0.7/jstz.js"></script>

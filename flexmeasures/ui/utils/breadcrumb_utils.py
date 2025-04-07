@@ -25,7 +25,7 @@ def get_breadcrumb_info(
                 },
                 {
                     "url": url_for("AssetCrudUI:graph", id=entity.id),
-                    "name": "Graph",
+                    "name": "Graphs",
                     "type": "Asset",
                 },
                 {
