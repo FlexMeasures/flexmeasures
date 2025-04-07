@@ -19,14 +19,6 @@ Infrastructure / Support
 
 Bugfixes
 -----------
-
-
-
-v0.25.1 | April XX, 2025
-============================
-
-Bugfixes
------------
 * The data dashboard now supports overlapping sensors with instantaneous and non-instantaneous resolutions [see `PR #1407 <https://github.com/FlexMeasures/flexmeasures/pull/1407>`_]
 
 
