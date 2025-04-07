@@ -246,7 +246,11 @@
 
             <div class="sensors-asset card">
                 <h3>All sensors for {{ asset.name }}</h3>
+               
                 <div class="table-responsive">
+                    <button class="btn btn-sm btn-responsive btn-info" type="submit">
+                        <a href="/assets/{{asset.id}}/sensor/new">Create Sensor</a>
+                    </button>
                     <table class="table table-striped paginate nav-on-click" title="View data" id="sensorsTable">
                     </table>
                 </div>
