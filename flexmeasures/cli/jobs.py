@@ -13,7 +13,14 @@ from flask import current_app as app
 from flask.cli import with_appcontext
 from rq import Queue, Worker
 from rq.job import Job
-from rq.registry import FailedJobRegistry
+from rq.registry import (
+    CanceledJobRegistry,
+    DeferredJobRegistry,
+    FailedJobRegistry,
+    FinishedJobRegistry,
+    ScheduledJobRegistry,
+    StartedJobRegistry,
+)
 from sqlalchemy.orm import configure_mappers
 from tabulate import tabulate
 import pandas as pd
@@ -21,6 +28,16 @@ import pandas as pd
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
 from flexmeasures.cli.utils import MsgStyle
+
+
+REGISTRY_MAP = dict(
+    canceled=CanceledJobRegistry,
+    deferred=DeferredJobRegistry,
+    failed=FailedJobRegistry,
+    finished=FinishedJobRegistry,
+    started=StartedJobRegistry,
+    scheduled=ScheduledJobRegistry,
+)
 
 
 @click.group("jobs")
@@ -122,7 +139,7 @@ def show_queues():
     )
 
 
-@fm_jobs.command("save-last-failed")
+@fm_jobs.command("save-last")
 @with_appcontext
 @click.option(
     "--n",
@@ -138,14 +155,21 @@ def show_queues():
     help="The queue to look in.",
 )
 @click.option(
+    "--registry",
+    "registry_name",
+    type=click.Choice(REGISTRY_MAP.keys()),
+    default="failed",
+    help="The registry to look in.",
+)
+@click.option(
     "--file",
     type=click.Path(),
-    default="failed_jobs.csv",
-    help="The CSV file to save the failed jobs.",
+    default="last_jobs.csv",
+    help="The CSV file to save the found jobs.",
 )
-def save_last_failed(n: int, queue_name: str, file: str):
+def save_last(n: int, queue_name: str, registry_name: str, file: str):
     """
-    Save the last n failed jobs (10 by default) to a file.
+    Save the last n jobs to a file (by default, the last 10 failed jobs).
     """
     available_queues = app.queues
     if queue_name not in available_queues.keys():
@@ -157,9 +181,9 @@ def save_last_failed(n: int, queue_name: str, file: str):
     else:
         queue = available_queues[queue_name]
 
-    registry = FailedJobRegistry(queue=queue)
+    registry = REGISTRY_MAP[registry_name](queue=queue)
     job_ids = registry.get_job_ids()[-n:]
-    failed_jobs = []
+    found_jobs = []
 
     for job_id in job_ids:
         try:
@@ -167,7 +191,7 @@ def save_last_failed(n: int, queue_name: str, file: str):
             kwargs = job.kwargs or {}
             asset_info = kwargs.get("asset_or_sensor", {})
 
-            failed_jobs.append(
+            found_jobs.append(
                 {
                     "Job ID": job.id,
                     "ID": asset_info.get("id", "N/A"),
@@ -184,7 +208,7 @@ def save_last_failed(n: int, queue_name: str, file: str):
                 f"Job {job_id} failed to fetch with error: {str(e)}", fg="yellow"
             )
 
-    if failed_jobs:
+    if found_jobs:
         if os.path.exists(file):
             if not click.confirm(f"{file} already exists. Overwrite?", default=False):
                 new_file = click.prompt(
@@ -197,13 +221,13 @@ def save_last_failed(n: int, queue_name: str, file: str):
                     )
                 file = new_file
 
-        # Save the failed jobs to a CSV file
-        pd.DataFrame(failed_jobs).sort_values("Started at", ascending=False).to_csv(
+        # Save the found jobs to a CSV file
+        pd.DataFrame(found_jobs).sort_values("Started at", ascending=False).to_csv(
             file, index=False
         )
-        click.secho(f"Saved {len(failed_jobs)} failed jobs to {file}.", fg="green")
+        click.secho(f"Saved {len(found_jobs)} {registry_name} jobs to {file}.", fg="green")
     else:
-        click.secho("No failed jobs found.", fg="yellow")
+        click.secho(f"No {registry_name} jobs found.", fg="yellow")
 
 
 @fm_jobs.command("clear-queue")
