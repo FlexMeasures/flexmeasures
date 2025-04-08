@@ -1604,7 +1604,7 @@
     });
     var marker = L
         .marker(
-            [{{ asset.latitude | replace("None", 10) }}, { { asset.longitude | replace("None", 10) } }],
+            [{{ asset.latitude | replace("None", 10) }}, {{ asset.longitude | replace("None", 10) }}],
     { icon: asset_icon }
         ).addTo(assetMap);
 
