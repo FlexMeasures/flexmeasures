@@ -50,8 +50,10 @@
                             {% if account %}
                             <script>
                                 document.addEventListener("DOMContentLoaded", function() {
-                                    document.querySelector("select[name='account_id']").value = "{{ account }}";
-                                    document.querySelector("select[name='account_id']").disabled = true;
+                                    var accountID = document.querySelector("select[name='account_id']");
+                                    accountID.value = "{{ account }}";
+                                    accountID.style.pointerEvents = "none";
+                                    accountID.style.backgroundColor = "#f0f0f0";
                                 });
                             </script>
                             {% endif %}

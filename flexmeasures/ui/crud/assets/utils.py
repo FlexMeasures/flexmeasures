@@ -283,3 +283,28 @@ def get_list_assets_chart(
             )
 
     return assets
+
+
+def child_asset_addition(asset: Asset, assets: list) -> list:
+    """
+    Add a child asset to the current assets list.
+    This function is used to add a child asset to the current asset in the list of assets.
+    Args:
+        asset: The current asset to be used as parent
+        assets: The list of assets
+    """
+    # Add Extra node to the current asset
+    add_child_asset = {
+        "name": "Add Child Asset",
+        "id": "new",
+        "asset_type": asset.generic_asset_type.name,
+        "link": url_for("AssetCrudUI:post", id="new", parent_asset_id=asset.id),
+        "icon": svg_asset_icon_name("add_asset"),
+        "tooltip": "",
+        "sensors": [],
+        "parent": asset.id,
+    }
+
+    assets.append(add_child_asset)
+
+    return assets

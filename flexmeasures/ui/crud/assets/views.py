@@ -6,8 +6,6 @@ from flask_security import login_required, current_user
 from werkzeug.exceptions import NotFound
 from flexmeasures.auth.error_handling import unauthorized_handler
 
-from flexmeasures.ui.utils.view_utils import svg_asset_icon_name
-
 from flexmeasures.data import db
 from flexmeasures.auth.policy import check_access
 from flexmeasures.data.services.job_cache import NoRedisConfigured
@@ -26,6 +24,7 @@ from flexmeasures.ui.crud.assets.utils import (
     user_can_delete,
     user_can_update,
     get_list_assets_chart,
+    child_asset_addition,
 )
 from flexmeasures.data.services.sensors import (
     build_sensor_status_data,
@@ -140,19 +139,7 @@ class AssetCrudUI(FlaskView):
             }
             for sensor in asset.sensors
         ]
-        # Add Extra node to the current asset
-        add_child_asset = {
-            "name": "Add Child Asset",
-            "id": "new",
-            "asset_type": asset.generic_asset_type.name,
-            "link": url_for("AssetCrudUI:post", id="new", parent_asset_id=asset.id),
-            "icon": svg_asset_icon_name("add_asset"),
-            "tooltip": "",
-            "sensors": [],
-            "parent": asset.id,
-        }
-
-        assets.append(add_child_asset)
+        assets = child_asset_addition(asset, assets)
 
         return render_flexmeasures_template(
             "crud/asset_context.html",
@@ -287,14 +274,29 @@ class AssetCrudUI(FlaskView):
                     asset_info, int(id), make_obj=True
                 )
 
+                if asset is None:
+                    assets = []
+                else:
+                    assets = get_list_assets_chart(asset, base_asset=asset)
+
+                current_asset_sensors = [
+                    {
+                        "name": sensor.name,
+                        "unit": sensor.unit,
+                        "link": url_for("SensorUI:get", id=sensor.id),
+                    }
+                    for sensor in asset.sensors
+                ]
+                assets = child_asset_addition(asset, assets)
+
                 return render_flexmeasures_template(
-                    "crud/asset.html",
-                    asset_form=asset_form,
+                    "crud/asset_context.html",
+                    assets=assets,
                     asset=asset,
                     msg="Cannot edit asset.",
+                    current_asset_sensors=current_asset_sensors,
                     mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
-                    user_can_create_assets=user_can_create_assets(),
-                    user_can_delete_asset=user_can_delete(asset),
+                    current_page="Context",
                 )
             patch_asset_response = InternalApi().patch(
                 url_for("AssetAPI:patch", id=id),
@@ -317,14 +319,26 @@ class AssetCrudUI(FlaskView):
                 )
                 asset = db.session.get(GenericAsset, id)
 
+        assets = get_list_assets_chart(asset, base_asset=asset)
+
+        current_asset_sensors = [
+            {
+                "name": sensor.name,
+                "unit": sensor.unit,
+                "link": url_for("SensorUI:get", id=sensor.id),
+            }
+            for sensor in asset.sensors
+        ]
+        assets = child_asset_addition(asset, assets)
+
         return render_flexmeasures_template(
-            "crud/asset.html",
+            "crud/asset_context.html",
+            assets=assets,
             asset=asset,
-            asset_form=asset_form,
             msg=msg,
+            current_asset_sensors=current_asset_sensors,
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
-            user_can_create_assets=user_can_create_assets(),
-            user_can_delete_asset=user_can_delete(asset),
+            current_page="Context",
         )
 
     @login_required
