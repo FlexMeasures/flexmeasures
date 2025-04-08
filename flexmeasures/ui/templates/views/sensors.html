@@ -347,8 +347,8 @@
         if (response.ok) {
             const responseData = await response.json();
             const sensorId = responseData.id;
-            showToast("Sensor updated successfully.", "success");
             document.getElementById("name").value = "";
+            window.location.reload();
         } else {
             const errorData = await response.json();
             let errorMessage = response.statusText; // Default to statusText
