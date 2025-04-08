@@ -263,9 +263,14 @@ def save_last(
         click.secho(
             f"Saved {len(found_jobs)} {registry_name} jobs to {file}.", fg="green"
         )
-    else:
+        return
+    elif asset_id:
+        filter_message = f" for asset {asset_id} among the last {n} jobs"
+    elif sensor_id:
         filter_message = f" for sensor {sensor_id} among the last {n} jobs"
-        click.secho(f"No {registry_name} jobs found{filter_message}.", fg="yellow")
+    else:
+        filter_message = ""
+    click.secho(f"No {registry_name} jobs found{filter_message}.", fg="yellow")
 
 
 @fm_jobs.command("clear-queue")
