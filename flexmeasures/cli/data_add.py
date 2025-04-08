@@ -2126,6 +2126,9 @@ def add_toy_account(kind: str, name: str):
             "discharging",
             parent_asset_id=building_asset.id,
             flex_context={
+                "consumption-price": "500 kVA",
+            },
+            attributes={
                 "site-power-capacity": "500 kVA",
             },
             min_soc_in_mwh=0.05,
