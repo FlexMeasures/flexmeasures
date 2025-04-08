@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from flask import url_for, current_app
+from flask import url_for, current_app, request
 from flask_classful import FlaskView, route
 from flask_security import login_required, current_user
 from werkzeug.exceptions import NotFound
+from flexmeasures.auth.error_handling import unauthorized_handler
 
 from flexmeasures.ui.utils.view_utils import svg_asset_icon_name
 
@@ -30,6 +31,7 @@ from flexmeasures.data.services.sensors import (
     build_sensor_status_data,
     build_asset_jobs_data,
 )
+from flexmeasures.ui.utils.view_utils import available_units
 
 """
 Asset crud view.
@@ -94,8 +96,36 @@ class AssetCrudUI(FlaskView):
 
     @login_required
     # @route("/<id>/context")
-    def get(self, id: str):
+    def get(self, id: str, **kwargs):
         """/assets/<id>"""
+        parent_asset_id = request.args.get("parent_asset_id", "")
+        if id == "new":
+            if not user_can_create_assets():
+                return unauthorized_handler(None, [])
+
+            asset_form = NewAssetForm()
+            asset_form.with_options()
+            parent_asset_name = ""
+            account = None
+            if parent_asset_id:
+                parent_asset = db.session.get(GenericAsset, parent_asset_id)
+                if parent_asset:
+                    asset_form.account_id.data = str(
+                        parent_asset.account_id
+                    )  # Pre-set account
+                    parent_asset_name = parent_asset.name
+                    account = parent_asset.account_id
+            return render_flexmeasures_template(
+                "crud/asset_new.html",
+                asset_form=asset_form,
+                msg="",
+                map_center=get_center_location_of_assets(user=current_user),
+                mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
+                parent_asset_name=parent_asset_name,
+                parent_asset_id=parent_asset_id,
+                account=account,
+            )
+
         asset = db.session.query(GenericAsset).filter_by(id=id).first()
         if asset is None:
             assets = []
