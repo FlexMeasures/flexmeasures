@@ -349,7 +349,8 @@
             const sensorId = responseData.id;
             document.getElementById("name").value = "";
             showToast("Sensor updated successfully.", "success");
-            showToast("Loading...", "info");
+            await new Promise(resolve => setTimeout(resolve, 500));
+            showToast("Reloading page...", "info");
             await new Promise(resolve => setTimeout(resolve, 2000));
             window.location.reload();
         } else {
