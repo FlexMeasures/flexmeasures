@@ -5,6 +5,15 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
+v3.0-23 | 2025-04-08
+""""""""""""""""""""
+
+- Introduce new price fields in the ``flex-context`` in order to relax device-level power constraints in the ``device-model``:
+
+  - ``consumption-breach-price``: if set, the ``consumption-capacity`` is used as a soft constraint.
+  - ``production-breach-price``: if set, the ``production-capacity`` is used as a soft constraint.
+  - In both cases, breaching the capacity is penalized according to this per-kW price. The price is applied to each breach that occurs given the resolution of the scheduled power sensor.
+
 v3.0-22 | 2025-03-17
 """"""""""""""""""""
 
