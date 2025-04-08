@@ -4,6 +4,10 @@
 FlexMeasures CLI Changelog
 **********************
 
+since v0.26.0 | April XX, 2025
+=================================
+* Switch to ``flexmeasures jobs save-last`` CLI command for saving the last n canceled/deferred/failed/finished/scheduled/started jobs (from the scheduling queue, by default).
+
 since v0.25.0 | April 01, 2025
 =================================
 * Report parameters set using ``flexmeasures add report --parameters`` can use any argument supported by ``Sensor.search_beliefs`` to allow more control over input for the report.
