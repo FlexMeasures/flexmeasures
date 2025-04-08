@@ -65,6 +65,9 @@ class FlexContextSchema(Schema):
     relax_soc_constraints = fields.Bool(
         data_key="relax-soc-constraints", load_default=False
     )
+    relax_capacity_constraints = fields.Bool(
+        data_key="relax-capacity-constraints", load_default=False
+    )
 
     # Energy commitments
     ems_power_capacity_in_mw = VariableQuantityField(
@@ -165,6 +168,19 @@ class FlexContextSchema(Schema):
                 data["soc_minima_breach_price"] = ur.Quantity("1000 EUR/kWh")
             if data.get("soc_maxima_breach_price") is None:
                 data["soc_maxima_breach_price"] = ur.Quantity("1000 EUR/kWh")
+        return data
+
+    @validates_schema
+    def process_relax_capacity_constraints(self, data: dict, **kwargs):
+        """Fill in default capacity breach prices when asked to relax capacity constraints.
+
+        todo: this assumes EUR currency is used for all prices
+        """
+        if data["relax_capacity_constraints"]:
+            if data.get("consumption_breach_price") is None:
+                data["consumption_breach_price"] = ur.Quantity("10 EUR/kW")
+            if data.get("production_breach_price") is None:
+                data["production_breach_price"] = ur.Quantity("10 EUR/kW")
         return data
 
     @validates_schema
