@@ -19,8 +19,9 @@ v3.0-22 | 2025-03-17
 
 - Introduce new price fields in the ``flex-context`` in order to relax SoC constraints in the ``device-model``:
 
-  - ``soc-minima-breach-price``: if set, the ``soc-minima`` are used as a soft constraint, and not meeting the minima is penalized according to this per-kWh price. The price is applied to each breach that occurs given the resolution of the scheduled power sensor.
-  - ``soc-maxima-breach-price``: if set, the ``soc-maxima`` are used as a soft constraint, and not meeting the maxima is penalized according to this per-kWh price. The price is applied to each breach that occurs given the resolution of the scheduled power sensor.
+  - ``soc-minima-breach-price``: if set, the ``soc-minima`` are used as a soft constraint.
+  - ``soc-maxima-breach-price``: if set, the ``soc-maxima`` are used as a soft constraint.
+  - In both cases, not meeting the constraint is penalized according to this per-kWh-per-h price. That means the costs increase linearly the longer the state of charge breaches the constraint.
 
 v3.0-22 | 2024-12-27
 """"""""""""""""""""
