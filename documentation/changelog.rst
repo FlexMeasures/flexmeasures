@@ -16,6 +16,7 @@ New features
 
 Infrastructure / Support
 ----------------------
+* Save last N jobs from any queue and registry to a file, and support filtering by asset ID or sensor ID [see `PR #1411 <https://github.com/FlexMeasures/flexmeasures/pull/1411>`_]
 
 Bugfixes
 -----------
