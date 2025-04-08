@@ -157,11 +157,10 @@ class FlexContextSchema(Schema):
         SensorIdField(), data_key="inflexible-device-sensors"
     )
 
-    @validates_schema
     def process_relax_soc_constraints(self, data: dict, **kwargs):
         """Fill in default soc breach prices when asked to relax SoC constraints.
 
-        todo: this assumes EUR currency is used for all prices
+        This relies on the check_prices validator to run first.
         """
         default_soc_breach_price = "1000 EUR/(kWh*h)"
         if data["relax_soc_constraints"]:
@@ -170,7 +169,8 @@ class FlexContextSchema(Schema):
                 data["soc_minima_breach_price"] = ur.Quantity(
                     default_soc_breach_price
                 ).to(
-                    "EUR/"
+                    data["shared_currency_unit"]
+                    + "/"
                     + self.declared_fields["soc_minima_breach_price"].to_unit.split(
                         "/"
                     )[-1]
@@ -180,18 +180,18 @@ class FlexContextSchema(Schema):
                 data["soc_maxima_breach_price"] = ur.Quantity(
                     default_soc_breach_price
                 ).to(
-                    "EUR/"
+                    data["shared_currency_unit"]
+                    + "/"
                     + self.declared_fields["soc_maxima_breach_price"].to_unit.split(
                         "/"
                     )[-1]
                 )
         return data
 
-    @validates_schema
     def process_relax_capacity_constraints(self, data: dict, **kwargs):
         """Fill in default capacity breach prices when asked to relax capacity constraints.
 
-        todo: this assumes EUR currency is used for all prices
+        This relies on the check_prices validator to run first.
         """
         default_capacity_breach_price = "100 EUR/kW"
         if data["relax_capacity_constraints"]:
@@ -200,7 +200,8 @@ class FlexContextSchema(Schema):
                 data["consumption_breach_price"] = ur.Quantity(
                     default_capacity_breach_price
                 ).to(
-                    "EUR/"
+                    data["shared_currency_unit"]
+                    + "/"
                     + self.declared_fields["consumption_breach_price"].to_unit.split(
                         "/"
                     )[-1]
@@ -210,7 +211,8 @@ class FlexContextSchema(Schema):
                 data["production_breach_price"] = ur.Quantity(
                     default_capacity_breach_price
                 ).to(
-                    "EUR/"
+                    data["shared_currency_unit"]
+                    + "/"
                     + self.declared_fields["production_breach_price"].to_unit.split(
                         "/"
                     )[-1]
@@ -264,6 +266,10 @@ class FlexContextSchema(Schema):
 
         # All prices must share the same unit
         data = self._try_to_convert_price_units(data)
+
+        # Call schema validators that must come after this one, because they rely on data["shared_currency_unit"]
+        self.process_relax_soc_constraints(data)
+        self.process_relax_capacity_constraints(data)
 
         return data
 
