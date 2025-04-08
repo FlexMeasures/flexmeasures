@@ -25,7 +25,7 @@ from sqlalchemy.orm import configure_mappers
 from tabulate import tabulate
 import pandas as pd
 
-from flexmeasures.data.schemas import SensorIdField
+from flexmeasures.data.schemas import AssetIdField, SensorIdField
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
 from flexmeasures.cli.utils import MsgStyle
@@ -163,6 +163,14 @@ def show_queues():
     help="The registry to look in.",
 )
 @click.option(
+    "--asset",
+    "asset_id",
+    type=AssetIdField(),
+    callback=lambda ctx, param, value: value.id if value else None,
+    required=False,
+    help="The asset ID to filter by.",
+)
+@click.option(
     "--sensor",
     "sensor_id",
     type=SensorIdField(),
@@ -177,7 +185,12 @@ def show_queues():
     help="The CSV file to save the found jobs.",
 )
 def save_last(
-    n: int, queue_name: str, registry_name: str, sensor_id: int | None, file: str
+    n: int,
+    queue_name: str,
+    registry_name: str,
+    asset_id: int | None,
+    sensor_id: int | None,
+    file: str,
 ):
     """
     Save the last n jobs to a file (by default, the last 10 failed jobs).
@@ -200,14 +213,24 @@ def save_last(
         try:
             job = Job.fetch(job_id, connection=queue.connection)
             kwargs = job.kwargs or {}
-            asset_info = kwargs.get("asset_or_sensor", {})
+            entity_info = kwargs.get("asset_or_sensor", {})
 
-            if not sensor_id or asset_info.get("id") == sensor_id:
+            if (
+                (not asset_id and not sensor_id)
+                or (
+                    entity_info.get("class") == "Asset"
+                    and entity_info.get("id") == asset_id
+                )
+                or (
+                    entity_info.get("class") == "Sensor"
+                    and entity_info.get("id") == sensor_id
+                )
+            ):
                 found_jobs.append(
                     {
                         "Job ID": job.id,
-                        "ID": asset_info.get("id", "N/A"),
-                        "Class": asset_info.get("class", "N/A"),
+                        "ID": entity_info.get("id", "N/A"),
+                        "Class": entity_info.get("class", "N/A"),
                         "Error": job.exc_info,
                         "All kwargs": kwargs,
                         "Function name": getattr(job, "func_name", "N/A"),
