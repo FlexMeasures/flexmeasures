@@ -163,11 +163,28 @@ class FlexContextSchema(Schema):
 
         todo: this assumes EUR currency is used for all prices
         """
+        default_soc_breach_price = "1000 EUR/(kWh*h)"
         if data["relax_soc_constraints"]:
             if data.get("soc_minima_breach_price") is None:
-                data["soc_minima_breach_price"] = ur.Quantity("1000 EUR/kWh")
+                # use the same denominator as defined in the field
+                data["soc_minima_breach_price"] = ur.Quantity(
+                    default_soc_breach_price
+                ).to(
+                    "EUR/"
+                    + self.declared_fields["soc_minima_breach_price"].to_unit.split(
+                        "/"
+                    )[-1]
+                )
             if data.get("soc_maxima_breach_price") is None:
-                data["soc_maxima_breach_price"] = ur.Quantity("1000 EUR/kWh")
+                # use the same denominator as defined in the field
+                data["soc_maxima_breach_price"] = ur.Quantity(
+                    default_soc_breach_price
+                ).to(
+                    "EUR/"
+                    + self.declared_fields["soc_maxima_breach_price"].to_unit.split(
+                        "/"
+                    )[-1]
+                )
         return data
 
     @validates_schema
@@ -176,11 +193,28 @@ class FlexContextSchema(Schema):
 
         todo: this assumes EUR currency is used for all prices
         """
+        default_capacity_breach_price = "100 EUR/kW"
         if data["relax_capacity_constraints"]:
             if data.get("consumption_breach_price") is None:
-                data["consumption_breach_price"] = ur.Quantity("10 EUR/kW")
+                # use the same denominator as defined in the field
+                data["consumption_breach_price"] = ur.Quantity(
+                    default_capacity_breach_price
+                ).to(
+                    "EUR/"
+                    + self.declared_fields["consumption_breach_price"].to_unit.split(
+                        "/"
+                    )[-1]
+                )
             if data.get("production_breach_price") is None:
-                data["production_breach_price"] = ur.Quantity("10 EUR/kW")
+                # use the same denominator as defined in the field
+                data["production_breach_price"] = ur.Quantity(
+                    default_capacity_breach_price
+                ).to(
+                    "EUR/"
+                    + self.declared_fields["production_breach_price"].to_unit.split(
+                        "/"
+                    )[-1]
+                )
         return data
 
     @validates_schema
