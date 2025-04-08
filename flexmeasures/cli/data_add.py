@@ -2125,9 +2125,7 @@ def add_toy_account(kind: str, name: str):
             "battery",
             "discharging",
             parent_asset_id=building_asset.id,
-            flex_context={
-                "consumption-price": "500 kVA",
-            },
+            flex_context={"consumption-price": {"sensor": day_ahead_sensor.id}},
             attributes={
                 "site-power-capacity": "500 kVA",
             },
