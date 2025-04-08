@@ -12,7 +12,7 @@ v3.0-23 | 2025-04-08
 
   - ``consumption-breach-price``: if set, the ``consumption-capacity`` is used as a soft constraint.
   - ``production-breach-price``: if set, the ``production-capacity`` is used as a soft constraint.
-  - In both cases, breaching the capacity is penalized according to this per-kW price. The price is applied to each breach that occurs given the resolution of the scheduled power sensor.
+  - In both cases, breaching the capacity is penalized according to this per-kW-per-h price (i.e. a per-kWh price). That means the costs increase linearly with the duration of the breach.
 
 v3.0-22 | 2025-03-17
 """"""""""""""""""""
