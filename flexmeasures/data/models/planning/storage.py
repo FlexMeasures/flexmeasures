@@ -975,7 +975,7 @@ class MetaStorageScheduler(Scheduler):
             # 1, 2 and 3
             power_capacity_in_mw = flex_model_d.get(
                 "power_capacity_in_mw",
-                sensor.get_attribute("capacity_in_mw"),
+                sensor.get_attribute("site-power-capacity"),
             )
             if power_capacity_in_mw is not None:
                 power_capacities.append(
