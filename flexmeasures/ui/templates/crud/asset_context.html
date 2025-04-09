@@ -323,7 +323,6 @@
     let assetFlexContextRawJSON = "{{ asset.flex_context | safe }}";
     assetFlexContextRawJSON = processAssetRawFlexContextJSON(assetFlexContextRawJSON);
     
-    const formModal = document.getElementById('sensorsToShowModal');
     const apiSensorsListElement = document.getElementById("apiSensorsList");
     const spinnerElement = document.getElementById('spinnerElement');
     let sensorsToShowRawJSON = "{{ asset.sensors_to_show | safe }}";
@@ -1236,15 +1235,6 @@
 
 
     // ============== Page Events ============== //
-    formModal.addEventListener('hidden.bs.modal', function () {
-        updateSensorToShow();
-    });
-
-    formModal.addEventListener('shown.bs.modal', function () {
-        // Initial renders
-        renderGraphCards(); // Initial render of graph cards
-        searchSensorsGraphForm(); // Initial render of sensors
-    });
 
     flexContexFormModal.addEventListener('shown.bs.modal', function () {
         // Initial renders

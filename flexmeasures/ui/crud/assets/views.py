@@ -148,6 +148,7 @@ class AssetCrudUI(FlaskView):
             current_asset_sensors=current_asset_sensors,
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
             current_page="Context",
+            available_units=available_units(),
         )
 
     @login_required
