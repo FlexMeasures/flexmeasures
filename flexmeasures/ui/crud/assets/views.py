@@ -24,7 +24,7 @@ from flexmeasures.ui.crud.assets.utils import (
     user_can_delete,
     user_can_update,
     get_list_assets_chart,
-    child_asset_addition,
+    add_child_asset,
 )
 from flexmeasures.data.services.sensors import (
     build_sensor_status_data,
@@ -139,7 +139,7 @@ class AssetCrudUI(FlaskView):
             }
             for sensor in asset.sensors
         ]
-        assets = child_asset_addition(asset, assets)
+        assets = add_child_asset(asset, assets)
 
         return render_flexmeasures_template(
             "crud/asset_context.html",
@@ -274,29 +274,16 @@ class AssetCrudUI(FlaskView):
                     asset_info, int(id), make_obj=True
                 )
 
-                if asset is None:
-                    assets = []
-                else:
-                    assets = get_list_assets_chart(asset, base_asset=asset)
-
-                current_asset_sensors = [
-                    {
-                        "name": sensor.name,
-                        "unit": sensor.unit,
-                        "link": url_for("SensorUI:get", id=sensor.id),
-                    }
-                    for sensor in asset.sensors
-                ]
-                assets = child_asset_addition(asset, assets)
-
                 return render_flexmeasures_template(
-                    "crud/asset_context.html",
-                    assets=assets,
+                    "crud/asset_properties.html",
                     asset=asset,
+                    asset_form=asset_form,
                     msg="Cannot edit asset.",
-                    current_asset_sensors=current_asset_sensors,
                     mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
-                    current_page="Context",
+                    user_can_create_assets=user_can_create_assets(),
+                    user_can_delete_asset=user_can_delete(asset),
+                    user_can_update_asset=user_can_update(asset),
+                    current_page="Properties",
                 )
             patch_asset_response = InternalApi().patch(
                 url_for("AssetAPI:patch", id=id),
@@ -319,26 +306,16 @@ class AssetCrudUI(FlaskView):
                 )
                 asset = db.session.get(GenericAsset, id)
 
-        assets = get_list_assets_chart(asset, base_asset=asset)
-
-        current_asset_sensors = [
-            {
-                "name": sensor.name,
-                "unit": sensor.unit,
-                "link": url_for("SensorUI:get", id=sensor.id),
-            }
-            for sensor in asset.sensors
-        ]
-        assets = child_asset_addition(asset, assets)
-
         return render_flexmeasures_template(
-            "crud/asset_context.html",
-            assets=assets,
+            "crud/asset_properties.html",
             asset=asset,
+            asset_form=asset_form,
             msg=msg,
-            current_asset_sensors=current_asset_sensors,
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
-            current_page="Context",
+            user_can_create_assets=user_can_create_assets(),
+            user_can_delete_asset=user_can_delete(asset),
+            user_can_update_asset=user_can_update(asset),
+            current_page="Properties",
         )
 
     @login_required

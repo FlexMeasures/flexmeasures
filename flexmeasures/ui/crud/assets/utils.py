@@ -285,7 +285,7 @@ def get_list_assets_chart(
     return assets
 
 
-def child_asset_addition(asset: Asset, assets: list) -> list:
+def add_child_asset(asset: Asset, assets: list) -> list:
     """
     Add a child asset to the current assets list.
     This function is used to add a child asset to the current asset in the list of assets.
@@ -294,7 +294,7 @@ def child_asset_addition(asset: Asset, assets: list) -> list:
         assets: The list of assets
     """
     # Add Extra node to the current asset
-    add_child_asset = {
+    new_child_asset = {
         "name": "Add Child Asset",
         "id": "new",
         "asset_type": asset.generic_asset_type.name,
@@ -305,6 +305,6 @@ def child_asset_addition(asset: Asset, assets: list) -> list:
         "parent": asset.id,
     }
 
-    assets.append(add_child_asset)
+    assets.append(new_child_asset)
 
     return assets
