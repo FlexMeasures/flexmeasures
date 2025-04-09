@@ -300,7 +300,7 @@ def child_asset_addition(asset: Asset, assets: list) -> list:
         "asset_type": asset.generic_asset_type.name,
         "link": url_for("AssetCrudUI:post", id="new", parent_asset_id=asset.id),
         "icon": svg_asset_icon_name("add_asset"),
-        "tooltip": "",
+        "tooltip": "Click here to add a child asset.",
         "sensors": [],
         "parent": asset.id,
     }
