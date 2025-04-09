@@ -13,7 +13,7 @@
             <div class="col-sm-2"></div>
             <div class="col-sm-8 card">
                 <div class="row">
-                    <div class="col-sm-10">
+                    <div class="col-sm-9">
                         <div class="d-flex justify-content-between align-items-center" style="margin-bottom: 10px;">
                             <h1>
                                 Asset: <i>{{ asset.name }}</i>
@@ -22,9 +22,6 @@
                                 <button class="btn btn-sm btn-primary me-2" onclick='openSensorsModal()'>
                                     Show sensors
                                 </button>
-                                <button class="btn btn-sm btn-primary me-2" id="viewMapButton">
-                                    View Map
-                                </button>
                                 <button class="btn btn-sm btn-primary me-2" data-bs-toggle="modal"
                                     data-bs-target="#flexContextModal">
                                     Edit flex-context
@@ -32,17 +29,54 @@
                             </div>
                         </div>
                         <p>Type: {{ asset.generic_asset_type.name.split('.')[-1] | title }}</p>
-                    </div>           
-                    <div class="col-sm-2">
+                    </div>
+                    <div class="col-sm-3">
                         {% if can_delete %}
                         <button type="button" class="btn delete-button" onClick="delete_asset(event, {{ asset.id }}, '{{ asset.name }}')">Delete Scenario</button>
                         {% endif %}
-                    </div>
-                    <div class="col-sm-12">
-                        {% from "_macros.html" import show_tree %}
-                        {{ show_tree(assets, asset.name) }}
+                        <!-- Tabs for toggling content -->
+                        <div class="tabs-container">
+                            <ul class="nav nav-tabs">
+                                <!-- Reorder the tabs based on the length of the assets -->
+                                {% if assets|length > 2 %}
+                                    <!-- Structure tab will be first if assets length > 2 -->
+                                    <li class="nav-item">
+                                        <a class="nav-link active" id="structure-tab" data-bs-toggle="tab" href="#structure">Structure</a>
+                                    </li>
+                                    <li class="nav-item">
+                                        <a class="nav-link" id="location-tab" data-bs-toggle="tab" href="#location">Location</a>
+                                    </li>
+                                {% else %}
+                                    <!-- Location tab will be first if assets length <= 2 -->
+                                    <li class="nav-item">
+                                        <a class="nav-link active" id="location-tab" data-bs-toggle="tab" href="#location">Location</a>
+                                    </li>
+                                    <li class="nav-item">
+                                        <a class="nav-link" id="structure-tab" data-bs-toggle="tab" href="#structure">Structure</a>
+                                    </li>
+                                {% endif %}
+                            </ul>
+                        </div>
+
                     </div>
                 </div>
+                
+                <!-- Tab Content (outside col-sm) -->
+                <div class="tab-content">
+                    <!-- Structure Content -->
+                    <div class="tab-pane fade {% if assets|length > 2 %}show active{% endif %}" id="structure">
+                        <div class="col-sm-12">
+                            {% from "_macros.html" import show_tree %}
+                            {{ show_tree(assets, asset.name) }}
+                        </div>
+                    </div>
+                    
+                    <!-- Location Content -->
+                    <div class="tab-pane fade {% if assets|length <= 2 %}show active{% endif %}" id="location">
+                        <!-- Location-related content here -->
+                        <div id="mapid" style="height: 400px;"></div>
+                    </div>
+                </div>                
             </div>
             <div class="col-sm-2"></div>
             
@@ -66,116 +100,93 @@
                 </div>
                 </div>
             </div>
-
-            <!-- Bootstrap Modal for Map -->
-            <div class="modal fade" id="mapModal" tabindex="-1" aria-labelledby="mapModalTitle" aria-hidden="true">
-                <div class="modal-dialog modal-lg">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title" id="mapModalTitle">{{asset.name}} Map View</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                        </div>
-                        <div class="modal-body">
-                            <div class="row mx-1">
-                                <div class="alert alert-info d-none" id="tzwarn"></div>
-                                <div class="alert alert-info d-none" id="dstwarn"></div>
-                            </div>
-                            <div id="modalMap" style="height: 400px;"></div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
         </div>
 
         <!-- Flex Context Modal -->
-    <div class="modal fade modal-xl" id="flexContextModal" tabindex="-1" aria-labelledby="flexContextModalLabel"
-    aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title pe-2">Edit Asset's FlexContext</h5>
+        <div class="modal fade modal-xl" id="flexContextModal" tabindex="-1" aria-labelledby="flexContextModalLabel"
+        aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title pe-2">Edit Asset's FlexContext</h5>
 
-                <div class="dropdown" data-bs-auto-close="outside">
-                    <span class="fa fa-info dropdown-toggle" role="button" data-bs-toggle="dropdown"
-                        aria-expanded="false" rel="tooltip" aria-hidden="true" tabindex="0"
-                        data-bs-placement="right" data-bs-toggle="tooltip"></span>
+                        <div class="dropdown" data-bs-auto-close="outside">
+                            <span class="fa fa-info dropdown-toggle" role="button" data-bs-toggle="dropdown"
+                                aria-expanded="false" rel="tooltip" aria-hidden="true" tabindex="0"
+                                data-bs-placement="right" data-bs-toggle="tooltip"></span>
 
-                    <div class="dropdown-menu p-3" style="width: 400px;">
-                        <div>
-                            <strong>Help</strong>
-                            <p class="mb-2 pt-2">
-                                Here, you can edit the flexibility context for this asset. This describes information about the managed system as a 
-                                whole, in order to assess the value of activating flexibility. You can read more <a href="https://flexmeasures.readthedocs.io/stable/features/scheduling.html#the-flex-context">in the documentation</a>.
-                                <br/>
-                                <br/>
-                                These fields can also be sent via the API to FlexMeasures, but setting them here permanently might be more convenient. 
-                                Some fields can point to sensors, so they will always represent the dynamics of the asset's environment (as long as that sensor has current data).
-                                <br/>
-                                <br/>
-                                To add a field, choose it from the dropdown menu in the top right corner, then click the "Add Field" button'. 
-                                Set a value in the right panel, using the provided form to set the field's value.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-
-            <div class="modal-body">
-                <div class="row">
-                    <!-- Left Column -->
-                    <div class="col-5">
-                        <form id="flexContextForm">
-                        </form>
-                    </div>
-
-                    <!-- Right Column -->
-                    <div class="col-7">
-                        <div>
-                            <!-- Loading Spinner -->
-                            <div id="spinnerElement" class="d-flex justify-content-center align-items-center mb-2"
-                                style="height: 50vh; display: none !important;">
-                                <div class="spinner-border text-primary" role="status"
-                                    style="width: 4rem; height: 4rem;">
-                                    <span class="visually-hidden">Loading...</span>
+                            <div class="dropdown-menu p-3" style="width: 400px;">
+                                <div>
+                                    <strong>Help</strong>
+                                    <p class="mb-2 pt-2">
+                                        Here, you can edit the flexibility context for this asset. This describes information about the managed system as a 
+                                        whole, in order to assess the value of activating flexibility. You can read more <a href="https://flexmeasures.readthedocs.io/stable/features/scheduling.html#the-flex-context">in the documentation</a>.
+                                        <br/>
+                                        <br/>
+                                        These fields can also be sent via the API to FlexMeasures, but setting them here permanently might be more convenient. 
+                                        Some fields can point to sensors, so they will always represent the dynamics of the asset's environment (as long as that sensor has current data).
+                                        <br/>
+                                        <br/>
+                                        To add a field, choose it from the dropdown menu in the top right corner, then click the "Add Field" button'. 
+                                        Set a value in the right panel, using the provided form to set the field's value.
+                                    </p>
                                 </div>
                             </div>
-
-                            <!-- Settings -->
-                            <div>
-                                <div class="row">
-                                    <div class="col-10">
-                                        <select class="form-select" id="flexSelect">
-                                            <option value="blank">Select flex-context field to add</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-2 p-0">
-                                        <button class="btn btn-secondary btn-md"
-                                            onclick="addFlexContextField()">Add Field</button>
-                                    </div>
-                                </div>
-
-                                <div id="flexInfoContainer" class="mt-3"></div>
-                            </div>
-
-                            <hr class="border border-dark" />
-
-                            <div id="flexOptionsContainer" class="mt-3"></div>
-
-                            <div id="sensorsSearchResults" class="row mt-3" style="display: none;"></div>
                         </div>
 
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+
+                    <div class="modal-body">
+                        <div class="row">
+                            <!-- Left Column -->
+                            <div class="col-5">
+                                <form id="flexContextForm">
+                                </form>
+                            </div>
+
+                            <!-- Right Column -->
+                            <div class="col-7">
+                                <div>
+                                    <!-- Loading Spinner -->
+                                    <div id="spinnerElement" class="d-flex justify-content-center align-items-center mb-2"
+                                        style="height: 50vh; display: none !important;">
+                                        <div class="spinner-border text-primary" role="status"
+                                            style="width: 4rem; height: 4rem;">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Settings -->
+                                    <div>
+                                        <div class="row">
+                                            <div class="col-10">
+                                                <select class="form-select" id="flexSelect">
+                                                    <option value="blank">Select flex-context field to add</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-2 p-0">
+                                                <button class="btn btn-secondary btn-md"
+                                                    onclick="addFlexContextField()">Add Field</button>
+                                            </div>
+                                        </div>
+
+                                        <div id="flexInfoContainer" class="mt-3"></div>
+                                    </div>
+
+                                    <hr class="border border-dark" />
+
+                                    <div id="flexOptionsContainer" class="mt-3"></div>
+
+                                    <div id="sensorsSearchResults" class="row mt-3" style="display: none;"></div>
+                                </div>
+
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
-</div>
     </div>
 
     <script>
@@ -238,27 +249,6 @@
             let modal = new bootstrap.Modal(document.getElementById('sensorsModal'));
             modal.show();
         }
-
-        document.getElementById('viewMapButton').addEventListener('click', function() {
-            let modal = new bootstrap.Modal(document.getElementById('mapModal'));
-            modal.show();
-
-            // Initialize the map inside the modal
-            setTimeout(function() {
-                var modalMap = L.map('modalMap', { center: [{{ asset.latitude | replace("None", 10) }}, {{ asset.longitude | replace("None", 10) }}], zoom: 10 });
-                addTileLayer(modalMap, '{{ mapboxAccessToken }}');
-
-                var asset_icon = new L.DivIcon({
-                    className: 'map-icon',
-                    html: '<i class="icon-empty-marker center-icon supersize"></i><i class="overlay center-icon {{ asset.generic_asset_type.name | default("info") | asset_icon }}"></i>',
-                    iconSize: [100, 100], // size of the icon
-                    iconAnchor: [50, 50], // point of the icon which will correspond to marker's location
-                    popupAnchor: [0, -50] // point from which the popup should open relative to the iconAnchor
-                });
-
-                var marker = L.marker([{{ asset.latitude | replace("None", 10) }}, {{ asset.longitude | replace("None", 10) }}], { icon: asset_icon }).addTo(modalMap);
-            }, 500); // Delay to ensure modal is fully shown before initializing the map
-        });
     </script>
 
     <style>
@@ -271,7 +261,41 @@
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet-src.min.js"></script>
 <script src="{{ url_for('flexmeasures_ui.static', filename='js/map-init.js') }}"></script>
 
+<script type="text/javascript">
+
+    // create map
+    var assetMap = L
+        .map('mapid', { center: [{{ asset.latitude | replace("None", 10) }}, {{ asset.longitude | replace("None", 10) }}], zoom: 10})
+        .on('popupopen', function () {
+            $(function () {
+                $('[data-toggle="tooltip"]').tooltip();
+            });
+        });
+    addTileLayer(assetMap, '{{ mapboxAccessToken }}');
+
+    // create marker
+    var asset_icon = new L.DivIcon({
+        className: 'map-icon',
+        html: '<i class="icon-empty-marker center-icon supersize"></i><i class="overlay center-icon {{ asset.generic_asset_type.name | default("info") | asset_icon }}"></i>',
+        iconSize: [100, 100], // size of the icon
+        iconAnchor: [50, 50], // point of the icon which will correspond to marker's location
+        popupAnchor: [0, -50] // point from which the popup should open relative to the iconAnchor
+    });
+    var marker = L
+        .marker(
+            [{{ asset.latitude | replace("None", 10) }}, {{ asset.longitude | replace("None", 10) }}],
+    { icon: asset_icon }
+        ).addTo(assetMap);
+
+    assetMap.on('click', function (e) {
+        $("#latitude").val(e.latlng.lat.toFixed(4));
+        $("#longitude").val(e.latlng.lng.toFixed(4));
+        marker.setLatLng(e.latlng);
+    });
+</script>
+
 <script>
+
     const senSearchResEle = document.getElementById("sensorsSearchResults")
     const flexContextFormEle = document.getElementById("flexContextForm")
     const flexContexFormModal = document.getElementById('flexContextModal');

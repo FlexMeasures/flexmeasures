@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from flask import url_for, current_app, request
+from flask import redirect, url_for, current_app, request, session
 from flask_classful import FlaskView, route
 from flask_security import login_required, current_user
 from werkzeug.exceptions import NotFound
@@ -273,18 +273,8 @@ class AssetCrudUI(FlaskView):
                 asset = process_internal_api_response(
                     asset_info, int(id), make_obj=True
                 )
-
-                return render_flexmeasures_template(
-                    "crud/asset_properties.html",
-                    asset=asset,
-                    asset_form=asset_form,
-                    msg="Cannot edit asset.",
-                    mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
-                    user_can_create_assets=user_can_create_assets(),
-                    user_can_delete_asset=user_can_delete(asset),
-                    user_can_update_asset=user_can_update(asset),
-                    current_page="Properties",
-                )
+                session["msg"] = "Cannot edit asset."
+                return redirect(url_for("AssetCrudUI:properties", id=asset.id))
             patch_asset_response = InternalApi().patch(
                 url_for("AssetAPI:patch", id=id),
                 args=asset_form.to_json(),
@@ -305,18 +295,8 @@ class AssetCrudUI(FlaskView):
                     patch_asset_response.json().get("message")
                 )
                 asset = db.session.get(GenericAsset, id)
-
-        return render_flexmeasures_template(
-            "crud/asset_properties.html",
-            asset=asset,
-            asset_form=asset_form,
-            msg=msg,
-            mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
-            user_can_create_assets=user_can_create_assets(),
-            user_can_delete_asset=user_can_delete(asset),
-            user_can_update_asset=user_can_update(asset),
-            current_page="Properties",
-        )
+        session["msg"] = msg
+        return redirect(url_for("AssetCrudUI:properties", id=asset.id))
 
     @login_required
     def delete_with_data(self, id: str):
@@ -365,6 +345,12 @@ class AssetCrudUI(FlaskView):
     @route("/<id>/properties")
     def properties(self, id: str):
         """/assets/<id>/properties"""
+        # Extract the message from session
+        if session.get("msg"):
+            msg = session["msg"]
+            session.pop("msg")
+        else:
+            msg = ""
         get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_one", id=id))
         asset_dict = get_asset_response.json()
 
@@ -379,7 +365,7 @@ class AssetCrudUI(FlaskView):
             "crud/asset_properties.html",
             asset=asset,
             asset_form=asset_form,
-            msg="",
+            msg=msg,
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
             user_can_create_assets=user_can_create_assets(),
             user_can_delete_asset=user_can_delete(asset),
