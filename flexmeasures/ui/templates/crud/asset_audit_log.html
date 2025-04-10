@@ -5,6 +5,7 @@
 {% block title %} {{asset.name}} {% endblock %}
 
 {% block divs %}
+{% block breadcrumbs %} {{ super() }} {% endblock %}
 
 <div class="container-fluid">
     <div class="row">
