@@ -61,7 +61,7 @@ class FlexContextSchema(Schema):
         value_validator=validate.Range(min=0),
         default=None,
     )
-    # Dev field
+    # Dev fields
     relax_soc_constraints = fields.Bool(
         data_key="relax-soc-constraints", load_default=False
     )
