@@ -176,4 +176,5 @@ def integrate_time_series(
     )
     if decimal_precision is not None:
         stocks = stocks.round(decimal_precision)
+        stocks = stocks.mask(stocks == -0.0, 0.0)
     return stocks
