@@ -793,3 +793,151 @@ def create_rect_layer(
         },
     }
     return rect_layer
+
+
+def create_chargepoint_session_chart(
+    sensors_to_show,
+    event_starts_after=None,
+    event_ends_before=None,
+    combine_legend=True,
+    **override_chart_specs,
+) -> dict:
+
+    all_sensors = []
+    for entry in sensors_to_show:
+        sensors = entry.get("sensors")
+        all_sensors.extend(
+            [
+                s
+                for s in sensors
+                if s.unit == "s"
+                and s.name
+                in ["arrival", "departure", "start charging", "stop charging"]
+            ]
+        )
+
+    sensor_ids = [s.id for s in all_sensors]
+
+    chart_spec = {
+        "title": "ChargePoint sessions",
+        "width": "container",
+        "height": 300,
+        "selection": {
+            "scroll": {"type": "interval", "bind": "scales", "encodings": ["x"]}
+        },
+        "transform": [
+            {"filter": {"field": "sensor.id", "oneOf": sensor_ids}},
+            {"calculate": "datum.sensor.name", "as": "event_type"},
+            {"calculate": "datum.sensor.asset_id", "as": "asset_id"},
+            {
+                "calculate": "datum.sensor.name + ' (ID: ' + datum.sensor.id + ')'",
+                "as": "sensor_description",
+            },
+            {
+                "calculate": "datum.asset_id + '_' + timeFormat(datum.event_start, '%Y-%m-%dT%H:%M:%S')",
+                "as": "session_id",
+            },
+        ],
+        "layer": [
+            # --- Arrival to Departure: Thin line ---
+            {
+                "transform": [
+                    {
+                        "filter": "datum.event_type == 'arrival' || datum.event_type == 'departure'"
+                    },
+                    {
+                        "pivot": "event_type",
+                        "value": "event_value",
+                        "groupby": [
+                            "session_id",
+                            "asset_id",
+                        ],
+                    },
+                ],
+                "mark": {"type": "rule", "strokeWidth": 2},
+                "encoding": {
+                    "x": {
+                        "field": "arrival",
+                        "type": "temporal",
+                        "title": "Sessions",
+                        "scale": {
+                            "domain": [
+                                event_starts_after.timestamp() * 1000,
+                                event_ends_before.timestamp() * 1000,
+                            ]
+                        },
+                    },
+                    "x2": {
+                        "field": "departure",
+                        "type": "temporal",
+                    },
+                    "y": {"field": "asset_id", "type": "nominal", "title": "EVSE ID"},
+                    "color": {
+                        "field": "asset_id",
+                        "type": "nominal",
+                        "legend": {
+                            "orient": "right",
+                            "columns": 1,
+                            "direction": "vertical",
+                        },
+                    },
+                    "tooltip": [
+                        {
+                            "field": "arrival",
+                            "type": "temporal",
+                            "title": "Arrival",
+                            "format": "%Y-%m-%d %H:%M",
+                        },
+                        {
+                            "field": "departure",
+                            "type": "temporal",
+                            "title": "Departure",
+                            "format": "%Y-%m-%d %H:%M",
+                        },
+                    ],
+                },
+            },
+            # --- Start to Stop Charging: Thick line ---
+            {
+                "transform": [
+                    {
+                        "filter": "datum.event_type == 'start charging' || datum.event_type == 'stop charging'"
+                    },
+                    {
+                        "pivot": "event_type",
+                        "value": "event_value",
+                        "groupby": ["session_id", "asset_id"],
+                    },
+                ],
+                "mark": {"type": "rule", "strokeWidth": 6},
+                "encoding": {
+                    "x": {"field": "start charging", "type": "temporal"},
+                    "x2": {"field": "stop charging", "type": "temporal"},
+                    "y": {"field": "asset_id", "type": "nominal"},
+                    "color": {
+                        "field": "asset_id",
+                        "type": "nominal",
+                        "legend": {
+                            "orient": "right",
+                            "columns": 1,
+                            "direction": "vertical",
+                        },
+                    },
+                    "tooltip": [
+                        {
+                            "field": "start charging",
+                            "type": "temporal",
+                            "format": "%Y-%m-%d %H:%M",
+                        },
+                        {
+                            "field": "stop charging",
+                            "type": "temporal",
+                            "format": "%Y-%m-%d %H:%M",
+                        },
+                    ],
+                },
+            },
+        ],
+    }
+    chart_spec.update(override_chart_specs)
+    return chart_spec
