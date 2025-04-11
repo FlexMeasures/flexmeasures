@@ -478,6 +478,7 @@ def make_schedule(
     flex_context: dict | None = None,
     flex_config_has_been_deserialized: bool = False,
     scheduler_specs: dict | None = None,
+    **scheduler_kwargs: dict,
 ) -> bool:
     """
     This function computes a schedule. It returns True if it ran successfully.
@@ -526,6 +527,7 @@ def make_schedule(
         flex_model=flex_model,
         flex_context=flex_context,
         return_multiple=True,
+        **scheduler_kwargs,
     )
 
     scheduler: Scheduler = get_scheduler_instance(
