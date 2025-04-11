@@ -48,14 +48,14 @@ class FlexContextSchema(Schema):
         default=None,
     )
     soc_minima_breach_price = VariableQuantityField(
-        "/(MWh*h)",
+        "/MWh",
         data_key="soc-minima-breach-price",
         required=False,
         value_validator=validate.Range(min=0),
         default=None,
     )
     soc_maxima_breach_price = VariableQuantityField(
-        "/(MWh*h)",
+        "/MWh",
         data_key="soc-maxima-breach-price",
         required=False,
         value_validator=validate.Range(min=0),
@@ -162,7 +162,7 @@ class FlexContextSchema(Schema):
 
         This relies on the check_prices validator to run first.
         """
-        default_soc_breach_price = "1000 EUR/(kWh*h)"
+        default_soc_breach_price = "1000 EUR/kWh"
         if data["relax_soc_constraints"]:
             if data.get("soc_minima_breach_price") is None:
                 # use the same denominator as defined in the field

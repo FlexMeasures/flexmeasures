@@ -497,7 +497,19 @@ class MetaStorageScheduler(Scheduler):
                 and soc_minima[d] is not None
             ):
                 soc_minima_breach_price = self.flex_context["soc_minima_breach_price"]
-                soc_minima_breach_price = get_continuous_series_sensor_or_quantity(
+                any_soc_minima_breach_price = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_minima_breach_price,
+                    actuator=asset,
+                    unit=FlexContextSchema()
+                    .declared_fields["soc_minima_breach_price"]
+                    ._get_unit(soc_minima_breach_price),
+                    query_window=(start + resolution, end + resolution),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    fallback_attribute="soc-minima-breach-price",
+                    fill_sides=True,
+                ).shift(-1, freq=resolution)
+                all_soc_minima_breach_price = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_minima_breach_price,
                     actuator=asset,
                     unit=FlexContextSchema()
@@ -530,10 +542,21 @@ class MetaStorageScheduler(Scheduler):
                 ) - soc_at_start[d] * (timedelta(hours=1) / resolution)
 
                 commitment = StockCommitment(
-                    name="soc minima",
+                    name="any soc minima",
                     quantity=soc_minima_d,
                     # negative price because breaching in the downwards (shortage) direction is penalized
-                    downwards_deviation_price=-soc_minima_breach_price,
+                    downwards_deviation_price=-any_soc_minima_breach_price,
+                    index=index,
+                    _type="any",
+                    device=d,
+                )
+                commitments.append(commitment)
+
+                commitment = StockCommitment(
+                    name="all soc minima",
+                    quantity=soc_minima_d,
+                    # negative price because breaching in the downwards (shortage) direction is penalized
+                    downwards_deviation_price=-all_soc_minima_breach_price,
                     index=index,
                     device=d,
                 )
@@ -558,7 +581,19 @@ class MetaStorageScheduler(Scheduler):
                 and soc_maxima[d] is not None
             ):
                 soc_maxima_breach_price = self.flex_context["soc_maxima_breach_price"]
-                soc_maxima_breach_price = get_continuous_series_sensor_or_quantity(
+                any_soc_maxima_breach_price = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_maxima_breach_price,
+                    actuator=asset,
+                    unit=FlexContextSchema()
+                    .declared_fields["soc_maxima_breach_price"]
+                    ._get_unit(soc_maxima_breach_price),
+                    query_window=(start + resolution, end + resolution),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    fallback_attribute="soc-maxima-breach-price",
+                    fill_sides=True,
+                ).shift(-1, freq=resolution)
+                all_soc_maxima_breach_price = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_maxima_breach_price,
                     actuator=asset,
                     unit=FlexContextSchema()
@@ -591,10 +626,21 @@ class MetaStorageScheduler(Scheduler):
                 ) - soc_at_start[d] * (timedelta(hours=1) / resolution)
 
                 commitment = StockCommitment(
-                    name="soc maxima",
+                    name="any soc maxima",
                     quantity=soc_maxima_d,
                     # positive price because breaching in the upwards (surplus) direction is penalized
-                    upwards_deviation_price=soc_maxima_breach_price,
+                    upwards_deviation_price=any_soc_maxima_breach_price,
+                    index=index,
+                    _type="any",
+                    device=d,
+                )
+                commitments.append(commitment)
+
+                commitment = StockCommitment(
+                    name="all soc maxima",
+                    quantity=soc_maxima_d,
+                    # positive price because breaching in the upwards (surplus) direction is penalized
+                    upwards_deviation_price=all_soc_maxima_breach_price,
                     index=index,
                     device=d,
                 )

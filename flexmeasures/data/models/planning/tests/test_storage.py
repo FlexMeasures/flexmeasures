@@ -78,7 +78,7 @@ def test_battery_solver_multi_commitment(add_battery_assets, db):
                 }
                 for i in production_prices.index
             ],
-            "soc-minima-breach-price": "100 EUR/kWh/min",  # high breach price (to mimic a hard constraint)
+            "soc-minima-breach-price": "6000 EUR/kWh",  # high breach price (to mimic a hard constraint)
         },
         return_multiple=True,
     )
@@ -213,7 +213,7 @@ def test_battery_relaxation(add_battery_assets, db):
                 }
                 for i in production_prices.index
             ],
-            "soc-minima-breach-price": "100 EUR/kWh/min",  # high breach price (to mimic a hard constraint)
+            "soc-minima-breach-price": "6000 EUR/kWh",  # high breach price (to mimic a hard constraint)
             "consumption-breach-price": f"{device_power_breach_price} EUR/kW",  # lower breach price (thus prioritizing minimizing soc breaches)
             "production-breach-price": f"{device_power_breach_price} EUR/kW",  # lower breach price (thus prioritizing minimizing soc breaches)
         },

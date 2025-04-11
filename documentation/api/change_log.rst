@@ -22,7 +22,8 @@ v3.0-22 | 2025-03-17
 
   - ``soc-minima-breach-price``: if set, the ``soc-minima`` are used as a soft constraint.
   - ``soc-maxima-breach-price``: if set, the ``soc-maxima`` are used as a soft constraint.
-  - In both cases, not meeting the constraint is penalized according to this per-kWh-per-h price. That means the costs increase linearly the longer the state of charge breaches the constraint.
+  - In both cases, the price is applied both to the largest breach in the planning window (as a per-kWh price) and to each breach that occurs (as a per-kWh price per hour).
+    That means both high breaches and long breaches are penalized.
 
 v3.0-22 | 2024-12-27
 """"""""""""""""""""
