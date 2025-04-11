@@ -347,12 +347,24 @@ class MetaStorageScheduler(Scheduler):
         if ems_consumption_breach_price is not None:
 
             # Convert to Series
-            ems_consumption_breach_price = get_continuous_series_sensor_or_quantity(
+            any_ems_consumption_breach_price = get_continuous_series_sensor_or_quantity(
                 variable_quantity=ems_consumption_breach_price,
                 actuator=asset,
                 unit=FlexContextSchema()
                 .declared_fields["ems_consumption_breach_price"]
                 ._get_unit(ems_consumption_breach_price),
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                fill_sides=True,
+            )
+            all_ems_consumption_breach_price = get_continuous_series_sensor_or_quantity(
+                variable_quantity=ems_consumption_breach_price,
+                actuator=asset,
+                unit=FlexContextSchema()
+                .declared_fields["ems_consumption_breach_price"]
+                ._get_unit(ems_consumption_breach_price)
+                + "*h",  # from EUR/MWh to EUR/MW/resolution
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
@@ -364,7 +376,7 @@ class MetaStorageScheduler(Scheduler):
                 name="any consumption breach",
                 quantity=ems_consumption_capacity,
                 # positive price because breaching in the upwards (consumption) direction is penalized
-                upwards_deviation_price=ems_consumption_breach_price,
+                upwards_deviation_price=any_ems_consumption_breach_price,
                 _type="any",
                 index=index,
             )
@@ -375,7 +387,7 @@ class MetaStorageScheduler(Scheduler):
                 name="all consumption breaches",
                 quantity=ems_consumption_capacity,
                 # positive price because breaching in the upwards (consumption) direction is penalized
-                upwards_deviation_price=ems_consumption_breach_price,
+                upwards_deviation_price=all_ems_consumption_breach_price,
                 index=index,
             )
             commitments.append(commitment)
@@ -389,12 +401,24 @@ class MetaStorageScheduler(Scheduler):
         if ems_production_breach_price is not None:
 
             # Convert to Series
-            ems_production_breach_price = get_continuous_series_sensor_or_quantity(
+            any_ems_production_breach_price = get_continuous_series_sensor_or_quantity(
                 variable_quantity=ems_production_breach_price,
                 actuator=asset,
                 unit=FlexContextSchema()
                 .declared_fields["ems_production_breach_price"]
                 ._get_unit(ems_production_breach_price),
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                fill_sides=True,
+            )
+            all_ems_production_breach_price = get_continuous_series_sensor_or_quantity(
+                variable_quantity=ems_production_breach_price,
+                actuator=asset,
+                unit=FlexContextSchema()
+                .declared_fields["ems_production_breach_price"]
+                ._get_unit(ems_production_breach_price)
+                + "*h",  # from EUR/MWh to EUR/MW/resolution
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
@@ -406,7 +430,7 @@ class MetaStorageScheduler(Scheduler):
                 name="any production breach",
                 quantity=ems_production_capacity,
                 # positive price because breaching in the upwards (consumption) direction is penalized
-                downwards_deviation_price=-ems_production_breach_price,
+                downwards_deviation_price=-any_ems_production_breach_price,
                 _type="any",
                 index=index,
             )
@@ -417,7 +441,7 @@ class MetaStorageScheduler(Scheduler):
                 name="all production breaches",
                 quantity=ems_production_capacity,
                 # positive price because breaching in the upwards (consumption) direction is penalized
-                downwards_deviation_price=-ems_production_breach_price,
+                downwards_deviation_price=-all_ems_production_breach_price,
                 index=index,
             )
             commitments.append(commitment)

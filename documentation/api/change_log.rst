@@ -35,8 +35,12 @@ v3.0-21 | 2024-12-16
 
 - Introduce new fields for defining capacity contracts and peak contracts in the ``flex-context``, used for scheduling against multiple contractual commitments simultaneously:
 
-  - ``site-consumption-breach-price``: if set, the ``site-consumption-capacity`` is used as a soft constraint, and breaching it is penalized according to this per-kW price. The price is applied both to the largest breach in the planning window and to each breach that occurs.
-  - ``site-production-breach-price``: if set, the ``site-production-capacity`` is used as a soft constraint, and breaching it is penalized according to this per-kW price. The price is applied both to the largest breach in the planning window and to each breach that occurs.
+  - ``site-consumption-breach-price``: if set, the ``site-consumption-capacity`` is used as a soft constraint.
+    The price is applied both to the largest breach in the planning window (as a per-kW price) and to each breach that occurs (as a per-kW price per hour).
+    That means both high breaches and long breaches are penalized.
+  - ``site-production-breach-price``: if set, the ``site-production-capacity`` is used as a soft constraint.
+    The price is applied both to the largest breach in the planning window (as a per-kW price) and to each breach that occurs (as a per-kW price per hour).
+    That means both high breaches and long breaches are penalized.
   - ``site-peak-consumption-price``: consumption peaks above the ``site-peak-consumption`` are penalized against this per-kW price.
   - ``site-peak-production-price``: production peaks above the ``site-peak-production`` are penalized against this per-kW price.
   - ``site-peak-consumption``: current peak consumption; costs from peaks below it are considered sunk costs.
