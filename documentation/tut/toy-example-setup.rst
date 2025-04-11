@@ -226,7 +226,7 @@ If you want, you can inspect what you created:
 
     Type     Location           Attributes                    Flex-Context
     -------  -----------------  ----------------------------  ---------------------------- 
-    battery  (52.374, 4.88969)  site-power-capacity: 0.5      consumption-price: {'sensor': 1}
+    battery  (52.374, 4.88969)  capacity_in_mw: 0.5      consumption-price: {'sensor': 1}
                                 min_soc_in_mwh: 0.05
                                 max_soc_in_mwh: 0.45
                                 sensors_to_show: [1, [3, 2]]
