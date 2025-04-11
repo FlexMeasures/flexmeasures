@@ -2137,7 +2137,7 @@ def add_toy_account(kind: str, name: str):
             flex_context={"consumption-price": {"sensor": day_ahead_sensor.id}},
             unit="MW",
             **{
-                "site-power-capacity": "500 kVA",
+                "capacity_in_mw": "500 kVA",
                 "min_soc_in_mwh": 0.05,
                 "max_soc_in_mwh": 0.45,
             },
