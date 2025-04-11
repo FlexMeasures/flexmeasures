@@ -52,8 +52,9 @@ Please visit https://flexmeasures.io to learn more.
 content-type = "text/markdown"
 
 [project.urls]
-Homepage = "https://github.com/FlexMeasures/flexmeasures"
-Documentation = "https://flexmeasures.io"
+Homepage = "https://flexmeasures.io"
+Documentation = "https://flexmeasures.readthedocs.io/"
+"Source code" = "https://github.com/FlexMeasures/flexmeasures"
 
 [project.scripts]
 flexmeasures = "flexmeasures.utils.app_utils:flexmeasures_cli"
