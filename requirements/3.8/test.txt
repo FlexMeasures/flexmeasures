@@ -4,7 +4,7 @@
 #
 #    pip-compile --constraint=requirements/3.8/app.txt --output-file=requirements/3.8/test.txt requirements/test.in
 #
-async-timeout==4.0.3
+async-timeout==5.0.1
     # via
     #   -c requirements/3.8/app.txt
     #   redis
@@ -12,15 +12,15 @@ blinker==1.8.2
     # via
     #   -c requirements/3.8/app.txt
     #   flask
-certifi==2024.8.30
+certifi==2025.1.31
     # via
     #   -c requirements/3.8/app.txt
     #   requests
-charset-normalizer==3.3.2
+charset-normalizer==3.4.1
     # via
     #   -c requirements/3.8/app.txt
     #   requests
-click==8.1.7
+click==8.1.8
     # via
     #   -c requirements/3.8/app.txt
     #   flask
@@ -28,13 +28,13 @@ coverage[toml]==7.6.1
     # via pytest-cov
 exceptiongroup==1.2.2
     # via pytest
-fakeredis==2.24.1
+fakeredis==2.27.0
     # via -r requirements/test.in
 flask==3.0.3
     # via
     #   -c requirements/3.8/app.txt
     #   pytest-flask
-highspy==1.7.2
+highspy==1.10.0
     # via -r requirements/test.in
 idna==3.10
     # via
@@ -44,17 +44,17 @@ importlib-metadata==8.5.0
     # via
     #   -c requirements/3.8/app.txt
     #   flask
-iniconfig==2.0.0
+iniconfig==2.1.0
     # via pytest
 itsdangerous==2.2.0
     # via
     #   -c requirements/3.8/app.txt
     #   flask
-jinja2==3.1.4
+jinja2==3.1.6
     # via
     #   -c requirements/3.8/app.txt
     #   flask
-lupa==2.2
+lupa==2.4
     # via -r requirements/test.in
 markupsafe==2.1.5
     # via
@@ -65,14 +65,14 @@ numpy==1.24.4
     # via
     #   -c requirements/3.8/app.txt
     #   highspy
-packaging==24.1
+packaging==24.2
     # via
     #   -c requirements/3.8/app.txt
     #   pytest
     #   pytest-sugar
 pluggy==1.5.0
     # via pytest
-pytest==8.3.3
+pytest==8.3.5
     # via
     #   -r requirements/test.in
     #   pytest-cov
@@ -87,7 +87,7 @@ pytest-mock==3.14.0
     # via -r requirements/test.in
 pytest-sugar==1.0.0
     # via -r requirements/test.in
-redis==5.0.8
+redis==5.2.1
     # via
     #   -c requirements/3.8/app.txt
     #   fakeredis
@@ -102,11 +102,11 @@ sortedcontainers==2.4.0
     # via fakeredis
 termcolor==2.4.0
     # via pytest-sugar
-tomli==2.0.1
+tomli==2.2.1
     # via
     #   coverage
     #   pytest
-typing-extensions==4.12.2
+typing-extensions==4.13.0
     # via
     #   -c requirements/3.8/app.txt
     #   fakeredis
@@ -114,7 +114,7 @@ urllib3==2.2.3
     # via
     #   -c requirements/3.8/app.txt
     #   requests
-werkzeug==3.0.4
+werkzeug==3.0.6
     # via
     #   -c requirements/3.8/app.txt
     #   flask
