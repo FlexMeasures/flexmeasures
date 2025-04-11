@@ -115,6 +115,12 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
    * - ``soc-maxima-breach-price``
      - ``"120 EUR/kWh"``
      - Penalty for not meeting ``soc-maxima`` defined in the flex-model. [#penalty_field]_ [#breach_field]_
+   * - ``consumption-breach-price``
+     - ``"10 EUR/kW"``
+     - The price of breaching the ``consumption-capacity`` in the flex-model, useful to treat ``consumption-capacity`` as a soft constraint but still make the scheduler attempt to respect it. [#penalty_field]_ [#breach_field]_
+   * - ``production-breach-price``
+     - ``"10 EUR/kW"``
+     - The price of breaching the ``production-capacity`` in the flex-model, useful to treat ``production-capacity`` as a soft constraint but still make the scheduler attempt to respect it. [#penalty_field]_ [#breach_field]_
 
 .. [#old_sensor_field] The old field only accepted an integer (sensor ID).
 
