@@ -100,9 +100,9 @@ def test_battery_solver_multi_commitment(add_battery_assets, db):
     np.testing.assert_almost_equal(costs["energy"], 100 * (1 - 0.4))
     # 24000 EUR for any 24 kW consumption breach priced at 1000 EUR/kW
     np.testing.assert_almost_equal(costs["any consumption breach"], 1000 * (25 - 1))
-    # 24000 EUR for each 24 kW consumption breach per 15 minutes priced at 1000 EUR/kW
+    # 24000 EUR for each 24 kW consumption breach per hour priced at 1000 EUR/kWh
     np.testing.assert_almost_equal(
-        costs["all consumption breaches"], 1000 * (25 - 1) * 96
+        costs["all consumption breaches"], 1000 * (25 - 1) * 96 / 4
     )
     # No production breaches
     np.testing.assert_almost_equal(costs["any production breach"], 0)
