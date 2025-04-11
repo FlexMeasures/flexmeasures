@@ -78,11 +78,10 @@
 
 
 <!-- Initialise the map -->
-<script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet-src.min.js"></script>
-<script src="{{ url_for('flexmeasures_ui.static', filename='js/map-init.js') }}"></script>
-<script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
-<script
-    src="https://unpkg.com/leaflet.markercluster.layersupport@2.0.1/dist/leaflet.markercluster.layersupport.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet@{{ js_versions.leaflet }}/dist/leaflet-src.min.js"></script>
+<script src="{{ url_for('flexmeasures_ui.static', filename='js/map-init.js') }}?v={{ flexmeasures_version }}"></script>
+<script src="https://unpkg.com/leaflet.markercluster@{{ js_versions.leafletmarkercluster }}/dist/leaflet.markercluster.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster.layersupport@{{ js_versions.leafletmarkerclusterlayersupport }}/dist/leaflet.markercluster.layersupport.js"></script>
 
 <script type="text/javascript">
 
@@ -120,7 +119,7 @@
     }} = L
         .marker(
             [{{ asset.location[0] }}, {{ asset.location[1] }}],
-            { icon: {{ asset.generic_asset_type.name | parameterize | pluralize }}_icon, id: "{{ asset.id }}"}
+            { icon: {{ asset.generic_asset_type.name | parameterize | pluralize }}_icon, id: {{ asset.id }}, parentId: {% if asset.parent_asset_id is none %}null{% else %}{{ asset.parent_asset_id }}{% endif %} }
     )
         .bindPopup(`
                             <div class="leaflet-marker-popup">
@@ -162,6 +161,33 @@
     {% endfor %}
     {% endfor %}
 
+    // Monkeypatch spiderfy
+    const originalSpiderfy = L.MarkerCluster.prototype.spiderfy;
+    L.MarkerCluster.include({
+        spiderfy: function () {
+            // Send spiderfyShapePositions the markers themselves, rather than just the number of markers
+            passMarkersToSpiderfyShapePositions(this)
+            return originalSpiderfy.call(this);
+        }
+    });
+
+    // Monkeypatch _animationSpiderfy
+    const originalAnimationSpiderfy = L.MarkerCluster.prototype._animationSpiderfy;
+    L.MarkerCluster.include({
+        _animationSpiderfy: _animationTreeSpiderfy,
+    });
+
+    // Monkeypatch unspiderfy
+    const originalUnspiderfy = L.MarkerCluster.prototype.unspiderfy;
+    L.MarkerCluster.include({
+        unspiderfy: function () {
+            // Remove spider legs straight away (the default animation does not suit a tree view)
+            removeSpiderLegs(this);
+            return originalUnspiderfy.call(this);
+        }
+    });
+
+
     // create Map with tiles
     var assetMap = L
         .map('mapid', { center: [{{ map_center[0] }}, {{ map_center[1] }}], zoom: 6 })
@@ -171,7 +197,10 @@
             });
         });
     addTileLayer(assetMap, '{{ mapboxAccessToken }}');
-    var mcgLayerSupportGroup = L.markerClusterGroup.layerSupport();
+    var mcgLayerSupportGroup = L.markerClusterGroup.layerSupport({
+        spiderfyShapePositionsWithMarkers: computeCenteredTreeLayout
+    });
+
     var control = L.control.layers(null, null, { collapsed: true });
 
     // add a layer for each asset type
