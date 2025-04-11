@@ -6,6 +6,13 @@
 
 {% block divs %}
 
+<style>
+    .leaflet-marker-popup a {
+        text-decoration: none;
+        color: white;
+    }
+</style>
+
 <div class="container-fluid">
     <div class="row">
         <div class="col-sm-12">
@@ -122,23 +129,34 @@
             { icon: {{ asset.generic_asset_type.name | parameterize | pluralize }}_icon, id: {{ asset.id }}, parentId: {% if asset.parent_asset_id is none %}null{% else %}{{ asset.parent_asset_id }}{% endif %} }
     )
         .bindPopup(`
-                            <div class="leaflet-marker-popup">
-                                <div class="row">
-                                    <div class="col-sm-9">
-                                        <h4>{{ asset.name }} </h4>
-                                        {% if user_has_admin_reader_rights %} <small>Account: {{ asset.owner.name }} </small> {% endif %}
-                                    </div>
-                                </div>
-                                <div class="row top-buffer">
-                                    <div class="col-sm-6"></div>
-                                    <div class="col-sm-6">
-                                        <button class="btn btn-sm btn-responsive btn-info" type="submit">
-                                            <a href="assets/{{ asset.id }}">View</a>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                            `
+            <div class="leaflet-marker-popup">
+                <div class="row">
+                    <div class="col-sm-9">
+                        <h4>{{ asset.name }} </h4>
+                        {% if user_has_admin_reader_rights %} <small>Account: {{ asset.owner.name }} </small> {% endif %}
+                    </div>
+                </div>
+                <div class="row top-buffer">
+                    <div class="col-sm-12">
+                        <!-- Add d-flex to make buttons appear in a row horizontally -->
+                        <div class="d-flex justify-content-start">
+                            <button class="btn btn-sm" style="margin-right: 5px;">
+                                <a href="assets/{{ asset.id }}">Context</a>
+                            </button>
+                            <button class="btn btn-sm" style="margin-right: 5px;">
+                                <a href="assets/{{ asset.id }}/graphs">Graphs</a>
+                            </button>
+                            <button class="btn btn-sm" style="margin-right: 5px;">
+                                <a href="assets/{{ asset.id }}/properties">Properties</a>
+                            </button>
+                            <button class="btn btn-sm" style="margin-right: 5px;">
+                                <a href="assets/{{ asset.id }}/status">Status</a>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            `
         )
         .on('mouseover', function () {
             $(this._icon).addClass('over');
