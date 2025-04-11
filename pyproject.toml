@@ -43,7 +43,7 @@ include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["flexmeasures", "flexmeasures.ui.templates", "flexmeasures.ui.static"]
+include = ["flexmeasures*"]
 
 [tool.setuptools_scm]
 local_scheme = "no-local-version"
