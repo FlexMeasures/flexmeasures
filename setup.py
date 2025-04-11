@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+from setuptools import setup
 
 
 def load_requirements(use_case):
@@ -24,11 +24,6 @@ def load_requirements(use_case):
 
 setup(
     install_requires=load_requirements("app"),
-    packages=find_packages()
-    + [
-        "flexmeasures.ui.templates",
-        "flexmeasures.ui.static",
-    ],  # will include *.py files and some other types
     long_description="""\
 The *FlexMeasures Platform* is the intelligent backend to support real-time energy flexibility apps, rapidly and scalable.
 
