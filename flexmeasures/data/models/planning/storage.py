@@ -515,7 +515,7 @@ class MetaStorageScheduler(Scheduler):
                     unit=FlexContextSchema()
                     .declared_fields["soc_minima_breach_price"]
                     ._get_unit(soc_minima_breach_price)
-                    + "*h",
+                    + "*h",  # from EUR/MWh² to EUR/MWh/resolution
                     query_window=(start + resolution, end + resolution),
                     resolution=resolution,
                     beliefs_before=belief_time,
@@ -599,7 +599,7 @@ class MetaStorageScheduler(Scheduler):
                     unit=FlexContextSchema()
                     .declared_fields["soc_maxima_breach_price"]
                     ._get_unit(soc_maxima_breach_price)
-                    + "*h",
+                    + "*h",  # from EUR/MWh² to EUR/MWh/resolution
                     query_window=(start + resolution, end + resolution),
                     resolution=resolution,
                     beliefs_before=belief_time,
@@ -719,7 +719,7 @@ class MetaStorageScheduler(Scheduler):
                             unit=FlexContextSchema()
                             .declared_fields["production_breach_price"]
                             ._get_unit(production_breach_price)
-                            + "*h",
+                            + "*h",  # from EUR/MWh to EUR/MW/resolution
                             query_window=(start, end),
                             resolution=resolution,
                             beliefs_before=belief_time,
@@ -795,7 +795,7 @@ class MetaStorageScheduler(Scheduler):
                             unit=FlexContextSchema()
                             .declared_fields["consumption_breach_price"]
                             ._get_unit(consumption_breach_price)
-                            + "*h",
+                            + "*h",  # from EUR/MWh to EUR/MW/resolution
                             query_window=(start, end),
                             resolution=resolution,
                             beliefs_before=belief_time,
