@@ -304,6 +304,9 @@
     let replaySpeed = 100
     let chartType = '{{ chart_type }}';  // initial chart type from session variable
 
+    if ('{{ active_page }}' == 'assets'){
+        chartType = 'chart_for_multiple_sensors'
+    }
     // Update chart type picker: active state, reload data event
     document.addEventListener('DOMContentLoaded', function() {
         var dropdownItems = document.querySelectorAll('#chart-type-picker .dropdown-item');
