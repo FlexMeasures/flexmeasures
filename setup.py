@@ -23,45 +23,14 @@ def load_requirements(use_case):
 
 
 setup(
-    name="flexmeasures",
-    description="The *FlexMeasures Platform* is the intelligent backend to support real-time energy flexibility apps, rapidly and scalable.",
-    author="Seita BV",
-    author_email="nicolas@seita.nl",
-    url="https://github.com/FlexMeasures/flexmeasures",
-    keywords=["smart grid", "renewables", "balancing", "forecasting", "scheduling"],
-    python_requires=">=3.8",  # not enforced, just info
     install_requires=load_requirements("app"),
     setup_requires=["setuptools_scm"],
-    use_scm_version={"local_scheme": "no-local-version"},  # handled by setuptools_scm
     packages=find_packages()
     + [
         "flexmeasures.ui.templates",
         "flexmeasures.ui.static",
     ],  # will include *.py files and some other types
     include_package_data=True,  # now setuptools_scm adds all files under source control
-    entry_points={
-        "console_scripts": [
-            "flexmeasures=flexmeasures.utils.app_utils:flexmeasures_cli"
-        ],
-    },
-    license="Apache2.0",
-    classifiers=[
-        "Environment :: Console",
-        "Environment :: Web Environment",
-        "Programming Language :: Python",
-        "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.8",
-        "Programming Language :: Python :: 3.9",
-        "Programming Language :: Python :: 3.10",
-        "Programming Language :: Python :: 3.11",
-        "Programming Language :: Python :: 3.12",
-        "Framework :: Flask",
-        "Development Status :: 5 - Production/Stable",
-        "License :: OSI Approved :: Apache Software License",
-        "Operating System :: POSIX :: Linux",
-        "Operating System :: MacOS :: MacOS X",
-        "Natural Language :: English",
-    ],
     long_description="""\
 The *FlexMeasures Platform* is the intelligent backend to support real-time energy flexibility apps, rapidly and scalable.
 
