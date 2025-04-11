@@ -652,24 +652,52 @@ class MetaStorageScheduler(Scheduler):
                     production_breach_price = self.flex_context[
                         "production_breach_price"
                     ]
-                    production_breach_price = get_continuous_series_sensor_or_quantity(
-                        variable_quantity=production_breach_price,
-                        actuator=asset,
-                        unit=FlexContextSchema()
-                        .declared_fields["production_breach_price"]
-                        ._get_unit(production_breach_price),
-                        query_window=(start, end),
-                        resolution=resolution,
-                        beliefs_before=belief_time,
-                        fallback_attribute="production-breach-price",
-                        fill_sides=True,
+                    any_production_breach_price = (
+                        get_continuous_series_sensor_or_quantity(
+                            variable_quantity=production_breach_price,
+                            actuator=asset,
+                            unit=FlexContextSchema()
+                            .declared_fields["production_breach_price"]
+                            ._get_unit(production_breach_price),
+                            query_window=(start, end),
+                            resolution=resolution,
+                            beliefs_before=belief_time,
+                            fallback_attribute="production-breach-price",
+                            fill_sides=True,
+                        )
+                    )
+                    all_production_breach_price = (
+                        get_continuous_series_sensor_or_quantity(
+                            variable_quantity=production_breach_price,
+                            actuator=asset,
+                            unit=FlexContextSchema()
+                            .declared_fields["production_breach_price"]
+                            ._get_unit(production_breach_price)
+                            + "*h",
+                            query_window=(start, end),
+                            resolution=resolution,
+                            beliefs_before=belief_time,
+                            fallback_attribute="production-breach-price",
+                            fill_sides=True,
+                        )
                     )
                     # Set up commitments DataFrame
                     commitment = FlowCommitment(
-                        name=f"production breaches device {d}",
+                        name=f"any production breach device {d}",
                         quantity=-production_capacity_d,
                         # negative price because breaching in the downwards (production) direction is penalized
-                        downwards_deviation_price=-production_breach_price,
+                        downwards_deviation_price=-any_production_breach_price,
+                        index=index,
+                        _type="any",
+                        device=d,
+                    )
+                    commitments.append(commitment)
+
+                    commitment = FlowCommitment(
+                        name=f"all production breaches device {d}",
+                        quantity=-production_capacity_d,
+                        # negative price because breaching in the downwards (production) direction is penalized
+                        downwards_deviation_price=-all_production_breach_price,
                         index=index,
                         device=d,
                     )
@@ -700,23 +728,50 @@ class MetaStorageScheduler(Scheduler):
                     consumption_breach_price = self.flex_context[
                         "consumption_breach_price"
                     ]
-                    consumption_breach_price = get_continuous_series_sensor_or_quantity(
-                        variable_quantity=consumption_breach_price,
-                        actuator=asset,
-                        unit=FlexContextSchema()
-                        .declared_fields["consumption_breach_price"]
-                        ._get_unit(consumption_breach_price),
-                        query_window=(start, end),
-                        resolution=resolution,
-                        beliefs_before=belief_time,
-                        fallback_attribute="consumption-breach-price",
-                        fill_sides=True,
+                    any_consumption_breach_price = (
+                        get_continuous_series_sensor_or_quantity(
+                            variable_quantity=consumption_breach_price,
+                            actuator=asset,
+                            unit=FlexContextSchema()
+                            .declared_fields["consumption_breach_price"]
+                            ._get_unit(consumption_breach_price),
+                            query_window=(start, end),
+                            resolution=resolution,
+                            beliefs_before=belief_time,
+                            fallback_attribute="consumption-breach-price",
+                            fill_sides=True,
+                        )
+                    )
+                    all_consumption_breach_price = (
+                        get_continuous_series_sensor_or_quantity(
+                            variable_quantity=consumption_breach_price,
+                            actuator=asset,
+                            unit=FlexContextSchema()
+                            .declared_fields["consumption_breach_price"]
+                            ._get_unit(consumption_breach_price)
+                            + "*h",
+                            query_window=(start, end),
+                            resolution=resolution,
+                            beliefs_before=belief_time,
+                            fallback_attribute="consumption-breach-price",
+                            fill_sides=True,
+                        )
                     )
                     # Set up commitments DataFrame
                     commitment = FlowCommitment(
-                        name=f"consumption breaches device {d}",
+                        name=f"any consumption breach device {d}",
                         quantity=consumption_capacity_d,
-                        upwards_deviation_price=consumption_breach_price,
+                        upwards_deviation_price=any_consumption_breach_price,
+                        index=index,
+                        _type="any",
+                        device=d,
+                    )
+                    commitments.append(commitment)
+
+                    commitment = FlowCommitment(
+                        name=f"all consumption breaches device {d}",
+                        quantity=consumption_capacity_d,
+                        upwards_deviation_price=all_consumption_breach_price,
                         index=index,
                         device=d,
                     )

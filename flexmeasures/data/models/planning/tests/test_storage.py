@@ -241,6 +241,11 @@ def test_battery_relaxation(add_battery_assets, db):
 
     # Check costs are correct
     np.testing.assert_almost_equal(
-        costs["consumption breaches device 0"],
-        device_power_breach_price * consumption_capacity_in_mw * 1000 * 4 * 4,
-    )  # 100 EUR/kWh/min * mean(0.15 MWh) * 1000 kW/MW * 4 hours * 4 15min/hour
+        costs["any consumption breach device 0"],
+        device_power_breach_price * consumption_capacity_in_mw * 1000,
+    )  # 100 EUR/kW * 0.025 MW * 1000 kW/MW
+
+    np.testing.assert_almost_equal(
+        costs["all consumption breaches device 0"],
+        device_power_breach_price * consumption_capacity_in_mw * 1000 * 4,
+    )  # 100 EUR/(kW*h) * 0.025 MW * 1000 kW/MW * 4 hours
