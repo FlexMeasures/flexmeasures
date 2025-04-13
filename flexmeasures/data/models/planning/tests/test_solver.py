@@ -2954,3 +2954,53 @@ def test_multiple_devices_sequential_scheduler():
     assert total_cost_all_devices == sum(
         expected_cost[1] for expected_cost in expected_costs
     ), "Total cost mismatch."
+
+
+@pytest.mark.xfail
+def test_battery_kW(
+    add_battery_assets,
+    db,
+):
+    """
+    Scheduling a very small battery of 1Wh (1e-6 MWh) with a power capacity of 1W with a constant
+    usage of 1W.
+    """
+
+    epex_da, battery = get_sensors_from_db(
+        db,
+        add_battery_assets,
+        battery_name="Test battery",
+        power_sensor_name="power (kW)",
+    )
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+
+    scheduler: Scheduler = StorageScheduler(
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model={
+            "soc-at-start": "0 kWh",
+            "soc-max": "1 Wh",
+            "soc-min": "0.0 kWh",
+            "soc-usage": ["1 W"],
+            "charging-efficiency": 1,
+            "discharging-efficiency": 1,
+            "storage-efficiency": 1,
+            "power-capacity": "1W",
+            "consumption-capacity": "1W",
+            "production-capacity": "1W",
+        },
+        flex_context={
+            "site-power-capacity": "1 MW",
+            "consumption-price": "100 EUR/MWh",
+            "production-price": "90 EUR/MWh",
+        },
+    )
+    schedule = scheduler.compute()
+
+    # Check if constraints were met
+    check_constraints(battery, schedule, 0)
