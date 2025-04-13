@@ -1,3 +1,4 @@
+from datetime import timedelta
 from unittest.mock import patch
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
 
@@ -7,6 +8,7 @@ from flexmeasures.data.services.scheduling import create_sequential_scheduling_j
 from flexmeasures.data.tests.utils import work_on_rq
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.utils.calculations import integrate_time_series
 
 
 def test_create_sequential_jobs(db, app, flex_description_sequential, smart_building):
@@ -16,7 +18,10 @@ def test_create_sequential_jobs(db, app, flex_description_sequential, smart_buil
     We verify that the pipeline creates the right number of jobs (two), corresponding to the inflexible devices,
     and an extra one which corresponds to the success callback job.
     """
-    assets, sensors = smart_building
+    assets, sensors, soc_sensors = smart_building
+
+    assert len(soc_sensors["Test Battery"].search_beliefs()) == 0
+
     queue = app.queues["scheduling"]
     start = pd.Timestamp("2015-01-03").tz_localize("Europe/Amsterdam")
     end = pd.Timestamp("2015-01-04").tz_localize("Europe/Amsterdam")
@@ -84,7 +89,7 @@ def test_create_sequential_jobs(db, app, flex_description_sequential, smart_buil
 
     # Work on jobs
     queued_jobs[0].perform()
-    work_on_rq(queue)
+    work_on_rq(queue, handle_scheduling_exception)
 
     # Check that the jobs completed successfully
     assert queued_jobs[0].get_status() == "finished"
@@ -135,6 +140,25 @@ def test_create_sequential_jobs(db, app, flex_description_sequential, smart_buil
     ), f"Battery cost should be -4.415 €, got {battery_costs} €"
     assert total_cost == -2.1775, f"Total cost should be -2.1775 €, got {total_cost} €"
 
+    # Check that the SOC data is saved
+    soc_schedule = (
+        soc_sensors["Test Battery"]
+        .search_beliefs(resolution=timedelta(0))
+        .reset_index()
+    )
+    power_schedule = sensors["Test Battery"].search_beliefs().reset_index()
+
+    power_schedule = pd.Series(
+        power_schedule.event_value.tolist(),
+        index=pd.DatetimeIndex(power_schedule.event_start.tolist(), freq="15min"),
+    )
+    soc_schedule_from_power = integrate_time_series(
+        -power_schedule,
+        0.1,
+        decimal_precision=6,
+    )
+    assert all(soc_schedule.event_value.values == soc_schedule_from_power.values)
+
 
 def test_create_sequential_jobs_fallback(
     db, app, flex_description_sequential, smart_building
@@ -144,7 +168,7 @@ def test_create_sequential_jobs_fallback(
     Checks execution of a sequential scheduling job, where 1 of the subjobs is set up to fail and trigger its fallback.
     The deferred subjobs should still succeed after the fallback succeeds, even though the first subjob fails.
     """
-    assets, sensors = smart_building
+    assets, sensors, _ = smart_building
     queue = app.queues["scheduling"]
 
     start = pd.Timestamp("2015-01-03").tz_localize("Europe/Amsterdam")

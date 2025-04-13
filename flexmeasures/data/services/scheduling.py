@@ -12,6 +12,7 @@ from importlib.abc import Loader
 from typing import Callable, Type
 import inspect
 from copy import deepcopy
+from traceback import print_tb
 
 
 from flask import current_app
@@ -646,8 +647,8 @@ def handle_scheduling_exception(job, exc_type, exc_value, traceback):
     click.echo(
         "HANDLING RQ SCHEDULING WORKER EXCEPTION: %s:%s\n" % (exc_type, exc_value)
     )
-    # from traceback import print_tb
-    # print_tb(traceback)
+
+    print_tb(traceback)
     job.meta["exception"] = exc_value
     job.save_meta()
 

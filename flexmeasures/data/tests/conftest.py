@@ -320,10 +320,11 @@ def smart_building(app, fresh_db, smart_building_types):
     fresh_db.session.add_all(assets)
     fresh_db.session.flush()
 
-    sensors = []
+    power_sensors = []
+    soc_sensors = []
 
-    # Add power sensor
     for asset in assets:
+        # Add power sensor
         sensor = Sensor(
             name="power",
             unit="MW",
@@ -335,12 +336,27 @@ def smart_building(app, fresh_db, smart_building_types):
             generic_asset=asset,
             timezone="Europe/Amsterdam",
         )
-        sensors.append(sensor)
+        power_sensors.append(sensor)
 
-    fresh_db.session.add_all(sensors)
+        # Add SOC sensors
+        sensor = Sensor(
+            "state of charge",
+            unit="MWh",
+            event_resolution=timedelta(hours=0),
+            generic_asset=asset,
+            timezone="Europe/Amsterdam",
+        )
+        soc_sensors.append(sensor)
+
+    fresh_db.session.add_all(power_sensors)
+    fresh_db.session.add_all(soc_sensors)
     fresh_db.session.flush()
     asset_names = [asset.name for asset in assets]
-    return dict(zip(asset_names, assets)), dict(zip(asset_names, sensors))
+    return (
+        dict(zip(asset_names, assets)),
+        dict(zip(asset_names, power_sensors)),
+        dict(zip(asset_names, soc_sensors)),
+    )
 
 
 @pytest.fixture
@@ -351,7 +367,7 @@ def flex_description_sequential(
 
     Specifically, the main flex model is deserialized, while the sensors' individual flex models are still serialized.
     """
-    assets, sensors = smart_building
+    assets, sensors, soc_sensors = smart_building
 
     flex_model = [
         {
@@ -398,6 +414,7 @@ def flex_description_sequential(
                         "value": 0.094,
                     }  # 6 kWh discharge
                 ],
+                "state-of-charge": {"sensor": soc_sensors["Test Battery"].id},
             },
         },
     ]

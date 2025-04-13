@@ -244,7 +244,11 @@
 
             <div class="sensors-asset card">
                 <h3>All sensors for {{ asset.name }}</h3>
+               
                 <div class="table-responsive">
+                    <button class="btn btn-sm btn-responsive btn-info" type="submit">
+                        <a href="/assets/{{asset.id}}/sensor/new">Create Sensor</a>
+                    </button>
                     <table class="table table-striped paginate nav-on-click" title="View data" id="sensorsTable">
                     </table>
                 </div>
@@ -364,12 +368,12 @@
                             <div class="row mb-3">
                                 <div class="col-8">
                                     <input type="text" id="searchInput" class="form-control"
-                                        placeholder="Search sensors..." oninput="filterSensors()" />
+                                        placeholder="Search sensors..." oninput="searchSensorsGraphForm()" />
                                 </div>
 
                                 <div class="col-4">
-                                    <select id="unitsSelect" class="form-select" onchange="filterSensors()">
-                                        <option selected>Units</option>
+                                    <select id="unitsSelect" class="form-select" onchange="searchSensorsGraphForm()">
+                                        <option value="null" selected>Choose Unit</option>
                                         {% for unit in available_units %}
                                         <option>{{ unit }}</option>
                                         {% endfor %}
@@ -415,11 +419,13 @@
                                 <strong>Help</strong>
                                 <p class="mb-2 pt-2">
                                     Here, you can edit the flexibility context for this asset. This describes information about the managed system as a 
-                                    whole, in order to assess the value of activating flexibility. You can read more in the documentation under "Scheduling".
-                                    <br>
+                                    whole, in order to assess the value of activating flexibility. You can read more <a href="https://flexmeasures.readthedocs.io/stable/features/scheduling.html#the-flex-context">in the documentation</a>.
+                                    <br/>
+                                    <br/>
                                     These fields can also be sent via the API to FlexMeasures, but setting them here permanently might be more convenient. 
                                     Some fields can point to sensors, so they will always represent the dynamics of the asset's environment (as long as that sensor has current data).
-                                    <br>
+                                    <br/>
+                                    <br/>
                                     To add a field, choose it from the dropdown menu in the top right corner, then click the "Add Field" button'. 
                                     Set a value in the right panel, using the provided form to set the field's value.
                                 </p>
@@ -502,7 +508,9 @@
     const flexSelect = document.getElementById('flexSelect');
     const flexInfoContainer = document.getElementById('flexInfoContainer');
     const flexOptionsContainer = document.getElementById('flexOptionsContainer');
-
+    let availableUnitsRawJSON = "{{ available_units | safe }}";
+    availableUnitsRawJSON = availableUnitsRawJSON.replace(/'/g, '"');
+    const availableUnits = JSON.parse(availableUnitsRawJSON);
 
     let assetFlexContext = {
         "consumption-price": null,
@@ -519,20 +527,8 @@
         "inflexible-device-sensors": []
     }
     let assetFlexContextRawJSON = "{{ asset.flex_context | safe }}";
-    assetFlexContextRawJSON = assetFlexContextRawJSON.replace(/'/g, '"');
-    // change None to null
-    assetFlexContextRawJSON = assetFlexContextRawJSON.replace(/None/g, 'null');
-    // update the assetFlexContext fields
-    assetFlexContextRawJSON = JSON.parse(assetFlexContextRawJSON);
-
-    for (const [key, value] of Object.entries(assetFlexContextRawJSON)) {
-        if (key in assetFlexContext) {
-            assetFlexContext[key] = assetFlexContextRawJSON[key];
-        } else {
-            assetFlexContext[key] = null;
-        }
-    }
-
+    assetFlexContextRawJSON = processAssetRawFlexContextJSON(assetFlexContextRawJSON);
+    
     const formModal = document.getElementById('sensorsToShowModal');
     const apiSensorsListElement = document.getElementById("apiSensorsList");
     const spinnerElement = document.getElementById('spinnerElement');
@@ -544,7 +540,25 @@
     let savedGraphIndex; // keeps track of the graph that is currently selected
     let selectedGraphTitle; // keeps track of the graph title that is currently selected
     const apiBasePath = window.location.origin;
-    const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ asset.id }}&include_public_assets=true`;
+    const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ asset.id }}`;
+
+    function processAssetRawFlexContextJSON(rawJSON){
+        let processedJSON = rawJSON.replace(/'/g, '"');
+        // change None to null
+        processedJSON = processedJSON.replace(/None/g, 'null');
+        // update the assetFlexContext fields
+        processedJSON = JSON.parse(processedJSON);
+
+        for (const [key, value] of Object.entries(processedJSON)) {
+            if (key in assetFlexContext) {
+                assetFlexContext[key] = processedJSON[key];
+            } else {
+                assetFlexContext[key] = null;
+            }
+        }
+
+        return processedJSON;
+    }
 
     // Fetch Account Details
     async function getAccount(accountId) {
@@ -565,11 +579,11 @@
     }
 
     // Fetch Asset Details
-    async function getAsset(assetId) {
+    async function getAsset(assetId, useCache = true) {
         const cacheKey = `asset_${assetId}`;
         const cachedData = localStorage.getItem(cacheKey);
 
-        if (cachedData) {
+        if (cachedData && useCache) {
             return JSON.parse(cachedData);
         }
 
@@ -708,7 +722,8 @@
         sensorsToShow = newSensorsToShow;
     }
 
-    async function filterSensors() {
+    /* This search function is tied to the sensorsToShow Form */
+    async function searchSensorsGraphForm() {
         const searchValue = document.getElementById("searchInput").value.toLowerCase();
         const filterValue = document.getElementById("unitsSelect").value;
         const highlightedCard = document.querySelector('.border-on-click');
@@ -738,7 +753,7 @@
             params.append('filter', searchValue);
         }
 
-        if (filterValue !== "Units") {
+        if (filterValue !== "null") {
             params.append('unit', filterValue);
         }
 
@@ -766,15 +781,18 @@
             spinnerElement.classList.add('hidden-important');
             apiSensorsListElement.style.display = 'block';
         } catch (error) {
-            showToast("Failed to filter/search sesnors", "error");
-            console.error(error);
+            const errorMessage = error?.message || error?.error || response.statusText;
+            showToast(`Failed to filter/search sesnors: ${errorMessage}`, "error");
         }
     }
 
-    async function searchSensors() {
+    /* This search function is tied to the FlexContext Form */
+    async function searchSensorsFlexContextForm() {
         const searchValue = document.getElementById("flexContextSensorSearch").value.toLowerCase();
         spinnerElement.style.display = 'flex';
         senSearchResEle.style.display = 'none';
+        const flexUnitsSelectValue = document.getElementById("flexUnitsSelect").value;
+        const flexCheckBox = document.getElementById('flexCheckBox');
 
         const params = new URLSearchParams();
 
@@ -782,7 +800,15 @@
             params.append('filter', searchValue);
         }
 
-        const apiUrl = `${sensorsApiUrl}&${params.toString()} `;
+        if (flexCheckBox.checked) {
+            params.append('include_public_assets', true);
+        }
+
+        if(flexUnitsSelectValue != "null"){
+            params.append('unit', flexUnitsSelectValue);
+        }
+
+        const apiUrl = `${sensorsApiUrl}&${params.toString()}`;
 
         try {
             const response = await fetch(apiUrl);
@@ -800,8 +826,8 @@
             spinnerElement.classList.add('hidden-important');
             senSearchResEle.style.display = 'block';
         } catch (error) {
-            showToast("Failed to filter/search sesnors", "error");
-            console.error(error);
+            const errorMessage = error?.message || error?.error || response.statusText;
+            showToast(`Failed to filter/search sesnors: ${errorMessage}`, "error");
         }
     }
 
@@ -926,24 +952,12 @@
         });
     }
 
-    async function updateAssetSensorsToShow(dataType) {
-
+    async function updateSensorToShow() {
         const apiURL = apiBasePath + "/api/v3_0/assets/{{ asset.id }}";
-        let requestBody;
+        const requestBody = JSON.stringify({ sensors_to_show: JSON.stringify(sensorsToShow) });
 
-        if (dataType === "sensorToShow") {
-            requestBody = JSON.stringify({ sensors_to_show: JSON.stringify(sensorsToShow) });
-            // Only show the spinner if relevant to this specific data type
-            document.getElementById('spinner').style.display = 'block';
-        } else if (dataType === "flexContext") {
-            // remove null fields
-            for (const [key, value] of Object.entries(assetFlexContext)) {
-                if (value === null) {
-                    delete assetFlexContext[key];
-                }
-            }
-            requestBody = JSON.stringify({ flex_context: JSON.stringify(assetFlexContext) });
-        }
+        // Show spinner
+        document.getElementById('spinner').style.display = 'block';
 
         const response = await fetch(apiURL, {
             method: "PATCH",
@@ -956,12 +970,48 @@
         if (!response.ok) {
             const errorData = await response.json();
             const errorMessage = errorData?.message || errorData?.error || response.statusText;
-            showToast(`Failed to update the asset: ${errorMessage}`, "error");
+            showToast(`Failed to update sensors to show: ${errorMessage}`, "error");
         } else {
-            document.dispatchEvent(new Event('sensorsToShowUpdated'));
-            showToast("Changes saved successfully", "success");
+            showToast("Sensor graphs updated successfully", "success");
         }
     }
+
+    async function updateFlexContext() {
+        const apiURL = apiBasePath + "/api/v3_0/assets/{{ asset.id }}";
+
+        // Clean null values
+        for (const [key, value] of Object.entries(assetFlexContext)) {
+            if (value === null) {
+                delete assetFlexContext[key];
+            }
+        }
+
+        const requestBody = JSON.stringify({ flex_context: JSON.stringify(assetFlexContext) });
+
+        const response = await fetch(apiURL, {
+            method: "PATCH",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: requestBody,
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            const errorMessage = errorData?.message || errorData?.error || response.statusText;
+            showToast(`Failed to update the flex context: ${errorMessage}`, "error");
+
+            // Revert to previous state
+            const asset = await getAsset("{{ asset.id }}", false);
+            const previousFlexContext = await processAssetRawFlexContextJSON(asset.flex_context);
+            assetFlexContext = previousFlexContext;
+            renderFlexContextForm();
+        } else {
+            showToast("Flex context updated successfully", "success");
+        }
+    }
+
+
 
     // Add a sensor as a new graph card
     function addSensorAsGraph(id) {
@@ -1189,6 +1239,9 @@
         highlightedCard = await renderFlexContextInputField(flexId);
         flexContextFormEle.innerHTML = flexContextFormEle.innerHTML.replace(document.getElementById(`${flexId}-control`).outerHTML, highlightedCard);
         await selectFlexField(document.getElementById(`${flexId}-control`));
+
+        // Update FlexContext
+        await updateFlexContext();
     }
 
     async function addFlexContextField() {
@@ -1270,8 +1323,32 @@
                                         title="Search for sensor(s) to add here. Make sure that the sensor data will be available consistently, though, so scheduling will work."
                                     ></i>
                                 </label>
-                                <input type="text" id="flexContextSensorSearch" class="form-control"
-                                    placeholder="Search sensors..." oninput="searchSensors()" />
+
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="" id="flexCheckBox" onchange="searchSensorsFlexContextForm()"/>
+                                    <label class="form-check-label" for="flexCheckBox">
+                                        Include Public Assets
+                                    </label>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-8  pe-1">
+                                        <input
+                                        type="text"
+                                        id="flexContextSensorSearch"
+                                        class="form-control"
+                                        placeholder="Search sensors..."
+                                        oninput="searchSensorsFlexContextForm()"
+                                        />
+                                    </div>
+                                    <div class="col-4 ps-0">
+                                        <select id="flexUnitsSelect" class="form-select" onchange="searchSensorsFlexContextForm()">
+                                            <option value="${null}" selected>Units</option>
+                                            ${availableUnits.map( unit => '<option value="' + unit + '">' + unit + '</option>').join('')}
+                                        </select>
+                                    </div>
+                                </div>
+
                             </div>
                         </div>
                         ` : `
@@ -1303,8 +1380,31 @@
                                         title="You can add a sensor which provides the values in a dynamic fashion. In the search form below, you can choose the right one. Make sure that the sensor data will be available consistently, though, so scheduling will work."
                                     ></i>
                                 </label>
-                                <input type="text" id="flexContextSensorSearch" class="form-control"
-                                    placeholder="Search sensors..." oninput="searchSensors()" />
+
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="" id="flexCheckBox"/>
+                                    <label class="form-check-label" for="flexCheckBox">
+                                        Include Public Assets
+                                    </label>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-8  pe-1">
+                                        <input
+                                        type="text"
+                                        id="flexContextSensorSearch"
+                                        class="form-control"
+                                        placeholder="Search sensors..."
+                                        oninput="searchSensorsFlexContextForm()"
+                                        />
+                                    </div>
+                                    <div class="col-4 ps-0">
+                                        <select id="flexUnitsSelect" class="form-select" onchange="searchSensorsFlexContextForm()">
+                                            <option value="${null}" selected>Units</option>
+                                            ${availableUnits.map( unit => '<option value="' + unit + '">' + unit + '</option>').join('')}
+                                        </select>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         `}
@@ -1343,13 +1443,13 @@
 
     // ============== Page Events ============== //
     formModal.addEventListener('hidden.bs.modal', function () {
-        updateAssetSensorsToShow("sensorToShow");
+        updateSensorToShow();
     });
 
     formModal.addEventListener('shown.bs.modal', function () {
         // Initial renders
         renderGraphCards(); // Initial render of graph cards
-        filterSensors(); // Initial render of sensors
+        searchSensorsGraphForm(); // Initial render of sensors
     });
 
     flexContexFormModal.addEventListener('shown.bs.modal', function () {
@@ -1358,7 +1458,7 @@
     });
 
     flexContexFormModal.addEventListener('hidden.bs.modal', function () {
-        updateAssetSensorsToShow("flexContext");
+        updateFlexContext();
     });
 
     document.addEventListener("click", function (event) {
@@ -1479,6 +1579,7 @@
 
     // ============== Page Events ============== //
 </script>
+
 <script type="text/javascript">
 
     // create map
@@ -1501,7 +1602,7 @@
     });
     var marker = L
         .marker(
-            [{{ asset.latitude | replace("None", 10) }}, { { asset.longitude | replace("None", 10) } }],
+            [{{ asset.latitude | replace("None", 10) }}, {{ asset.longitude | replace("None", 10) }}],
     { icon: asset_icon }
         ).addTo(assetMap);
 
@@ -1524,7 +1625,7 @@
         this.id = id;
         this.name = name;
         this.unit = unit;
-        this.resolution = resolution
+        this.resolution = resolution;
         this.entity_address = entity_address;
         this.url = `/sensors/${id}`;
     }

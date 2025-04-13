@@ -1220,6 +1220,14 @@ def create_schedule(ctx):
     help="State of charge (e.g 32.8%, or 0.328) at the start of the schedule.",
 )
 @click.option(
+    "--state-of-charge",
+    "state_of_charge",
+    type=SensorIdField(unit="MWh"),
+    help="State of charge sensor.",
+    required=False,
+    default=None,
+)
+@click.option(
     "--soc-target",
     "soc_target_strings",
     type=click.Tuple(
@@ -1365,6 +1373,7 @@ def add_schedule_for_storage(  # noqa C901
     soc_max: ur.Quantity | None = None,
     roundtrip_efficiency: ur.Quantity | None = None,
     storage_efficiency: ur.Quantity | Sensor | None = None,
+    state_of_charge: Sensor | None = None,
     as_job: bool = False,
 ):
     """Create a new schedule for a storage asset.
@@ -1442,6 +1451,11 @@ def add_schedule_for_storage(  # noqa C901
             "inflexible-device-sensors": [s.id for s in inflexible_device_sensors],
         },
     )
+
+    if state_of_charge is not None:
+        scheduling_kwargs["flex_model"]["state-of-charge"] = {
+            "sensor": state_of_charge.id
+        }
 
     quantity_or_sensor_vars = {
         "flex_model": {
