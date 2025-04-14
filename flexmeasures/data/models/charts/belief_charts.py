@@ -854,6 +854,9 @@ def create_chargepoint_session_chart(
                         ],
                     },
                 ],
+                "selection": {
+                    "scroll": {"type": "interval", "bind": "scales", "encodings": ["x"]}
+                },
                 "mark": {"type": "rule", "strokeWidth": 2},
                 "encoding": {
                     "x": {
