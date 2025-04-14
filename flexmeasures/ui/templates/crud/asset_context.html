@@ -286,12 +286,6 @@
             [{{ asset.latitude | replace("None", 10) }}, {{ asset.longitude | replace("None", 10) }}],
     { icon: asset_icon }
         ).addTo(assetMap);
-
-    assetMap.on('click', function (e) {
-        $("#latitude").val(e.latlng.lat.toFixed(4));
-        $("#longitude").val(e.latlng.lng.toFixed(4));
-        marker.setLatLng(e.latlng);
-    });
 </script>
 
 <script>
@@ -575,7 +569,7 @@
             apiSensorsListElement.style.display = 'block';
         } catch (error) {
             const errorMessage = error?.message || error?.error || response.statusText;
-            showToast(`Failed to filter/search sesnors: ${errorMessage}`, "error");
+            showToast(`Failed to search sensors: ${errorMessage}`, "error");
         }
     }
 
@@ -620,7 +614,7 @@
             senSearchResEle.style.display = 'block';
         } catch (error) {
             const errorMessage = error?.message || error?.error || response.statusText;
-            showToast(`Failed to filter/search sesnors: ${errorMessage}`, "error");
+            showToast(`Failed to search sensors: ${errorMessage}`, "error");
         }
     }
 
