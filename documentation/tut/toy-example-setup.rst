@@ -244,7 +244,8 @@ If you want, you can inspect what you created:
     2  discharging  MW      15 minutes    Europe/Amsterdam
 
 
-Yes, that is quite a large battery :)
+Yes, that is quite a large battery :) 
+You can also see that the asset has some meta information about its scheduling. Within :ref:`flex_context`, we noted where to find the relevant optimization signal for electricity consumption (Sensor 1, which stores day-ahead prices). 
 
 .. note:: Obviously, you can use the ``flexmeasures`` command to create your own, custom account and assets. See :ref:`cli`. And to create, edit or read asset data via the API, see :ref:`v3_0`.
 
