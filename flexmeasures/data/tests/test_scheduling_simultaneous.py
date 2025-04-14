@@ -90,7 +90,7 @@ def test_create_simultaneous_jobs(
     start_charging = start + pd.Timedelta(hours=8)
     end_charging = start + pd.Timedelta(hours=10) - sensors["Test EV"].event_resolution
 
-    # Check schedules
+    # Assertions
     assert (ev_power.loc[start_charging:end_charging] != -0.005).values.any()  # 5 kW
     assert (
         battery_power.loc[start_charging:end_charging] != 0.005
@@ -107,11 +107,7 @@ def test_create_simultaneous_jobs(
     expected_battery_costs = -5.515
     expected_total_cost = -3.3525
 
-    # Check costs
-    assert (
-        round(total_cost, 4) == expected_total_cost
-    ), f"Total cost should be {expected_total_cost} €, got {total_cost} €"
-
+    # Assert costs
     assert (
         round(ev_costs, 4) == expected_ev_costs
     ), f"EV cost should be {expected_ev_costs} €, got {ev_costs} €"
@@ -119,3 +115,7 @@ def test_create_simultaneous_jobs(
     assert (
         round(battery_costs, 4) == expected_battery_costs
     ), f"Battery cost should be {expected_battery_costs} €, got {battery_costs} €"
+
+    assert (
+        round(total_cost, 4) == expected_total_cost
+    ), f"Total cost should be {expected_total_cost} €, got {total_cost} €"
