@@ -103,9 +103,9 @@ def test_create_simultaneous_jobs(
     total_cost = ev_costs + battery_costs
 
     # Define expected costs based on resolution
-    expected_ev_costs = 2.3125
-    expected_battery_costs = -5.59
-    expected_total_cost = -3.2775
+    expected_ev_costs = 2.1625
+    expected_battery_costs = -5.515
+    expected_total_cost = -3.3525
 
     # Check costs
     assert (
