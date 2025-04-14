@@ -334,9 +334,7 @@ tabulate==0.9.0
 threadpoolctl==3.6.0
     # via scikit-learn
 timely-beliefs[forecast]==3.1.0
-    # via
-    #   -r requirements/app.in
-    #   timely-beliefs
+    # via -r requirements/app.in
 timetomodel==0.7.3
     # via -r requirements/app.in
 tldextract==5.1.3
