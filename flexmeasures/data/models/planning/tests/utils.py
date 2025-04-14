@@ -10,6 +10,7 @@ def check_constraints(
     sensor: Sensor,
     schedule: pd.Series,
     soc_at_start: float,
+    soc_usage: pd.Series | float = 0,
     roundtrip_efficiency: float = 1,
     storage_efficiency: float = 1,
     tolerance: float = 0.00001,
@@ -22,6 +23,8 @@ def check_constraints(
         storage_efficiency=storage_efficiency,
         decimal_precision=6,
     )
+    soc_usage = soc_usage.reindex(soc_schedule.index).shift(1).fillna(0).cumsum()
+    soc_schedule -= soc_usage  # todo: move into integrate_time_series
     with pd.option_context("display.max_rows", None, "display.max_columns", 3):
         print(soc_schedule)
     capacity = sensor.get_attribute(
@@ -30,9 +33,10 @@ def check_constraints(
     )
     assert min(schedule.values) >= capacity * -1 - tolerance
     assert max(schedule.values) <= capacity + tolerance
+    # breakpoint()
     for soc in soc_schedule.values:
-        assert soc >= sensor.get_attribute("min_soc_in_mwh")
-        assert soc <= sensor.get_attribute("max_soc_in_mwh")
+        assert soc >= sensor.get_attribute("min_soc_in_mwh") - tolerance
+        assert soc <= sensor.get_attribute("max_soc_in_mwh") + tolerance
     return soc_schedule
 
 

@@ -2988,10 +2988,44 @@ def test_multiple_devices_sequential_scheduler():
     ), "Total cost mismatch."
 
 
-@pytest.mark.xfail
+@pytest.mark.parametrize(
+    ("capacity_in_w"),
+    [
+        10,
+        1.1,
+        1.01,
+        1.001,
+        1.0001,
+        1.00001,
+        1.000001,
+        1.0000001,
+        1.00000001,
+        1.000000001,
+        1.0000000001,
+        1.00000000001,
+        1.000000000001,
+        1.0000000000001,
+        1.00000000000001,
+        1.000000000000001,
+        pytest.param(
+            1.0000000000000001, marks=pytest.mark.xfail(reason="some rounding bug")
+        ),
+        pytest.param(
+            1.00000000000000001, marks=pytest.mark.xfail(reason="some rounding bug")
+        ),
+        pytest.param(
+            1.000000000000000001, marks=pytest.mark.xfail(reason="some rounding bug")
+        ),
+        pytest.param(
+            1.0000000000000000001, marks=pytest.mark.xfail(reason="some rounding bug")
+        ),
+        pytest.param(1, marks=pytest.mark.xfail(reason="some rounding bug")),
+    ],
+)
 def test_battery_kW(
     add_battery_assets,
     db,
+    capacity_in_w,
 ):
     """
     Scheduling a very small battery of 1Wh (1e-6 MWh) with a power capacity of 1W with a constant
@@ -3008,6 +3042,9 @@ def test_battery_kW(
     start = tz.localize(datetime(2015, 1, 1))
     end = tz.localize(datetime(2015, 1, 2))
     resolution = timedelta(minutes=15)
+    soc_max = capacity_in_w  # assumes 1 hour to fully charge
+    soc_usage_in_w = capacity_in_w
+    device_capacity_in_w = capacity_in_w
 
     scheduler: Scheduler = StorageScheduler(
         battery,
@@ -3016,15 +3053,15 @@ def test_battery_kW(
         resolution,
         flex_model={
             "soc-at-start": "0 kWh",
-            "soc-max": "1 Wh",
+            "soc-max": f"{soc_max} Wh",
             "soc-min": "0.0 kWh",
-            "soc-usage": ["1 W"],
+            "soc-usage": [f"{soc_usage_in_w} W"],
             "charging-efficiency": 1,
             "discharging-efficiency": 1,
             "storage-efficiency": 1,
-            "power-capacity": "1W",
-            "consumption-capacity": "1W",
-            "production-capacity": "1W",
+            "power-capacity": f"{device_capacity_in_w} W",
+            "consumption-capacity": f"{device_capacity_in_w} W",
+            "production-capacity": f"{device_capacity_in_w} W",
         },
         flex_context={
             "site-power-capacity": "1 MW",
@@ -3035,4 +3072,9 @@ def test_battery_kW(
     schedule = scheduler.compute()
 
     # Check if constraints were met
-    check_constraints(battery, schedule, 0)
+    soc_usage = (
+        pd.Series(soc_usage_in_w / 1000, index=schedule.index)
+        * resolution
+        / timedelta(hours=1)
+    )
+    check_constraints(battery, schedule, 0, soc_usage=soc_usage)
