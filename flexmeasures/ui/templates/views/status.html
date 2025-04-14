@@ -6,7 +6,6 @@
 
 {% block divs %}
 
-
 <div class="container-fluid">
     <div>
         <button type="button" class="btn" onclick="window.history.back();" style="margin-top: 20px;" >Back to asset page</button>
@@ -37,37 +36,10 @@ How long ago is considered too long (stale) depends on the sensor, usually we us
                         </tr>
                     </thead>
                     <tbody>
-                        {% for sensor in sensors: %}
-                        <tr title="View data">
-                            <td>
-                                {% if loop.first or sensor.name != loop.previtem.name %}
-                                  {{ sensor.name }} (<a href="/sensors/{{ sensor.id }}">{{ sensor.id }}</a>)
-                                  {%- set asset_info = [ sensor.name, "(Asset: '", sensor.asset_name, "')" ]-%}
-                                  <span class="fa fa-info" title="Resolution: {{sensor.resolution | naturalized_timedelta }}, Asset: '{{sensor.asset_name}}', reason for listing here: {{sensor.relation}}" style="margin-left: 10px;"></span>               
-                                {% endif %}
-                            </td>
-                            <td>
-                                {{ sensor.source_type }} 
-                            </td>
-                            <td>
-                                <span title="{{ sensor['staleness_since'] }}">{{ sensor["staleness_since"] | naturalized_datetime }}</span>
-                            </td>
-                            <td class="text-right">
-                                <span title="{{ sensor['reason'] }}">
-                                    {% if sensor["stale"] == False %}
-                                    🟢
-                                    {% elif sensor["stale"] == True %}
-                                    🔴
-                                    {% endif %}
-                                </span>
-                            </td>
-                            <td class="hidden d-none invisible" style="display:none;">
-                                /sensors/{{ sensor.id }}
-                            </td>
-                        </tr>
-                        {% endfor %}
+                        <!-- This will be populated dynamically with JavaScript -->
                     </tbody>
                 </table>
+
                 <h4>Latest jobs of {{ asset.name }}
                   <span class="fa fa-info-circle" title="This table shows forecasting or scheduling jobs for this asset.
 A red traffic light indicates something went wrong and should be reported to admins.
@@ -88,63 +60,10 @@ Note that jobs do not live forever, so only rather recent jobs (usually younger 
                         </tr>
                     </thead>
                     <tbody>
-                        {% for job_data in jobs_data: %}
-                        <tr title="View data">
-                            <td style="display:none;">
-                                {{ job_data.enqueued_at | to_utc_timestamp }} <!-- Hidden UTC Timestamp column for sorting, Keep at position 0 -->
-                            </td>
-                            <td title="Enqueued at: {{ job_data.enqueued_at}}">
-                                {{ job_data.enqueued_at | naturalized_datetime }}
-                            </td>
-                            <td>
-                                {{ job_data.queue }}
-                            </td>
-                            <td>
-                                {{ job_data.entity }}
-                            </td>
-                            <td class="text-right"
-                                title="{{ job_data['err'] is none and job_data['status'] or job_data['status'] + ' : ' + job_data['err'] }}">
-                                <span>
-                                    {% if job_data["status"] == "finished" %}
-                                    🟢
-                                    {% elif job_data["status"] == "failed" %}
-                                    🔴
-                                    {% else %}
-                                    🟡
-                                    {% endif %}
-                                </span>
-                            </td>
-                            <td class="text-right">
-                                <!-- Button -->
-                                <a href="#" class="btn btn-default btn-success" role="button" id="job-metadata-info-button" data-bs-target="#JobMetadataModal-{{ job_data['metadata_hash'] }}" data-bs-toggle="modal">
-                                    Info
-                                </a>
-                                
-                                <!-- Modal -->
-                                <div class="modal fade" id="JobMetadataModal-{{ job_data['metadata_hash'] }}" tabindex="-1" role="dialog" aria-labelledby="JobMetadataInfo" aria-hidden="true">
-                                    <div class="modal-dialog" role="document">
-                                        <div class="modal-content">
-                                            <div class="modal-header">
-                                                <h5 class="modal-title" id="JobMetadataInfo">Info</h5>
-                                                <button id="modalCloseButton" type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" onmousedown="event.stopPropagation(); event.preventDefault();"></button>
-                                            </div>
-                                            <div class="modal-body">
-                                                <pre>{{ job_data['metadata'] }}</pre>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td class="hidden d-none invisible" style="display:none;">
-                                /tasks/0/view/job/{{ job_data.job_id }}
-                            </td>
-                        </tr>
-                        {% endfor %}
+                        <!-- This will be populated dynamically with JavaScript -->
                     </tbody>
                 </table>
-                {% if redis_connection_err is not none %}
-                    <div class="alert alert-warning">Warning: {{ redis_connection_err }}</div>
-                {% endif %}
+                <div class="alert alert-warning d-none" id="redis_connection_err"></div>
             </div>
         </div>
     </div>
@@ -159,6 +78,132 @@ Note that jobs do not live forever, so only rather recent jobs (usually younger 
         "info": false,
         "ordering": false
     });
+
+    var assetId = "{{ asset.id }}";
+    // Fetch and populate sensor data
+    $.ajax({
+        url: `/api/v3_0/sensors/${assetId}/status`,
+        method: 'GET',
+        success: function(response) {
+            // Clear the table body before appending new data
+            $('#sensor_statuses tbody').empty();
+            const tbody = $('#sensor_statuses tbody');
+            var lastSensorName = '';
+            response.sensors.forEach(function(sensor) {
+                const isNewSensorName = lastSensorName !== sensor.name;
+                lastSensorName = sensor.name;
+                
+                const sensorInfo = isNewSensorName
+                    ? `${sensor.name} (<a href="/sensors/${sensor.id}">${sensor.id}</a>) 
+                    <span class="fa fa-info" title="Resolution: ${sensor.resolution_readable}, Asset: '${sensor.asset_name}', reason for listing here: ${sensor.relation}" style="margin-left: 10px;"></span>`
+                    : '';
+
+                const status = sensor.stale
+                    ? '<span title="' + sensor.reason + '">🔴</span>'
+                    : '<span title="' + sensor.reason + '">🟢</span>';
+
+                const source_type = sensor.source_type
+                    ? `<span title="${sensor.source_type}">${sensor.source_type}</span>`
+                    : '<span title="None">None</span>';
+
+                const staleness_since = sensor.staleness_since
+                    ? `<span title="${sensor.staleness_since}">${sensor.staleness_since}</span>`
+                    : '<span title="Never">Never</span>';
+
+                const row = `
+                    <tr title="View data">
+                        <td>${sensorInfo}</td>
+                        <td>${source_type}</td>
+                        <td>${staleness_since}</td>
+                        <td class="text-right">${status}</td>
+                        <td class="hidden d-none invisible" style="display:none;">/sensors/${sensor.id}</td>
+                    </tr>
+                `;
+                tbody.append(row);
+                lastSensorName = sensor.name;
+            });
+        },
+        error: function(xhr) {
+            console.error('Error fetching sensors:', xhr);
+        }
+    });
+
+    // Fetch and populate job data
+    $.ajax({
+        url: `/api/v3_0/sensors/${assetId}/jobs`,
+        method: 'GET',
+        success: function(response) {
+            // Check if there is redis_connection_err
+            if (response.redis_connection_err) {
+                $('#redis_connection_err').removeClass('d-none');
+                $('#redis_connection_err').text(response.redis_connection_err);
+            }
+            if (response.jobs.length > 0) {
+                // Clear the table body before appending new data
+                $('#scheduling_forecasting_jobs tbody').empty();
+                const tbody = $('#scheduling_forecasting_jobs tbody');
+                // Loop through the job data and create table rows
+                response.jobs.forEach(function(job_data) {
+                    const jobStatusMessage = job_data.err === null || job_data.err === undefined
+                        ? job_data.status
+                        : job_data.status + ' : ' + job_data.err;
+                    const jobStatusIcon = job_data.status === 'finished'
+                        ? '🟢'
+                        : job_data.status === 'failed'
+                        ? '🔴'
+                        : '🟡';
+                    const row = `
+                        <tr title="View data">
+                            <td style="display:none;">
+                                ${job_data.enqueued_at}
+                            </td>
+                            <td title="Enqueued at: ${job_data.enqueued_at}">
+                                ${job_data.enqueued_at}
+                            </td>
+                            <td>
+                                ${job_data.queue}
+                            </td>
+                            <td>
+                                ${job_data.entity}
+                            </td>
+                            <td class="text-right"
+                                title="${jobStatusMessage}">
+                                <span>
+                                    ${jobStatusIcon}
+                                </span>
+                            </td>
+                            <td class="text-right">
+                                <a href="#" class="btn btn-default btn-success" role="button" id="job-metadata-info-button" data-bs-target="#JobMetadataModal-${job_data.metadata_hash}" data-bs-toggle="modal">
+                                    Info
+                                </a>
+                                
+                                <div class="modal fade" id="JobMetadataModal-${job_data.metadata_hash}" tabindex="-1" role="dialog" aria-labelledby="JobMetadataInfo" aria-hidden="true">
+                                    <div class="modal-dialog" role="document">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title" id="JobMetadataInfo">Info</h5>
+                                                <button id="modalCloseButton" type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" onmousedown="event.stopPropagation(); event.preventDefault();"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <pre>${job_data.metadata}</pre>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="hidden d-none invisible" style="display:none;">
+                                /tasks/0/view/job/${job_data.job_id}
+                            </td>
+                        </tr>
+                    `;
+                    tbody.append(row);
+                });
+            }
+        },
+        error: function(xhr) {
+            console.error('Error fetching jobs:', xhr);
+        }
+    })
 });
 </script>
 

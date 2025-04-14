@@ -11,6 +11,7 @@ from timely_beliefs import BeliefsDataFrame
 import pandas as pd
 
 from humanize.time import precisedelta
+from humanize import naturaldelta
 
 from flexmeasures.data.models.time_series import TimedBelief
 
@@ -322,6 +323,23 @@ def build_sensor_status_data(
                 sensor_ids.add(sensor.id)
                 sensors.append(sensor_status)
     return sensors
+
+
+def serialize_sensor_status_data(
+    asset: Asset,
+) -> list[dict]:
+    """
+    This is just a wrapper for build_sensor_status_data to be used in the API
+    Return a list of sensor statuses for the given asset.
+    The "staleness_since" and "resolution" fields are converted to natural language strings.
+    """
+    sensor_status_data = build_sensor_status_data(asset)
+
+    for sensor in sensor_status_data:
+        sensor["resolution"] = naturaldelta(sensor["resolution"])
+        sensor["staleness_since"] = naturaldelta(sensor["staleness_since"])
+
+    return sensor_status_data
 
 
 def build_asset_jobs_data(

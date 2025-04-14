@@ -3,6 +3,13 @@ from __future__ import annotations
 import isodate
 from datetime import datetime, timedelta
 
+from flexmeasures.data.services.sensors import (
+    serialize_sensor_status_data,
+    build_asset_jobs_data,
+)
+from flexmeasures.data.services.job_cache import NoRedisConfigured
+from werkzeug.exceptions import NotFound
+
 from werkzeug.exceptions import Unauthorized
 from flask import current_app, url_for
 from flask_classful import FlaskView, route
@@ -974,3 +981,36 @@ class SensorAPI(FlaskView):
         """
 
         return get_sensor_stats(sensor), 200
+
+    @route("/<id>/status", methods=["GET"])
+    @as_json
+    def get_status(self, id):
+        asset = GenericAsset.query.get(id)
+        if asset is None:
+            raise NotFound
+
+        status_data = serialize_sensor_status_data(asset)
+
+        return {"sensors": status_data}, 200
+
+    @route("/<id>/jobs", methods=["GET"])
+    @as_json
+    def get_jobs(self, id):
+        asset = GenericAsset.query.get(id)
+        if asset is None:
+            raise NotFound
+
+        # add data about forecasting and scheduling jobs
+        redis_connection_err = None
+        all_jobs_data = list()
+        try:
+            jobs_data = build_asset_jobs_data(asset)
+        except NoRedisConfigured as e:
+            redis_connection_err = e.args[0]
+        else:
+            all_jobs_data = jobs_data
+
+        return {
+            "jobs": all_jobs_data,
+            "redis_connection_err": redis_connection_err,
+        }, 200
