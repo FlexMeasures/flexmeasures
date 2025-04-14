@@ -110,12 +110,12 @@ def test_create_simultaneous_jobs(
     # Check costs
     assert (
         round(total_cost, 4) == expected_total_cost
-    ), f"Total costs should be {expected_total_cost} €, got {total_cost} €"
+    ), f"Total cost should be {expected_total_cost} €, got {total_cost} €"
 
     assert (
         round(ev_costs, 4) == expected_ev_costs
-    ), f"EV costs should be {expected_ev_costs} €, got {ev_costs} €"
+    ), f"EV cost should be {expected_ev_costs} €, got {ev_costs} €"
 
     assert (
         round(battery_costs, 4) == expected_battery_costs
-    ), f"Battery costs should be {expected_battery_costs} €, got {battery_costs} €"
+    ), f"Battery cost should be {expected_battery_costs} €, got {battery_costs} €"
