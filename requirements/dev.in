@@ -9,3 +9,6 @@ pytest-runner
 setuptools_scm<8.1
 watchdog
 pyinstrument
+# below: for releasing
+build
+packaging>=24.2

@@ -40,7 +40,6 @@ htmlcov
 test/*
 profile_reports/*
 
-pyproject.toml
 poetry.lock
 .venv
 .vscode/
