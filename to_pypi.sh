@@ -15,13 +15,19 @@
 # If the --dry-run flag is present, this script will do all steps, but skip the upload to Pypi.
 # 
 #
-# The version
-# -------------
+# Required packages (install/upgrade with pip into your environment, or `make install-for-dev`):
+#   - build
+#   - packaging>=24.2
+#
+#
+# Where does the FlexMeasures version come from?
+# ----------------------------------------------
 # The version comes from setuptools_scm. See `python setup.py --version`.
 # setuptools_scm works via git tags that should implement a semantic versioning scheme, e.g. v0.2.3
 #
 # If there were zero commits since the most recent tag, we have a real release and the version basically *is* what the tag says.
 # Otherwise, the version also includes a .devN identifier, where N is the number of commits since the last version tag.
+#
 #
 # More information on creating a dev release
 # -------------------------------------------
