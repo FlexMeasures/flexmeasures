@@ -220,7 +220,7 @@ passlib==1.7.4
     # via flask-security-too
 patsy==1.0.1
     # via statsmodels
-pillow==11.2.0
+pillow==11.2.1
     # via
     #   -r requirements/app.in
     #   matplotlib
