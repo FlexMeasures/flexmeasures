@@ -82,8 +82,23 @@ def test_create_simultaneous_jobs(
     prices = prices.droplevel([1, 2, 3])
     prices.index = prices.index.tz_convert("Europe/Amsterdam")
 
+    # Resample prices to match power resolution
+    prices = prices.reindex(
+        battery_power.index,
+    ).ffill()
+
+    start_charging = start + pd.Timedelta(hours=8)
+    end_charging = start + pd.Timedelta(hours=10) - sensors["Test EV"].event_resolution
+
+    # Check schedules
+    assert (ev_power.loc[start_charging:end_charging] != -0.005).values.any()  # 5 kW
+    assert (
+        battery_power.loc[start_charging:end_charging] != 0.005
+    ).values.any()  # 5 kW
+
     # Calculate costs
-    ev_costs = (-ev_power.resample("1h").mean() * prices).sum().item()
+    ev_resolution = sensors["Test EV"].event_resolution.total_seconds() / 3600
+    ev_costs = (-ev_power * prices * ev_resolution).sum().item()
     battery_costs = (-battery_power.resample("1h").mean() * prices).sum().item()
     total_cost = ev_costs + battery_costs
 
