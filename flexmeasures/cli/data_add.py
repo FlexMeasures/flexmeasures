@@ -1389,6 +1389,7 @@ def add_schedule_for_storage(  # noqa C901
         optimization_context_sensor,
         "consumption-price-sensor",
         consumption_price_sensor,
+        False,
     )
 
     # Parse input and required sensor attributes
