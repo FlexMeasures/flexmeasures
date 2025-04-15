@@ -503,6 +503,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
 
     def to_dict(self) -> dict:
         return dict(
+            asset_id=self.generic_asset.id,
             id=self.id,
             name=self.name,
             description=f"{self.name} ({self.generic_asset.name})",

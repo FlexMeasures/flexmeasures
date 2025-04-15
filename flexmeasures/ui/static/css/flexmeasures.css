@@ -1010,6 +1010,22 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
         border-bottom-right-radius: 15px;
         text-align: right;
     }
+    .rightside-dropdown {
+        position: absolute;
+        right: 0;
+        margin: 0;
+        padding: 13px 10px;
+        background: var(--nav-default-background-color);
+        color: var(--nav-default-color);
+        width: calc(var(--litepicker-day-width) * 5);
+        min-height: 35px;
+        border-top-right-radius: 0px;
+        border-bottom-right-radius: 0px;
+        border-top-left-radius: 15px;
+        border-bottom-left-radius: 15px;
+        text-align: left;
+        z-index: 10;
+    }
     .sidepanel-container {
         z-index: 20;
         position: relative;

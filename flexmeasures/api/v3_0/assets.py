@@ -567,6 +567,7 @@ class AssetAPI(FlaskView):
             "dataset_name": fields.Str(required=False),
             "height": fields.Str(required=False),
             "width": fields.Str(required=False),
+            "chart_type": fields.Str(required=False),
         },
         location="query",
     )
