@@ -106,9 +106,6 @@ def test_create_simultaneous_jobs(
     ), f"Total costs should be €{expected_total_cost}, got €{total_cost}"
 
     assert (
-        round(total_cost, 4) == expected_total_cost
-    ), f"Total cost should be {expected_total_cost} €, got {total_cost} €"
-    assert (
         round(ev_costs, 4) == expected_ev_costs
     ), f"EV costs should be €{expected_ev_costs}, got €{ev_costs}"
 
