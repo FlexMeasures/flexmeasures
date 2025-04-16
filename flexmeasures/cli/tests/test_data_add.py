@@ -25,7 +25,7 @@ from flexmeasures.tests.utils import get_test_sensor
 
 
 @pytest.mark.skip_github
-def test_add_annotation(app, db, setup_roles_users):
+def test_add_annotation(app, setup_roles_users_fresh_db):
     from flexmeasures.cli.data_add import add_annotation
 
     cli_input = {
@@ -61,7 +61,7 @@ def test_add_annotation(app, db, setup_roles_users):
 
 
 @pytest.mark.skip_github
-def test_add_holidays(app, db, setup_roles_users):
+def test_add_holidays(app, setup_roles_users_fresh_db):
     from flexmeasures.cli.data_add import add_holidays
 
     cli_input = {
