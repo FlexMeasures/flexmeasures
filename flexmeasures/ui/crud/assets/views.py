@@ -25,6 +25,9 @@ from flexmeasures.ui.crud.assets.utils import (
     user_can_delete,
     user_can_update,
 )
+from flexmeasures.data.services.sensors import (
+    get_asset_sensors_metadata,
+)
 from flexmeasures.ui.utils.view_utils import available_units
 
 
@@ -160,9 +163,12 @@ class AssetCrudUI(FlaskView):
             raise NotFound
         check_access(asset, "read")
 
+        status_data = get_asset_sensors_metadata(asset)
+
         return render_flexmeasures_template(
             "views/status.html",
             asset=asset,
+            sensors=status_data,
         )
 
     @login_required

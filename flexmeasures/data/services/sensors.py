@@ -266,23 +266,18 @@ def _get_sensor_asset_relation(
     return ";".join(relations)
 
 
-def build_sensor_status_data(
+def get_asset_sensors_metadata(
     asset: Asset,
     now: datetime = None,
 ) -> list[dict]:
-    """Get data connectivity status information for each sensor split by source in given asset and its children
-    Returns a list of dictionaries, each containing the following keys:
-    - id: sensor id
-    - name: sensor name
-    - resolution: sensor resolution
-    - asset_name: asset name
-    - staleness: staleness of the sensor (for how long the sensor data is stale)
-    - stale: whether the sensor is stale
-    - staleness_since: time since sensor data is considered stale
-    - reason: reason for staleness
-    - source: source of the sensor data
-    - relation: relation of the sensor to the asset
     """
+    Get the metadata of sensors for a given asset and its children.
+
+    :param asset: Asset to get the sensors for.
+    :param now: Datetime representing now, used to get the status of the sensors.
+    :return: A list of dictionaries, each representing a sensor's metadata.
+    """
+
     if not now:
         now = server_now()
 
@@ -308,38 +303,45 @@ def build_sensor_status_data(
         for sensor in sensors_list:
             if sensor is None or sensor.id in sensor_ids:
                 continue
-            sensor_statuses = get_statuses(
-                sensor=sensor,
-                now=now,
-            )
-            for sensor_status in sensor_statuses:
-                sensor_status["id"] = sensor.id
-                sensor_status["name"] = sensor.name
-                sensor_status["resolution"] = sensor.event_resolution
-                sensor_status["asset_name"] = sensor.generic_asset.name
-                sensor_status["relation"] = _get_sensor_asset_relation(
-                    asset, sensor, inflexible_device_sensors, context_sensors
-                )
-                sensor_ids.add(sensor.id)
-                sensors.append(sensor_status)
+            sensor_status = {}
+            sensor_status["id"] = sensor.id
+            sensor_status["name"] = sensor.name
+            sensor_status["asset_name"] = sensor.generic_asset.name
+            sensor_ids.add(sensor.id)
+            sensors.append(sensor_status)
     return sensors
 
 
 def serialize_sensor_status_data(
-    asset: Asset,
+    sensor: Sensor,
 ) -> list[dict]:
     """
-    This is just a wrapper for build_sensor_status_data to be used in the API
-    Return a list of sensor statuses for the given asset.
-    The "staleness_since" and "resolution" fields are converted to natural language strings.
+    Serialize the status of a sensor belonging to an asset.
+
+    :param sensor: Sensor to get the status of
+    :return: A list of dictionaries, each representing the status of the sensor
     """
-    sensor_status_data = build_sensor_status_data(asset)
+    asset = sensor.generic_asset
+    sensor_statuses = get_statuses(sensor=sensor, now=server_now())
+    inflexible_device_sensors = asset.get_inflexible_device_sensors()
+    context_sensors = {
+        field: Sensor.query.get(asset.flex_context[field]["sensor"])
+        for field in asset.flex_context
+        if isinstance(asset.flex_context[field], dict)
+        and field != "inflexible-device-sensors"
+    }
+    sensors = []
+    for sensor_status in sensor_statuses:
+        sensor_status["id"] = sensor.id
+        sensor_status["name"] = sensor.name
+        sensor_status["resolution"] = naturaldelta(sensor.event_resolution)
+        sensor_status["asset_name"] = asset.name
+        sensor_status["relation"] = _get_sensor_asset_relation(
+            asset, sensor, inflexible_device_sensors, context_sensors
+        )
+        sensors.append(sensor_status)
 
-    for sensor in sensor_status_data:
-        sensor["resolution"] = naturaldelta(sensor["resolution"])
-        sensor["staleness_since"] = naturaldelta(sensor["staleness_since"])
-
-    return sensor_status_data
+    return sensors
 
 
 def build_asset_jobs_data(

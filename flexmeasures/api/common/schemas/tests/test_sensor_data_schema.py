@@ -18,7 +18,7 @@ from flexmeasures.data.services.scheduling import create_scheduling_job
 from flexmeasures.data.services.sensors import (
     get_stalenesses,
     get_statuses,
-    build_sensor_status_data,
+    get_asset_sensors_metadata,
     build_asset_jobs_data,
 )
 from flexmeasures.data.schemas.reporting import StatusSchema
@@ -399,7 +399,7 @@ def test_build_asset_status_data(
         [production_price_res],
     )
 
-    status_data = build_sensor_status_data(asset=asset)
+    status_data = get_asset_sensors_metadata(asset=asset)
 
     assert status_data == [
         {

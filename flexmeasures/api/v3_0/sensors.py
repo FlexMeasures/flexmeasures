@@ -983,15 +983,51 @@ class SensorAPI(FlaskView):
         return get_sensor_stats(sensor), 200
 
     @route("/<id>/status", methods=["GET"])
+    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    @permission_required_for_context("read", ctx_arg_name="sensor")
     @as_json
-    def get_status(self, id):
-        asset = GenericAsset.query.get(id)
-        if asset is None:
-            raise NotFound
+    def get_status(self, id, sensor):
+        """
+        Fetch the current status for a given sensor.
 
-        status_data = serialize_sensor_status_data(asset)
+        .. :quickref: Sensor; Get sensor status
 
-        return {"sensors": status_data}, 200
+        This endpoint fetches the current status data for the specified sensor.
+        The status includes information about the sensor's status, staleness and resolution.
+
+        Example response:
+
+        .. sourcecode:: json
+
+            [
+                {
+                    'staleness': None,
+                    'stale': True,
+                    'staleness_since': None,
+                    'reason': 'no data recorded',
+                    'source_type': None,
+                    'id': 64906,
+                    'name': 'power',
+                    'resolution': '15 minutes',
+                    'asset_name': 'Location 1',
+                    'relation': 'sensor belongs to this asset'
+                }
+            ]
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 200: PROCESSED
+        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 404: ASSET_NOT_FOUND
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+
+        status_data = serialize_sensor_status_data(sensor=sensor)
+
+        return {"sensors_data": status_data}, 200
 
     @route("/<id>/jobs", methods=["GET"])
     @as_json

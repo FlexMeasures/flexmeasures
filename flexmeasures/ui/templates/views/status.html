@@ -79,55 +79,67 @@ Note that jobs do not live forever, so only rather recent jobs (usually younger 
         "ordering": false
     });
 
-    var assetId = "{{ asset.id }}";
-    // Fetch and populate sensor data
-    $.ajax({
-        url: `/api/v3_0/sensors/${assetId}/status`,
-        method: 'GET',
-        success: function(response) {
-            // Clear the table body before appending new data
-            $('#sensor_statuses tbody').empty();
-            const tbody = $('#sensor_statuses tbody');
-            var lastSensorName = '';
-            response.sensors.forEach(function(sensor) {
-                const isNewSensorName = lastSensorName !== sensor.name;
-                lastSensorName = sensor.name;
-                
-                const sensorInfo = isNewSensorName
-                    ? `${sensor.name} (<a href="/sensors/${sensor.id}">${sensor.id}</a>) 
-                    <span class="fa fa-info" title="Resolution: ${sensor.resolution_readable}, Asset: '${sensor.asset_name}', reason for listing here: ${sensor.relation}" style="margin-left: 10px;"></span>`
-                    : '';
+    var sensors = {{ sensors | tojson }};
+    var isFirstSensor = true;
+    var lastSensorName = '';
 
-                const status = sensor.stale
+    sensors.forEach(element => {
+        // Fetch and populate sensor data
+        $.ajax({
+            url: `/api/v3_0/sensors/${element.id}/status`,
+            method: 'GET',
+            success: function(response) {
+                if (isFirstSensor) {
+                    // Clear the table body before appending the first row
+                    $('#sensor_statuses tbody').empty();
+                    isFirstSensor = false;
+                }
+                const tbody = $('#sensor_statuses tbody');
+                response.sensors_data.forEach(function(sensor) {
+                    const isNewSensorName = lastSensorName !== sensor.name;
+                    lastSensorName = sensor.name;
+                    
+                    const sensorInfo = isNewSensorName
+                        ? `${sensor.name} (<a href="/sensors/${sensor.id}">${sensor.id}</a>) 
+                        <span class="fa fa-info" title="Resolution: ${sensor.resolution}, Asset: '${sensor.asset_name}', reason for listing here: ${sensor.relation}" style="margin-left: 10px;"></span>`
+                        : '';
+    
+                    const source_type = sensor.source_type
+                        ? `<span title="${sensor.source_type}">${sensor.source_type}</span>`
+                        : '<span title="None">None</span>';
+    
+                    const staleness_since = sensor.staleness_since
+                        ? `<span title="${sensor.staleness_since}">${sensor.staleness_since}</span>`
+                        : '<span title="Never">Never</span>';
+
+                    const status = sensor.stale
                     ? '<span title="' + sensor.reason + '">🔴</span>'
                     : '<span title="' + sensor.reason + '">🟢</span>';
-
-                const source_type = sensor.source_type
-                    ? `<span title="${sensor.source_type}">${sensor.source_type}</span>`
-                    : '<span title="None">None</span>';
-
-                const staleness_since = sensor.staleness_since
-                    ? `<span title="${sensor.staleness_since}">${sensor.staleness_since}</span>`
-                    : '<span title="Never">Never</span>';
-
-                const row = `
-                    <tr title="View data">
-                        <td>${sensorInfo}</td>
-                        <td>${source_type}</td>
-                        <td>${staleness_since}</td>
-                        <td class="text-right">${status}</td>
-                        <td class="hidden d-none invisible" style="display:none;">/sensors/${sensor.id}</td>
-                    </tr>
-                `;
-                tbody.append(row);
-                lastSensorName = sensor.name;
-            });
-        },
-        error: function(xhr) {
-            console.error('Error fetching sensors:', xhr);
-        }
+    
+                    const row = `
+                        <tr title="View data">
+                            <td>${sensorInfo}</td>
+                            <td>${source_type}</td>
+                            <td>${staleness_since}</td>
+                            <td class="text-right">${status}</td>
+                            <td class="hidden d-none invisible" style="display:none;">/sensors/${sensor.id}</td>
+                        </tr>
+                    `;
+                    tbody.append(row);
+                    lastSensorName = sensor.name;
+                });
+            },
+            error: function(xhr) {
+                console.error('Error fetching sensors:', xhr);
+            }
+        });
     });
+});
+</script>
 
+<script>
+
+    var assetId = "{{ asset.id }}";
     // Fetch and populate job data
     $.ajax({
         url: `/api/v3_0/sensors/${assetId}/jobs`,
@@ -204,11 +216,6 @@ Note that jobs do not live forever, so only rather recent jobs (usually younger 
             console.error('Error fetching jobs:', xhr);
         }
     })
-});
-</script>
-
-<!-- sort scheduling and forecasting jobs by hidden 'Created at Timestamp' column, hide control elements -->
-<script>
     $(document).ready(function() {
         $('#scheduling_forecasting_jobs').DataTable({
         "order": [[ 0, "desc" ]],  // Default sort by the hidden UTC Timestamp column
