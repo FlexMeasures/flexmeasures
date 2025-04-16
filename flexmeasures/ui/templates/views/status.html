@@ -140,82 +140,92 @@ Note that jobs do not live forever, so only rather recent jobs (usually younger 
 <script>
 
     var assetId = "{{ asset.id }}";
-    // Fetch and populate job data
-    $.ajax({
-        url: `/api/v3_0/sensors/${assetId}/jobs`,
-        method: 'GET',
-        success: function(response) {
-            // Check if there is redis_connection_err
-            if (response.redis_connection_err) {
-                $('#redis_connection_err').removeClass('d-none');
-                $('#redis_connection_err').text(response.redis_connection_err);
-            }
-            if (response.jobs.length > 0) {
-                // Clear the table body before appending new data
-                $('#scheduling_forecasting_jobs tbody').empty();
-                const tbody = $('#scheduling_forecasting_jobs tbody');
-                // Loop through the job data and create table rows
-                response.jobs.forEach(function(job_data) {
-                    const jobStatusMessage = job_data.err === null || job_data.err === undefined
-                        ? job_data.status
-                        : job_data.status + ' : ' + job_data.err;
-                    const jobStatusIcon = job_data.status === 'finished'
-                        ? '🟢'
-                        : job_data.status === 'failed'
-                        ? '🔴'
-                        : '🟡';
-                    const row = `
-                        <tr title="View data">
-                            <td style="display:none;">
-                                ${job_data.enqueued_at}
-                            </td>
-                            <td title="Enqueued at: ${job_data.enqueued_at}">
-                                ${job_data.enqueued_at}
-                            </td>
-                            <td>
-                                ${job_data.queue}
-                            </td>
-                            <td>
-                                ${job_data.entity}
-                            </td>
-                            <td class="text-right"
-                                title="${jobStatusMessage}">
-                                <span>
-                                    ${jobStatusIcon}
-                                </span>
-                            </td>
-                            <td class="text-right">
-                                <a href="#" class="btn btn-default btn-success" role="button" id="job-metadata-info-button" data-bs-target="#JobMetadataModal-${job_data.metadata_hash}" data-bs-toggle="modal">
-                                    Info
-                                </a>
-                                
-                                <div class="modal fade" id="JobMetadataModal-${job_data.metadata_hash}" tabindex="-1" role="dialog" aria-labelledby="JobMetadataInfo" aria-hidden="true">
-                                    <div class="modal-dialog" role="document">
-                                        <div class="modal-content">
-                                            <div class="modal-header">
-                                                <h5 class="modal-title" id="JobMetadataInfo">Info</h5>
-                                                <button id="modalCloseButton" type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" onmousedown="event.stopPropagation(); event.preventDefault();"></button>
-                                            </div>
-                                            <div class="modal-body">
-                                                <pre>${job_data.metadata}</pre>
+
+    function getAssetJobs(assetId) {
+        console.log('Fetching jobs for asset ID:', assetId);
+        $.ajax({
+            url: `/api/v3_0/assets/${assetId}/jobs`,
+            method: 'GET',
+            success: function(response) {
+                // Check if there is redis_connection_err
+                if (response.redis_connection_err) {
+                    $('#redis_connection_err').removeClass('d-none');
+                    $('#redis_connection_err').text(response.redis_connection_err);
+                }
+                if (response.jobs.length > 0) {
+                    // Clear the table body before appending new data
+                    $('#scheduling_forecasting_jobs tbody').empty();
+                    const tbody = $('#scheduling_forecasting_jobs tbody');
+                    // Loop through the job data and create table rows
+                    response.jobs.forEach(function(job_data) {
+                        const jobStatusMessage = job_data.err === null || job_data.err === undefined
+                            ? job_data.status
+                            : job_data.status + ' : ' + job_data.err;
+                        const jobStatusIcon = job_data.status === 'finished'
+                            ? '🟢'
+                            : job_data.status === 'failed'
+                            ? '🔴'
+                            : '🟡';
+                        const row = `
+                            <tr title="View data">
+                                <td style="display:none;">
+                                    ${job_data.enqueued_at}
+                                </td>
+                                <td title="Enqueued at: ${job_data.enqueued_at}">
+                                    ${job_data.enqueued_at}
+                                </td>
+                                <td>
+                                    ${job_data.queue}
+                                </td>
+                                <td>
+                                    ${job_data.entity}
+                                </td>
+                                <td class="text-right"
+                                    title="${jobStatusMessage}">
+                                    <span>
+                                        ${jobStatusIcon}
+                                    </span>
+                                </td>
+                                <td class="text-right">
+                                    <a href="#" class="btn btn-default btn-success" role="button" id="job-metadata-info-button" data-bs-target="#JobMetadataModal-${job_data.metadata_hash}" data-bs-toggle="modal">
+                                        Info
+                                    </a>
+                                    
+                                    <div class="modal fade" id="JobMetadataModal-${job_data.metadata_hash}" tabindex="-1" role="dialog" aria-labelledby="JobMetadataInfo" aria-hidden="true">
+                                        <div class="modal-dialog" role="document">
+                                            <div class="modal-content">
+                                                <div class="modal-header">
+                                                    <h5 class="modal-title" id="JobMetadataInfo">Info</h5>
+                                                    <button id="modalCloseButton" type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" onmousedown="event.stopPropagation(); event.preventDefault();"></button>
+                                                </div>
+                                                <div class="modal-body">
+                                                    <pre>${job_data.metadata}</pre>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-                            </td>
-                            <td class="hidden d-none invisible" style="display:none;">
-                                /tasks/0/view/job/${job_data.job_id}
-                            </td>
-                        </tr>
-                    `;
-                    tbody.append(row);
-                });
+                                </td>
+                                <td class="hidden d-none invisible" style="display:none;">
+                                    /tasks/0/view/job/${job_data.job_id}
+                                </td>
+                            </tr>
+                        `;
+                        tbody.append(row);
+                    });
+                }
+            },
+            error: function(xhr) {
+                console.error('Error fetching jobs:', xhr);
             }
-        },
-        error: function(xhr) {
-            console.error('Error fetching jobs:', xhr);
-        }
-    })
+        })   
+    }
+    // Initial fetch of jobs
+    getAssetJobs(assetId);
+    // Set up an interval to fetch jobs every 30 seconds
+    // This is to ensure that the table is updated with the latest job data
+    setInterval(function() {
+        getAssetJobs(assetId);
+    }, 30000); // Fetch jobs every 30 seconds
     $(document).ready(function() {
         $('#scheduling_forecasting_jobs').DataTable({
         "order": [[ 0, "desc" ]],  // Default sort by the hidden UTC Timestamp column
