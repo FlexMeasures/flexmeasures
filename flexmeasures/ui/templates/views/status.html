@@ -25,7 +25,7 @@ A red traffic light indicates that the last time a record was made was too long 
 
 How long ago is considered too long (stale) depends on the sensor, usually we use the sensor's resolution times two. If the source type means we expect future data ('forecaster', 'scheduler'), data should extend 12 hours into the future." style="margin-left: 10px;"></span>
                 </h4>
-                <table id="sensor_statuses" class="table table-striped paginate nav-on-click">
+                <table id="sensor_statuses" class="table table-striped paginate">
                     <thead>
                         <tr>
                             <th>Sensor</th>
@@ -83,10 +83,9 @@ Note that jobs do not live forever, so only rather recent jobs (usually younger 
     var isFirstSensor = true;
     var lastSensorName = '';
 
-    sensors.forEach(element => {
-        // Fetch and populate sensor data
+    function getSensorData(sensor_id, row_id=null) {
         $.ajax({
-            url: `/api/v3_0/sensors/${element.id}/status`,
+            url: `/api/v3_0/sensors/${sensor_id}/status`,
             method: 'GET',
             success: function(response) {
                 if (isFirstSensor) {
@@ -112,20 +111,40 @@ Note that jobs do not live forever, so only rather recent jobs (usually younger 
                         ? `<span title="${sensor.staleness_since}">${sensor.staleness_since}</span>`
                         : '<span title="Never">Never</span>';
 
+                    const refresh_icon = `
+                        <i class="fa fa-refresh sensor_refresh" id="sensor_refresh_${sensor.id}"></i>
+                    `
+
                     const status = sensor.stale
-                    ? '<span title="' + sensor.reason + '">🔴</span>'
-                    : '<span title="' + sensor.reason + '">🟢</span>';
+                    ? `<span title="${sensor.reason}">🔴</span> <span style="margin-left: 2px;" title="Refresh sensor data" ${refresh_icon}</span>`
+                    : `<span title="${sensor.reason}">🟢</span> <span style="margin-left: 2px;" title="Refresh sensor data" ${refresh_icon}</span>`;
+
+                    // Update the table row if row_id is passed 
+                    if (row_id) {
+                        const row = $(`#${row_id}`);
+                        row.replaceWith(`
+                            <tr title="View data" id="row_${sensor.id}">
+                                <td>${sensorInfo}</td>
+                                <td>${source_type}</td>
+                                <td>${staleness_since}</td>
+                                <td class="text-right">${status}</td>
+                                <td class="hidden d-none invisible" style="display:none;">/sensors/${sensor.id}</td>
+                            </tr>
+                        `); 
+                    }
+                    else {
+                        const row = `
+                            <tr title="View data" id="row_${sensor.id}">
+                                <td>${sensorInfo}</td>
+                                <td>${source_type}</td>
+                                <td>${staleness_since}</td>
+                                <td class="text-right">${status}</td>
+                                <td class="hidden d-none invisible" style="display:none;">/sensors/${sensor.id}</td>
+                            </tr>
+                        `;
+                        tbody.append(row);
+                    }
     
-                    const row = `
-                        <tr title="View data">
-                            <td>${sensorInfo}</td>
-                            <td>${source_type}</td>
-                            <td>${staleness_since}</td>
-                            <td class="text-right">${status}</td>
-                            <td class="hidden d-none invisible" style="display:none;">/sensors/${sensor.id}</td>
-                        </tr>
-                    `;
-                    tbody.append(row);
                     lastSensorName = sensor.name;
                 });
             },
@@ -133,6 +152,20 @@ Note that jobs do not live forever, so only rather recent jobs (usually younger 
                 console.error('Error fetching sensors:', xhr);
             }
         });
+    }
+
+    sensors.forEach(element => {
+        // Fetch and populate sensor data
+        getSensorData(element.id);
+    });
+
+    $(document).on('click', '.sensor_refresh', function() {
+        console.log('Refreshing sensor data');
+        
+        const sensorId = $(this).attr('id').split('_')[2];
+        const rowId = `row_${sensorId}`;
+
+        getSensorData(sensorId, rowId);
     });
 });
 </script>
