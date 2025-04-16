@@ -46,6 +46,7 @@ A red traffic light indicates something went wrong and should be reported to adm
 
 Note that jobs do not live forever, so only rather recent jobs (usually younger than a day) are shown at all.
                   " style="margin-left: 10px;"></span>
+                  <i class="fa fa-refresh" id="refresh_jobs" title="Refresh jobs"></i>
                 </h4>
                 <table id="scheduling_forecasting_jobs" class="table table-striped paginate nav-on-click">
                     <thead>
@@ -116,8 +117,8 @@ Note that jobs do not live forever, so only rather recent jobs (usually younger 
                     `
 
                     const status = sensor.stale
-                    ? `<span title="${sensor.reason}">🔴</span> <span style="margin-left: 2px;" title="Refresh sensor data" ${refresh_icon}</span>`
-                    : `<span title="${sensor.reason}">🟢</span> <span style="margin-left: 2px;" title="Refresh sensor data" ${refresh_icon}</span>`;
+                    ? `<span title="${sensor.reason}">🔴</span> <span style="margin-left: 2px;" title="Refresh sensor data">${refresh_icon}</span>`
+                    : `<span title="${sensor.reason}">🟢</span> <span style="margin-left: 2px;" title="Refresh sensor data">${refresh_icon}</span>`;
 
                     // Update the table row if row_id is passed 
                     if (row_id) {
@@ -259,6 +260,11 @@ Note that jobs do not live forever, so only rather recent jobs (usually younger 
     setInterval(function() {
         getAssetJobs(assetId);
     }, 30000); // Fetch jobs every 30 seconds
+
+    $("#refresh_jobs").click(function() {
+        getAssetJobs(assetId);
+    });
+    
     $(document).ready(function() {
         $('#scheduling_forecasting_jobs').DataTable({
         "order": [[ 0, "desc" ]],  // Default sort by the hidden UTC Timestamp column
