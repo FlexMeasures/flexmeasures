@@ -13,7 +13,7 @@ v3.0-22 | 2025-03-17
   - ``soc-minima-breach-price``: if set, the ``soc-minima`` are used as a soft constraint, and not meeting the minima is penalized according to this per-kWh price. The price is applied to each breach that occurs given the resolution of the scheduled power sensor.
   - ``soc-maxima-breach-price``: if set, the ``soc-maxima`` are used as a soft constraint, and not meeting the maxima is penalized according to this per-kWh price. The price is applied to each breach that occurs given the resolution of the scheduled power sensor.
 
-- Fixed two alternatives for expressing a variable quantity as a time series; specifically, those involving the `duration` field.
+- Fixed two alternatives for expressing a variable quantity as a time series; specifically, those involving the ``duration`` field.
 
 v3.0-22 | 2024-12-27
 """"""""""""""""""""
