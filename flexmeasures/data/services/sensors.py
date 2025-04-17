@@ -319,7 +319,7 @@ def serialize_sensor_status_data(
     Serialize the status of a sensor belonging to an asset.
 
     :param sensor: Sensor to get the status of
-    :return: A list of dictionaries, each representing the status of the sensor
+    :return: A list of dictionaries, each representing the statuses of the sensor - one status per data source type that stored data on that sensor
     """
     asset = sensor.generic_asset
     sensor_statuses = get_statuses(sensor=sensor, now=server_now())
