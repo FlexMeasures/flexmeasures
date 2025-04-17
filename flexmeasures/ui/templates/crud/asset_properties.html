@@ -130,38 +130,37 @@
    
         </div>
         <div class="col-md-8">
-
             <div class="sensors-asset card">
                 <h3>Asset Properties - {{ asset.name }}</h3>
-                <div class="table-responsive">
-                    <table class="table table-striped paginate nav-on-click w-100 mx-auto" title="View Asset Properties">
-                        <thead>
-                            <tr>
-                                <th><i class="left-icon">ID</i></th>
-                                <th>Name</th>
-                                <th>Latitude</th>
-                                <th>Longitude</th>
-                                <th>Asset Type</th>
-                                <th>Other Attributes (JSON)</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>{{ asset.id }}</td>
-                                <td>{{ asset.name }}</td>
-                                <td>{{ asset.latitude }}</td>
-                                <td>{{ asset.longitude }}</td>
-                                <td>{{ asset.generic_asset_type.name }}</td>
-                                <td>
-                                    {% if asset.attributes %}
-                                    {{ asset.attributes | tojson }}
-                                    {% else %}
-                                    None
-                                    {% endif %}
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+                <div class="row">
+                    <div class="col-md-7">
+                        <div class="table-responsive">
+                            <table class="table table-striped nav-on-click w-100 mx-auto" title="View Asset Properties">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Latitude</th>
+                                        <th>Longitude</th>
+                                        <th>Parent Asset</th>
+                                        <th>Parent Asset Type</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>{{ asset.name }}</td>
+                                        <td>{{ asset.latitude }}</td>
+                                        <td>{{ asset.longitude }}</td>
+                                        <td>{{ asset.parent_asset.name }}</td>
+                                        <td>{{ asset.parent_asset.generic_asset_type.name }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="col-md-5">
+                        {% from "_macros.html" import render_attributes %}
+                        {{ render_attributes(asset.attributes) }}
+                    </div>
                 </div>
             </div>
 
