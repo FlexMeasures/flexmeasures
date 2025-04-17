@@ -46,8 +46,9 @@ A red traffic light indicates something went wrong and should be reported to adm
 
 Note that jobs do not live forever, so only rather recent jobs (usually younger than a day) are shown at all.
                   " style="margin-left: 10px;"></span>
-                  <i class="fa fa-refresh" id="refresh_jobs" title="Refresh jobs"></i>
-                  <span class="jobs-time-ago" data-timestamp="Loading"></span>
+                  <br>
+                  <span class="jobs-time-ago" data-timestamp="Loading" style="color: #6c757d;">
+                  </span>
                 </h4>
                 <table id="scheduling_forecasting_jobs" class="table table-striped paginate nav-on-click">
                     <thead>
@@ -96,28 +97,40 @@ Note that jobs do not live forever, so only rather recent jobs (usually younger 
         });
     });
 
-    function getTimeAgo(timestamp) {
-        const now = Date.now();
-        const diffInSeconds = Math.floor((now - timestamp) / 1000); // Difference in seconds
-        if (diffInSeconds < 60) {
-            return `${diffInSeconds} seconds ago`;
-        } else if (diffInSeconds < 3600) {
-            const minutes = Math.floor(diffInSeconds / 60);
-            return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
-        } else if (diffInSeconds < 86400) {
-            const hours = Math.floor(diffInSeconds / 3600);
-            return `${hours} hour${hours > 1 ? 's' : ''} ago`;
-        } else {
-            const days = Math.floor(diffInSeconds / 86400);
-            return `${days} day${days > 1 ? 's' : ''} ago`;
-        }
-    }
-
     var sensors = {{ sensors | tojson }};
     var isFirstSensor = true;
     var lastSensorName = '';
+    var assetId = "{{ asset.id }}";
 
     function getSensorData(sensor_id, row_id = null) {
+
+        /**
+         * Fetches sensor data and updates the sensor status table dynamically.
+         * 
+         * This function sends an AJAX request to fetch the current status of the sensor
+         * with the given `sensor_id`. Upon receiving the response, it processes the data 
+         * to update the sensor status table. If the `row_id` is provided, it will replace 
+         * the existing row with the updated sensor data; otherwise, it will append a new row 
+         * to the table. The table includes sensor information, source type, staleness time, 
+         * and status, as well as a dynamic "time ago" display indicating when the data was last fetched.
+         * 
+         * @param {number} sensor_id - The ID of the sensor whose status is being fetched.
+         * @param {string|null} [row_id=null] - The ID of the table row to update (optional).
+         * The row_id is basically used to make a refresh call on a particular sensor and then update only 
+         * that row in the table. If not provided, a new row will be appended to the table.
+         * 
+         * @returns {void}
+         * 
+         * @example
+         * // To get data for sensor 123 and update the table row with ID 'row_123'
+         * getSensorData(123, 'row_123');
+         * 
+         * @example
+         * // To append a new row for a new sensor with ID 456
+         * getSensorData(456);
+         */
+
+
         let lastCallTime = Date.now();
         $.ajax({
             url: `/api/v3_0/sensors/${sensor_id}/status`,
@@ -151,35 +164,28 @@ Note that jobs do not live forever, so only rather recent jobs (usually younger 
                     `;
 
                     const status = sensor.stale
-                    ? `<span title="${sensor.reason}">🔴</span> <span style="margin-left: 2px;" title="Refresh sensor data">${refresh_icon}</span>`
-                    : `<span title="${sensor.reason}">🟢</span> <span style="margin-left: 2px;" title="Refresh sensor data">${refresh_icon}</span>`;
+                    ? `<span title="${sensor.reason}">🔴</span>`
+                    : `<span title="${sensor.reason}">🟢</span>`;
 
                     // Add time ago to the fourth column (status column)
                     const timeAgo = getTimeAgo(lastCallTime);
 
+                    const row = `
+                        <tr title="View data" id="row_${sensor.id}">
+                            <td>${sensorInfo}</td>
+                            <td>${source_type}</td>
+                            <td>${staleness_since}</td>
+                            <td class="text-right">${status}<br><span class="time-ago" data-timestamp="${lastCallTime}" style="color: #6c757d;"><small>${refresh_icon}(${timeAgo})</small></span></td>
+                            <td class="hidden d-none invisible" style="display:none;">/sensors/${sensor.id}</td>
+                        </tr>
+                    `;
+                    
                     // Update the table row if row_id is passed 
                     if (row_id) {
-                        const row = $(`#${row_id}`);
-                        row.replaceWith(`
-                            <tr title="View data" id="row_${sensor.id}">
-                                <td>${sensorInfo}</td>
-                                <td>${source_type}</td>
-                                <td>${staleness_since}</td>
-                                <td class="text-right">${status}<br> <span class="time-ago" data-timestamp="${lastCallTime}">(${timeAgo})</span></td>
-                                <td class="hidden d-none invisible" style="display:none;">/sensors/${sensor.id}</td>
-                            </tr>
-                        `);
+                        const old_row = $(`#${row_id}`);
+                        old_row.replaceWith(row);
                     }
                     else {
-                        const row = `
-                            <tr title="View data" id="row_${sensor.id}">
-                                <td>${sensorInfo}</td>
-                                <td>${source_type}</td>
-                                <td>${staleness_since}</td>
-                                <td class="text-right">${status}<br> <span class="time-ago" data-timestamp="${lastCallTime}">(${timeAgo})</span></td>
-                                <td class="hidden d-none invisible" style="display:none;">/sensors/${sensor.id}</td>
-                            </tr>
-                        `;
                         tbody.append(row);
                     }
 
@@ -192,8 +198,6 @@ Note that jobs do not live forever, so only rather recent jobs (usually younger 
             }
         });
     }
-
-    var assetId = "{{ asset.id }}";
 
     function getAssetJobs(assetId) {
         let lastCallTime = Date.now();
@@ -266,29 +270,24 @@ Note that jobs do not live forever, so only rather recent jobs (usually younger 
                             </tr>
                         `;
                         tbody.append(row);
+                        // Update the last call time
+                        const timeAgo = getTimeAgo(lastCallTime);
+                        $('.jobs-time-ago').html(`<small><i class="fa fa-refresh" id="refresh_jobs" title="Refresh status"></i>(${timeAgo})</small>`);
+                        $('.jobs-time-ago').data('timestamp', lastCallTime);
                     });
                 }
-                // Update the last call time
-                const timeAgo = getTimeAgo(lastCallTime);
-                $('.jobs-time-ago').text(`(${timeAgo})`);
-                $('.jobs-time-ago').data('timestamp', lastCallTime);
+                else {
+                    // Update the last call time
+                    const timeAgo = getTimeAgo(lastCallTime);
+                    $('.jobs-time-ago').html(`<small><i class="fa fa-refresh" id="refresh_jobs" title="Refresh status"></i>(${timeAgo})</small>`);
+                    $('.jobs-time-ago').data('timestamp', lastCallTime);
+                }
             },
             error: function(xhr) {
                 console.error('Error fetching jobs:', xhr);
             }
         })   
     }
-    // Initial fetch of jobs
-    getAssetJobs(assetId);
-    // Set up an interval to fetch jobs every 30 seconds
-    // This is to ensure that the table is updated with the latest job data
-    setInterval(function() {
-        getAssetJobs(assetId);
-    }, 30000); // Fetch jobs every 30 seconds
-
-    $("#refresh_jobs").click(function() {
-        getAssetJobs(assetId);
-    });
     
     $(document).ready(function() {
         $('#scheduling_forecasting_jobs').DataTable({
@@ -303,21 +302,34 @@ Note that jobs do not live forever, so only rather recent jobs (usually younger 
             "paging": false,
             "info": false
         });
+
+        // Initial fetch of jobs
+        getAssetJobs(assetId);
+        // Set up an interval to fetch jobs every 60 seconds
+        // This is to ensure that the table is updated with the latest job data
+        setInterval(function() {
+            getAssetJobs(assetId);
+        }, 60000); // Fetch jobs every 60 seconds
+
+        $("#refresh_jobs").click(function() {
+            getAssetJobs(assetId);
+        });
+
+        // Update time ago dynamically every 10 seconds
+        setInterval(function() {
+            $('.time-ago').each(function() {
+                const timestamp = $(this).data('timestamp');
+                $(this).html(`<small>${$(this).find('.fa-refresh').prop('outerHTML')} (${getTimeAgo(timestamp)})</small>`);
+            });
+        }, 10000);
+    
+        setInterval(function() {
+            $('.jobs-time-ago').each(function() {
+                const timestamp = $(this).data('timestamp');
+                $(this).html(`<small><i class="fa fa-refresh" id="refresh_jobs" title="Refresh status"></i>(${getTimeAgo(timestamp)})</small>`);
+            });
+        }, 10000);
     });
 
-    // Update time ago dynamically every second
-    setInterval(function() {
-        $('.time-ago').each(function() {
-            const timestamp = $(this).data('timestamp');
-            $(this).text(`(${getTimeAgo(timestamp)})`);
-        });
-    }, 10000);  // Update 10 every seconds
-
-    setInterval(function() {
-        $('.jobs-time-ago').each(function() {
-            const timestamp = $(this).data('timestamp');
-            $(this).text(`(${getTimeAgo(timestamp)})`);
-        });
-    }, 10000);  // Update 10 every seconds
 </script>
 {% endblock %}

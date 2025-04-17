@@ -782,8 +782,6 @@ class AssetAPI(FlaskView):
         else:
             all_jobs_data = jobs_data
 
-        print("all_jobs_data", all_jobs_data)
-
         return {
             "jobs": all_jobs_data,
             "redis_connection_err": redis_connection_err,
