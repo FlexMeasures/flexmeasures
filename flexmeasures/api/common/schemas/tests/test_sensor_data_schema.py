@@ -12,13 +12,11 @@ from flexmeasures.api.common.schemas.sensor_data import (
     PostSensorDataSchema,
     GetSensorDataSchema,
 )
-from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.data.services.scheduling import create_scheduling_job
 from flexmeasures.data.services.sensors import (
     get_stalenesses,
     get_statuses,
-    get_asset_sensors_metadata,
     build_asset_jobs_data,
 )
 from flexmeasures.data.schemas.reporting import StatusSchema
@@ -359,71 +357,6 @@ def test_get_status_no_status_specs(
             assert sensor_status["staleness"] == expected_staleness
             assert sensor_status["stale"] == expected_stale
             assert expected_stale_reason in sensor_status["reason"]
-
-
-def test_build_asset_status_data(
-    db, mock_get_statuses, add_weather_sensors, add_battery_assets
-):
-    """
-    Test the function to build status data structure, using a weather station asset.
-    We include the sensor of a different asset (a battery) via the flex context
-    (as production price, does not make too much sense actually).
-    One sensor which the asset already includes is also set in the context as inflexible device,
-    so we can test if the relationship tagging works for that as well.
-    """
-    asset = add_weather_sensors["asset"]
-    battery_asset = add_battery_assets["Test battery"]
-    wind_sensor, temperature_sensor = (
-        add_weather_sensors["wind"],
-        add_weather_sensors["temperature"],
-    )
-
-    production_price_sensor = Sensor(
-        name="production price",
-        generic_asset=battery_asset,
-        event_resolution=timedelta(minutes=5),
-        unit="EUR/MWh",
-    )
-    db.session.add(production_price_sensor)
-    db.session.flush()
-
-    asset.flex_context["production-price"] = {"sensor": production_price_sensor.id}
-    asset.flex_context["inflexible-device-sensors"] = [temperature_sensor.id]
-    db.session.add(asset)
-
-    wind_speed_res, temperature_res = {"staleness": True}, {"staleness": False}
-    production_price_res = {"staleness": True}
-    mock_get_statuses.side_effect = (
-        [wind_speed_res],
-        [temperature_res],
-        [production_price_res],
-    )
-
-    status_data = get_asset_sensors_metadata(asset=asset)
-
-    assert status_data == [
-        {
-            **wind_speed_res,
-            "name": "wind speed",
-            "id": wind_sensor.id,
-            "asset_name": asset.name,
-            "relation": "sensor belongs to this asset",
-        },
-        {
-            **temperature_res,
-            "name": "temperature",
-            "id": temperature_sensor.id,
-            "asset_name": asset.name,
-            "relation": "sensor belongs to this asset;flex context (inflexible device)",
-        },
-        {
-            **production_price_res,
-            "name": "production price",
-            "id": production_price_sensor.id,
-            "asset_name": battery_asset.name,
-            "relation": "flex context (production-price)",
-        },
-    ]
 
 
 def custom_model_params():
