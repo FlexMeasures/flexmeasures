@@ -464,3 +464,108 @@ class AssetTriggerSchema(Schema):
                 )
             sensors.append(sensor)
         return data
+
+
+class FlexModelSchema(Schema):
+    """
+    Schema for defining the flexibility model parameters of a device.
+    """
+
+    # --- State of Charge (SoC) Parameters ---
+    soc_min = VariableQuantityField(
+        "/MWh",
+        data_key="soc-min",
+        required=False,
+        value_validator=validate.Range(min=0),
+    )
+    # soc_max = VariableQuantityField(
+    #     "/MWh",
+    #     data_key="soc-max",
+    #     required=False,
+    #     value_validator=validate.Range(min=0),
+    # )
+    # soc_minima = SensorIdField(
+    #     data_key="soc-minima",
+    #     required=False,
+    # )
+    # soc_maxima = SensorIdField(
+    #     data_key="soc-maxima",
+    #     required=False,
+    # )
+    # soc_targets = SensorIdField(
+    #     data_key="soc-targets",
+    #     required=False,
+    # )
+    # state_of_charge = SensorIdField(
+    #     data_key="state-of-charge",
+    #     required=False,
+    # )
+    # soc_gain = fields.List(
+    #     VariableQuantityField("MW"),
+    #     data_key="soc-gain",
+    #     required=False,
+    # )
+    # soc_usage = fields.List(
+    #     VariableQuantityField("MW"),
+    #     data_key="soc-usage",
+    #     required=False,
+    # )
+
+    # # --- Efficiency Parameters ---
+    # roundtrip_efficiency = VariableQuantityField(
+    #     "dimensionless",
+    #     data_key="roundtrip-efficiency",
+    #     required=False,
+    #     default=None,
+    # )
+    # charging_efficiency = VariableQuantityField(
+    #     "dimensionless",
+    #     data_key="charging-efficiency",
+    #     required=False,
+    #     default=None,
+    # )
+    # discharging_efficiency = VariableQuantityField(
+    #     "dimensionless",
+    #     data_key="discharging-efficiency",
+    #     required=False,
+    #     default=None,
+    # )
+    # storage_efficiency = VariableQuantityField(
+    #     "dimensionless",
+    #     data_key="storage-efficiency",
+    #     required=False,
+    #     default=None,
+    # )
+
+    # # --- Behavioral Parameters ---
+    # prefer_charging_sooner = fields.Bool(
+    #     data_key="prefer-charging-sooner",
+    #     load_default=False,
+    #     required=False,
+    # )
+
+    # prefer_curtailing_sooner = fields.Bool(
+    #     data_key="prefer-curtailing-sooner",
+    #     load_default=False,
+    #     required=False,
+    # )
+
+    # # --- Capacity Parameters ---
+    # power_capacity = VariableQuantityField(
+    #     "MW",
+    #     data_key="power-capacity",
+    #     required=False,
+    #     default=None,
+    # )
+    # consumption_capacity = VariableQuantityField(
+    #     "MW",
+    #     data_key="consumption-capacity",
+    #     required=False,
+    #     default=None,
+    # )
+    # production_capacity = VariableQuantityField(
+    #     "MW",
+    #     data_key="production-capacity",
+    #     required=False,
+    #     default=None,
+    # )

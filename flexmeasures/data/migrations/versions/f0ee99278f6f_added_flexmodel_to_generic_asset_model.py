@@ -69,12 +69,28 @@ def upgrade():
             )
 
         sensor = sensors_with_key[0]
-        flex_model_data = {"soc-min": sensor.attributes["soc-min"]}
+        # check if value is a int or float
+        if not isinstance(sensor.attributes["soc-min"], (int, float)):
+            raise Exception(
+                f"Invalid value for 'soc-min' in sensor {sensor.id}: {sensor.attributes['soc-min']}"
+            )
+        soc_min_in_kwh = f"{sensor.attributes["soc-min"] * 1000} kWh"
+        flex_model_data = {"soc-min": soc_min_in_kwh}
 
         stmt = (
             generic_asset_table.update()
             .where(generic_asset_table.c.id == asset_id)
             .values(flex_model=flex_model_data)
+        )
+
+        conn.execute(stmt)
+
+        # Update the sensor attributes to remove 'soc-min'
+        sensor.attributes.pop("soc-min", None)
+        stmt = (
+            sensor_table.update()
+            .where(sensor_table.c.id == sensor.id)
+            .values(attributes=sensor.attributes)
         )
         conn.execute(stmt)
 
