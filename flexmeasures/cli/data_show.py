@@ -207,9 +207,12 @@ def show_generic_asset(asset):
             asset.generic_asset_type.name,
             asset.location,
             "".join([f"{k}: {v}\n" for k, v in asset.attributes.items()]),
+            "".join([f"{k}: {v}\n" for k, v in asset.flex_context.items()]),
         )
     ]
-    click.echo(tabulate(asset_data, headers=["Type", "Location", "Attributes"]))
+    click.echo(
+        tabulate(asset_data, headers=["Type", "Location", "Attributes", "Flex-Context"])
+    )
 
     child_asset_data = [
         (
