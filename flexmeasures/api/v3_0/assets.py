@@ -15,6 +15,10 @@ import marshmallow.validate as validate
 from webargs.flaskparser import use_kwargs, use_args
 from sqlalchemy import select, delete, func, or_
 
+from flexmeasures.data.services.sensors import (
+    build_asset_jobs_data,
+)
+from flexmeasures.data.services.job_cache import NoRedisConfigured
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account
@@ -730,3 +734,55 @@ class AssetAPI(FlaskView):
         }
 
         return response, 200
+
+    @route("/<id>/jobs", methods=["GET"])
+    @use_kwargs(
+        {"asset": AssetIdField(data_key="id")},
+        location="path",
+    )
+    @permission_required_for_context("read", ctx_arg_name="asset")
+    @as_json
+    def get_jobs(self, id: int, asset: GenericAsset):
+        """API endpoint to get the jobs of an asset.
+        This endpoint returns all jobs of an asset.
+        The response will be a list of jobs.
+        **Example response**
+        .. sourcecode:: json
+            {
+                "jobs": [
+                    {
+                        "job_id": 1,
+                        "queue": "scheduling",
+                        "asset_or_sensor_type": "asset",
+                        "asset_id": 1,
+                        "status": "finished",
+                        "err": None,
+                        "enqueued_at": "2023-10-01T00:00:00",
+                        "metadata_hash": "abc123",
+                    }
+                ],
+                "redis_connection_err": null
+            }
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 200: PROCESSED
+        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+        redis_connection_err = None
+        all_jobs_data = list()
+        try:
+            jobs_data = build_asset_jobs_data(asset)
+        except NoRedisConfigured as e:
+            redis_connection_err = e.args[0]
+        else:
+            all_jobs_data = jobs_data
+
+        return {
+            "jobs": all_jobs_data,
+            "redis_connection_err": redis_connection_err,
+        }, 200

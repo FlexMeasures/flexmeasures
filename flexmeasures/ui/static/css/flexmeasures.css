@@ -1970,3 +1970,7 @@ body.touched [title]:hover:after {
     color: #000;
 }
 /* FlexContext Modal Dialogue - End*/
+
+.jobs-time-ago, .time-ago {
+    color: var(--gray);
+}
