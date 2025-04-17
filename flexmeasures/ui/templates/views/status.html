@@ -47,7 +47,7 @@ A red traffic light indicates something went wrong and should be reported to adm
 Note that jobs do not live forever, so only rather recent jobs (usually younger than a day) are shown at all.
                   " style="margin-left: 10px;"></span>
                   <br>
-                  <span class="jobs-time-ago" data-timestamp="Loading" style="color: #6c757d;">
+                  <span class="jobs-time-ago" data-timestamp="Loading">
                   </span>
                 </h4>
                 <table id="scheduling_forecasting_jobs" class="table table-striped paginate nav-on-click">
@@ -175,7 +175,7 @@ Note that jobs do not live forever, so only rather recent jobs (usually younger 
                             <td>${sensorInfo}</td>
                             <td>${source_type}</td>
                             <td>${staleness_since}</td>
-                            <td class="text-right">${status}<br><span class="time-ago" data-timestamp="${lastCallTime}" style="color: #6c757d;"><small>${refresh_icon}(${timeAgo})</small></span></td>
+                            <td class="text-right">${status}<br><span class="time-ago" data-timestamp="${lastCallTime}"><small>${refresh_icon}(${timeAgo})</small></span></td>
                             <td class="hidden d-none invisible" style="display:none;">/sensors/${sensor.id}</td>
                         </tr>
                     `;

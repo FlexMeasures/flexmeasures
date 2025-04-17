@@ -335,6 +335,16 @@ def serialize_sensor_status_data(
         sensor_status["id"] = sensor.id
         sensor_status["name"] = sensor.name
         sensor_status["resolution"] = naturaldelta(sensor.event_resolution)
+        sensor_status["staleness"] = (
+            naturaldelta(sensor_status["staleness"])
+            if sensor_status["staleness"] is not None
+            else None
+        )
+        sensor_status["staleness_since"] = (
+            naturaldelta(sensor_status["staleness_since"])
+            if sensor_status["staleness_since"] is not None
+            else None
+        )
         sensor_status["asset_name"] = asset.name
         sensor_status["relation"] = _get_sensor_asset_relation(
             asset, sensor, inflexible_device_sensors, context_sensors
