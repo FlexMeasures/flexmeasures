@@ -56,6 +56,5 @@ jobs:
           >> $GITHUB_ENV
       - name: Add schedule
         run: docker exec --env-file .env fm-container flexmeasures
-          add schedule for-storage --sensor 2 --consumption-price-sensor 1 
-          --start ${TOMORROW}T07:00+01:00 --duration PT12H 
-          --soc-at-start 50% --roundtrip-efficiency 90%
+          add schedule for-storage --sensor 2 --start ${TOMORROW}T07:00+01:00 
+          --duration PT12H --soc-at-start 50% --roundtrip-efficiency 90%
