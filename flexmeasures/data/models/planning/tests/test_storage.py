@@ -11,6 +11,7 @@ from flexmeasures.data.models.planning.utils import initialize_index
 from flexmeasures.data.models.planning.tests.utils import (
     check_constraints,
     get_sensors_from_db,
+    series_to_ts_specs,
 )
 
 
@@ -45,22 +46,8 @@ def test_battery_solver_multi_commitment(add_battery_assets, db):
             "prefer-charging-sooner": False,
         },
         flex_context={
-            "consumption-price": [
-                {
-                    "start": i.isoformat(),
-                    "duration": "PT1H",
-                    "value": f"{consumption_prices[i]} EUR/MWh",
-                }
-                for i in consumption_prices.index
-            ],
-            "production-price": [
-                {
-                    "start": i.isoformat(),
-                    "duration": "PT1H",
-                    "value": f"{production_prices[i]} EUR/MWh",
-                }
-                for i in production_prices.index
-            ],
+            "consumption-price": series_to_ts_specs(consumption_prices, unit="EUR/MWh"),
+            "production-price": series_to_ts_specs(production_prices, unit="EUR/MWh"),
             "site-power-capacity": "2 MW",  # should be big enough to avoid any infeasibilities
             "site-consumption-capacity": "1 kW",  # we'll need to breach this to reach the target
             "site-consumption-breach-price": "1000 EUR/kW",
@@ -70,14 +57,9 @@ def test_battery_solver_multi_commitment(add_battery_assets, db):
             "site-peak-consumption-price": "260 EUR/MW",
             # The following is a constant price, but this checks currency conversion in case a later price field is
             # set to a time series specs (i.e. a list of dicts, where each dict represents a time slot)
-            "site-peak-production-price": [
-                {
-                    "start": i.isoformat(),
-                    "duration": "PT1H",
-                    "value": "260 EUR/MW",
-                }
-                for i in production_prices.index
-            ],
+            "site-peak-production-price": series_to_ts_specs(
+                pd.Series(260, production_prices.index), unit="EUR/MW"
+            ),
             "soc-minima-breach-price": "6000 EUR/kWh",  # high breach price (to mimic a hard constraint)
         },
         return_multiple=True,
@@ -141,7 +123,7 @@ def test_battery_relaxation(add_battery_assets, db):
     consumption_capacity["2015-01-01T12:00:00+01:00":"2015-01-01T18:00:00+01:00"] = (
         0  # no charging
     )
-    production_capacity_in_mw = consumption_capacity
+    production_capacity = consumption_capacity
 
     scheduler: Scheduler = StorageScheduler(
         battery,
@@ -153,22 +135,8 @@ def test_battery_relaxation(add_battery_assets, db):
             "soc-min": "0 MWh",
             "soc-max": "1 MWh",
             "power-capacity": f"{consumption_capacity_in_mw} MVA",
-            "consumption-capacity": [
-                {
-                    "start": i.isoformat(),
-                    "duration": "PT1H",
-                    "value": f"{consumption_capacity[i]} MW",
-                }
-                for i in consumption_capacity.index
-            ],
-            "production-capacity": [
-                {
-                    "start": i.isoformat(),
-                    "duration": "PT1H",
-                    "value": f"{production_capacity_in_mw[i]} MW",
-                }
-                for i in production_capacity_in_mw.index
-            ],
+            "consumption-capacity": series_to_ts_specs(consumption_capacity, unit="MW"),
+            "production-capacity": series_to_ts_specs(production_capacity, unit="MW"),
             "soc-minima": [
                 {
                     "start": "2015-01-01T12:00:00+01:00",
@@ -180,22 +148,8 @@ def test_battery_relaxation(add_battery_assets, db):
             "prefer-charging-sooner": False,
         },
         flex_context={
-            "consumption-price": [
-                {
-                    "start": i.isoformat(),
-                    "duration": "PT1H",
-                    "value": f"{consumption_prices[i]} EUR/MWh",
-                }
-                for i in consumption_prices.index
-            ],
-            "production-price": [
-                {
-                    "start": i.isoformat(),
-                    "duration": "PT1H",
-                    "value": f"{production_prices[i]} EUR/MWh",
-                }
-                for i in production_prices.index
-            ],
+            "consumption-price": series_to_ts_specs(consumption_prices, unit="EUR/MWh"),
+            "production-price": series_to_ts_specs(production_prices, unit="EUR/MWh"),
             "site-power-capacity": "2 MW",  # should be big enough to avoid any infeasibilities
             # "site-consumption-capacity": "1 kW",  # we'll need to breach this to reach the target
             "site-consumption-breach-price": "1000 EUR/kW",
@@ -205,14 +159,9 @@ def test_battery_relaxation(add_battery_assets, db):
             "site-peak-consumption-price": "260 EUR/MW",
             # The following is a constant price, but this checks currency conversion in case a later price field is
             # set to a time series specs (i.e. a list of dicts, where each dict represents a time slot)
-            "site-peak-production-price": [
-                {
-                    "start": i.isoformat(),
-                    "duration": "PT1H",
-                    "value": "260 EUR/MW",
-                }
-                for i in production_prices.index
-            ],
+            "site-peak-production-price": series_to_ts_specs(
+                pd.Series(260, production_prices.index), unit="EUR/MW"
+            ),
             "soc-minima-breach-price": "6000 EUR/kWh",  # high breach price (to mimic a hard constraint)
             "consumption-breach-price": f"{device_power_breach_price} EUR/kW",  # lower breach price (thus prioritizing minimizing soc breaches)
             "production-breach-price": f"{device_power_breach_price} EUR/kW",  # lower breach price (thus prioritizing minimizing soc breaches)

@@ -6,6 +6,17 @@ from flexmeasures.utils.calculations import integrate_time_series
 from flexmeasures.utils.unit_utils import ur
 
 
+def series_to_ts_specs(s: pd.Series, unit: str) -> list[dict]:
+    return [
+        {
+            "start": i.isoformat(),
+            "duration": pd.to_timedelta(s.index.freq).isoformat(),
+            "value": f"{s[i]} {unit}",
+        }
+        for i in s.index
+    ]
+
+
 def check_constraints(
     sensor: Sensor,
     schedule: pd.Series,
