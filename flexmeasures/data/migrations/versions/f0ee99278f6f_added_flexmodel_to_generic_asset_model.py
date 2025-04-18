@@ -69,13 +69,14 @@ def upgrade():
             )
 
         sensor = sensors_with_key[0]
-        if sensor.attributes["soc-min"] is not None:
+        if sensor.attributes.get("soc-min") is not None:
             # check if value is a int or float
-            if not isinstance(sensor.attributes["soc-min"], (int, float)):
+            if not isinstance(sensor.attributes.get("soc-min"), (int, float)):
                 raise Exception(
                     f"Invalid value for 'soc-min' in sensor {sensor.id}: {sensor.attributes['soc-min']}"
                 )
-            soc_min_in_kwh = f"{sensor.attributes["soc-min"] * 1000} kWh"
+            soc_min_value_kwh = sensor.attributes.get("soc-min") * 1000
+            soc_min_in_kwh = f"{soc_min_value_kwh} kWh"
             flex_model_data = {"soc-min": soc_min_in_kwh}
 
             stmt = (
