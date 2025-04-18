@@ -162,13 +162,11 @@ class FlexContextSchema(Schema):
 
         This relies on the check_prices validator to run first.
         """
-        default_soc_breach_price = "1000 EUR/kWh"
+        default_soc_breach_price = ur.Quantity("1000 EUR/kWh")
         if data["relax_soc_constraints"]:
             if data.get("soc_minima_breach_price") is None:
                 # use the same denominator as defined in the field
-                data["soc_minima_breach_price"] = ur.Quantity(
-                    default_soc_breach_price
-                ).to(
+                data["soc_minima_breach_price"] = default_soc_breach_price.to(
                     data["shared_currency_unit"]
                     + "/"
                     + self.declared_fields["soc_minima_breach_price"].to_unit.split(
@@ -177,9 +175,7 @@ class FlexContextSchema(Schema):
                 )
             if data.get("soc_maxima_breach_price") is None:
                 # use the same denominator as defined in the field
-                data["soc_maxima_breach_price"] = ur.Quantity(
-                    default_soc_breach_price
-                ).to(
+                data["soc_maxima_breach_price"] = default_soc_breach_price.to(
                     data["shared_currency_unit"]
                     + "/"
                     + self.declared_fields["soc_maxima_breach_price"].to_unit.split(
@@ -193,13 +189,11 @@ class FlexContextSchema(Schema):
 
         This relies on the check_prices validator to run first.
         """
-        default_capacity_breach_price = "100 EUR/kW"
+        default_capacity_breach_price = ur.Quantity("100 EUR/kW")
         if data["relax_capacity_constraints"]:
             if data.get("consumption_breach_price") is None:
                 # use the same denominator as defined in the field
-                data["consumption_breach_price"] = ur.Quantity(
-                    default_capacity_breach_price
-                ).to(
+                data["consumption_breach_price"] = default_capacity_breach_price.to(
                     data["shared_currency_unit"]
                     + "/"
                     + self.declared_fields["consumption_breach_price"].to_unit.split(
@@ -208,9 +202,7 @@ class FlexContextSchema(Schema):
                 )
             if data.get("production_breach_price") is None:
                 # use the same denominator as defined in the field
-                data["production_breach_price"] = ur.Quantity(
-                    default_capacity_breach_price
-                ).to(
+                data["production_breach_price"] = default_capacity_breach_price.to(
                     data["shared_currency_unit"]
                     + "/"
                     + self.declared_fields["production_breach_price"].to_unit.split(
