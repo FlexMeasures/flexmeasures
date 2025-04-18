@@ -1,0 +1,204 @@
+{% macro show_tree(assets, current_asset_name) %}
+  <div class="container">
+    <div id="view"></div>
+  </div>
+
+
+<script type="text/javascript">
+  window.onload = function(){
+
+  let assets = {{ assets | safe }};
+  let currentAssetName = '{{ current_asset_name | safe}}';
+
+  {# Vega Spec adapted from https://stackoverflow.com/a/76300309 #}
+
+
+treeSpecs = {
+  "$schema": "https://vega.github.io/schema/vega/v5.json",
+  "width": 1000,
+  "height": 650,
+  "padding": 0,
+  "autosize": {"type": "fit", "resize": false},
+  "signals": [
+    {"name": "nodeWidth", "value": 190},
+    {"name": "nodeHeight", "value": 40},
+    {"name": "verticalNodeGap", "value": 10},
+    {"name": "horizontalNodeGap", "value": 60},
+    {"name": "currentAssetName", "value": currentAssetName},
+    {
+      "name": "scaledNodeHeight",
+      "update": "abs(nodeHeight/ max(span(ydom),height))*height"
+    },
+    {"name": "scaledNodeWidth", "update": "(nodeWidth/ span(xdom))*width"},
+    {"name": "xrange", "update": "[0, width]"},
+    {"name": "yrange", "update": "[0, height]"},
+    {"name": "scaledFont13", "update": "(30/ span(xdom))*width"},
+    {"name": "scaledLimit", "update": "(30/ span(xdom))*width"},
+    {
+      "name": "xdom",
+      "update": "slice(xext)",
+    },
+    {
+      "name": "ydom",
+      "update": "slice(yext)",
+    },
+  ],
+  "data": [
+    {
+      "name": "tree",
+      "values": assets,
+      "transform": [
+        {"type": "stratify", "key": "id", "parentKey": "parent"},
+        {
+          "type": "tree",
+          "method": "tidy",
+          "size": [{"signal": "nodeHeight *0.1"},
+                   {"signal": "width"}
+          ],
+          "separation": {"signal": "true"},
+          "nodeSize" : [
+            {"signal": "nodeHeight+verticalNodeGap"},
+            {"signal": "nodeWidth+horizontalNodeGap"}
+
+        ],
+          "as": ["y", "x", "depth", "children"],
+        },
+        {"type": "extent", "field": "x", "signal": "xext"},
+        {"type": "extent", "field": "y", "signal": "yext"}
+      ]
+    },
+    {
+      "name": "links",
+      "source": "tree",
+      "transform": [
+        {"type": "treelinks", "signal": "upstream"},
+        {
+          "type": "linkpath",
+          "orient": "horizontal",
+          "shape": {"signal": "'diagonal'"},
+          "sourceY": {"expr": "scale('yscale', datum.source.y)"},
+          "sourceX": {"expr": "scale('xscale', datum.source.x)"},
+          "targetY": {"expr": "scale('yscale', datum.target.y)"},
+          "targetX": {"expr": "scale('xscale', datum.target.x)"}
+        }
+      ]
+    }
+  ],
+  "scales": [
+    {
+      "name": "xscale",
+      "zero": false,
+      "domain": {"signal": "xdom"},
+      "range": {"signal": "xrange"}
+    },
+    {
+      "name": "yscale",
+      "zero": false,
+      "domain": {"signal": "ydom"},
+      "range": {"signal": "yrange"}
+    }
+  ],
+  "marks": [
+    {
+      "type": "path",
+      "from": {"data": "links"},
+      "encode": {
+        "update": {"path": {"field": "path"}, "stroke": {"value": "#aaa"}}
+      }
+    },
+    {
+      "name": "node",
+      "description": "The Parent Node",
+      "type": "group",
+      "clip": false,
+      "from": {"data": "tree"},
+      "encode": {
+        "update": {
+          "x": {"field": "x", "scale": "xscale"},
+          "width": {
+            "signal": "datum.name === currentAssetName ? scaledNodeWidth * 1.1 : scaledNodeWidth"
+          },
+          "yc": {"field": "y", "scale": "yscale"},
+          "height": {
+            "signal": "datum.name === currentAssetName ? scaledNodeHeight * 1.1 : scaledNodeHeight"
+          },
+          "fill": {
+            "signal": "datum.name === currentAssetName ? 'gold' : datum.name === 'Add Child Asset' ? 'green' : 'lightblue'"
+          },
+          "stroke": {
+            "signal": "datum.name === currentAssetName ? 'darkorange' : 'black'"
+          },
+          "strokeWidth": {
+            "signal": "datum.name === currentAssetName ? 4 : 1"
+          },
+          "cornerRadius": {"value": 5},
+          "href": {"signal": "datum.link"},
+          "tooltip": {"signal": "datum.tooltip"}
+        }
+      },
+      "marks": [
+        {
+          "type": "text",
+          "interactive": false,
+          "name": "name",
+          "encode": {
+            "update": {
+              "x": {"signal": "(5/ span(xdom))*width + (scaledNodeWidth * 0.15)"}, 
+              "y": {"signal": "(5/ span(xdom))*width + (scaledNodeHeight * 0.15)"},
+              "fontWeight": {"value": "bold"},
+              "baseline": {"value": "top"},
+              "text": {"signal": "parent.name"},
+              "fontSize": {
+                "signal": "datum.name === currentAssetName ? scaledFont13 * 1.5 : scaledFont13"
+              },
+              "fill": {
+                "signal": "parent.name === currentAssetName ? 'black' : parent.name === 'Add Child Asset' ? 'white' : 'darkblue'"
+              },
+              "limit": {"signal": "scaledNodeWidth-scaledLimit"},
+              "font": {"value": "Calibri"},
+              "href": {"signal": "datum.link"},
+              "tooltip": {"signal": "parent.tooltip"}
+            }
+          }
+        },
+        {
+    "type": "image",
+    "encode": {
+      "update": {
+        "x": {"signal": "-(scaledNodeWidth * 0.001)"},
+        "y": {"signal": "-(scaledNodeHeight * 0.001)"},
+        "width": {"signal": "scaledNodeWidth * 0.002"},
+        "height": {"signal": "scaledNodeHeight * 0.002"},
+        "url": {"signal": "parent.icon"}
+      }
+    }
+  },
+      ]
+    }
+  ]
+}
+vegaEmbed("#view", treeSpecs, { renderer: "svg" })
+}
+  </script>
+{% endmacro %}
+
+{% macro render_attributes(attributes) %}
+<table class="table table-striped table-responsive">
+  <thead>
+      <tr>
+          <th scope="col">Attribute</th>
+          <th scope="col">Value</th>
+      </tr>
+  </thead>
+  <tbody>
+  {% for key, value in attributes.items() %}
+  {% if not key.endswith("_id") %}
+      <tr>
+          <td scope="row">{{ key }}</td>
+          <td scope="row">{{ value }}</td>
+      </tr>
+  {% endif %}
+  {% endfor %}
+  </tbody>
+</table>    
+{% endmacro %}
