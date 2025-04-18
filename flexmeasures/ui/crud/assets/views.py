@@ -322,9 +322,9 @@ class AssetCrudUI(FlaskView):
         )
 
     @login_required
-    @route("/<id>/graph")
-    def graph(self, id: str):
-        """/assets/<id>/graph"""
+    @route("/<id>/graphs")
+    def graphs(self, id: str):
+        """/assets/<id>/graphs"""
 
         get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_one", id=id))
         asset_dict = get_asset_response.json()
@@ -362,9 +362,24 @@ class AssetCrudUI(FlaskView):
 
         asset_form.process(data=process_internal_api_response(asset_dict))
 
+        asset_summary = {
+            "Name": asset.name,
+            "Latitude": asset.latitude,
+            "Longitude": asset.longitude,
+            "Parent Asset": (
+                asset.parent_asset.name if asset.parent_asset else "No Parent"
+            ),
+            "Parent Asset Type": (
+                asset.parent_asset.generic_asset_type.name
+                if asset.parent_asset
+                else "No Parent"
+            ),
+        }
+
         return render_flexmeasures_template(
             "crud/asset_properties.html",
             asset=asset,
+            asset_summary=asset_summary,
             asset_form=asset_form,
             msg=msg,
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
