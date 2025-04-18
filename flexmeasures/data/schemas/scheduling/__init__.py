@@ -157,38 +157,20 @@ class FlexContextSchema(Schema):
         SensorIdField(), data_key="inflexible-device-sensors"
     )
 
-    def process_relax_soc_constraints(self, data: dict, **kwargs):
-        """Fill in default soc breach prices when asked to relax SoC constraints.
+    def set_default_breach_prices(
+        self, data: dict, fields: list[str], price: ur.Quantity
+    ):
+        """Fill in default breach prices.
 
-        This relies on the check_prices validator to run first.
+        This relies on _try_to_convert_price_units to run first, setting a shared currency unit.
         """
-        default_soc_breach_price = ur.Quantity("1000 EUR/kWh")
-        if data["relax_soc_constraints"]:
-            for field in ("soc_minima_breach_price", "soc_maxima_breach_price"):
-                if data.get(field) is None:
-                    # use the same denominator as defined in the field
-                    data[field] = default_soc_breach_price.to(
-                        data["shared_currency_unit"]
-                        + "/"
-                        + self.declared_fields[field].to_unit.split("/")[-1]
-                    )
-        return data
-
-    def process_relax_capacity_constraints(self, data: dict, **kwargs):
-        """Fill in default capacity breach prices when asked to relax capacity constraints.
-
-        This relies on the check_prices validator to run first.
-        """
-        default_capacity_breach_price = ur.Quantity("100 EUR/kW")
-        if data["relax_capacity_constraints"]:
-            for field in ("consumption_breach_price", "production_breach_price"):
-                if data.get(field) is None:
-                    # use the same denominator as defined in the field
-                    data[field] = default_capacity_breach_price.to(
-                        data["shared_currency_unit"]
-                        + "/"
-                        + self.declared_fields[field].to_unit.split("/")[-1]
-                    )
+        for field in fields:
+            # use the same denominator as defined in the field
+            data[field] = price.to(
+                data["shared_currency_unit"]
+                + "/"
+                + self.declared_fields[field].to_unit.split("/")[-1]
+            )
         return data
 
     @validates_schema
@@ -239,9 +221,21 @@ class FlexContextSchema(Schema):
         # All prices must share the same unit
         data = self._try_to_convert_price_units(data)
 
-        # Call schema validators that must come after this one, because they rely on data["shared_currency_unit"]
-        self.process_relax_soc_constraints(data)
-        self.process_relax_capacity_constraints(data)
+        # Fill in default soc breach prices when asked to relax SoC constraints.
+        if data["relax_soc_constraints"]:
+            self.set_default_breach_prices(
+                data,
+                fields=["soc_minima_breach_price", "soc_maxima_breach_price"],
+                price=ur.Quantity("1000 EUR/kWh"),
+            )
+
+        # Fill in default capacity breach prices when asked to relax capacity constraints.
+        if data["relax_capacity_constraints"]:
+            self.set_default_breach_prices(
+                data,
+                fields=["consumption_breach_price", "production_breach_price"],
+                price=ur.Quantity("100 EUR/kW"),
+            )
 
         return data
 
