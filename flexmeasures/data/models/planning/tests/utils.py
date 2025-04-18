@@ -7,6 +7,7 @@ from flexmeasures.utils.unit_utils import ur
 
 
 def series_to_ts_specs(s: pd.Series, unit: str) -> list[dict]:
+    """Assumes the series frequency should be used as the event resolution."""
     return [
         {
             "start": i.isoformat(),
