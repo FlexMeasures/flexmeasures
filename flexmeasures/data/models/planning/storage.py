@@ -429,7 +429,7 @@ class MetaStorageScheduler(Scheduler):
             commitment = FlowCommitment(
                 name="any production breach",
                 quantity=ems_production_capacity,
-                # positive price because breaching in the upwards (consumption) direction is penalized
+                # negative price because breaching in the downwards (production) direction is penalized
                 downwards_deviation_price=-any_ems_production_breach_price,
                 _type="any",
                 index=index,
@@ -440,7 +440,7 @@ class MetaStorageScheduler(Scheduler):
             commitment = FlowCommitment(
                 name="all production breaches",
                 quantity=ems_production_capacity,
-                # positive price because breaching in the upwards (consumption) direction is penalized
+                # negative price because breaching in the downwards (production) direction is penalized
                 downwards_deviation_price=-all_ems_production_breach_price,
                 index=index,
             )
