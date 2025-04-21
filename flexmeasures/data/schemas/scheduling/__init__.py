@@ -178,6 +178,7 @@ class FlexContextSchema(Schema):
         required=False,
         value_validator=series_range_validator(min=0),
         default=None,
+        fill_sides=True,
     )
 
     # Peak production commitment
@@ -194,6 +195,7 @@ class FlexContextSchema(Schema):
         required=False,
         value_validator=series_range_validator(min=0),
         default=None,
+        fill_sides=True,
     )
     # todo: group by month start (MS), something like a commitment resolution, or a list of datetimes representing splits of the commitments
 
@@ -492,6 +494,8 @@ class FlexContextTimeSeriesSchema(FlexContextSchema):
                 "soc_maxima_breach_price",
                 "ems_consumption_breach_price",
                 "ems_production_breach_price",
+                "ems_peak_consumption_price",
+                "ems_peak_production_price",
             ):
                 field.load_time_series = True
             else:

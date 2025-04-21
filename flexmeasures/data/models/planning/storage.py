@@ -274,17 +274,6 @@ class MetaStorageScheduler(Scheduler):
             ems_peak_consumption_price = self.flex_context.get(
                 "ems_peak_consumption_price"
             )
-            ems_peak_consumption_price = get_continuous_series_sensor_or_quantity(
-                variable_quantity=ems_peak_consumption_price,
-                actuator=asset,
-                unit=FlexContextSchema()
-                .declared_fields["ems_peak_consumption_price"]
-                ._get_unit(ems_peak_consumption_price),
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                fill_sides=True,
-            )
 
             # Set up commitments DataFrame
             commitment = FlowCommitment(
@@ -309,17 +298,6 @@ class MetaStorageScheduler(Scheduler):
             )
             ems_peak_production_price = self.flex_context.get(
                 "ems_peak_production_price"
-            )
-            ems_peak_production_price = get_continuous_series_sensor_or_quantity(
-                variable_quantity=ems_peak_production_price,
-                actuator=asset,
-                unit=FlexContextSchema()
-                .declared_fields["ems_peak_production_price"]
-                ._get_unit(ems_peak_production_price),
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                fill_sides=True,
             )
 
             # Set up commitments DataFrame
