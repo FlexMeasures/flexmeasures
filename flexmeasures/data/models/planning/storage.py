@@ -32,6 +32,7 @@ from flexmeasures.data.models.planning.exceptions import InfeasibleProblemExcept
 from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
 from flexmeasures.data.schemas.scheduling import (
     FlexContextSchema,
+    FlexContextTimeSeriesSchema,
     MultiSensorFlexModelSchema,
 )
 from flexmeasures.utils.calculations import (
@@ -986,6 +987,14 @@ class MetaStorageScheduler(Scheduler):
                 "soc_in_mwh", self.flex_model["soc_at_start"]
             )
 
+    def _load_time_series(self, asset):
+        self.flex_context = FlexContextTimeSeriesSchema(
+            asset=asset,
+            query_window=(self.start, self.end),
+            resolution=self.resolution,
+            belief_time=self.belief_time,
+        ).load(self.flex_context)
+
     def deserialize_flex_config(self):
         """
         Deserialize storage flex model and the flex context against schemas.
@@ -1009,6 +1018,10 @@ class MetaStorageScheduler(Scheduler):
         self.flex_context = FlexContextSchema().load(
             {**db_flex_context, **self.flex_context}
         )
+
+        # Load time series from flex-context
+        if self.load_time_series:
+            self._load_time_series(asset)
 
         if isinstance(self.flex_model, dict):
             # Check state of charge.

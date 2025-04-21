@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+
 from marshmallow import (
     Schema,
     fields,
@@ -10,7 +12,7 @@ from marshmallow import (
     post_dump,
 )
 
-from flexmeasures import Sensor
+from flexmeasures import Asset, Sensor
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.sensors import (
     VariableQuantityField,
@@ -31,6 +33,12 @@ from flexmeasures.utils.unit_utils import (
 
 class FlexContextSchema(Schema):
     """This schema defines fields that provide context to the portfolio to be optimized."""
+
+    shared_currency_unit = fields.String(
+        data_key="shared-currency-unit",
+        required=False,
+        load_default="EUR",
+    )
 
     # Device commitments
     consumption_breach_price = VariableQuantityField(
@@ -157,6 +165,25 @@ class FlexContextSchema(Schema):
         SensorIdField(), data_key="inflexible-device-sensors"
     )
 
+    def __init__(
+        self,
+        asset: Asset | None = None,
+        load_time_series: bool = False,
+        query_window: tuple[datetime, datetime] | None = None,
+        resolution: timedelta | None = None,
+        belief_time: datetime | None = None,
+        *args,
+        **kwargs,
+    ):
+        if load_time_series and asset is None:
+            raise NotImplementedError("Cannot load time series from an unknown asset.")
+        self.asset = asset
+        self.load_time_series = load_time_series
+        self.query_window = query_window
+        self.resolution = resolution
+        self.belief_time = belief_time
+        super().__init__(*args, **kwargs)
+
     def set_default_breach_prices(
         self, data: dict, fields: list[str], price: ur.Quantity
     ):
@@ -180,6 +207,8 @@ class FlexContextSchema(Schema):
         1. The flex-context must contain at most 1 consumption price and at most 1 production price field.
         2. All prices must share the same currency.
         """
+        if self.load_time_series:
+            return data
 
         # The flex-context must contain at most 1 consumption price and at most 1 production price field
         if "consumption_price_sensor" in data and "consumption_price" in data:
@@ -284,7 +313,8 @@ class FlexContextSchema(Schema):
                         f"Prices must share the same monetary unit. '{field_name}' uses '{currency_unit}', but '{previous_field_name}' used '{shared_currency_unit}'.",
                         field_name=field_name,
                     )
-        data["shared_currency_unit"] = shared_currency_unit
+        if shared_currency_unit is not None:
+            data["shared_currency_unit"] = shared_currency_unit
         return data
 
 
@@ -406,6 +436,28 @@ class DBFlexContextSchema(FlexContextSchema):
                 "Fixed prices are not currently supported for production-price in flex-context fields in the DB.",
                 field_name="production-price",
             )
+
+
+def passthrough_deserializer():
+    return lambda value, attr, data, **kwargs: value
+
+
+class FlexContextTimeSeriesSchema(FlexContextSchema):
+    """Schema for loading time series data for each VariableQuantityField in an already deserialized flex-context."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.load_time_series = True
+        for field_var, field in self.declared_fields.items():
+            if isinstance(field, VariableQuantityField) and field_var in (
+                # "consumption_breach_price",
+            ):
+                field.load_time_series = True
+            else:
+                # Skip deserialization
+                field._deserialize = passthrough_deserializer()
+            field.data_key = field_var
+            setattr(self, field_var, field)
 
 
 class MultiSensorFlexModelSchema(Schema):

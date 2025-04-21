@@ -74,6 +74,7 @@ class Scheduler:
         flex_model: dict | None = None,
         flex_context: dict | None = None,
         return_multiple: bool = False,
+        load_time_series: bool = True,
     ):
         """
         Initialize a new Scheduler.
@@ -126,6 +127,7 @@ class Scheduler:
             self.info = dict(scheduler=self.__class__.__name__)
 
         self.return_multiple = return_multiple
+        self.load_time_series = load_time_series
 
     def compute_schedule(self) -> pd.Series | None:
         """
