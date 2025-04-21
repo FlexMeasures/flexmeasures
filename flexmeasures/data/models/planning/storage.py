@@ -161,29 +161,9 @@ class MetaStorageScheduler(Scheduler):
         power_capacity_in_mw = self._get_device_power_capacity(flex_model, sensors)
 
         # Check for known prices or price forecasts
-        up_deviation_prices = get_continuous_series_sensor_or_quantity(
-            variable_quantity=consumption_price,
-            actuator=asset,
-            unit=FlexContextSchema()
-            .declared_fields["consumption_price"]
-            ._get_unit(consumption_price),
-            query_window=(start, end),
-            resolution=resolution,
-            beliefs_before=belief_time,
-            fill_sides=True,
-        ).to_frame(name="event_value")
+        up_deviation_prices = consumption_price.to_frame(name="event_value")
         ensure_prices_are_not_empty(up_deviation_prices, consumption_price)
-        down_deviation_prices = get_continuous_series_sensor_or_quantity(
-            variable_quantity=production_price,
-            actuator=asset,
-            unit=FlexContextSchema()
-            .declared_fields["production_price"]
-            ._get_unit(production_price),
-            query_window=(start, end),
-            resolution=resolution,
-            beliefs_before=belief_time,
-            fill_sides=True,
-        ).to_frame(name="event_value")
+        down_deviation_prices = production_price.to_frame(name="event_value")
         ensure_prices_are_not_empty(down_deviation_prices, production_price)
 
         start = pd.Timestamp(start).tz_convert("UTC")

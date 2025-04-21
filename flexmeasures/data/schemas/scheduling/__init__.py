@@ -126,12 +126,14 @@ class FlexContextSchema(Schema):
         required=False,
         data_key="consumption-price",
         return_magnitude=False,
+        fill_sides=True,
     )
     production_price = VariableQuantityField(
         "/MWh",
         required=False,
         data_key="production-price",
         return_magnitude=False,
+        fill_sides=True,
     )
 
     # Capacity breach commitments
@@ -496,6 +498,8 @@ class FlexContextTimeSeriesSchema(FlexContextSchema):
                 "ems_production_breach_price",
                 "ems_peak_consumption_price",
                 "ems_peak_production_price",
+                "consumption_price",
+                "production_price",
             ):
                 field.load_time_series = True
             else:
