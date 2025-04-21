@@ -348,29 +348,10 @@ class MetaStorageScheduler(Scheduler):
         if ems_consumption_breach_price is not None:
 
             # Convert to Series
-            any_ems_consumption_breach_price = get_continuous_series_sensor_or_quantity(
-                variable_quantity=ems_consumption_breach_price,
-                actuator=asset,
-                unit=FlexContextSchema()
-                .declared_fields["ems_consumption_breach_price"]
-                ._get_unit(ems_consumption_breach_price),
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                fill_sides=True,
-            )
-            all_ems_consumption_breach_price = get_continuous_series_sensor_or_quantity(
-                variable_quantity=ems_consumption_breach_price,
-                actuator=asset,
-                unit=FlexContextSchema()
-                .declared_fields["ems_consumption_breach_price"]
-                ._get_unit(ems_consumption_breach_price)
-                + "*h",  # from EUR/MWh to EUR/MW/resolution
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                fill_sides=True,
-            )
+            any_ems_consumption_breach_price = ems_consumption_breach_price
+            all_ems_consumption_breach_price = (
+                ems_consumption_breach_price * resolution / timedelta(hours=1)
+            )  # from EUR/MWh to EUR/MW/resolution
 
             # Set up commitments DataFrame to penalize any breach
             commitment = FlowCommitment(
@@ -402,29 +383,10 @@ class MetaStorageScheduler(Scheduler):
         if ems_production_breach_price is not None:
 
             # Convert to Series
-            any_ems_production_breach_price = get_continuous_series_sensor_or_quantity(
-                variable_quantity=ems_production_breach_price,
-                actuator=asset,
-                unit=FlexContextSchema()
-                .declared_fields["ems_production_breach_price"]
-                ._get_unit(ems_production_breach_price),
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                fill_sides=True,
-            )
-            all_ems_production_breach_price = get_continuous_series_sensor_or_quantity(
-                variable_quantity=ems_production_breach_price,
-                actuator=asset,
-                unit=FlexContextSchema()
-                .declared_fields["ems_production_breach_price"]
-                ._get_unit(ems_production_breach_price)
-                + "*h",  # from EUR/MWh to EUR/MW/resolution
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                fill_sides=True,
-            )
+            any_ems_production_breach_price = ems_production_breach_price
+            all_ems_production_breach_price = (
+                ems_production_breach_price * resolution / timedelta(hours=1)
+            )  # from EUR/MWh to EUR/MW/resolution
 
             # Set up commitments DataFrame to penalize any breach
             commitment = FlowCommitment(

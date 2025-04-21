@@ -153,6 +153,7 @@ class FlexContextSchema(Schema):
         required=False,
         value_validator=series_range_validator(min=0),
         default=None,
+        fill_sides=True,
     )
     ems_production_breach_price = VariableQuantityField(
         "/MW",
@@ -160,6 +161,7 @@ class FlexContextSchema(Schema):
         required=False,
         value_validator=series_range_validator(min=0),
         default=None,
+        fill_sides=True,
     )
 
     # Peak consumption commitment
@@ -488,6 +490,8 @@ class FlexContextTimeSeriesSchema(FlexContextSchema):
                 "production_breach_price",
                 "soc_minima_breach_price",
                 "soc_maxima_breach_price",
+                "ems_consumption_breach_price",
+                "ems_production_breach_price",
             ):
                 field.load_time_series = True
             else:
