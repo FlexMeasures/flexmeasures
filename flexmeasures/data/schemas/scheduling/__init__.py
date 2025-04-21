@@ -11,6 +11,7 @@ from marshmallow import (
     pre_load,
     post_dump,
 )
+import pandas as pd
 
 from flexmeasures import Asset, Sensor
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
@@ -31,6 +32,33 @@ from flexmeasures.utils.unit_utils import (
 )
 
 
+def series_range_validator(min=None, max=None):
+    range_validator = validate.Range(min=min, max=max)
+
+    def _validate_series(value):
+        if isinstance(value, pd.Series):
+            invalid_mask = pd.Series([False] * len(value), index=value.index)
+
+            if min is not None:
+                invalid_mask |= value < min
+            if max is not None:
+                invalid_mask |= value > max
+
+            if invalid_mask.any():
+                invalid_indexes = value.index[invalid_mask].tolist()
+                invalid_values = value[invalid_mask].tolist()
+                raise ValidationError(
+                    f"Series contains values outside the allowed range (min={min}, max={max}).\n"
+                    f"Invalid entries:\n"
+                    f"Indexes: {invalid_indexes}\n"
+                    f"Values: {invalid_values}"
+                )
+        else:
+            range_validator(value)
+
+    return _validate_series
+
+
 class FlexContextSchema(Schema):
     """This schema defines fields that provide context to the portfolio to be optimized."""
 
@@ -45,28 +73,29 @@ class FlexContextSchema(Schema):
         "/MW",
         data_key="consumption-breach-price",
         required=False,
-        value_validator=validate.Range(min=0),
+        value_validator=series_range_validator(min=0),
         default=None,
+        fill_sides=True,
     )
     production_breach_price = VariableQuantityField(
         "/MW",
         data_key="production-breach-price",
         required=False,
-        value_validator=validate.Range(min=0),
+        value_validator=series_range_validator(min=0),
         default=None,
     )
     soc_minima_breach_price = VariableQuantityField(
         "/MWh",
         data_key="soc-minima-breach-price",
         required=False,
-        value_validator=validate.Range(min=0),
+        value_validator=series_range_validator(min=0),
         default=None,
     )
     soc_maxima_breach_price = VariableQuantityField(
         "/MWh",
         data_key="soc-maxima-breach-price",
         required=False,
-        value_validator=validate.Range(min=0),
+        value_validator=series_range_validator(min=0),
         default=None,
     )
     # Dev fields
@@ -82,7 +111,7 @@ class FlexContextSchema(Schema):
         "MW",
         required=False,
         data_key="site-power-capacity",
-        value_validator=validate.Range(min=0),
+        value_validator=series_range_validator(min=0),
     )
     # todo: deprecated since flexmeasures==0.23
     consumption_price_sensor = SensorIdField(data_key="consumption-price-sensor")
@@ -105,26 +134,26 @@ class FlexContextSchema(Schema):
         "MW",
         required=False,
         data_key="site-production-capacity",
-        value_validator=validate.Range(min=0),
+        value_validator=series_range_validator(min=0),
     )
     ems_consumption_capacity_in_mw = VariableQuantityField(
         "MW",
         required=False,
         data_key="site-consumption-capacity",
-        value_validator=validate.Range(min=0),
+        value_validator=series_range_validator(min=0),
     )
     ems_consumption_breach_price = VariableQuantityField(
         "/MW",
         data_key="site-consumption-breach-price",
         required=False,
-        value_validator=validate.Range(min=0),
+        value_validator=series_range_validator(min=0),
         default=None,
     )
     ems_production_breach_price = VariableQuantityField(
         "/MW",
         data_key="site-production-breach-price",
         required=False,
-        value_validator=validate.Range(min=0),
+        value_validator=series_range_validator(min=0),
         default=None,
     )
 
@@ -133,14 +162,14 @@ class FlexContextSchema(Schema):
         "MW",
         required=False,
         data_key="site-peak-consumption",
-        value_validator=validate.Range(min=0),
+        value_validator=series_range_validator(min=0),
         default="0 kW",
     )
     ems_peak_consumption_price = VariableQuantityField(
         "/MW",
         data_key="site-peak-consumption-price",
         required=False,
-        value_validator=validate.Range(min=0),
+        value_validator=series_range_validator(min=0),
         default=None,
     )
 
@@ -149,14 +178,14 @@ class FlexContextSchema(Schema):
         "MW",
         required=False,
         data_key="site-peak-production",
-        value_validator=validate.Range(min=0),
+        value_validator=series_range_validator(min=0),
         default="0 kW",
     )
     ems_peak_production_price = VariableQuantityField(
         "/MW",
         data_key="site-peak-production-price",
         required=False,
-        value_validator=validate.Range(min=0),
+        value_validator=series_range_validator(min=0),
         default=None,
     )
     # todo: group by month start (MS), something like a commitment resolution, or a list of datetimes representing splits of the commitments
@@ -450,7 +479,7 @@ class FlexContextTimeSeriesSchema(FlexContextSchema):
         self.load_time_series = True
         for field_var, field in self.declared_fields.items():
             if isinstance(field, VariableQuantityField) and field_var in (
-                # "consumption_breach_price",
+                "consumption_breach_price",
             ):
                 field.load_time_series = True
             else:

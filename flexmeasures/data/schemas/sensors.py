@@ -20,6 +20,9 @@ import pandas as pd
 
 from flexmeasures.data import ma, db
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.planning.utils import (
+    get_continuous_series_sensor_or_quantity,
+)
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.utils import (
     FMValidationError,
@@ -239,6 +242,9 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         default_src_unit: str | None = None,
         return_magnitude: bool = False,
         timezone: str | None = None,
+        fill_sides: bool = False,
+        add_resolution: bool = False,
+        resolve_overlaps: str = "first",
         value_validator: Validator | None = None,
         **kwargs,
     ):
@@ -274,6 +280,9 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
             value_validator = RepurposeValidatorToIgnoreSensorsAndLists(value_validator)
             self.validators.insert(0, value_validator)
         self.timezone = timezone
+        self.fill_sides = fill_sides
+        self.add_resolution = add_resolution
+        self.resolve_overlaps = resolve_overlaps
         self.value_validator = value_validator
         if to_unit.startswith("/") and len(to_unit) < 2:
             raise ValueError(
@@ -286,24 +295,47 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
             default_src_unit = "dimensionless"
         self.default_src_unit = default_src_unit
         self.return_magnitude = return_magnitude
+        self.load_time_series = False
 
     @with_appcontext_if_needed()
     def _deserialize(
         self, value: dict[str, int] | list[dict] | str, attr, obj, **kwargs
     ) -> Sensor | list[dict] | ur.Quantity:
 
-        if isinstance(value, dict):
-            return self._deserialize_dict(value)
-        elif isinstance(value, list):
-            return self._deserialize_list(value)
-        elif isinstance(value, str):
-            return self._deserialize_str(value)
-        elif isinstance(value, numbers.Real) and self.default_src_unit is not None:
-            return self._deserialize_numeric(value, attr, obj, **kwargs)
-        else:
-            raise FMValidationError(
-                f"Unsupported value type. `{type(value)}` was provided but only dict, list and str are supported."
+        if not self.load_time_series:
+            if isinstance(value, dict):
+                value = self._deserialize_dict(value)
+            elif isinstance(value, list):
+                value = self._deserialize_list(value)
+            elif isinstance(value, str):
+                value = self._deserialize_str(value)
+            elif isinstance(value, numbers.Real) and self.default_src_unit is not None:
+                value = self._deserialize_numeric(value, attr, obj, **kwargs)
+            else:
+                raise FMValidationError(
+                    f"Unsupported value type. `{type(value)}` was provided but only dict, list and str are supported."
+                )
+        # The schema can be initialized to load time series, rather than just the Sensor, time series specs or Quantity
+        # if hasattr(self.parent, "load_time_series") and self.parent.load_time_series:
+        if self.load_time_series:
+            query_window = self.parent.query_window
+            resolution = self.parent.resolution
+            if self.add_resolution:
+                query_window = (
+                    query_window[0] + resolution,
+                    query_window[1] + resolution,
+                )
+            return get_continuous_series_sensor_or_quantity(
+                variable_quantity=value,
+                actuator=self.parent.asset,
+                unit=self._get_unit(value) if self.to_unit[0] == "/" else self.to_unit,
+                query_window=query_window,
+                resolution=resolution,
+                beliefs_before=self.parent.belief_time,
+                fill_sides=self.fill_sides,
+                resolve_overlaps=self.resolve_overlaps,
             )
+        return value
 
     def _deserialize_dict(self, value: dict[str, int]) -> Sensor:
         """Deserialize a sensor reference to a Sensor."""
