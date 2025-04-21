@@ -145,7 +145,11 @@
                             {% for key, value in asset_summary.items() %}
                                 <tr>
                                     <td scope="row">{{ key }}</td>
+                                    {% if key == "Parent Asset" and value != "No Parent" %}
+                                    <td scope="row"><a href="/assets/{{ asset.parent_asset.id }}" class="no-style-link">{{ value }}</a></td>
+                                    {% else %}
                                     <td scope="row">{{ value }}</td>
+                                    {% endif %}
                                 </tr>
                             {% endfor %}
                             </tbody>

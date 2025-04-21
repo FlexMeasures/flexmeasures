@@ -367,10 +367,7 @@ class AssetCrudUI(FlaskView):
             "Latitude": asset.latitude,
             "Longitude": asset.longitude,
             "Parent Asset": (
-                asset.parent_asset.name if asset.parent_asset else "No Parent"
-            ),
-            "Parent Asset Type": (
-                asset.parent_asset.generic_asset_type.name
+                f"{asset.parent_asset.name} ({asset.parent_asset.generic_asset_type.name})"
                 if asset.parent_asset
                 else "No Parent"
             ),
