@@ -98,6 +98,8 @@ class FlexContextSchema(Schema):
         required=False,
         value_validator=series_range_validator(min=0),
         default=None,
+        add_resolution=True,
+        fill_sides=True,
     )
     # Dev fields
     relax_soc_constraints = fields.Bool(
@@ -482,6 +484,7 @@ class FlexContextTimeSeriesSchema(FlexContextSchema):
             if isinstance(field, VariableQuantityField) and field_var in (
                 "consumption_breach_price",
                 "production_breach_price",
+                "soc_maxima_breach_price",
             ):
                 field.load_time_series = True
             else:
