@@ -83,6 +83,7 @@ class FlexContextSchema(Schema):
         required=False,
         value_validator=series_range_validator(min=0),
         default=None,
+        fill_sides=True,
     )
     soc_minima_breach_price = VariableQuantityField(
         "/MWh",
@@ -480,6 +481,7 @@ class FlexContextTimeSeriesSchema(FlexContextSchema):
         for field_var, field in self.declared_fields.items():
             if isinstance(field, VariableQuantityField) and field_var in (
                 "consumption_breach_price",
+                "production_breach_price",
             ):
                 field.load_time_series = True
             else:

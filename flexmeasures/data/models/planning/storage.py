@@ -723,35 +723,10 @@ class MetaStorageScheduler(Scheduler):
                     production_breach_price = self.flex_context[
                         "production_breach_price"
                     ]
-                    any_production_breach_price = (
-                        get_continuous_series_sensor_or_quantity(
-                            variable_quantity=production_breach_price,
-                            actuator=asset,
-                            unit=FlexContextSchema()
-                            .declared_fields["production_breach_price"]
-                            ._get_unit(production_breach_price),
-                            query_window=(start, end),
-                            resolution=resolution,
-                            beliefs_before=belief_time,
-                            fallback_attribute="production-breach-price",
-                            fill_sides=True,
-                        )
-                    )
+                    any_production_breach_price = production_breach_price
                     all_production_breach_price = (
-                        get_continuous_series_sensor_or_quantity(
-                            variable_quantity=production_breach_price,
-                            actuator=asset,
-                            unit=FlexContextSchema()
-                            .declared_fields["production_breach_price"]
-                            ._get_unit(production_breach_price)
-                            + "*h",  # from EUR/MWh to EUR/MW/resolution
-                            query_window=(start, end),
-                            resolution=resolution,
-                            beliefs_before=belief_time,
-                            fallback_attribute="production-breach-price",
-                            fill_sides=True,
-                        )
-                    )
+                        production_breach_price * resolution / timedelta(hours=1)
+                    )  # from EUR/MWh to EUR/MW/resolution
                     # Set up commitments DataFrame
                     commitment = FlowCommitment(
                         name=f"any production breach device {d}",
