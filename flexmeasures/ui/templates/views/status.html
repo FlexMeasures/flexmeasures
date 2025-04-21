@@ -48,6 +48,7 @@ Note that jobs do not live forever, so only rather recent jobs (usually younger 
                   " style="margin-left: 10px;"></span>
                   <br>
                   <span class="jobs-time-ago" data-timestamp="Loading">
+                    <small><i class="fa fa-refresh" id="refresh_jobs" title="Refresh status"></i><span id="jobs_time_ago"></span></small>
                   </span>
                 </h4>
                 <table id="scheduling_forecasting_jobs" class="table table-striped paginate nav-on-click">
@@ -81,6 +82,9 @@ Note that jobs do not live forever, so only rather recent jobs (usually younger 
             "info": false,
             "ordering": false
         });
+
+        // Append a loading row to the sensor status table
+        $('#sensor_statuses tbody').append(getLoadingRow());
 
         sensors.forEach(element => {
             // Fetch and populate sensor data
@@ -206,10 +210,16 @@ Note that jobs do not live forever, so only rather recent jobs (usually younger 
             url: `/api/v3_0/assets/${assetId}/jobs`,
             method: 'GET',
             success: function(response) {
+                // Clear the loading row
+                $('#scheduling_forecasting_jobs tbody').empty();
                 // Check if there is redis_connection_err
                 if (response.redis_connection_err) {
                     $('#redis_connection_err').removeClass('d-none');
                     $('#redis_connection_err').text(response.redis_connection_err);
+                }
+                else {
+                    $('#redis_connection_err').addClass('d-none');
+                    $('#redis_connection_err').text('');
                 }
                 if (response.jobs.length > 0) {
                     // Clear the table body before appending new data
@@ -272,14 +282,22 @@ Note that jobs do not live forever, so only rather recent jobs (usually younger 
                         tbody.append(row);
                         // Update the last call time
                         const timeAgo = getTimeAgo(lastCallTime);
-                        $('.jobs-time-ago').html(`<small><i class="fa fa-refresh" id="refresh_jobs" title="Refresh status"></i>(${timeAgo})</small>`);
+                        $('#jobs_time_ago').html(`(${timeAgo})`);
                         $('.jobs-time-ago').data('timestamp', lastCallTime);
                     });
                 }
                 else {
+                    // Add No Jobs Found message
+                    $('#scheduling_forecasting_jobs tbody').append(`
+                        <tr>
+                            <td colspan="6" class="text-center">
+                                No data available in table.
+                            </td>
+                        </tr>
+                    `);
                     // Update the last call time
                     const timeAgo = getTimeAgo(lastCallTime);
-                    $('.jobs-time-ago').html(`<small><i class="fa fa-refresh" id="refresh_jobs" title="Refresh status"></i>(${timeAgo})</small>`);
+                    $('#jobs_time_ago').html(`(${timeAgo})`);
                     $('.jobs-time-ago').data('timestamp', lastCallTime);
                 }
             },
@@ -303,6 +321,9 @@ Note that jobs do not live forever, so only rather recent jobs (usually younger 
             "info": false
         });
 
+        // Add a loading row to the jobs table
+        $('#scheduling_forecasting_jobs tbody').append(getLoadingRow());
+
         // Initial fetch of jobs
         getAssetJobs(assetId);
         // Set up an interval to fetch jobs every 60 seconds
@@ -324,10 +345,8 @@ Note that jobs do not live forever, so only rather recent jobs (usually younger 
         }, 10000);
     
         setInterval(function() {
-            $('.jobs-time-ago').each(function() {
-                const timestamp = $(this).data('timestamp');
-                $(this).html(`<small><i class="fa fa-refresh" id="refresh_jobs" title="Refresh status"></i>(${getTimeAgo(timestamp)})</small>`);
-            });
+            const timestamp = $('.jobs-time-ago').data('timestamp');
+            $("#jobs_time_ago").html(`(${getTimeAgo(timestamp)})`);
         }, 10000);
     });
 

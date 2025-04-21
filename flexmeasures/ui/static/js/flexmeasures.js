@@ -483,3 +483,16 @@ function getTimeAgo(timestamp) {
         return `${days} day${days > 1 ? 's' : ''} ago`;
     }
 }
+
+
+// Function to return a loading row for a table
+function getLoadingRow() {
+    const loading_row = `
+        <tr id="loading-row">
+            <td colspan="5" class="text-center">
+                <i class="fa fa-spinner fa-spin"></i> Loading...
+            </td>
+        </tr>
+    `;
+    return loading_row;
+}
