@@ -522,31 +522,14 @@ class MetaStorageScheduler(Scheduler):
                 and soc_minima[d] is not None
             ):
                 soc_minima_breach_price = self.flex_context["soc_minima_breach_price"]
-                any_soc_minima_breach_price = get_continuous_series_sensor_or_quantity(
-                    variable_quantity=soc_minima_breach_price,
-                    actuator=asset,
-                    unit=FlexContextSchema()
-                    .declared_fields["soc_minima_breach_price"]
-                    ._get_unit(soc_minima_breach_price),
-                    query_window=(start + resolution, end + resolution),
-                    resolution=resolution,
-                    beliefs_before=belief_time,
-                    fallback_attribute="soc-minima-breach-price",
-                    fill_sides=True,
-                ).shift(-1, freq=resolution)
-                all_soc_minima_breach_price = get_continuous_series_sensor_or_quantity(
-                    variable_quantity=soc_minima_breach_price,
-                    actuator=asset,
-                    unit=FlexContextSchema()
-                    .declared_fields["soc_minima_breach_price"]
-                    ._get_unit(soc_minima_breach_price)
-                    + "*h",  # from EUR/MWh² to EUR/MWh/resolution
-                    query_window=(start + resolution, end + resolution),
-                    resolution=resolution,
-                    beliefs_before=belief_time,
-                    fallback_attribute="soc-minima-breach-price",
-                    fill_sides=True,
-                ).shift(-1, freq=resolution)
+                any_soc_minima_breach_price = soc_minima_breach_price.shift(
+                    -1, freq=resolution
+                )
+                all_soc_minima_breach_price = (
+                    soc_minima_breach_price.shift(-1, freq=resolution)
+                    * resolution
+                    / timedelta(hours=1)
+                )  # from EUR/MWh² to EUR/MWh/resolution
                 # Set up commitments DataFrame
                 # soc_minima_d is a temp variable because add_storage_constraints can't deal with Series yet
                 soc_minima_d = get_continuous_series_sensor_or_quantity(
