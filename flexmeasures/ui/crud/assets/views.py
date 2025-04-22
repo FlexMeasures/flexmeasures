@@ -4,10 +4,12 @@ from flask import redirect, url_for, current_app, request, session
 from flask_classful import FlaskView, route
 from flask_security import login_required, current_user
 from werkzeug.exceptions import NotFound
+from webargs.flaskparser import use_kwargs
 from flexmeasures.auth.error_handling import unauthorized_handler
 
 from flexmeasures.data import db
 from flexmeasures.auth.policy import check_access
+from flexmeasures.data.schemas import StartEndTimeSchema
 from flexmeasures.data.services.job_cache import NoRedisConfigured
 from flexmeasures.data.models.generic_assets import (
     GenericAsset,
@@ -322,6 +324,7 @@ class AssetCrudUI(FlaskView):
         )
 
     @login_required
+    @use_kwargs(StartEndTimeSchema, location="query")
     @route("/<id>/graphs")
     def graphs(self, id: str):
         """/assets/<id>/graphs"""
