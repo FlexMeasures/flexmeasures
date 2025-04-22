@@ -181,25 +181,35 @@ class MetaStorageScheduler(Scheduler):
             )
 
         # Create Series with EMS capacities
-        ems_power_capacity_in_mw = self.flex_context.get("ems_power_capacity_in_mw")
-        ems_consumption_capacity = self.flex_context.get(
-            "ems_consumption_capacity_in_mw"
+        ems_power_capacity_in_mw = get_continuous_series_sensor_or_quantity(
+            variable_quantity=self.flex_context.get("ems_power_capacity_in_mw"),
+            actuator=asset,
+            unit="MW",
+            query_window=(start, end),
+            resolution=resolution,
+            beliefs_before=belief_time,
+            resolve_overlaps="min",
         )
-        # if (match := pattern.search(data)) is not None:
-        #     # Do something with match
-        ems_production_capacity = self.flex_context.get("ems_production_capacity_in_mw")
-        if ems_consumption_capacity is not None:
-            ems_consumption_capacity = ems_consumption_capacity.clip(
-                upper=ems_power_capacity_in_mw
-            )
-        else:
-            ems_consumption_capacity = ems_power_capacity_in_mw
-        if ems_production_capacity is not None:
-            ems_production_capacity = -1 * (
-                ems_production_capacity.clip(upper=ems_power_capacity_in_mw)
-            )
-        else:
-            ems_production_capacity = -ems_power_capacity_in_mw
+        ems_consumption_capacity = get_continuous_series_sensor_or_quantity(
+            variable_quantity=self.flex_context.get("ems_consumption_capacity_in_mw"),
+            actuator=asset,
+            unit="MW",
+            query_window=(start, end),
+            resolution=resolution,
+            beliefs_before=belief_time,
+            max_value=ems_power_capacity_in_mw,
+            resolve_overlaps="min",
+        )
+        ems_production_capacity = -1 * get_continuous_series_sensor_or_quantity(
+            variable_quantity=self.flex_context.get("ems_production_capacity_in_mw"),
+            actuator=asset,
+            unit="MW",
+            query_window=(start, end),
+            resolution=resolution,
+            beliefs_before=belief_time,
+            max_value=ems_power_capacity_in_mw,
+            resolve_overlaps="min",
+        )
 
         # Set up commitments to optimise for
         commitments = []
