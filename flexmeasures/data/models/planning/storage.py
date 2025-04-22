@@ -814,12 +814,24 @@ class MetaStorageScheduler(Scheduler):
             )
 
     def _load_time_series(self, asset):
+        if not self.load_resolution:
+            self._determine_load_resolution()
         self.flex_context = FlexContextTimeSeriesSchema(
             asset=asset,
             query_window=(self.start, self.end),
-            resolution=self.resolution,
+            resolution=self.load_resolution,
             belief_time=self.belief_time,
         ).load(self.flex_context)
+
+    def _determine_load_resolution(self):
+        """Determine resolution for loading time series data."""
+        if self.asset is not None:
+            sensors = [flex_model_d["sensor"] for flex_model_d in self.flex_model]
+            self.load_resolution = determine_minimum_resampling_resolution(
+                [s.event_resolution for s in sensors]
+            )
+        else:
+            self.load_resolution = self.resolution
 
     def deserialize_flex_config(self):
         """
@@ -844,10 +856,6 @@ class MetaStorageScheduler(Scheduler):
         self.flex_context = FlexContextSchema().load(
             {**db_flex_context, **self.flex_context}
         )
-
-        # Load time series from flex-context
-        if self.load_time_series:
-            self._load_time_series(asset)
 
         if isinstance(self.flex_model, dict):
             # Check state of charge.
@@ -901,6 +909,11 @@ class MetaStorageScheduler(Scheduler):
             raise TypeError(
                 f"Unsupported type of flex-model: '{type(self.flex_model)}'"
             )
+
+        # Load time series from flex-context
+        self._determine_load_resolution()
+        if self.load_time_series:
+            self._load_time_series(asset)
 
         return self.flex_model
 

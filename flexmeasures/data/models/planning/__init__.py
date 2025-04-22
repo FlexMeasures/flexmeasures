@@ -44,6 +44,7 @@ class Scheduler:
     start: datetime
     end: datetime
     resolution: timedelta
+    load_resolution: timedelta
     belief_time: datetime
 
     round_to_decimals: int
@@ -114,6 +115,7 @@ class Scheduler:
         self.start = start
         self.end = end
         self.resolution = resolution
+        self.load_resolution = resolution
         self.belief_time = belief_time
         self.round_to_decimals = round_to_decimals
         if flex_model is None:
