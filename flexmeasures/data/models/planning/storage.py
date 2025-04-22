@@ -97,11 +97,9 @@ class MetaStorageScheduler(Scheduler):
             resolution = determine_minimum_resampling_resolution(
                 [s.event_resolution for s in sensors]
             )
-            asset = self.asset
         else:
             # For backwards compatibility with the single asset scheduler
             sensors = [self.sensor]
-            asset = self.sensor.generic_asset
 
         # For backwards compatibility with the single asset scheduler
         flex_model = self.flex_model
@@ -227,16 +225,10 @@ class MetaStorageScheduler(Scheduler):
 
         # Set up peak commitments
         if self.flex_context.get("ems_peak_consumption_price") is not None:
-            ems_peak_consumption = get_continuous_series_sensor_or_quantity(
-                variable_quantity=self.flex_context.get("ems_peak_consumption_in_mw"),
-                actuator=asset,
-                unit="MW",
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                max_value=np.inf,  # np.nan -> np.inf to ignore commitment if no quantity is given
-                fill_sides=True,
-            )
+            ems_peak_consumption = self.flex_context.get("ems_peak_consumption_in_mw")
+            ems_peak_consumption.fillna(
+                np.inf
+            )  # np.nan -> np.inf to ignore commitment if no quantity is given
             ems_peak_consumption_price = self.flex_context.get(
                 "ems_peak_consumption_price"
             )
@@ -252,16 +244,10 @@ class MetaStorageScheduler(Scheduler):
             )
             commitments.append(commitment)
         if self.flex_context.get("ems_peak_production_price") is not None:
-            ems_peak_production = get_continuous_series_sensor_or_quantity(
-                variable_quantity=self.flex_context.get("ems_peak_production_in_mw"),
-                actuator=asset,
-                unit="MW",
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                max_value=np.inf,  # np.nan -> np.inf to ignore commitment if no quantity is given
-                fill_sides=True,
-            )
+            ems_peak_production = self.flex_context.get("ems_peak_production_in_mw")
+            ems_peak_production.fillna(
+                np.inf
+            )  # np.nan -> np.inf to ignore commitment if no quantity is given
             ems_peak_production_price = self.flex_context.get(
                 "ems_peak_production_price"
             )

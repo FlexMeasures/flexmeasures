@@ -180,6 +180,7 @@ class FlexContextSchema(Schema):
         data_key="site-peak-consumption",
         value_validator=series_range_validator(min=0),
         default="0 kW",
+        fill_sides=True,
     )
     ems_peak_consumption_price = VariableQuantityField(
         "/MW",
@@ -197,6 +198,7 @@ class FlexContextSchema(Schema):
         data_key="site-peak-production",
         value_validator=series_range_validator(min=0),
         default="0 kW",
+        fill_sides=True,
     )
     ems_peak_production_price = VariableQuantityField(
         "/MW",
@@ -510,6 +512,8 @@ class FlexContextTimeSeriesSchema(FlexContextSchema):
                 "ems_power_capacity_in_mw",
                 "ems_consumption_capacity_in_mw",
                 "ems_production_capacity_in_mw",
+                "ems_peak_consumption_in_mw",
+                "ems_peak_production_in_mw",
             ):
                 field.load_time_series = True
             # Compatibility with deprecated fields
