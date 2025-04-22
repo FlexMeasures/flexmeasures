@@ -177,7 +177,7 @@ def test_battery_relaxation(add_battery_assets, db):
     # Check if constraints were met
     check_constraints(battery, schedule, soc_at_start)
 
-    # Check for constant charging profile until 4 PM
+    # Check for constant charging profile until 4 PM (thus breaching the consumption capacity after noon)
     np.testing.assert_allclose(
         schedule[:"2015-01-01T15:45:00+01:00"], consumption_capacity_in_mw
     )
