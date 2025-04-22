@@ -1,9 +1,23 @@
+from __future__ import annotations
+
 import pandas as pd
 
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.tests.utils import get_test_sensor
 from flexmeasures.utils.calculations import integrate_time_series
 from flexmeasures.utils.unit_utils import ur
+
+
+def series_to_ts_specs(s: pd.Series, unit: str) -> list[dict]:
+    """Assumes the series frequency should be used as the event resolution."""
+    return [
+        {
+            "start": i.isoformat(),
+            "duration": pd.to_timedelta(s.index.freq).isoformat(),
+            "value": f"{s[i]} {unit}",
+        }
+        for i in s.index
+    ]
 
 
 def check_constraints(
