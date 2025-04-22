@@ -182,19 +182,15 @@ class MetaStorageScheduler(Scheduler):
 
         # Create Series with EMS capacities
         ems_power_capacity_in_mw = self.flex_context.get("ems_power_capacity_in_mw")
-        ems_consumption_capacity = self.flex_context.get(
-            "ems_consumption_capacity_in_mw"
-        )
-        ems_production_capacity = self.flex_context.get("ems_production_capacity_in_mw")
-        if ems_consumption_capacity is not None:
-            ems_consumption_capacity = ems_consumption_capacity.clip(
-                upper=ems_power_capacity_in_mw
-            ).fillna(ems_power_capacity_in_mw)
+        if (cap := self.flex_context.get("ems_consumption_capacity_in_mw")) is not None:
+            ems_consumption_capacity = cap.clip(upper=ems_power_capacity_in_mw).fillna(
+                ems_power_capacity_in_mw
+            )
         else:
             ems_consumption_capacity = ems_power_capacity_in_mw
-        if ems_production_capacity is not None:
+        if (cap := self.flex_context.get("ems_production_capacity_in_mw")) is not None:
             ems_production_capacity = -1 * (
-                ems_production_capacity.clip(upper=ems_power_capacity_in_mw).fillna(
+                cap.clip(upper=ems_power_capacity_in_mw).fillna(
                     ems_power_capacity_in_mw
                 )
             )
