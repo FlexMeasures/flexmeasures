@@ -498,23 +498,7 @@ class FlexContextTimeSeriesSchema(FlexContextSchema):
         super().__init__(*args, **kwargs)
         self.load_time_series = True
         for field_var, field in self.declared_fields.items():
-            if isinstance(field, VariableQuantityField) and field_var in (
-                "consumption_breach_price",
-                "production_breach_price",
-                "soc_minima_breach_price",
-                "soc_maxima_breach_price",
-                "ems_consumption_breach_price",
-                "ems_production_breach_price",
-                "ems_peak_consumption_price",
-                "ems_peak_production_price",
-                "consumption_price",
-                "production_price",
-                "ems_power_capacity_in_mw",
-                "ems_consumption_capacity_in_mw",
-                "ems_production_capacity_in_mw",
-                "ems_peak_consumption_in_mw",
-                "ems_peak_production_in_mw",
-            ):
+            if isinstance(field, VariableQuantityField):
                 field.load_time_series = True
             # Compatibility with deprecated fields
             elif field_var in ("consumption_price_sensor", "production_price_sensor"):
