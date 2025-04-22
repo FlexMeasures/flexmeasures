@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import numbers
+from pytz.exceptions import UnknownTimeZoneError
 
 from flask import current_app
 from marshmallow import (
@@ -122,15 +123,21 @@ class TimedEventSchema(Schema):
                     "If using the 'duration' field, either 'start' or 'end' is expected."
                 )
             if start is not None:
-                grounded = DurationField.ground_from(
-                    duration, pd.Timestamp(start).tz_convert(self.timezone)
-                )
+                try:
+                    grounded = DurationField.ground_from(
+                        duration, pd.Timestamp(start).tz_convert(self.timezone)
+                    )
+                except UnknownTimeZoneError:
+                    grounded = DurationField.ground_from(duration, pd.Timestamp(start))
                 data["start"] = start
                 data["end"] = start + grounded
             else:
-                grounded = DurationField.ground_from(
-                    -duration, pd.Timestamp(end).tz_convert(self.timezone)
-                )
+                try:
+                    grounded = DurationField.ground_from(
+                        -duration, pd.Timestamp(end).tz_convert(self.timezone)
+                    )
+                except UnknownTimeZoneError:
+                    grounded = DurationField.ground_from(-duration, pd.Timestamp(end))
                 data["start"] = end + grounded
                 data["end"] = end
         else:

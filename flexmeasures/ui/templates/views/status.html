@@ -6,10 +6,9 @@
 
 {% block divs %}
 
+{% block breadcrumbs %} {{ super() }} {% endblock %}
+
 <div class="container-fluid">
-    <div>
-        <button type="button" class="btn" onclick="window.history.back();" style="margin-top: 20px;" >Back to asset page</button>
-    </div>
     <div class="row">
         <div class="alert alert-info" id="tzwarn" style="display:none;"></div>
         <div class="alert alert-info" id="dstwarn" style="display:none;"></div>
