@@ -58,8 +58,9 @@ def upgrade():
 
     for sensor in sensors:
         attributes = sensor.attributes or {}
-        if "soc-min" in attributes:
-            grouped[sensor.generic_asset_id].append(sensor)
+        for f, field_spec in enumerate(field_specs):
+            if field_spec["old_field_name"] in attributes:
+                field_specs[f]["grouped"][sensor.generic_asset_id].append(sensor)
 
     # Process each group
     for asset_id, sensors_with_key in grouped.items():
