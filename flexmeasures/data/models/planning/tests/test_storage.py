@@ -140,8 +140,7 @@ def test_battery_relaxation(add_battery_assets, db):
             "soc-minima": [
                 {
                     "start": "2015-01-01T12:00:00+01:00",
-                    "end": "2015-01-01T18:00:00+01:00",
-                    # "duration": "PT6H",  # todo: fails validation, which points to a bug
+                    "duration": "PT6H",
                     "value": "0.8 MWh",
                 }
             ],
