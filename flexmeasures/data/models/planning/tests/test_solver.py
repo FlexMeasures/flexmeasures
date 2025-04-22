@@ -520,7 +520,9 @@ def test_fallback_to_unsolvable_problem(
         consumption_schedule = scheduler.compute(skip_validation=True)
 
     # check that the fallback scheduler provides a sensible fallback policy
-    fallback_scheduler: MetaStorageScheduler = scheduler.fallback_scheduler_class(**kwargs)
+    fallback_scheduler: MetaStorageScheduler = scheduler.fallback_scheduler_class(
+        **kwargs
+    )
     fallback_scheduler._load_time_series(charging_station)
     fallback_scheduler.config_deserialized = True
     consumption_schedule = fallback_scheduler.compute(skip_validation=True)
