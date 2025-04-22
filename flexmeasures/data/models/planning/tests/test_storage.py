@@ -96,6 +96,11 @@ def test_battery_solver_multi_commitment(add_battery_assets, db):
 
 
 def test_battery_relaxation(add_battery_assets, db):
+    """Check that resolving SoC breaches is more important than resolving device power breaches.
+
+    The battery is still charging with 25 kW between noon and 4 PM, when the consumption capacity is supposed to be 0.
+    It is still charging because resolving the still unmatched SoC minima takes precedence (via breach prices).
+    """
     _, battery = get_sensors_from_db(
         db, add_battery_assets, battery_name="Test battery"
     )
