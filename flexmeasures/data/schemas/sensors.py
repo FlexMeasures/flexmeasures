@@ -234,6 +234,44 @@ class SensorIdField(MarshmallowClickMixin, fields.Int):
         return sensor.id
 
 
+class TimeSeriesField(fields.Field):
+
+    def __init__(
+        self,
+        to_unit,
+        *args,
+        # timezone: str | None = None,
+        fill_sides: bool = False,
+        add_resolution: bool = False,
+        resolve_overlaps: str = "first",
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        self.to_unit = to_unit
+        self.fill_sides = fill_sides
+        self.add_resolution = add_resolution
+        self.resolve_overlaps = resolve_overlaps
+
+    def _deserialize(self, value: Sensor, **kwargs) -> pd.Series:
+        query_window = self.parent.query_window
+        resolution = self.parent.resolution
+        if self.add_resolution:
+            query_window = (
+                query_window[0] + resolution,
+                query_window[1] + resolution,
+            )
+        return get_continuous_series_sensor_or_quantity(
+            variable_quantity=value,
+            actuator=self.parent.asset,
+            unit=self._get_unit(value) if self.to_unit[0] == "/" else self.to_unit,
+            query_window=query_window,
+            resolution=resolution,
+            beliefs_before=self.parent.belief_time,
+            fill_sides=self.fill_sides,
+            resolve_overlaps=self.resolve_overlaps,
+        )
+
+
 class VariableQuantityField(MarshmallowClickMixin, fields.Field):
     def __init__(
         self,

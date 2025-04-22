@@ -18,6 +18,7 @@ from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.sensors import (
     VariableQuantityField,
     SensorIdField,
+    TimeSeriesField,
 )
 from flexmeasures.data.schemas.utils import FMValidationError
 from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
@@ -502,6 +503,9 @@ class FlexContextTimeSeriesSchema(FlexContextSchema):
                 "production_price",
             ):
                 field.load_time_series = True
+            # Compatibility with deprecated fields
+            elif field_var in ("consumption_price_sensor", "production_price_sensor"):
+                field = TimeSeriesField(to_unit="/MWh")
             else:
                 # Skip deserialization
                 field._deserialize = passthrough_deserializer()

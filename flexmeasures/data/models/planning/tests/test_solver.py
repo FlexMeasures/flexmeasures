@@ -14,6 +14,7 @@ from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.planning import Scheduler
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
 from flexmeasures.data.models.planning.storage import (
+    MetaStorageScheduler,
     StorageScheduler,
     add_storage_constraints,
     validate_storage_constraints,
@@ -424,6 +425,7 @@ def test_charging_station_solver_day_2(
             "consumption_price": epex_da,
         },
     )
+    scheduler._load_time_series(charging_station)
     scheduler.config_deserialized = (
         True  # soc targets are already a DataFrame, names get underscore
     )
@@ -508,6 +510,7 @@ def test_fallback_to_unsolvable_problem(
         },
     }
     scheduler = StorageScheduler(**kwargs)
+    scheduler._load_time_series(charging_station)
     scheduler.config_deserialized = (
         True  # soc targets are already a DataFrame, names get underscore
     )
@@ -517,7 +520,8 @@ def test_fallback_to_unsolvable_problem(
         consumption_schedule = scheduler.compute(skip_validation=True)
 
     # check that the fallback scheduler provides a sensible fallback policy
-    fallback_scheduler = scheduler.fallback_scheduler_class(**kwargs)
+    fallback_scheduler: MetaStorageScheduler = scheduler.fallback_scheduler_class(**kwargs)
+    fallback_scheduler._load_time_series(charging_station)
     fallback_scheduler.config_deserialized = True
     consumption_schedule = fallback_scheduler.compute(skip_validation=True)
 
@@ -608,6 +612,7 @@ def test_building_solver_day_2(
             "consumption_price": consumption_price_sensor,
         },
     )
+    scheduler._load_time_series(battery)
     scheduler.config_deserialized = (
         True  # inflexible device sensors are already objects, names get underscore
     )
