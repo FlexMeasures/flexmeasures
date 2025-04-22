@@ -117,6 +117,7 @@ def test_asset_page_dates_validation(
 def test_edit_asset(db, client, setup_assets, requests_mock, as_admin):
     mock_asset = mock_asset_response(as_list=False)
     requests_mock.patch(f"{api_path_assets}/1", status_code=200, json=mock_asset)
+    requests_mock.get(f"{api_path_assets}/1", status_code=200, json=mock_asset)
     response = client.post(
         url_for("AssetCrudUI:post", id=1),
         follow_redirects=True,
@@ -138,6 +139,9 @@ def test_add_asset(db, client, setup_assets, requests_mock, as_admin):
     ]  # API gives back more info here than a POST sends
     mock_asset["generic_asset_type_id"] = 1
     requests_mock.post(api_path_assets, status_code=201, json=mock_asset)
+
+    # Mock the GET request to fetch the asset (this is the missing mock)
+    requests_mock.get(f"{api_path_assets}/2", status_code=200, json=mock_asset)
     response = client.post(
         url_for("AssetCrudUI:post", id="create"),
         follow_redirects=True,
