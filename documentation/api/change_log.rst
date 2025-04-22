@@ -25,6 +25,8 @@ v3.0-22 | 2025-03-17
   - In both cases, the price is applied both to (the height of) the highest breach in the planning window (as a per-kWh price) and to (the area of) each breach that occurs (as a per-kWh price per hour).
     That means both high breaches and long breaches are penalized.
 
+- Fixed two alternatives for expressing a variable quantity as a time series; specifically, those involving the ``duration`` field.
+
 v3.0-22 | 2024-12-27
 """"""""""""""""""""
 

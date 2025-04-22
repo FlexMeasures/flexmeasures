@@ -96,6 +96,11 @@ def test_battery_solver_multi_commitment(add_battery_assets, db):
 
 
 def test_battery_relaxation(add_battery_assets, db):
+    """Check that resolving SoC breaches is more important than resolving device power breaches.
+
+    The battery is still charging with 25 kW between noon and 4 PM, when the consumption capacity is supposed to be 0.
+    It is still charging because resolving the still unmatched SoC minima takes precedence (via breach prices).
+    """
     _, battery = get_sensors_from_db(
         db, add_battery_assets, battery_name="Test battery"
     )
@@ -177,7 +182,7 @@ def test_battery_relaxation(add_battery_assets, db):
     # Check if constraints were met
     check_constraints(battery, schedule, soc_at_start)
 
-    # Check for constant charging profile until 4 PM
+    # Check for constant charging profile until 4 PM (thus breaching the consumption capacity after noon)
     np.testing.assert_allclose(
         schedule[:"2015-01-01T15:45:00+01:00"], consumption_capacity_in_mw
     )
