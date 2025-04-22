@@ -407,7 +407,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
 
         return super().convert(_value, param, ctx, **kwargs)
 
-    def _get_unit(self, variable_quantity: ur.Quantity | list[dict | Sensor]) -> str:
+    def _get_unit(self, variable_quantity: ur.Quantity | list[dict] | Sensor) -> str:
         """Obtain the unit from the variable quantity."""
         if isinstance(variable_quantity, ur.Quantity):
             unit = str(variable_quantity.units)
