@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import numbers
 
+import timely_beliefs
 from flask import current_app
 from marshmallow import (
     Schema,
@@ -198,7 +199,15 @@ class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
 class SensorIdField(MarshmallowClickMixin, fields.Int):
     """Field that deserializes to a Sensor and serializes back to an integer."""
 
-    def __init__(self, *args, unit: str | ur.Quantity | None = None, **kwargs):
+    def __init__(
+        self,
+        *args,
+        unit: str | ur.Quantity | None = None,
+        fill_sides: bool = False,
+        add_resolution: bool = False,
+        resolve_overlaps: str = "first",
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
 
         if isinstance(unit, str):
@@ -207,69 +216,56 @@ class SensorIdField(MarshmallowClickMixin, fields.Int):
             self.to_unit = unit
         else:
             self.to_unit = None
-
-    @with_appcontext_if_needed()
-    def _deserialize(self, value: int, attr, obj, **kwargs) -> Sensor:
-        """Turn a sensor id into a Sensor."""
-        sensor = db.session.get(Sensor, value)
-        if sensor is None:
-            raise FMValidationError(f"No sensor found with id {value}.")
-
-        # lazy loading now (sensor is somehow not in session after this)
-        sensor.generic_asset
-        sensor.generic_asset.generic_asset_type
-
-        # if the units are defined, check if the sensor data is convertible to the target units
-        if self.to_unit is not None and not units_are_convertible(
-            sensor.unit, str(self.to_unit.units)
-        ):
-            raise FMValidationError(
-                f"Cannot convert {sensor.unit} to {self.to_unit.units}"
-            )
-
-        return sensor
-
-    def _serialize(self, sensor: Sensor, attr, data, **kwargs) -> int:
-        """Turn a Sensor into a sensor id."""
-        return sensor.id
-
-
-class TimeSeriesField(fields.Field):
-
-    def __init__(
-        self,
-        to_unit,
-        *args,
-        # timezone: str | None = None,
-        fill_sides: bool = False,
-        add_resolution: bool = False,
-        resolve_overlaps: str = "first",
-        **kwargs,
-    ):
-        super().__init__(*args, **kwargs)
-        self.to_unit = to_unit
+        self.load_time_series = False
         self.fill_sides = fill_sides
         self.add_resolution = add_resolution
         self.resolve_overlaps = resolve_overlaps
 
-    def _deserialize(self, value: Sensor, **kwargs) -> pd.Series:
-        query_window = self.parent.query_window
-        resolution = self.parent.resolution
-        if self.add_resolution:
-            query_window = (
-                query_window[0] + resolution,
-                query_window[1] + resolution,
+    @with_appcontext_if_needed()
+    def _deserialize(
+        self, value: int, attr, obj, **kwargs
+    ) -> Sensor | timely_beliefs.BeliefsSeries:
+        """Turn a sensor id into a Sensor."""
+        if not self.load_time_series:
+            sensor = db.session.get(Sensor, value)
+            if sensor is None:
+                raise FMValidationError(f"No sensor found with id {value}.")
+
+            # lazy loading now (sensor is somehow not in session after this)
+            sensor.generic_asset
+            sensor.generic_asset.generic_asset_type
+
+            # if the units are defined, check if the sensor data is convertible to the target units
+            if self.to_unit is not None and not units_are_convertible(
+                sensor.unit, str(self.to_unit.units)
+            ):
+                raise FMValidationError(
+                    f"Cannot convert {sensor.unit} to {self.to_unit.units}"
+                )
+
+            return sensor
+        else:
+            query_window = self.parent.query_window
+            resolution = self.parent.resolution
+            if self.add_resolution:
+                query_window = (
+                    query_window[0] + resolution,
+                    query_window[1] + resolution,
+                )
+            return get_continuous_series_sensor_or_quantity(
+                variable_quantity=value,
+                actuator=self.parent.asset,
+                unit=value.unit,
+                query_window=query_window,
+                resolution=resolution,
+                beliefs_before=self.parent.belief_time,
+                fill_sides=self.fill_sides,
+                resolve_overlaps=self.resolve_overlaps,
             )
-        return get_continuous_series_sensor_or_quantity(
-            variable_quantity=value,
-            actuator=self.parent.asset,
-            unit=self._get_unit(value) if self.to_unit[0] == "/" else self.to_unit,
-            query_window=query_window,
-            resolution=resolution,
-            beliefs_before=self.parent.belief_time,
-            fill_sides=self.fill_sides,
-            resolve_overlaps=self.resolve_overlaps,
-        )
+
+    def _serialize(self, sensor: Sensor, attr, data, **kwargs) -> int:
+        """Turn a Sensor into a sensor id."""
+        return sensor.id
 
 
 class VariableQuantityField(MarshmallowClickMixin, fields.Field):
@@ -338,7 +334,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
     @with_appcontext_if_needed()
     def _deserialize(
         self, value: dict[str, int] | list[dict] | str, attr, obj, **kwargs
-    ) -> Sensor | list[dict] | ur.Quantity:
+    ) -> Sensor | list[dict] | ur.Quantity | timely_beliefs.BeliefsSeries:
 
         if not self.load_time_series:
             if isinstance(value, dict):
