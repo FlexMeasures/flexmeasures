@@ -117,6 +117,7 @@ class FlexContextSchema(Schema):
         required=False,
         data_key="site-power-capacity",
         value_validator=series_range_validator(min=0),
+        resolve_overlaps="min",
     )
     # todo: deprecated since flexmeasures==0.23
     consumption_price_sensor = SensorIdField(
@@ -146,12 +147,14 @@ class FlexContextSchema(Schema):
         required=False,
         data_key="site-production-capacity",
         value_validator=series_range_validator(min=0),
+        resolve_overlaps="min",
     )
     ems_consumption_capacity_in_mw = VariableQuantityField(
         "MW",
         required=False,
         data_key="site-consumption-capacity",
         value_validator=series_range_validator(min=0),
+        resolve_overlaps="min",
     )
     ems_consumption_breach_price = VariableQuantityField(
         "/MW",
@@ -504,6 +507,9 @@ class FlexContextTimeSeriesSchema(FlexContextSchema):
                 "ems_peak_production_price",
                 "consumption_price",
                 "production_price",
+                "ems_power_capacity_in_mw",
+                "ems_consumption_capacity_in_mw",
+                "ems_production_capacity_in_mw",
             ):
                 field.load_time_series = True
             # Compatibility with deprecated fields
