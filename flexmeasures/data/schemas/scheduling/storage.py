@@ -291,7 +291,7 @@ class FlexModelSchema(StorageFlexModelSchema):
 
     @validates_schema
     def forbid_time_series_specs(self, data: dict, **kwargs):
-        """Do not allow time series specs for the flex-context fields saved in the db."""
+        """Do not allow time series specs for the flex-model fields saved in the db."""
 
         # List of keys to check for time series specs
         keys_to_check = []
