@@ -29,7 +29,8 @@ rq-win; os_name == 'nt' or os_name == 'win'
 # Note: we sometimes limit redis due to our use of fakeredis (check their pyproject.toml)
 redis>4.5
 tldextract
-pyomo>=5.6
+# pinned to <6.9 due to a HiGHS deadlock, see https://github.com/FlexMeasures/flexmeasures/issues/1443
+pyomo>=5.6,<6.9
 tabulate
 timetomodel>=0.7.3
 # 3.0.2: significantly faster db queries, incl. bulk saving, 3.1: numpy/pandas upgrade
