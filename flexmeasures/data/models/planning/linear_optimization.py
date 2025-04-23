@@ -182,10 +182,6 @@ def device_scheduler(  # noqa C901
                 sub_commitment = df[df["group"] == group].drop(columns=["group"])
 
                 # Catch non-uniqueness
-                if len(sub_commitment["quantity"].unique()) > 1:
-                    raise ValueError(
-                        "Commitment groups cannot have non-unique quantities."
-                    )
                 if len(sub_commitment["upwards deviation price"].unique()) > 1:
                     raise ValueError(
                         "Commitment groups cannot have non-unique upwards deviation prices."
@@ -257,8 +253,8 @@ def device_scheduler(  # noqa C901
             return 0
         return price
 
-    def commitment_quantity_select(m, c):
-        quantity = commitments[c]["quantity"].iloc[0]
+    def commitment_quantity_select(m, c, j):
+        quantity = commitments[c][commitments[c]["j"] == j]["quantity"].values[0]
         if np.isnan(quantity):
             return -infinity
         return quantity
@@ -355,7 +351,7 @@ def device_scheduler(  # noqa C901
     model.up_price = Param(model.c, initialize=price_up_select)
     model.down_price = Param(model.c, initialize=price_down_select)
     model.commitment_quantity = Param(
-        model.c, domain=Reals, initialize=commitment_quantity_select
+        model.cj, domain=Reals, initialize=commitment_quantity_select
     )
     model.device_max = Param(model.d, model.j, initialize=device_max_select)
     model.device_min = Param(model.d, model.j, initialize=device_min_select)
@@ -473,14 +469,14 @@ def device_scheduler(  # noqa C901
         if (
             "device" not in commitments[c].columns
             or (commitments[c]["device"] != d).all()
-            or m.commitment_quantity[c] == -infinity
+            or m.commitment_quantity[c, j] == -infinity
         ):
             # Commitment c does not concern device d
             return Constraint.Skip
 
         # Determine center part of the lhs <= center part <= rhs constraint
         center_part = (
-            m.commitment_quantity[c]
+            m.commitment_quantity[c, j]
             + m.commitment_downwards_deviation[c]
             + m.commitment_upwards_deviation[c]
         )
@@ -505,7 +501,7 @@ def device_scheduler(  # noqa C901
         if (
             "device" in commitments[c].columns
             and not pd.isnull(commitments[c]["device"]).all()
-        ) or m.commitment_quantity[c] == -infinity:
+        ) or m.commitment_quantity[c, j] == -infinity:
             # Commitment c does not concern EMS
             return Constraint.Skip
         if (
@@ -525,7 +521,7 @@ def device_scheduler(  # noqa C901
                 else None
             ),
             # 0 if "upwards deviation price" in commitments[c].columns else None,  # todo: possible simplification
-            m.commitment_quantity[c]
+            m.commitment_quantity[c, j]
             + m.commitment_downwards_deviation[c]
             + m.commitment_upwards_deviation[c]
             - sum(m.ems_power[:, j]),
