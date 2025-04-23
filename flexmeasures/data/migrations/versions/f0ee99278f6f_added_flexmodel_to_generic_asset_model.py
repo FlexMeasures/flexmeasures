@@ -9,11 +9,84 @@ Create Date: 2025-04-15 11:00:13.154048
 from alembic import op
 import sqlalchemy as sa
 
+from collections import defaultdict
+
 # revision identifiers, used by Alembic.
 revision = "f0ee99278f6f"
 down_revision = "cb8df44ebda5"
 branch_labels = None
 depends_on = None
+
+flex_model_fields = dict(
+    min_soc_in_mwh="soc-min",
+)
+
+
+def group_sensors_by_field(sensors, conn, generic_asset_table):
+    """
+    This function groups sensors by flexmodel fields(using old the names) and checks for value mismatches.
+    """
+    field_specs = []
+
+    # conmstruct the field specifications
+    for old_field_name, new_field_name in flex_model_fields.items():
+        field_spec = dict(
+            new_field_name=new_field_name,
+            old_field_name=old_field_name,
+            grouped=defaultdict(list),
+        )
+        field_specs.append(field_spec)
+
+    # iterate over the sensors and group them by field
+    # and check for value mismatches
+    for sensor in sensors:
+        # fetch the generic asset
+        sensor_generic_asset = conn.execute(
+            sa.select(
+                generic_asset_table.c.id,
+                generic_asset_table.c.attributes,
+            ).where(generic_asset_table.c.id == sensor.generic_asset_id)
+        ).fetchone()
+
+        if sensor_generic_asset is None:
+            raise Exception(
+                f"Generic asset not found for sensor {sensor.id} with asset_id {sensor.generic_asset_id}"
+            )
+
+        sensor_attrs = sensor.attributes or {}
+        asset_attrs = sensor_generic_asset.attributes or {}
+
+        for field_spec in field_specs:
+            old_field_name = field_spec["old_field_name"]
+
+            # check if old_field_name exist on both attributes on sensor and asset
+            sensor_val = sensor_attrs.get(old_field_name)
+            asset_val = asset_attrs.get(old_field_name)
+
+            if sensor_val is not None and asset_val is not None:
+                if sensor_val != asset_val:
+                    raise Exception(
+                        f"Value mismatch for '{old_field_name}' in sensor {sensor.id}: sensor={sensor_val}, asset={asset_val}"
+                    )
+
+            # check if old_field_name exist on sensor attributes
+            if sensor_val is not None:
+                field_spec["grouped"][sensor.generic_asset_id].append(sensor)
+
+    return field_specs
+
+
+def validate_for_duplicate_keys(fields_specs):
+    """
+    This function checks for duplicate keys in the grouped sensors.
+    """
+    for field_spec in fields_specs:
+        grouped = field_spec["grouped"]
+        for asset_id, sensors in grouped.items():
+            if len(sensors) > 1:
+                raise Exception(
+                    f"Multiple sensors with '{field_spec['old_field_name']}' found for asset_id {asset_id}: {[s.id for s in sensors]}"
+                )
 
 
 def upgrade():
@@ -38,6 +111,7 @@ def upgrade():
         sa.MetaData(),
         sa.Column("id", sa.Integer, primary_key=True),
         sa.Column("flex_model", sa.JSON),
+        sa.Column("attributes", sa.JSON),
     )
 
     # Fetch all sensors
@@ -51,51 +125,78 @@ def upgrade():
     )
     sensors = result.fetchall()
 
-    # Group relevant sensors by generic_asset_id
-    from collections import defaultdict
+    fields_specs = group_sensors_by_field(sensors, conn, generic_asset_table)
 
-    grouped = defaultdict(list)
-
-    for sensor in sensors:
-        attributes = sensor.attributes or {}
-        for f, field_spec in enumerate(field_specs):
-            if field_spec["old_field_name"] in attributes:
-                field_specs[f]["grouped"][sensor.generic_asset_id].append(sensor)
+    # Check for duplicate keys in the grouped sensors
+    validate_for_duplicate_keys(fields_specs)
 
     # Process each group
-    for asset_id, sensors_with_key in grouped.items():
-        if len(sensors_with_key) > 1:
-            raise Exception(
-                f"Multiple sensors with 'soc-min' found for asset_id {asset_id}: {[s.id for s in sensors_with_key]}"
-            )
+    for field_spec in fields_specs:
+        field_value = None
 
-        sensor = sensors_with_key[0]
-        if sensor.attributes.get("soc-min") is not None:
-            # check if value is a int or float
-            if not isinstance(sensor.attributes.get("soc-min"), (int, float)):
+        for asset_id, sensors_with_key in field_spec["grouped"].items():
+            sensor = sensors_with_key[0]
+            old_name = field_spec["old_field_name"]
+            new_name = field_spec["new_field_name"]
+
+            # fetch the generic asset
+            sensor_generic_asset = conn.execute(
+                sa.select(
+                    generic_asset_table.c.id,
+                    generic_asset_table.c.attributes,
+                ).where(generic_asset_table.c.id == sensor.generic_asset_id)
+            ).fetchone()
+
+            if sensor_generic_asset is None:
                 raise Exception(
-                    f"Invalid value for 'soc-min' in sensor {sensor.id}: {sensor.attributes['soc-min']}"
+                    f"Generic asset not found for sensor {sensor.id} with asset_id {asset_id}"
                 )
-            soc_min_value_kwh = sensor.attributes.get("soc-min") * 1000
-            soc_min_in_kwh = f"{soc_min_value_kwh} kWh"
-            flex_model_data = {"soc-min": soc_min_in_kwh}
 
-            stmt = (
-                generic_asset_table.update()
-                .where(generic_asset_table.c.id == asset_id)
-                .values(flex_model=flex_model_data)
-            )
+            if len(sensors_with_key) > 1:
+                raise Exception(
+                    f"Multiple sensors with '{old_name}' found for asset_id {asset_id}: {[s.id for s in sensors_with_key]}"
+                )
 
-            conn.execute(stmt)
+            print("sensor attr", sensor.attributes)
+            print("asset attr", sensor_generic_asset.attributes)
 
-            # Update the sensor attributes to remove 'soc-min'
-            sensor.attributes.pop("soc-min", None)
-            stmt = (
-                sensor_table.update()
-                .where(sensor_table.c.id == sensor.id)
-                .values(attributes=sensor.attributes)
-            )
-            conn.execute(stmt)
+            if sensor.attributes.get(old_name) is not None:
+                field_value = sensor.attributes.get(old_name)
+            elif sensor_generic_asset.attributes.get(old_name) is not None:
+                field_value = sensor_generic_asset.attributes.get(old_name)
+
+            if field_value is not None:
+                # check if value is a int or float
+                if not isinstance(field_value, (int, float)):
+                    raise Exception(
+                        f"Invalid value for '{old_name}' in sensor {sensor.id}: {sensor.attributes[old_name]}"
+                    )
+
+                soc_min_value_kwh = field_value * 1000
+                soc_min_in_kwh = f"{soc_min_value_kwh} kWh"
+                flex_model_data = {new_name: soc_min_in_kwh}
+
+                # Update the generic asset attributes to remove 'old_name' and add 'new_name' to flex_model
+                sensor_generic_asset.attributes.pop(old_name, None)
+                stmt = (
+                    generic_asset_table.update()
+                    .where(generic_asset_table.c.id == asset_id)
+                    .values(
+                        flex_model=flex_model_data,
+                        attributes=sensor_generic_asset.attributes,
+                    )
+                )
+
+                conn.execute(stmt)
+
+                # Update the sensor attributes to remove 'old_name' and add 'new_name'
+                sensor.attributes.pop(old_name, None)
+                stmt = (
+                    sensor_table.update()
+                    .where(sensor_table.c.id == sensor.id)
+                    .values(attributes=sensor.attributes)
+                )
+                conn.execute(stmt)
 
     # ### end Alembic commands ###
 
@@ -103,6 +204,51 @@ def upgrade():
 def downgrade():
     # ### commands auto generated by Alembic - please adjust! ###
     with op.batch_alter_table("generic_asset", schema=None) as batch_op:
+        generic_asset_table = sa.Table(
+            "generic_asset",
+            sa.MetaData(),
+            sa.Column("id", sa.Integer, primary_key=True),
+            sa.Column("flex_model", sa.JSON),
+            sa.Column("attributes", sa.JSON),
+        )
+
+        # Fetch all generic assets
+        conn = op.get_bind()
+        result = conn.execute(
+            sa.select(
+                generic_asset_table.c.id,
+                generic_asset_table.c.flex_model,
+                generic_asset_table.c.attributes,
+            )
+        )
+        generic_assets = result.fetchall()
+
+        # Process each generic asset
+        for asset in generic_assets:
+            asset_id = asset.id
+            flex_model_data = asset.flex_model
+
+            # Revert flexmnodel data into attributes
+            if flex_model_data is not None:
+                for old_field_name, new_field_name in flex_model_fields.items():
+                    if new_field_name in flex_model_data:
+                        # Convert the value back to the original format
+                        soc_min_value_kwh = float(
+                            flex_model_data[new_field_name].replace(" kWh", "")
+                        )
+                        soc_min_value_mwh = soc_min_value_kwh / 1000
+
+                        # Update the attributes
+                        asset.attributes[old_field_name] = soc_min_value_mwh
+
+                # Update the generic asset attributes
+                stmt = (
+                    generic_asset_table.update()
+                    .where(generic_asset_table.c.id == asset_id)
+                    .values(attributes=asset.attributes)
+                )
+                conn.execute(stmt)
+
         batch_op.drop_column("flex_model")
 
     # ### end Alembic commands ###
