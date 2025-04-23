@@ -253,7 +253,7 @@ pyluach==2.2.0
     # via workalendar
 pymeeus==0.5.12
     # via convertdate
-pyomo==6.9.1
+pyomo==6.8.2
     # via -r requirements/app.in
 pyparsing==3.2.3
     # via matplotlib
