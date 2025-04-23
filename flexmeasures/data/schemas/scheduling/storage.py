@@ -284,7 +284,7 @@ class StorageFlexModelSchema(Schema):
         return data
 
 
-class FlexModelSchema(StorageFlexModelSchema):
+class DBStorageFlexModelSchema(StorageFlexModelSchema):
     """
     Schema for defining the flexibility model parameters of a device.
     """
