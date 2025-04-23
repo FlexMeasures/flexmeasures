@@ -304,6 +304,6 @@ class DBStorageFlexModelSchema(StorageFlexModelSchema):
         for field_var, field in keys_to_check:
             if field_var in data and isinstance(data[field_var], list):
                 raise ValidationError(
-                    "A time series specification (listing segments) is not supported when storing flex-context fields. Use a fixed quantity or a sensor reference instead.",
+                    "A time series specification (listing segments) is not supported when storing flex-model fields. Use a fixed quantity or a sensor reference instead.",
                     field_name=field.data_key,
                 )
