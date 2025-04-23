@@ -95,9 +95,6 @@ Note that jobs do not live forever, so only rather recent jobs (usually younger 
             
             const sensorId = $(this).attr('id').split('_')[2];
             const rowId = `row_${sensorId}`;
-            // Add Loading Row
-            $(`#${rowId}`).replaceWith(getLoadingRow(rowId));
-            // Fetch and update sensor data
             getSensorData(sensorId, rowId);
         });
     });
@@ -153,7 +150,7 @@ Note that jobs do not live forever, so only rather recent jobs (usually younger 
 
                     const sensorInfo = isNewSensorName
                         ? `${sensor.name} (<a href="/sensors/${sensor.id}">${sensor.id}</a>) 
-                        <span class="fa fa-info" title="Resolution: ${sensor.resolution}, Asset: '${sensor.asset_name}', reason for listing here: ${sensor.relation}" style="margin-left: 10px;">${sensor.name}</span>`
+                        <span class="fa fa-info" title="Resolution: ${sensor.resolution}, Asset: '${sensor.asset_name}', reason for listing here: ${sensor.relation}" style="margin-left: 10px;"></span>`
                         : '';
 
                     const source_type = sensor.source_type

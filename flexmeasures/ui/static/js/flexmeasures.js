@@ -486,9 +486,9 @@ function getTimeAgo(timestamp) {
 
 
 // Function to return a loading row for a table
-function getLoadingRow(id=null) {
+function getLoadingRow() {
     const loading_row = `
-        <tr id="${id}">
+        <tr id="loading-row">
             <td colspan="5" class="text-center">
                 <i class="fa fa-spinner fa-spin"></i> Loading...
             </td>
