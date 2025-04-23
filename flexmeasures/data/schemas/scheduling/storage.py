@@ -286,7 +286,7 @@ class StorageFlexModelSchema(Schema):
 
 class DBStorageFlexModelSchema(StorageFlexModelSchema):
     """
-    Schema for defining the flexibility model parameters of a device.
+    Schema for flex-models stored in the db. Supports fixed quantities and sensor references, while disallowing time series specs.
     """
 
     @validates_schema
