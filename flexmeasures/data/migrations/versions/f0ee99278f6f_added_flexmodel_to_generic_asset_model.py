@@ -265,7 +265,7 @@ def downgrade():
             asset_id = asset.id
             flex_model_data = asset.flex_model
 
-            # Revert flexmnodel data into attributes
+            # Revert flex-model data to attributes
             if flex_model_data is not None:
                 for old_field_name, new_field_name in flex_model_fields.items():
                     if new_field_name in flex_model_data:
