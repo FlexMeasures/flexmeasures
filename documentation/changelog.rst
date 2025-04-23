@@ -30,7 +30,7 @@ Bugfixes
 * Fixed two alternatives for expressing a variable quantity as a time series; specifically, those involving the ``duration`` field [see `PR #1433 <https://github.com/FlexMeasures/flexmeasures/pull/1433>`_]
 * The data dashboard now supports overlapping sensors with instantaneous and non-instantaneous resolutions [see `PR #1407 <https://github.com/FlexMeasures/flexmeasures/pull/1407>`_]
 * Fix map not loading when editing an asset [see `PR #1414 <https://github.com/FlexMeasures/flexmeasures/pull/1414>`_]
-
+* Fix bug on asset graphs page on page reload [see `PR #1442 <https://github.com/FlexMeasures/flexmeasures/pull/1442>`_]
 
 v0.25.0 | April 01, 2025
 ============================
