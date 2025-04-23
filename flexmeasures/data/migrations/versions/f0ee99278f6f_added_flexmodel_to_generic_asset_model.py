@@ -24,7 +24,7 @@ flex_model_fields = dict(
 
 def group_sensors_by_field(sensors, conn, generic_asset_table):
     """
-    This function groups sensors by flexmodel fields(using old the names) and checks for value mismatches.
+    This function groups sensors by flexmodel fields (using the old field names) and checks for value mismatches.
     """
     field_specs = []
 
