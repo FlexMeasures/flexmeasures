@@ -78,7 +78,7 @@ def group_sensors_by_field(sensors, conn, generic_asset_table):
 
 def validate_for_duplicate_keys(fields_specs):
     """
-    This function checks for duplicate keys in the grouped sensors.
+    This function checks for duplicate keys in the grouped sensors of a parent asset.
     """
     for field_spec in fields_specs:
         grouped = field_spec["grouped"]
@@ -132,12 +132,52 @@ def upgrade():
 
     # Process each group
     for field_spec in fields_specs:
-        field_value = None
+        old_name = field_spec["old_field_name"]
+        new_name = field_spec["new_field_name"]
 
+        # Check if the key exist on any asset's attributes and move that into the asset's flex_model
+        # This is to ensure that the flex_model is not empty in the edge case where the asset has no
+        # sensors or has no sensors using the field/key
+        asset_result = conn.execute(
+            sa.select(
+                generic_asset_table.c.id,
+                generic_asset_table.c.attributes,
+                generic_asset_table.c.flex_model,
+            ).where(generic_asset_table.c.attributes[old_name].isnot(None))
+        )
+        affected_assets = asset_result.fetchall()
+
+        for asset in affected_assets:
+            asset_id = asset.id
+            asset_attrs = asset.attributes or {}
+            flex_model_data = asset.flex_model or {}
+
+            # check if value is a int or float
+            if not isinstance(asset_attrs[old_name], (int, float)):
+                raise Exception(
+                    f"Invalid value for '{old_name}' in generic asset {asset_id}: {asset_attrs[old_name]}"
+                )
+
+            soc_min_value_kwh = asset_attrs[old_name] * 1000
+            soc_min_in_kwh = f"{soc_min_value_kwh} kWh"
+            flex_model_data[new_name] = soc_min_in_kwh
+
+            # Update the generic asset attributes to remove 'old_name' and add 'new_name' to flex_model
+            asset_attrs.pop(old_name, None)
+            stmt = (
+                generic_asset_table.update()
+                .where(generic_asset_table.c.id == asset_id)
+                .values(
+                    flex_model=flex_model_data,
+                    attributes=asset_attrs,
+                )
+            )
+            conn.execute(stmt)
+
+        # Process the grouped sensors
         for asset_id, sensors_with_key in field_spec["grouped"].items():
             sensor = sensors_with_key[0]
-            old_name = field_spec["old_field_name"]
-            new_name = field_spec["new_field_name"]
+            field_value = None
 
             # fetch the generic asset
             sensor_generic_asset = conn.execute(
@@ -156,9 +196,6 @@ def upgrade():
                 raise Exception(
                     f"Multiple sensors with '{old_name}' found for asset_id {asset_id}: {[s.id for s in sensors_with_key]}"
                 )
-
-            print("sensor attr", sensor.attributes)
-            print("asset attr", sensor_generic_asset.attributes)
 
             if sensor.attributes.get(old_name) is not None:
                 field_value = sensor.attributes.get(old_name)
