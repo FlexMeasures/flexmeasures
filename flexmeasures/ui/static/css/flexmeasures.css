@@ -1971,6 +1971,9 @@ body.touched [title]:hover:after {
 }
 /* FlexContext Modal Dialogue - End*/
 
+.jobs-time-ago, .time-ago {
+    color: var(--gray);
+}
 
 /* Custom CSS for SVG */
 .mark-image image {
