@@ -28,7 +28,7 @@ def group_sensors_by_field(sensors, conn, generic_asset_table):
     """
     field_specs = []
 
-    # conmstruct the field specifications
+    # construct the field specifications
     for old_field_name, new_field_name in flex_model_fields.items():
         field_spec = dict(
             new_field_name=new_field_name,
