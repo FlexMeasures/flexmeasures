@@ -175,7 +175,7 @@ def upgrade():
             conn.execute(stmt)
 
         # Process the grouped sensors
-        for asset_id, sensors_with_key in field_spec["grouped"].items():
+        for sensor_generic_asset, sensors_with_key in field_spec["grouped"].items():
             sensor = sensors_with_key[0]
             field_value = None
 
