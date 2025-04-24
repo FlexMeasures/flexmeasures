@@ -71,7 +71,7 @@ def group_sensors_by_field(sensors, conn, generic_asset_table):
 
             # check if old_field_name exist on sensor attributes
             if sensor_val is not None:
-                field_spec["grouped"][sensor.generic_asset_id].append(sensor)
+                field_spec["grouped"][sensor_generic_asset].append(sensor)
 
     return field_specs
 
