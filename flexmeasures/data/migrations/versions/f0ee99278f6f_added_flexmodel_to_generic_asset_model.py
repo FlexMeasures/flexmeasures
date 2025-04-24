@@ -160,6 +160,7 @@ def upgrade():
 
             soc_min_value_kwh = asset_attrs[old_name] * 1000
             soc_min_in_kwh = f"{soc_min_value_kwh} kWh"
+
             flex_model_data[new_name] = soc_min_in_kwh
 
             # Update the generic asset attributes to remove 'old_name' and add 'new_name' to flex_model
@@ -178,24 +179,6 @@ def upgrade():
         for sensor_generic_asset, sensors_with_key in field_spec["grouped"].items():
             sensor = sensors_with_key[0]
             field_value = None
-
-            # fetch the generic asset
-            sensor_generic_asset = conn.execute(
-                sa.select(
-                    generic_asset_table.c.id,
-                    generic_asset_table.c.attributes,
-                ).where(generic_asset_table.c.id == sensor.generic_asset_id)
-            ).fetchone()
-
-            if sensor_generic_asset is None:
-                raise Exception(
-                    f"Generic asset not found for sensor {sensor.id} with asset_id {asset_id}"
-                )
-
-            if len(sensors_with_key) > 1:
-                raise Exception(
-                    f"Multiple sensors with '{old_name}' found for asset_id {asset_id}: {[s.id for s in sensors_with_key]}"
-                )
 
             if sensor.attributes.get(old_name) is not None:
                 field_value = sensor.attributes.get(old_name)
