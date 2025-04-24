@@ -293,11 +293,13 @@ def get_asset_sensors_metadata(
 
     # Get the sensors to show for the asset
     sensors_to_show = []
-    for item in asset.sensors_to_show:
-        if isinstance(item, dict) and "sensors" in item:
-            for sensor in item["sensors"]:
-                field = Sensor.query.get(sensor)
-                sensors_to_show.append(field)
+    asset_sensors_to_show = asset.sensors_to_show
+    if asset_sensors_to_show is not None:
+        for item in asset.sensors_to_show:
+            if isinstance(item, dict) and "sensors" in item:
+                for sensor in item["sensors"]:
+                    sensor_to_show = Sensor.query.get(sensor)
+                    sensors_to_show.append(sensor_to_show)
 
     sensors_list = [
         *inflexible_device_sensors,

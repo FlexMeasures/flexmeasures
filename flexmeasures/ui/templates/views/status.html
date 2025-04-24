@@ -84,8 +84,10 @@ Note that jobs do not live forever, so only rather recent jobs (usually younger 
             "ordering": false
         });
 
-        // Append a loading row to the sensor status table
-        $('#sensor_statuses tbody').append(getLoadingRow());
+        if (sensors.length != 0) {
+            // Append a loading row to the sensor status table
+            $('#sensor_statuses tbody').append(getLoadingRow());
+        }
 
         sensors.forEach(element => {
             // Fetch and populate sensor data

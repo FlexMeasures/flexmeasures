@@ -311,7 +311,7 @@ class AssetCrudUI(FlaskView):
     @login_required
     @use_kwargs(StartEndTimeSchema, location="query")
     @route("/<id>/graphs")
-    def graphs(self, id: str):
+    def graphs(self, id: str, start_time=None, end_time=None):
         """/assets/<id>/graphs"""
 
         get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_one", id=id))
