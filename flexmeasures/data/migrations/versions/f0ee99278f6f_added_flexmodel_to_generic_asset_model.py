@@ -8,8 +8,11 @@ Create Date: 2025-04-15 11:00:13.154048
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 from collections import defaultdict
+
+from flexmeasures.utils.unit_utils import is_power_unit, is_energy_unit, ur
 
 # revision identifiers, used by Alembic.
 revision = "f0ee99278f6f"
@@ -54,14 +57,14 @@ def group_sensors_by_field(sensors, conn, generic_asset_table):
             )
 
         sensor_attrs = sensor.attributes or {}
-        asset_attrs = sensor_generic_asset.attributes or {}
+        asset_flex_model = sensor_generic_asset.attributes.get("flex-model", {})
 
         for field_spec in field_specs:
             old_field_name = field_spec["old_field_name"]
 
             # check if old_field_name exist on both attributes on sensor and asset
             sensor_val = sensor_attrs.get(old_field_name)
-            asset_val = asset_attrs.get(old_field_name)
+            asset_val = asset_flex_model.get(old_field_name)
 
             if sensor_val is not None and asset_val is not None:
                 if sensor_val != asset_val:
@@ -143,34 +146,47 @@ def upgrade():
                 generic_asset_table.c.id,
                 generic_asset_table.c.attributes,
                 generic_asset_table.c.flex_model,
-            ).where(generic_asset_table.c.attributes[old_name].isnot(None))
+            ).where(
+                sa.func.jsonb_path_exists(
+                    sa.cast(generic_asset_table.c.attributes, postgresql.JSONB),
+                    f'$."flex-model".{old_name}',
+                )
+            )
         )
         affected_assets = asset_result.fetchall()
 
         for asset in affected_assets:
             asset_id = asset.id
-            asset_attrs = asset.attributes or {}
+            asset_attrs_flex_model = asset.attributes.get("flex-model", {})
             flex_model_data = asset.flex_model or {}
 
             # check if value is a int or float
-            if not isinstance(asset_attrs[old_name], (int, float)):
+            if not isinstance(asset_attrs_flex_model[old_name], (int, float)):
                 raise Exception(
-                    f"Invalid value for '{old_name}' in generic asset {asset_id}: {asset_attrs[old_name]}"
+                    f"Invalid value for '{old_name}' in generic asset {asset_id}: {asset_attrs_flex_model[old_name]}"
                 )
 
-            soc_min_value_kwh = asset_attrs[old_name] * 1000
-            soc_min_in_kwh = f"{soc_min_value_kwh} kWh"
-
-            flex_model_data[new_name] = soc_min_in_kwh
+            if old_name[-6:] == "in_mwh":
+                # convert from float (in MWh) to string (in kWh)
+                value_in_kwh = asset_attrs_flex_model[old_name] * 1000
+                flex_model_data[new_name] = f"{value_in_kwh} kWh"
+            elif old_name[-6:] == "in_mw":
+                # convert from float (in MW) to string (in kW)
+                value_in_kw = asset_attrs_flex_model[old_name] * 1000
+                flex_model_data[new_name] = f"{value_in_kw} kW"
+            else:
+                # move as is
+                value = asset_attrs_flex_model[old_name]
+                flex_model_data[new_name] = value
 
             # Update the generic asset attributes to remove 'old_name' and add 'new_name' to flex_model
-            asset_attrs.pop(old_name, None)
+            asset_attrs_flex_model.pop(old_name, None)
             stmt = (
                 generic_asset_table.update()
                 .where(generic_asset_table.c.id == asset_id)
                 .values(
                     flex_model=flex_model_data,
-                    attributes=asset_attrs,
+                    attributes=asset_attrs_flex_model,
                 )
             )
             conn.execute(stmt)
@@ -250,16 +266,29 @@ def downgrade():
 
             # Revert flex-model data to attributes
             if flex_model_data is not None:
-                for old_field_name, new_field_name in flex_model_fields.items():
-                    if new_field_name in flex_model_data:
-                        # Convert the value back to the original format
-                        soc_min_value_kwh = float(
-                            flex_model_data[new_field_name].replace(" kWh", "")
-                        )
-                        soc_min_value_mwh = soc_min_value_kwh / 1000
 
-                        # Update the attributes
-                        asset.attributes[old_field_name] = soc_min_value_mwh
+                asset_attrs_flex_model = asset.attributes.get("flex-model", {})
+                asset_attrs_flex_model = flex_model_data
+
+                for old_field_name, new_field_name in flex_model_fields.items():
+                    if new_field_name in flex_model_data and isinstance(
+                        flex_model_data[new_field_name], str
+                    ):
+                        # Convert the value back to the original format
+                        value = flex_model_data[new_field_name]
+                        if old_field_name[-6:] == "in_mwh" and is_energy_unit(value):
+                            value_in_mwh = ur.Quantity(value).to("MWh").magnitude
+                            asset_attrs_flex_model[old_field_name] = value_in_mwh
+                        elif old_field_name[-6:] == "in_mw" and is_power_unit(value):
+                            value_in_mw = ur.Quantity(value).to("MW").magnitude
+                            asset_attrs_flex_model[old_field_name] = value_in_mw
+                        else:
+                            asset_attrs_flex_model[old_field_name] = value
+
+                # Remove the new fields from the attributes flex-model data
+                asset_attrs_flex_model.pop(new_field_name, None)
+                # update flex-model data in attributes
+                asset.attributes["flex-model"] = asset_attrs_flex_model
 
                 # Update the generic asset attributes
                 stmt = (
