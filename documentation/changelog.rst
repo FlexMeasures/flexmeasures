@@ -30,6 +30,7 @@ Bugfixes
 * Fixed two alternatives for expressing a variable quantity as a time series; specifically, those involving the ``duration`` field [see `PR #1433 <https://github.com/FlexMeasures/flexmeasures/pull/1433>`_]
 * The data dashboard now supports overlapping sensors with instantaneous and non-instantaneous resolutions [see `PR #1407 <https://github.com/FlexMeasures/flexmeasures/pull/1407>`_]
 * Fix map not loading when editing an asset [see `PR #1414 <https://github.com/FlexMeasures/flexmeasures/pull/1414>`_]
+* Fix ``flexmeasures add schedule for-storage`` after flex-context database migration [see `PR #1417 <https://github.com/FlexMeasures/flexmeasures/pull/1417>`_ and `PR #1449 <https://github.com/FlexMeasures/flexmeasures/pull/1449>`_]
 
 v0.25.0 | April 01, 2025
 ============================
@@ -51,7 +52,7 @@ Infrastructure / Support
 * Support multi-asset scheduling in the ``StorageScheduler`` and job queueing - functionality for (plugin) developers (incl. prep work for future API endpoint for multi-asset scheduling) [see `PR #1313 <https://github.com/FlexMeasures/flexmeasures/pull/1313>`_]
 * Support PV curtailment in the ``StorageScheduler`` [see `PR #1395 <https://github.com/FlexMeasures/flexmeasures/pull/1395>`_]
 * Validate shared units are used in time series segments of flex-context prices [see `PR #1396 <https://github.com/FlexMeasures/flexmeasures/pull/1396>`_]
-* Migrate data for the ``flex_context`` of an asset to a dedicated column in the database table for assets [see `PR #1293 <https://github.com/FlexMeasures/flexmeasures/pull/1293>`_, `PR #1354 <https://github.com/FlexMeasures/flexmeasures/pull/1354>`_ and `PR #1380 <https://github.com/FlexMeasures/flexmeasures/pull/1380>`_]
+* Migrate data for the ``flex-context`` of an asset to a dedicated column in the database table for assets [see `PR #1293 <https://github.com/FlexMeasures/flexmeasures/pull/1293>`_, `PR #1354 <https://github.com/FlexMeasures/flexmeasures/pull/1354>`_ and `PR #1380 <https://github.com/FlexMeasures/flexmeasures/pull/1380>`_]
 * Enhance reporting infrastructure by ensuring that all ``Sensor.search_beliefs`` filters can be used as report parameters [see `PR #1318 <https://github.com/FlexMeasures/flexmeasures/pull/1318>`_]
 * Improve searching for multi-sourced data by returning data from only the latest version of a data generator (e.g. forecaster or scheduler) by default, when using ``Sensor.search_beliefs`` [see `PR #1306 <https://github.com/FlexMeasures/flexmeasures/pull/1306>`_]
 * Extra reporter tests [see `PR #1317 <https://github.com/FlexMeasures/flexmeasures/pull/1317>`_]
