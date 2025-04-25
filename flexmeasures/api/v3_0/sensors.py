@@ -72,8 +72,8 @@ class SensorAPI(FlaskView):
     @route("", methods=["GET"])
     @use_kwargs(
         {
-            "account": AccountIdField(load_from="account_id", required=False),
-            "asset": AssetIdField(load_from="asset_id", required=False),
+            "account": AccountIdField(data_key="account_id", required=False),
+            "asset": AssetIdField(data_key="asset_id", required=False),
             "include_consultancy_clients": fields.Boolean(
                 required=False, load_default=False
             ),
@@ -364,20 +364,20 @@ class SensorAPI(FlaskView):
 
     @route("/<id>/schedules/trigger", methods=["POST"])
     @use_kwargs(
-        {"sensor": SensorIdField(load_from="id")},
+        {"sensor": SensorIdField(data_key="id")},
         location="path",
     )
     @use_kwargs(
         {
             "start_of_schedule": AwareDateTimeField(
-                load_from="start", format="iso", required=True
+                data_key="start", format="iso", required=True
             ),
-            "belief_time": AwareDateTimeField(format="iso", load_from="prior"),
+            "belief_time": AwareDateTimeField(format="iso", data_key="prior"),
             "duration": PlanningDurationField(
                 load_default=PlanningDurationField.load_default
             ),
-            "flex_model": fields.Dict(load_from="flex-model"),
-            "flex_context": fields.Dict(required=False, load_from="flex-context"),
+            "flex_model": fields.Dict(data_key="flex-model"),
+            "flex_context": fields.Dict(required=False, data_key="flex-context"),
             "force_new_job_creation": fields.Boolean(required=False),
         },
         location="json",
@@ -565,8 +565,8 @@ class SensorAPI(FlaskView):
     @route("/<id>/schedules/<uuid>", methods=["GET"])
     @use_kwargs(
         {
-            "sensor": SensorIdField(load_from="id"),
-            "job_id": fields.Str(load_from="uuid"),
+            "sensor": SensorIdField(data_key="id"),
+            "job_id": fields.Str(data_key="uuid"),
         },
         location="path",
     )
@@ -740,7 +740,7 @@ class SensorAPI(FlaskView):
         return dict(scheduler_info=scheduler_info, **response, **d), s
 
     @route("/<id>", methods=["GET"])
-    @use_kwargs({"sensor": SensorIdField(load_from="id")}, location="path")
+    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
     @permission_required_for_context("read", ctx_arg_name="sensor")
     @as_json
     def fetch_one(self, id, sensor):
@@ -839,7 +839,7 @@ class SensorAPI(FlaskView):
 
     @route("/<id>", methods=["PATCH"])
     @use_args(partial_sensor_schema)
-    @use_kwargs({"sensor": SensorIdField(load_from="id")}, location="path")
+    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
     @permission_required_for_context("update", ctx_arg_name="sensor")
     @as_json
     def patch(self, sensor_data: dict, id: int, sensor: Sensor):
@@ -907,7 +907,7 @@ class SensorAPI(FlaskView):
         return sensor_schema.dump(sensor), 200
 
     @route("/<id>", methods=["DELETE"])
-    @use_kwargs({"sensor": SensorIdField(load_from="id")}, location="path")
+    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
     @permission_required_for_context("delete", ctx_arg_name="sensor")
     @as_json
     def delete(self, id: int, sensor: Sensor):
@@ -941,7 +941,7 @@ class SensorAPI(FlaskView):
         return {}, 204
 
     @route("/<id>/stats", methods=["GET"])
-    @use_kwargs({"sensor": SensorIdField(load_from="id")}, location="path")
+    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
     @permission_required_for_context("read", ctx_arg_name="sensor")
     @as_json
     def get_stats(self, id, sensor):
@@ -980,7 +980,7 @@ class SensorAPI(FlaskView):
         return get_sensor_stats(sensor), 200
 
     @route("/<id>/status", methods=["GET"])
-    @use_kwargs({"sensor": SensorIdField(load_from="id")}, location="path")
+    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
     @permission_required_for_context("read", ctx_arg_name="sensor")
     @as_json
     def get_status(self, id, sensor):

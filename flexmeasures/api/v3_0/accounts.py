@@ -189,7 +189,7 @@ class AccountAPI(FlaskView):
         return response, 200
 
     @route("/<id>", methods=["GET"])
-    @use_kwargs({"account": AccountIdField(load_from="id")}, location="path")
+    @use_kwargs({"account": AccountIdField(data_key="id")}, location="path")
     @permission_required_for_context("read", ctx_arg_name="account")
     @as_json
     def get(self, id: int, account: Account):
@@ -225,7 +225,7 @@ class AccountAPI(FlaskView):
 
     @route("/<id>", methods=["PATCH"])
     @use_args(partial_account_schema)
-    @use_kwargs({"account": AccountIdField(load_from="id")}, location="path")
+    @use_kwargs({"account": AccountIdField(data_key="id")}, location="path")
     @permission_required_for_context("update", ctx_arg_name="account")
     @as_json
     def patch(self, account_data: dict, id: int, account: Account):
@@ -338,7 +338,7 @@ class AccountAPI(FlaskView):
         return account_schema.dump(account), 200
 
     @route("/<id>/auditlog", methods=["GET"])
-    @use_kwargs({"account": AccountIdField(load_from="id")}, location="path")
+    @use_kwargs({"account": AccountIdField(data_key="id")}, location="path")
     @permission_required_for_context(
         "read",
         ctx_arg_name="account",

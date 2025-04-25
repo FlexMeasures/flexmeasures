@@ -70,12 +70,12 @@ class AssetAPI(FlaskView):
     @route("", methods=["GET"])
     @use_kwargs(
         {
-            "account": AccountIdField(load_from="account_id", load_default=None),
+            "account": AccountIdField(data_key="account_id", load_default=None),
             "all_accessible": fields.Bool(
-                load_from="all_accessible", load_default=False
+                data_key="all_accessible", load_default=False
             ),
             "include_public": fields.Bool(
-                load_from="include_public", load_default=False
+                data_key="include_public", load_default=False
             ),
             "page": fields.Int(
                 required=False, validate=validate.Range(min=1), load_default=None
@@ -208,7 +208,7 @@ class AssetAPI(FlaskView):
     )
     @use_kwargs(
         {
-            "asset": AssetIdField(load_from="id"),
+            "asset": AssetIdField(data_key="id"),
         },
         location="path",
     )
@@ -409,7 +409,7 @@ class AssetAPI(FlaskView):
         return asset_schema.dump(asset), 201
 
     @route("/<id>", methods=["GET"])
-    @use_kwargs({"asset": AssetIdField(load_from="id")}, location="path")
+    @use_kwargs({"asset": AssetIdField(data_key="id")}, location="path")
     @permission_required_for_context("read", ctx_arg_name="asset")
     @as_json
     def fetch_one(self, id, asset):
@@ -445,7 +445,7 @@ class AssetAPI(FlaskView):
 
     @route("/<id>", methods=["PATCH"])
     @use_args(partial_asset_schema)
-    @use_kwargs({"db_asset": AssetIdField(load_from="id")}, location="path")
+    @use_kwargs({"db_asset": AssetIdField(data_key="id")}, location="path")
     @permission_required_for_context("update", ctx_arg_name="db_asset")
     @as_json
     def patch(self, asset_data: dict, id: int, db_asset: GenericAsset):
@@ -528,7 +528,7 @@ class AssetAPI(FlaskView):
         return asset_schema.dump(db_asset), 200
 
     @route("/<id>", methods=["DELETE"])
-    @use_kwargs({"asset": AssetIdField(load_from="id")}, location="path")
+    @use_kwargs({"asset": AssetIdField(data_key="id")}, location="path")
     @permission_required_for_context("delete", ctx_arg_name="asset")
     @as_json
     def delete(self, id: int, asset: GenericAsset):
@@ -557,7 +557,7 @@ class AssetAPI(FlaskView):
 
     @route("/<id>/chart", strict_slashes=False)  # strict on next version? see #1014
     @use_kwargs(
-        {"asset": AssetIdField(load_from="id")},
+        {"asset": AssetIdField(data_key="id")},
         location="path",
     )
     @use_kwargs(
@@ -588,7 +588,7 @@ class AssetAPI(FlaskView):
         "/<id>/chart_data", strict_slashes=False
     )  # strict on next version? see #1014
     @use_kwargs(
-        {"asset": AssetIdField(load_from="id")},
+        {"asset": AssetIdField(data_key="id")},
         location="path",
     )
     @use_kwargs(
@@ -614,7 +614,7 @@ class AssetAPI(FlaskView):
 
     @route("/<id>/auditlog")
     @use_kwargs(
-        {"asset": AssetIdField(load_from="id")},
+        {"asset": AssetIdField(data_key="id")},
         location="path",
     )
     @permission_required_for_context("read", ctx_arg_name="asset")
@@ -737,7 +737,7 @@ class AssetAPI(FlaskView):
 
     @route("/<id>/jobs", methods=["GET"])
     @use_kwargs(
-        {"asset": AssetIdField(load_from="id")},
+        {"asset": AssetIdField(data_key="id")},
         location="path",
     )
     @permission_required_for_context("read", ctx_arg_name="asset")
