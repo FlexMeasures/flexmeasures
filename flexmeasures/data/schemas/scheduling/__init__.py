@@ -205,6 +205,10 @@ class FlexContextSchema(Schema):
                 "site-production-breach-price",
                 "site-peak-consumption-price",
                 "site-peak-production-price",
+                "relax-soc-constraints",
+                "relax-capacity-constraints",
+                "consumption-breach-price",
+                "production-breach-price",
             )
         ):
             if field_map["consumption-price-sensor"] in data:
