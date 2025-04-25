@@ -110,8 +110,8 @@ def test_create_sequential_jobs(db, app, flex_description_sequential, smart_buil
     ).values.all()  # 5 kW
 
     # Get price data
-    price_sensor_id = flex_description_sequential["flex_context"][
-        "consumption-price-sensor"
+    price_sensor_id = flex_description_sequential["flex_context"]["consumption-price"][
+        "sensor"
     ]
     price_sensor = db.session.get(Sensor, price_sensor_id)
     prices = price_sensor.search_beliefs(
