@@ -34,7 +34,7 @@ class SensorAPI(FlaskView):
 
     @route("/<id>/chart", strict_slashes=False)
     @use_kwargs(
-        {"sensor": SensorIdField(data_key="id")},
+        {"sensor": SensorIdField(load_from="id")},
         location="path",
     )
     @use_kwargs(
@@ -77,7 +77,7 @@ class SensorAPI(FlaskView):
 
     @route("/<id>/chart_data", strict_slashes=False)
     @use_kwargs(
-        {"sensor": SensorIdField(data_key="id")},
+        {"sensor": SensorIdField(load_from="id")},
         location="path",
     )
     @use_kwargs(
@@ -114,7 +114,7 @@ class SensorAPI(FlaskView):
 
     @route("/<id>/chart_annotations", strict_slashes=False)
     @use_kwargs(
-        {"sensor": SensorIdField(data_key="id")},
+        {"sensor": SensorIdField(load_from="id")},
         location="path",
     )
     @use_kwargs(
@@ -152,7 +152,7 @@ class SensorAPI(FlaskView):
 
     @route("/<id>", strict_slashes=False)
     @use_kwargs(
-        {"sensor": SensorIdField(data_key="id")},
+        {"sensor": SensorIdField(load_from="id")},
         location="path",
     )
     @permission_required_for_context("read", ctx_arg_name="sensor")
@@ -176,7 +176,7 @@ class AssetAPI(FlaskView):
 
     @route("/<id>", strict_slashes=False)
     @use_kwargs(
-        {"asset": AssetIdField(data_key="id")},
+        {"asset": AssetIdField(load_from="id")},
         location="path",
     )
     @permission_required_for_context("read", ctx_arg_name="asset")

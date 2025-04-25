@@ -59,7 +59,7 @@ class StorageFlexModelSchema(Schema):
         to_unit="MWh",
         default_src_unit="dimensionless",  # placeholder, overridden in __init__
         return_magnitude=True,
-        data_key="soc-at-start",
+        load_from="soc-at-start",
     )
 
     soc_min = QuantityField(
@@ -69,32 +69,32 @@ class StorageFlexModelSchema(Schema):
         to_unit="MWh",
         default_src_unit="dimensionless",  # placeholder, overridden in __init__
         return_magnitude=True,
-        data_key="soc-min",
+        load_from="soc-min",
     )
     soc_max = QuantityField(
         to_unit="MWh",
         default_src_unit="dimensionless",  # placeholder, overridden in __init__
         return_magnitude=True,
-        data_key="soc-max",
+        load_from="soc-max",
     )
 
     power_capacity_in_mw = VariableQuantityField(
-        "MW", required=False, data_key="power-capacity"
+        "MW", required=False, load_from="power-capacity"
     )
 
     consumption_capacity = VariableQuantityField(
-        "MW", data_key="consumption-capacity", required=False
+        "MW", load_from="consumption-capacity", required=False
     )
     production_capacity = VariableQuantityField(
-        "MW", data_key="production-capacity", required=False
+        "MW", load_from="production-capacity", required=False
     )
 
     # Activation prices
     prefer_curtailing_later = fields.Bool(
-        data_key="prefer-curtailing-later", load_default=True
+        load_from="prefer-curtailing-later", load_default=True
     )
     prefer_charging_sooner = fields.Bool(
-        data_key="prefer-charging-sooner", load_default=True
+        load_from="prefer-charging-sooner", load_default=True
     )
 
     # Timezone placeholders for the soc_maxima, soc_minima and soc_targets fields are overridden in __init__
@@ -102,14 +102,14 @@ class StorageFlexModelSchema(Schema):
         to_unit="MWh",
         default_src_unit="dimensionless",  # placeholder, overridden in __init__
         timezone="placeholder",
-        data_key="soc-maxima",
+        load_from="soc-maxima",
     )
 
     soc_minima = VariableQuantityField(
         to_unit="MWh",
         default_src_unit="dimensionless",  # placeholder, overridden in __init__
         timezone="placeholder",
-        data_key="soc-minima",
+        load_from="soc-minima",
         value_validator=validate.Range(min=0),
     )
 
@@ -117,7 +117,7 @@ class StorageFlexModelSchema(Schema):
         to_unit="MWh",
         default_src_unit="dimensionless",  # placeholder, overridden in __init__
         timezone="placeholder",
-        data_key="soc-targets",
+        load_from="soc-targets",
     )
 
     soc_unit = fields.Str(
@@ -127,38 +127,38 @@ class StorageFlexModelSchema(Schema):
                 "MWh",
             ]
         ),
-        data_key="soc-unit",
+        load_from="soc-unit",
         required=False,
     )
 
     state_of_charge = VariableQuantityField(
         to_unit="MWh",
-        data_key="state-of-charge",
+        load_from="state-of-charge",
         required=False,
     )
 
     charging_efficiency = VariableQuantityField(
-        "%", data_key="charging-efficiency", required=False
+        "%", load_from="charging-efficiency", required=False
     )
     discharging_efficiency = VariableQuantityField(
-        "%", data_key="discharging-efficiency", required=False
+        "%", load_from="discharging-efficiency", required=False
     )
 
     roundtrip_efficiency = EfficiencyField(
-        data_key="roundtrip-efficiency", required=False
+        load_from="roundtrip-efficiency", required=False
     )
 
-    storage_efficiency = VariableQuantityField("%", data_key="storage-efficiency")
+    storage_efficiency = VariableQuantityField("%", load_from="storage-efficiency")
 
     soc_gain = fields.List(
         VariableQuantityField("MW"),
-        data_key="soc-gain",
+        load_from="soc-gain",
         required=False,
         validate=validate.Length(min=1),
     )
     soc_usage = fields.List(
         VariableQuantityField("MW"),
-        data_key="soc-usage",
+        load_from="soc-usage",
         required=False,
         validate=validate.Length(min=1),
     )
@@ -186,21 +186,21 @@ class StorageFlexModelSchema(Schema):
             to_unit="MWh",
             default_src_unit=default_soc_unit,
             timezone=sensor.timezone,
-            data_key="soc-maxima",
+            load_from="soc-maxima",
         )
 
         self.soc_minima = VariableQuantityField(
             to_unit="MWh",
             default_src_unit=default_soc_unit,
             timezone=sensor.timezone,
-            data_key="soc-minima",
+            load_from="soc-minima",
             value_validator=validate.Range(min=0),
         )
         self.soc_targets = VariableQuantityField(
             to_unit="MWh",
             default_src_unit=default_soc_unit,
             timezone=sensor.timezone,
-            data_key="soc-targets",
+            load_from="soc-targets",
         )
 
         super().__init__(*args, **kwargs)

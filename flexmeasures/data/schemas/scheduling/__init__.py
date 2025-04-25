@@ -35,60 +35,60 @@ class FlexContextSchema(Schema):
     # Device commitments
     consumption_breach_price = VariableQuantityField(
         "/MW",
-        data_key="consumption-breach-price",
+        load_from="consumption-breach-price",
         required=False,
         value_validator=validate.Range(min=0),
         load_default=None,
     )
     production_breach_price = VariableQuantityField(
         "/MW",
-        data_key="production-breach-price",
+        load_from="production-breach-price",
         required=False,
         value_validator=validate.Range(min=0),
         load_default=None,
     )
     soc_minima_breach_price = VariableQuantityField(
         "/MWh",
-        data_key="soc-minima-breach-price",
+        load_from="soc-minima-breach-price",
         required=False,
         value_validator=validate.Range(min=0),
         load_default=None,
     )
     soc_maxima_breach_price = VariableQuantityField(
         "/MWh",
-        data_key="soc-maxima-breach-price",
+        load_from="soc-maxima-breach-price",
         required=False,
         value_validator=validate.Range(min=0),
         load_default=None,
     )
     # Dev fields
     relax_soc_constraints = fields.Bool(
-        data_key="relax-soc-constraints", load_default=False
+        load_from="relax-soc-constraints", load_default=False
     )
     relax_capacity_constraints = fields.Bool(
-        data_key="relax-capacity-constraints", load_default=False
+        load_from="relax-capacity-constraints", load_default=False
     )
 
     # Energy commitments
     ems_power_capacity_in_mw = VariableQuantityField(
         "MW",
         required=False,
-        data_key="site-power-capacity",
+        load_from="site-power-capacity",
         value_validator=validate.Range(min=0),
     )
     # todo: deprecated since flexmeasures==0.23
-    consumption_price_sensor = SensorIdField(data_key="consumption-price-sensor")
-    production_price_sensor = SensorIdField(data_key="production-price-sensor")
+    consumption_price_sensor = SensorIdField(load_from="consumption-price-sensor")
+    production_price_sensor = SensorIdField(load_from="production-price-sensor")
     consumption_price = VariableQuantityField(
         "/MWh",
         required=False,
-        data_key="consumption-price",
+        load_from="consumption-price",
         return_magnitude=False,
     )
     production_price = VariableQuantityField(
         "/MWh",
         required=False,
-        data_key="production-price",
+        load_from="production-price",
         return_magnitude=False,
     )
 
@@ -96,25 +96,25 @@ class FlexContextSchema(Schema):
     ems_production_capacity_in_mw = VariableQuantityField(
         "MW",
         required=False,
-        data_key="site-production-capacity",
+        load_from="site-production-capacity",
         value_validator=validate.Range(min=0),
     )
     ems_consumption_capacity_in_mw = VariableQuantityField(
         "MW",
         required=False,
-        data_key="site-consumption-capacity",
+        load_from="site-consumption-capacity",
         value_validator=validate.Range(min=0),
     )
     ems_consumption_breach_price = VariableQuantityField(
         "/MW",
-        data_key="site-consumption-breach-price",
+        load_from="site-consumption-breach-price",
         required=False,
         value_validator=validate.Range(min=0),
         load_default=None,
     )
     ems_production_breach_price = VariableQuantityField(
         "/MW",
-        data_key="site-production-breach-price",
+        load_from="site-production-breach-price",
         required=False,
         value_validator=validate.Range(min=0),
         load_default=None,
@@ -124,13 +124,13 @@ class FlexContextSchema(Schema):
     ems_peak_consumption_in_mw = VariableQuantityField(
         "MW",
         required=False,
-        data_key="site-peak-consumption",
+        load_from="site-peak-consumption",
         value_validator=validate.Range(min=0),
         load_default="0 kW",
     )
     ems_peak_consumption_price = VariableQuantityField(
         "/MW",
-        data_key="site-peak-consumption-price",
+        load_from="site-peak-consumption-price",
         required=False,
         value_validator=validate.Range(min=0),
         load_default=None,
@@ -140,13 +140,13 @@ class FlexContextSchema(Schema):
     ems_peak_production_in_mw = VariableQuantityField(
         "MW",
         required=False,
-        data_key="site-peak-production",
+        load_from="site-peak-production",
         value_validator=validate.Range(min=0),
         load_default="0 kW",
     )
     ems_peak_production_price = VariableQuantityField(
         "/MW",
-        data_key="site-peak-production-price",
+        load_from="site-peak-production-price",
         required=False,
         value_validator=validate.Range(min=0),
         load_default=None,
@@ -154,7 +154,7 @@ class FlexContextSchema(Schema):
     # todo: group by month start (MS), something like a commitment resolution, or a list of datetimes representing splits of the commitments
 
     inflexible_device_sensors = fields.List(
-        SensorIdField(), data_key="inflexible-device-sensors"
+        SensorIdField(), load_from="inflexible-device-sensors"
     )
 
     def set_default_breach_prices(
@@ -437,7 +437,7 @@ class MultiSensorFlexModelSchema(Schema):
 
     sensor = SensorIdField(required=True)
     # it's up to the Scheduler to deserialize the underlying flex-model
-    sensor_flex_model = fields.Dict(data_key="sensor-flex-model")
+    sensor_flex_model = fields.Dict(load_from="sensor-flex-model")
 
     @pre_load
     def unwrap_envelope(self, data, **kwargs):
@@ -475,17 +475,17 @@ class AssetTriggerSchema(Schema):
     }
     """
 
-    asset = GenericAssetIdField(data_key="id")
+    asset = GenericAssetIdField(load_from="id")
     start_of_schedule = AwareDateTimeField(
-        data_key="start", format="iso", required=True
+        load_from="start", format="iso", required=True
     )
-    belief_time = AwareDateTimeField(format="iso", data_key="prior")
+    belief_time = AwareDateTimeField(format="iso", load_from="prior")
     duration = PlanningDurationField(load_default=PlanningDurationField.load_default)
     flex_model = fields.List(
         fields.Nested(MultiSensorFlexModelSchema()),
-        data_key="flex-model",
+        load_from="flex-model",
     )
-    flex_context = fields.Dict(required=False, data_key="flex-context")
+    flex_context = fields.Dict(required=False, load_from="flex-context")
 
     @validates_schema
     def check_flex_model_sensors(self, data, **kwargs):

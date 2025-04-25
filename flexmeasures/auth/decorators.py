@@ -132,7 +132,7 @@ def permission_required_for_context(
 
         @app.route("/resource/<resource_id>", methods=["GET"])
         @use_kwargs(
-            {"the_resource": ResourceIdField(data_key="resource_id")},
+            {"the_resource": ResourceIdField(load_from="resource_id")},
             location="path",
         )
         @permission_required_for_context("read", ctx_arg_name="the_resource")

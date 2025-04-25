@@ -49,7 +49,7 @@ class UserAPI(FlaskView):
     @route("", methods=["GET"])
     @use_kwargs(
         {
-            "account": AccountIdField(data_key="account_id", load_default=None),
+            "account": AccountIdField(load_from="account_id", load_default=None),
             "include_inactive": fields.Bool(load_default=False),
             "page": fields.Int(
                 required=False, validate=validate.Range(min=1), load_default=None
@@ -195,7 +195,7 @@ class UserAPI(FlaskView):
         return response, 200
 
     @route("/<id>")
-    @use_kwargs({"user": UserIdField(data_key="id")}, location="path")
+    @use_kwargs({"user": UserIdField(load_from="id")}, location="path")
     @permission_required_for_context("read", ctx_arg_name="user")
     @as_json
     def get(self, id: int, user: UserModel):
@@ -233,7 +233,7 @@ class UserAPI(FlaskView):
 
     @route("/<id>", methods=["PATCH"])
     @use_kwargs(partial_user_schema)
-    @use_kwargs({"user": UserIdField(data_key="id")}, location="path")
+    @use_kwargs({"user": UserIdField(load_from="id")}, location="path")
     @permission_required_for_context("update", ctx_arg_name="user")
     @as_json
     def patch(self, id: int, user: UserModel, **user_data):
@@ -325,7 +325,7 @@ class UserAPI(FlaskView):
         return user_schema.dump(user), 200
 
     @route("/<id>/password-reset", methods=["PATCH"])
-    @use_kwargs({"user": UserIdField(data_key="id")}, location="path")
+    @use_kwargs({"user": UserIdField(load_from="id")}, location="path")
     @permission_required_for_context("update", ctx_arg_name="user")
     @as_json
     def reset_user_password(self, id: int, user: UserModel):
@@ -357,7 +357,7 @@ class UserAPI(FlaskView):
         db.session.commit()
 
     @route("/<id>/auditlog")
-    @use_kwargs({"user": UserIdField(data_key="id")}, location="path")
+    @use_kwargs({"user": UserIdField(load_from="id")}, location="path")
     @permission_required_for_context(
         "read",
         ctx_arg_name="user",
