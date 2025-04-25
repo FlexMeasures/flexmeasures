@@ -249,7 +249,7 @@ class FlexContextSchema(Schema):
         shared_currency_unit = None
         previous_field_name = None
         for field in self.declared_fields:
-            if field[-5:] == "price" and field in data:
+            if field[-5:] == "price" and field in data and data[field] is not None:
                 price_field = self.declared_fields[field]
                 price_unit = price_field._get_unit(data[field])
                 currency_unit = str(
