@@ -15,7 +15,7 @@ class UserSchema(ma.SQLAlchemySchema):
         model = UserModel
 
     @validates("timezone")
-    def validate_timezone(self, timezone):
+    def validate_timezone(self, timezone, **kwargs):
         if timezone not in all_timezones:
             raise ValidationError(f"Timezone {timezone} doesn't exist.")
 
