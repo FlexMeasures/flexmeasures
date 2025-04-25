@@ -1970,3 +1970,28 @@ body.touched [title]:hover:after {
     color: #000;
 }
 /* FlexContext Modal Dialogue - End*/
+
+.jobs-time-ago, .time-ago {
+    color: var(--gray);
+}
+
+/* Custom CSS for SVG */
+.mark-image image {
+  transform: translate(1px, 10px) !important;
+  width: 34px !important;
+  height: 20px !important;
+  vertical-align: middle;
+}
+
+/* Custom CSS for No Style Link */
+.no-style-link {
+    text-decoration: none !important;
+    color: inherit !important;
+    cursor: pointer !important;
+    background-color: transparent !important;
+    padding: 0 !important;
+}
+.no-style-link:hover {
+    color: inherit !important;
+    background-color: transparent !important;
+}

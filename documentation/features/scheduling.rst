@@ -43,7 +43,7 @@ The full list of flex-context fields follows below.
 For more details on the possible formats for field values, see :ref:`variable_quantities`.
 
 Where should you set these fields?
-Within requests to the API or by editing an asset in the UI.
+Within requests to the API or by editing the relevant asset in the UI.
 If they are not sent in via the API (the endpoint triggering schedule computation), the scheduler will look them up on the `flex-context` field of the asset.
 And if the asset belongs to a larger system (a hierarchy of assets), the scheduler will also search if parent assets have them set.
 
@@ -84,8 +84,7 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
    * - ``site-consumption-breach-price``
      - ``"1000 EUR/kW"``
      - The price of breaching the ``site-consumption-capacity``, useful to treat ``site-consumption-capacity`` as a soft constraint but still make the scheduler attempt to respect it.
-       Can be (a sensor recording) contractual penalties, but also a theoretical penalty just to allow the scheduler to breach the consumption capacity, while influencing how badly breaches should be avoided.
-       The price is applied both to the largest breach in the planning window and to each breach that occurs. [#penalty_field]_
+       Can be (a sensor recording) contractual penalties, but also a theoretical penalty just to allow the scheduler to breach the consumption capacity, while influencing how badly breaches should be avoided. [#penalty_field]_ [#breach_field]_
    * - ``site-production-capacity``
      - ``"0kW"``
      - Maximum production power at the grid connection point.
@@ -95,8 +94,7 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
    * - ``site-production-breach-price``
      - ``"1000 EUR/kW"``
      - The price of breaching the ``site-production-capacity``, useful to treat ``site-production-capacity`` as a soft constraint but still make the scheduler attempt to respect it.
-       Can be (a sensor recording) contractual penalties, but also a theoretical penalty just to allow the scheduler to breach the production capacity, while influencing how badly breaches should be avoided.
-       The price is applied both to the largest breach in the planning window and to each breach that occurs. [#penalty_field]_
+       Can be (a sensor recording) contractual penalties, but also a theoretical penalty just to allow the scheduler to breach the production capacity, while influencing how badly breaches should be avoided. [#penalty_field]_ [#breach_field]_
    * - ``site-peak-consumption``
      - ``{"sensor": 7}``
      - Current peak consumption.
@@ -111,6 +109,18 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
    * - ``site-peak-production-price``
      - ``"260 EUR/MWh"``
      - Production peaks above the ``site-peak-production`` are penalized against this per-kW price. [#penalty_field]_
+   * - ``soc-minima-breach-price``
+     - ``"120 EUR/kWh"``
+     - Penalty for not meeting ``soc-minima`` defined in the flex-model. [#penalty_field]_ [#breach_field]_
+   * - ``soc-maxima-breach-price``
+     - ``"120 EUR/kWh"``
+     - Penalty for not meeting ``soc-maxima`` defined in the flex-model. [#penalty_field]_ [#breach_field]_
+   * - ``consumption-breach-price``
+     - ``"10 EUR/kW"``
+     - The price of breaching the ``consumption-capacity`` in the flex-model, useful to treat ``consumption-capacity`` as a soft constraint but still make the scheduler attempt to respect it. [#penalty_field]_ [#breach_field]_
+   * - ``production-breach-price``
+     - ``"10 EUR/kW"``
+     - The price of breaching the ``production-capacity`` in the flex-model, useful to treat ``production-capacity`` as a soft constraint but still make the scheduler attempt to respect it. [#penalty_field]_ [#breach_field]_
 
 .. [#old_sensor_field] The old field only accepted an integer (sensor ID).
 
@@ -123,6 +133,11 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
 .. [#penalty_field] Prices must share the same currency. Negative prices are not allowed (penalties only).
 
 .. [#production] Example: with a connection capacity (``site-power-capacity``) of 1 MVA (apparent power) and a production capacity (``site-production-capacity``) of 400 kW (active power), the scheduler will make sure that the grid inflow doesn't exceed 400 kW.
+
+.. [#breach_field] Breach prices are applied both to (the height of) the highest breach in the planning window and to (the area of) each breach that occurs.
+                   That means both high breaches and long breaches are penalized.
+                   For example, a :abbr:`SoC (state of charge)` breach price of 120 EUR/kWh is applied as a breach price of 120 EUR/kWh on the height of the highest breach, and as a breach price of 120 EUR/kWh/h on the area (kWh*h) of each breach.
+                   For a 5-minute resolution sensor, this would amount to applying a SoC breach price of 10 EUR/kWh for breaches measured every 5 minutes (in addition to the 120 EUR/kWh applied to the highest breach only).
 
 .. note:: If no (symmetric, consumption and production) site capacity is defined (also not as defaults), the scheduler will not enforce any bound on the site power.
           The flexible device can still have its own power limit defined in its flex-model.
@@ -141,7 +156,7 @@ The process scheduler is suitable for shiftable, breakable and inflexible loads,
 
 
 We describe the respective flex models below.
-At the moment, they have to be sent through the API (the endpoint to trigger schedule computation, or using the FlexMeasures client) or the CLI (the command to add schedules).
+At the moment, they have to be sent through the API (the endpoint to trigger schedule computation, or using the FlexMeasures client) or through the CLI (the command to add schedules).
 We will soon work on the possibility to store (a subset of) these fields on the data model and edit them in the UI.
 
 
@@ -215,7 +230,10 @@ For more details on the possible formats for field values, see :ref:`variable_qu
      - This can encode losses over time, so each time step the energy is held longer leads to higher losses (defaults to 100%). Also read [#storage_efficiency]_ about applying this value per time step across longer time spans.
    * - ``prefer-charging-sooner``
      - ``True``
-     - Tie-breaking policy to apply if conditions are stable (defaults to True, which also signals a preference to discharge later). Boolean option only.
+     - Tie-breaking policy to apply if conditions are stable, which signals a preference to charge sooner rather than later (defaults to True). It also signals a preference to discharge later. Boolean option only.
+   * - ``prefer-curtailing-later``
+     - ``True``
+     - Tie-breaking policy to apply if conditions are stable, which signals a preference to curtail both consumption and production later, whichever is applicable (defaults to True). Boolean option only.
    * - ``power-capacity``
      - ``"50kW"``
      - Device-level power constraint. How much power can be applied to this asset (defaults to the Sensor attribute ``capacity_in_mw``). [#minimum_overlap]_

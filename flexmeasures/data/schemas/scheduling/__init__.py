@@ -32,6 +32,43 @@ from flexmeasures.utils.unit_utils import (
 class FlexContextSchema(Schema):
     """This schema defines fields that provide context to the portfolio to be optimized."""
 
+    # Device commitments
+    consumption_breach_price = VariableQuantityField(
+        "/MW",
+        data_key="consumption-breach-price",
+        required=False,
+        value_validator=validate.Range(min=0),
+        default=None,
+    )
+    production_breach_price = VariableQuantityField(
+        "/MW",
+        data_key="production-breach-price",
+        required=False,
+        value_validator=validate.Range(min=0),
+        default=None,
+    )
+    soc_minima_breach_price = VariableQuantityField(
+        "/MWh",
+        data_key="soc-minima-breach-price",
+        required=False,
+        value_validator=validate.Range(min=0),
+        default=None,
+    )
+    soc_maxima_breach_price = VariableQuantityField(
+        "/MWh",
+        data_key="soc-maxima-breach-price",
+        required=False,
+        value_validator=validate.Range(min=0),
+        default=None,
+    )
+    # Dev fields
+    relax_soc_constraints = fields.Bool(
+        data_key="relax-soc-constraints", load_default=False
+    )
+    relax_capacity_constraints = fields.Bool(
+        data_key="relax-capacity-constraints", load_default=False
+    )
+
     # Energy commitments
     ems_power_capacity_in_mw = VariableQuantityField(
         "MW",
@@ -55,6 +92,7 @@ class FlexContextSchema(Schema):
         return_magnitude=False,
     )
 
+    # Capacity breach commitments
     ems_production_capacity_in_mw = VariableQuantityField(
         "MW",
         required=False,
@@ -119,6 +157,22 @@ class FlexContextSchema(Schema):
         SensorIdField(), data_key="inflexible-device-sensors"
     )
 
+    def set_default_breach_prices(
+        self, data: dict, fields: list[str], price: ur.Quantity
+    ):
+        """Fill in default breach prices.
+
+        This relies on _try_to_convert_price_units to run first, setting a shared currency unit.
+        """
+        for field in fields:
+            # use the same denominator as defined in the field
+            data[field] = price.to(
+                data["shared_currency_unit"]
+                + "/"
+                + self.declared_fields[field].to_unit.split("/")[-1]
+            )
+        return data
+
     @validates_schema
     def check_prices(self, data: dict, **kwargs):
         """Check assumptions about prices.
@@ -145,10 +199,16 @@ class FlexContextSchema(Schema):
         if any(
             field_map[field] in data
             for field in (
+                "soc-minima-breach-price",
+                "soc-maxima-breach-price",
                 "site-consumption-breach-price",
                 "site-production-breach-price",
                 "site-peak-consumption-price",
                 "site-peak-production-price",
+                "relax-soc-constraints",
+                "relax-capacity-constraints",
+                "consumption-breach-price",
+                "production-breach-price",
             )
         ):
             if field_map["consumption-price-sensor"] in data:
@@ -165,34 +225,58 @@ class FlexContextSchema(Schema):
         # All prices must share the same unit
         data = self._try_to_convert_price_units(data)
 
+        # Fill in default soc breach prices when asked to relax SoC constraints.
+        if data["relax_soc_constraints"]:
+            self.set_default_breach_prices(
+                data,
+                fields=["soc_minima_breach_price", "soc_maxima_breach_price"],
+                price=ur.Quantity("1000 EUR/kWh"),
+            )
+
+        # Fill in default capacity breach prices when asked to relax capacity constraints.
+        if data["relax_capacity_constraints"]:
+            self.set_default_breach_prices(
+                data,
+                fields=["consumption_breach_price", "production_breach_price"],
+                price=ur.Quantity("100 EUR/kW"),
+            )
+
         return data
 
     def _try_to_convert_price_units(self, data):
         """Convert price units to the same unit and scale if they can (incl. same currency)."""
 
-        previous_currency_unit = None
+        shared_currency_unit = None
         previous_field_name = None
         for field in self.declared_fields:
             if field[-5:] == "price" and field in data:
                 price_field = self.declared_fields[field]
                 price_unit = price_field._get_unit(data[field])
-                currency_unit = price_unit.split("/")[0]
+                currency_unit = str(
+                    (
+                        ur.Quantity(price_unit) / ur.Quantity(f"1{price_field.to_unit}")
+                    ).units
+                )
 
-                if previous_currency_unit is None:
-                    previous_currency_unit = currency_unit
+                if shared_currency_unit is None:
+                    shared_currency_unit = str(
+                        ur.Quantity(currency_unit).to_base_units().units
+                    )
                     previous_field_name = price_field.data_key
-                elif units_are_convertible(currency_unit, previous_currency_unit):
+                if units_are_convertible(currency_unit, shared_currency_unit):
                     # Make sure all compatible currency units are on the same scale (e.g. not kEUR mixed with EUR)
-                    if currency_unit != previous_currency_unit:
-                        denominator_unit = price_unit.split("/")[1]
+                    if currency_unit != shared_currency_unit:
+                        denominator_unit = str(
+                            ur.Unit(currency_unit) / ur.Unit(price_unit)
+                        )
                         if isinstance(data[field], ur.Quantity):
                             data[field] = data[field].to(
-                                f"{previous_currency_unit}/{denominator_unit}"
+                                f"{shared_currency_unit}/({denominator_unit})"
                             )
                         elif isinstance(data[field], list):
                             for j in range(len(data[field])):
                                 data[field][j]["value"] = data[field][j]["value"].to(
-                                    f"{previous_currency_unit}/{denominator_unit}"
+                                    f"{shared_currency_unit}/({denominator_unit})"
                                 )
                         elif isinstance(data[field], Sensor):
                             raise ValidationError(
@@ -201,9 +285,10 @@ class FlexContextSchema(Schema):
                 else:
                     field_name = price_field.data_key
                     raise ValidationError(
-                        f"Prices must share the same monetary unit. '{field_name}' uses '{currency_unit}', but '{previous_field_name}' used '{previous_currency_unit}'.",
+                        f"Prices must share the same monetary unit. '{field_name}' uses '{currency_unit}', but '{previous_field_name}' used '{shared_currency_unit}'.",
                         field_name=field_name,
                     )
+        data["shared_currency_unit"] = shared_currency_unit
         return data
 
 
