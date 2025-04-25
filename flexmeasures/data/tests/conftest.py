@@ -428,8 +428,8 @@ def flex_description_sequential(
         },
     ]
     flex_context = {
-        "consumption-price-sensor": setup_markets_fresh_db["epex_da"].id,
-        "production-price-sensor": setup_markets_fresh_db["epex_da"].id,
+        "consumption-price": {"sensor": setup_markets_fresh_db["epex_da"].id},
+        "production-price": {"sensor": setup_markets_fresh_db["epex_da"].id},
         "inflexible-device-sensors": [
             sensors["Test Solar"].id,
             sensors["Test Building"].id,
