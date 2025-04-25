@@ -155,11 +155,12 @@
                                 // Show the spinner
                                 spinner.classList.remove('d-none');
 
-                                fetch('/api/v3_0/sensors/' + {{ sensor.id }} + '/stats')
+                                fetch('/api/v3_0/sensors/' + {{ sensor.id }} + '/stats?sort=false')
                                     .then(response => response.json())
                                     .then(data => {
                                         // Remove 'status' sourceKey
                                         delete data['status'];
+                                        data = unpackData(data);
 
                                         if (Object.keys(data).length > 0) {
                                             // Show the header and dropdown container
@@ -186,7 +187,7 @@
                                             });
 
                                             // Update the table with the first sourceKey's data by default
-                                            const firstSourceKey = Object.keys(data)[0];
+                                            const firstSourceKey = getLatestBeliefName(data);
                                             dropdownButton.textContent = firstSourceKey;
                                             updateTable(data[firstSourceKey]);
                                         } else {
@@ -225,6 +226,26 @@
                                         row.appendChild(valueCell);
                                         tableBody.appendChild(row);
                                     });
+                                }
+
+                                function getLatestBeliefName(data) {
+                                    return Object.keys(data).reduce((latest, name) => {
+                                        const currentBeliefTime = new Date(data[name]["Last recorded"]);
+                                        const latestBeliefTime = latest ? new Date(data[latest]["Last recorded"]) : new Date(0);
+                                        return currentBeliefTime > latestBeliefTime ? name : latest;
+                                    }, null);
+                                }
+
+                                function unpackData(data) {
+                                    return Object.fromEntries(
+                                        Object.entries(data).map(([key, value]) => {
+                                            if (Array.isArray(value) && value.every(item => Array.isArray(item) && item.length === 2)) {
+                                                return [key, Object.fromEntries(value)];
+                                            }
+                                            console.error(`Invalid entry for key: ${key}`, value);
+                                            return [key, value];
+                                        })
+                                    );
                                 }
                             });
                         </script>
