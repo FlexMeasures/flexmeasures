@@ -38,28 +38,24 @@ class FlexContextSchema(Schema):
         data_key="consumption-breach-price",
         required=False,
         value_validator=validate.Range(min=0),
-        load_default=None,
     )
     production_breach_price = VariableQuantityField(
         "/MW",
         data_key="production-breach-price",
         required=False,
         value_validator=validate.Range(min=0),
-        load_default=None,
     )
     soc_minima_breach_price = VariableQuantityField(
         "/MWh",
         data_key="soc-minima-breach-price",
         required=False,
         value_validator=validate.Range(min=0),
-        load_default=None,
     )
     soc_maxima_breach_price = VariableQuantityField(
         "/MWh",
         data_key="soc-maxima-breach-price",
         required=False,
         value_validator=validate.Range(min=0),
-        load_default=None,
     )
     # Dev fields
     relax_soc_constraints = fields.Bool(
@@ -110,14 +106,12 @@ class FlexContextSchema(Schema):
         data_key="site-consumption-breach-price",
         required=False,
         value_validator=validate.Range(min=0),
-        load_default=None,
     )
     ems_production_breach_price = VariableQuantityField(
         "/MW",
         data_key="site-production-breach-price",
         required=False,
         value_validator=validate.Range(min=0),
-        load_default=None,
     )
 
     # Peak consumption commitment
@@ -133,7 +127,6 @@ class FlexContextSchema(Schema):
         data_key="site-peak-consumption-price",
         required=False,
         value_validator=validate.Range(min=0),
-        load_default=None,
     )
 
     # Peak production commitment
@@ -149,7 +142,6 @@ class FlexContextSchema(Schema):
         data_key="site-peak-production-price",
         required=False,
         value_validator=validate.Range(min=0),
-        load_default=None,
     )
     # todo: group by month start (MS), something like a commitment resolution, or a list of datetimes representing splits of the commitments
 
@@ -249,7 +241,7 @@ class FlexContextSchema(Schema):
         shared_currency_unit = None
         previous_field_name = None
         for field in self.declared_fields:
-            if field[-5:] == "price" and field in data and data[field] is not None:
+            if field[-5:] == "price" and field in data:
                 price_field = self.declared_fields[field]
                 price_unit = price_field._get_unit(data[field])
                 currency_unit = str(

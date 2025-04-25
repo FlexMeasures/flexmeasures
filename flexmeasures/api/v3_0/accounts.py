@@ -44,21 +44,17 @@ class AccountAPI(FlaskView):
     @route("", methods=["GET"])
     @use_kwargs(
         {
-            "page": fields.Int(
-                required=False, validate=validate.Range(min=1), load_default=None
-            ),
+            "page": fields.Int(required=False, validate=validate.Range(min=1)),
             "per_page": fields.Int(
                 required=False, validate=validate.Range(min=1), load_default=10
             ),
-            "filter": SearchFilterField(required=False, load_default=None),
+            "filter": SearchFilterField(required=False),
             "sort_by": fields.Str(
                 required=False,
-                load_default=None,
                 validate=validate.OneOf(["id", "name", "assets", "users"]),
             ),
             "sort_dir": fields.Str(
                 required=False,
-                load_default=None,
                 validate=validate.OneOf(["asc", "desc"]),
             ),
         },
