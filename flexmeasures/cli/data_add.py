@@ -1636,7 +1636,7 @@ def add_schedule_process(
 
     if consumption_price_sensor is not None:
         scheduling_kwargs["flex_context"] = {
-            "consumption-price-sensor": consumption_price_sensor.id,
+            "consumption-price": {"sensor": consumption_price_sensor.id},
         }
 
     if as_job:
