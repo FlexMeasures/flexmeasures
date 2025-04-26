@@ -41,14 +41,51 @@ For instance, a user is authorized to update his or her personal data, like the 
 
 .. note:: Each user belongs to exactly one account.
 
-In a nutshell, the way FlexMeasures implements authorization works as follows: The data models codify under which conditions a user can have certain permissions to work with their data (in code, look for the ``__acl__`` function, where the access control list is defined). Permissions allow distinct ways of access like reading, writing or deleting. The API endpoints are where we know what needs to happen to what data, so there we make sure that the user has the necessary permissions.
+In a nutshell, the way FlexMeasures implements authorization works as follows: The data models codify under which conditions a user can have certain permissions to work with their data (in code, look for the ``__acl__`` function, where the access control list is defined). 
+
+The following permissions exist:
+
+- read
+- update
+- delete
+- create-children
+
+The API endpoints are where we know what needs to happen to what data, so there we make sure that the user has the necessary permissions.
+The concept of "children" refers to the hierarchy of assets-sensors-beliefs, see :ref:`datamodel`. Note that assets can also have other assets as children.
+
+
+User and Account Roles
+^^^^^^^^^^^^^^^^^^^^^^^
 
 We already discussed certain conditions under which a user has access to data ― being a certain user or belonging to a specific account. Furthermore, authorization conditions can also be implemented via *roles*: 
 
 * ``Account roles`` are often used for authorization. We support several roles which are mentioned in the USEF framework but more roles are possible (e.g. defined by custom-made services, see below). For example, a user might be authorized to write sensor data if they belong to an account with the "MDC" account role ("MDC" being short for meter data company).
 * ``User roles`` give a user personal authorizations. For instance, we have a few `admin`\ s who can perform all actions, and `admin-reader`\ s who can read everything. Other roles have only an effect within the user's account, e.g. there could be an "HR" role which allows to edit user data like surnames within the account.
-* A special case are consultant accounts ― accounts which can read data on other accounts (usually their clients, handy for servicing them). For this, accounts have an attribute called ``consultancy_account_id``. Users in the consultant account with role `consultant` can read data in their client accounts. We plan to introduce some editing/creation capabilities in the future. You can also add a consultant account when creating a client account, for instance on the CLI: ``flexmeasures add account --name "Account2" --consultancy 1``.
-* Roles cannot be edited via the UI at the moment. They are decided when a user or account is created in the CLI (for adding roles later, we use the database for now). Editing roles in UI and CLI is future work.
+
+We look into supported user roles in more detail below.
+
+Roles cannot be edited via the UI at the moment. They are decided when a user or account is created in the CLI (for adding roles later, we use the database for now). Editing roles in UI and CLI is future work.
 
 
-.. note:: Custom energy flexibility services developed on top of FlexMeasures also need to implement authorization. More on this in :ref:`auth-dev`. Here is an example for a custom authorization concept: services can use account roles to achieve their custom authorization. E.g. if several services run on one FlexMeasures server, each service could define a "MyService-subscriber" account role, to make sure that only users of such accounts can use the endpoints.
+.. note:: Custom energy flexibility services which are developed on top of FlexMeasures can also add their own kind of authorization, at least for the endpoints they define - using roles. More on this in :ref:`auth-dev`. Here is an example for a custom authorization concept: services can use account roles to achieve their custom authorization. E.g. if several services run on one FlexMeasures server, each service could define a "MyService-subscriber" account role, to make sure that only users of such accounts can use the endpoints. DEvelopers are also free to add their own user roles and check on those in their custom code.
+
+
+Supported User Roles
+^^^^^^^^^^^^^^^^^^^^^
+
+A user without any roles can, by and large, inspect and edit data in their own account, add beliefs and work on their own user account.
+
+These roles are natively supported and give users more rights:
+
+- ``admin``: A super-user who can do anything.
+- ``admin-reader``: A user who can read anything, but not do modifications.
+- ``account-admin``: Can update and delete data in their account (e.g. assets, sensors, users, beliefs).
+- ``consultant``: Can view data in other (client) accounts. More on this concept below.
+
+
+Consultancy
+^^^^^^^^^^^
+
+A special case of authorization is consultancy - a consultant account can read data from other accounts (usually their clients ― this is handy for servicing them). For this, accounts have an attribute called ``consultancy_account_id``. Users in the consultant account with the role `consultant` can read data in their client accounts. We plan to introduce some editing/creation capabilities in the future.
+
+Setting an account as the consultant account is something only admins can do. It is possible via the ``/accounts`` PATCH endpoint, but also in the UI. You can also specify a consultant account when creating a client account, which for now happens only in the CLI: ``flexmeasures add account --name "Account2" --consultancy 1`` makes account 1 the consultant for account 2.
