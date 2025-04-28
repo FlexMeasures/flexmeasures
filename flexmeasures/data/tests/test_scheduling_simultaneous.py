@@ -70,10 +70,18 @@ def test_create_simultaneous_jobs(
         assert len(battery_power) == 96
     assert battery_power.sources.unique()[0].model == "StorageScheduler"
     battery_power = battery_power.droplevel([1, 2, 3])
+    start_charging = start + pd.Timedelta(hours=8)
+    end_charging = start + pd.Timedelta(hours=10) - sensors["Test EV"].event_resolution
+
+    # Check schedules
+    assert (ev_power.loc[start_charging:end_charging] != -0.005).values.any()  # 5 kW
+    assert (
+        battery_power.loc[start_charging:end_charging] != 0.005
+    ).values.any()  # 5 kW
 
     # Get price data
-    price_sensor_id = flex_description_sequential["flex_context"][
-        "consumption-price-sensor"
+    price_sensor_id = flex_description_sequential["flex_context"]["consumption-price"][
+        "sensor"
     ]
     price_sensor = db.session.get(Sensor, price_sensor_id)
     prices = price_sensor.search_beliefs(

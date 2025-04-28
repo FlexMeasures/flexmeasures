@@ -458,3 +458,41 @@ function replaceMultiple(str, mapObj){
     // The "g" flag makes the replacement global (replaces all occurrences), and it is case-sensitive by default.
     return str.replace(regex, matched => mapObj[matched]);
 }
+
+
+function getTimeAgo(timestamp) {
+    /**
+     * Converts a timestamp into a human-readable "time ago" format.
+     *
+     * @param {number} timestamp - The timestamp in milliseconds to convert.
+     * @returns {string} A string representing how much time has passed since the given timestamp,
+     *                   formatted as "X seconds ago", "X minutes ago", "X hours ago", or "X days ago".
+     */
+    const now = Date.now();
+    const diffInSeconds = Math.floor((now - timestamp) / 1000); // Difference in seconds
+    if (diffInSeconds < 60) {
+        return `${diffInSeconds} seconds ago`;
+    } else if (diffInSeconds < 3600) {
+        const minutes = Math.floor(diffInSeconds / 60);
+        return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+    } else if (diffInSeconds < 86400) {
+        const hours = Math.floor(diffInSeconds / 3600);
+        return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+    } else {
+        const days = Math.floor(diffInSeconds / 86400);
+        return `${days} day${days > 1 ? 's' : ''} ago`;
+    }
+}
+
+
+// Function to return a loading row for a table
+function getLoadingRow() {
+    const loading_row = `
+        <tr id="loading-row">
+            <td colspan="5" class="text-center">
+                <i class="fa fa-spinner fa-spin"></i> Loading...
+            </td>
+        </tr>
+    `;
+    return loading_row;
+}

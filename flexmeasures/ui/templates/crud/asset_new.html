@@ -23,8 +23,8 @@
             <div class="row">
                 <div class="col-md-6">
 
-                    <h2> Creating a new asset </h2>
-
+                    <h2>Creating a new asset {% if parent_asset_name %} for {{ parent_asset_name }} {% endif %}</h2>
+                    <input type="hidden" name="parent_asset_id" value="{{ parent_asset_id }}">
                     <div class="form-group">
                         {{ asset_form.name.label(class="col-md-6 control-label") }}
                         <div class="col-md-6">
@@ -47,8 +47,18 @@
                         {{ asset_form.account_id.label(class="col-md-6 control-label") }}
                         <div class="col-md-6">
                             {{ asset_form.account_id(class_="form-control") }}
+                            {% if account %}
+                            <script>
+                                document.addEventListener("DOMContentLoaded", function() {
+                                    var accountID = document.querySelector("select[name='account_id']");
+                                    accountID.value = "{{ account }}";
+                                    accountID.style.pointerEvents = "none";
+                                    accountID.style.backgroundColor = "#f0f0f0";
+                                });
+                            </script>
+                            {% endif %}
                             {% for error in asset_form.errors.account_id %}
-                            <span style="color: red;">[{{error}}]</span>
+                            <span style="color: red;">[{{ error }}]</span>
                             {% endfor %}
                         </div>
                     </div>
