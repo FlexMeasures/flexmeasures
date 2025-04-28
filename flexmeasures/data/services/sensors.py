@@ -291,15 +291,15 @@ def get_asset_sensors_metadata(
         and field != "inflexible-device-sensors"
     }
 
-    # Get the sensors to show for the asset
+    # Get sensors to show using the validate_sensors_to_show method
     sensors_to_show = []
-    asset_sensors_to_show = asset.sensors_to_show
-    if asset_sensors_to_show is not None:
-        for item in asset.sensors_to_show:
-            if isinstance(item, dict) and "sensors" in item:
-                for sensor in item["sensors"]:
-                    sensor_to_show = Sensor.query.get(sensor)
-                    sensors_to_show.append(sensor_to_show)
+    validated_asset_sensors = asset.validate_sensors_to_show()
+    sensor_groups = [
+        sensor["sensors"] for sensor in validated_asset_sensors if sensor is not None
+    ]
+    for group_of_sensors in sensor_groups:
+        for sensor in group_of_sensors:
+            sensors_to_show.append(sensor)
 
     sensors_list = [
         *inflexible_device_sensors,
@@ -316,6 +316,7 @@ def get_asset_sensors_metadata(
         sensor_status["asset_name"] = sensor.generic_asset.name
         sensor_ids.add(sensor.id)
         sensors.append(sensor_status)
+
     return sensors
 
 
