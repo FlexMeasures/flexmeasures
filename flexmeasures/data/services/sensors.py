@@ -447,7 +447,7 @@ def build_asset_jobs_data(
 
 
 @lru_cache()
-def _get_sensor_stats(sensor: Sensor, ttl_hash=None) -> dict:
+def _get_sensor_stats(sensor: Sensor, sort_keys: bool, ttl_hash=None) -> dict:
     # Subquery for filtered aggregates
     subquery_for_filtered_aggregates = (
         sa.select(
@@ -468,6 +468,11 @@ def _get_sensor_stats(sensor: Sensor, ttl_hash=None) -> dict:
             DataSource.name,
             sa.func.min(TimedBelief.event_start).label("min_event_start"),
             sa.func.max(TimedBelief.event_start).label("max_event_start"),
+            sa.func.max(
+                TimedBelief.event_start
+                + sensor.event_resolution
+                - TimedBelief.belief_horizon
+            ).label("max_belief_time"),
             subquery_for_filtered_aggregates.c.min_event_value,
             subquery_for_filtered_aggregates.c.max_event_value,
             subquery_for_filtered_aggregates.c.avg_event_value,
@@ -496,6 +501,7 @@ def _get_sensor_stats(sensor: Sensor, ttl_hash=None) -> dict:
             data_source,
             min_event_start,
             max_event_start,
+            max_belief_time,
             min_value,
             max_value,
             mean_value,
@@ -510,15 +516,21 @@ def _get_sensor_stats(sensor: Sensor, ttl_hash=None) -> dict:
             .tz_convert(sensor.timezone)
             .isoformat()
         )
+        last_belief_time = (
+            pd.Timestamp(max_belief_time).tz_convert(sensor.timezone).isoformat()
+        )
         stats[data_source] = {
             "First event start": first_event_start,
             "Last event end": last_event_end,
+            "Last recorded": last_belief_time,
             "Min value": min_value,
             "Max value": max_value,
             "Mean value": mean_value,
             "Sum over values": sum_values,
             "Number of values": count_values,
         }
+        if sort_keys is False:
+            stats[data_source] = stats[data_source].items()
     return stats
 
 
@@ -531,6 +543,6 @@ def _get_ttl_hash(seconds=120) -> int:
     return round(time.time() / seconds)
 
 
-def get_sensor_stats(sensor: Sensor) -> dict:
+def get_sensor_stats(sensor: Sensor, sort_keys: bool = True) -> dict:
     """Get stats for a sensor"""
-    return _get_sensor_stats(sensor, ttl_hash=_get_ttl_hash())
+    return _get_sensor_stats(sensor, sort_keys, ttl_hash=_get_ttl_hash())
