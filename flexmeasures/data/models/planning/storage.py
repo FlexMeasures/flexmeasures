@@ -32,6 +32,7 @@ from flexmeasures.data.models.planning.exceptions import InfeasibleProblemExcept
 from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
 from flexmeasures.data.schemas.scheduling import (
     FlexContextSchema,
+    FlexContextTimeSeriesSchema,
     MultiSensorFlexModelSchema,
 )
 from flexmeasures.utils.calculations import (
@@ -96,11 +97,9 @@ class MetaStorageScheduler(Scheduler):
             resolution = determine_minimum_resampling_resolution(
                 [s.event_resolution for s in sensors]
             )
-            asset = self.asset
         else:
             # For backwards compatibility with the single asset scheduler
             sensors = [self.sensor]
-            asset = self.sensor.generic_asset
 
         # For backwards compatibility with the single asset scheduler
         flex_model = self.flex_model
@@ -160,29 +159,9 @@ class MetaStorageScheduler(Scheduler):
         power_capacity_in_mw = self._get_device_power_capacity(flex_model, sensors)
 
         # Check for known prices or price forecasts
-        up_deviation_prices = get_continuous_series_sensor_or_quantity(
-            variable_quantity=consumption_price,
-            actuator=asset,
-            unit=FlexContextSchema()
-            .declared_fields["consumption_price"]
-            ._get_unit(consumption_price),
-            query_window=(start, end),
-            resolution=resolution,
-            beliefs_before=belief_time,
-            fill_sides=True,
-        ).to_frame(name="event_value")
+        up_deviation_prices = consumption_price.to_frame(name="event_value")
         ensure_prices_are_not_empty(up_deviation_prices, consumption_price)
-        down_deviation_prices = get_continuous_series_sensor_or_quantity(
-            variable_quantity=production_price,
-            actuator=asset,
-            unit=FlexContextSchema()
-            .declared_fields["production_price"]
-            ._get_unit(production_price),
-            query_window=(start, end),
-            resolution=resolution,
-            beliefs_before=belief_time,
-            fill_sides=True,
-        ).to_frame(name="event_value")
+        down_deviation_prices = production_price.to_frame(name="event_value")
         ensure_prices_are_not_empty(down_deviation_prices, production_price)
 
         start = pd.Timestamp(start).tz_convert("UTC")
@@ -200,35 +179,21 @@ class MetaStorageScheduler(Scheduler):
             )
 
         # Create Series with EMS capacities
-        ems_power_capacity_in_mw = get_continuous_series_sensor_or_quantity(
-            variable_quantity=self.flex_context.get("ems_power_capacity_in_mw"),
-            actuator=asset,
-            unit="MW",
-            query_window=(start, end),
-            resolution=resolution,
-            beliefs_before=belief_time,
-            resolve_overlaps="min",
-        )
-        ems_consumption_capacity = get_continuous_series_sensor_or_quantity(
-            variable_quantity=self.flex_context.get("ems_consumption_capacity_in_mw"),
-            actuator=asset,
-            unit="MW",
-            query_window=(start, end),
-            resolution=resolution,
-            beliefs_before=belief_time,
-            max_value=ems_power_capacity_in_mw,
-            resolve_overlaps="min",
-        )
-        ems_production_capacity = -1 * get_continuous_series_sensor_or_quantity(
-            variable_quantity=self.flex_context.get("ems_production_capacity_in_mw"),
-            actuator=asset,
-            unit="MW",
-            query_window=(start, end),
-            resolution=resolution,
-            beliefs_before=belief_time,
-            max_value=ems_power_capacity_in_mw,
-            resolve_overlaps="min",
-        )
+        ems_power_capacity_in_mw = self.flex_context.get("ems_power_capacity_in_mw")
+        if (cap := self.flex_context.get("ems_consumption_capacity_in_mw")) is not None:
+            ems_consumption_capacity = cap.clip(upper=ems_power_capacity_in_mw).fillna(
+                ems_power_capacity_in_mw
+            )
+        else:
+            ems_consumption_capacity = ems_power_capacity_in_mw
+        if (cap := self.flex_context.get("ems_production_capacity_in_mw")) is not None:
+            ems_production_capacity = -1 * (
+                cap.clip(upper=ems_power_capacity_in_mw).fillna(
+                    ems_power_capacity_in_mw
+                )
+            )
+        else:
+            ems_production_capacity = -ems_power_capacity_in_mw
 
         # Set up commitments to optimise for
         commitments = []
@@ -260,29 +225,12 @@ class MetaStorageScheduler(Scheduler):
 
         # Set up peak commitments
         if self.flex_context.get("ems_peak_consumption_price") is not None:
-            ems_peak_consumption = get_continuous_series_sensor_or_quantity(
-                variable_quantity=self.flex_context.get("ems_peak_consumption_in_mw"),
-                actuator=asset,
-                unit="MW",
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                max_value=np.inf,  # np.nan -> np.inf to ignore commitment if no quantity is given
-                fill_sides=True,
-            )
+            ems_peak_consumption = self.flex_context.get("ems_peak_consumption_in_mw")
+            ems_peak_consumption.fillna(
+                np.inf
+            )  # np.nan -> np.inf to ignore commitment if no quantity is given
             ems_peak_consumption_price = self.flex_context.get(
                 "ems_peak_consumption_price"
-            )
-            ems_peak_consumption_price = get_continuous_series_sensor_or_quantity(
-                variable_quantity=ems_peak_consumption_price,
-                actuator=asset,
-                unit=FlexContextSchema()
-                .declared_fields["ems_peak_consumption_price"]
-                ._get_unit(ems_peak_consumption_price),
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                fill_sides=True,
             )
 
             # Set up commitments DataFrame
@@ -296,29 +244,12 @@ class MetaStorageScheduler(Scheduler):
             )
             commitments.append(commitment)
         if self.flex_context.get("ems_peak_production_price") is not None:
-            ems_peak_production = get_continuous_series_sensor_or_quantity(
-                variable_quantity=self.flex_context.get("ems_peak_production_in_mw"),
-                actuator=asset,
-                unit="MW",
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                max_value=np.inf,  # np.nan -> np.inf to ignore commitment if no quantity is given
-                fill_sides=True,
-            )
+            ems_peak_production = self.flex_context.get("ems_peak_production_in_mw")
+            ems_peak_production.fillna(
+                np.inf
+            )  # np.nan -> np.inf to ignore commitment if no quantity is given
             ems_peak_production_price = self.flex_context.get(
                 "ems_peak_production_price"
-            )
-            ems_peak_production_price = get_continuous_series_sensor_or_quantity(
-                variable_quantity=ems_peak_production_price,
-                actuator=asset,
-                unit=FlexContextSchema()
-                .declared_fields["ems_peak_production_price"]
-                ._get_unit(ems_peak_production_price),
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                fill_sides=True,
             )
 
             # Set up commitments DataFrame
@@ -347,29 +278,10 @@ class MetaStorageScheduler(Scheduler):
         if ems_consumption_breach_price is not None:
 
             # Convert to Series
-            any_ems_consumption_breach_price = get_continuous_series_sensor_or_quantity(
-                variable_quantity=ems_consumption_breach_price,
-                actuator=asset,
-                unit=FlexContextSchema()
-                .declared_fields["ems_consumption_breach_price"]
-                ._get_unit(ems_consumption_breach_price),
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                fill_sides=True,
-            )
-            all_ems_consumption_breach_price = get_continuous_series_sensor_or_quantity(
-                variable_quantity=ems_consumption_breach_price,
-                actuator=asset,
-                unit=FlexContextSchema()
-                .declared_fields["ems_consumption_breach_price"]
-                ._get_unit(ems_consumption_breach_price)
-                + "*h",  # from EUR/MWh to EUR/MW/resolution
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                fill_sides=True,
-            )
+            any_ems_consumption_breach_price = ems_consumption_breach_price
+            all_ems_consumption_breach_price = (
+                ems_consumption_breach_price * resolution / timedelta(hours=1)
+            )  # from EUR/MWh to EUR/MW/resolution
 
             # Set up commitments DataFrame to penalize any breach
             commitment = FlowCommitment(
@@ -401,29 +313,10 @@ class MetaStorageScheduler(Scheduler):
         if ems_production_breach_price is not None:
 
             # Convert to Series
-            any_ems_production_breach_price = get_continuous_series_sensor_or_quantity(
-                variable_quantity=ems_production_breach_price,
-                actuator=asset,
-                unit=FlexContextSchema()
-                .declared_fields["ems_production_breach_price"]
-                ._get_unit(ems_production_breach_price),
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                fill_sides=True,
-            )
-            all_ems_production_breach_price = get_continuous_series_sensor_or_quantity(
-                variable_quantity=ems_production_breach_price,
-                actuator=asset,
-                unit=FlexContextSchema()
-                .declared_fields["ems_production_breach_price"]
-                ._get_unit(ems_production_breach_price)
-                + "*h",  # from EUR/MWh to EUR/MW/resolution
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                fill_sides=True,
-            )
+            any_ems_production_breach_price = ems_production_breach_price
+            all_ems_production_breach_price = (
+                ems_production_breach_price * resolution / timedelta(hours=1)
+            )  # from EUR/MWh to EUR/MW/resolution
 
             # Set up commitments DataFrame to penalize any breach
             commitment = FlowCommitment(
@@ -521,31 +414,14 @@ class MetaStorageScheduler(Scheduler):
                 and soc_minima[d] is not None
             ):
                 soc_minima_breach_price = self.flex_context["soc_minima_breach_price"]
-                any_soc_minima_breach_price = get_continuous_series_sensor_or_quantity(
-                    variable_quantity=soc_minima_breach_price,
-                    actuator=asset,
-                    unit=FlexContextSchema()
-                    .declared_fields["soc_minima_breach_price"]
-                    ._get_unit(soc_minima_breach_price),
-                    query_window=(start + resolution, end + resolution),
-                    resolution=resolution,
-                    beliefs_before=belief_time,
-                    fallback_attribute="soc-minima-breach-price",
-                    fill_sides=True,
-                ).shift(-1, freq=resolution)
-                all_soc_minima_breach_price = get_continuous_series_sensor_or_quantity(
-                    variable_quantity=soc_minima_breach_price,
-                    actuator=asset,
-                    unit=FlexContextSchema()
-                    .declared_fields["soc_minima_breach_price"]
-                    ._get_unit(soc_minima_breach_price)
-                    + "*h",  # from EUR/MWh² to EUR/MWh/resolution
-                    query_window=(start + resolution, end + resolution),
-                    resolution=resolution,
-                    beliefs_before=belief_time,
-                    fallback_attribute="soc-minima-breach-price",
-                    fill_sides=True,
-                ).shift(-1, freq=resolution)
+                any_soc_minima_breach_price = soc_minima_breach_price.shift(
+                    -1, freq=resolution
+                )
+                all_soc_minima_breach_price = (
+                    soc_minima_breach_price.shift(-1, freq=resolution)
+                    * resolution
+                    / timedelta(hours=1)
+                )  # from EUR/MWh² to EUR/MWh/resolution
                 # Set up commitments DataFrame
                 # soc_minima_d is a temp variable because add_storage_constraints can't deal with Series yet
                 soc_minima_d = get_continuous_series_sensor_or_quantity(
@@ -605,31 +481,14 @@ class MetaStorageScheduler(Scheduler):
                 and soc_maxima[d] is not None
             ):
                 soc_maxima_breach_price = self.flex_context["soc_maxima_breach_price"]
-                any_soc_maxima_breach_price = get_continuous_series_sensor_or_quantity(
-                    variable_quantity=soc_maxima_breach_price,
-                    actuator=asset,
-                    unit=FlexContextSchema()
-                    .declared_fields["soc_maxima_breach_price"]
-                    ._get_unit(soc_maxima_breach_price),
-                    query_window=(start + resolution, end + resolution),
-                    resolution=resolution,
-                    beliefs_before=belief_time,
-                    fallback_attribute="soc-maxima-breach-price",
-                    fill_sides=True,
-                ).shift(-1, freq=resolution)
-                all_soc_maxima_breach_price = get_continuous_series_sensor_or_quantity(
-                    variable_quantity=soc_maxima_breach_price,
-                    actuator=asset,
-                    unit=FlexContextSchema()
-                    .declared_fields["soc_maxima_breach_price"]
-                    ._get_unit(soc_maxima_breach_price)
-                    + "*h",  # from EUR/MWh² to EUR/MWh/resolution
-                    query_window=(start + resolution, end + resolution),
-                    resolution=resolution,
-                    beliefs_before=belief_time,
-                    fallback_attribute="soc-maxima-breach-price",
-                    fill_sides=True,
-                ).shift(-1, freq=resolution)
+                any_soc_maxima_breach_price = soc_maxima_breach_price.shift(
+                    -1, freq=resolution
+                )
+                all_soc_maxima_breach_price = (
+                    soc_maxima_breach_price.shift(-1, freq=resolution)
+                    * resolution
+                    / timedelta(hours=1)
+                )  # from EUR/MWh² to EUR/MWh/resolution
                 # Set up commitments DataFrame
                 # soc_maxima_d is a temp variable because add_storage_constraints can't deal with Series yet
                 soc_maxima_d = get_continuous_series_sensor_or_quantity(
@@ -722,35 +581,10 @@ class MetaStorageScheduler(Scheduler):
                     production_breach_price = self.flex_context[
                         "production_breach_price"
                     ]
-                    any_production_breach_price = (
-                        get_continuous_series_sensor_or_quantity(
-                            variable_quantity=production_breach_price,
-                            actuator=asset,
-                            unit=FlexContextSchema()
-                            .declared_fields["production_breach_price"]
-                            ._get_unit(production_breach_price),
-                            query_window=(start, end),
-                            resolution=resolution,
-                            beliefs_before=belief_time,
-                            fallback_attribute="production-breach-price",
-                            fill_sides=True,
-                        )
-                    )
+                    any_production_breach_price = production_breach_price
                     all_production_breach_price = (
-                        get_continuous_series_sensor_or_quantity(
-                            variable_quantity=production_breach_price,
-                            actuator=asset,
-                            unit=FlexContextSchema()
-                            .declared_fields["production_breach_price"]
-                            ._get_unit(production_breach_price)
-                            + "*h",  # from EUR/MWh to EUR/MW/resolution
-                            query_window=(start, end),
-                            resolution=resolution,
-                            beliefs_before=belief_time,
-                            fallback_attribute="production-breach-price",
-                            fill_sides=True,
-                        )
-                    )
+                        production_breach_price * resolution / timedelta(hours=1)
+                    )  # from EUR/MWh to EUR/MW/resolution
                     # Set up commitments DataFrame
                     commitment = FlowCommitment(
                         name=f"any production breach device {d}",
@@ -798,35 +632,10 @@ class MetaStorageScheduler(Scheduler):
                     consumption_breach_price = self.flex_context[
                         "consumption_breach_price"
                     ]
-                    any_consumption_breach_price = (
-                        get_continuous_series_sensor_or_quantity(
-                            variable_quantity=consumption_breach_price,
-                            actuator=asset,
-                            unit=FlexContextSchema()
-                            .declared_fields["consumption_breach_price"]
-                            ._get_unit(consumption_breach_price),
-                            query_window=(start, end),
-                            resolution=resolution,
-                            beliefs_before=belief_time,
-                            fallback_attribute="consumption-breach-price",
-                            fill_sides=True,
-                        )
-                    )
+                    any_consumption_breach_price = consumption_breach_price
                     all_consumption_breach_price = (
-                        get_continuous_series_sensor_or_quantity(
-                            variable_quantity=consumption_breach_price,
-                            actuator=asset,
-                            unit=FlexContextSchema()
-                            .declared_fields["consumption_breach_price"]
-                            ._get_unit(consumption_breach_price)
-                            + "*h",  # from EUR/MWh to EUR/MW/resolution
-                            query_window=(start, end),
-                            resolution=resolution,
-                            beliefs_before=belief_time,
-                            fallback_attribute="consumption-breach-price",
-                            fill_sides=True,
-                        )
-                    )
+                        consumption_breach_price * resolution / timedelta(hours=1)
+                    )  # from EUR/MWh to EUR/MW/resolution
                     # Set up commitments DataFrame
                     commitment = FlowCommitment(
                         name=f"any consumption breach device {d}",
@@ -986,6 +795,26 @@ class MetaStorageScheduler(Scheduler):
                 "soc_in_mwh", self.flex_model["soc_at_start"]
             )
 
+    def _load_time_series(self, asset):
+        if not self.load_resolution:
+            self._determine_load_resolution()
+        self.flex_context = FlexContextTimeSeriesSchema(
+            asset=asset,
+            query_window=(self.start, self.end),
+            resolution=self.load_resolution,
+            belief_time=self.belief_time,
+        ).load(self.flex_context)
+
+    def _determine_load_resolution(self):
+        """Determine resolution for loading time series data."""
+        if self.asset is not None:
+            sensors = [flex_model_d["sensor"] for flex_model_d in self.flex_model]
+            self.load_resolution = determine_minimum_resampling_resolution(
+                [s.event_resolution for s in sensors]
+            )
+        else:
+            self.load_resolution = self.resolution
+
     def deserialize_flex_config(self):
         """
         Deserialize storage flex model and the flex context against schemas.
@@ -1062,6 +891,11 @@ class MetaStorageScheduler(Scheduler):
             raise TypeError(
                 f"Unsupported type of flex-model: '{type(self.flex_model)}'"
             )
+
+        # Load time series from flex-context
+        self._determine_load_resolution()
+        if self.load_time_series:
+            self._load_time_series(asset)
 
         return self.flex_model
 
