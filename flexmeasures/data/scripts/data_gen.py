@@ -87,11 +87,19 @@ def add_default_user_roles(db: SQLAlchemy):
     """
     Add a few useful user roles.
     """
+    from flexmeasures.auth import policy as auth_policy
+
     for role_name, role_description in (
-        ("admin", "Super user"),
-        ("admin-reader", "Can read everything"),
-        ("account-admin", "Can post and edit sensors and assets in their account"),
-        ("consultant", "Can read everything in consultancy client accounts"),
+        (auth_policy.ADMIN_ROLE, "Super user"),
+        (auth_policy.ADMIN_READER_ROLE, "Can read everything"),
+        (
+            auth_policy.ACCOUNT_ADMIN_ROLE,
+            "Can update and delete data in their account (e.g. assets, sensors, users, beliefs)",
+        ),
+        (
+            auth_policy.CONSULTANT_ROLE,
+            "Can read everything in consultancy client accounts",
+        ),
     ):
         role = db.session.execute(
             select(Role).filter_by(name=role_name)
