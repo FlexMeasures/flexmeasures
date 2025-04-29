@@ -297,9 +297,8 @@ def get_asset_sensors_metadata(
     sensor_groups = [
         sensor["sensors"] for sensor in validated_asset_sensors if sensor is not None
     ]
-    for group_of_sensors in sensor_groups:
-        for sensor in group_of_sensors:
-            sensors_to_show.append(sensor)
+    merged_sensor_groups = sum(sensor_groups, [])
+    sensors_to_show.extend(merged_sensor_groups)
 
     sensors_list = [
         *inflexible_device_sensors,
