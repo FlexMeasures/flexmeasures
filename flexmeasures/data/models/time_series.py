@@ -16,7 +16,7 @@ import timely_beliefs as tb
 from timely_beliefs.beliefs.probabilistic_utils import get_median_belief
 import timely_beliefs.utils as tb_utils
 
-from flexmeasures.auth.policy import AuthModelMixin
+from flexmeasures.auth.policy import AuthModelMixin, ACCOUNT_ADMIN_ROLE
 from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import keep_latest_version
 from flexmeasures.data.models.parsing_utils import parse_source_arg
@@ -113,11 +113,11 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             "read": self.generic_asset.__acl__()["read"],
             "update": (
                 f"account:{self.generic_asset.account_id}",
-                "role:account-admin",
+                f"role:{ACCOUNT_ADMIN_ROLE}",
             ),
             "delete": (
                 f"account:{self.generic_asset.account_id}",
-                "role:account-admin",
+                f"role:{ACCOUNT_ADMIN_ROLE}",
             ),
         }
 
