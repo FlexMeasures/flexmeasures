@@ -147,8 +147,9 @@ def upgrade():
             ).where(
                 sa.func.jsonb_path_exists(
                     sa.cast(generic_asset_table.c.attributes, postgresql.JSONB),
-                    f'$."flex-model".{old_name}',
-                )
+                    f'$."flex-model".{new_name}',
+                ),
+                generic_asset_table.c.attributes[old_name].isnot(None),
             )
         )
         affected_assets = asset_result.fetchall()
@@ -264,6 +265,7 @@ def downgrade():
             if flex_model_data is not None:
 
                 asset_attrs_flex_model = asset.attributes.get("flex-model", {})
+                asset_attrs = asset.attributes or {}
 
                 for old_field_name, new_field_name in flex_model_fields.items():
                     if new_field_name in flex_model_data and isinstance(
@@ -273,17 +275,22 @@ def downgrade():
                         value = flex_model_data[new_field_name]
                         if old_field_name[-6:] == "in_mwh" and is_energy_unit(value):
                             value_in_mwh = ur.Quantity(value).to("MWh").magnitude
-                            asset_attrs_flex_model[old_field_name] = value_in_mwh
+                            asset_attrs[old_field_name] = value_in_mwh
                         elif old_field_name[-6:] == "in_mw" and is_power_unit(value):
                             value_in_mw = ur.Quantity(value).to("MW").magnitude
-                            asset_attrs_flex_model[old_field_name] = value_in_mw
+                            asset_attrs[old_field_name] = value_in_mw
                         else:
-                            asset_attrs_flex_model[old_field_name] = value
+                            asset_attrs[old_field_name] = value
+                    elif new_field_name in flex_model_data and isinstance(
+                        flex_model_data[new_field_name], dict
+                    ):
+                        asset_attrs_flex_model[new_field_name] = value
 
                 # Remove the new fields from the attributes flex-model data
                 asset_attrs_flex_model.pop(new_field_name, None)
                 # update flex-model data in attributes
                 asset.attributes["flex-model"] = asset_attrs_flex_model
+                asset.attributes = asset_attrs
 
                 # Update the generic asset attributes
                 stmt = (
