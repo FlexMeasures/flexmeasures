@@ -33,14 +33,18 @@ def get_data_source(
     Meant for scripts that may run for the first time.
     """
 
-    data_source = db.session.execute(
+    data_sources = db.session.scalars(
         select(DataSource).filter_by(
             name=data_source_name,
             model=data_source_model,
             version=data_source_version,
             type=data_source_type,
         )
-    ).scalar_one_or_none()
+    ).all()
+    if data_sources:
+        data_source = data_sources[0]
+    else:
+        data_source = None
     if data_source is None:
         data_source = DataSource(
             name=data_source_name,
