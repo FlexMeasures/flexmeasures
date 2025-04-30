@@ -11,10 +11,12 @@ from flask_security import current_user
 from werkzeug.exceptions import Unauthorized, Forbidden
 
 
-PERMISSIONS = ["create-children", "read", "read-children", "update", "delete"]
+PERMISSIONS = ["create-children", "read", "update", "delete"]
 
 ADMIN_ROLE = "admin"
 ADMIN_READER_ROLE = "admin-reader"
+ACCOUNT_ADMIN_ROLE = "account-admin"
+CONSULTANT_ROLE = "consultant"
 
 # constants to allow access to certain groups
 EVERY_LOGGED_IN_USER = "every-logged-in-user"
