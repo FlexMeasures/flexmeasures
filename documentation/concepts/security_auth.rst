@@ -67,7 +67,10 @@ We look into supported user roles in more detail below.
 Roles cannot be edited via the UI at the moment. They are decided when a user or account is created in the CLI (for adding roles later, we use the database for now). Editing roles in UI and CLI is future work.
 
 
-.. note:: Custom energy flexibility services which are developed on top of FlexMeasures can also add their own kind of authorization, at least for the endpoints they define - using roles. More on this in :ref:`auth-dev`. Here is an example for a custom authorization concept: services can use account roles to achieve their custom authorization. E.g. if several services run on one FlexMeasures server, each service could define a "MyService-subscriber" account role, to make sure that only users of such accounts can use the endpoints. DEvelopers are also free to add their own user roles and check on those in their custom code.
+.. note:: Custom energy flexibility services which are developed on top of FlexMeasures can also add their own kind of authorization, at least for the endpoints they define - using roles.
+          More on this in :ref:`auth-dev`. An example for a custom authorization concept is that services can use account roles to achieve their custom authorization.
+          E.g. if several services run on one FlexMeasures server, each service could define a "MyService-subscriber" account role, to make sure that only users of such accounts can use the endpoints.
+          Developers are also free to add their own user roles and check on those in their custom code.
 
 
 Supported User Roles
@@ -86,6 +89,9 @@ These roles are natively supported and give users more rights:
 Consultancy
 ^^^^^^^^^^^
 
-A special case of authorization is consultancy - a consultant account can read data from other accounts (usually their clients ― this is handy for servicing them). For this, accounts have an attribute called ``consultancy_account_id``. Users in the consultant account with the role `consultant` can read data in their client accounts. We plan to introduce some editing/creation capabilities in the future.
+A special case of authorization is consultancy - a consultancy account can read data from other accounts (usually their clients ― this is handy for servicing them).
+For this, accounts have an attribute called ``consultancy_account_id``. Users in the consultancy account with the role `consultant` can read data in their client accounts.
+We plan to introduce some editing/creation capabilities in the future.
 
-Setting an account as the consultant account is something only admins can do. It is possible via the ``/accounts`` PATCH endpoint, but also in the UI. You can also specify a consultant account when creating a client account, which for now happens only in the CLI: ``flexmeasures add account --name "Account2" --consultancy 1`` makes account 1 the consultant for account 2.
+Setting an account as the consultancy account is something only admins can do. 
+It is possible via the ``/accounts`` PATCH endpoint, but also in the UI. You can also specify a consultant account when creating a client account, which for now happens only in the CLI: ``flexmeasures add account --name "Account2" --consultancy 1`` makes account 1 the consultant for account 2.
