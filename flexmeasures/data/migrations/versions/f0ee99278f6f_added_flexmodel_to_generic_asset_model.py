@@ -8,7 +8,7 @@ Create Date: 2025-04-15 11:00:13.154048
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
+from sqlalchemy.dialects.postgresql import JSONB
 
 from collections import defaultdict
 
@@ -146,21 +146,23 @@ def upgrade():
                 generic_asset_table.c.flex_model,
             ).where(
                 sa.func.jsonb_path_exists(
-                    sa.cast(generic_asset_table.c.attributes, postgresql.JSONB),
-                    f'$."flex-model".{new_name}',
-                ),
-                generic_asset_table.c.attributes[old_name].isnot(None),
+                    sa.cast(generic_asset_table.c.attributes, JSONB),
+                    f'$."flex-model"."{new_name}"',
+                )
+                | sa.cast(generic_asset_table.c.attributes, JSONB).has_key(old_name)
             )
         )
+
         affected_assets = asset_result.fetchall()
 
         for asset in affected_assets:
             asset_id = asset.id
             asset_attr = asset.attributes or {}
-            flex_model_data = asset_attr.get("flex-model", {})
+            asset_attr_flex_model = asset_attr.get("flex-model", {})
+            flex_model_data = {**asset_attr_flex_model, **asset_attr}
 
-            # check if value is a int or float
-            if not isinstance(flex_model_data[old_name], (int, float)):
+            # check if value is a int, bool, float or dict
+            if not isinstance(flex_model_data[old_name], (int, float, dict, bool)):
                 raise Exception(
                     f"Invalid value for '{old_name}' in generic asset {asset_id}: {flex_model_data[old_name]}"
                 )
@@ -179,8 +181,10 @@ def upgrade():
                 flex_model_data[new_name] = value
 
             # Update the generic asset attributes to remove 'old_name' and add 'new_name' to flex_model
-            flex_model_data.pop(old_name, None)
-            asset_attr["flex-model"].update(flex_model_data)
+            asset_attr_flex_model.pop(new_name, None)
+            asset_attr.pop(old_name)
+            flex_model_data.pop(old_name)
+            flex_model_data.pop("flex-model", None)
             stmt = (
                 generic_asset_table.update()
                 .where(generic_asset_table.c.id == asset_id)
@@ -289,14 +293,13 @@ def downgrade():
                 # Remove the new fields from the attributes flex-model data
                 asset_attrs_flex_model.pop(new_field_name, None)
                 # update flex-model data in attributes
-                asset.attributes["flex-model"] = asset_attrs_flex_model
-                asset.attributes = asset_attrs
+                asset_attrs["flex-model"] = asset_attrs_flex_model
 
                 # Update the generic asset attributes
                 stmt = (
                     generic_asset_table.update()
                     .where(generic_asset_table.c.id == asset_id)
-                    .values(attributes=asset.attributes)
+                    .values(attributes=asset_attrs)
                 )
                 conn.execute(stmt)
 
