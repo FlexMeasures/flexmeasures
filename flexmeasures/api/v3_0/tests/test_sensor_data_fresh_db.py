@@ -141,7 +141,7 @@ def test_post_sensor_instantaneous_data_round(
         pd.Timestamp(post_data["start"]) + pd.Timedelta(milliseconds=10)
     ).isoformat()
     sensor = setup_api_fresh_test_data["empty temperature sensor"]
-    sensor.attributes["round-event-start"] = "15min"
+    sensor.attributes["frequency"] = "15min"
 
     rows = len(sensor.search_beliefs())
     assert rows == 0
