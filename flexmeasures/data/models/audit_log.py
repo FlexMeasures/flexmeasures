@@ -3,7 +3,7 @@ from __future__ import annotations
 from flask_security import current_user
 from sqlalchemy import DateTime, Column, Integer, String, ForeignKey
 
-from flexmeasures.auth.policy import AuthModelMixin
+from flexmeasures.auth.policy import AuthModelMixin, CONSULTANT_ROLE, ACCOUNT_ADMIN_ROLE
 from flexmeasures.data import db
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
@@ -67,8 +67,11 @@ class AuditLog(db.Model, AuthModelMixin):
                 return {
                     "read": [
                         f"user:{self.user_id}",
-                        (f"account:{self.account_id}", "role:account-admin"),
-                        (f"account:{self.consultancy_account_id}", "role:consultant"),
+                        (f"account:{self.account_id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
+                        (
+                            f"account:{self.consultancy_account_id}",
+                            f"role:{CONSULTANT_ROLE}",
+                        ),
                     ],
                 }
 
@@ -95,8 +98,11 @@ class AuditLog(db.Model, AuthModelMixin):
                     return {}
                 return {
                     "read": [
-                        (f"account:{self.account_id}", "role:account-admin"),
-                        (f"account:{self.consultancy_account_id}", "role:consultant"),
+                        (f"account:{self.account_id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
+                        (
+                            f"account:{self.consultancy_account_id}",
+                            f"role:{CONSULTANT_ROLE}",
+                        ),
                     ],
                 }
 

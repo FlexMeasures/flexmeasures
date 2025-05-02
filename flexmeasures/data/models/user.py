@@ -18,7 +18,7 @@ from flexmeasures.data.models.annotations import (
     to_annotation_frame,
 )
 from flexmeasures.data.models.parsing_utils import parse_source_arg
-from flexmeasures.auth.policy import AuthModelMixin
+from flexmeasures.auth.policy import AuthModelMixin, CONSULTANT_ROLE, ACCOUNT_ADMIN_ROLE
 
 if TYPE_CHECKING:
     from flexmeasures.data.models.data_sources import DataSource
@@ -97,10 +97,10 @@ class Account(db.Model, AuthModelMixin):
         read_access = [f"account:{self.id}"]
         if self.consultancy_account_id is not None:
             read_access.append(
-                (f"account:{self.consultancy_account_id}", "role:consultant")
+                (f"account:{self.consultancy_account_id}", f"role:{CONSULTANT_ROLE}")
             )
         return {
-            "create-children": (f"account:{self.id}", "role:account-admin"),
+            "create-children": (f"account:{self.id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
             "read": read_access,
             "update": f"account:{self.id}",
         }
@@ -264,7 +264,7 @@ class User(db.Model, UserMixin, AuthModelMixin):
             "read": f"account:{self.account_id}",
             "update": [
                 f"user:{self.id}",
-                (f"account:{self.account_id}", "role:account-admin"),
+                (f"account:{self.account_id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
             ],
         }
 
