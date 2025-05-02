@@ -14,6 +14,7 @@ from humanize import naturaldelta
 
 from werkzeug.exceptions import Forbidden
 
+from flexmeasures.auth import policy as auth_policy
 from flexmeasures.auth.policy import ADMIN_ROLE, ADMIN_READER_ROLE
 from flexmeasures.utils.flexmeasures_inflection import (
     capitalize,
@@ -178,3 +179,10 @@ def add_jinja_variables(app):
         )
         else False
     )
+    for role_name in (
+        "ADMIN_ROLE",
+        "ADMIN_READER_ROLE",
+        "ACCOUNT_ADMIN_ROLE",
+        "CONSULTANT_ROLE",
+    ):
+        app.jinja_env.globals[role_name] = auth_policy.__dict__[role_name]
