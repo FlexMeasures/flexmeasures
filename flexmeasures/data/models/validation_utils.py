@@ -71,11 +71,11 @@ def check_required_attributes(
 
 
 def can_modify_role(current_user: "User", roles_to_modify: list["Role"]):  # noqa: F821
-    """Check if the current user can modify the role.
+    """Check if the current user can modify the roles.
 
     :param current_user: The current user.
-    :param role_to_modify: The role to modify.
-    :return: True if the user can modify the role, False otherwise.
+    :param roles_to_modify: A list of roles to modify.
+    :return: True if the user can modify the roles, False otherwise.
 
     The roles are:
     - admin: can only be changed in CLI / directly in the DB
