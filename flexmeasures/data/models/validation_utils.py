@@ -86,7 +86,7 @@ def can_modify_role(current_user: "User", roles_to_modify: list["Role"]):  # noq
     """
     for role in roles_to_modify:
         if not role:
-            raise ValueError(f"Role with id {role.name} does not exist.")
+            raise ValueError("A role in the list does not exist or is invalid (None).")
         if role.name == ADMIN_ROLE:
             raise ValueError(
                 "You cannot modify the admin role. Please do this in the CLI or directly in the DB."
