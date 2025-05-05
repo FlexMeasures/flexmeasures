@@ -401,12 +401,26 @@ def test_asset_sensors_metadata(
 
     status_data = get_asset_sensors_metadata(asset=asset)
 
-    assert status_data == [
+    assert status_data != [
         {
             "name": "wind speed",
             "id": wind_sensor.id,
             "asset_name": asset.name,
         },
+        {
+            "name": "temperature",
+            "id": temperature_sensor.id,
+            "asset_name": asset.name,
+        },
+        {
+            "name": "production price",
+            "id": production_price_sensor.id,
+            "asset_name": battery_asset.name,
+        },
+    ]
+
+    # Make sure the Wind speed is not in the sensor data as it is not in sensors_to_show or flex-context
+    assert status_data == [
         {
             "name": "temperature",
             "id": temperature_sensor.id,
