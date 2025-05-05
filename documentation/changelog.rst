@@ -19,6 +19,7 @@ New features
 * Marker clusters on the dashboard map expand in a tree to show the hierarchical relationship of the assets they represent [see `PR #1410 <https://github.com/FlexMeasures/flexmeasures/pull/1410>`_]
 * Load the sensors individually on the Sensors status page. Reload the jobs table using Ajax calls. Improve page performance and avoid timeouts. [see `PR #1425 <https://github.com/FlexMeasures/flexmeasures/pull/1425>`_]
 * New pages for `Properties`, `Graphs`, `Context`, `Status` and `Audit Log`. Simplified the main asset page. [see `PR #1416 <https://github.com/FlexMeasures/flexmeasures/pull/1416>`_, `PR #1387 <https://github.com/FlexMeasures/flexmeasures/pull/1387>`_ and `PR #1442 <https://github.com/FlexMeasures/flexmeasures/pull/1442>`_]
+* Added `spinner` to the sensors table in the sensors page when reloading a particular row. [see `PR #1466 <https://github.com/FlexMeasures/flexmeasures/pull/1466>`_]
 
 Infrastructure / Support
 ----------------------
