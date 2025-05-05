@@ -14,6 +14,7 @@ from flexmeasures.auth.policy import check_access
 
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import User as UserModel, Account
+from flexmeasures.data.models.validation_utils import can_modify_role
 from flexmeasures.api.common.schemas.users import AccountIdField, UserIdField
 from flexmeasures.api.common.schemas.search import SearchFilterField
 from flexmeasures.api.v3_0.assets import get_accessible_accounts
@@ -295,6 +296,26 @@ class UserAPI(FlaskView):
                 raise Forbidden(
                     "Users who edit themselves cannot edit security-sensitive fields."
                 )
+            # if flexmeasures_roles is not empty, check if the user can modify the role
+            if k == "flexmeasures_roles" and v:
+                try:
+                    can_modify = can_modify_role(current_user, user.roles)
+                    if can_modify is False:
+                        return (
+                            dict(
+                                message="You are not allowed to modify the roles of this user."
+                            ),
+                            403,
+                        )
+                except ValueError as e:
+                    return (
+                        dict(
+                            message="You are not allowed to modify the roles of this user.",
+                            detail=str(e),
+                        ),
+                        403,
+                    )
+
             setattr(user, k, v)
             if k == "active" and v is False:
                 remove_cookie_and_token_access(user)

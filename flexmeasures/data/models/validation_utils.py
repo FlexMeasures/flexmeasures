@@ -2,6 +2,15 @@ from __future__ import annotations
 
 from typing import Type
 
+from flexmeasures.auth.policy import (
+    ADMIN_ROLE,
+    ACCOUNT_ADMIN_ROLE,
+    CONSULTANT_ROLE,
+    ADMIN_READER_ROLE,
+)
+
+# from flexmeasures.data.models.user import User, Role
+
 
 class MissingAttributeException(Exception):
     pass
@@ -59,3 +68,38 @@ def check_required_attributes(
         raise WrongTypeAttributeException(
             f"Sensor attributes are not of the required type:\n {error_message}"
         )
+
+
+def can_modify_role(current_user: "User", roles_to_modify: list["Role"]):  # noqa: F821
+    """Check if the current user can modify the role.
+
+    :param current_user: The current user.
+    :param role_to_modify: The role to modify.
+    :return: True if the user can modify the role, False otherwise.
+
+    The roles are:
+    - admin: can only be changed in CLI / directly in the DB
+    - admin-reader: can be added and removed by admins
+    - account-admin: can be added and removed by admins and consultants
+    - consultant: can be added and removed by admins and account-admins
+
+    """
+    for role in roles_to_modify:
+        if not role:
+            raise ValueError(f"Role with id {role.name} does not exist.")
+        if role.name == ADMIN_ROLE:
+            raise ValueError(
+                "You cannot modify the admin role. Please do this in the CLI or directly in the DB."
+            )
+        if role.name == ADMIN_READER_ROLE and current_user.has_role(ADMIN_ROLE):
+            return True
+        if role.name == ACCOUNT_ADMIN_ROLE and (
+            current_user.has_role(ADMIN_ROLE) or current_user.has_role(CONSULTANT_ROLE)
+        ):
+            return True
+        if role.name == CONSULTANT_ROLE and (
+            current_user.has_role(ADMIN_ROLE)
+            or current_user.has_role(ACCOUNT_ADMIN_ROLE)
+        ):
+            return True
+    return False

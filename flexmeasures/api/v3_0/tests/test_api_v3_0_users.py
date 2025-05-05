@@ -282,3 +282,35 @@ def test_logout(client, setup_api_test_data, requesting_user):
     assert logout_response.status_code == 302
 
     assert current_user.is_anonymous
+
+
+# @pytest.mark.parametrize("requesting_user, status_code", [
+#     ["test_admin_user@seita.nl", 403]
+#     ], indirect=["requesting_user"])
+# def test_user_role_modification_permission(
+#     client, setup_api_test_data, requesting_user, status_code
+# ):
+
+#     patch_user_response = client.patch(
+#         url_for("UserAPI:patch", id=1),
+#         json={
+#             "roles": [
+#                 "admin",
+#                 "account-admin",
+#                 "consultant",
+#                 "admin-reader",
+#             ]
+#         },
+#     )
+#     print("Server responded with:\n%s" % patch_user_response.data)
+#     assert patch_user_response.status_code == status_code
+#     if status_code == 403:
+#         assert patch_user_response.json["message"] == "You are not allowed to modify this user."
+#     else:
+#         assert patch_user_response.status_code == 200
+#         assert patch_user_response.json["roles"] == [
+#             "admin",
+#             "account-admin",
+#             "consultant",
+#             "admin-reader",
+#         ]
