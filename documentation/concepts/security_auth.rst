@@ -94,4 +94,4 @@ For this, accounts have an attribute called ``consultancy_account_id``. Users in
 We plan to introduce some editing/creation capabilities in the future.
 
 Setting an account as the consultancy account is something only admins can do. 
-It is possible via the ``/accounts`` PATCH endpoint, but also in the UI. You can also specify a consultant account when creating a client account, which for now happens only in the CLI: ``flexmeasures add account --name "Account2" --consultancy 1`` makes account 1 the consultant for account 2.
+It is possible via the ``/accounts`` PATCH endpoint, but also in the UI. You can also specify a consultancy account when creating a client account, which for now happens only in the CLI: ``flexmeasures add account --name "Account2" --consultancy 1`` makes account 1 the consultancy account for account 2.
