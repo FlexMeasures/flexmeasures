@@ -22,7 +22,11 @@ from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.data.models.user import User
 from flexmeasures.data.queries.annotations import query_asset_annotations
 from flexmeasures.data.services.timerange import get_timerange
-from flexmeasures.auth.policy import AuthModelMixin, EVERY_LOGGED_IN_USER
+from flexmeasures.auth.policy import (
+    AuthModelMixin,
+    EVERY_LOGGED_IN_USER,
+    ACCOUNT_ADMIN_ROLE,
+)
 from flexmeasures.utils import geo_utils
 from flexmeasures.utils.coding_utils import flatten_unique
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
@@ -114,7 +118,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                 else EVERY_LOGGED_IN_USER
             ),
             "update": f"account:{self.account_id}",
-            "delete": (f"account:{self.account_id}", "role:account-admin"),
+            "delete": (f"account:{self.account_id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
         }
 
     def __repr__(self):
