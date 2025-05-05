@@ -293,7 +293,9 @@ def get_asset_sensors_metadata(
 
     # Get sensors to show using the validate_sensors_to_show method
     sensors_to_show = []
-    validated_asset_sensors = asset.validate_sensors_to_show()
+    validated_asset_sensors = asset.validate_sensors_to_show(
+        suggest_default_sensors=True
+    )
     sensor_groups = [
         sensor["sensors"] for sensor in validated_asset_sensors if sensor is not None
     ]
@@ -301,9 +303,9 @@ def get_asset_sensors_metadata(
     sensors_to_show.extend(merged_sensor_groups)
 
     sensors_list = [
-        *inflexible_device_sensors,
-        *context_sensors.values(),
         *sensors_to_show,
+        *context_sensors.values(),
+        *inflexible_device_sensors,
     ]
 
     for sensor in sensors_list:
