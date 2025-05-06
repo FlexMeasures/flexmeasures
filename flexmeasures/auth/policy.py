@@ -10,8 +10,6 @@ from flask import current_app
 from flask_security import current_user
 from werkzeug.exceptions import Unauthorized, Forbidden
 
-from flexmeasures.data.models.user import User, Role
-
 
 PERMISSIONS = ["create-children", "read", "update", "delete"]
 
@@ -201,7 +199,7 @@ def check_account_role(user, principal: str) -> bool:
     return False
 
 
-def can_modify_role(user: User, roles_to_modify: list[Role]):
+def can_modify_role(user, roles_to_modify) -> bool:
     """For a set of supported roles, check if the current user can modify the roles.
 
     :param user: The current user.
@@ -239,9 +237,4 @@ def can_modify_role(user: User, roles_to_modify: list[Role]):
             statuses.append(False)
             continue
 
-    if statuses and len(statuses) > 0:
-        for status in statuses:
-            if not status:
-                return False
-
-    return True
+    return all(statuses)
