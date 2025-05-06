@@ -130,6 +130,7 @@ class GenericAsset(db.Model, AuthModelMixin):
 
     def validate_sensors_to_show(
         self,
+        suggest_default_sensors: bool = True,
     ) -> list[dict[str, str | None | "Sensor" | list["Sensor"]]]:  # noqa: F821
         """
         Validate and transform the 'sensors_to_show' attribute into the latest format for use in graph-making code.
@@ -159,6 +160,10 @@ class GenericAsset(db.Model, AuthModelMixin):
                 [43, 44], 45, 46
             ]
 
+        Parameters:
+        - suggest_default_sensors: If True, the function will suggest default sensors if 'sensors_to_show' is not set.
+        - If False, the function will return an empty list if 'sensors_to_show' is not set.
+
         Returned structure:
         - The function returns a list of dictionaries, with each dictionary containing either a 'sensor' (for individual sensors) or 'sensors' (for groups of sensors), and an optional 'title'.
         - Example output:
@@ -171,11 +176,13 @@ class GenericAsset(db.Model, AuthModelMixin):
             ]
 
         If the 'sensors_to_show' attribute is missing, the function defaults to showing two of the asset's sensors, grouped together if they share the same unit, or separately if not.
+        If the suggest_default_sensors flag is set to False, the function will not suggest default sensors and will return an empty list if 'sensors_to_show' is not set.
 
+        Note:
         Unauthorized sensors are filtered out, and a warning is logged. Only sensors the user has permission to access are included in the final result.
         """
         # If not set, use defaults (show first 2 sensors)
-        if not self.sensors_to_show:
+        if not self.sensors_to_show and suggest_default_sensors:
             sensors_to_show = self.sensors[:2]
             if (
                 len(sensors_to_show) == 2
