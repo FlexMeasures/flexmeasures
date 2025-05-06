@@ -45,7 +45,7 @@ def register_at(app: Flask):
     """This can be used to register this blueprint together with other ui-related things"""
 
     from flexmeasures.ui.views.assets import AssetCrudUI
-    from flexmeasures.ui.views.users.users import UserCrudUI
+    from flexmeasures.ui.views.users.views import UserCrudUI
     from flexmeasures.ui.views.accounts import AccountCrudUI
     from flexmeasures.ui.views.sensors import SensorUI
     from flexmeasures.ui.utils.color_defaults import get_color_settings
