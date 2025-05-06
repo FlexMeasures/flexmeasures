@@ -10,6 +10,8 @@ from flask import current_app
 from flask_security import current_user
 from werkzeug.exceptions import Unauthorized, Forbidden
 
+from flexmeasures.data.models.user import User, Role
+
 
 PERMISSIONS = ["create-children", "read", "update", "delete"]
 
@@ -197,3 +199,49 @@ def check_account_role(user, principal: str) -> bool:
         if user.account.has_role(account_role):
             return True
     return False
+
+
+def can_modify_role(user: User, roles_to_modify: list[Role]):
+    """For a set of supported roles, check if the current user can modify the roles.
+
+    :param user: The current user.
+    :param roles_to_modify: A list of roles to modify.
+    :return: True if the user can modify the roles, False otherwise.
+
+    The roles are:
+    - admin: can only be changed in CLI / directly in the DB
+    - admin-reader: can be added and removed by admins
+    - account-admin: can be added and removed by admins and consultants
+    - consultant: can be added and removed by admins and account-admins
+
+    """
+
+    statuses = []
+
+    for role in roles_to_modify:
+        if not role:
+            statuses.append(False)
+            continue
+        if role.name == ADMIN_ROLE:
+            statuses.append(False)
+            continue
+        if role.name == ADMIN_READER_ROLE and not user.has_role(ADMIN_ROLE):
+            statuses.append(False)
+            continue
+        if role.name == ACCOUNT_ADMIN_ROLE and not (
+            user.has_role(ADMIN_ROLE) or user.has_role(CONSULTANT_ROLE)
+        ):
+            statuses.append(False)
+            continue
+        if role.name == CONSULTANT_ROLE and not (
+            user.has_role(ADMIN_ROLE) or user.has_role(ACCOUNT_ADMIN_ROLE)
+        ):
+            statuses.append(False)
+            continue
+
+    if statuses and len(statuses) > 0:
+        for status in statuses:
+            if not status:
+                return False
+
+    return True
