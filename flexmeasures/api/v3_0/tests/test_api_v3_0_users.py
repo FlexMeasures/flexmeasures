@@ -51,7 +51,7 @@ def test_get_users_bad_auth(requesting_user, client, setup_api_test_data):
     ],
     indirect=["requesting_user"],
 )
-def test_get_users_inatest_get_users_inactivective(
+def test_get_users_inactive(
     requesting_user,
     client,
     setup_api_test_data,
