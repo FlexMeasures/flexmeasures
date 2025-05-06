@@ -1,4 +1,5 @@
 from __future__ import annotations
+from csv import Error
 from flask_classful import FlaskView, route
 from marshmallow import fields
 import marshmallow.validate as validate
@@ -14,7 +15,7 @@ from flexmeasures.auth.policy import check_access
 
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import User as UserModel, Account
-from flexmeasures.data.models.validation_utils import can_modify_role
+from flexmeasures.auth.policy import can_modify_role
 from flexmeasures.api.common.schemas.users import AccountIdField, UserIdField
 from flexmeasures.api.common.schemas.search import SearchFilterField
 from flexmeasures.api.v3_0.assets import get_accessible_accounts
@@ -301,13 +302,10 @@ class UserAPI(FlaskView):
                 try:
                     can_modify = can_modify_role(current_user, user.roles)
                     if can_modify is False:
-                        return (
-                            dict(
-                                message="You are not allowed to modify the roles of this user."
-                            ),
-                            403,
+                        raise Forbidden(
+                            "You are not allowed to modify the roles of this user."
                         )
-                except ValueError as e:
+                except Error as e:
                     return (
                         dict(
                             message="You are not allowed to modify the roles of this user.",
