@@ -15,7 +15,7 @@ from flexmeasures import Sensor
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.utils.chart_defaults import chart_options
 from flexmeasures.ui.utils.breadcrumb_utils import get_breadcrumb_info
-from flexmeasures.ui.crud.assets.utils import (
+from flexmeasures.ui.views.assets.utils import (
     user_can_delete,
     user_can_update,
 )
