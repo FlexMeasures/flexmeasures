@@ -284,28 +284,34 @@ def test_logout(client, setup_api_test_data, requesting_user):
     assert current_user.is_anonymous
 
 
-# @pytest.mark.parametrize("requesting_user, status_code", [
-#     ["test_admin_user@seita.nl", 403]
-#     ], indirect=["requesting_user"])
-# def test_user_role_modification_permission(
-#     client, setup_api_test_data, requesting_user, status_code
-# ):
+@pytest.mark.parametrize(
+    "requesting_user, expected_status_code",
+    [
+        ("test_prosumer_user_2@seita.nl", 403),  # account-admin user
+        ("test_admin_reader_user@seita.nl", 403),  # admin reader user
+        ("test_consultant@seita.nl", 403),  # consultant user
+        ("test_admin_user@seita.nl", 200),  # admin user
+    ],
+    indirect=["requesting_user"],
+)
+def test_auth_user_role_modification_permission(
+    client,
+    setup_api_test_data,
+    requesting_user,
+    expected_status_code,
+):
+    patch_user_response = client.patch(
+        # modifying an admin reader role
+        url_for("UserAPI:patch", id=8),
+        json={"flexmeasures_roles": [3]},
+    )
 
-#     patch_user_response = client.patch(
-#         url_for("UserAPI:patch", id=1),
-#         json={
-#             "roles": [
-#                 "admin",
-#                 "account-admin",
-#                 "consultant",
-#                 "admin-reader",
-#             ]
-#         },
-#     )
-#     print("Server responded with:\n%s" % patch_user_response.data)
-#     assert patch_user_response.status_code == status_code
-#     if status_code == 403:
-#         assert patch_user_response.json["message"] == "You are not allowed to modify this user."
+    print("Server responded with:\n%s" % patch_user_response.data)
+    assert patch_user_response.status_code == expected_status_code
+    # if status_code == 403:
+    #     assert patch_user_response.json["message"] == "You are not allowed to modify this user."
+
+
 #     else:
 #         assert patch_user_response.status_code == 200
 #         assert patch_user_response.json["roles"] == [
