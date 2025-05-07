@@ -223,6 +223,10 @@
                     {% endfor %}
                 </ul>
             </li>
+            <div class="form-check form-switch" style="margin-left: 10px;">
+                <input class="form-check-input" type="checkbox" {% if breadcrumb_info["views"][0]["name"] == session.get("default_asset_view") %} checked {% endif %} id="defaultAssetView" onchange="setDefaultAssetView(this, '{{ breadcrumb_info['views'][0]['name'] }}')">
+                <label class="form-check-label" for="defaultAssetView">Set as my default asset view</label>
+            </div>
             {% endif %}
         </ol>
     </nav>
@@ -785,6 +789,30 @@
                 $("[rel=tooltip]").tooltip();
             }
         });
+    </script>
+
+    <script>
+        // Set default asset view
+        function setDefaultAssetView(checkbox, view_name) {
+            // Get the checked status of the checkbox
+            const isChecked = checkbox.checked;
+
+            const apiBasePath = window.location.origin;
+            fetch(apiBasePath + '/api/v3_0/assets/default_asset_view?default_asset_view=' + view_name + '&set_default=' + (isChecked ? 'true' : 'false'), {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}',
+                },
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('API Response:', data);
+            })
+            .catch(error => {
+                console.error('Error during API call:', error);
+            });
+        }
     </script>
 
     <!-- JS to enable toast -->
