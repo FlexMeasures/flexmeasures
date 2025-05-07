@@ -35,6 +35,7 @@ Bugfixes
 * The data dashboard now supports overlapping sensors with instantaneous and non-instantaneous resolutions [see `PR #1407 <https://github.com/FlexMeasures/flexmeasures/pull/1407>`_]
 * Fix map not loading when editing an asset [see `PR #1414 <https://github.com/FlexMeasures/flexmeasures/pull/1414>`_]
 * Fix ``flexmeasures add schedule for-storage`` after flex-context database migration [see `PR #1417 <https://github.com/FlexMeasures/flexmeasures/pull/1417>`_ and `PR #1449 <https://github.com/FlexMeasures/flexmeasures/pull/1449>`_]
+* Fix overriding of flex-context when asset is edited on the UI [see `PR #1469 <https://github.com/FlexMeasures/flexmeasures/pull/1469>`_]
 
 v0.25.0 | April 01, 2025
 ============================
