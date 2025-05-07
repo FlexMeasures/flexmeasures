@@ -32,14 +32,6 @@ class AssetForm(FlaskForm):
         render_kw={"placeholder": "--Click the map or enter a longitude--"},
     )
     attributes = StringField("Other attributes (JSON)", default="{}")
-    flex_context = StringField(
-        "Flex context",
-        default="{}",
-        description=(
-            "This field accepts a JSON string to define the flex-context."
-            " These are defaults that, if needed, users can temporarily override when calling for a schedule via the API, by setting different flex-context fields in the API request."
-        ),
-    )
 
     def validate_on_submit(self):
         if (
