@@ -89,7 +89,7 @@ class TimedEventSchema(Schema):
         setattr(self.fields["value"], "return_magnitude", return_magnitude)
 
     @validates("value")
-    def validate_value(self, _value):
+    def validate_value(self, _value, **kwargs):
         if self.value_validator is not None:
             self.value_validator(_value)
 
@@ -173,7 +173,7 @@ class SensorSchemaMixin(Schema):
     attributes = JSON(required=False)
 
     @validates("unit")
-    def validate_unit(self, unit: str):
+    def validate_unit(self, unit: str, **kwargs):
         if not is_valid_unit(unit):
             raise ValidationError(f"Unit '{unit}' cannot be handled.")
 
@@ -186,7 +186,7 @@ class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
     generic_asset_id = fields.Integer(required=True)
 
     @validates("generic_asset_id")
-    def validate_generic_asset(self, generic_asset_id: int):
+    def validate_generic_asset(self, generic_asset_id: int, **kwargs):
         generic_asset = db.session.get(GenericAsset, generic_asset_id)
         if not generic_asset:
             raise ValidationError(
