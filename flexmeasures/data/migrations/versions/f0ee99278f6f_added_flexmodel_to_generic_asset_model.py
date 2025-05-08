@@ -20,6 +20,7 @@ down_revision = "cb8df44ebda5"
 branch_labels = None
 depends_on = None
 
+# all flex-model fields that, before upgrading, were supported as a sensor or asset attribute
 FLEX_MODEL_FIELDS = dict(
     min_soc_in_mwh="soc-min",
 )
