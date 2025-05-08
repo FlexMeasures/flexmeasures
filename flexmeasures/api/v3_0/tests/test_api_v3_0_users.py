@@ -285,12 +285,13 @@ def test_logout(client, setup_api_test_data, requesting_user):
 
 
 @pytest.mark.parametrize(
-    "requesting_user, expected_status_code",
+    "requesting_user, expected_status_code, user_to_update, expected_role",
     [
-        ("test_prosumer_user_2@seita.nl", 403),  # account-admin user
-        ("test_admin_reader_user@seita.nl", 403),  # admin reader user
-        ("test_consultant@seita.nl", 403),  # consultant user
-        ("test_admin_user@seita.nl", 200),  # admin user
+        ("test_prosumer_user_2@seita.nl", 403, 8, 3),  # account-admin user
+        ("test_admin_reader_user@seita.nl", 403, 8, 3),  # admin reader user
+        ("test_consultant@seita.nl", 403, 8, 3),  # consultant user
+        ("test_admin_user@seita.nl", 200, 8, 3),  # admin user
+        ("test_dummy_account_admin@seita.nl", 200, 9, 3),  # account-admin user
     ],
     indirect=["requesting_user"],
 )
@@ -299,24 +300,15 @@ def test_auth_user_role_modification_permission(
     setup_api_test_data,
     requesting_user,
     expected_status_code,
+    user_to_update,
+    expected_role,
 ):
     patch_user_response = client.patch(
-        # modifying an admin reader role
-        url_for("UserAPI:patch", id=8),
-        json={"flexmeasures_roles": [3]},
+        url_for("UserAPI:patch", id=user_to_update),
+        json={"flexmeasures_roles": [expected_role]},
     )
 
     print("Server responded with:\n%s" % patch_user_response.data)
     assert patch_user_response.status_code == expected_status_code
-    # if status_code == 403:
-    #     assert patch_user_response.json["message"] == "You are not allowed to modify this user."
-
-
-#     else:
-#         assert patch_user_response.status_code == 200
-#         assert patch_user_response.json["roles"] == [
-#             "admin",
-#             "account-admin",
-#             "consultant",
-#             "admin-reader",
-#         ]
+    if patch_user_response.status_code == 200:
+        assert patch_user_response.json["flexmeasures_roles"] == [expected_role]
