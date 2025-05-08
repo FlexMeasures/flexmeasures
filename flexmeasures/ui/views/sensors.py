@@ -82,7 +82,7 @@ class SensorUI(FlaskView):
         """
         sensor = db.session.get(Sensor, id)
         return render_flexmeasures_template(
-            "views/sensors.html",
+            "sensors/index.html",
             sensor=sensor,
             user_can_update_sensor=user_can_update(sensor),
             user_can_delete_sensor=user_can_delete(sensor),
