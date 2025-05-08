@@ -189,7 +189,7 @@ def upgrade():
 
             # Update the generic asset attributes to remove 'old_name' and add 'new_name' to flex_model
             asset_attr_flex_model.pop(new_name, None)
-            asset_attr.pop(old_name)
+            asset_attr.pop(old_name, None)
             flex_model_data.pop(old_name)
             flex_model_data.pop("flex-model", None)
             stmt = (
