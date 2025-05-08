@@ -198,46 +198,46 @@ def upgrade():
 
         # Process the grouped sensors
         for sensor_generic_asset, sensors_with_key in field_spec["grouped"].items():
-            sensor = sensors_with_key[0]
-            field_value = None
+            for sensor in sensors_with_key:
+                field_value = None
 
-            if sensor.attributes.get(old_name) is not None:
-                field_value = sensor.attributes.get(old_name)
-            elif sensor_generic_asset.attributes.get(old_name) is not None:
-                field_value = sensor_generic_asset.attributes.get(old_name)
+                if sensor.attributes.get(old_name) is not None:
+                    field_value = sensor.attributes.get(old_name)
+                elif sensor_generic_asset.attributes.get(old_name) is not None:
+                    field_value = sensor_generic_asset.attributes.get(old_name)
 
-            if field_value is not None:
-                # check if value is a int or float
-                if not isinstance(field_value, (int, float)):
-                    raise Exception(
-                        f"Invalid value for '{old_name}' in sensor {sensor.id}: {sensor.attributes[old_name]}"
+                if field_value is not None:
+                    # check if value is a int or float
+                    if not isinstance(field_value, (int, float)):
+                        raise Exception(
+                            f"Invalid value for '{old_name}' in sensor {sensor.id}: {sensor.attributes[old_name]}"
+                        )
+
+                    soc_min_value_kwh = field_value * 1000
+                    soc_min_in_kwh = f"{soc_min_value_kwh} kWh"
+                    flex_model_data = {new_name: soc_min_in_kwh}
+
+                    # Update the generic asset attributes to remove 'old_name' and add 'new_name' to flex_model
+                    sensor_generic_asset.attributes.pop(old_name, None)
+                    stmt = (
+                        generic_asset_table.update()
+                        .where(generic_asset_table.c.id == asset_id)
+                        .values(
+                            flex_model=flex_model_data,
+                            attributes=sensor_generic_asset.attributes,
+                        )
                     )
 
-                soc_min_value_kwh = field_value * 1000
-                soc_min_in_kwh = f"{soc_min_value_kwh} kWh"
-                flex_model_data = {new_name: soc_min_in_kwh}
+                    conn.execute(stmt)
 
-                # Update the generic asset attributes to remove 'old_name' and add 'new_name' to flex_model
-                sensor_generic_asset.attributes.pop(old_name, None)
-                stmt = (
-                    generic_asset_table.update()
-                    .where(generic_asset_table.c.id == asset_id)
-                    .values(
-                        flex_model=flex_model_data,
-                        attributes=sensor_generic_asset.attributes,
+                    # Update the sensor attributes to remove 'old_name' and add 'new_name'
+                    sensor.attributes.pop(old_name, None)
+                    stmt = (
+                        sensor_table.update()
+                        .where(sensor_table.c.id == sensor.id)
+                        .values(attributes=sensor.attributes)
                     )
-                )
-
-                conn.execute(stmt)
-
-                # Update the sensor attributes to remove 'old_name' and add 'new_name'
-                sensor.attributes.pop(old_name, None)
-                stmt = (
-                    sensor_table.update()
-                    .where(sensor_table.c.id == sensor.id)
-                    .values(attributes=sensor.attributes)
-                )
-                conn.execute(stmt)
+                    conn.execute(stmt)
 
 
 def downgrade():
