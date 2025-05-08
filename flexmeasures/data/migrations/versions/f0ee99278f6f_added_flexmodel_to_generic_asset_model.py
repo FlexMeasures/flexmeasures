@@ -20,7 +20,7 @@ down_revision = "cb8df44ebda5"
 branch_labels = None
 depends_on = None
 
-flex_model_fields = dict(
+FLEX_MODEL_FIELDS = dict(
     min_soc_in_mwh="soc-min",
 )
 
@@ -32,7 +32,7 @@ def group_sensors_by_field(sensors, conn, generic_asset_table):
     field_specs = []
 
     # construct the field specifications
-    for old_field_name, new_field_name in flex_model_fields.items():
+    for old_field_name, new_field_name in FLEX_MODEL_FIELDS.items():
         field_spec = dict(
             new_field_name=new_field_name,
             old_field_name=old_field_name,
@@ -278,7 +278,7 @@ def downgrade():
                 asset_attrs_flex_model = asset.attributes.get("flex-model", {})
                 asset_attrs = asset.attributes or {}
 
-                for old_field_name, new_field_name in flex_model_fields.items():
+                for old_field_name, new_field_name in FLEX_MODEL_FIELDS.items():
                     if new_field_name in flex_model_data and isinstance(
                         flex_model_data[new_field_name], str
                     ):
