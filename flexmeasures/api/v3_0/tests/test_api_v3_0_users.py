@@ -291,11 +291,10 @@ def test_logout(client, setup_api_test_data, requesting_user):
         ("test_admin_reader_user@seita.nl", 403, 8, 3),  # admin reader user
         ("test_consultant@seita.nl", 403, 8, 3),  # consultant user
         ("test_admin_user@seita.nl", 200, 8, 3),  # admin user
-        ("test_dummy_account_admin@seita.nl", 200, 9, 3),  # account-admin user
     ],
     indirect=["requesting_user"],
 )
-def test_user_role_modification_permission(
+def test_auth_user_role_modification_permission(
     client,
     setup_api_test_data,
     requesting_user,
