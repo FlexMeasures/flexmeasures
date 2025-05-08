@@ -88,7 +88,8 @@ def validate_for_duplicate_keys(fields_specs):
         for asset_id, sensors in grouped.items():
             if len(sensors) > 1:
                 raise Exception(
-                    f"Multiple sensors with '{field_spec['old_field_name']}' found for asset_id {asset_id}: {[s.id for s in sensors]}"
+                    f"Multiple sensors with '{field_spec['old_field_name']}' found for asset_id {asset_id}: {[s.id for s in sensors]}. "
+                    f"Please file a GitHub Issue describing your situation."
                 )
 
 
