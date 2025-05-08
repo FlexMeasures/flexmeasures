@@ -295,6 +295,16 @@ class UserAPI(FlaskView):
                 raise Forbidden(
                     "Users who edit themselves cannot edit security-sensitive fields."
                 )
+            # if flexmeasures_roles is not empty, check if the user can modify the role
+            if k == "flexmeasures_roles" and v:
+                from flexmeasures.auth.policy import can_modify_role
+
+                can_modify = can_modify_role(current_user, user.roles)
+                if can_modify is False:
+                    raise Forbidden(
+                        "You are not allowed to modify the roles of this user."
+                    )
+
             setattr(user, k, v)
             if k == "active" and v is False:
                 remove_cookie_and_token_access(user)
