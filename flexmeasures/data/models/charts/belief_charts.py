@@ -812,7 +812,13 @@ def create_chargepoint_session_chart(
                 for s in sensors
                 if s.unit == "s"
                 and s.name
-                in ["arrival", "departure", "start charging", "stop charging"]
+                in [
+                    "arrival",
+                    "departure",
+                    "start charging",
+                    "stop charging",
+                    "plug in",
+                ]
             ]
         )
 
@@ -829,6 +835,7 @@ def create_chargepoint_session_chart(
             {"filter": {"field": "sensor.id", "oneOf": sensor_ids}},
             {"calculate": "datum.sensor.name", "as": "event_type"},
             {"calculate": "datum.sensor.asset_id", "as": "asset_id"},
+            {"calculate": "datum.sensor.asset_description", "as": "asset"},
             {
                 "calculate": "datum.sensor.name + ' (ID: ' + datum.sensor.id + ')'",
                 "as": "sensor_description",
@@ -850,6 +857,7 @@ def create_chargepoint_session_chart(
                         "value": "event_value",
                         "groupby": [
                             "session_id",
+                            "asset",
                             "asset_id",
                         ],
                     },
@@ -857,7 +865,11 @@ def create_chargepoint_session_chart(
                 "selection": {
                     "scroll": {"type": "interval", "bind": "scales", "encodings": ["x"]}
                 },
-                "mark": {"type": "rule", "strokeWidth": 2},
+                "mark": {
+                    "type": "rule",
+                    "strokeWidth": 1,
+                    "strokeDash": [4, 4],
+                },
                 "encoding": {
                     "x": {
                         "field": "arrival",
@@ -875,8 +887,13 @@ def create_chargepoint_session_chart(
                         "type": "temporal",
                     },
                     "y": {"field": "asset_id", "type": "nominal", "title": "EVSE ID"},
+                    "yOffset": {
+                        "field": "session_id",
+                        "type": "nominal",
+                        "bandPosition": 0.5,
+                    },
                     "color": {
-                        "field": "asset_id",
+                        "field": "asset",
                         "type": "nominal",
                         "legend": {
                             "orient": "right",
@@ -900,6 +917,73 @@ def create_chargepoint_session_chart(
                     ],
                 },
             },
+            # --- Solid Line: Plug-in to Departure ---
+            {
+                "transform": [
+                    {
+                        "filter": "datum.event_type == 'plug in' || datum.event_type == 'departure'"
+                    },
+                    {
+                        "pivot": "event_type",
+                        "value": "event_value",
+                        "groupby": [
+                            "session_id",
+                            "asset",
+                            "asset_id",
+                        ],
+                    },
+                ],
+                "mark": {
+                    "type": "rule",
+                    "strokeWidth": 2,
+                    "color": "blue",  # Solid line
+                },
+                "encoding": {
+                    "x": {
+                        "field": "plug in",
+                        "type": "temporal",
+                        "scale": {
+                            "domain": [
+                                event_starts_after.timestamp() * 1000,
+                                event_ends_before.timestamp() * 1000,
+                            ]
+                        },
+                    },
+                    "x2": {
+                        "field": "departure",
+                        "type": "temporal",
+                    },
+                    "y": {"field": "asset_id", "type": "nominal", "title": "EVSE ID"},
+                    "yOffset": {
+                        "field": "session_id",
+                        "type": "nominal",
+                        "bandPosition": 0.5,
+                    },
+                    "color": {
+                        "field": "asset",
+                        "type": "nominal",
+                        "legend": {
+                            "orient": "right",
+                            "columns": 1,
+                            "direction": "vertical",
+                        },
+                    },
+                    "tooltip": [
+                        {
+                            "field": "plug in",
+                            "type": "temporal",
+                            "title": "Plug-in",
+                            "format": "%Y-%m-%d %H:%M",
+                        },
+                        {
+                            "field": "departure",
+                            "type": "temporal",
+                            "title": "Departure",
+                            "format": "%Y-%m-%d %H:%M",
+                        },
+                    ],
+                },
+            },
             # --- Start to Stop Charging: Thick line ---
             {
                 "transform": [
@@ -909,16 +993,30 @@ def create_chargepoint_session_chart(
                     {
                         "pivot": "event_type",
                         "value": "event_value",
-                        "groupby": ["session_id", "asset_id"],
+                        "groupby": ["session_id", "asset", "asset_id"],
                     },
                 ],
                 "mark": {"type": "rule", "strokeWidth": 6},
                 "encoding": {
-                    "x": {"field": "start charging", "type": "temporal"},
+                    "x": {
+                        "field": "start charging",
+                        "type": "temporal",
+                        "scale": {
+                            "domain": [
+                                event_starts_after.timestamp() * 1000,
+                                event_ends_before.timestamp() * 1000,
+                            ]
+                        },
+                    },
                     "x2": {"field": "stop charging", "type": "temporal"},
-                    "y": {"field": "asset_id", "type": "nominal"},
+                    "y": {"field": "asset_id", "type": "nominal", "title": "EVSE ID"},
+                    "yOffset": {
+                        "field": "session_id",
+                        "type": "nominal",
+                        "bandPosition": 0.5,
+                    },
                     "color": {
-                        "field": "asset_id",
+                        "field": "asset",
                         "type": "nominal",
                         "legend": {
                             "orient": "right",
@@ -930,11 +1028,13 @@ def create_chargepoint_session_chart(
                         {
                             "field": "start charging",
                             "type": "temporal",
+                            "title": "Start Charging",
                             "format": "%Y-%m-%d %H:%M",
                         },
                         {
                             "field": "stop charging",
                             "type": "temporal",
+                            "title": "Stop Charging",
                             "format": "%Y-%m-%d %H:%M",
                         },
                     ],
