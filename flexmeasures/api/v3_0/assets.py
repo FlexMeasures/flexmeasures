@@ -787,11 +787,29 @@ class AssetAPI(FlaskView):
             "redis_connection_err": redis_connection_err,
         }, 200
 
-    @route("/default_asset_view", methods=["GET"])
-    @permission_required_for_context("read", ctx_loader=AccountIdField.load_current)
+    @route("/default_asset_view", methods=["POST"])
+    @permission_required_for_context("update", ctx_loader=AccountIdField.load_current)
     @as_json
-    def update_default_asset_view(self):
-        """Update the default asset view for the current user.
+    @use_kwargs(
+        {
+            "default_asset_view": fields.Str(
+                required=True,
+                validate=validate.OneOf(
+                    [
+                        "Audit Log",
+                        "Context",
+                        "Graphs",
+                        "Properties",
+                        "Status",
+                    ]
+                ),
+            ),
+            "use_as_default": fields.Bool(required=False, load_default=True),
+        },
+        location="json",
+    )
+    def update_default_asset_view(self, **kwargs):
+        """Update the default asset view for the current user session.
 
         .. :quickref: Asset; Update the default asset view
 
@@ -801,18 +819,18 @@ class AssetAPI(FlaskView):
 
             {
                 "default_asset_view": "Graphs",
-                "set_default": true
+                "use_as_default": true
             }
 
         **Example response**
 
         .. sourcecode:: json
             {
-                "message": "Default asset view set successfully."
+                "message": "Default asset view updated successfully."
             }
 
-        This endpoint sets the default asset view for the current user if set_default is true.
-        If set_default is false, it clears the session variable for the default asset view.
+        This endpoint sets the default asset view for the current user session if use_as_default is true.
+        If use_as_default is false, it clears the session variable for the default asset view.
 
         :reqheader Authorization: The authentication token
         :reqheader Content-Type: application/json
@@ -823,9 +841,14 @@ class AssetAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        set_default = request.args.get("set_default", "true")
-        if set_default == "true":
-            # Set the default asset view for the current user
+        # Update the request.values
+        request_values = request.values.copy()
+        request_values.update(kwargs)
+        request.values = request_values
+
+        use_as_default = kwargs.get("use_as_default", True)
+        if use_as_default:
+            # Set the default asset view for the current user session
             set_session_variables(
                 "default_asset_view",
             )
@@ -834,5 +857,5 @@ class AssetAPI(FlaskView):
             clear_session(keys_to_clear=["default_asset_view"])
 
         return {
-            "message": "Default asset view update successfully.",
+            "message": "Default asset view updated successfully.",
         }, 200

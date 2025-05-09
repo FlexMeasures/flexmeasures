@@ -139,6 +139,8 @@ def clear_session(keys_to_clear: list[str] = None):
     """
     if keys_to_clear:
         for skey in keys_to_clear:
+            if skey not in session:
+                continue
             current_app.logger.info(
                 "Removing %s:%s from session ... " % (skey, session[skey])
             )
