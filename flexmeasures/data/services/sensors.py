@@ -11,6 +11,7 @@ from timely_beliefs import BeliefsDataFrame
 import pandas as pd
 
 from humanize.time import precisedelta
+from humanize import naturaldelta
 
 from flexmeasures.data.models.time_series import TimedBelief
 
@@ -265,23 +266,18 @@ def _get_sensor_asset_relation(
     return ";".join(relations)
 
 
-def build_sensor_status_data(
+def get_asset_sensors_metadata(
     asset: Asset,
     now: datetime = None,
 ) -> list[dict]:
-    """Get data connectivity status information for each sensor split by source in given asset and its children
-    Returns a list of dictionaries, each containing the following keys:
-    - id: sensor id
-    - name: sensor name
-    - resolution: sensor resolution
-    - asset_name: asset name
-    - staleness: staleness of the sensor (for how long the sensor data is stale)
-    - stale: whether the sensor is stale
-    - staleness_since: time since sensor data is considered stale
-    - reason: reason for staleness
-    - source: source of the sensor data
-    - relation: relation of the sensor to the asset
     """
+    Get the metadata of sensors for a given asset and its children.
+
+    :param asset: Asset to get the sensors for.
+    :param now: Datetime representing now, used to get the status of the sensors.
+    :return: A list of dictionaries, each representing a sensor's metadata.
+    """
+
     if not now:
         now = server_now()
 
@@ -294,33 +290,76 @@ def build_sensor_status_data(
         if isinstance(asset.flex_context[field], dict)
         and field != "inflexible-device-sensors"
     }
-    for asset, is_child_asset in (
-        (asset, False),
-        *[(child_asset, True) for child_asset in asset.child_assets],
-    ):
-        sensors_list = list(asset.sensors)
-        if not is_child_asset:
-            sensors_list += [
-                *inflexible_device_sensors,
-                *context_sensors.values(),
-            ]
-        for sensor in sensors_list:
-            if sensor is None or sensor.id in sensor_ids:
-                continue
-            sensor_statuses = get_statuses(
-                sensor=sensor,
-                now=now,
-            )
-            for sensor_status in sensor_statuses:
-                sensor_status["id"] = sensor.id
-                sensor_status["name"] = sensor.name
-                sensor_status["resolution"] = sensor.event_resolution
-                sensor_status["asset_name"] = sensor.generic_asset.name
-                sensor_status["relation"] = _get_sensor_asset_relation(
-                    asset, sensor, inflexible_device_sensors, context_sensors
-                )
-                sensor_ids.add(sensor.id)
-                sensors.append(sensor_status)
+
+    # Get sensors to show using the validate_sensors_to_show method
+    sensors_to_show = []
+    validated_asset_sensors = asset.validate_sensors_to_show(
+        suggest_default_sensors=False
+    )
+    sensor_groups = [
+        sensor["sensors"] for sensor in validated_asset_sensors if sensor is not None
+    ]
+    merged_sensor_groups = sum(sensor_groups, [])
+    sensors_to_show.extend(merged_sensor_groups)
+
+    sensors_list = [
+        *inflexible_device_sensors,
+        *context_sensors.values(),
+        *sensors_to_show,
+    ]
+
+    for sensor in sensors_list:
+        if sensor is None or sensor.id in sensor_ids:
+            continue
+        sensor_status = {}
+        sensor_status["id"] = sensor.id
+        sensor_status["name"] = sensor.name
+        sensor_status["asset_name"] = sensor.generic_asset.name
+        sensor_ids.add(sensor.id)
+        sensors.append(sensor_status)
+
+    return sensors
+
+
+def serialize_sensor_status_data(
+    sensor: Sensor,
+) -> list[dict]:
+    """
+    Serialize the status of a sensor belonging to an asset.
+
+    :param sensor: Sensor to get the status of
+    :return: A list of dictionaries, each representing the statuses of the sensor - one status per data source type that stored data on that sensor
+    """
+    asset = sensor.generic_asset
+    sensor_statuses = get_statuses(sensor=sensor, now=server_now())
+    inflexible_device_sensors = asset.get_inflexible_device_sensors()
+    context_sensors = {
+        field: Sensor.query.get(asset.flex_context[field]["sensor"])
+        for field in asset.flex_context
+        if isinstance(asset.flex_context[field], dict)
+        and field != "inflexible-device-sensors"
+    }
+    sensors = []
+    for sensor_status in sensor_statuses:
+        sensor_status["id"] = sensor.id
+        sensor_status["name"] = sensor.name
+        sensor_status["resolution"] = naturaldelta(sensor.event_resolution)
+        sensor_status["staleness"] = (
+            naturaldelta(sensor_status["staleness"])
+            if sensor_status["staleness"] is not None
+            else None
+        )
+        sensor_status["staleness_since"] = (
+            naturaldelta(sensor_status["staleness_since"])
+            if sensor_status["staleness_since"] is not None
+            else None
+        )
+        sensor_status["asset_name"] = asset.name
+        sensor_status["relation"] = _get_sensor_asset_relation(
+            asset, sensor, inflexible_device_sensors, context_sensors
+        )
+        sensors.append(sensor_status)
+
     return sensors
 
 
@@ -409,7 +448,7 @@ def build_asset_jobs_data(
 
 
 @lru_cache()
-def _get_sensor_stats(sensor: Sensor, ttl_hash=None) -> dict:
+def _get_sensor_stats(sensor: Sensor, sort_keys: bool, ttl_hash=None) -> dict:
     # Subquery for filtered aggregates
     subquery_for_filtered_aggregates = (
         sa.select(
@@ -430,6 +469,11 @@ def _get_sensor_stats(sensor: Sensor, ttl_hash=None) -> dict:
             DataSource.name,
             sa.func.min(TimedBelief.event_start).label("min_event_start"),
             sa.func.max(TimedBelief.event_start).label("max_event_start"),
+            sa.func.max(
+                TimedBelief.event_start
+                + sensor.event_resolution
+                - TimedBelief.belief_horizon
+            ).label("max_belief_time"),
             subquery_for_filtered_aggregates.c.min_event_value,
             subquery_for_filtered_aggregates.c.max_event_value,
             subquery_for_filtered_aggregates.c.avg_event_value,
@@ -458,6 +502,7 @@ def _get_sensor_stats(sensor: Sensor, ttl_hash=None) -> dict:
             data_source,
             min_event_start,
             max_event_start,
+            max_belief_time,
             min_value,
             max_value,
             mean_value,
@@ -472,15 +517,21 @@ def _get_sensor_stats(sensor: Sensor, ttl_hash=None) -> dict:
             .tz_convert(sensor.timezone)
             .isoformat()
         )
+        last_belief_time = (
+            pd.Timestamp(max_belief_time).tz_convert(sensor.timezone).isoformat()
+        )
         stats[data_source] = {
             "First event start": first_event_start,
             "Last event end": last_event_end,
+            "Last recorded": last_belief_time,
             "Min value": min_value,
             "Max value": max_value,
             "Mean value": mean_value,
             "Sum over values": sum_values,
             "Number of values": count_values,
         }
+        if sort_keys is False:
+            stats[data_source] = stats[data_source].items()
     return stats
 
 
@@ -493,6 +544,6 @@ def _get_ttl_hash(seconds=120) -> int:
     return round(time.time() / seconds)
 
 
-def get_sensor_stats(sensor: Sensor) -> dict:
+def get_sensor_stats(sensor: Sensor, sort_keys: bool = True) -> dict:
     """Get stats for a sensor"""
-    return _get_sensor_stats(sensor, ttl_hash=_get_ttl_hash())
+    return _get_sensor_stats(sensor, sort_keys, ttl_hash=_get_ttl_hash())

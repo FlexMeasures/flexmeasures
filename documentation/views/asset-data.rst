@@ -39,7 +39,7 @@ Finally, it is possible to set custom titles for any sensor graph by clicking on
     :align: center
 ..    :scale: 40%
 
-Internally, the asset has a `sensors_to_show`` field, which controls which sensor data appears in the plot. This can also be set by a script. Accepted formats are simple lists of sensor IDs (e.g. `[2, [5,6]]` or a more expressive format (e.g. `[{"title": "Power", "sensor": 2}, {"title": "Costs", "sensors": [5,6] }`). 
+Internally, the asset has a `sensors_to_show`` field, which controls which sensor data appears in the plot. This can also be set by a script. The accepted format is a dictionary with a graph title and a lists of sensor IDs (e.g. `[{"title": "Power", "sensor": 2}, {"title": "Costs", "sensors": [5,6] }]`). 
 
 
 Editing an asset's flex-context

@@ -6,11 +6,7 @@ from flask import current_app
 from flask_security import current_user
 from flask_wtf import FlaskForm
 from sqlalchemy import select
-from wtforms import (
-    StringField,
-    DecimalField,
-    SelectField,
-)
+from wtforms import StringField, DecimalField, SelectField, IntegerField
 from wtforms.validators import DataRequired, optional
 
 from flexmeasures.auth.policy import user_has_admin_access
@@ -36,14 +32,6 @@ class AssetForm(FlaskForm):
         render_kw={"placeholder": "--Click the map or enter a longitude--"},
     )
     attributes = StringField("Other attributes (JSON)", default="{}")
-    flex_context = StringField(
-        "Flex context",
-        default="{}",
-        description=(
-            "This field accepts a JSON string to define the flex-context."
-            " These are defaults that, if needed, users can temporarily override when calling for a schedule via the API, by setting different flex-context fields in the API request."
-        ),
-    )
 
     def validate_on_submit(self):
         if (
@@ -65,7 +53,8 @@ class AssetForm(FlaskForm):
             data["longitude"] = float(data["longitude"])
         if data.get("latitude") is not None:
             data["latitude"] = float(data["latitude"])
-
+        if data.get("parent_asset_id") is not None:
+            data["parent_asset_id"] = int(data["parent_asset_id"])
         if "csrf_token" in data:
             del data["csrf_token"]
 
@@ -108,10 +97,14 @@ class NewAssetForm(AssetForm):
         "Asset type", coerce=int, validators=[DataRequired()]
     )
     account_id = SelectField("Account", coerce=int)
+    parent_asset_id = IntegerField(
+        "Parent Asset Id", validators=[optional()]
+    )  # Add parent_id field
 
     def set_account(self) -> tuple[Account | None, str | None]:
         """Set an account for the to-be-created asset.
         Return the account (if available) and an error message"""
+
         account_error = None
 
         if self.account_id.data == -1:

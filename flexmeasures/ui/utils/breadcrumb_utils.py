@@ -6,11 +6,70 @@ from flexmeasures.utils.flexmeasures_inflection import human_sorted
 from flask import url_for, current_app
 
 
-def get_breadcrumb_info(entity: Sensor | Asset | Account | None) -> dict:
-    return {
+def get_breadcrumb_info(
+    entity: Sensor | Asset | Account | None, current_page: str = None
+) -> dict:
+    breadcrumb = {
         "ancestors": get_ancestry(entity),
         "siblings": get_siblings(entity),
     }
+
+    if entity is not None and isinstance(entity, Asset):
+        # Add additional Views CTAs for Assets
+        try:
+            breadcrumb["views"] = [
+                {
+                    "url": url_for("AssetCrudUI:get", id=entity.id),
+                    "name": "Context",
+                    "type": "Asset",
+                },
+                {
+                    "url": url_for("AssetCrudUI:graphs", id=entity.id),
+                    "name": "Graphs",
+                    "type": "Asset",
+                },
+                {
+                    "url": url_for("AssetCrudUI:properties", id=entity.id),
+                    "name": "Properties",
+                    "type": "Asset",
+                },
+                {
+                    "url": url_for("AssetCrudUI:auditlog", id=entity.id),
+                    "name": "Audit Log",
+                    "type": "Asset",
+                },
+                {
+                    "url": url_for("AssetCrudUI:status", id=entity.id),
+                    "name": "Status",
+                    "type": "Asset",
+                },
+            ]
+
+            # If a current_page is provided, reorder the breadcrumb views
+            if current_page:
+                breadcrumb["views"] = reorder_breadcrumb(
+                    breadcrumb["views"], current_page
+                )
+
+        except Exception as e:
+            print("Error in updating breadcrumb variables:", e)
+
+    return breadcrumb
+
+
+def reorder_breadcrumb(breadcrumbs, current_page):
+    # Find the breadcrumb that matches the current_page
+    current_page_breadcrumb = next(
+        (item for item in breadcrumbs if item["name"] == current_page), None
+    )
+
+    if current_page_breadcrumb:
+        # Remove the current page breadcrumb from the list
+        breadcrumbs = [item for item in breadcrumbs if item["name"] != current_page]
+        # Insert the current page breadcrumb at index 0
+        breadcrumbs.insert(0, current_page_breadcrumb)
+
+    return breadcrumbs
 
 
 def get_ancestry(entity: Sensor | Asset | Account | None) -> list[dict]:
@@ -23,6 +82,14 @@ def get_ancestry(entity: Sensor | Asset | Account | None) -> list[dict]:
     if entity is not None and not isinstance(entity, Account):
         custom_ancestry = entity.get_attribute("breadcrumb_ancestry")
     if custom_ancestry is not None and isinstance(custom_ancestry, list):
+        # Append current Asset to the custom ancestry breadcrumb
+        if entity is not None and isinstance(entity, Asset):
+            current_entity_info = {
+                "url": url_for("AssetCrudUI:get", id=entity.id),
+                "name": entity.name,
+                "type": "Asset",
+            }
+            custom_ancestry.append(current_entity_info)
         return custom_ancestry
 
     # Public account

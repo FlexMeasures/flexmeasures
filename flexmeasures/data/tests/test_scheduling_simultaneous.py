@@ -70,21 +70,6 @@ def test_create_simultaneous_jobs(
         assert len(battery_power) == 96
     assert battery_power.sources.unique()[0].model == "StorageScheduler"
     battery_power = battery_power.droplevel([1, 2, 3])
-
-    # Get price data
-    price_sensor_id = flex_description_sequential["flex_context"][
-        "consumption-price-sensor"
-    ]
-    price_sensor = db.session.get(Sensor, price_sensor_id)
-    prices = price_sensor.search_beliefs(
-        event_starts_after=start - pd.Timedelta(hours=1), event_ends_before=end
-    )
-    prices = prices.droplevel([1, 2, 3])
-    prices.index = prices.index.tz_convert("Europe/Amsterdam")
-
-    # Resample prices to match power resolution
-    prices = prices.resample("15min").ffill()
-
     start_charging = start + pd.Timedelta(hours=8)
     end_charging = start + pd.Timedelta(hours=10) - sensors["Test EV"].event_resolution
 
@@ -94,26 +79,36 @@ def test_create_simultaneous_jobs(
         battery_power.loc[start_charging:end_charging] != 0.005
     ).values.any()  # 5 kW
 
+    # Get price data
+    price_sensor_id = flex_description_sequential["flex_context"]["consumption-price"][
+        "sensor"
+    ]
+    price_sensor = db.session.get(Sensor, price_sensor_id)
+    prices = price_sensor.search_beliefs(
+        event_starts_after=start - pd.Timedelta(hours=1), event_ends_before=end
+    )
+    prices = prices.droplevel([1, 2, 3])
+    prices.index = prices.index.tz_convert("Europe/Amsterdam")
+
     # Calculate costs
-    ev_resolution = sensors["Test EV"].event_resolution.total_seconds() / 3600
-    ev_costs = (-ev_power * prices * ev_resolution).sum().item()
+    ev_costs = (-ev_power.resample("1h").mean() * prices).sum().item()
     battery_costs = (-battery_power.resample("1h").mean() * prices).sum().item()
     total_cost = ev_costs + battery_costs
 
     # Define expected costs based on resolution
-    expected_ev_costs = 2.1625
-    expected_battery_costs = -5.515
-    expected_total_cost = -3.3525
+    expected_ev_costs = 2.3125
+    expected_battery_costs = -5.59
+    expected_total_cost = -3.2775
 
     # Check costs
     assert (
         round(total_cost, 4) == expected_total_cost
-    ), f"Total cost should be {expected_total_cost} €, got {total_cost} €"
+    ), f"Total costs should be €{expected_total_cost}, got €{total_cost}"
 
     assert (
         round(ev_costs, 4) == expected_ev_costs
-    ), f"EV cost should be {expected_ev_costs} €, got {ev_costs} €"
+    ), f"EV costs should be €{expected_ev_costs}, got €{ev_costs}"
 
     assert (
         round(battery_costs, 4) == expected_battery_costs
-    ), f"Battery cost should be {expected_battery_costs} €, got {battery_costs} €"
+    ), f"Battery costs should be €{expected_battery_costs}, got €{battery_costs}"

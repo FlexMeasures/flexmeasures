@@ -2,493 +2,186 @@
 
 {% set active_page = "assets" %}
 
-{% block title %} {{asset.name}} {% endblock %}
-
-
+{% block title %} {{ asset.name }} - Scenario {% endblock %}
 
 {% block divs %}
 
 {% block breadcrumbs %} {{ super() }} {% endblock %}
 
-<div class="container-fluid">
-    <div class="row mx-1">
-        <div class="alert alert-info d-none" id="tzwarn"></div>
-        <div class="alert alert-info d-none" id="dstwarn"></div>
-    </div>
-    <div class="row">
-        <div class="col-md-2 on-top-md">
-            <div class="header-action-button">
-                {% if user_can_create_assets %}
-                <div>
-                    <button class="btn btn-sm btn-responsive btn-success create-button mb-3" type="submit">
-                        <a href="/assets/new">Create new asset</a>
-                    </button>
-                </div>
-                {% endif %}
-                {% if user_can_delete_asset %}
-                <div>
-                    <button id="delete-asset-button" class="btn btn-sm btn-responsive btn-danger" type="submit">
-                        <a href="/assets/delete_with_data/{{ asset.id }}">Delete this asset</a>
-                    </button>
-                    <script>
-                        $("#delete-asset-button").click(function () {
-                            if (confirm("Are you sure you want to delete this asset and all time series data associated with it?")) {
-                                return true;
-                            }
-                            else {
-                                return false;
-                            }
-                        });
-                    </script>
-                </div>
-                {% endif %}
-            </div>
-            <div class="header-action-button">
-                <div>
-                    <button id="asset-status-button" class="btn btn-sm btn-responsive btn-info" type="submit">
-                        <a href="/assets/{{ asset.id }}/status" title="Inspect status of relevant sensors and jobs.">Asset status</a>
-                    </button>
-                </div>
-                <div>
-                    <button class="btn btn-sm btn-responsive btn-info" type="submit">
-                        <a href="/assets/auditlog/{{ asset.id }}" title="View history of actions related to this asset.">Audit log</a>
-                    </button>
-                </div>
-            </div>
-            <div class="sidepanel-container">
-                <div class="left-sidepanel-label">Select dates</div>
-                <div class="sidepanel left-sidepanel">
-                    <div id="datepicker"></div>
-                </div>
-            </div>
-            {% if user_can_update_asset %}
-            <div class="sidepanel-container">
-                <div class="left-sidepanel-label">Edit asset</div>
-                <div class="sidepanel left-sidepanel">
-                    <form class="form-horizontal" method="POST" action="/assets/{{ asset.id }}">
-                        {{ asset_form.csrf_token }}
-                        {{ asset_form.hidden_tag() }}
-                        <fieldset>
-                            <div class="asset-form">
-
-                                <h3>Edit {{ asset.name }}</h3>
-                                <small>Owned by account: {{ asset.account_id | accountname }} (ID: {{ asset.account_id
-                                    }})</small>
-
-                                <div class="form-group">
-                                    {{ asset_form.name.label(class="col-sm-3 control-label") }}
-                                    <div class="col-md-3">
-                                        {{ asset_form.name(class_="form-control") }}
-                                        {% for error in asset_form.errors.name %}
-                                        <span style="color: red;">[{{error}}]</span>
-                                        {% endfor %}
-                                    </div>
-                                </div>
-                                <div class="form-group">
-                                    {{ asset_form.latitude.label(class="col-sm-6 control-label") }}
-                                    <div class="col-md-6">
-                                        {{ asset_form.latitude(class_="form-control") }}
-                                        {% for error in asset_form.errors.latitude %}
-                                        <span style="color: red;">[{{error}}]</span>
-                                        {% endfor %}
-                                    </div>
-                                </div>
-                                <div class="form-group">
-                                    {{ asset_form.longitude.label(class="col-sm-6 control-label") }}
-                                    <div class="col-md-6">
-                                        {{ asset_form.longitude(class_="form-control") }}
-                                        {% for error in asset_form.errors.longitude %}
-                                        <span style="color: red;">[{{error}}]</span>
-                                        {% endfor %}
-                                    </div>
-                                </div>
-                                <div class="form-group">
-                                    <label for="assset-type" class="col-sm-6 control-label">Asset Type</label>
-                                    <div class="col-md-6">
-                                        <input class="form-control" id="asset-type-id" name="asset-type" type="text"
-                                            value="{{ asset.generic_asset_type.name }}" disabled></input>
-                                    </div>
-                                </div>
-                                <div class="form-group">
-                                    <label for="asset-id" class="col-sm-6 control-label">Asset id</label>
-                                    <div class="col-md-6">
-                                        <input class="form-control" id="asset-id" name="asset-id" type="text"
-                                            value="{{ asset.id }}" disabled></input>
-                                    </div>
-                                </div>
-
-                                <div class="form-group">
-                                    {{ asset_form.attributes.label(class="col-sm-3 control-label") }}
-                                    <div class="col-md-3">
-                                        {{ asset_form.attributes(class_="form-control") }}
-                                        {% for error in asset_form.errors.attributes %}
-                                        <span style="color: red;">[{{error}}]</span>
-                                        {% endfor %}
-                                    </div>
-                                </div>
-
-                                <div class="form-group">
-                                    <label for="flex_context" class="col-sm-6 control-label">Flex Context: </label>
-
-                                    <button class="btn btn-primary" type="button" data-bs-toggle="modal"
-                                        data-bs-target="#flexContextModal">
-                                        Edit
-                                    </button>
-                                </div>
-
-                                <div class="form-group">
-                                    <label for="sensors_to_show" class="col-sm-6 control-label">Sensor Graphs: </label>
-
-                                    <button class="btn btn-primary" type="button" data-bs-toggle="modal"
-                                        data-bs-target="#sensorsToShowModal">
-                                        Edit Graphs
-                                    </button>
-                                </div>
-
-                                <div class="form-group">
-                                    <label class="control-label">Location</label>
-                                    <small>(Click map to edit latitude and longitude in form)</small>
-                                    <div id="mapid"></div>
-                                    <button class="btn btn-sm btn-responsive btn-success create-button" type="submit"
-                                        value="Save"
-                                        style="margin-top: 20px; float: right; border: 1px solid var(--light-gray);">
-                                        Save
-                                    </button>
-                                </div>
-                            </div>
-                        </fieldset>
-                    </form>
-                </div>
-            </div>
-            {% endif %}
-        </div>
-        <div class="col-md-8">
-            <div id="spinner" hidden="hidden">
-                <i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i>
-                <span class="sr-only">Loading...</span>
-            </div>
-            <div id="sensorchart" class="card" style="width: 100%;"></div>
-            <div class="row">
-                <div class="copy-url" title="Click to copy the URL to the current time range to clipboard.">
-                    <script>
-                        function toIsoString(date) {
-                            var tzo = -date.getTimezoneOffset(),
-                                dif = tzo >= 0 ? '+' : '-',
-                                pad = function (num) {
-                                    return (num < 10 ? '0' : '') + num;
-                                };
-
-                            return date.getFullYear() +
-                                '-' + pad(date.getMonth() + 1) +
-                                '-' + pad(date.getDate()) +
-                                'T' + pad(date.getHours()) +
-                                ':' + pad(date.getMinutes()) +
-                                ':' + pad(date.getSeconds()) +
-                                dif + pad(Math.floor(Math.abs(tzo) / 60)) +
-                                ':' + pad(Math.abs(tzo) % 60);
-                        }
-
-                        $(window).ready(() => {
-                            picker.on('selected', (startDate, endDate) => {
-                                startDate = encodeURIComponent(toIsoString(startDate.toJSDate()));
-                                endDate = encodeURIComponent(toIsoString(endDate.toJSDate()));
-                                var base_url = window.location.href.split("?")[0];
-                                var new_url = `${base_url}?start_time=${startDate}&end_time=${endDate}`;
-
-                                // change current url without reloading the page
-                                window.history.pushState({}, null, new_url);
-                            });
-
-                        });
-
-                        function copyUrl(event) {
-                            event.preventDefault();
-
-                            if (!window.getSelection) {
-                                alert('Please copy the URL from the location bar.');
-                                return;
-                            }
-                            const dummy = document.createElement('p');
-
-                            var startDate = encodeURIComponent(toIsoString(picker.getStartDate().toJSDate()));
-                            // add 1 day to end date as datepicker does not include the end date day
-                            var endDate = picker.getEndDate();
-                            endDate.setDate(endDate.getDate() + 1);
-                            endDate = encodeURIComponent(toIsoString(endDate.toJSDate()));
-                            var base_url = window.location.href.split("?")[0];
-                            dummy.textContent = `${base_url}?start_time=${startDate}&end_time=${endDate}`
-                            document.body.appendChild(dummy);
-
-                            const range = document.createRange();
-                            range.setStartBefore(dummy);
-                            range.setEndAfter(dummy);
-
-                            const selection = window.getSelection();
-                            // First clear, in case the user already selected some other text
-                            selection.removeAllRanges();
-                            selection.addRange(range);
-
-                            document.execCommand('copy');
-                            document.body.removeChild(dummy);
-
-                            $("#message").show().delay(1000).fadeOut();
-                        }
-                    </script>
-                    <a href="#" onclick="copyUrl(event)" style="display: block; text-align: center;">
-                        <i class="fa fa-link"></i>
-                    </a>
-                    <div id="message" style="display: none; text-align: center;">The URL to the time range currently
-                        shown has been copied to your clipboard.</div>
-                </div>
-            </div>
-
-            <div class="sensors-asset card">
-                <h3>All sensors for {{ asset.name }}</h3>
-               
-                <div class="table-responsive">
-                    <button class="btn btn-sm btn-responsive btn-info" type="submit">
-                        <a href="/assets/{{asset.id}}/sensor/new">Create Sensor</a>
-                    </button>
-                    <table class="table table-striped paginate nav-on-click" title="View data" id="sensorsTable">
-                    </table>
-                </div>
-            </div>
-
-            <div class="sensors-asset card">
-                <h3>All child assets for {{ asset.name }}</h3>
-                <div class="table-responsive">
-                    <table class="table table-striped paginate nav-on-click w-100 mx-auto" title="View this asset">
-                        <thead>
-                            <tr>
-                                <th><i class="left-icon">Name</i></th>
-                                <th>Location</th>
-                                <th>Asset ID</th>
-                                <th>Account</th>
-                                <th>Sensors</th>
-                                <th class="d-none">URL</th>
-                                <th class="no-sort"></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for child in asset.child_assets %}
-                            <tr>
-                                <td>
-                                    <i class="{{ child.generic_asset_type.name | asset_icon }} left-icon">{{ child.name
-                                        }}</i>
-                                </td>
-                                <td>
-                                    {% if child.latitude and child.longitude %}
-                                    LAT: {{ "{:,.4f}".format( child.latitude ) }} LONG:
-                                    {{ "{:,.4f}".format( child.longitude ) }}
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {{ child.id }}
-                                </td>
-                                <td>
-                                    {% if child.owner %}
-                                    {{ child.owner.name }}
-                                    {% else %}
-                                    PUBLIC
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {{ child.sensors | length }}
-                                </td>
-                                <td class="d-none">
-                                    /assets/{{ child.id }}
-                                </td>
-                                <td>
-                                    <a href="/assets/{{ child.id }}/status">
-                                        <button type="button" class="btn">Status</button>
-                                    </a>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-2">
-            <div id="chart-type-picker" class="rightside-dropdown dropdown mt-3">
-                <button class="btn dropdown-toggle" type="button" id="chartTypeDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                    Select chart
-                </button>
-                <ul class="dropdown-menu center-aligned" aria-labelledby="chartTypeDropdown">
-                    <li><a class="dropdown-item" href="#" data-chart-type="chart_for_multiple_sensors">Default Asset Chart</a></li>
-                    <li><a class="dropdown-item" href="#" data-chart-type="chargepoint_session_chart">ChargePoints Chart</a></li>
-                </ul>
-            </div>
-            <div class="replay-container">
-                <div id="replay" title="Press 'p' to play/pause/resume or 's' to stop." class="stopped"></div>
-                <div id="replay-time"></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal -->
-    <div class="modal fade modal-xl" id="sensorsToShowModal" tabindex="-1" aria-labelledby="sensorsToShowModalLabel"
-        aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title pe-2">Edit Dashboard Graphs</h5>
-
-                    <div class="dropdown" data-bs-auto-close="outside">
-                        <span class="fa fa-info dropdown-toggle" role="button" data-bs-toggle="dropdown"
-                            aria-expanded="false" rel="tooltip" aria-hidden="true" tabindex="0"
-                            data-bs-placement="right" data-bs-toggle="tooltip"></span>
-
-                        <div class="dropdown-menu p-3" style="width: 400px;">
-                            <div>
-                                <strong>Dashboard Graphs Help</strong>
-                                <p class="mb-2">
-                                    Here you can edit what data is shown in the Dashboard Graphs. Each graph can show
-                                    one or more sensors
-                                    (<em>it makes sense to show sensors in a graph that share the same unit</em>).
-                                </p>
-                                <p class="mb-2">
-                                    You can also set the title of each graph and re-order them. Select a graph
-                                    <span class="text-primary">(by clicking on its card)</span> to add sensors to it.
-                                </p>
-                                <p class="mb-0">
-                                    Sensors can be searched on the right. This will list sensors on the asset or its
-                                    child asset, as well as public assets.
-                                </p>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-sm-2"></div>
+            <div class="col-sm-8 card">
+                <div class="row">
+                    <div class="col-sm-9">
+                        <div class="d-flex justify-content-between align-items-center" style="margin-bottom: 10px;">
+                            <h1>
+                                Asset: {{ asset.name }}
+                            </h1>
+                            <div class="d-flex">
+                                <button class="btn btn-sm btn-primary me-2" onclick='openSensorsModal()'>
+                                    Show sensors
+                                </button>
+                                <button class="btn btn-sm btn-primary me-2" data-bs-toggle="modal"
+                                    data-bs-target="#flexContextModal">
+                                    Edit flex-context
+                                </button>
                             </div>
                         </div>
+                        <p>Type: {{ asset.generic_asset_type.name.split('.')[-1] | title }}</p>
                     </div>
+                    <div class="col-sm-3">
+                        {% if can_delete %}
+                        <button type="button" class="btn delete-button" onClick="delete_asset(event, {{ asset.id }}, '{{ asset.name }}')">Delete Scenario</button>
+                        {% endif %}
+                        <!-- Tabs for toggling content -->
+                        <div class="tabs-container">
+                            <ul class="nav nav-tabs">
+                                <!-- Reorder the tabs based on the length of the assets -->
+                                {% if assets|length > 2 %}
+                                    <!-- Structure tab will be first if assets length > 2 -->
+                                    <li class="nav-item">
+                                        <a class="nav-link active" id="structure-tab" data-bs-toggle="tab" href="#structure">Structure</a>
+                                    </li>
+                                    <li class="nav-item">
+                                        <a class="nav-link" id="location-tab" data-bs-toggle="tab" href="#location">Location</a>
+                                    </li>
+                                {% else %}
+                                    <!-- Location tab will be first if assets length <= 2 -->
+                                    <li class="nav-item">
+                                        <a class="nav-link active" id="location-tab" data-bs-toggle="tab" href="#location">Location</a>
+                                    </li>
+                                    <li class="nav-item">
+                                        <a class="nav-link" id="structure-tab" data-bs-toggle="tab" href="#structure">Structure</a>
+                                    </li>
+                                {% endif %}
+                            </ul>
+                        </div>
 
+                    </div>
+                </div>
+                
+                <!-- Tab Content (outside col-sm) -->
+                <div class="tab-content">
+                    <!-- Structure Content -->
+                    <div class="tab-pane fade {% if assets|length > 2 %}show active{% endif %}" id="structure">
+                        <div class="col-sm-12">
+                            {% from "_macros.html" import show_tree %}
+                            {{ show_tree(assets, asset.name) }}
+                        </div>
+                    </div>
+                    
+                    <!-- Location Content -->
+                    <div class="tab-pane fade {% if assets|length <= 2 %}show active{% endif %}" id="location">
+                        <!-- Location-related content here -->
+                        <div id="mapid" style="height: 400px;"></div>
+                    </div>
+                </div>                
+            </div>
+            <div class="col-sm-2"></div>
+            
+            <!-- Bootstrap Modal for Sensors -->
+            <div class="modal fade" id="sensorsModal" tabindex="-1" aria-labelledby="modalTitle" aria-hidden="true">
+                <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                    <h5 class="modal-title" id="modalTitle">Node Details</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="row">
-                        <div class="col">
-
-                            <button class="btn btn-primary mb-3" onclick="addNewGraph()">
-                                Add Graph
-                            </button>
-
-                            <div id="graphList" class="row"></div>
-                        </div>
-
-                        <div class="col">
-                            <div class="row mb-3">
-                                <div class="col-8">
-                                    <input type="text" id="searchInput" class="form-control"
-                                        placeholder="Search sensors..." oninput="searchSensorsGraphForm()" />
-                                </div>
-
-                                <div class="col-4">
-                                    <select id="unitsSelect" class="form-select" onchange="searchSensorsGraphForm()">
-                                        <option value="null" selected>Choose Unit</option>
-                                        {% for unit in available_units %}
-                                        <option>{{ unit }}</option>
-                                        {% endfor %}
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div class="container">
-                                <div id="spinnerElement" class="d-flex justify-content-center align-items-center mb-2"
-                                    style="height: 50vh; display: none !important;">
-                                    <div class="spinner-border text-primary" role="status"
-                                        style="width: 4rem; height: 4rem;">
-                                        <span class="visually-hidden">Loading...</span>
-                                    </div>
-                                </div>
-
-                                <div id="apiSensorsList" class="row" style="display: none;"></div>
-                            </div>
-
-                        </div>
                     </div>
-
+                    <div class="modal-body">
+                    <table id="modalTable" class="table table-bordered">
+                        <thead id="modalTableHead"></thead>
+                        <tbody id="modalTableBody"></tbody>
+                    </table>
+                    </div>
+                    <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Flex Context Modal -->
-    <div class="modal fade modal-xl" id="flexContextModal" tabindex="-1" aria-labelledby="flexContextModalLabel"
+        <!-- Flex Context Modal -->
+        <div class="modal fade modal-xl" id="flexContextModal" tabindex="-1" aria-labelledby="flexContextModalLabel"
         aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title pe-2">Edit Asset's FlexContext</h5>
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title pe-2">Edit Asset's FlexContext</h5>
 
-                    <div class="dropdown" data-bs-auto-close="outside">
-                        <span class="fa fa-info dropdown-toggle" role="button" data-bs-toggle="dropdown"
-                            aria-expanded="false" rel="tooltip" aria-hidden="true" tabindex="0"
-                            data-bs-placement="right" data-bs-toggle="tooltip"></span>
+                        <div class="dropdown" data-bs-auto-close="outside">
+                            <span class="fa fa-info dropdown-toggle" role="button" data-bs-toggle="dropdown"
+                                aria-expanded="false" rel="tooltip" aria-hidden="true" tabindex="0"
+                                data-bs-placement="right" data-bs-toggle="tooltip"></span>
 
-                        <div class="dropdown-menu p-3" style="width: 400px;">
-                            <div>
-                                <strong>Help</strong>
-                                <p class="mb-2 pt-2">
-                                    Here, you can edit the flexibility context for this asset. This describes information about the managed system as a 
-                                    whole, in order to assess the value of activating flexibility. You can read more <a href="https://flexmeasures.readthedocs.io/stable/features/scheduling.html#the-flex-context">in the documentation</a>.
-                                    <br/>
-                                    <br/>
-                                    These fields can also be sent via the API to FlexMeasures, but setting them here permanently might be more convenient. 
-                                    Some fields can point to sensors, so they will always represent the dynamics of the asset's environment (as long as that sensor has current data).
-                                    <br/>
-                                    <br/>
-                                    To add a field, choose it from the dropdown menu in the top right corner, then click the "Add Field" button'. 
-                                    Set a value in the right panel, using the provided form to set the field's value.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-
-                <div class="modal-body">
-                    <div class="row">
-                        <!-- Left Column -->
-                        <div class="col-5">
-                            <form id="flexContextForm">
-                            </form>
-                        </div>
-
-                        <!-- Right Column -->
-                        <div class="col-7">
-                            <div>
-                                <!-- Loading Spinner -->
-                                <div id="spinnerElement" class="d-flex justify-content-center align-items-center mb-2"
-                                    style="height: 50vh; display: none !important;">
-                                    <div class="spinner-border text-primary" role="status"
-                                        style="width: 4rem; height: 4rem;">
-                                        <span class="visually-hidden">Loading...</span>
-                                    </div>
-                                </div>
-
-                                <!-- Settings -->
+                            <div class="dropdown-menu p-3" style="width: 400px;">
                                 <div>
-                                    <div class="row">
-                                        <div class="col-10">
-                                            <select class="form-select" id="flexSelect">
-                                                <option value="blank">Select flex-context field to add</option>
-                                            </select>
-                                        </div>
-                                        <div class="col-2 p-0">
-                                            <button class="btn btn-secondary btn-md"
-                                                onclick="addFlexContextField()">Add Field</button>
+                                    <strong>Help</strong>
+                                    <p class="mb-2 pt-2">
+                                        Here, you can edit the flexibility context for this asset. This describes information about the managed system as a 
+                                        whole, in order to assess the value of activating flexibility. You can read more <a href="https://flexmeasures.readthedocs.io/stable/features/scheduling.html#the-flex-context">in the documentation</a>.
+                                        <br/>
+                                        <br/>
+                                        These fields can also be sent via the API to FlexMeasures, but setting them here permanently might be more convenient. 
+                                        Some fields can point to sensors, so they will always represent the dynamics of the asset's environment (as long as that sensor has current data).
+                                        <br/>
+                                        <br/>
+                                        To add a field, choose it from the dropdown menu in the top right corner, then click the "Add Field" button'. 
+                                        Set a value in the right panel, using the provided form to set the field's value.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+
+                    <div class="modal-body">
+                        <div class="row">
+                            <!-- Left Column -->
+                            <div class="col-5">
+                                <form id="flexContextForm">
+                                </form>
+                            </div>
+
+                            <!-- Right Column -->
+                            <div class="col-7">
+                                <div>
+                                    <!-- Loading Spinner -->
+                                    <div id="spinnerElement" class="d-flex justify-content-center align-items-center mb-2"
+                                        style="height: 50vh; display: none !important;">
+                                        <div class="spinner-border text-primary" role="status"
+                                            style="width: 4rem; height: 4rem;">
+                                            <span class="visually-hidden">Loading...</span>
                                         </div>
                                     </div>
 
-                                    <div id="flexInfoContainer" class="mt-3"></div>
+                                    <!-- Settings -->
+                                    <div>
+                                        <div class="row">
+                                            <div class="col-10">
+                                                <select class="form-select" id="flexSelect">
+                                                    <option value="blank">Select flex-context field to add</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-2 p-0">
+                                                <button class="btn btn-secondary btn-md"
+                                                    onclick="addFlexContextField()">Add Field</button>
+                                            </div>
+                                        </div>
+
+                                        <div id="flexInfoContainer" class="mt-3"></div>
+                                    </div>
+
+                                    <hr class="border border-dark" />
+
+                                    <div id="flexOptionsContainer" class="mt-3"></div>
+
+                                    <div id="sensorsSearchResults" class="row mt-3" style="display: none;"></div>
                                 </div>
 
-                                <hr class="border border-dark" />
-
-                                <div id="flexOptionsContainer" class="mt-3"></div>
-
-                                <div id="sensorsSearchResults" class="row mt-3" style="display: none;"></div>
                             </div>
-
                         </div>
                     </div>
                 </div>
@@ -496,21 +189,107 @@
         </div>
     </div>
 
-</div>
+    <script>
+        function openSensorsModal() {
+            const sensors = {{ current_asset_sensors | safe }};
+            document.getElementById("modalTitle").innerText = "Sensors for " + '{{ asset.name }}';
+            let tableHead = document.getElementById("modalTableHead");
+            let tableBody = document.getElementById("modalTableBody");
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jstimezonedetect/1.0.7/jstz.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/litepicker/dist/litepicker.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/ranges.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/keyboardnav.js"></script>
+            // Clear previous content
+            tableHead.innerHTML = "";
+            tableBody.innerHTML = "";
 
-{% block leftsidepanel %} {{ super() }} {% endblock %}
-{% block sensorChartSetup %} {{ super() }} {% endblock %}
+            if (sensors && sensors.length > 0) {
+                let keys = Object.keys(sensors[0]); // e.g., ['name', 'unit']
+                keys.pop("link"); // Remove the 'link' from the table
+                
+                // Create table header row
+                let headerRow = document.createElement("tr");
+                keys.forEach(key => {
+                let headerText = key.charAt(0).toUpperCase() + key.slice(1);
+                let th = document.createElement("th"); // Use <th> for header cells
+                th.innerText = headerText;
+                th.setAttribute("aria-label", headerText); // set aria-label so floatThead can pick it up
+                headerRow.appendChild(th);
+                });
+                tableHead.appendChild(headerRow);
+
+                // Force destroy the floatThead instance
+                setTimeout(function(){
+                if ($.fn.floatThead) {
+                    $('#modalTable').floatThead('destroy');
+                }
+                }, 200);
+
+                // Populate table with sensor data
+                sensors.forEach(sensor => {
+                let row = document.createElement("tr");
+                keys.forEach(key => {
+                    let td = document.createElement("td");
+                    if (key === "name") {
+                    // Create an anchor element
+                    let a = document.createElement("a");
+                    a.innerText = sensor[key] !== undefined ? sensor[key] : "N/A";
+                    // Set the href; you can modify this as needed, for example using sensor.link if available
+                    a.href = sensor.link;
+                    td.appendChild(a);
+                    } else {
+                    td.innerText = sensor[key] !== undefined ? sensor[key] : "N/A";
+                    }
+                    row.appendChild(td);
+                });
+                tableBody.appendChild(row);
+                });
+            } else {
+                tableBody.innerHTML = "<tr><td colspan='100%'>No sensor data available</td></tr>";
+            }
+
+            // Show Bootstrap modal
+            let modal = new bootstrap.Modal(document.getElementById('sensorsModal'));
+            modal.show();
+        }
+    </script>
+
+    <style>
+        details {
+            display: none;
+        }
+    </style>
 
 <!-- Initialise the map -->
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet-src.min.js"></script>
 <script src="{{ url_for('flexmeasures_ui.static', filename='js/map-init.js') }}"></script>
 
+<script type="text/javascript">
+
+    // create map
+    var assetMap = L
+        .map('mapid', { center: [{{ asset.latitude | replace("None", 10) }}, {{ asset.longitude | replace("None", 10) }}], zoom: 10})
+        .on('popupopen', function () {
+            $(function () {
+                $('[data-toggle="tooltip"]').tooltip();
+            });
+        });
+    addTileLayer(assetMap, '{{ mapboxAccessToken }}');
+
+    // create marker
+    var asset_icon = new L.DivIcon({
+        className: 'map-icon',
+        html: '<i class="icon-empty-marker center-icon supersize"></i><i class="overlay center-icon {{ asset.generic_asset_type.name | default("info") | asset_icon }}"></i>',
+        iconSize: [100, 100], // size of the icon
+        iconAnchor: [50, 50], // point of the icon which will correspond to marker's location
+        popupAnchor: [0, -50] // point from which the popup should open relative to the iconAnchor
+    });
+    var marker = L
+        .marker(
+            [{{ asset.latitude | replace("None", 10) }}, {{ asset.longitude | replace("None", 10) }}],
+    { icon: asset_icon }
+        ).addTo(assetMap);
+</script>
+
 <script>
+
     const senSearchResEle = document.getElementById("sensorsSearchResults")
     const flexContextFormEle = document.getElementById("flexContextForm")
     const flexContexFormModal = document.getElementById('flexContextModal');
@@ -538,7 +317,6 @@
     let assetFlexContextRawJSON = "{{ asset.flex_context | safe }}";
     assetFlexContextRawJSON = processAssetRawFlexContextJSON(assetFlexContextRawJSON);
     
-    const formModal = document.getElementById('sensorsToShowModal');
     const apiSensorsListElement = document.getElementById("apiSensorsList");
     const spinnerElement = document.getElementById('spinnerElement');
     let sensorsToShowRawJSON = "{{ asset.sensors_to_show | safe }}";
@@ -791,7 +569,7 @@
             apiSensorsListElement.style.display = 'block';
         } catch (error) {
             const errorMessage = error?.message || error?.error || response.statusText;
-            showToast(`Failed to filter/search sesnors: ${errorMessage}`, "error");
+            showToast(`Failed to search sensors: ${errorMessage}`, "error");
         }
     }
 
@@ -836,7 +614,7 @@
             senSearchResEle.style.display = 'block';
         } catch (error) {
             const errorMessage = error?.message || error?.error || response.statusText;
-            showToast(`Failed to filter/search sesnors: ${errorMessage}`, "error");
+            showToast(`Failed to search sensors: ${errorMessage}`, "error");
         }
     }
 
@@ -1451,15 +1229,6 @@
 
 
     // ============== Page Events ============== //
-    formModal.addEventListener('hidden.bs.modal', function () {
-        updateSensorToShow();
-    });
-
-    formModal.addEventListener('shown.bs.modal', function () {
-        // Initial renders
-        renderGraphCards(); // Initial render of graph cards
-        searchSensorsGraphForm(); // Initial render of sensors
-    });
 
     flexContexFormModal.addEventListener('shown.bs.modal', function () {
         // Initial renders
@@ -1589,137 +1358,4 @@
     // ============== Page Events ============== //
 </script>
 
-<script type="text/javascript">
-
-    // create map
-    var assetMap = L
-        .map('mapid', { center: [{{ asset.latitude | replace("None", 10) }}, {{ asset.longitude | replace("None", 10) }}], zoom: 10})
-        .on('popupopen', function () {
-            $(function () {
-                $('[data-toggle="tooltip"]').tooltip();
-            });
-        });
-    addTileLayer(assetMap, '{{ mapboxAccessToken }}');
-
-    // create marker
-    var asset_icon = new L.DivIcon({
-        className: 'map-icon',
-        html: '<i class="icon-empty-marker center-icon supersize"></i><i class="overlay center-icon {{ asset.generic_asset_type.name | default("info") | asset_icon }}"></i>',
-        iconSize: [100, 100], // size of the icon
-        iconAnchor: [50, 50], // point of the icon which will correspond to marker's location
-        popupAnchor: [0, -50] // point from which the popup should open relative to the iconAnchor
-    });
-    var marker = L
-        .marker(
-            [{{ asset.latitude | replace("None", 10) }}, {{ asset.longitude | replace("None", 10) }}],
-    { icon: asset_icon }
-        ).addTo(assetMap);
-
-    assetMap.on('click', function (e) {
-        $("#latitude").val(e.latlng.lat.toFixed(4));
-        $("#longitude").val(e.latlng.lng.toFixed(4));
-        marker.setLatLng(e.latlng);
-    });
-</script>
-
-<script>
-    function Sensor(
-        id,
-        name,
-        unit,
-        resolution,
-        entity_address,
-        active
-    ) {
-        this.id = id;
-        this.name = name;
-        this.unit = unit;
-        this.resolution = resolution;
-        this.entity_address = entity_address;
-        this.url = `/sensors/${id}`;
-    }
-
-    $(document).ready(function () {
-        let unit = "";
-        // Initialize the DataTable
-        const table = $("#sensorsTable").dataTable({
-            order: [[0, "asc"]],
-            pageLength: 5,
-            lengthMenu: [5, 10, 25, 50, 75, 100],
-            serverSide: true,
-            // make the table row vertically aligned with header
-            columns: [
-                { data: "id", title: "ID", orderable: true },
-                { data: "name", title: "Name", orderable: true },
-                { data: "unit", title: "Unit", orderable: false },
-                { data: "resolution", title: "Resolution", orderable: true },
-                { data: "entity_address", title: "Entity address", orderable: false },
-                { data: "url", title: "URL", className: "d-none" },
-            ],
-
-            ajax: function (data, callback, settings) {
-                const basePath = window.location.origin;
-                let filter = data["search"]["value"];
-                let orderColumnIndex = data["order"][0]["column"]
-                let orderDirection = data["order"][0]["dir"];
-                let orderColumnName = data["columns"][orderColumnIndex]["data"];
-
-                let url = `${basePath}/api/v3_0/assets/{{asset.id}}/sensors?page=${data["start"] / data["length"] + 1
-                    }&per_page=${data["length"]}`;
-
-                if (orderColumnName) {
-                    url = `${url}&sort_by=${orderColumnName}&sort_dir=${orderDirection}`;
-                }
-
-                if (filter.length > 0) {
-                    url = `${url}&filter=${filter}`;
-                }
-
-                if (unit !== "") {
-                    url = `${url}&unit=${unit}`;
-                }
-
-
-
-                $.ajax({
-                    type: "get",
-                    url: url,
-                    success: function (response, text) {
-                        let clean_response = [];
-                        response["data"].forEach((element) =>
-                            clean_response.push(
-                                new Sensor(
-                                    element["id"],
-                                    element["name"],
-                                    element["unit"],
-                                    element["event_resolution"],
-                                    element["entity_address"],
-                                    element["active"]
-                                )
-                            )
-                        );
-
-                        callback({
-                            data: clean_response,
-                            recordsTotal: response["num-records"],
-                            recordsFiltered: response["filtered-records"],
-                        });
-                    },
-                    error: function (request, status, error) {
-                        showToast(error, "error");
-                    },
-                });
-            },
-        });
-
-
-        // Event listener for the select box
-        $("#unitFilterOptions").change(function () {
-            unit = this.value;
-            table.api().ajax.reload();
-        });
-    });
-</script>
-
-{% block paginate_tables_script %} {{ super() }} {% endblock %}
 {% endblock %}
