@@ -117,6 +117,15 @@
 
         </div>
         <div class="col-md-2">
+            <div id="chart-type-picker" class="rightside-dropdown dropdown mt-3">
+                <button class="btn dropdown-toggle" type="button" id="chartTypeDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    Select chart
+                </button>
+                <ul class="dropdown-menu center-aligned" aria-labelledby="chartTypeDropdown">
+                    <li><a class="dropdown-item" href="#" data-chart-type="chart_for_multiple_sensors">Default Asset Chart</a></li>
+                    <li><a class="dropdown-item" href="#" data-chart-type="create_chargepoint_session_chart">ChargePoints Chart</a></li>
+                </ul>
+            </div>
             <div class="replay-container">
                 <div id="replay" title="Press 'p' to play/pause/resume or 's' to stop." class="stopped"></div>
                 <div id="replay-time"></div>
