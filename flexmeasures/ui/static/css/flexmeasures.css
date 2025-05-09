@@ -128,6 +128,7 @@ button.btn:hover a {
     top: 0;
     left: 0;
     width: 100%;
+    pointer-events: none; /* Prevents the spinner from blocking clicks */
 }
 
 .legend {
