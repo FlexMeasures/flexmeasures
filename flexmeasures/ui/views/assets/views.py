@@ -97,7 +97,7 @@ class AssetCrudUI(FlaskView):
     def get(self, id: str, **kwargs):
         """/assets/<id>"""
         """
-        This is a kind of utility view that redirects to the default asset view.
+        This is a kind of utility view that redirects to the default asset view, either Context or the one saved in the user session.
         """
         default_asset_view = session.get("default_asset_view", "Context")
         return redirect(
