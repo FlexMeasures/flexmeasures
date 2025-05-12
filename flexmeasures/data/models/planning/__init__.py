@@ -44,6 +44,7 @@ class Scheduler:
     start: datetime
     end: datetime
     resolution: timedelta
+    load_resolution: timedelta
     belief_time: datetime
 
     round_to_decimals: int
@@ -74,6 +75,7 @@ class Scheduler:
         flex_model: dict | None = None,
         flex_context: dict | None = None,
         return_multiple: bool = False,
+        load_time_series: bool = True,
     ):
         """
         Initialize a new Scheduler.
@@ -113,6 +115,7 @@ class Scheduler:
         self.start = start
         self.end = end
         self.resolution = resolution
+        self.load_resolution = resolution
         self.belief_time = belief_time
         self.round_to_decimals = round_to_decimals
         if flex_model is None:
@@ -126,6 +129,7 @@ class Scheduler:
             self.info = dict(scheduler=self.__class__.__name__)
 
         self.return_multiple = return_multiple
+        self.load_time_series = load_time_series
 
     def compute_schedule(self) -> pd.Series | None:
         """

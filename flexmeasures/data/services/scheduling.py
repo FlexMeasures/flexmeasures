@@ -165,6 +165,7 @@ def trigger_optional_fallback(job, connection, type, value, traceback):
 def create_scheduling_job(
     asset_or_sensor: Asset | Sensor | None = None,
     sensor: Sensor | None = None,
+    load_time_series: bool = False,
     job_id: str | None = None,
     enqueue: bool = True,
     requeue: bool = False,
@@ -189,6 +190,7 @@ def create_scheduling_job(
 
     Arguments:
     :param asset_or_sensor:         Asset or sensor for which the schedule is computed.
+    :param load_time_series:        If True, also loads data when the job gets created. todo: does this have a practical use case?
     :param job_id:                  Optionally, set a job id explicitly.
     :param enqueue:                 If True, enqueues the job in case it is new.
     :param requeue:                 If True, requeues the job in case it is not new and had previously failed
@@ -214,6 +216,7 @@ def create_scheduling_job(
     else:
         scheduler_class: Type[Scheduler] = find_scheduler_class(asset_or_sensor)
 
+    scheduler_kwargs["load_time_series"] = load_time_series
     scheduler = get_scheduler_instance(
         scheduler_class=scheduler_class,
         asset_or_sensor=asset_or_sensor,
@@ -519,6 +522,7 @@ def make_schedule(
     if belief_time is None:
         belief_time = server_now()
 
+    scheduler_kwargs["load_time_series"] = True
     scheduler_params = dict(
         start=start,
         end=end,
