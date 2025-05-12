@@ -216,7 +216,7 @@
             {% endfor %}
             {% if breadcrumb_info["views"]|length > 0 %}
             <li class="breadcrumb-item dropdown active">
-                <a href="#" class="dropdown-toggle" data-bs-toggle="dropdown"  aria-expanded="false" role="button">{{ breadcrumb_info["views"][0]["name"] }}</a>
+                <a href="#" class="dropdown-toggle" data-bs-toggle="dropdown"  aria-expanded="false" role="button">{{ breadcrumb_info["current_asset_view"] }}</a>
                 <ul class="dropdown-menu">
                     {% for view in breadcrumb_info["views"] %}
                     <li><a  class="p-3 dropdown-item" href="{{ view['url'] }}">{{ view["name"] }}</a></li>
