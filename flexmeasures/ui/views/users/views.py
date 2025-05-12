@@ -18,7 +18,7 @@ from flexmeasures.data.services.users import (
     get_user,
 )
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
-from flexmeasures.ui.crud.api_wrapper import InternalApi
+from flexmeasures.ui.views.api_wrapper import InternalApi
 
 """
 User Crud views for admins.
@@ -35,7 +35,7 @@ def render_user(user: User | None, msg: str | None = None):
         user_view_user_auditlog = False
 
     return render_flexmeasures_template(
-        "crud/user.html",
+        "users/user.html",
         can_view_user_auditlog=user_view_user_auditlog,
         user=user,
         asset_count=user.account.number_of_assets,
@@ -90,7 +90,7 @@ class UserCrudUI(FlaskView):
         """/users"""
         include_inactive = request.args.get("include_inactive", "0") != "0"
         return render_flexmeasures_template(
-            "crud/users.html", include_inactive=include_inactive
+            "users/users.html", include_inactive=include_inactive
         )
 
     @login_required
@@ -143,6 +143,6 @@ class UserCrudUI(FlaskView):
         """
         user: User = get_user(id)
         return render_flexmeasures_template(
-            "crud/user_audit_log.html",
+            "users/user_audit_log.html",
             user=user,
         )

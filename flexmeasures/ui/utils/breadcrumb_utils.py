@@ -17,9 +17,10 @@ def get_breadcrumb_info(
     if entity is not None and isinstance(entity, Asset):
         # Add additional Views CTAs for Assets
         try:
+            breadcrumb["current_asset_view"] = current_page
             breadcrumb["views"] = [
                 {
-                    "url": url_for("AssetCrudUI:get", id=entity.id),
+                    "url": url_for("AssetCrudUI:context", id=entity.id),
                     "name": "Context",
                     "type": "Asset",
                 },
@@ -45,31 +46,10 @@ def get_breadcrumb_info(
                 },
             ]
 
-            # If a current_page is provided, reorder the breadcrumb views
-            if current_page:
-                breadcrumb["views"] = reorder_breadcrumb(
-                    breadcrumb["views"], current_page
-                )
-
         except Exception as e:
             print("Error in updating breadcrumb variables:", e)
 
     return breadcrumb
-
-
-def reorder_breadcrumb(breadcrumbs, current_page):
-    # Find the breadcrumb that matches the current_page
-    current_page_breadcrumb = next(
-        (item for item in breadcrumbs if item["name"] == current_page), None
-    )
-
-    if current_page_breadcrumb:
-        # Remove the current page breadcrumb from the list
-        breadcrumbs = [item for item in breadcrumbs if item["name"] != current_page]
-        # Insert the current page breadcrumb at index 0
-        breadcrumbs.insert(0, current_page_breadcrumb)
-
-    return breadcrumbs
 
 
 def get_ancestry(entity: Sensor | Asset | Account | None) -> list[dict]:

@@ -13,7 +13,7 @@ from flexmeasures import Asset
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.ui.crud.api_wrapper import InternalApi
+from flexmeasures.ui.views.api_wrapper import InternalApi
 from flexmeasures.utils.unit_utils import (
     is_energy_price_unit,
     is_energy_unit,

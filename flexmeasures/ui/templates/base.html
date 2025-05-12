@@ -216,13 +216,17 @@
             {% endfor %}
             {% if breadcrumb_info["views"]|length > 0 %}
             <li class="breadcrumb-item dropdown active">
-                <a href="#" class="dropdown-toggle" data-bs-toggle="dropdown"  aria-expanded="false" role="button">{{ breadcrumb_info["views"][0]["name"] }}</a>
+                <a href="#" class="dropdown-toggle" data-bs-toggle="dropdown"  aria-expanded="false" role="button">{{ breadcrumb_info["current_asset_view"] }}</a>
                 <ul class="dropdown-menu">
                     {% for view in breadcrumb_info["views"] %}
                     <li><a  class="p-3 dropdown-item" href="{{ view['url'] }}">{{ view["name"] }}</a></li>
                     {% endfor %}
                 </ul>
             </li>
+            <div class="form-check form-switch" style="margin-left: auto;">
+                <input class="form-check-input" type="checkbox" {% if breadcrumb_info["views"][0]["name"] == session.get("default_asset_view") %} checked {% endif %} id="defaultAssetView" onchange="setDefaultAssetView(this, '{{ breadcrumb_info['views'][0]['name'] }}')">
+                <label class="form-check-label" for="defaultAssetView">Set as my default asset view</label>
+            </div>
             {% endif %}
         </ol>
     </nav>
@@ -785,6 +789,31 @@
                 $("[rel=tooltip]").tooltip();
             }
         });
+    </script>
+
+    <script>
+        // Set default asset view
+        function setDefaultAssetView(checkbox, view_name) {
+            // Get the checked status of the checkbox
+            const isChecked = checkbox.checked;
+
+            const apiBasePath = window.location.origin;
+            fetch(apiBasePath + '/api/v3_0/assets/default_asset_view', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}',
+                },
+                body: JSON.stringify({
+                    default_asset_view: view_name,
+                    use_as_default: isChecked
+                })
+            })
+            .then(response => response.json())
+            .catch(error => {
+                console.error('Error during API call:', error);
+            });
+        }
     </script>
 
     <!-- JS to enable toast -->
