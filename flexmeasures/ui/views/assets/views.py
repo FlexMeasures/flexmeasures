@@ -94,9 +94,25 @@ class AssetCrudUI(FlaskView):
         )
 
     @login_required
-    # @route("/<id>/context")
     def get(self, id: str, **kwargs):
         """/assets/<id>"""
+        """
+        This is a kind of utility view that redirects to the default asset view, either Context or the one saved in the user session.
+        """
+        default_asset_view = session.get("default_asset_view", "Context")
+        return redirect(
+            url_for(
+                "AssetCrudUI:{}".format(default_asset_view.replace(" ", "").lower()),
+                id=id,
+                **kwargs,
+            )
+        )
+
+    @login_required
+    @route("/<id>/context")
+    def context(self, id: str, **kwargs):
+        """/assets/<id>/context"""
+        # Get default asset view
         parent_asset_id = request.args.get("parent_asset_id", "")
         if id == "new":
             if not user_can_create_assets():
@@ -182,6 +198,7 @@ class AssetCrudUI(FlaskView):
             "sensors/status.html",
             asset=asset,
             sensors=status_data,
+            current_page="Status",
         )
 
     @login_required
@@ -327,7 +344,7 @@ class AssetCrudUI(FlaskView):
         return render_flexmeasures_template(
             "assets/asset_graph.html",
             asset=asset,
-            current_page="Graph",
+            current_page="Graphs",
         )
 
     @login_required

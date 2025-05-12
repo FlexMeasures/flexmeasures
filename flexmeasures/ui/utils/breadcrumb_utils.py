@@ -20,7 +20,7 @@ def get_breadcrumb_info(
             breadcrumb["current_asset_view"] = current_page
             breadcrumb["views"] = [
                 {
-                    "url": url_for("AssetCrudUI:get", id=entity.id),
+                    "url": url_for("AssetCrudUI:context", id=entity.id),
                     "name": "Context",
                     "type": "Asset",
                 },
