@@ -788,7 +788,6 @@ class AssetAPI(FlaskView):
         }, 200
 
     @route("/default_asset_view", methods=["POST"])
-    @permission_required_for_context("update", ctx_loader=AccountIdField.load_current)
     @as_json
     @use_kwargs(
         {
