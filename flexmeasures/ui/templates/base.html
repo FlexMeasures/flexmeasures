@@ -201,7 +201,7 @@
               {% if breadcrumb["url"] is not none and not loop.last %}
                 <a href="{{ breadcrumb['url'] }}">{{ breadcrumb['name'] }}</a>
               {% else %}
-                {% if breadcrumb_info["siblings"]|length > 0 %}
+                {% if breadcrumb_info["siblings"]|length > 0 and breadcrumb['name']|lower != 'public' %}
                 <a href="{{ breadcrumb['url'] }}" class="dropdown-toggle" data-bs-toggle="dropdown"  aria-expanded="false" role="button">{{ breadcrumb['name'] }}</a>
                 <ul class="dropdown-menu">
                     {% for sibling in breadcrumb_info["siblings"] %}
