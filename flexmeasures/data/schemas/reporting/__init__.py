@@ -25,7 +25,7 @@ class ReporterParametersSchema(Schema):
     input = fields.List(
         fields.Nested(Input()),
         required=True,
-        validator=validate.Length(min=1),
+        validate=validate.Length(min=1),
     )
 
     output = fields.List(fields.Nested(Output()), validate=validate.Length(min=1))

@@ -37,21 +37,21 @@ class AccountSchema(ma.SQLAlchemySchema):
     consultancy_account_id = ma.auto_field()
 
     @validates("primary_color")
-    def validate_primary_color(self, value):
+    def validate_primary_color(self, value, **kwargs):
         try:
             validate_color_hex(value)
         except ValueError as e:
             raise FMValidationError(str(e))
 
     @validates("secondary_color")
-    def validate_secondary_color(self, value):
+    def validate_secondary_color(self, value, **kwargs):
         try:
             validate_color_hex(value)
         except ValueError as e:
             raise FMValidationError(str(e))
 
     @validates("logo_url")
-    def validate_logo_url(self, value):
+    def validate_logo_url(self, value, **kwargs):
         try:
             validate_url(value)
         except ValueError as e:
