@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from flexmeasures.auth.policy import user_matches_principals
+from flexmeasures.auth.policy import user_matches_principals, can_modify_role
 
 
 class MockAccount:
@@ -95,3 +95,16 @@ def make_mock_user(
 )
 def test_principals_match(mock_user, principals, should_match):
     assert user_matches_principals(mock_user, principals) == should_match
+
+
+@pytest.mark.parametrize(
+    "mock_user, roles_to_modify, can_modify_roles",
+    [
+        (make_mock_user(19, ["admin"], 1, []), [3, 4], True),  # admin mock user
+        (make_mock_user(19, ["consultant"], 1, []), [3], False),  # consultant mock user
+    ],
+)
+def test_can_modify_role(
+    db, setup_roles_users, mock_user, roles_to_modify, can_modify_roles
+):
+    assert can_modify_role(mock_user, roles_to_modify) == can_modify_roles

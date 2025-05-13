@@ -217,6 +217,12 @@ def can_modify_role(user, roles_to_modify) -> bool:
     statuses = []
 
     for role in roles_to_modify:
+
+        if isinstance(role, int):
+            from flexmeasures.data.models.user import Role
+
+            role = Role.query.get(role)
+
         if not role:
             statuses.append(False)
             continue

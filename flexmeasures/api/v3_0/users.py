@@ -242,7 +242,7 @@ class UserAPI(FlaskView):
         .. :quickref: User; Patch data for an existing user
 
         This endpoint sets data for an existing user.
-        It has to be used by the user themselves, admins or account-admins (of the same account).
+        It has to be used by the user themselves, admins, consultant or account-admins (of the same account).
         Any subset of user fields can be sent.
         If the user is not an (account-)admin, they can only edit a few of their own fields.
 
@@ -303,6 +303,12 @@ class UserAPI(FlaskView):
                 if can_modify is False:
                     raise Forbidden(
                         "You are not allowed to modify the roles of this user."
+                    )
+
+                can_modify_new_roles = can_modify_role(current_user, v)
+                if can_modify_new_roles is False:
+                    raise Forbidden(
+                        "You are not allowed to assign the new roles to this user."
                     )
 
             setattr(user, k, v)

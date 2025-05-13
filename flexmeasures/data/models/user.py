@@ -265,12 +265,16 @@ class User(db.Model, UserMixin, AuthModelMixin):
             "update": [
                 f"user:{self.id}",
                 (f"account:{self.account_id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
+                (
+                    f"account:{self.account.consultancy_account_id}",
+                    f"role:{CONSULTANT_ROLE}",
+                ),
             ],
         }
 
     @property
     def is_authenticated(self) -> bool:
-        """We are overloading this, so it also considers being active.
+        """We are overloading this, so it also considers being active.gbm
         Inactive users can by definition not be authenticated."""
         return super(UserMixin, self).is_authenticated and self.active
 
