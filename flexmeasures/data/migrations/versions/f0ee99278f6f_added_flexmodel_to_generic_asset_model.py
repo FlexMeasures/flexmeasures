@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import JSONB
 
 from collections import defaultdict
 
@@ -146,25 +145,7 @@ def upgrade():
     for field_spec in fields_specs:
         old_name = field_spec["old_field_name"]
         new_name = field_spec["new_field_name"]
-
-        # Check if the key exist on any asset's attributes and move that into the asset's flex_model
-        # This is to ensure that the flex_model is not empty in the edge case where the asset has no
-        # sensors or has no sensors using the field/key
-        asset_result = conn.execute(
-            sa.select(
-                generic_asset_table.c.id,
-                generic_asset_table.c.attributes,
-                generic_asset_table.c.flex_model,
-            ).where(
-                sa.func.jsonb_path_exists(
-                    sa.cast(generic_asset_table.c.attributes, JSONB),
-                    f'$."flex-model"."{new_name}"',
-                )
-                | sa.cast(generic_asset_table.c.attributes, JSONB).has_key(old_name)
-            )
-        )
-
-        affected_assets = asset_result.fetchall()
+        affected_assets = list(field_spec["grouped"].keys())
 
         for asset in affected_assets:
             asset_id = asset.id
