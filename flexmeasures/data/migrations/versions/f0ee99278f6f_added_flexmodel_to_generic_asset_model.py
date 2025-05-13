@@ -132,7 +132,7 @@ def upgrade():
 
 def downgrade():
     with op.batch_alter_table("generic_asset", schema=None) as batch_op:
-        generic_asset_table = sa.Table(
+        asset_table = sa.Table(
             "generic_asset",
             sa.MetaData(),
             sa.Column("id", sa.Integer, primary_key=True),
@@ -144,9 +144,9 @@ def downgrade():
         conn = op.get_bind()
         result = conn.execute(
             sa.select(
-                generic_asset_table.c.id,
-                generic_asset_table.c.flex_model,
-                generic_asset_table.c.attributes,
+                asset_table.c.id,
+                asset_table.c.flex_model,
+                asset_table.c.attributes,
             )
         )
         generic_assets = result.fetchall()
@@ -188,8 +188,8 @@ def downgrade():
 
                 # Update the generic asset attributes
                 stmt = (
-                    generic_asset_table.update()
-                    .where(generic_asset_table.c.id == asset_id)
+                    asset_table.update()
+                    .where(asset_table.c.id == asset_id)
                     .values(attributes=asset_attrs)
                 )
                 conn.execute(stmt)
