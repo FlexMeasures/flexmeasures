@@ -60,19 +60,20 @@ def group_sensors_by_field(sensors, conn, generic_asset_table) -> list[dict]:
             )
 
         sensor_attrs = sensor.attributes or {}
-        asset_flex_model = sensor_generic_asset.attributes.get("flex-model", {})
+        asset_attrs = sensor_generic_asset.attributes or {}
 
         for field_spec in field_specs:
             old_field_name = field_spec["old_field_name"]
 
             # check if old_field_name exist on both attributes on sensor and asset
             sensor_val = sensor_attrs.get(old_field_name)
-            asset_val = asset_flex_model.get(old_field_name)
+            asset_val = asset_attrs.get(old_field_name)
 
             if sensor_val is not None and asset_val is not None:
                 if sensor_val != asset_val:
                     raise Exception(
-                        f"Value mismatch for '{old_field_name}' in sensor {sensor.id}: sensor={sensor_val}, asset={asset_val}"
+                        f"Value mismatch for '{old_field_name}' in sensor {sensor.id}: sensor={sensor_val}, asset={asset_val}. "
+                        f"Please file a GitHub Issue describing your situation."
                     )
 
             # check if old_field_name exist on sensor attributes
