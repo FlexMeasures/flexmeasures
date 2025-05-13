@@ -20,7 +20,7 @@ from flexmeasures.data.models.audit_log import AuditLog
     indirect=["requesting_user"],
 )
 def test_user_reset_password(
-    db, app, client, setup_inactive_user, requesting_user, status_code
+    fresh_db, app, client, setup_inactive_user_fresh_db, requesting_user, status_code
 ):
     """
     Reset the password of User 2.
@@ -40,7 +40,7 @@ def test_user_reset_password(
         if status_code != 200:
             return
 
-        assert db.session.execute(
+        assert fresh_db.session.execute(
             select(AuditLog).filter_by(
                 affected_user_id=user2.id,
                 event=f"Password reset for user {user2.username}",
