@@ -5,23 +5,24 @@ Assets & sensor data
 *********************
 
 Asset page
-------------
+----------
 
-The asset page is divided into different sections. The default selection is the "Context" tab, which shows the structure and location of the asset.
+The asset page is divided into different sections. The default selection is the "Context" tab, On the context page, you can do the following:
 
-This page also contains the list of the sensors associated with the asset. That can be viewed by clicking on the "Show sensors" button.
+- See the structure and location of the asset.
 
-Another option we have on the asset page is the button to edit flex-context.
+- The list of the sensors associated with the asset. Click the "Show sensors" button to view.
 
-Another option that we have on this page is to add child asset for the current selected asset.
+- Click "Edit flex-context" to edit the flex-context of the asset.
 
-You can also set a given page as default by clicking the checkbox on the top right of the page.
+- Click the "Add child asset" button to add a child to the current asset.
+
+- Set a given page as default by clicking the checkbox on the top right of the page.
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_asset_context.png
     :align: center
 ..    :scale: 40%
 
-|
 |
 
 
@@ -33,33 +34,34 @@ The sensors associated with the asset are shown in a list.
     :align: center
 ..   :scale: 40%
 
+|
+
 
 Editing an asset's flex-context
-=========================
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-|
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot-asset-editflexcontext.png
     :align: center
 ..    :scale: 40%
-|
 
-Per asset, you can set fields in :ref:the flex-context <flex_context>, which will influence how scheduling works on this asset. The flex context dialogue allows you to define either fixed values or sensors (for dynamic values / time series). Initially, no fields are set.
 
-Overview
---------
+Per asset, you can set fields in :ref:`the flex-context <flex_context>`, which will influence how scheduling works on this asset. The flex context dialogue allows you to define either fixed values or sensors (for dynamic values / time series). Initially, no fields are set.
+
+Flex context overview
+^^^^^^^^^^^^^^^^^^^^^
 
 * **Left Panel:** Displays a list of currently configured fields.
 * **Right Panel:** Shows details of the selected field and provides a form to modify its value.
 
 Adding a field
---------------
+^^^^^^^^^^^^^^
 
 1.  **Select Field:** Choose the desired field from the dropdown menu in the top right corner of the modal.
 2.  **Add Field:** Click the "Add Field" button next to the dropdown.
 3.  The field will be added to the list in the left panel.
 
 Setting a field value
-----------------------
+^^^^^^^^^^^^^^^^^^^^^
 
 1.  **Select Field (if it is not selected yet):** Click on the field in the left panel.
 2.  **Set Value:** In the right panel, use the provided form to set the field's value.
@@ -69,20 +71,19 @@ Setting a field value
 
 |
 
-
 Graphs page
-^^^^^^^^^^^
+-----------
 
-The graph page is a separate page that shows the graphs associated with the asset.
+The graph page is a separate page that shows data (measurements/forecasts) which are relevant to the asset.
 
-|
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_asset_graphs.png
     :align: center
 ..    :scale: 40%
+
 |
 
 Sensors to show on a graph
-^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Click the "Edit Graph" button to open the graph editor.
 
@@ -100,7 +101,7 @@ Internally, the asset has a `sensors_to_show`` field, which controls which senso
 
 
 Properties page
-^^^^^^^^^^^^^^^
+---------------
 
 The properties page allows you to view and edit the properties of the asset.
 
@@ -110,19 +111,21 @@ You can also delete the asset by clicking on the "Delete this asset" button.
     :align: center
 ..    :scale: 40%
 
+|
 
 Status page
-^^^^^^^^^^^^
+-----------
 
 For each asset, you can also visit a status page to see if your data connectivity and recent jobs are okay. At the moment, all sensors on the asset and from its flex context are tracked. Below is a fictious example, where the toy battery (from our tutorial) has schedules discharging data, but also some added by a user, and wind production data is part of the battery's flex context. There have been three succesful scheduling jobs.
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/screenshot_building_status.png
     :align: center
 ..    :scale: 40%
-
+ 
+|
 
 Audit log 
-^^^^^^^^^
+---------
 
 The audit log lets you see who made what changes to the asset over time. 
 This is how the audit log looks for the history of actions taken on an asset:
@@ -131,9 +134,10 @@ This is how the audit log looks for the history of actions taken on an asset:
     :align: center
 ..    :scale: 40%
 
+|
 
 Sensor page
--------------
+-----------
 
 Each sensor also has its own page:
 
