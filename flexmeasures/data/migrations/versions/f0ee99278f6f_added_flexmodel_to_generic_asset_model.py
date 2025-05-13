@@ -159,18 +159,9 @@ def upgrade():
                     f"Invalid value for '{old_name}' in generic asset {asset_id}: {flex_model_data[old_name]}"
                 )
 
-            if old_name[-6:] == "in_mwh":
-                # convert from float (in MWh) to string (in kWh)
-                value_in_kwh = flex_model_data[old_name] * 1000
-                flex_model_data[new_name] = f"{value_in_kwh} kWh"
-            elif old_name[-6:] == "in_mw":
-                # convert from float (in MW) to string (in kW)
-                value_in_kw = flex_model_data[old_name] * 1000
-                flex_model_data[new_name] = f"{value_in_kw} kW"
-            else:
-                # move as is
-                value = flex_model_data[old_name]
-                flex_model_data[new_name] = value
+            flex_model_data[new_name] = migrate_value(
+                old_name, flex_model_data[old_name]
+            )
 
             # Update the generic asset attributes to remove 'old_name' and add 'new_name' to flex_model
             asset_attr_flex_model.pop(new_name, None)
@@ -298,3 +289,18 @@ def downgrade():
         batch_op.drop_column("flex_model")
 
     # ### end Alembic commands ###
+
+
+def migrate_value(old_field_name, old_value):
+    """Depending on the old field name, some values should still be turned into string quantities."""
+    if old_field_name[-6:] == "in_mwh":
+        # convert from float (in MWh) to string (in kWh)
+        value_in_kwh = old_value * 1000
+        return f"{value_in_kwh} kWh"
+    elif old_field_name[-6:] == "in_mw":
+        # convert from float (in MW) to string (in kW)
+        value_in_kw = old_value * 1000
+        return f"{value_in_kw} kW"
+    else:
+        # move as is
+        return old_value
