@@ -274,7 +274,7 @@ class User(db.Model, UserMixin, AuthModelMixin):
 
     @property
     def is_authenticated(self) -> bool:
-        """We are overloading this, so it also considers being active.gbm
+        """We are overloading this, so it also considers being active.
         Inactive users can by definition not be authenticated."""
         return super(UserMixin, self).is_authenticated and self.active
 
