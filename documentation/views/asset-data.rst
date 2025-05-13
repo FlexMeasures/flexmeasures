@@ -7,12 +7,17 @@ Assets & sensor data
 Asset page
 ------------
 
-The asset page allows to plot data from the asset's sensors, show sensors and child assets and also to edit attributes of the asset, like its location.
+The asset page is divided into different sections. The default selection is the "Context" tab, which shows the structure and location of the asset.
 
-For instance, in the picture below we include a price sensor from a public asset, then plot the asset's only sensor below that.
+This page also contains the list of the sensors associated with the asset. That can be viewed by clicking on the "Show sensors" button.
 
+Another option we have on the asset page is the button to edit flex-context.
 
-.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_asset.png
+Another option that we have on this page is to add child asset for the current selected asset.
+
+You can also set a given page as default by clicking the checkbox on the top right of the page.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_asset_context.png
     :align: center
 ..    :scale: 40%
 
@@ -20,26 +25,13 @@ For instance, in the picture below we include a price sensor from a public asset
 |
 
 
-The asset page as data dashboard
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Show sensors
+^^^^^^^^^^^^
+The sensors associated with the asset are shown in a list. 
 
-The data charts are maybe the most interesting feature - they form your own data dashboard. When the most interesting sensors are shown, the replay button on the right creates a very meaningful dynamic insight!
-
-
-Sensors to show on a graph
-^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Use the "Add Graph" button to create graphs. For each graph, you can select one or more sensors, from all available sensors associated with the asset, including public sensors, and add them to your plot.  
-
-You can overlay data from multiple sensors on a single graph. To do this, click on an existing plot and add more sensors from the available options on the right. 
-
-Finally, it is possible to set custom titles for any sensor graph by clicking on the "edit" button right next to the default or current title.
-
-.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot-asset-editgraph.png
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_asset_sensors.png
     :align: center
-..    :scale: 40%
-
-Internally, the asset has a `sensors_to_show`` field, which controls which sensor data appears in the plot. This can also be set by a script. The accepted format is a dictionary with a graph title and a lists of sensor IDs (e.g. `[{"title": "Power", "sensor": 2}, {"title": "Costs", "sensors": [5,6] }]`). 
+..   :scale: 40%
 
 
 Editing an asset's flex-context
@@ -76,6 +68,47 @@ Setting a field value
     * Other fields may accept either a sensor or a fixed value.
 
 |
+
+
+Graphs page
+^^^^^^^^^^^
+
+The graph page is a separate page that shows the graphs associated with the asset.
+
+|
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_asset_graphs.png
+    :align: center
+..    :scale: 40%
+|
+
+Sensors to show on a graph
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Click the "Edit Graph" button to open the graph editor.
+
+Use the "Add Graph" button to create graphs. For each graph, you can select one or more sensors, from all available sensors associated with the asset, including public sensors, and add them to your plot.  
+
+You can overlay data from multiple sensors on a single graph. To do this, click on an existing plot and add more sensors from the available options on the right. 
+
+Finally, it is possible to set custom titles for any sensor graph by clicking on the "edit" button right next to the default or current title.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot-asset-editgraph.png
+    :align: center
+..    :scale: 40%
+
+Internally, the asset has a `sensors_to_show`` field, which controls which sensor data appears in the plot. This can also be set by a script. The accepted format is a dictionary with a graph title and a lists of sensor IDs (e.g. `[{"title": "Power", "sensor": 2}, {"title": "Costs", "sensors": [5,6] }]`).
+
+
+Properties page
+^^^^^^^^^^^^^^^
+
+The properties page allows you to view and edit the properties of the asset.
+
+You can also delete the asset by clicking on the "Delete this asset" button.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_asset_properties.png
+    :align: center
+..    :scale: 40%
 
 
 Status page
