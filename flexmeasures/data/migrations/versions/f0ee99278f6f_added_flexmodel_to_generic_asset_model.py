@@ -6,6 +6,8 @@ Create Date: 2025-04-15 11:00:13.154048
 
 """
 
+from __future__ import annotations
+
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
@@ -26,7 +28,7 @@ FLEX_MODEL_FIELDS = dict(
 )
 
 
-def group_sensors_by_field(sensors, conn, generic_asset_table):
+def group_sensors_by_field(sensors, conn, generic_asset_table) -> list[dict]:
     """
     This function groups sensors by flexmodel fields (using the old field names) and checks for value mismatches.
     """
