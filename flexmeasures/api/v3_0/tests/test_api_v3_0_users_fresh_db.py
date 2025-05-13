@@ -72,7 +72,7 @@ def test_user_reset_password(
 )
 def test_user_role_modification_permission(
     client,
-    setup_api_fresh_test_data,
+    setup_roles_users_fresh_db,
     requesting_user,
     expected_status_code,
     user_to_update,
