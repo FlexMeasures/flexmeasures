@@ -226,7 +226,7 @@
                 </ul>
             </li>
             <div class="form-check form-switch" style="margin-left: auto;">
-                <input class="form-check-input" type="checkbox" {% if breadcrumb_info["views"][0]["name"] == session.get("default_asset_view") %} checked {% endif %} id="defaultAssetView" onchange="setDefaultAssetView(this, '{{ breadcrumb_info['views'][0]['name'] }}')">
+                <input class="form-check-input" type="checkbox" {% if breadcrumb_info['current_asset_view'] == session.get("default_asset_view") %} checked {% endif %} id="defaultAssetView" onchange="setDefaultAssetView(this, '{{ breadcrumb_info["current_asset_view"] }}')">
                 <label class="form-check-label" for="defaultAssetView">Set as my default asset view</label>
             </div>
             {% endif %}
