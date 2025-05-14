@@ -273,6 +273,18 @@ class SensorAPI(FlaskView):
     @route("<id>/data/upload", methods=["POST"])
     @path_and_files(SensorDataFileSchema)
     def upload_data(self, data: list[tb.BeliefsDataFrame], **kwargs):
+        """
+        Upload a file containing sensor data to be stored in FlexMeasures.
+
+        The payload should be a file containing sensor data in CSV format.
+        The file should have columns for a timestamp (event_start) and a value (event_value).
+        The timestamp should be in ISO 8601 format.
+        The value should be a numeric value.
+
+        :param data: A list of BeliefsDataFrames, where each DataFrame represents the data for one sensor
+        :param kwargs: Additional keyword arguments which are passed to the SensorDataFileSchema
+        :return: A response and status code
+        """
         response, code = save_and_enqueue(data)
         return response, code
 
