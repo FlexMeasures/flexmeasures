@@ -200,12 +200,14 @@
             <li class="breadcrumb-item{% if loop.last %} dropdown active{% endif %}" {% if loop.last %}aria-current="page"{% endif %}>
               {% if breadcrumb["url"] is not none and not loop.last %}
                 <a href="{{ breadcrumb['url'] }}">{{ breadcrumb['name'] }}</a>
+              {% elif breadcrumb["url"] is none %}
+                {{ breadcrumb['name'] }}
               {% else %}
                 {% if breadcrumb_info["siblings"]|length > 0 %}
                 <a href="{{ breadcrumb['url'] }}" class="dropdown-toggle" data-bs-toggle="dropdown"  aria-expanded="false" role="button">{{ breadcrumb['name'] }}</a>
                 <ul class="dropdown-menu">
                     {% for sibling in breadcrumb_info["siblings"] %}
-                    <li><a  class="p-3 dropdown-item" href="{{ sibling['url'] }}">{{ sibling["name"] }}</a></li>
+                    <li><a class="p-3 dropdown-item {% if sibling['name'] == breadcrumb['name'] %}active{% endif %}" href="{{ sibling['url'] }}">{{ sibling["name"] }}</a></li>
                     {% endfor %}
                 </ul>
                 {% else %}
@@ -219,7 +221,7 @@
                 <a href="#" class="dropdown-toggle" data-bs-toggle="dropdown"  aria-expanded="false" role="button">{{ breadcrumb_info["current_asset_view"] }}</a>
                 <ul class="dropdown-menu">
                     {% for view in breadcrumb_info["views"] %}
-                    <li><a  class="p-3 dropdown-item" href="{{ view['url'] }}">{{ view["name"] }}</a></li>
+                    <li><a class="p-3 dropdown-item {% if view['name'] == breadcrumb_info['current_asset_view'] %}active{% endif %}" href="{{ view['url'] }}">{{ view["name"] }}</a></li>
                     {% endfor %}
                 </ul>
             </li>
