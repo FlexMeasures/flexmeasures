@@ -15,7 +15,7 @@ from flask_security import auth_required, current_user
 from marshmallow import fields, ValidationError
 import marshmallow.validate as validate
 from rq.job import Job, NoSuchJobError
-from timely_beliefs import BeliefsDataFrame
+import timely_beliefs as tb
 from webargs.flaskparser import use_args, use_kwargs
 from sqlalchemy import delete, select, or_
 
@@ -43,11 +43,16 @@ from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.queries.utils import simplify_index
-from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField
+from flexmeasures.data.schemas.sensors import (
+    SensorSchema,
+    SensorIdField,
+    SensorDataFileSchema,
+)
+from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
+from flexmeasures.data.schemas.utils import path_and_files
 from flexmeasures.data.schemas import AssetIdField
 from flexmeasures.api.common.schemas.search import SearchFilterField
 from flexmeasures.api.common.schemas.sensors import UnitField
-from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
 from flexmeasures.data.services.sensors import get_sensor_stats
 from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
@@ -265,6 +270,12 @@ class SensorAPI(FlaskView):
             }
             return response, 200
 
+    @route("<id>/data/upload", methods=["POST"])
+    @path_and_files(SensorDataFileSchema)
+    def upload_data(self, data: list[tb.BeliefsDataFrame], **kwargs):
+        response, code = save_and_enqueue(data)
+        return response, code
+
     @route("/data", methods=["POST"])
     @use_args(
         post_sensor_schema,
@@ -276,7 +287,7 @@ class SensorAPI(FlaskView):
         ctx_loader=lambda bdf: bdf.sensor,
         pass_ctx_to_loader=True,
     )
-    def post_data(self, bdf: BeliefsDataFrame):
+    def post_data(self, bdf: tb.BeliefsDataFrame):
         """
         Post sensor data to FlexMeasures.
 

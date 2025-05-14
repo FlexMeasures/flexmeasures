@@ -1,6 +1,12 @@
+import functools
+
 import click
 import marshmallow as ma
+from webargs.flaskparser import parser, use_kwargs
+from webargs.multidictproxy import MultiDictProxy
+from werkzeug.datastructures import MultiDict
 from click import get_current_context
+from flask import Request
 from flask.cli import with_appcontext as with_cli_appcontext
 from pint import DefinitionSyntaxError, DimensionalityError, UndefinedUnitError
 
@@ -73,3 +79,16 @@ def convert_to_quantity(value: str, to_unit: str) -> ur.Quantity:
         raise FMValidationError(
             f"Cannot convert value '{value}' to a valid quantity. {e}"
         )
+
+
+@parser.location_loader("path_and_files")
+def load_data_from_path_and_files(request: Request, schema):
+    """Load data from two locations: path (request.view_args) and files."""
+    data = MultiDict(request.view_args)  # path variables
+    data.update(request.files)
+    return MultiDictProxy(data, schema)
+
+
+query = functools.partial(use_kwargs, location="query")
+body = functools.partial(use_kwargs, location="json")
+path_and_files = functools.partial(use_kwargs, location="path_and_files")

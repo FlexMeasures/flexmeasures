@@ -4,14 +4,19 @@ import numbers
 from pytz.exceptions import UnknownTimeZoneError
 
 from flask import current_app
+from flask_security import current_user
 from marshmallow import (
     Schema,
-    fields,
-    validate,
-    validates,
     ValidationError,
+    fields,
+    post_load,
+    validates,
     validates_schema,
 )
+import marshmallow.validate as validate
+from pandas.api.types import is_numeric_dtype
+import timely_beliefs as tb
+from werkzeug.datastructures import FileStorage
 from marshmallow.validate import Validator
 
 import json
@@ -434,3 +439,69 @@ class TimeSeriesOrSensor(VariableQuantityField):
             "Class `TimeSeriesOrSensor` is deprecated. Use `VariableQuantityField` instead."
         )
         super().__init__(return_magnitude=True, *args, **kwargs)
+
+
+class SensorDataFileSchema(Schema):
+    uploaded_files = fields.List(
+        fields.Field(metadata={"type": "string", "format": "byte"}),
+        data_key="uploaded-files",
+    )
+    sensor = SensorIdField(data_key="id")
+
+    _valid_content_types = {"text/csv", "text/plain", "text/x-csv"}
+
+    @validates("uploaded_files")
+    def validate_uploaded_files(self, files: list[FileStorage]):
+        """Validate the deserialized fields."""
+        errors = {}
+        for i, file in enumerate(files):
+            file_errors = []
+            if not isinstance(file, FileStorage):
+                file_errors += [
+                    f"Invalid content: {file}. Only CSV files are accepted."
+                ]
+            if file.filename == "":
+                file_errors += ["Filename is missing."]
+            elif file.filename[-4:].lower() != ".csv":
+                file_errors += [
+                    f"Invalid filename: {file.filename}. File extension should be '.csv'."
+                ]
+            if file.content_type not in self._valid_content_types:
+                file_errors += [
+                    f"Invalid content type: {file.content_type}. Only the following content types are accepted: {self._valid_content_types}."
+                ]
+            if file_errors:
+                errors[i] = file_errors
+        if errors:
+            raise ValidationError(errors)
+
+    @post_load
+    def post_load(self, fields, **kwargs):
+        """Process the deserialized and validated fields.
+        Remove the 'sensor' and 'files' fields, and add the 'data' field containing a list of BeliefsDataFrames.
+        """
+        sensor = fields.pop("sensor")
+        dfs = []
+        files: list[FileStorage] = fields.pop("uploaded_files")
+        errors = {}
+        for i, file in enumerate(files):
+            try:
+                df = tb.read_csv(
+                    file,
+                    sensor,
+                    source=current_user.data_source[0],
+                    belief_time=pd.Timestamp.utcnow(),
+                    resample=True,
+                )
+                assert is_numeric_dtype(
+                    df["event_value"]
+                ), "event values should be numeric"
+                dfs.append(df)
+            except Exception as e:
+                errors[i] = (
+                    f"Invalid content in file: {file.filename}. Failed with: {str(e)}"
+                )
+        if errors:
+            raise ValidationError(errors)
+        fields["data"] = dfs
+        return fields

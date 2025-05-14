@@ -177,7 +177,7 @@ class AssetCrudUI(FlaskView):
         check_access(asset, "create-children")
 
         return render_flexmeasures_template(
-            "assets/sensor_new.html",
+            "sensors/sensor_new.html",
             asset=asset,
             available_units=available_units(),
         )
